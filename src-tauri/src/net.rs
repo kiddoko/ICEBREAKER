@@ -14,18 +14,26 @@ fn encode(s: &str) -> String {
         .collect()
 }
 
-/// Google News RSS: top stories for a language/country, or a search (city, topic…).
+/// News RSS: Google News (top stories, or a search) or Bing News (a search,
+/// with a short summary per article and the direct link).
 #[tauri::command]
-pub async fn news_rss(query: String, lang: String, country: String) -> Result<String, String> {
+pub async fn news_rss(query: String, lang: String, country: String, provider: Option<String>) -> Result<String, String> {
     let clean = |s: &str, n: usize| s.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').take(n).collect::<String>();
     let (lang, country) = (clean(&lang, 5), clean(&country, 2).to_uppercase());
     let (lang, country) = (if lang.is_empty() { "en".into() } else { lang }, if country.is_empty() { "US".into() } else { country });
-    let base = if query.trim().is_empty() {
+    let bing = provider.as_deref() == Some("bing") && !query.trim().is_empty();
+    let base = if bing {
+        format!("https://www.bing.com/news/search?q={}&format=rss&", encode(query.trim()))
+    } else if query.trim().is_empty() {
         "https://news.google.com/rss?".to_string()
     } else {
         format!("https://news.google.com/rss/search?q={}&", encode(query.trim()))
     };
-    let url = format!("{base}hl={lang}&gl={country}&ceid={country}:{lang}");
+    let url = if bing {
+        format!("{base}setlang={lang}&cc={country}")
+    } else {
+        format!("{base}hl={lang}&gl={country}&ceid={country}:{lang}")
+    };
     tauri::async_runtime::spawn_blocking(move || {
         let mut cmd = Command::new("curl");
         cmd.args(["-sSL", "--max-time", "12", "--proto", "=https", &url]);

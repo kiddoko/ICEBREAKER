@@ -64,7 +64,7 @@ export interface Platform {
   envApiKey(): Promise<string | null>;
   /** The local Claude Code CLI (desktop only). Runs on the user's Claude plan instead of an API key. */
   /** Google News RSS (desktop only — feeds have no CORS). */
-  newsRss?(query: string, lang: string, country: string): Promise<string>;
+  newsRss?(query: string, lang: string, country: string, provider?: "google" | "bing"): Promise<string>;
   /** Open an https link in the default browser (desktop only). */
   openUrl?(url: string): Promise<void>;
   claudeCode?: {

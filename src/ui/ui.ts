@@ -14,6 +14,13 @@ export interface Hit {
   /** Called on mouse moves while the button is held after a click on this area. */
   onDrag?: (m: MouseInput) => void;
   onWheel?: (delta: number) => void;
+  /**
+   * The shell command this click runs. It's echoed in the shell, so clicking
+   * around teaches the command line. Hovering shows it in a tooltip.
+   */
+  cmd?: string;
+  /** Hover tooltip text (shortcuts, what it does). */
+  tip?: string;
 }
 
 const BORDERS = {
@@ -198,14 +205,14 @@ export class UI {
   }
 
   /** Clickable "[ label ]" button. Returns its width. */
-  button(x: number, y: number, label: string, onClick: () => void, o: { selected?: boolean; accent?: RGB } = {}): number {
+  button(x: number, y: number, label: string, onClick: () => void, o: { selected?: boolean; accent?: RGB; cmd?: string; tip?: string } = {}): number {
     const s = ` ${label} `;
     const w = strWidth(s);
     const rect = { x, y, w, h: 1 };
     const hot = o.selected || this.hovered(rect);
     const accent = o.accent ?? this.c.accent;
     this.text(x, y, s, hot ? { fg: this.c.panel, bg: accent, attrs: BOLD } : { fg: accent, bg: this.c.highlight });
-    this.hit(rect, { onClick: () => onClick() });
+    this.hit(rect, o.cmd ? { cmd: o.cmd, tip: o.tip } : { onClick: () => onClick(), tip: o.tip });
     return w;
   }
 
@@ -264,7 +271,12 @@ export class UI {
   // ── mouse ────────────────────────────────────────────────────────────────
 
   hit(rect: Rect, h: Omit<Hit, "rect">): void {
-    this.hits.push({ rect, ...h });
+    // only the visible part is clickable (scrolled / clipped content)
+    const c = this.grid.clip;
+    const x = Math.max(c.x, rect.x), y = Math.max(c.y, rect.y);
+    const w = Math.min(c.x + c.w, rect.x + rect.w) - x, hh = Math.min(c.y + c.h, rect.y + rect.h) - y;
+    if (w <= 0 || hh <= 0) return;
+    this.hits.push({ rect: { x, y, w, h: hh }, ...h });
   }
 
   hovered(r: Rect): boolean {
@@ -286,6 +298,11 @@ export class UI {
 function brailleBit(col: number, row: number): number {
   if (row === 3) return col === 0 ? 0x40 : 0x80;
   return 1 << (col * 3 + row);
+}
+
+/** Quote a shell argument when it needs it: my note.md → "my note.md". */
+export function q(arg: string): string {
+  return /^[\w./~@:+-]+$/.test(arg) ? arg : `"${arg.replace(/(["\\$`])/g, "\\$1")}"`;
 }
 
 export function inside(r: Rect, x: number, y: number): boolean {

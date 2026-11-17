@@ -186,7 +186,7 @@ export class JournalApp implements App {
       if (!selected && ui.hovered(rect)) style.bg = c.highlight;
       ui.text(x, y, String(d).padStart(2), style);
       if (has && !selected) ui.text(x + 2, y, "·", { fg: c.accent, attrs: DIM });
-      ui.hit(rect, { onClick: () => void this.openDay(date) });
+      ui.hit(rect, { cmd: `journal ${iso}` });
     }
 
     // stats
@@ -210,8 +210,8 @@ export class JournalApp implements App {
     const by = sy + 7;
     if (by < r.y + r.h - 1) {
       let x = r.x + 2;
-      x += ui.button(x, by, "today", () => void this.openDay(new Date())) + 1;
-      ui.button(x, by, "ask ◆", () => this.deck.openApp("link", { prompt: `Read my journal entries from the last 7 days and give me a short recap: themes, mood, open tasks.` }));
+      x += ui.button(x, by, "today", () => {}, { cmd: "journal today", tip: "ctrl+j from anywhere" }) + 1;
+      ui.button(x, by, "ask ◆", () => this.deck.openApp("link", { prompt: `Read my journal entries from the last 7 days and give me a short recap: themes, mood, open tasks.` }), { tip: "LINK recaps your last 7 days\nin the shell: journal ls -n 7 | ask \"recap\"" });
     }
     if (focused) ui.text(r.x + 2, r.y + r.h - 1, "←↑↓→ day · [ ] month · enter", { fg: c.faint });
   }

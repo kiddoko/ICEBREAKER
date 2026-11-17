@@ -120,9 +120,34 @@ export class ShellApp implements App {
     return code;
   }
 
-  private echoPrompt(line: string): void {
+  private echoPrompt(line: string, fromClick = false): void {
     this.term.ensureNewline();
-    this.term.write(`\x1b[35m${display(this.exec.cwd)}\x1b[0m \x1b[95m❯\x1b[0m ${line}\n`);
+    this.term.write(`\x1b[35m${display(this.exec.cwd)}\x1b[0m \x1b[95m❯\x1b[0m ${line}${fromClick ? "  \x1b[2m◂ click\x1b[0m" : ""}\n`);
+  }
+
+  /**
+   * Run what a click did as a visible shell command (so the mouse teaches the
+   * command line). If the shell is busy (a chat, a question), it runs on the
+   * side without disturbing it.
+   */
+  async runAction(line: string): Promise<number> {
+    this.echoPrompt(line, true);
+    if (this.exec.history[this.exec.history.length - 1] !== line) {
+      this.exec.history.push(line);
+      this.saveHistory();
+    }
+    this.scroll = 0;
+    let code: number;
+    if (!this.exec.running) code = await this.exec.run(line);
+    else {
+      const side = new ShellExecutor(this.deck, (text, isError) => this.term.write(text, isError ? { fg: this.deck.theme.ansi[1] } : undefined), () => this.term.clear());
+      side.cwd = this.exec.cwd;
+      side.env = this.exec.env;
+      code = await side.run(line);
+    }
+    this.term.ensureNewline();
+    this.deck.requestFrame();
+    return code;
   }
 
   // ── input ────────────────────────────────────────────────────────────────

@@ -1,3 +1,4 @@
+import { q } from "../ui/ui";
 import { mix, type RGB } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
 import { resolvePlace } from "../core/location";
@@ -392,7 +393,7 @@ const calendar: WidgetSpec = {
       if (today) ui.text(x, y, label, { fg: c.panel, bg: pulse ? c.accent : mix(c.accent, c.accentAlt, 0.6), attrs: BOLD });
       else ui.text(x, y, label, { fg: has ? c.accent : cell % 7 >= 5 ? c.subtle : c.muted, bg: hot ? c.highlight : undefined, attrs: has ? BOLD : 0 });
       if (has && ch >= 2) ui.text(x + cw - 2, y + 1, "•", { fg: c.accent });
-      ui.hit(rect, { onClick: () => void deck.openJournal(date) });
+      ui.hit(rect, { cmd: `journal ${isoDay(date)}`, tip: has ? "open that day's entry" : "start an entry for that day" });
     }
     if (footer) {
       const s = streakOf(entries);
@@ -486,7 +487,7 @@ const recent: WidgetSpec = {
       ui.text(r.x + 3, row.y, basename(e.path, ".md"), { fg: hot ? c.accent : c.fg, bg, attrs: i === 0 ? BOLD : 0 }, r.w - 10 - folderW);
       if (folderW) ui.text(r.x + r.w - 8 - folderW, row.y, dirname(e.path) || "/", { fg: c.subtle, bg }, folderW);
       ui.textRight(r.x + r.w - 1, row.y, ago(e.modified), { fg: c.faint, bg });
-      ui.hit(row, { onClick: () => void deck.openFile(e.path) });
+      ui.hit(row, { cmd: `open ${q(e.path)}` });
     });
   },
 };
@@ -510,8 +511,8 @@ const modules: WidgetSpec = {
   render(ui, r, { deck }) {
     const c = ui.c;
     const items = [
-      ...deck.apps.list().filter((s) => s.launcher).map((s) => ({ icon: s.icon ?? "◇", title: s.title, desc: s.description ?? "", run: () => void deck.openApp(s.kind) })),
-      { icon: "▦", title: "All modules", desc: "everything installed", run: () => void deck.openApp("modules") },
+      ...deck.apps.list().filter((s) => s.launcher).map((s) => ({ icon: s.icon ?? "◇", title: s.title, desc: s.description ?? "", cmd: `launch ${s.kind}` })),
+      { icon: "▦", title: "All modules", desc: "everything installed", cmd: "modules" },
     ];
     const tall = r.h >= 5; // title + description per tile
     const tileH = tall ? 3 : 1;
@@ -529,7 +530,7 @@ const modules: WidgetSpec = {
         ui.text(x, y + 1, hot ? "▌" : " ", { fg: c.accent });
         ui.text(x + 1, y + 1, it.desc, { fg: c.subtle }, tileW - 2);
       }
-      ui.hit(rect, { onClick: it.run });
+      ui.hit(rect, { cmd: it.cmd });
     });
   },
   activate: ({ deck }) => void deck.openApp("modules"),

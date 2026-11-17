@@ -16,6 +16,9 @@ export class ListView<T> {
   selected = 0;
   scrollTop = 0;
   onActivate?: (item: T, index: number) => void;
+  /** Shell command a click on this item runs (shown in the shell and in the tooltip). */
+  cmdOf?: (item: T) => string | undefined;
+  tipOf?: (item: T) => string | undefined;
   /** Called when the selection moves (e.g. to show a preview). */
   onSelect?: (item: T, index: number) => void;
   private viewH = 1;
@@ -77,6 +80,8 @@ export class ListView<T> {
       else if (ui.hovered(row)) ui.fill(row, { bg: ui.c.highlight });
       drawRow(item, row, isSel, idx);
       ui.hit(row, {
+        cmd: this.cmdOf?.(item),
+        tip: this.tipOf?.(item),
         onClick: () => this.select(idx),
         onDouble: () => {
           this.select(idx);

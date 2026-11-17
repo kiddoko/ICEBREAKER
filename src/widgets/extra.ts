@@ -1,99 +1,16 @@
+import { q } from "../ui/ui";
 import { mix } from "../core/color";
-import { BOLD, DIM } from "../core/grid";
-import { countryOf, langOf } from "../core/location";
+import { BOLD } from "../core/grid";
 import type { Deck } from "../deck";
 import { decrypt } from "../fx/glitch";
 import { Rain } from "../fx/rain";
 import { basename } from "../vault/paths";
 import { cellsFor, dots, fitMatrix, matrixSize, matrixText } from "../ui/dots";
 import { isoDay, streakOf } from "./builtin";
+import { newsWidget } from "./news";
 import type { WidgetSpec } from "./types";
 
 /* Extra cards shipped with the deck: not all on the default HOME, all one `a` away. */
-
-/* ─────────── news (Google News RSS, local to the user's location) ─────────── */
-
-interface Headline { title: string; source: string; at: number; link: string }
-let openNews = -1;
-let news: { items: Headline[]; at: number; key: string } | null = null;
-let newsError: string | null = null;
-let newsLoading = false;
-const seenAt = new Map<string, number>();
-
-async function loadNews(deck: Deck, key: string, query: string): Promise<void> {
-  newsLoading = true;
-  try {
-    if (!deck.platform.newsRss) throw new Error("news needs the desktop app");
-    const xml = new DOMParser().parseFromString(await deck.platform.newsRss(query, langOf(deck), countryOf(deck)), "text/xml");
-    const items = [...xml.querySelectorAll("item")].slice(0, 30).map((it) => {
-      const source = it.querySelector("source")?.textContent ?? "";
-      const raw = it.querySelector("title")?.textContent ?? "";
-      return { title: source && raw.endsWith(` - ${source}`) ? raw.slice(0, -source.length - 3) : raw, source, at: Date.parse(it.querySelector("pubDate")?.textContent ?? "") || 0, link: it.querySelector("link")?.textContent ?? "" };
-    });
-    news = { items, at: Date.now(), key };
-    newsError = null;
-  } catch (e) {
-    newsError = e instanceof Error ? e.message : String(e);
-  } finally {
-    newsLoading = false;
-  }
-}
-
-const newsWidget: WidgetSpec = {
-  id: "news",
-  title: "news",
-  description: "headlines for your area or a topic (Google News)",
-  size: { w: 6, h: 5 },
-  min: { w: 4, h: 2 },
-  render(ui, r, { deck }) {
-    const c = ui.c;
-    const loc = deck.settings.data.user.location;
-    const topic = deck.settings.data.home.newsTopic;
-    const query = topic || (loc.precision === "city" || loc.precision === "precise" ? loc.name : "");
-    const key = `${query}|${langOf(deck)}|${countryOf(deck)}`;
-    if ((!news || news.key !== key || Date.now() - news.at > 20 * 60_000) && !newsLoading && !newsError) void loadNews(deck, key, query).then(() => deck.requestFrame());
-    if (!news) return void ui.text(r.x + 1, r.y, newsError ? `⚠ ${newsError}` : `${ui.spinner()} pulling the feed…`, { fg: newsError ? c.error : c.muted }, r.w - 2);
-    ui.text(r.x + 1, r.y, `${query ? `◉ ${query}` : `◉ top stories · ${countryOf(deck)}`}`, { fg: c.accentAlt, attrs: BOLD }, r.w - 2);
-    let y = r.y + 1;
-    news.items.forEach((h, i) => {
-      if (y >= r.y + r.h) return;
-      // new headlines decrypt in, staggered
-      const first = seenAt.get(h.title) ?? (seenAt.set(h.title, ui.now + i * 90), ui.now + i * 90);
-      const p = Math.min(1, Math.max(0, (ui.now - first) / 500));
-      if (p < 1) ui.animate(40);
-      const open = i === openNews;
-      const row = { x: r.x, y, w: r.w, h: 1 };
-      const hot = ui.hovered(row);
-      const src = r.w >= 50 && !open ? h.source.slice(0, 14) : "";
-      ui.text(r.x + 1, y, open ? "▾" : ui.theme.glyphs.bullet, { fg: c.accent });
-      if (!open) {
-        ui.text(r.x + 3, y, p < 1 ? decrypt(h.title, p, ui.now) : h.title, { fg: hot ? c.accent : i === 0 ? c.fg : c.muted }, r.w - 5 - (src ? src.length + 1 : 0));
-        if (src) ui.textRight(r.x + r.w - 1, y, src, { fg: c.faint, attrs: DIM });
-        ui.hit(row, { onClick: () => (openNews = i) });
-        y++;
-        return;
-      }
-      // unfolded: the whole title, where and when, and a link out
-      for (const line of wrapText(h.title, r.w - 4)) {
-        if (y >= r.y + r.h) return;
-        ui.text(r.x + 3, y++, line, { fg: c.fg, attrs: BOLD });
-      }
-      if (y < r.y + r.h) {
-        const when = h.at ? new Date(h.at).toLocaleString(deck.settings.data.user.locale || undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "";
-        ui.text(r.x + 3, y, `${h.source} · ${when}`, { fg: c.subtle }, r.w - 20);
-        if (h.link && deck.platform.openUrl) ui.button(r.x + r.w - 12, y, "open ↗", () => void deck.platform.openUrl!(h.link));
-        y++;
-      }
-      ui.hit({ x: r.x, y: row.y, w: r.w, h: 1 }, { onClick: () => (openNews = -1) });
-    });
-
-  },
-  activate: ({ deck }) => {
-    news = null;
-    newsError = null;
-    deck.requestFrame();
-  },
-};
 
 /* ─────────── tasks: every "- [ ]" in the vault ─────────── */
 
@@ -131,7 +48,7 @@ const tasksWidget: WidgetSpec = {
       const tx = ui.text(r.x + 1, row.y, hot ? g.done : g.todo, { fg: hot ? c.accent : c.subtle }) + 1;
       ui.text(tx, row.y, t.text, { fg: hot ? c.accent : c.fg }, r.x + r.w - 1 - tx - (r.w > 40 ? 14 : 0));
       if (r.w > 40) ui.textRight(r.x + r.w - 1, row.y, basename(t.path, ".md").slice(0, 12), { fg: c.faint });
-      ui.hit(row, { onClick: () => void deck.openFile(t.path) });
+      ui.hit(row, { cmd: `open ${q(t.path)}`, tip: "todo in the shell lists them all" });
     });
   },
 };
@@ -354,19 +271,6 @@ const streakWidget: WidgetSpec = {
   },
   activate: ({ deck }) => void deck.openJournal(new Date()),
 };
-
-function wrapText(s: string, w: number): string[] {
-  const out: string[] = [];
-  let line = "";
-  for (const word of s.split(" ")) {
-    if ((line + " " + word).trim().length > w) {
-      out.push(line);
-      line = word;
-    } else line = (line + " " + word).trim();
-  }
-  if (line) out.push(line);
-  return out;
-}
 
 /* ─────────── AI core: which model is wired in, as a breathing node ─────────── */
 

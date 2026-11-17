@@ -1,3 +1,4 @@
+import { q } from "../ui/ui";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action } from "../core/input";
 import type { Deck } from "../deck";
@@ -11,6 +12,8 @@ interface Row {
   value: () => string;
   /** dir: +1 = next / confirm, -1 = previous */
   change?: (dir: 1 | -1) => void | Promise<void>;
+  /** The shell command for one click (next value). */
+  cmd?: () => string;
 }
 
 /**
@@ -46,12 +49,17 @@ export class SettingsApp implements App {
     const toggle = (key: string, label: string, section?: string): Row => ({
       section,
       label,
+      cmd: () => `config set ${key} ${!s.get(key)}`,
       value: () => (s.get(key) ? "on" : "off"),
       change: () => set(key, !s.get(key)),
     });
     const cycle = <T,>(key: string, label: string, options: T[], section?: string, show: (v: T) => string = String): Row => ({
       section,
       label,
+      cmd: () => {
+        const i = options.indexOf(s.get(key) as T);
+        return `config set ${key} ${q(String(options[(i + 1) % options.length]))}`;
+      },
       value: () => show(s.get(key) as T),
       change: (dir) => {
         const i = options.indexOf(s.get(key) as T);
@@ -155,7 +163,8 @@ export class SettingsApp implements App {
         const label = selected ? `◂ ${v} ▸` : v;
         const color = v === "on" ? c.success : v === "off" ? c.subtle : c.accent;
         ui.textRight(vx, rect.y, label, { fg: color, attrs: selected ? BOLD : 0 });
-        ui.hit({ x: vx - label.length, y: rect.y, w: label.length, h: 1 }, { onClick: () => void row.change?.(1) });
+        const cmd = row.cmd?.();
+        ui.hit({ x: vx - label.length, y: rect.y, w: label.length, h: 1 }, cmd ? { cmd, tip: "←→ / enter change it too" } : { onClick: () => void row.change?.(1) });
       } else ui.textRight(vx, rect.y, v, { fg: c.subtle });
     });
   }

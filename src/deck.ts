@@ -296,6 +296,11 @@ export class Deck implements InputSink {
 
   // ── verbs used by apps, commands and plugins ─────────────────────────────
 
+  /** Do something through its shell command, echoed in the shell (mouse actions use this). */
+  act(line: string): Promise<number> {
+    return this.shell.runAction(line);
+  }
+
   notify(text: string, kind: ToastKind = "info"): void {
     this.sound.play(kind === "error" ? "error" : kind === "success" ? "success" : "notify");
     this.workspace.notify(text, kind);
@@ -350,6 +355,7 @@ export class Deck implements InputSink {
   async newNote(folder = "notes"): Promise<void> {
     const title = await this.prompt("New note title", { placeholder: "e.g. Night city ideas" });
     if (!title?.trim()) return;
+    if (folder === "notes") return void this.act(`note ${title.trim()}`);
     const path = join(folder, `${slugify(title)}.md`);
     if (!(await this.vault.exists(path))) await this.vault.write(path, `# ${title.trim()}\n\n`);
     await this.openFile(path);

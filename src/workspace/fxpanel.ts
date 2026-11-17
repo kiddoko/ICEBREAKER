@@ -94,7 +94,7 @@ export class FxPanel implements Overlay {
         ui.text(rr.x + 1, rr.y, row.label, { fg: selected ? c.accentAlt : c.muted, attrs: BOLD });
       }
       ui.textRight(rr.x + rr.w - 2, rr.y, row.hint, { fg: c.faint });
-      ui.hit(rr, { onClick: () => this.activate(row) });
+      ui.hit(rr, { cmd: row.key ? `fx ${row.key} ${this.deck.settings.data.fx[row.key] ? "off" : "on"}` : `fx ${row.preset}` });
     });
     ui.text(inner.x + 1, inner.y + inner.h - 1, "esc close · `fx` in the shell", { fg: c.faint });
   }

@@ -1,3 +1,4 @@
+import { q } from "../ui/ui";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
@@ -22,6 +23,8 @@ export class Sidebar {
     deck.vault.events.on("changed", () => this.version++);
     deck.vault.events.on("rescanned", () => this.version++);
     this.list.onActivate = (row) => this.activate(row);
+    this.list.cmdOf = (row) => (row.entry.isDir ? undefined : `open ${q(row.entry.path)}`);
+    this.list.tipOf = (row) => (row.entry.isDir ? "click: select · double-click: fold" : "n new note here · r rescan")
   }
 
   private rebuild(): void {

@@ -30,6 +30,11 @@ export class HomeApp implements App {
   private drag: { index: number; dx: number; dy: number } | null = null;
   private colW = 1;
   private origin = { x: 0, y: 0 };
+  /** Vertical scroll in text rows (the grid can be taller than the screen). */
+  private scroll = 0;
+  private areaH = 40;
+  /** Scroll so the selected widget is visible on the next frame. */
+  private reveal = false;
   // animation clocks (ui.now ms)
   private shownAt = 0;
   private selAt = 0;
@@ -86,20 +91,60 @@ export class HomeApp implements App {
     const pick = await this.deck.prompt(`add widget: ${free.map((s) => s.id).join(", ")}`, { initial: free[0].id });
     const spec = free.find((s) => s.id === pick?.trim());
     if (!spec) return;
+    this.place(spec.id);
+  }
+
+  /**
+   * Put a widget on the grid: the first free spot that's on screen, trying
+   * the default size then smaller ones down to the minimum; else below the
+   * rest (the HOME scrolls). Returns false if it's already there or unknown.
+   */
+  place(id: string): boolean {
+    const spec = this.deck.widgets.get(id);
+    if (!spec || this.layout.some((p) => p.id === id)) return false;
     const layout = this.layout.map((p) => ({ ...p }));
     const bottom = layout.reduce((m, p) => Math.max(m, p.y + p.h), 0);
-    const w = Math.min(COLS, spec.size.w);
-    // first free spot, scanning rows top to bottom
-    for (let y = 0; y <= bottom; y++) {
-      for (let x = 0; x + w <= COLS; x++) {
-        const cand = { id: spec.id, x, y, w, h: spec.size.h };
-        if (!this.overlaps(layout, -1, cand)) {
-          layout.push(cand);
-          this.selected = layout.length - 1;
-          return this.save(layout);
-        }
-      }
-    }
+    const visible = Math.max(1, Math.floor(this.areaH / ROW));
+    const sizes: [number, number][] = [];
+    const min = spec.min ?? { w: 1, h: 1 };
+    // shrink a little to fit on screen, never down to a useless sliver
+    const minH = Math.max(min.h, Math.ceil((spec.size.h + min.h) / 2));
+    for (let h = spec.size.h; h >= minH; h--) for (let w = Math.min(COLS, spec.size.w); w >= min.w; w--) sizes.push([w, h]);
+    const fit = (maxY: number): WidgetPlacement | null => {
+      for (const [w, h] of sizes)
+        for (let y = 0; y + h <= maxY; y++)
+          for (let x = 0; x + w <= COLS; x++) {
+            const cand = { id, x, y, w, h };
+            if (!this.overlaps(layout, -1, cand)) return cand;
+          }
+      return null;
+    };
+    const spot = fit(visible) ?? { id, x: 0, y: bottom, w: Math.min(COLS, spec.size.w), h: spec.size.h };
+    layout.push(spot);
+    this.selected = layout.length - 1;
+    this.reveal = true;
+    this.save(layout);
+    if (spot.y + spot.h > visible) this.deck.notify(`${spec.title}: no room on screen — placed below (scroll down, or e to rearrange)`);
+    return true;
+  }
+
+  /** Edit mode on/off (`home edit`). */
+  setEditing(on: boolean): void {
+    this.editing = on;
+  }
+
+  /** Back to the default layout. */
+  resetLayout(): void {
+    this.save([]);
+    this.selected = 0;
+  }
+
+  /** Remove a widget by id. */
+  unplace(id: string): boolean {
+    const i = this.layout.findIndex((p) => p.id === id);
+    if (i < 0) return false;
+    this.remove(i);
+    return true;
   }
 
   private remove(i: number): void {
@@ -165,7 +210,7 @@ export class HomeApp implements App {
 
   onAction(a: Action): boolean {
     switch (a) {
-      case "left": case "right": case "up": case "down": this.selected = this.neighbor(a); return true;
+      case "left": case "right": case "up": case "down": this.selected = this.neighbor(a); this.reveal = true; return true;
       case "confirm": {
         const p = this.layout[this.selected];
         const spec = p && this.deck.widgets.get(p.id);
@@ -190,12 +235,26 @@ export class HomeApp implements App {
     this.colW = Math.max(4, area.w / COLS);
     this.origin = { x: area.x, y: area.y };
     const colX = (n: number) => this.origin.x + Math.round(n * this.colW);
+    this.areaH = area.h;
+    const contentH = this.layout.reduce((m, p) => Math.max(m, (p.y + p.h) * ROW), 0);
+    const maxScroll = Math.max(0, contentH - area.h);
+    if (this.reveal) {
+      const p = this.layout[this.selected];
+      if (p) {
+        const top = p.y * ROW, bot = (p.y + p.h) * ROW - 1;
+        if (top < this.scroll) this.scroll = top;
+        else if (bot > this.scroll + area.h) this.scroll = bot - area.h + 1;
+      }
+      this.reveal = false;
+    }
+    this.scroll = Math.max(0, Math.min(maxScroll, this.scroll));
     const toRect = (p: WidgetPlacement): Rect => ({
       x: colX(p.x),
-      y: this.origin.y + p.y * ROW,
+      y: this.origin.y + p.y * ROW - this.scroll,
       w: colX(p.x + p.w) - colX(p.x) - 1,
       h: p.h * ROW - 1,
     });
+    ui.hit(area, { onWheel: (d) => (this.scroll = Math.max(0, Math.min(maxScroll, this.scroll + d * 2))) });
 
     if (this.editing) {
       // grid dots so you can see where things snap
@@ -208,11 +267,11 @@ export class HomeApp implements App {
     }
     this.selected = Math.min(this.selected, Math.max(0, this.layout.length - 1));
 
+    ui.grid.pushClip(area);
     for (const { p, i } of this.placed()) {
       const spec = this.deck.widgets.get(p.id)!;
       const rect = toRect(p);
-      if (rect.y >= r.y + r.h || rect.h < 2) continue;
-      rect.h = Math.min(rect.h, r.y + r.h - rect.y);
+      if (rect.y >= area.y + area.h || rect.y + rect.h <= area.y || rect.h < 2) continue;
       const sel = focused && i === this.selected;
       const inner = ui.box(rect, {
         title: spec.title.toUpperCase(),
@@ -229,10 +288,11 @@ export class HomeApp implements App {
           const d = this.drag;
           if (!this.editing || !d || d.index !== i) return;
           const nx = Math.round((m.x - this.origin.x - d.dx) / this.colW);
-          const ny = Math.round((m.y - this.origin.y - d.dy) / ROW);
+          const ny = Math.round((m.y - this.origin.y - d.dy + this.scroll) / ROW);
           this.change(i, (q) => ({ ...q, x: Math.max(0, Math.min(COLS - q.w, nx)), y: Math.max(0, ny) }));
         },
-        onDouble: () => !this.editing && spec.activate?.({ deck: this.deck, focused: true }),
+        onDouble: () => !this.editing && spec.activate && void this.deck.act(`widget ${p.id}`),
+        tip: this.editing ? "drag to move · shift+arrows resize · x remove" : spec.activate ? `${spec.description ?? spec.title}\ndouble-click / enter → widget ${p.id}` : spec.description,
       });
       ui.clip(inner, () => {
         try {
@@ -243,6 +303,9 @@ export class HomeApp implements App {
       });
       if (anim) drawEffects(ui, rect, inner, i, sel, this.shownAt, this.selAt);
     }
+    ui.grid.popClip();
+    if (this.scroll < maxScroll) ui.textRight(r.x + r.w - 1, r.y + r.h - 1, ` ↓ more (wheel) `, { fg: c.panel, bg: c.accent });
+    if (this.scroll > 0) ui.textRight(r.x + r.w - 1, r.y, ` ↑ ${this.scroll} `, { fg: c.muted });
 
     if (this.editing) ui.textRight(r.x + r.w - 1, r.y, " EDIT LAYOUT ", { fg: c.panel, bg: c.accent, attrs: BOLD });
   }

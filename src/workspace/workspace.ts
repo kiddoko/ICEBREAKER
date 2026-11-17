@@ -37,6 +37,11 @@ export class Workspace {
   readonly sidebar: Sidebar;
   private rects: Partial<Record<Pane, Rect>> = {};
   private dragging: Hit | null = null;
+  /** Hover tooltip: what's under the mouse and since when. */
+  private tip = { key: "", since: 0 };
+  tipHidden = false;
+  /** Tabs in the order they were looked at (keys), for esc → back. */
+  private visited: string[] = [];
 
   constructor(private readonly deck: Deck) {
     this.sidebar = new Sidebar(deck);
@@ -77,6 +82,25 @@ export class Workspace {
     if (this.active >= this.tabs.length) this.active = Math.max(0, this.tabs.length - 1);
     if (this.tabs.length === 0) this.deck.openApp("home");
     this.deck.requestFrame();
+  }
+
+  /** esc on a page: close it and return to the one seen before (HOME stays). */
+  async closeAndGoBack(): Promise<void> {
+    const app = this.activeApp;
+    if (!app || app.kind === "home") return;
+    const before = this.visited.filter((k) => k !== app.key);
+    await this.closeTab(this.active);
+    if (this.tabs.includes(app)) return; // it refused to close (unsaved…)
+    for (let j = before.length - 1; j >= 0; j--) {
+      const i = this.tabs.findIndex((t) => t.key === before[j]);
+      if (i >= 0) return this.switchTab(i);
+    }
+  }
+
+  private noteVisit(): void {
+    const key = this.activeApp?.key;
+    if (!key || this.visited[this.visited.length - 1] === key) return;
+    this.visited = [...this.visited.filter((k) => k !== key), key].slice(-30);
   }
 
   switchTab(i: number): void {
@@ -180,6 +204,7 @@ export class Workspace {
   }
 
   handleKey(k: KeyInput): void {
+    this.tipHidden = true;
     const modal = this.topModal;
     if (modal) {
       modal.onKey?.(k);
@@ -207,6 +232,7 @@ export class Workspace {
   }
 
   handleText(t: string): void {
+    this.tipHidden = true;
     this.routeText(t, false);
   }
 
@@ -245,6 +271,7 @@ export class Workspace {
       case "menu": this.deck.openApp("home"); break;
       case "back":
         if (this.focus !== "main") this.focus = "main";
+        else void this.closeAndGoBack();
         break;
     }
   }
@@ -290,10 +317,12 @@ export class Workspace {
             if (r && inside(r, m.x, m.y)) this.focus = pane;
           }
         }
-        const h = pick((x) => !!(x.onClick || x.onDrag));
-        if (h?.onClick) this.deck.sound.play("move");
+        const h = pick((x) => !!(x.onClick || x.onDrag || x.cmd));
+        if (h?.onClick || h?.cmd) this.deck.sound.play("move");
         this.dragging = h ?? null;
+        this.tipHidden = true;
         h?.onClick?.(m);
+        if (h?.cmd) void this.deck.act(h.cmd);
         break;
       }
       case "drag":
@@ -306,6 +335,7 @@ export class Workspace {
         pick((x) => !!x.onDouble)?.onDouble?.(m);
         break;
       case "wheel":
+        this.tipHidden = true;
         pick((x) => !!x.onWheel)?.onWheel?.(m.delta);
         break;
     }
@@ -315,6 +345,7 @@ export class Workspace {
 
   render(ui: UI): void {
     const d = this.deck;
+    this.noteVisit();
     const W = ui.cols;
     const H = ui.rows;
     if (d.settings.data.fx.ambient) drawAmbient(ui, { x: 0, y: 0, w: W, h: H }, 0.7);
@@ -367,6 +398,39 @@ export class Workspace {
     for (const o of this.overlays) if (!(o instanceof Osk)) o.render(ui, screen);
     for (const o of this.overlays) if (o instanceof Osk) o.render(ui, screen);
     this.toasts.render(ui, screen);
+    this.renderTip(ui, screen);
+  }
+
+  /** After ~0.6 s on something clickable: its shell command and a tip. */
+  private renderTip(ui: UI, screen: Rect): void {
+    const { x, y } = ui.mouse;
+    let h: Hit | undefined;
+    for (let i = ui.hits.length - 1; i >= 0; i--) {
+      const it = ui.hits[i];
+      if (!inside(it.rect, x, y) || !(it.onClick || it.onDrag || it.cmd || it.tip)) continue;
+      h = it.cmd || it.tip ? it : undefined;
+      break;
+    }
+    const key = h ? `${h.rect.x},${h.rect.y},${h.rect.w},${h.cmd ?? ""},${h.tip ?? ""}` : "";
+    if (key !== this.tip.key) {
+      this.tip = { key, since: ui.now };
+      this.tipHidden = false;
+    }
+    if (!h || this.tipHidden) return;
+    const wait = 650 - (ui.now - this.tip.since);
+    if (wait > 0) return ui.animate(wait);
+    const c = ui.c;
+    const lines: { t: string; fg: number; attrs?: number }[] = [];
+    if (h.cmd) lines.push({ t: `❯ ${h.cmd}`, fg: c.accent, attrs: BOLD });
+    if (h.tip) for (const l of h.tip.split("\n")) lines.push({ t: l, fg: c.muted });
+    const w = Math.min(screen.w - 2, Math.max(...lines.map((l) => strWidth(l.t))) + 4);
+    const hgt = lines.length + 2;
+    let bx = Math.min(x + 2, screen.w - w - 1);
+    let by = y + 1;
+    if (by + hgt > screen.h - 1) by = Math.max(0, y - hgt);
+    if (bx < 0) bx = 0;
+    ui.box({ x: bx, y: by, w, h: hgt }, { bg: c.panelAlt, border: "single" });
+    lines.forEach((l, i) => ui.text(bx + 2, by + 1 + i, l.t, { fg: l.fg, bg: c.panelAlt, attrs: l.attrs }, w - 4));
   }
 
   private renderTopBar(ui: UI, r: Rect): void {
@@ -383,16 +447,23 @@ export class Workspace {
     const date = now.toLocaleDateString(d.settings.data.user.locale || undefined, { weekday: "short", day: "numeric", month: "short" });
     ui.animate(1000 - now.getMilliseconds());
     const ai = d.ai.ready ? `${ui.theme.glyphs.mark} ${d.ai.provider.label}` : "○ offline";
+    // settings stay one click away whatever is open
+    const gear = " ⚙ settings ";
     const right = ` ${ai}  │  ${date}  ${time} `;
     const rx = r.x + r.w - strWidth(right);
+    const gx = rx - strWidth(gear) - 1;
+    const gearRect = { x: gx, y: r.y, w: strWidth(gear), h: 1 };
+    const gearHot = ui.hovered(gearRect) || this.activeApp?.kind === "settings";
+    ui.text(gx, r.y, gear, { fg: gearHot ? c.panel : c.muted, bg: gearHot ? c.accent : c.highlight });
+    ui.hit(gearRect, { cmd: "settings", tip: "ctrl+, · or `config list` in the shell" });
     ui.text(rx, r.y, right, { fg: c.muted, bg: c.panelAlt });
     ui.text(rx + 1, r.y, ai, { fg: d.ai.ready ? c.accent : c.error, bg: c.panelAlt });
-    ui.hit({ x: rx, y: r.y, w: strWidth(ai) + 2, h: 1 }, { onClick: () => void d.openApp("link") });
+    ui.hit({ x: rx, y: r.y, w: strWidth(ai) + 2, h: 1 }, d.ai.ready ? { cmd: "link", tip: "ctrl+space · or `chat` right here in the shell" } : { cmd: "settings", tip: `AI offline: ${d.ai.problem ?? ""}` });
 
     this.tabs.forEach((t, i) => {
       const label = ` ${i + 1}:${t.title()}${t.dirty?.() ? " ●" : ""} `;
       const w = strWidth(label);
-      if (x + w + 2 > rx - 1) return;
+      if (x + w + 2 > gx - 1) return;
       const rect = { x, y: r.y, w: w + 1, h: 1 };
       const isActive = i === this.active;
       const hot = ui.hovered(rect);
@@ -403,13 +474,13 @@ export class Workspace {
       // close button
       const closeX = x;
       ui.text(closeX, r.y, isActive || hot ? "×" : " ", { fg: isActive ? c.panel : c.subtle, bg: style.bg });
-      ui.hit(rect, { onClick: () => this.switchTab(i) });
-      ui.hit({ x: closeX, y: r.y, w: 1, h: 1 }, { onClick: () => void this.closeTab(i) });
+      ui.hit(rect, { cmd: `tab ${i + 1}`, tip: IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}` });
+      ui.hit({ x: closeX, y: r.y, w: 1, h: 1 }, { cmd: `tab close ${i + 1}`, tip: "ctrl+w · esc closes the focused page" });
       x += 2;
     });
-    if (x + 3 < rx) {
+    if (x + 3 < gx) {
       ui.text(x, r.y, "+", { fg: c.subtle, bg: c.panelAlt, attrs: BOLD });
-      ui.hit({ x, y: r.y, w: 1, h: 1 }, { onClick: () => this.palette() });
+      ui.hit({ x, y: r.y, w: 1, h: 1 }, { cmd: "palette", tip: "ctrl+k: open anything" });
     }
   }
 
@@ -423,21 +494,21 @@ export class Workspace {
     const status = this.focus === "shell" ? d.shell.status() : this.focus === "sidebar" ? "enter open · n new note · r rescan" : (this.activeApp?.status?.() ?? "");
 
     // right side
-    const parts: { text: string; fg: number; onClick?: () => void }[] = [];
+    const parts: { text: string; fg: number; cmd?: string; tip?: string }[] = [];
     if (d.gamepad.connected) parts.push({ text: "◈ pad", fg: c.success });
-    parts.push({ text: "⌨", fg: this.overlays.some((o) => o instanceof Osk) ? c.accent : c.muted, onClick: () => this.toggleOsk() });
-    parts.push({ text: "✦ fx", fg: c.accentAlt, onClick: () => this.fxPanel() });
+    parts.push({ text: "⌨", fg: this.overlays.some((o) => o instanceof Osk) ? c.accent : c.muted, cmd: "osk", tip: "on-screen keyboard · pad: X" });
+    parts.push({ text: "✦ fx", fg: c.accentAlt, cmd: "view fx", tip: "bloom, scanlines… · `fx` in the shell" });
     if (d.settings.data.appearance.showFps) parts.push({ text: `${d.loop.fps}fps ${d.loop.frameMs.toFixed(1)}ms`, fg: c.subtle });
-    parts.push({ text: "^K palette", fg: c.muted, onClick: () => this.palette() });
-    parts.push({ text: "F1 help", fg: c.muted, onClick: () => void d.openApp("help") });
+    parts.push({ text: "^K palette", fg: c.muted, cmd: "palette" });
+    parts.push({ text: "F1 help", fg: c.muted, cmd: "manual" });
     const rightW = parts.reduce((s, p) => s + strWidth(p.text) + 3, 0);
     let rx = r.x + r.w - rightW;
     ui.text(x + 1, r.y, status, { fg: c.statusFg, bg: c.statusBg }, Math.max(0, rx - x - 3));
     for (const p of parts) {
       const w = strWidth(p.text);
       ui.text(rx, r.y, "│ ", { fg: c.faint, bg: c.statusBg });
-      ui.text(rx + 2, r.y, p.text, { fg: p.onClick && ui.hovered({ x: rx + 2, y: r.y, w, h: 1 }) ? c.accent : p.fg, bg: c.statusBg });
-      if (p.onClick) ui.hit({ x: rx + 2, y: r.y, w, h: 1 }, { onClick: p.onClick });
+      ui.text(rx + 2, r.y, p.text, { fg: p.cmd && ui.hovered({ x: rx + 2, y: r.y, w, h: 1 }) ? c.accent : p.fg, bg: c.statusBg });
+      if (p.cmd) ui.hit({ x: rx + 2, y: r.y, w, h: 1 }, { cmd: p.cmd, tip: p.tip });
       rx += w + 3;
     }
   }

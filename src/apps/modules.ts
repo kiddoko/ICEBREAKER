@@ -13,6 +13,7 @@ interface Tile {
   description: string;
   source: string;
   run(): void;
+  cmd?: string;
 }
 
 /**
@@ -41,12 +42,12 @@ export class ModulesApp implements App {
     const tiles: Tile[] = d.apps
       .list()
       .filter((s) => s.launcher)
-      .map((s) => ({ icon: s.icon ?? "◇", title: s.title, description: s.description ?? "", source: d.apps.sourceOf(s.kind) ?? "core", run: () => void d.openApp(s.kind) }));
+      .map((s) => ({ icon: s.icon ?? "◇", title: s.title, description: s.description ?? "", source: d.apps.sourceOf(s.kind) ?? "core", cmd: `launch ${s.kind}`, run: () => void d.act(`launch ${s.kind}`) }));
     tiles.splice(1, 0, { icon: "✚", title: "New note", description: "blank page, any title", source: "core", run: () => void d.newNote() });
-    tiles.splice(2, 0, { icon: "☾", title: "Daily log", description: "end-of-day check-in, in the shell", source: "core", run: () => void d.shell.runLine("daily") });
+    tiles.splice(2, 0, { icon: "☾", title: "Daily log", description: "end-of-day check-in, in the shell", source: "core", cmd: "daily", run: () => void d.act("daily") });
     tiles.push({ icon: "❯", title: "Shell", description: "the real deal", source: "core", run: () => d.workspace.focusShell() });
-    tiles.push({ icon: "◆", title: "AI in the shell", description: "a conversation, right in ibsh", source: "core", run: () => void d.shell.runLine("chat") });
-    tiles.push({ icon: "?", title: "Manual", description: "keys, pad, commands", source: "core", run: () => void d.openApp("help") });
+    tiles.push({ icon: "◆", title: "AI in the shell", description: "a conversation, right in ibsh", source: "core", cmd: "chat", run: () => void d.act("chat") });
+    tiles.push({ icon: "?", title: "Manual", description: "keys, pad, commands", source: "core", cmd: "manual", run: () => void d.act("manual") });
     return tiles;
   }
 
@@ -94,12 +95,7 @@ export class ModulesApp implements App {
       const inner = ui.box(rect, { focused: sel, bg: sel ? c.panelAlt : c.panel, info: t.source === "core" ? undefined : "plugin" });
       ui.text(inner.x + 1, inner.y, `${t.icon}  ${t.title.toUpperCase()}`, { fg: sel ? c.accent : c.fg, attrs: BOLD }, inner.w - 1);
       ui.text(inner.x + 1, inner.y + 1, t.description, { fg: c.subtle }, inner.w - 1);
-      ui.hit(rect, {
-        onClick: () => {
-          this.selected = i;
-          t.run();
-        },
-      });
+      ui.hit(rect, t.cmd ? { cmd: t.cmd, onClick: () => (this.selected = i) } : { onClick: () => ((this.selected = i), t.run()), tip: t.title === "Shell" ? "ctrl+` from anywhere" : undefined });
     });
   }
 }
