@@ -55,6 +55,15 @@ fn resolve(root: &Path, rel: &str) -> CmdResult<PathBuf> {
     Ok(out)
 }
 
+/// On Windows, `canonicalize` returns `\\?\C:\…` paths: drop that prefix so the
+/// path stays readable in settings and in the UI.
+fn strip_verbatim(p: PathBuf) -> PathBuf {
+    match p.to_str().and_then(|s| s.strip_prefix(r"\\?\")) {
+        Some(rest) if !rest.starts_with("UNC") => PathBuf::from(rest),
+        _ => p,
+    }
+}
+
 /// Absolute path → vault-relative path with forward slashes.
 fn to_rel(root: &Path, abs: &Path) -> String {
     abs.strip_prefix(root)
@@ -97,7 +106,7 @@ pub fn vault_default_path(app: AppHandle) -> CmdResult<String> {
 pub fn vault_mount(state: State<VaultState>, path: String) -> CmdResult<String> {
     let dir = PathBuf::from(&path);
     fs::create_dir_all(&dir).map_err(|e| format!("cannot create vault at {path}: {e}"))?;
-    let dir = dir.canonicalize().unwrap_or(dir);
+    let dir = dir.canonicalize().map(strip_verbatim).unwrap_or(dir);
     *state.root.lock().map_err(|e| e.to_string())? = Some(dir.clone());
     Ok(dir.to_string_lossy().into_owned())
 }
