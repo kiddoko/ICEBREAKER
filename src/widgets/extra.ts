@@ -12,7 +12,8 @@ import type { WidgetSpec } from "./types";
 
 /* ─────────── news (Google News RSS, local to the user's location) ─────────── */
 
-interface Headline { title: string; source: string; at: number }
+interface Headline { title: string; source: string; at: number; link: string }
+let openNews = -1;
 let news: { items: Headline[]; at: number; key: string } | null = null;
 let newsError: string | null = null;
 let newsLoading = false;
@@ -26,7 +27,7 @@ async function loadNews(deck: Deck, key: string, query: string): Promise<void> {
     const items = [...xml.querySelectorAll("item")].slice(0, 30).map((it) => {
       const source = it.querySelector("source")?.textContent ?? "";
       const raw = it.querySelector("title")?.textContent ?? "";
-      return { title: source && raw.endsWith(` - ${source}`) ? raw.slice(0, -source.length - 3) : raw, source, at: Date.parse(it.querySelector("pubDate")?.textContent ?? "") || 0 };
+      return { title: source && raw.endsWith(` - ${source}`) ? raw.slice(0, -source.length - 3) : raw, source, at: Date.parse(it.querySelector("pubDate")?.textContent ?? "") || 0, link: it.querySelector("link")?.textContent ?? "" };
     });
     news = { items, at: Date.now(), key };
     newsError = null;
@@ -52,17 +53,39 @@ const newsWidget: WidgetSpec = {
     if ((!news || news.key !== key || Date.now() - news.at > 20 * 60_000) && !newsLoading && !newsError) void loadNews(deck, key, query).then(() => deck.requestFrame());
     if (!news) return void ui.text(r.x + 1, r.y, newsError ? `⚠ ${newsError}` : `${ui.spinner()} pulling the feed…`, { fg: newsError ? c.error : c.muted }, r.w - 2);
     ui.text(r.x + 1, r.y, `${query ? `◉ ${query}` : `◉ top stories · ${countryOf(deck)}`}`, { fg: c.accentAlt, attrs: BOLD }, r.w - 2);
-    news.items.slice(0, r.h - 1).forEach((h, i) => {
-      const y = r.y + 1 + i;
+    let y = r.y + 1;
+    news.items.forEach((h, i) => {
+      if (y >= r.y + r.h) return;
       // new headlines decrypt in, staggered
       const first = seenAt.get(h.title) ?? (seenAt.set(h.title, ui.now + i * 90), ui.now + i * 90);
       const p = Math.min(1, Math.max(0, (ui.now - first) / 500));
       if (p < 1) ui.animate(40);
-      const src = r.w >= 50 ? h.source.slice(0, 14) : "";
-      ui.text(r.x + 1, y, "›", { fg: c.accent });
-      ui.text(r.x + 3, y, p < 1 ? decrypt(h.title, p, ui.now) : h.title, { fg: i === 0 ? c.fg : c.muted }, r.w - 5 - (src ? src.length + 1 : 0));
-      if (src) ui.textRight(r.x + r.w - 1, y, src, { fg: c.faint, attrs: DIM });
+      const open = i === openNews;
+      const row = { x: r.x, y, w: r.w, h: 1 };
+      const hot = ui.hovered(row);
+      const src = r.w >= 50 && !open ? h.source.slice(0, 14) : "";
+      ui.text(r.x + 1, y, open ? "▾" : "›", { fg: c.accent });
+      if (!open) {
+        ui.text(r.x + 3, y, p < 1 ? decrypt(h.title, p, ui.now) : h.title, { fg: hot ? c.accent : i === 0 ? c.fg : c.muted }, r.w - 5 - (src ? src.length + 1 : 0));
+        if (src) ui.textRight(r.x + r.w - 1, y, src, { fg: c.faint, attrs: DIM });
+        ui.hit(row, { onClick: () => (openNews = i) });
+        y++;
+        return;
+      }
+      // unfolded: the whole title, where and when, and a link out
+      for (const line of wrapText(h.title, r.w - 4)) {
+        if (y >= r.y + r.h) return;
+        ui.text(r.x + 3, y++, line, { fg: c.fg, attrs: BOLD });
+      }
+      if (y < r.y + r.h) {
+        const when = h.at ? new Date(h.at).toLocaleString(deck.settings.data.user.locale || undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "";
+        ui.text(r.x + 3, y, `${h.source} · ${when}`, { fg: c.subtle }, r.w - 20);
+        if (h.link && deck.platform.openUrl) ui.button(r.x + r.w - 12, y, "open ↗", () => void deck.platform.openUrl!(h.link));
+        y++;
+      }
+      ui.hit({ x: r.x, y: row.y, w: r.w, h: 1 }, { onClick: () => (openNews = -1) });
     });
+
   },
   activate: ({ deck }) => {
     news = null;
@@ -168,28 +191,39 @@ const moonWidget: WidgetSpec = {
   render(ui, r) {
     const c = ui.c;
     const synodic = 29.530588853;
-    const age = (((Date.now() / 86400000 - 10957.76) % synodic) + synodic) % synodic; // days since new moon (2000-01-06 18:14 UTC)
+    const age = (((Date.now() / 86400000 - 10957.76) % synodic) + synodic) % synodic; // days since new moon
     const phase = age / synodic;
     const lit = (1 - Math.cos(phase * 2 * Math.PI)) / 2;
     const names = ["new moon", "waxing crescent", "first quarter", "waxing gibbous", "full moon", "waning gibbous", "last quarter", "waning crescent"];
     const name = names[Math.round(phase * 8) % 8];
-    const R = Math.max(2, Math.min(Math.floor((r.h - 1) / 2), Math.floor(r.w / 4) - 1, 6));
-    const cx = r.x + R * 2 + 1, cy = r.y + Math.floor((r.h - 1) / 2);
-    const shade = (v: number) => (v > 0.75 ? "█" : v > 0.5 ? "▓" : v > 0.25 ? "▒" : "░");
-    for (let dy = -R; dy <= R; dy++)
-      for (let dx = -R * 2; dx <= R * 2; dx++) {
-        const nx = dx / (R * 2), ny = dy / R;
-        if (nx * nx + ny * ny > 1) continue;
-        const term = Math.cos(phase * 2 * Math.PI) * Math.sqrt(1 - ny * ny); // terminator x
-        const litSide = phase < 0.5 ? nx > term : nx < -term;
-        const tex = 0.75 + 0.25 * Math.sin(dx * 1.7 + dy * 2.3);
-        ui.text(cx + dx, cy + dy, litSide ? shade(tex) : "░", { fg: litSide ? mix(c.fg, c.warning, 0.25) : c.faint, attrs: litSide ? 0 : DIM });
+    // braille disc: 2×4 dots per cell → a smooth circle at any size
+    const rows = Math.max(2, Math.min(r.h, 6));
+    const cols = rows * 2; // cells are ~2:1, so twice as many columns
+    const R = rows * 2; // radius in dots (4 dots per row / 2)
+    const x0 = r.x + 1, y0 = r.y + Math.floor((r.h - rows) / 2);
+    const BITS = [[0x1, 0x8], [0x2, 0x10], [0x4, 0x20], [0x40, 0x80]];
+    for (let cy = 0; cy < rows; cy++)
+      for (let cx = 0; cx < cols; cx++) {
+        let litBits = 0, rim = 0;
+        for (let dy = 0; dy < 4; dy++)
+          for (let dx = 0; dx < 2; dx++) {
+            const px = (cx * 2 + dx + 0.5 - R) / R, py = (cy * 4 + dy + 0.5 - R) / R;
+            const d2 = px * px + py * py;
+            if (d2 > 1) continue;
+            const term = Math.cos(phase * 2 * Math.PI) * Math.sqrt(Math.max(0, 1 - py * py));
+            const isLit = phase < 0.5 ? px > term : px < -term;
+            if (isLit) litBits |= BITS[dy][dx];
+            else if (d2 > 0.72) rim |= BITS[dy][dx];
+          }
+        if (litBits) ui.text(x0 + cx, y0 + cy, String.fromCodePoint(0x2800 + litBits), { fg: mix(c.fg, c.warning, 0.2) });
+        else if (rim) ui.text(x0 + cx, y0 + cy, String.fromCodePoint(0x2800 + rim), { fg: c.faint });
       }
-    const tx = cx + R * 2 + 3;
+    const tx = x0 + cols + 3;
     if (tx + 10 < r.x + r.w) {
-      ui.text(tx, cy - 1, name.toUpperCase(), { fg: c.fg, attrs: BOLD }, r.x + r.w - tx);
-      ui.text(tx, cy, `${Math.round(lit * 100)}% lit`, { fg: c.muted });
-      ui.text(tx, cy + 1, `day ${Math.floor(age)} / 29`, { fg: c.faint });
+      const ty = r.y + Math.max(0, Math.floor((r.h - 3) / 2));
+      ui.text(tx, ty, name, { fg: c.fg, attrs: BOLD }, r.x + r.w - tx);
+      ui.text(tx, ty + 1, `${Math.round(lit * 100)}% lit`, { fg: c.muted });
+      ui.text(tx, ty + 2, `day ${Math.floor(age)} of 29`, { fg: c.subtle });
     }
   },
 };
@@ -326,4 +360,54 @@ const streakWidget: WidgetSpec = {
   activate: ({ deck }) => void deck.openJournal(new Date()),
 };
 
-export const EXTRA_WIDGETS: WidgetSpec[] = [newsWidget, tasksWidget, focusWidget, moonWidget, matrixWidget, worldWidget, quoteWidget, streakWidget];
+function wrapText(s: string, w: number): string[] {
+  const out: string[] = [];
+  let line = "";
+  for (const word of s.split(" ")) {
+    if ((line + " " + word).trim().length > w) {
+      out.push(line);
+      line = word;
+    } else line = (line + " " + word).trim();
+  }
+  if (line) out.push(line);
+  return out;
+}
+
+/* ─────────── AI core: which model is wired in, as a breathing node ─────────── */
+
+const aiWidget: WidgetSpec = {
+  id: "ai",
+  title: "neural link",
+  description: "the AI you're wired to, and whether it's up",
+  size: { w: 3, h: 6 },
+  min: { w: 3, h: 3 },
+  render(ui, r, { deck }) {
+    const c = ui.c;
+    const ok = deck.ai.ready;
+    const label = deck.ai.provider.label;
+    const col = ok ? c.accent : c.error;
+    // a ring of nodes around a core; a signal travels the ring, the core breathes
+    const rows = Math.max(3, Math.min(r.h - 2, 7));
+    const cx = r.x + Math.floor(r.w / 2), cy = r.y + Math.floor(rows / 2);
+    const ry = Math.floor(rows / 2), rx = ry * 2;
+    const n = 12;
+    const head = Math.floor(ui.now / 140) % n;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+      const x = cx + Math.round(Math.cos(a) * rx), y = cy + Math.round(Math.sin(a) * ry);
+      const dist = (head - i + n) % n;
+      const glyph = !ok ? "·" : dist === 0 ? "◆" : dist < 3 ? "◇" : "·";
+      ui.text(x, y, glyph, { fg: ok && dist < 3 ? mix(col, 0xffffff, 0.5 - dist * 0.2) : c.faint });
+    }
+    const breath = (Math.sin(ui.now / 700) + 1) / 2;
+    ui.text(cx - 1, cy, ok ? "[■]" : "[×]", { fg: mix(col, c.bg, 0.5 - breath * 0.5), attrs: BOLD });
+    const y = r.y + rows + 1;
+    if (y < r.y + r.h) ui.textCenter(r, y, label, { fg: c.fg, attrs: BOLD });
+    if (y + 1 < r.y + r.h) ui.textCenter(r, y + 1, ok ? "● link up" : "○ offline", { fg: ok ? c.success : c.error });
+    if (!ok && y + 2 < r.y + r.h) ui.textCenter(r, y + 2, "enter: settings", { fg: c.faint });
+    ui.animate(ok ? 140 : 1000);
+  },
+  activate: ({ deck }) => void deck.openApp(deck.ai.ready ? "link" : "settings"),
+};
+
+export const EXTRA_WIDGETS: WidgetSpec[] = [aiWidget, newsWidget, tasksWidget, focusWidget, moonWidget, matrixWidget, worldWidget, quoteWidget, streakWidget];

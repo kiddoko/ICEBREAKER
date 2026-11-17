@@ -101,7 +101,7 @@ const clock: WidgetSpec = {
     const time = `${String(now.getHours()).padStart(2, "0")}${sep}${String(now.getMinutes()).padStart(2, "0")}`;
     const date = now.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" }).toUpperCase();
     const extra = r.h >= 5 ? 2 : r.h >= 4 ? 1 : 0; // rows under the digits: seconds line, date
-    const k = fitDigits(time.replace(" ", ":"), r.w - 2, r.h - extra);
+    const k = fitDigits(time.replace(" ", ":"), r.w - 2, r.h - extra, r.h >= 10 ? 2 : 1);
     const grad = ui.theme.gradient.length ? ui.theme.gradient : [c.accent, c.accentAlt];
     if (k) {
       const d = digitsSize(time.replace(" ", ":"), k);
@@ -117,7 +117,7 @@ const clock: WidgetSpec = {
         ui.text(x + filled, y, "─".repeat(Math.max(0, d.w - filled)), { fg: c.faint });
         y++;
       }
-      if (extra >= 2) ui.textCenter(r, y, r.w > date.length * 2 + 4 ? date.split("").join(" ") : date, { fg: c.muted });
+      if (extra >= 2) ui.textCenter(r, y, date, { fg: c.muted });
     } else {
       ui.textCenter(r, r.y + Math.floor((r.h - 1) / 2), time.replace(" ", ":"), { fg: c.accent, attrs: BOLD });
     }
@@ -199,7 +199,7 @@ export function sky(code: number): Sky {
   return "rain";
 }
 const SKY_LABEL: Record<Sky, string> = { sun: "clear", partly: "partly cloudy", cloud: "overcast", fog: "fog", rain: "rain", snow: "snow", storm: "thunderstorm" };
-export const SKY_ICON: Record<Sky, string> = { sun: "*", partly: "*~", cloud: "~~", fog: "==", rain: "//", snow: "**", storm: "/!" };
+export const SKY_ICON: Record<Sky, string> = { sun: "clear", partly: "mixed", cloud: "cloudy", fog: "fog", rain: "rain", snow: "snow", storm: "storm" };
 
 /** Animated 5-line art: rays turn, rain and snow fall, fog drifts. */
 function skyArt(s: Sky, t: number): string[] {
@@ -259,7 +259,7 @@ const weatherWidget: WidgetSpec = {
     // big temperature + place
     const tx = r.x + (showArt ? 14 : 1);
     const temp = `${Math.round(w.temp)}°`;
-    const k = r.h >= 5 && r.x + r.w - tx >= 36 ? (r.h >= 8 && r.x + r.w - tx >= 52 ? 2 : 1) : 0;
+    const k = 0;
     let infoX = tx;
     let below = r.y + 1;
     if (k) {
@@ -298,24 +298,17 @@ const weatherWidget: WidgetSpec = {
     // the week: as many days as fit, with a min→max bar on the week's scale
     if (y < r.y + r.h) {
       const locale = deck.settings.data.user.locale || undefined;
-      const n = Math.max(1, Math.min(w.days.length, Math.floor((r.w - 2) / 11)));
+      const n = Math.max(1, Math.min(w.days.length, Math.floor((r.w - 2) / 13)));
       const colW = Math.floor((r.w - 2) / n);
-      const lo = Math.min(...w.days.map((d) => d.min)), hi = Math.max(...w.days.map((d) => d.max));
       w.days.slice(0, n).forEach((d, i) => {
         const x = r.x + 1 + i * colW;
         const day = new Date(`${d.date}T12:00`).toLocaleDateString(locale, { weekday: "short" }).replace(".", "");
-        ui.text(x, y, day, { fg: c.subtle }, 5);
-        ui.text(x + 5, y, SKY_ICON[sky(d.code)], { fg: c.info });
+        const sk = sky(d.code);
+        ui.text(x, y, day, { fg: c.fg, attrs: BOLD }, 5);
+        ui.text(x + 5, y, SKY_ICON[sk], { fg: sk === "sun" ? c.warning : sk === "storm" ? c.accentAlt : c.info }, colW - 6);
         if (y + 1 < r.y + r.h) {
-          ui.text(x, y + 1, `${Math.round(d.max)}°`, { fg: c.fg });
-          ui.text(x + 4, y + 1, `${Math.round(d.min)}°`, { fg: c.faint });
-        }
-        if (y + 2 < r.y + r.h) {
-          const bw = colW - 2;
-          const a = Math.round(((d.min - lo) / Math.max(1, hi - lo)) * bw);
-          const b = Math.max(a + 1, Math.round(((d.max - lo) / Math.max(1, hi - lo)) * bw));
-          ui.text(x, y + 2, "─".repeat(bw), { fg: c.faint });
-          ui.text(x + a, y + 2, "━".repeat(b - a), { fg: mix(c.info, c.accent, i / n) });
+          ui.text(x, y + 1, `↑${Math.round(d.max)}°`, { fg: c.fg });
+          ui.text(x + 5, y + 1, `↓${Math.round(d.min)}°`, { fg: c.subtle });
         }
       });
     }
@@ -353,7 +346,7 @@ const calendar: WidgetSpec = {
     const ch = Math.max(1, Math.min(3, Math.floor((r.h - 2 - footer) / weeks)));
     const gx = r.x + Math.floor((r.w - cw * 7) / 2);
     const title = first.toLocaleDateString(locale, { month: "long", year: "numeric" }).toUpperCase();
-    ui.textCenter(r, r.y, r.w > title.length * 2 + 4 ? title.split("").join(" ") : title, { fg: c.fg, attrs: BOLD });
+    ui.textCenter(r, r.y, title, { fg: c.fg, attrs: BOLD });
     const names = [...Array(7)].map((_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(locale, { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "").slice(0, cw - 1));
     names.forEach((n, i) => ui.text(gx + i * cw + cw - 1 - strWidth(n), r.y + 1, n, { fg: i >= 5 ? c.accentAlt : c.subtle }));
     const pulse = Math.floor(ui.now / 700) % 2 === 0;
@@ -537,7 +530,7 @@ export const LAYOUT_PRESETS: Record<"essentials" | "productivity" | "gadget", Wi
   ],
   gadget: [
     { id: "clock", x: 0, y: 0, w: 5, h: 4 },
-    { id: "matrix", x: 5, y: 0, w: 3, h: 7 },
+    { id: "ai", x: 5, y: 0, w: 3, h: 7 },
     { id: "moon", x: 8, y: 0, w: 4, h: 4 },
     { id: "worldclock", x: 0, y: 4, w: 5, h: 3 },
     { id: "quote", x: 8, y: 4, w: 4, h: 3 },

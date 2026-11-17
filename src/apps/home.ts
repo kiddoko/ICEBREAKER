@@ -32,7 +32,6 @@ export class HomeApp implements App {
   private origin = { x: 0, y: 0 };
   // animation clocks (ui.now ms)
   private shownAt = 0;
-  private wasFocused = false;
   private selAt = 0;
   private lastSel = -1;
 
@@ -180,8 +179,7 @@ export class HomeApp implements App {
   render(ui: UI, r: Rect, focused: boolean): void {
     const c = ui.c;
     const anim = this.deck.settings.data.fx.glitch;
-    if (focused && !this.wasFocused) this.shownAt = ui.now; // came back to HOME: widgets boot in again
-    this.wasFocused = focused;
+    if (!this.shownAt) this.shownAt = ui.now; // widgets boot in once, not on every return
     if (this.selected !== this.lastSel) {
       this.lastSel = this.selected;
       this.selAt = ui.now;

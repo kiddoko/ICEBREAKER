@@ -44,6 +44,7 @@ pub fn run() {
             claude_code::claude_code_run,
             claude_code::claude_code_cancel,
             net::news_rss,
+            net::open_url,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ICEBREAKER");

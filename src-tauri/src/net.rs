@@ -43,3 +43,22 @@ pub async fn news_rss(query: String, lang: String, country: String) -> Result<St
     .await
     .map_err(|e| e.to_string())?
 }
+
+/// Open an https link in the default browser (news articles).
+#[tauri::command]
+pub fn open_url(url: String) -> Result<(), String> {
+    if !url.starts_with("https://") || url.chars().any(|c| c.is_whitespace() || c == '"') {
+        return Err("only https links".into());
+    }
+    #[cfg(target_os = "macos")]
+    let mut cmd = Command::new("open");
+    #[cfg(target_os = "windows")]
+    let mut cmd = {
+        let mut c = Command::new("rundll32");
+        c.arg("url.dll,FileProtocolHandler");
+        c
+    };
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut cmd = Command::new("xdg-open");
+    cmd.arg(&url).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
