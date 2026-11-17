@@ -78,7 +78,7 @@ bright_cyan = "bright"
 bright_white = "bright"
 
 [fx]
-bloom = 0.55
+bloom = 0.38
 scanlines = 0.18
 vignette = 0.7
 gradient = ["mid", "amber", "bright"]

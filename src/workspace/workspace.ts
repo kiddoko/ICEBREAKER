@@ -1,5 +1,5 @@
 import { BOLD, type Rect } from "../core/grid";
-import type { Action, ActionSource, KeyInput, MouseInput } from "../core/input";
+import { IS_MAC, type Action, type ActionSource, type KeyInput, type MouseInput } from "../core/input";
 import { strWidth } from "../core/unicode";
 import type { App } from "../apps/types";
 import type { Deck } from "../deck";
@@ -7,6 +7,7 @@ import { drawAmbient } from "../fx/ambient";
 import { Rain } from "../fx/rain";
 import { inside, type Hit, type UI } from "../ui/ui";
 import { ConfirmDialog, Osk, Palette, PromptDialog, Toasts, type Overlay, type ToastKind } from "./overlays";
+import { FxPanel } from "./fxpanel";
 import { Sidebar } from "./sidebar";
 
 export type Pane = "sidebar" | "main" | "shell";
@@ -132,6 +133,10 @@ export class Workspace {
     this.push(new Palette(() => this.deck.paletteEntries()));
   }
 
+  fxPanel(): void {
+    if (!this.overlays.some((o) => o instanceof FxPanel)) this.push(new FxPanel(this.deck));
+  }
+
   toggleOsk(): void {
     const osk = this.overlays.find((o) => o instanceof Osk);
     if (osk) osk.done = true;
@@ -248,8 +253,12 @@ export class Workspace {
     if (c === "f1") return void d.openApp("help"), true;
     if (c === "f11") return void d.toggleFullscreen(), true;
     if (c === "f12" || (k.ctrl && !k.shift && k.code === "Backquote")) return this.focusShell(), true;
-    if (k.alt && !k.ctrl && ["left", "right", "up", "down"].includes(k.key)) return this.moveFocus(k.key as "left"), true;
-    if (k.alt && !k.ctrl && /^Digit[1-9]$/.test(k.code)) return this.switchTab(Number(k.code.slice(5)) - 1), true;
+    // Pane focus: Alt+arrows (macOS: ⌘⌥+arrows, since ⌥+arrows jumps words there)
+    const paneMod = IS_MAC ? k.ctrl && k.alt : k.alt && !k.ctrl;
+    if (paneMod && ["left", "right", "up", "down"].includes(k.key)) return this.moveFocus(k.key as "left"), true;
+    // Tabs: Alt+1…9 or Ctrl+1…9 (macOS: ⌘1…9)
+    const tabMod = (k.alt && !k.ctrl && !IS_MAC) || (k.ctrl && !k.alt);
+    if (tabMod && /^Digit[1-9]$/.test(k.code)) return this.switchTab(Number(k.code.slice(5)) - 1), true;
     if (k.ctrl && (k.code === "Equal" || k.code === "NumpadAdd" || k.key === "+")) return d.zoom(1), true;
     if (k.ctrl && (k.code === "Minus" || k.code === "NumpadSubtract" || k.key === "-")) return d.zoom(-1), true;
     if (k.ctrl && (k.code === "Digit0" || k.code === "Numpad0")) return d.zoom(0), true;
@@ -404,6 +413,7 @@ export class Workspace {
     const parts: { text: string; fg: number; onClick?: () => void }[] = [];
     if (d.gamepad.connected) parts.push({ text: "◈ pad", fg: c.success });
     parts.push({ text: "⌨", fg: this.overlays.some((o) => o instanceof Osk) ? c.accent : c.muted, onClick: () => this.toggleOsk() });
+    parts.push({ text: "✦ fx", fg: c.accentAlt, onClick: () => this.fxPanel() });
     if (d.settings.data.appearance.showFps) parts.push({ text: `${d.loop.fps}fps ${d.loop.frameMs.toFixed(1)}ms`, fg: c.subtle });
     parts.push({ text: "^K palette", fg: c.muted, onClick: () => this.palette() });
     parts.push({ text: "F1 help", fg: c.muted, onClick: () => void d.openApp("help") });

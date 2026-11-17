@@ -30,6 +30,7 @@ import { ensureEntry } from "./vault/journal";
 import { basename, join, slugify } from "./vault/paths";
 import { Vault } from "./vault/vault";
 import { BootScreen, type BootLine } from "./workspace/boot";
+import { applyFxPreset } from "./workspace/fxpanel";
 import type { ToastKind } from "./workspace/overlays";
 import { Workspace } from "./workspace/workspace";
 
@@ -137,8 +138,10 @@ export class Deck implements InputSink {
     act("view.zoomin", "Zoom in", () => this.zoom(1), "ctrl+=", "view");
     act("view.zoomout", "Zoom out", () => this.zoom(-1), "ctrl+-", "view");
     act("view.osk", "On-screen keyboard", () => this.workspace.toggleOsk(), "pad X", "view");
-    act("fx.potato", "Potato mode (all effects off)", () => void this.shell.runLine("fx potato"), undefined, "fx");
-    act("fx.max", "All effects on", () => void this.shell.runLine("fx max"), undefined, "fx");
+    act("fx.panel", "Visual effects… (bloom, scanlines, vignette)", () => this.workspace.fxPanel(), "✦ fx", "fx");
+    act("fx.minimal", "Effects: minimal (default)", () => applyFxPreset(this, "minimal"), undefined, "fx");
+    act("fx.max", "Effects: everything on", () => applyFxPreset(this, "max"), undefined, "fx");
+    act("fx.potato", "Effects: potato mode (all off, 30fps)", () => applyFxPreset(this, "potato"), undefined, "fx");
     act("fx.rain", "Screensaver", () => this.screensaver(), undefined, "fx");
     act("deck.reboot", "Reboot (replay boot sequence)", () => this.reboot(), undefined, "deck");
     act("deck.quit", "Quit ICEBREAKER", () => void this.quit(), undefined, "deck");

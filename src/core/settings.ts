@@ -37,7 +37,9 @@ export const DEFAULT_SETTINGS: Settings = {
   user: { handle: "netrunner", locale: "" },
   vault: { path: "" },
   appearance: { theme: "nightshade", fontSize: 15, fullscreen: true, maxFps: 60, showFps: true, lineNumbers: true },
-  fx: { bloom: true, scanlines: true, vignette: true, ambient: true, flicker: false, glitch: true, screensaverMinutes: 0 },
+  // Minimal by default: the animated background and short glitch transitions.
+  // The heavy CRT stuff (bloom, scanlines, vignette, flicker) is one click away in the FX panel.
+  fx: { bloom: false, scanlines: false, vignette: false, ambient: true, flicker: false, glitch: true, screensaverMinutes: 0 },
   boot: { mode: "full" },
   ai: {
     provider: "anthropic",
@@ -72,7 +74,8 @@ export class SettingsStore {
   static async load(platform: Platform): Promise<SettingsStore> {
     const raw = await platform.config.read("settings.json").catch(() => null);
     const rawSecrets = await platform.config.read("secrets.json").catch(() => null);
-    const data = deepMerge(structuredClone(DEFAULT_SETTINGS), safeJson(raw)) as Settings;
+    // (JSON copy rather than structuredClone: works on older macOS WebKit too)
+    const data = deepMerge(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), safeJson(raw)) as Settings;
     const secrets = { anthropicApiKey: "", ...(safeJson(rawSecrets) as Partial<Secrets>) };
     return new SettingsStore(platform, data, secrets);
   }

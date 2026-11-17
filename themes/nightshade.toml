@@ -104,9 +104,10 @@ bright_magenta = "pink"
 bright_cyan    = "sky"
 bright_white   = "text"
 
-# Post-effects (0 = off). The user can still disable them all with `fx potato`.
+# Post-effect strengths (0–1), used when the user turns them on
+# (status bar "✦ fx" button, or `fx bloom on`). They're off by default.
 [fx]
-bloom     = 0.42
+bloom     = 0.3
 scanlines = 0.10
 vignette  = 0.55
 gradient  = ["violet", "mauve", "pink"]

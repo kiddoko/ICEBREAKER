@@ -1,5 +1,6 @@
+import { copyToClipboard } from "../core/clipboard";
 import { BOLD, DIM, type Rect, type Style } from "../core/grid";
-import type { KeyInput } from "../core/input";
+import { IS_MAC, type KeyInput } from "../core/input";
 import { charWidth, strWidth } from "../core/unicode";
 import { highlightLine, initialMdState, type MdState } from "./markdown";
 import type { UI } from "./ui";
@@ -380,8 +381,14 @@ export class TextEditor {
   }
 
   onKey(k: KeyInput): boolean {
+    // macOS conventions: ⌘←/→ = line start/end, ⌘↑/↓ = document start/end, ⌥ = word jumps.
+    if (IS_MAC && k.ctrl && !k.alt && ["left", "right", "up", "down"].includes(k.key)) {
+      const key = k.key === "left" ? "home" : k.key === "right" ? "end" : k.key;
+      const docJump = k.key === "up" || k.key === "down";
+      return this.onKey({ ...k, key: docJump ? (k.key === "up" ? "home" : "end") : key, ctrl: docJump, combo: key });
+    }
     const sel = k.shift;
-    const word = k.ctrl || k.alt;
+    const word = IS_MAC ? k.alt : k.ctrl || k.alt;
     switch (k.key) {
       case "left":
         if (!sel && this.selection()) this.moveTo(this.selection()![0], false);
@@ -669,8 +676,4 @@ export function wrapLine(s: string, width: number): Seg[] {
   return segs;
 }
 
-export function copyToClipboard(text: string): void {
-  navigator.clipboard?.writeText(text).catch(() => {
-    /* clipboard permission denied: nothing we can do silently */
-  });
-}
+export { copyToClipboard };

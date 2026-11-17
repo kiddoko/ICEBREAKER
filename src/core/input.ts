@@ -1,3 +1,4 @@
+import { takePendingCopy } from "./clipboard";
 import type { Renderer } from "./renderer";
 
 /**
@@ -69,16 +70,31 @@ export const KEY_ACTIONS: Record<string, Action> = {
   home: "home", end: "end",
 };
 
+/** macOS: Cmd plays the role Ctrl has elsewhere, and Option types characters. */
+export const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform) || /Mac OS X/.test(navigator.userAgent);
+
+/**
+ * Normalize a key event. On macOS, Cmd is reported as `ctrl` so every
+ * shortcut in the code is written once ("ctrl+k" = Ctrl+K on Windows/Linux,
+ * ⌘K on a Mac). The physical Control key also counts as ctrl, so terminal
+ * habits like Ctrl+C / Ctrl+L keep working.
+ */
 export function toKeyInput(e: KeyboardEvent): KeyInput {
-  let key = KEY_NAMES[e.key] ?? (e.key.length === 1 ? e.key.toLowerCase() : e.key.toLowerCase());
-  if (key === "+" || key === "=") key = e.key; // keep zoom keys readable
+  const key = KEY_NAMES[e.key] ?? e.key.toLowerCase();
+  const ctrl = e.ctrlKey || (IS_MAC && e.metaKey);
+  const meta = IS_MAC ? false : e.metaKey;
   const parts: string[] = [];
-  if (e.ctrlKey) parts.push("ctrl");
+  if (ctrl) parts.push("ctrl");
   if (e.altKey) parts.push("alt");
   if (e.shiftKey) parts.push("shift");
-  if (e.metaKey) parts.push("meta");
+  if (meta) parts.push("meta");
   parts.push(key);
-  return { key, code: e.code, ctrl: e.ctrlKey, alt: e.altKey, shift: e.shiftKey, meta: e.metaKey, combo: parts.join("+") };
+  return { key, code: e.code, ctrl, alt: e.altKey, shift: e.shiftKey, meta, combo: parts.join("+") };
+}
+
+/** A synthetic ctrl+<letter> press (used to turn native menu commands into our shortcuts). */
+function ctrlKey(letter: string, shift = false): KeyInput {
+  return { key: letter, code: `Key${letter.toUpperCase()}`, ctrl: true, alt: false, shift, meta: false, combo: `ctrl+${shift ? "shift+" : ""}${letter}` };
 }
 
 export class InputManager {
@@ -116,8 +132,11 @@ export class InputManager {
     ta.addEventListener("keydown", (e) => {
       this.onActivity();
       if (e.isComposing || e.keyCode === 229) return; // IME is busy, let it work
+      // Characters typed with AltGr (Windows/Linux: @ # { [ on many layouts) or
+      // Option (macOS: | { [ …) are text, not shortcuts.
       const altGr = e.getModifierState("AltGraph");
-      const printable = [...e.key].length === 1 && (!(e.ctrlKey || e.metaKey || e.altKey) || altGr);
+      const macOption = IS_MAC && e.altKey && !e.ctrlKey && !e.metaKey;
+      const printable = [...e.key].length === 1 && (!(e.ctrlKey || e.metaKey || e.altKey) || altGr || macOption);
       if (printable || e.key === "Dead") return; // becomes an `input` event
       const k = toKeyInput(e);
       // Let paste reach the textarea so we get the `paste` event with the clipboard text.
@@ -138,6 +157,25 @@ export class InputManager {
       e.preventDefault();
       const text = e.clipboardData?.getData("text/plain") ?? "";
       if (text) this.sink.text(text.replace(/\r\n?/g, "\n").normalize("NFC"));
+    });
+    // Native Edit-menu commands (macOS turns ⌘C ⌘X ⌘Z into these instead of key
+    // events) are routed to the same shortcuts as the keyboard.
+    const copyLike = (e: ClipboardEvent, letter: "c" | "x") => {
+      let text = takePendingCopy();
+      if (text === null) {
+        this.sink.key(ctrlKey(letter)); // let the focused widget copy its selection
+        text = takePendingCopy();
+      }
+      e.preventDefault();
+      if (text !== null) e.clipboardData?.setData("text/plain", text);
+    };
+    ta.addEventListener("copy", (e) => copyLike(e, "c"));
+    ta.addEventListener("cut", (e) => copyLike(e, "x"));
+    ta.addEventListener("beforeinput", (e) => {
+      if (e.inputType === "historyUndo" || e.inputType === "historyRedo") {
+        e.preventDefault();
+        this.sink.key(ctrlKey("z", e.inputType === "historyRedo"));
+      }
     });
     ta.addEventListener("blur", () => setTimeout(() => this.focus(), 0));
   }

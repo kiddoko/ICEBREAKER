@@ -11,7 +11,8 @@ export default defineConfig({
   },
   envPrefix: ["VITE_", "TAURI_ENV_"],
   build: {
-    target: "es2022",
+    // Safari 15 = the WebKit of macOS 12; also fine for WebView2 and WebKitGTK.
+    target: ["es2021", "safari15", "chrome105"],
     sourcemap: true,
     chunkSizeWarningLimit: 1500,
   },

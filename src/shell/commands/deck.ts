@@ -3,6 +3,7 @@ import { padEnd } from "../../core/unicode";
 import { ASK_SYSTEM_PROMPT } from "../../ai/prompts";
 import { appendLog, ensureEntry } from "../../vault/journal";
 import { join, slugify } from "../../vault/paths";
+import { applyFxPreset } from "../../workspace/fxpanel";
 import { parseFlags } from "../parser";
 import type { Command } from "../types";
 
@@ -223,7 +224,7 @@ async function fetchBuiltinThemeSource(name: string): Promise<string> {
 const fx: Command = {
   name: "fx",
   summary: "toggle visual effects (bloom, scanlines, ambient…)",
-  usage: "fx                      show current state\nfx <effect> on|off      bloom scanlines vignette ambient flicker glitch\nfx potato               everything off (weak laptops)\nfx max                  everything on",
+  usage: "fx                      show current state\nfx <effect> on|off      bloom scanlines vignette ambient flicker glitch\nfx minimal              default: ambient fog + glitch only\nfx max                  everything on\nfx potato               everything off, 30fps (weak laptops)\nfx panel                open the FX panel (also: ✦ fx in the status bar)",
   run(ctx) {
     const d = ctx.deck;
     const effects = ["bloom", "scanlines", "vignette", "ambient", "flicker", "glitch"] as const;
@@ -233,12 +234,15 @@ const fx: Command = {
       ctx.out(`${padEnd("fps cap", 10)} ${d.settings.data.appearance.maxFps || "unlimited"}\n`);
       return;
     }
-    if (what === "potato" || what === "max") {
-      for (const e of effects) d.settings.set(`fx.${e}`, what === "max");
-      if (what === "potato") d.settings.set("appearance.maxFps", 30);
-      else d.settings.set("appearance.maxFps", 60);
-      d.applyFx();
-      ctx.out(what === "potato" ? "potato mode: all effects off, 30fps cap\n" : "all effects on. welcome to the future.\n");
+    if (what === "potato" || what === "max" || what === "minimal") {
+      applyFxPreset(d, what);
+      ctx.out(
+        { potato: "potato mode: all effects off, 30fps cap\n", max: "all effects on. welcome to the future.\n", minimal: "back to minimal: ambient fog + glitch\n" }[what],
+      );
+      return;
+    }
+    if (what === "panel") {
+      d.workspace.fxPanel();
       return;
     }
     if (!(effects as readonly string[]).includes(what)) {

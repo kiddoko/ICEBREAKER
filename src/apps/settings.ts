@@ -86,9 +86,9 @@ export class SettingsApp implements App {
       cycle("fx.screensaverMinutes", "screensaver after", [0, 5, 10, 20, 30], undefined, (v) => (v ? `${v} min` : "never")),
       cycle("boot.mode", "boot sequence", ["full", "fast", "off"]),
       {
-        label: "potato mode (all fx off)",
-        value: () => "run",
-        change: () => void d.shell.runLine("fx potato"),
+        label: "presets: minimal / max / potato",
+        value: () => "open",
+        change: () => d.workspace.fxPanel(),
       },
       { section: "NEURAL LINK", label: "", value: () => "" },
       cycle("ai.provider", "provider", ["anthropic", "ollama"]),

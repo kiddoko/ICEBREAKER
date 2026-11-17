@@ -83,7 +83,10 @@ export function highlightLine(line: string, st: MdState, t: Theme): { styles: (S
     }
   };
   each(/\*\*[^*]+\*\*|__[^_]+__/g, { fg: s.bold, attrs: BOLD });
-  each(/(?<![*\w])\*[^*\s][^*]*\*(?!\*)|(?<![_\w])_[^_\s][^_]*_(?![\w_])/g, { fg: s.italic, attrs: ITALIC });
+  // *italic* / _italic_ — the leading group stands in for a lookbehind,
+  // which older WebKit (macOS < 13.3, some Linux distros) can't parse.
+  each(/(?:^|[^*\w])(\*[^*\s][^*]*\*)(?!\*)/g, { fg: s.italic, attrs: ITALIC }, 1);
+  each(/(?:^|[^_\w])(_[^_\s][^_]*_)(?![\w_])/g, { fg: s.italic, attrs: ITALIC }, 1);
   each(/~~[^~]+~~/g, { fg: t.c.subtle, attrs: STRIKE });
   each(/https?:\/\/[^\s)>\]]+/g, { fg: s.link, attrs: UNDERLINE });
   each(/\[[^\]]*\]\([^)]*\)/g, { fg: s.link, attrs: UNDERLINE });
