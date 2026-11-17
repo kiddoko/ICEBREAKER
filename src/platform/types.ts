@@ -61,6 +61,8 @@ export interface Platform {
   /** ANTHROPIC_API_KEY from the environment, if set. */
   envApiKey(): Promise<string | null>;
   /** The local Claude Code CLI (desktop only). Runs on the user's Claude plan instead of an API key. */
+  /** Google News RSS (desktop only — feeds have no CORS). */
+  newsRss?(query: string, lang: string, country: string): Promise<string>;
   claudeCode?: {
     detect(): Promise<string | null>;
     run(req: { id: string; prompt: string; system: string; resume?: string | null; model?: string }, onLine: (line: string) => void): Promise<{ code: number; stderr: string }>;

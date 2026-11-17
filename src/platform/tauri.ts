@@ -30,6 +30,7 @@ export function createTauriPlatform(): Platform {
     },
     system: { stats: () => invoke<SystemStats>("system_stats") },
     envApiKey: () => invoke<string | null>("env_api_key"),
+    newsRss: (query, lang, country) => invoke<string>("news_rss", { query, lang, country }),
     claudeCode: {
       detect: () => invoke<string | null>("claude_code_detect"),
       run: (req, onLine) => {

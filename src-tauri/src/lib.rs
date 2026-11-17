@@ -7,6 +7,7 @@
 
 mod claude_code;
 mod config;
+mod net;
 mod system;
 mod vault;
 
@@ -42,6 +43,7 @@ pub fn run() {
             claude_code::claude_code_detect,
             claude_code::claude_code_run,
             claude_code::claude_code_cancel,
+            net::news_rss,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ICEBREAKER");

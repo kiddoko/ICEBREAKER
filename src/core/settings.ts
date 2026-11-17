@@ -12,7 +12,17 @@ import type { WidgetPlacement } from "../widgets/types";
  * Every setting is reachable from the shell: `config set fx.bloom false`.
  */
 export interface Settings {
-  user: { handle: string; locale: string };
+  user: {
+    handle: string;
+    locale: string;
+    /**
+     * Where you are, as precisely as you choose (weather, local news). Nothing
+     * leaves the machine except to open-meteo.com / Google News when a widget asks.
+     */
+    location: { precision: "none" | "country" | "city" | "precise"; name: string; country: string; lat: number | null; lon: number | null };
+  };
+  /** First-run questionnaire (apps/setup.ts). */
+  setup: { done: boolean };
   vault: { path: string };
   appearance: { theme: string; fontSize: number; startFullscreen: boolean; fontWeight: "light" | "regular"; maxFps: number; showFps: boolean; lineNumbers: boolean };
   fx: { bloom: boolean; scanlines: boolean; vignette: boolean; ambient: boolean; flicker: boolean; glitch: boolean; screensaverMinutes: number };
@@ -30,7 +40,7 @@ export interface Settings {
   journal: { folder: string };
   editor: { autosave: boolean; tabSize: number };
   plugins: { enabled: string[]; disabled: string[]; registry: string };
-  home: { widgets: WidgetPlacement[]; weatherCity: string };
+  home: { widgets: WidgetPlacement[]; weatherCity: string; worldClocks: string[]; newsTopic: string };
 }
 
 export interface Secrets {
@@ -38,7 +48,8 @@ export interface Secrets {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  user: { handle: "netrunner", locale: "" },
+  user: { handle: "netrunner", locale: "", location: { precision: "none", name: "", country: "", lat: null, lon: null } },
+  setup: { done: false },
   vault: { path: "" },
   appearance: { theme: "nightshade", fontSize: 15, startFullscreen: false, fontWeight: "light", maxFps: 60, showFps: true, lineNumbers: true },
   // Minimal by default: the animated background and short glitch transitions.
@@ -59,7 +70,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // the community index: a JSON list of plugins/themes (see docs/COMMUNITY.md)
   plugins: { enabled: [], disabled: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-community/main/index.json" },
   // empty = the default layout (widgets/builtin.ts)
-  home: { widgets: [], weatherCity: "Paris" },
+  home: { widgets: [], weatherCity: "Paris", worldClocks: ["America/New_York", "Europe/London", "Asia/Tokyo"], newsTopic: "" },
 };
 
 type Listener = (path: string) => void;

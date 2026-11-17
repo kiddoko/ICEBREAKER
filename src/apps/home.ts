@@ -1,3 +1,4 @@
+import { mix } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
@@ -29,6 +30,11 @@ export class HomeApp implements App {
   private drag: { index: number; dx: number; dy: number } | null = null;
   private colW = 1;
   private origin = { x: 0, y: 0 };
+  // animation clocks (ui.now ms)
+  private shownAt = 0;
+  private wasFocused = false;
+  private selAt = 0;
+  private lastSel = -1;
 
   constructor(private readonly deck: Deck) {}
 
@@ -173,6 +179,13 @@ export class HomeApp implements App {
 
   render(ui: UI, r: Rect, focused: boolean): void {
     const c = ui.c;
+    const anim = this.deck.settings.data.fx.glitch;
+    if (focused && !this.wasFocused) this.shownAt = ui.now; // came back to HOME: widgets boot in again
+    this.wasFocused = focused;
+    if (this.selected !== this.lastSel) {
+      this.lastSel = this.selected;
+      this.selAt = ui.now;
+    }
     if (this.deck.settings.data.fx.ambient && !this.editing) drawAmbient(ui, r, 0.6);
     const area = { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 1 };
     // Columns stretch to the full width (cell edges are rounded, so they never drift).
@@ -230,10 +243,73 @@ export class HomeApp implements App {
           ui.text(inner.x, inner.y, `⚠ ${e instanceof Error ? e.message : e}`, { fg: c.error }, inner.w);
         }
       });
+      if (anim) drawEffects(ui, rect, inner, i, sel, this.shownAt, this.selAt);
     }
 
     if (this.editing) ui.textRight(r.x + r.w - 1, r.y, " EDIT LAYOUT ", { fg: c.panel, bg: c.accent, attrs: BOLD });
   }
+}
+
+const NOISE = [..."ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄ0123456789:=*+<>"];
+/** Stable pseudo-random 0..1 per cell. */
+const hash = (x: number, y: number) => {
+  const h = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  return h - Math.floor(h);
+};
+
+/**
+ * The satisfying bits, all short and quiet:
+ *  - boot-in: each widget dissolves out of katakana noise, staggered;
+ *  - lock-on: selecting a widget sends a light pulse around its frame;
+ *  - selected: its corners turn into blinking brackets.
+ * Off with `fx.glitch` (FX panel → glitch transitions).
+ */
+function drawEffects(ui: UI, rect: Rect, inner: Rect, index: number, selected: boolean, shownAt: number, selAt: number): void {
+  const c = ui.c;
+  const t = (ui.now - shownAt - index * 70) / 450;
+  if (t < 1) {
+    ui.animate(30);
+    for (let y = inner.y; y < inner.y + inner.h; y++)
+      for (let x = inner.x; x < inner.x + inner.w; x++) {
+        const h = hash(x, y);
+        if (h < t) continue;
+        const edge = h - t < 0.08;
+        const ch = NOISE[Math.floor((h * 977 + ui.now / 60) % NOISE.length)];
+        ui.text(x, y, t < 0 && !edge ? " " : ch, { fg: edge ? mix(c.accent, 0xffffff, 0.4) : mix(c.accent, c.bg, 0.55), bg: c.panel });
+      }
+  }
+  if (!selected) return;
+  // lock-on pulse: a bright segment runs around the frame once
+  const perim = 2 * (rect.w + rect.h) - 4;
+  const s = (ui.now - selAt) / 420;
+  if (s < 1) {
+    ui.animate(16);
+    const head = Math.floor(s * perim);
+    for (let k = 0; k < 10; k++) {
+      const p = head - k;
+      if (p < 0) break;
+      const [x, y] = perimeterAt(rect, p);
+      ui.text(x, y, k === 0 ? "█" : "━", { fg: mix(c.accent, 0xffffff, 0.6 - k * 0.06) });
+    }
+  }
+  // target brackets on the corners, blinking softly
+  const on = Math.floor(ui.now / 520) % 2 === 0;
+  const col = on ? c.accent : mix(c.accent, c.bg, 0.5);
+  ui.text(rect.x, rect.y, "┏", { fg: col });
+  ui.text(rect.x + rect.w - 1, rect.y, "┓", { fg: col });
+  ui.text(rect.x, rect.y + rect.h - 1, "┗", { fg: col });
+  ui.text(rect.x + rect.w - 1, rect.y + rect.h - 1, "┛", { fg: col });
+  ui.animate(520);
+}
+
+/** Walk the frame clockwise from the top-left corner. */
+function perimeterAt(r: Rect, p: number): [number, number] {
+  const w = r.w - 1, h = r.h - 1;
+  p %= 2 * (w + h);
+  if (p < w) return [r.x + p, r.y];
+  if (p < w + h) return [r.x + w, r.y + (p - w)];
+  if (p < 2 * w + h) return [r.x + w - (p - w - h), r.y + h];
+  return [r.x, r.y + h - (p - 2 * w - h)];
 }
 
 export const homeSpec: AppSpec = {

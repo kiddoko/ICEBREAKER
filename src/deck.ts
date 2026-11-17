@@ -4,6 +4,7 @@ import { homeSpec } from "./apps/home";
 import { journalSpec, JournalApp } from "./apps/journal";
 import { linkSpec } from "./apps/link";
 import { modulesSpec } from "./apps/modules";
+import { setupSpec } from "./apps/setup";
 import { noteSpec } from "./apps/note";
 import { ActionRegistry, AppRegistry } from "./apps/registry";
 import { settingsSpec } from "./apps/settings";
@@ -114,6 +115,7 @@ export class Deck implements InputSink {
 
     this.shell.motd();
     this.openApp("home");
+    if (!s.setup.done) this.openApp("setup");
     this.applyFx();
     this.resize();
     // (browsers only allow fullscreen after a click, so this is desktop-only)
@@ -127,12 +129,13 @@ export class Deck implements InputSink {
   private registerCore(): void {
     for (const c of [...fileCommands, ...systemCommands, ...deckCommands]) this.commands.register({ ...c, source: "core" });
     for (const w of BUILTIN_WIDGETS) this.widgets.register(w);
-    for (const a of [homeSpec, modulesSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec]) this.apps.register(a);
+    for (const a of [homeSpec, modulesSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec]) this.apps.register(a);
 
     const act = (id: string, title: string, run: () => void, hint?: string, group = "deck") => this.actions.register({ id, title, run, hint, group });
     act("journal.today", "Journal: today", () => void this.openJournal(new Date()), "ctrl+j", "journal");
     act("journal.yesterday", "Journal: yesterday", () => void this.openJournal(new Date(Date.now() - 86400_000)), undefined, "journal");
     act("note.new", "New note", () => void this.newNote(), "ctrl+n", "notes");
+    act("setup.run", "Setup (first-run questionnaire)", () => void this.openApp("setup"), undefined, "deck");
     act("modules.open", "Modules (all apps and plugins)", () => void this.openApp("modules"), undefined, "deck");
     act("link.open", "Open LINK (AI chat)", () => void this.openApp("link"), "ctrl+space", "ai");
     act("ai.key", "Set Anthropic API key", () => void this.shell.runLine("config key"), undefined, "ai");
