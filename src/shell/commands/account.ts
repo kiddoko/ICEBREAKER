@@ -20,6 +20,11 @@ async function newPassword(ctx: ShellContext): Promise<string | null> {
 
 export const account: Command = {
   name: "account",
+  examples: [
+    ["account create", "add a login"],
+    ["account passwd", "change it"],
+    ["lock", "lock now"],
+  ],
   aliases: ["passwd"],
   summary: "the deck login: create, change or remove it, lock now",
   usage: "account            status\naccount create     add a login (name + password)\naccount passwd     change name / password\naccount remove     no more login\nlock               lock the deck now",

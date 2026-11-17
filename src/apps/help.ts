@@ -45,7 +45,7 @@ On-screen keyboard: A types, B deletes, Y space, Start enter, LB/RB move the cur
 ## Shell
 A small POSIX-like shell over your vault: pipes \`|\`, redirections \`> >> <\`, \`&&\` \`||\` \`;\`,
 quotes, \`$VARS\`, globs \`*.md\`, history (↑), fish-style suggestions (→), Tab completion.
-\`/\` and \`~\` are the vault root. \`man <cmd>\` explains each command.
+\`/\` and \`~\` are the vault root. \`<cmd> -h\` (or \`man <cmd>\`) shows a command's help with full examples: \`todo -h\`.
 
 ${cmds}
 

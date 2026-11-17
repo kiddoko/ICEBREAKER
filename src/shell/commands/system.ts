@@ -1,3 +1,4 @@
+import { helpText } from "../help";
 import { fmt } from "../../core/ansi";
 import { gradient } from "../../core/color";
 import { padEnd, strWidth } from "../../core/unicode";
@@ -20,7 +21,7 @@ const help: Command = {
       ctx.out(`\n${ctx.isTTY ? fmt.bold(fmt.magenta(g.toUpperCase())) : g.toUpperCase()}\n`);
       for (const c of cmds) ctx.out(`  ${ctx.isTTY ? fmt.green(padEnd(c.name, 12)) : padEnd(c.name, 12)} ${c.summary}\n`);
     }
-    ctx.out(`\n${fmt.dim("man <command> for details · Ctrl+K for the command palette · F1 for the manual")}\n`);
+    ctx.out(`\n${fmt.dim("<command> -h for its help and examples (todo -h) · Ctrl+K palette · F1 manual")}\n`);
   },
 };
 
@@ -36,12 +37,7 @@ const man: Command = {
       ctx.err(name ? `No manual entry for ${name}\n` : "What manual page do you want?\n");
       return 1;
     }
-    const h = (s: string) => (ctx.isTTY ? fmt.bold(s) : s);
-    ctx.out(`${h("NAME")}\n       ${c.name} — ${c.summary}\n\n`);
-    ctx.out(`${h("SYNOPSIS")}\n       ${c.usage ?? c.name}\n`);
-    if (c.aliases?.length) ctx.out(`\n${h("ALIASES")}\n       ${c.aliases.join(", ")}\n`);
-    if (c.man) ctx.out(`\n${h("DESCRIPTION")}\n${c.man.split("\n").map((l) => "       " + l).join("\n")}\n`);
-    ctx.out(`\n${h("SOURCE")}\n       ${c.source ?? "core"}\n`);
+    ctx.out(helpText(c, ctx.isTTY));
   },
 };
 

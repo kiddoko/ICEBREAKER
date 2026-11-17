@@ -237,6 +237,13 @@ export function showNews(deck: Deck, n: number): boolean {
 
 export const newsCommand: Command = {
   name: "news",
+  examples: [
+    ["news", "numbered headlines"],
+    ["news 3", "summary of headline 3 (and the card on screen)"],
+    ["news open 3", "read it in your browser"],
+    ["news topic intelligence artificielle", "follow a topic instead of your city"],
+    ["news topic -", "back to your city"],
+  ],
   summary: "headlines for your area or topic; read one, open it",
   usage: "news              list the headlines\nnews <n>          summary of headline n (a card on screen)\nnews open <n>     open it in your browser\nnews refresh\nnews topic <words> | news topic -   (follow a topic / back to your city)",
   complete: () => ["open", "refresh", "topic"],

@@ -4,6 +4,11 @@ import type { Command } from "../types";
 
 export const sound: Command = {
   name: "sound",
+  examples: [
+    ["sound 30", "volume 30 %"],
+    ["sound test error", "hear one"],
+    "sound off",
+  ],
   summary: "UI sounds: on / off / volume / test / reload custom files",
   usage: "sound              status\nsound on|off\nsound 0-100        volume\nsound test [name]  play one (or all)\nsound reload       re-read .icebreaker/sounds/*.wav|ogg|mp3",
   man: `Sounds are synthesized on the fly. Replace any of them with a file named after it in .icebreaker/sounds/:\n${SOUND_NAMES.join(", ")}`,

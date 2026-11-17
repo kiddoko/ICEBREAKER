@@ -68,6 +68,7 @@ export class LinkApp implements App {
           journalFolder: this.deck.vault.journalFolder,
           today: `${isoDate(new Date())} (${new Date().toLocaleDateString("en", { weekday: "long" })})`,
           toolsEnabled,
+          writes: this.deck.settings.data.ai.allowWrites,
         }),
         tools: toolsEnabled ? vaultTools(this.deck.vault, (t, d) => this.deck.confirm(t, d)) : [],
       });

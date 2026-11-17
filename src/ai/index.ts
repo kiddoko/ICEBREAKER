@@ -17,6 +17,8 @@ export class AIManager {
   /** Set at startup by the Deck: the platform's Claude Code bridge and where the CLI lives. */
   claudeCode: Platform["claudeCode"];
   claudeCodePath: string | null = null;
+  /** Called when the AI changed files in the vault (the deck rescans). */
+  onVaultWrite?: () => void;
 
   constructor(private readonly settings: SettingsStore) {
     settings.onChange((path) => {
@@ -36,7 +38,7 @@ export class AIManager {
         ai.provider === "ollama"
           ? new OllamaProvider(ai.ollamaHost, ai.ollamaModel)
           : ai.provider === "claude-code"
-            ? new ClaudeCodeProvider(this.claudeCode, this.claudeCodePath, ai.claudeCodeModel)
+            ? new ClaudeCodeProvider(this.claudeCode, this.claudeCodePath, ai.claudeCodeModel, ai.allowWrites, () => this.onVaultWrite?.())
             : new AnthropicProvider(this.settings.secrets.anthropicApiKey || this.envKey || "", ai.model, ai.effort);
     }
     return this.cached;

@@ -106,6 +106,7 @@ export class SettingsApp implements App {
       { section: "NEURAL LINK", label: "", value: () => "" },
       cycle("ai.provider", "provider", ["claude-code", "anthropic", "ollama"], undefined, (v) => (v === "claude-code" ? "claude code (subscription)" : v === "anthropic" ? "anthropic api (tokens)" : "ollama (local)")),
       text("ai.claudeCodeModel", "claude code model", undefined, "sonnet, opus… (empty = default)"),
+      toggle("ai.allowWrites", "AI can write notes (vault only)"),
       text("ai.model", "api model", undefined, "claude-opus-5-5"),
       cycle("ai.effort", "claude effort", ["low", "medium", "high", "xhigh", "max"]),
       {

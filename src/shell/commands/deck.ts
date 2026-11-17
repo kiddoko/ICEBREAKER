@@ -37,6 +37,9 @@ function parseDay(arg: string | undefined): Date | null {
 
 const open: Command = {
   name: "open",
+  examples: [
+    ["open notes/idees.md", "open (or create) a note"],
+  ],
   aliases: ["edit", "vim", "nvim", "nano", "code"],
   summary: "open a note in the editor (created if missing)",
   usage: "open path",
@@ -58,6 +61,13 @@ const open: Command = {
 
 const journal: Command = {
   name: "journal",
+  examples: [
+    ["journal", "today's entry"],
+    "journal yesterday",
+    ["journal 2026-11-05", "a given day"],
+    ["journal add \"caf\u00e9 avec L\u00e9a\"", "a timestamped line in today's log"],
+    ["journal ls -n 7", "the last 7 entries"],
+  ],
   aliases: ["j"],
   summary: "today's journal (or another day), add log lines, list entries",
   usage: "journal [today|yesterday|-N|YYYY-MM-DD]\njournal add <text>      (or: echo text | journal add)\njournal ls [-n N]",
@@ -95,6 +105,10 @@ Custom template: create .icebreaker/templates/journal.md ({{date}} {{title}} {{w
 
 const note: Command = {
   name: "note",
+  examples: [
+    ["note \"id\u00e9es de cadeaux\"", "creates notes/idees-de-cadeaux.md and opens it"],
+    ["echo \"- pain\" | note courses", "a note from piped text"],
+  ],
   summary: "create a note from a title and open it",
   usage: "note <title…>   (creates notes/<slug>.md)",
   async run(ctx) {
@@ -135,6 +149,11 @@ const checkboxes: Command = {
 
 const ask: Command = {
   name: "ask",
+  examples: [
+    "ask \"explique la diff\u00e9rence entre TCP et UDP\"",
+    ["cat notes/rapport.md | ask \"r\u00e9sume en 5 points\"", "pipe a note in"],
+    ["ask \"cr\u00e9e une note avec une liste de courses pour une tarte aux \u00e9pinards\"", "the AI writes the note in your vault"],
+  ],
   aliases: ["claude", "ai"],
   summary: "ask the AI from the shell — pipe anything into it",
   usage: 'ask "question"\ncat notes/x.md | ask "summarize"\njournal ls | ask "which days did I skip?" > notes/report.md',
@@ -176,6 +195,11 @@ const sysmon: Command = {
 
 const theme: Command = {
   name: "theme",
+  examples: [
+    ["theme", "list themes"],
+    ["theme set phosphor", "green screen"],
+    ["theme new mytheme", "copy the current one to edit"],
+  ],
   summary: "list, switch, create and reload themes",
   usage: "theme [ls]\ntheme set <name>\ntheme new <name>     (copies the current theme into your vault and opens it)\ntheme reload         (re-read .icebreaker/themes/*.toml)\ntheme install <user/repo/file.toml | id>   (download a community theme)",
   complete: () => ["ls", "set", "new", "reload", "install"],
@@ -243,6 +267,10 @@ async function fetchBuiltinThemeSource(name: string): Promise<string> {
 
 const fx: Command = {
   name: "fx",
+  examples: [
+    "fx bloom on",
+    ["fx potato", "everything off, for old laptops"],
+  ],
   summary: "toggle visual effects (bloom, scanlines, ambient…)",
   usage: "fx                      show current state\nfx <effect> on|off      bloom scanlines vignette ambient flicker glitch\nfx minimal              default: ambient fog + glitch only\nfx max                  everything on\nfx potato               everything off, 30fps (weak laptops)\nfx panel                open the FX panel (also: ✦ fx in the status bar)",
   run(ctx) {
@@ -278,6 +306,11 @@ const fx: Command = {
 
 const config: Command = {
   name: "config",
+  examples: [
+    ["config list", "every setting"],
+    "config set appearance.scale 90",
+    ["config set ai.allowWrites false", "the AI can't write notes any more"],
+  ],
   aliases: ["set"],
   summary: "read and change settings",
   usage: "config [list]\nconfig get <key>\nconfig set <key> <value>\nconfig key              set the Anthropic API key (hidden input)\nconfig path",

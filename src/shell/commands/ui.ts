@@ -19,6 +19,12 @@ function home(ctx: ShellContext): HomeApp {
 
 const homeCmd: Command = {
   name: "home",
+  examples: [
+    ["home widgets", "what you can put on the grid"],
+    ["home add todo.list", "add the to-do widget"],
+    ["home rm matrix", "take one off"],
+    ["home edit", "rearrange with the arrows (they shrink to fit)"],
+  ],
   summary: "the HOME dashboard: open it, edit it, add / remove widgets",
   usage: "home                open HOME (key: h)\nhome edit           rearrange (key: e)\nhome done           leave edit mode\nhome add <widget>   put a widget on the grid\nhome rm <widget>    take it off\nhome widgets        what's available\nhome reset          default layout",
   complete: () => ["edit", "done", "add", "rm", "widgets", "reset"],
@@ -63,6 +69,11 @@ const widget: Command = {
 
 const tab: Command = {
   name: "tab",
+  examples: [
+    ["tab", "list tabs"],
+    ["tab 2", "go to tab 2"],
+    ["tab close", "close the current one"],
+  ],
   summary: "list, switch and close tabs",
   usage: "tab              list\ntab <n>          switch (keys: ctrl+1…9)\ntab next | prev  (ctrl+tab)\ntab close [n]    (ctrl+w)",
   complete: () => ["next", "prev", "close"],
@@ -89,6 +100,10 @@ const tab: Command = {
 
 const launch: Command = {
   name: "launch",
+  examples: [
+    ["launch", "list apps and modules"],
+    ["launch todo", "open the TODO app"],
+  ],
   aliases: ["app"],
   summary: "open an app or module by name",
   usage: "launch           list them\nlaunch <name>    e.g. launch sysmon, launch lingo",
@@ -134,6 +149,10 @@ const view: Command = {
 
 const scale: Command = {
   name: "scale",
+  examples: [
+    ["scale 80", "everything smaller"],
+    ["scale reset", "back to 100 %"],
+  ],
   summary: "interface scale, 25–200 % (ctrl+= / ctrl+- / ctrl+0)",
   usage: "scale            current\nscale <25-200>\nscale + | - | reset",
   run(ctx) {

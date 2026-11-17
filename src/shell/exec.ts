@@ -3,6 +3,7 @@ import { levenshtein } from "../core/fuzzy";
 import type { Deck } from "../deck";
 import { basename, dirname, globToRegex, resolvePath } from "../vault/paths";
 import { parse, ParseError, type SimpleCommand, type Word } from "./parser";
+import { helpText, wantsHelp } from "./help";
 import type { ReadOptions, ShellContext, ShellControls } from "./types";
 
 /**
@@ -160,6 +161,10 @@ export class ShellExecutor {
       resolve: (p) => resolvePath(self.cwd, p),
       read: (label, opts = {}) => (self.readLine && !self.abort!.signal.aborted ? self.readLine(label, opts, self.abort!.signal) : Promise.resolve(null)),
     };
+    if (wantsHelp(args)) {
+      ctx.out(helpText(cmd, isTTY));
+      return { status: 0, stdout };
+    }
     try {
       const code = await cmd.run(ctx);
       return { status: typeof code === "number" ? code : 0, stdout };

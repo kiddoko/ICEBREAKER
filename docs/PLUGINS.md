@@ -126,6 +126,10 @@ For plain clicks you don't even need a handler: `ui.hit(rect, { cmd: "todo done 
 runs the command on click and shows it (plus the tip) in a hover tooltip.
 `ib.lib.parseFlags` reads `--flags`, `ib.lib.q` quotes an argument safely.
 
+Give your command `usage`, `examples` and `man`: `yourcmd -h` (and `man yourcmd`)
+prints them as its help page, for free. Examples are a command line, or
+`[command line, what it does]`.
+
 Examples to copy from:
 
 - [TODO](../plugins/todo/main.ts): the reference module. A `todo` command

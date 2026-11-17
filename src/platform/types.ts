@@ -69,7 +69,7 @@ export interface Platform {
   openUrl?(url: string): Promise<void>;
   claudeCode?: {
     detect(): Promise<string | null>;
-    run(req: { id: string; prompt: string; system: string; resume?: string | null; model?: string }, onLine: (line: string) => void): Promise<{ code: number; stderr: string }>;
+    run(req: { id: string; prompt: string; system: string; resume?: string | null; model?: string; writes?: boolean }, onLine: (line: string) => void): Promise<{ code: number; stderr: string }>;
     cancel(id: string): Promise<void>;
   };
   /**

@@ -82,6 +82,8 @@ export class Deck implements InputSink {
     const el = (id: string) => document.getElementById(id)!;
     this.vault = new Vault(platform.vault);
     this.ai = new AIManager(settings);
+    // the AI wrote notes: pick them up in the tree, search, widgets…
+    this.ai.onVaultWrite = () => void this.vault.rescan().then(() => this.requestFrame());
     this.plugins = new PluginHost(this);
     this.renderer = new Renderer(el("screen") as HTMLCanvasElement, el("bloom") as HTMLCanvasElement, settings.data.appearance.fontSize);
     this.loop = new FrameLoop(this.frame, settings.data.appearance.maxFps);

@@ -41,6 +41,8 @@ export interface Settings {
     provider: "claude-code" | "anthropic" | "ollama";
     /** Model for the Claude Code provider: "sonnet", "opus"… (empty = the CLI default). */
     claudeCodeModel: string;
+    /** Claude Code may create and edit notes (inside the vault only, never .icebreaker/). */
+    allowWrites: boolean;
     model: string;
     effort: "low" | "medium" | "high" | "xhigh" | "max";
     ollamaHost: string;
@@ -70,6 +72,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ai: {
     provider: "claude-code",
     claudeCodeModel: "",
+    allowWrites: true,
     model: "claude-opus-5-5",
     effort: "medium",
     ollamaHost: "http://localhost:11434",

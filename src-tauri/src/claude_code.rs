@@ -33,6 +33,9 @@ pub struct RunRequest {
     resume: Option<String>,
     /// Model alias ("sonnet", "opus") or full id. Empty = the CLI's default.
     model: Option<String>,
+    /// Let the model create and edit notes — inside the vault only.
+    #[serde(default)]
+    writes: bool,
 }
 
 #[derive(Serialize)]
@@ -86,8 +89,20 @@ pub async fn claude_code_run(
     let mut cmd = Command::new(exe);
     cmd.args(["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages"])
         .args(["--system-prompt", &req.system])
-        .args(["--allowedTools", "Read,Glob,Grep"])
-        .args(["--disallowedTools", "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch"]);
+        // `--` ends the variadic tool lists (the prompt itself goes through stdin).
+        // Writes: `Edit(./**)` allows creating / editing files under the vault
+        // only (Edit rules cover Write too); anything outside needs a permission
+        // that -p mode never grants. ICEBREAKER's own folders stay off-limits.
+        .args(if req.writes {
+            [
+                "--allowedTools",
+                "Read,Glob,Grep,Edit(./**)",
+                "--disallowedTools",
+                "Bash,NotebookEdit,WebFetch,WebSearch,Edit(./.icebreaker/**),Edit(./.obsidian/**),Edit(./.git/**),Edit(./.trash/**)",
+            ]
+        } else {
+            ["--allowedTools", "Read,Glob,Grep", "--disallowedTools", "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch"]
+        });
     if let Some(id) = req.resume.as_deref().filter(|s| !s.is_empty()) {
         cmd.args(["--resume", id]);
     }

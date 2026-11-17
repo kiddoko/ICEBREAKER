@@ -15,7 +15,7 @@ scanlines — but works with the keyboard, the mouse, or a gamepad.
 - **Notes** — plain Markdown, Obsidian-compatible vault (`[[wikilinks]]`, `#tags`, frontmatter). Point it at your existing vault.
 - **Journal** — one file per day, calendar, streaks, `journal add "…"` from the shell.
 - **A real-ish shell** — pipes, redirections, globs, history, fish-style suggestions, 70+ commands working on your vault. `cat note.md | ask "summarize"` works.
-- **LINK** — chat with Claude, which can search and read your notes (and write them, with your approval). Or use a local open-source model through [Ollama](https://ollama.com).
+- **LINK** — chat with Claude, which can search, read and write your notes ("make me a note with a shopping list for a spinach pie"). With Claude Code it writes inside the vault only, never elsewhere (`config set ai.allowWrites false` to keep it read-only); with an API key it asks before each write. Or use a local open-source model through [Ollama](https://ollama.com).
 - **Plugins** — small JS modules with a documented API and declared permissions. LINGO, an AI language tutor, ships as an example.
 - **Themes** — TOML files, hot-swappable: colors, font, border style and symbols. Default: `nightshade` (violet, Catppuccin-flavoured). Also `amber`, `neon-ronin`, `phosphor`, `ghost`, `redline`, `graphite`.
 - **Modules** — one feature, one module, each with its own command, app and HOME widget. First one: **TODO** (`todo add "walk the dog" --urgent --due tomorrow +home`, or the app, or the widget).

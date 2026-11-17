@@ -10,8 +10,9 @@ type CC = NonNullable<Platform["claudeCode"]>;
  *   1. install Claude Code and run `claude` once to log in
  *   2. config set ai.provider claude-code
  *
- * The CLI runs in the vault folder with read-only tools (Read, Glob, Grep):
- * the model can read notes but never writes them. ICEBREAKER's own JS tools
+ * The CLI runs in the vault folder with Read, Glob and Grep, plus (setting
+ * ai.allowWrites, on by default) Write/Edit restricted to the vault — never
+ * outside it, never .icebreaker/ (see claude_code.rs). ICEBREAKER's own JS tools
  * (`ToolSpec`) aren't passed through — the CLI's tools replace them.
  */
 export class ClaudeCodeProvider implements Provider {
@@ -22,6 +23,9 @@ export class ClaudeCodeProvider implements Provider {
     /** Path of the CLI, found at startup (null = not installed). */
     private readonly exe: string | null,
     private readonly model: string,
+    private readonly writes = false,
+    /** Called after a turn in which the model wrote files (the deck rescans the vault). */
+    private readonly onWrote?: () => void,
   ) {}
 
   get label(): string {
@@ -36,7 +40,7 @@ export class ClaudeCodeProvider implements Provider {
 
   createSession(opts: SessionOptions): ChatSession {
     if (!this.cc) throw new Error("Claude Code unavailable");
-    return new ClaudeCodeSession(this.cc, this.model, opts.system);
+    return new ClaudeCodeSession(this.cc, this.model, opts.system, this.writes, this.onWrote);
   }
 }
 
@@ -59,6 +63,8 @@ class ClaudeCodeSession implements ChatSession {
     private readonly cc: CC,
     private readonly model: string,
     private readonly system: string,
+    private readonly writes: boolean,
+    private readonly onWrote?: () => void,
   ) {}
 
   reset(): void {
@@ -73,6 +79,7 @@ class ClaudeCodeSession implements ChatSession {
     let streamed = false; // got text through partial-message deltas
     let failure: string | null = null;
     let gotResult = false;
+    let wrote = false;
 
     const onLine = (line: string) => {
       let m: Record<string, any>;
@@ -97,6 +104,7 @@ class ClaudeCodeSession implements ChatSession {
           for (const b of (m.message?.content ?? []) as Block[]) {
             if (b.type === "tool_use") {
               toolNames.set(b.id ?? "", b.name ?? "tool");
+              if (b.name === "Write" || b.name === "Edit" || b.name === "MultiEdit") wrote = true;
               h.onToolCall?.(b.name ?? "tool", b.input ?? {});
             } else if (b.type === "text" && !streamed && b.text) h.onText(b.text);
           }
@@ -117,7 +125,8 @@ class ClaudeCodeSession implements ChatSession {
     };
 
     try {
-      const r = await this.cc.run({ id, prompt: text, system: this.system, resume: this.sessionId, model: this.model }, onLine);
+      const r = await this.cc.run({ id, prompt: text, system: this.system, resume: this.sessionId, model: this.model, writes: this.writes }, onLine);
+      if (wrote) this.onWrote?.();
       if (signal?.aborted) return;
       if (failure) throw new Error(failure);
       if (r.code !== 0 && !gotResult) throw new Error(r.stderr.trim().split("\n").slice(-3).join(" ") || `claude exited with code ${r.code}`);

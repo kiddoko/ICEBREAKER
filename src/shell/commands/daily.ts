@@ -138,6 +138,10 @@ async function trend(ctx: ShellContext, days: number): Promise<number> {
 
 export const daily: Command = {
   name: "daily",
+  examples: [
+    ["daily", "the end-of-day questions (1-5 to answer fast)"],
+    ["daily trend 30", "mood / energy / output over 30 days"],
+  ],
   aliases: ["dlog", "eod"],
   summary: "end-of-day check-in: mood, wins, friction, tomorrow's tasks",
   usage: "daily            answer the questions (1-5 for quick answers)\ndaily trend [n]  mood / energy / output over the last n days (14)",
@@ -156,6 +160,10 @@ export const daily: Command = {
 /** `chat`: talk to the AI right in the shell, the conversation keeps going until esc / exit. */
 export const chat: Command = {
   name: "chat",
+  examples: [
+    ["chat", "start talking; esc or exit to leave"],
+    ["chat \"fais-moi une note avec la liste de courses pour une tarte aux \u00e9pinards\"", "the AI writes notes/\u2026 in your vault"],
+  ],
   aliases: ["cc"],
   summary: "talk to the AI in the shell (a conversation, esc to leave)",
   usage: "chat\nchat \"first message\"",

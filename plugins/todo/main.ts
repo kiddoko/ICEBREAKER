@@ -232,6 +232,21 @@ export function activate(ib: IcebreakerAPI): void {
 
   const command: Command = {
     name: "todo",
+    examples: [
+      ["todo add \"promener le chien\" --urgent --due demain +maison", "urgent task, due tomorrow, tagged maison"],
+      ["todo add \"rapport Q4\" --high --due fri +work", "high priority, due next Friday"],
+      ["todo add \"appeler mamie\" --due +3d", "due in 3 days (moderate priority by default)"],
+      ["todo", "what's left, most urgent first"],
+      ["todo ls --today", "due today or late"],
+      ["todo ls +work", "only tasks tagged work"],
+      ["todo done 3 5", "tick tasks 3 and 5"],
+      ["todo prio 3 low", "change a priority"],
+      ["todo due 3 24/12", "set a due date (- removes it)"],
+      ["todo edit 3 \"promener le chien et le chat\" --high", "new text and priority"],
+      ["todo rm 3", "remove it\u2026"],
+      ["todo restore", "\u2026and bring it back"],
+      ["todo open --add", "the app, ready to type"],
+    ],
     aliases: ["td"],
     summary: "your to-do list: priorities, due dates, tags (the TODO module)",
     usage: [

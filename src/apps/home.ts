@@ -81,7 +81,65 @@ export class HomeApp implements App {
     if (next.x < 0 || next.y < 0 || next.x + next.w > COLS || next.w < min.w || next.h < min.h) return;
     if (this.overlaps(layout, i, next)) return;
     layout[i] = next;
+    this.want = { i, w: next.w, h: next.h }; // a deliberate resize sets the size to come back to
     this.save(layout);
+  }
+
+  /** Size a widget would like to have while it's moved around (its size before it had to shrink). */
+  private want: { i: number; w: number; h: number } | null = null;
+
+  /** Biggest size ≤ the wanted one (≥ the widget's minimum) that fits at (x, y), or null. */
+  private fitAt(layout: WidgetPlacement[], i: number, x: number, y: number): WidgetPlacement | null {
+    const cur = layout[i];
+    const min = this.deck.widgets.get(cur.id)?.min ?? { w: 1, h: 1 };
+    const want = this.want?.i === i ? this.want : { w: cur.w, h: cur.h };
+    if (x < 0 || y < 0 || x + min.w > COLS) return null;
+    const sizes: [number, number][] = [];
+    for (let h = want.h; h >= min.h; h--) for (let w = Math.min(want.w, COLS - x); w >= min.w; w--) sizes.push([w, h]);
+    sizes.sort((a, b) => b[0] * b[1] - a[0] * a[1]);
+    for (const [w, h] of sizes) {
+      const cand = { ...cur, x, y, w, h };
+      if (!this.overlaps(layout, i, cand)) return cand;
+    }
+    return null;
+  }
+
+  /**
+   * Keyboard move: one step in a direction. If the widget doesn't fit there it
+   * shrinks (down to its minimum); if even that is blocked, it hops over what's
+   * in the way to the next spot that works. It grows back when there's room.
+   */
+  private move(i: number, dx: number, dy: number): void {
+    const layout = this.layout.map((p) => ({ ...p }));
+    const cur = layout[i];
+    if (!cur) return;
+    if (this.want?.i !== i) this.want = { i, w: cur.w, h: cur.h };
+    const bottom = layout.reduce((m, p) => Math.max(m, p.y + p.h), 0);
+    for (let step = 1; step <= Math.max(COLS, bottom + 2); step++) {
+      const x = cur.x + dx * step, y = cur.y + dy * step;
+      if (x < 0 || y < 0 || x >= COLS || y > bottom + 1) return;
+      const spot = this.fitAt(layout, i, x, y);
+      if (spot) return this.place2(layout, i, spot);
+    }
+  }
+
+  /** Mouse drag: try to sit at (x, y), shrinking if needed. */
+  private moveAbs(i: number, x: number, y: number): void {
+    const layout = this.layout.map((p) => ({ ...p }));
+    const cur = layout[i];
+    if (!cur || (cur.x === x && cur.y === y)) return;
+    if (this.want?.i !== i) this.want = { i, w: cur.w, h: cur.h };
+    const spot = this.fitAt(layout, i, x, y);
+    if (spot) this.place2(layout, i, spot);
+  }
+
+  private place2(layout: WidgetPlacement[], i: number, spot: WidgetPlacement): void {
+    const was = layout[i];
+    layout[i] = spot;
+    this.reveal = true;
+    this.save(layout);
+    const w = this.want;
+    if (w && (spot.w < w.w || spot.h < w.h) && (was.w >= w.w && was.h >= w.h)) this.deck.notify(`${this.deck.widgets.get(spot.id)?.title ?? spot.id}: shrunk to fit — it grows back where there's room (shift+arrows to resize)`);
   }
 
   private async add(): Promise<void> {
@@ -191,10 +249,10 @@ export class HomeApp implements App {
     }
     const i = this.selected;
     switch (k.combo) {
-      case "left": this.change(i, (p) => ({ ...p, x: p.x - 1 })); return true;
-      case "right": this.change(i, (p) => ({ ...p, x: p.x + 1 })); return true;
-      case "up": this.change(i, (p) => ({ ...p, y: p.y - 1 })); return true;
-      case "down": this.change(i, (p) => ({ ...p, y: p.y + 1 })); return true;
+      case "left": this.move(i, -1, 0); return true;
+      case "right": this.move(i, 1, 0); return true;
+      case "up": this.move(i, 0, -1); return true;
+      case "down": this.move(i, 0, 1); return true;
       case "shift+left": this.change(i, (p) => ({ ...p, w: p.w - 1 })); return true;
       case "shift+right": this.change(i, (p) => ({ ...p, w: p.w + 1 })); return true;
       case "shift+up": this.change(i, (p) => ({ ...p, h: p.h - 1 })); return true;
@@ -289,7 +347,8 @@ export class HomeApp implements App {
           if (!this.editing || !d || d.index !== i) return;
           const nx = Math.round((m.x - this.origin.x - d.dx) / this.colW);
           const ny = Math.round((m.y - this.origin.y - d.dy + this.scroll) / ROW);
-          this.change(i, (q) => ({ ...q, x: Math.max(0, Math.min(COLS - q.w, nx)), y: Math.max(0, ny) }));
+          const ww = this.want?.i === i ? this.want.w : p.w;
+          this.moveAbs(i, Math.max(0, Math.min(COLS - ww, nx)), Math.max(0, ny));
         },
         onDouble: () => !this.editing && spec.activate && void this.deck.act(`widget ${p.id}`),
         tip: this.editing ? "drag to move · shift+arrows resize · x remove" : spec.activate ? `${spec.description ?? spec.title}\ndouble-click / enter → widget ${p.id}` : spec.description,
