@@ -17,6 +17,33 @@ export type SoundName = (typeof SOUND_NAMES)[number];
 
 type Synth = (ctx: AudioContext, out: AudioNode, t: number) => void;
 
+/**
+ * A sound pack is a "voice" the same little melodies are played with
+ * (themes pick one in [sound] pack = "…", pitch = …).
+ */
+interface Voice {
+  /** Force one waveform for every note (null = each sound's own). */
+  wave: OscillatorType | null;
+  pitch: number;
+  /** Note length multiplier. */
+  length: number;
+  /** Noise (clicks, grinding) multiplier — 0 removes it. */
+  noise: number;
+  /** Echo level 0–1 (a quieter repeat ~90 ms later). */
+  echo: number;
+  /** Low-pass cutoff of the whole output (Hz). */
+  tone: number;
+}
+
+export const SOUND_PACKS: Record<string, { description: string; voice: Voice }> = {
+  retro: { description: "square-wave blips of an old OS doing its best", voice: { wave: null, pitch: 1, length: 1, noise: 1, echo: 0, tone: 4200 } },
+  crystal: { description: "glassy chimes with a little echo", voice: { wave: "sine", pitch: 2, length: 1.7, noise: 0, echo: 0.35, tone: 9000 } },
+  soft: { description: "muted, rounded ticks — barely there", voice: { wave: "triangle", pitch: 0.75, length: 0.8, noise: 0.25, echo: 0, tone: 2600 } },
+  industrial: { description: "low saws and relay clatter", voice: { wave: "sawtooth", pitch: 0.55, length: 1.1, noise: 1.8, echo: 0.15, tone: 3200 } },
+};
+
+let V: Voice = SOUND_PACKS.retro.voice;
+
 export class Sound {
   enabled = true;
   volume = 0.5;
@@ -24,6 +51,15 @@ export class Sound {
   private master: GainNode | null = null;
   private custom = new Map<SoundName, AudioBuffer>();
   private last = new Map<SoundName, number>();
+  private lowpass: BiquadFilterNode | null = null;
+  private voice: Voice = SOUND_PACKS.retro.voice;
+
+  /** Pick a pack (unknown names fall back to retro) and a pitch. */
+  setPack(pack: string, pitch = 1): void {
+    const base = (SOUND_PACKS[pack] ?? SOUND_PACKS.retro).voice;
+    this.voice = { ...base, pitch: base.pitch * pitch };
+    if (this.lowpass) this.lowpass.frequency.value = this.voice.tone;
+  }
 
   /** Load user overrides from the vault (`readBytes` returns null when a file is missing). */
   async loadCustom(readBytes: (path: string) => Promise<ArrayBuffer | null>): Promise<number> {
@@ -63,6 +99,7 @@ export class Sound {
       src.start(t);
       return;
     }
+    V = this.voice;
     SYNTHS[name](ctx, this.master, t);
   }
 
@@ -76,7 +113,8 @@ export class Sound {
       // a gentle low-pass: square waves through an old speaker
       const lp = this.ctx.createBiquadFilter();
       lp.type = "lowpass";
-      lp.frequency.value = 4200;
+      lp.frequency.value = this.voice.tone;
+      this.lowpass = lp;
       this.master.connect(lp).connect(this.ctx.destination);
     } catch {
       this.ctx = null;
@@ -88,7 +126,16 @@ export class Sound {
 // ── tiny synth kit ─────────────────────────────────────────────────────────
 
 /** One enveloped oscillator note. */
-function tone(ctx: AudioContext, out: AudioNode, t: number, freq: number, dur: number, type: OscillatorType = "square", vol = 0.5, slideTo?: number): void {
+function tone(ctx: AudioContext, out: AudioNode, t: number, freq: number, dur: number, type: OscillatorType = "square", vol = 0.5, slideTo?: number, echoed = false): void {
+  type = V.wave ?? type;
+  if (!echoed) {
+    freq *= V.pitch;
+    if (slideTo) slideTo *= V.pitch;
+    dur *= V.length;
+    // sine/triangle are quieter than square at the same gain
+    if (V.wave === "sine" || V.wave === "triangle") vol *= 1.6;
+    if (V.echo > 0) tone(ctx, out, t + 0.09, freq, dur, type, vol * V.echo, slideTo, true);
+  }
   const o = ctx.createOscillator();
   const g = ctx.createGain();
   o.type = type;
@@ -105,6 +152,8 @@ function tone(ctx: AudioContext, out: AudioNode, t: number, freq: number, dur: n
 let noiseBuf: AudioBuffer | null = null;
 /** Band-passed noise burst: relays, disk heads, static. */
 function noise(ctx: AudioContext, out: AudioNode, t: number, dur: number, freq: number, vol = 0.4, q = 1.5): void {
+  vol *= V.noise;
+  if (vol <= 0.001) return;
   if (!noiseBuf || noiseBuf.sampleRate !== ctx.sampleRate) {
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
     const d = noiseBuf.getChannelData(0);

@@ -85,3 +85,19 @@ bullet = "▸"
 spinner = "▖▘▝▗"
 todo = "◇"
 done = "◆"
+
+[background]
+effect = "embers"
+density = 0.6
+speed = 1.0
+color = "red"
+color2 = "gold"
+glyphs = "·∙•"
+
+[sound]
+pack = "industrial"
+pitch = 1.0
+
+[anim]
+select = "pulse"
+noise = "0123456789ABCDEF"

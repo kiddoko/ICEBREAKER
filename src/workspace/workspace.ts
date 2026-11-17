@@ -3,7 +3,7 @@ import { IS_MAC, type Action, type ActionSource, type KeyInput, type MouseInput 
 import { strWidth } from "../core/unicode";
 import type { App } from "../apps/types";
 import type { Deck } from "../deck";
-import { drawAmbient } from "../fx/ambient";
+import { drawBackground } from "../fx/backgrounds";
 import { Rain } from "../fx/rain";
 import { inside, type Hit, type UI } from "../ui/ui";
 import { ConfirmDialog, Osk, Palette, PromptDialog, Toasts, type Overlay, type ToastKind } from "./overlays";
@@ -348,7 +348,7 @@ export class Workspace {
     this.noteVisit();
     const W = ui.cols;
     const H = ui.rows;
-    if (d.settings.data.fx.ambient) drawAmbient(ui, { x: 0, y: 0, w: W, h: H }, 0.7);
+    if (d.settings.data.fx.ambient) drawBackground(ui, { x: 0, y: 0, w: W, h: H }, ui.theme, 0.7);
 
     this.renderTopBar(ui, { x: 0, y: 0, w: W, h: 1 });
 

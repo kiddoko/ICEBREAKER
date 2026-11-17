@@ -86,3 +86,18 @@ bullet = "·"
 spinner = "◜◝◞◟"
 todo = "○"
 done = "●"
+
+[background]
+effect = "stars"
+density = 0.5
+speed = 0.6
+color = "mist"
+color2 = "ice"
+
+[sound]
+pack = "soft"
+pitch = 1.2
+
+[anim]
+select = "pulse"
+noise = "·:∙"

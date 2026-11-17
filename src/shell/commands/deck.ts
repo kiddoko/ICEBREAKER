@@ -7,6 +7,8 @@ import { applyFxPreset } from "../../workspace/fxpanel";
 import { fetchIndex, installPlugin, installTheme } from "../../plugins/install";
 import { parseFlags } from "../parser";
 import type { Command } from "../types";
+import { applyTweaks, tweaksToToml, type Theme } from "../../core/theme";
+import { knob, KNOBS, parseKnobValue } from "../../core/tweaks";
 import { account, lock } from "./account";
 import { chat, daily } from "./daily";
 import { sound } from "./sound";
@@ -198,11 +200,21 @@ const theme: Command = {
   examples: [
     ["theme", "list themes"],
     ["theme set phosphor", "green screen"],
-    ["theme new mytheme", "copy the current one to edit"],
+    ["theme tweak", "every knob, and what you changed"],
+    ["theme tweak accent #ff2e88", "a pink accent on the current theme"],
+    ["theme tweak background snow", "snow behind the panels (fog, rain, stars, embers, scan, none)"],
+    ["theme tweak density 0.3", "less of it"],
+    ["theme tweak sounds crystal", "glassy sounds (retro, soft, industrial)"],
+    ["theme tweak font \"IBM Plex Mono\"", ""],
+    ["theme tweak reset accent", "back to the theme's own accent (reset alone: everything)"],
+    ["theme export my-night", "save theme + tweaks as .icebreaker/themes/my-night.toml"],
+    ["theme studio", "all of it with arrows and clicks"],
+    ["theme new mytheme", "copy the current theme file to edit by hand"],
   ],
-  summary: "list, switch, create and reload themes",
-  usage: "theme [ls]\ntheme set <name>\ntheme new <name>     (copies the current theme into your vault and opens it)\ntheme reload         (re-read .icebreaker/themes/*.toml)\ntheme install <user/repo/file.toml | id>   (download a community theme)",
-  complete: () => ["ls", "set", "new", "reload", "install"],
+  summary: "list, switch, tweak, export and create themes",
+  usage: "theme [ls]\ntheme set <name>\ntheme tweak [<knob> <value> | reset [knob]]   (your changes on top of the theme)\ntheme export <name>  (theme + tweaks → a new theme file)\ntheme studio         (the visual editor)\ntheme new <name>     (copies the current theme into your vault and opens it)\ntheme reload         (re-read .icebreaker/themes/*.toml)\ntheme install <user/repo/file.toml | id>   (download a community theme)",
+  man: "Tweaks are kept per theme in settings.json (appearance.tweaks) — the theme file is never changed.\nKnobs: colors (accent accent2 text bg panel border), font font-size, frame mark bullet,\nbackground density speed bg-color bg-color2, sounds pitch, select noise. Raw keys work too: theme tweak ui.cursor #fff.\nThe full format is in themes/nightshade.toml and docs/THEMES.md.",
+  complete: () => ["ls", "set", "tweak", "export", "studio", "new", "reload", "install"],
   async run(ctx) {
     const [sub, name] = ctx.args;
     const d = ctx.deck;
@@ -234,6 +246,74 @@ const theme: Command = {
         return 1;
       }
       return;
+    }
+    if (sub === "studio") {
+      d.openApp("studio");
+      return;
+    }
+    if (sub === "tweak" || sub === "untweak") {
+      const all = { ...d.settings.data.appearance.tweaks };
+      const mine: Record<string, string | number> = { ...(all[d.themes.current.name] ?? {}) };
+      const save = () => {
+        all[d.themes.current.name] = mine;
+        d.settings.set("appearance.tweaks", all);
+        d.applySettings("appearance.tweaks");
+      };
+      const [, k, ...rest] = ctx.args;
+      if (!k) {
+        ctx.out(`${fmt.bold(d.theme.name)} ${fmt.dim("— theme tweak <knob> <value>")}\n`);
+        let group = "";
+        for (const kn of KNOBS) {
+          if (kn.group !== group) ctx.out(`${fmt.magenta(kn.group)}\n`);
+          group = kn.group;
+          const v = mine[kn.key];
+          ctx.out(`  ${padEnd(kn.name, 11)} ${v !== undefined ? fmt.yellow(String(v)) : fmt.dim(knobValue(d.theme, kn.key))}${v !== undefined ? fmt.dim("  (tweaked)") : ""}\n`);
+        }
+        return 0;
+      }
+      if (k === "reset" || sub === "untweak") {
+        const target = sub === "untweak" ? k : rest[0];
+        if (!target) for (const key of Object.keys(mine)) delete mine[key];
+        else delete mine[knob(target)?.key ?? target];
+        save();
+        ctx.out(`${target ? `${target} back to ${d.theme.name}'s own` : `${d.theme.name}: all tweaks removed`}\n`);
+        return 0;
+      }
+      const kn = knob(k) ?? (/^[a-z_]+\.[a-z_0-9]+$/.test(k) ? { name: k, key: k, label: k, group: "colors" as const, kind: "text" as const } : undefined);
+      if (!kn) return ctx.err(`theme tweak: no knob "${k}" (theme tweak lists them)\n`), 1;
+      const raw = rest.join(" ");
+      if (!raw) return ctx.err(`usage: theme tweak ${k} <value>\n`), 1;
+      const parsed = parseKnobValue(kn, raw);
+      if ("error" in parsed) return ctx.err(`theme tweak: ${parsed.error}\n`), 1;
+      const before = mine[kn.key];
+      mine[kn.key] = parsed.value;
+      try {
+        applyTweaks(d.themes.get(d.settings.data.appearance.theme) ?? d.themes.default, mine);
+      } catch (e) {
+        if (before === undefined) delete mine[kn.key];
+        else mine[kn.key] = before;
+        return ctx.err(`theme tweak: ${e instanceof Error ? e.message : e}\n`), 1;
+      }
+      save();
+      ctx.out(`${d.theme.name} · ${kn.name} → ${parsed.value}\n`);
+      return 0;
+    }
+    if (sub === "export") {
+      if (!name) return ctx.err("usage: theme export <new-name>\n"), 1;
+      const slug = slugify(name);
+      const cur = d.themes.current;
+      const baseName = d.settings.data.appearance.theme;
+      const tw = d.settings.data.appearance.tweaks[baseName] ?? {};
+      const header = `# ${slug} — made in ICEBREAKER from "${baseName}" (+ your tweaks).\n# Edit freely; every key is documented in themes/nightshade.toml.\n\n`;
+      const toml = tweaksToToml(slug, tw, baseName).replace(/\[meta\]\n/, `[meta]\nauthor = "${d.settings.data.user.handle}"\ndescription = "${cur.description.replace(/"/g, "'")} (remix)"\n`);
+      const path = `.icebreaker/themes/${slug}.toml`;
+      await d.vault.mkdir(".icebreaker/themes");
+      await d.vault.write(path, header + toml);
+      await d.reloadUserThemes();
+      if (!d.themes.get(slug)) return ctx.err(`theme export: ${d.themes.errors.find((e) => e.file.endsWith(`${slug}.toml`))?.error ?? "couldn't load it back"}\n`), 1;
+      d.setTheme(slug);
+      ctx.out(`${fmt.green("✓")} ${path} — now active. Share that file, or tweak it further.\n`);
+      return 0;
     }
     if (sub === "reload") {
       await d.reloadUserThemes();
@@ -469,3 +549,21 @@ const today: Command = {
 };
 
 export const deckCommands: Command[] = [...devCommands, ...uiCommands, newsCommand, daily, chat, account, lock, sound, open, journal, note, checkboxes, ask, link, sysmon, theme, fx, config, vaultCmd, plugin, today];
+
+/** A theme's current value for "section.key", for display. */
+export function knobValue(t: Theme, key: string): string {
+  const [sec, k] = key.split(".");
+  const hexOf = (n: number | null | undefined) => (n === null || n === undefined || n < 0 ? "auto" : `#${n.toString(16).padStart(6, "0")}`);
+  const camel = k.replace(/_(\w)/g, (_, c: string) => c.toUpperCase());
+  if (sec === "ui") return hexOf((t.c as unknown as Record<string, number>)[camel]);
+  if (sec === "meta" && k === "border") return t.border;
+  if (sec === "font") return String((t.font as unknown as Record<string, unknown>)[k] ?? "");
+  if (sec === "glyphs") return String((t.glyphs as unknown as Record<string, unknown>)[k] ?? "");
+  if (sec === "background") {
+    const v = (t.background as unknown as Record<string, unknown>)[k];
+    return k.startsWith("color") ? hexOf(v as number | null) : String(v ?? "");
+  }
+  if (sec === "sound") return String((t.sound as unknown as Record<string, unknown>)[k] ?? "");
+  if (sec === "anim") return String((t.anim as unknown as Record<string, unknown>)[k] ?? "");
+  return "";
+}

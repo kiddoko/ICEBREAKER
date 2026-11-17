@@ -93,3 +93,14 @@ bullet = "–"
 spinner = "◐◓◑◒"
 todo = "☐"
 done = "☒"
+
+[background]
+effect = "none"
+
+[sound]
+pack = "soft"
+pitch = 0.9
+
+[anim]
+select = "pulse"
+noise = "░▒▓"

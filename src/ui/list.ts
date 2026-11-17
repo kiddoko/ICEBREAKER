@@ -78,7 +78,7 @@ export class ListView<T> {
       const isSel = idx === this.selected;
       if (isSel) ui.fill(row, { bg: focused ? ui.c.selection : ui.c.highlight });
       else if (ui.hovered(row)) ui.fill(row, { bg: ui.c.highlight });
-      drawRow(item, row, isSel, idx);
+      // the row's hit goes first, so clickable bits drawn inside the row sit on top of it
       ui.hit(row, {
         cmd: this.cmdOf?.(item),
         tip: this.tipOf?.(item),
@@ -88,6 +88,7 @@ export class ListView<T> {
           this.onActivate?.(item, idx);
         },
       });
+      drawRow(item, row, isSel, idx);
     }
 
     if (this.items.length > this.viewH) {

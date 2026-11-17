@@ -2,7 +2,7 @@ import { mix } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
-import { drawAmbient } from "../fx/ambient";
+import { drawBackground } from "../fx/backgrounds";
 import type { UI } from "../ui/ui";
 import { DEFAULT_LAYOUT } from "../widgets/builtin";
 import type { WidgetPlacement } from "../widgets/types";
@@ -287,7 +287,7 @@ export class HomeApp implements App {
       this.lastSel = this.selected;
       this.selAt = ui.now;
     }
-    if (this.deck.settings.data.fx.ambient && !this.editing) drawAmbient(ui, r, 0.6);
+    if (this.deck.settings.data.fx.ambient && !this.editing) drawBackground(ui, r, ui.theme, 0.8);
     const area = { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 1 };
     // Columns stretch to the full width (cell edges are rounded, so they never drift).
     this.colW = Math.max(4, area.w / COLS);
@@ -370,7 +370,6 @@ export class HomeApp implements App {
   }
 }
 
-const NOISE = [..."ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄ0123456789:=*+<>"];
 /** Stable pseudo-random 0..1 per cell. */
 const hash = (x: number, y: number) => {
   const h = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
@@ -378,10 +377,11 @@ const hash = (x: number, y: number) => {
 };
 
 /**
- * The satisfying bits, all short and quiet:
- *  - boot-in: each widget dissolves out of katakana noise, staggered;
- *  - lock-on: selecting a widget sends a light pulse around its frame;
- *  - selected: its corners turn into blinking brackets.
+ * The satisfying bits, all short and quiet, styled by the theme's [anim]:
+ *  - boot-in: each widget dissolves out of noise (anim.noise), staggered;
+ *  - selection (anim.select): "brackets" = a light pulse around the frame,
+ *    then blinking corner brackets · "pulse" = the pulse only · "scan" = a
+ *    line sweeping down the widget · "none".
  * Off with `fx.glitch` (FX panel → glitch transitions).
  */
 function drawEffects(ui: UI, rect: Rect, inner: Rect, index: number, selected: boolean, shownAt: number, selAt: number): void {
@@ -394,11 +394,22 @@ function drawEffects(ui: UI, rect: Rect, inner: Rect, index: number, selected: b
         const h = hash(x, y);
         if (h < t) continue;
         const edge = h - t < 0.08;
-        const ch = NOISE[Math.floor((h * 977 + ui.now / 60) % NOISE.length)];
+        const noise = [...ui.theme.anim.noise];
+        const ch = noise[Math.floor((h * 977 + ui.now / 60) % noise.length)];
         ui.text(x, y, t < 0 && !edge ? " " : ch, { fg: edge ? mix(c.accent, 0xffffff, 0.4) : mix(c.accent, c.bg, 0.55), bg: c.panel });
       }
   }
   if (!selected) return;
+  const style = ui.theme.anim.select;
+  if (style === "none") return;
+  if (style === "scan") {
+    // a soft line sweeps down the widget, over and over
+    const span = inner.h + 4;
+    const yy = inner.y - 2 + Math.floor(((ui.now - selAt) / 70) % span);
+    for (let k = 0; k < 2; k++) if (yy - k >= inner.y && yy - k < inner.y + inner.h) ui.tint({ x: inner.x, y: yy - k, w: inner.w, h: 1 }, undefined, mix(c.accent, c.panel, k ? 0.92 : 0.84));
+    ui.animate(70);
+    return;
+  }
   // lock-on pulse: a bright segment runs around the frame once
   const perim = 2 * (rect.w + rect.h) - 4;
   const s = (ui.now - selAt) / 420;
@@ -412,6 +423,7 @@ function drawEffects(ui: UI, rect: Rect, inner: Rect, index: number, selected: b
       ui.text(x, y, k === 0 ? "█" : "━", { fg: mix(c.accent, 0xffffff, 0.6 - k * 0.06) });
     }
   }
+  if (style === "pulse") return;
   // target brackets on the corners, blinking softly
   const on = Math.floor(ui.now / 520) % 2 === 0;
   const col = on ? c.accent : mix(c.accent, c.bg, 0.5);

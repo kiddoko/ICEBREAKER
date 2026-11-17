@@ -36,7 +36,7 @@ export class FxPanel implements Overlay {
 
   constructor(private readonly deck: Deck) {
     this.list.items = [
-      { label: "ambient fog", hint: "animated background", key: "ambient" },
+      { label: "background", hint: "the theme's animation", key: "ambient" },
       { label: "glitch", hint: "transitions", key: "glitch" },
       { label: "bloom", hint: "neon glow", key: "bloom" },
       { label: "scanlines", hint: "CRT lines", key: "scanlines" },

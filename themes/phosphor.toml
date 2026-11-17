@@ -94,3 +94,18 @@ bullet = ">"
 spinner = "|/-\\"
 todo = "[ ]"
 done = "[x]"
+
+[background]
+effect = "scan"
+density = 0.5
+speed = 1.0
+color = "dim"
+color2 = "green"
+
+[sound]
+pack = "retro"
+pitch = 0.9
+
+[anim]
+select = "scan"
+noise = "01"

@@ -26,6 +26,8 @@ export interface Settings {
   vault: { path: string };
   appearance: {
     theme: string;
+    /** Your tweaks per theme: { nightshade: { "ui.accent": "#ff2e88", "background.effect": "snow" } } (`theme tweak`). */
+    tweaks: Record<string, Record<string, string | number>>;
     /** Text size in px at 100 % scale. */
     fontSize: number;
     /** Interface scale in percent (25–200), changed with ctrl +/-. */
@@ -63,7 +65,7 @@ export const DEFAULT_SETTINGS: Settings = {
   user: { handle: "netrunner", locale: "", location: { precision: "none", name: "", country: "", lat: null, lon: null } },
   setup: { done: false },
   vault: { path: "" },
-  appearance: { theme: "nightshade", fontSize: 13, scale: 100, startFullscreen: false, fontWeight: "thin", maxFps: 60, showFps: true, lineNumbers: true },
+  appearance: { theme: "nightshade", tweaks: {}, fontSize: 13, scale: 100, startFullscreen: false, fontWeight: "thin", maxFps: 60, showFps: true, lineNumbers: true },
   // Minimal by default: the animated background and short glitch transitions.
   // The heavy CRT stuff (bloom, scanlines, vignette, flicker) is one click away in the FX panel.
   fx: { bloom: false, scanlines: false, vignette: false, ambient: true, flicker: false, glitch: true, screensaverMinutes: 0 },

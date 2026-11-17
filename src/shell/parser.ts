@@ -67,8 +67,9 @@ export function tokenize(line: string, env: Record<string, string>): Token[] {
     if (c === " " || c === "\t") {
       flush();
       i++;
-    } else if (c === "#" && !inWord) {
-      break; // comment
+    } else if (c === "#" && !inWord && (!line.slice(0, i).trim() || /\s/.test(line[i + 1] ?? " "))) {
+      // a comment: "# …" or a line starting with #. "#ff2e88" or "#tag" stay arguments.
+      break;
     } else if (c === "'") {
       const end = line.indexOf("'", i + 1);
       if (end === -1) throw new ParseError("unterminated '");

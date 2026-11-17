@@ -90,7 +90,7 @@ export class SettingsApp implements App {
       toggle("fx.bloom", "bloom glow"),
       toggle("fx.scanlines", "scanlines"),
       toggle("fx.vignette", "vignette"),
-      toggle("fx.ambient", "ambient fog"),
+      toggle("fx.ambient", "animated background"),
       toggle("fx.flicker", "crt flicker"),
       toggle("fx.glitch", "glitch transitions"),
       cycle("fx.screensaverMinutes", "screensaver after", [0, 5, 10, 20, 30], undefined, (v) => (v ? `${v} min` : "never")),

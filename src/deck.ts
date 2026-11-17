@@ -5,6 +5,7 @@ import { journalSpec, JournalApp } from "./apps/journal";
 import { linkSpec } from "./apps/link";
 import { modulesSpec } from "./apps/modules";
 import { setupSpec } from "./apps/setup";
+import { studioSpec } from "./apps/studio";
 import { noteSpec } from "./apps/note";
 import { ActionRegistry, AppRegistry } from "./apps/registry";
 import { settingsSpec } from "./apps/settings";
@@ -19,7 +20,7 @@ import { fontStack, loadFont, WEIGHTS } from "./core/fonts";
 import { Renderer } from "./core/renderer";
 import { Sound } from "./core/sound";
 import type { SettingsStore } from "./core/settings";
-import { ThemeManager, type Theme } from "./core/theme";
+import { applyTweaks, ThemeManager, type Theme } from "./core/theme";
 import { glitch } from "./fx/glitch";
 import type { Platform } from "./platform/types";
 import { PluginHost } from "./plugins/host";
@@ -118,7 +119,7 @@ export class Deck implements InputSink {
     await this.vault.mount(s.vault.path);
     if (!s.vault.path) this.settings.set("vault.path", this.vault.root);
     await this.reloadUserThemes();
-    this.themes.current = this.themes.get(s.appearance.theme) ?? this.themes.default;
+    this.refreshTheme(true);
 
     this.account = await this.platform.account.status().catch(() => null);
     if (this.account) this.lockNow();
@@ -146,7 +147,7 @@ export class Deck implements InputSink {
   private registerCore(): void {
     for (const c of [...fileCommands, ...systemCommands, ...deckCommands]) this.commands.register({ ...c, source: "core" });
     for (const w of BUILTIN_WIDGETS) this.widgets.register(w);
-    for (const a of [homeSpec, modulesSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec]) this.apps.register(a);
+    for (const a of [homeSpec, modulesSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec]) this.apps.register(a);
 
     const act = (id: string, title: string, run: () => void, hint?: string, group = "deck") => this.actions.register({ id, title, run, hint, group });
     act("journal.today", "Journal: today", () => void this.openJournal(new Date()), "ctrl+j", "journal");
@@ -364,24 +365,39 @@ export class Deck implements InputSink {
   }
 
   setTheme(name: string): boolean {
-    const t = this.themes.get(name);
-    if (!t) return false;
-    const fontChanged = this.themes.current.font.family !== t.font.family || this.themes.current.font.scale !== t.font.scale || String(this.themes.current.font.weights) !== String(t.font.weights);
-    this.themes.current = t;
+    if (!this.themes.get(name)) return false;
     if (this.settings.data.appearance.theme !== name) this.settings.set("appearance.theme", name);
-    if (fontChanged) void this.applyFont();
-    this.applyFx();
-    this.renderer.invalidate();
+    this.refreshTheme();
     this.glitch(300);
-    this.requestFrame();
     return true;
+  }
+
+  /**
+   * Rebuild the current theme: the chosen one + your tweaks (appearance.tweaks).
+   * A broken tweak is reported and skipped instead of breaking the deck.
+   */
+  refreshTheme(quiet = false): void {
+    const s = this.settings.data.appearance;
+    const base = this.themes.get(s.theme) ?? this.themes.default;
+    const prev = this.themes.current;
+    let next = base;
+    try {
+      next = applyTweaks(base, s.tweaks?.[base.name]);
+    } catch (e) {
+      if (!quiet) this.notify(`theme tweak ignored: ${e instanceof Error ? e.message : e}`, "error");
+    }
+    this.themes.current = next;
+    this.sound.setPack(next.sound.pack, next.sound.pitch);
+    const f = (t: Theme) => `${t.font.family}|${t.font.scale}|${t.font.weights}`;
+    if (!quiet && f(prev) !== f(next)) void this.applyFont();
+    if (!quiet) this.applyFx();
+    this.renderer.invalidate();
+    this.requestFrame();
   }
 
   async reloadUserThemes(): Promise<void> {
     this.themes.loadUserThemes(await this.vault.toolFiles("themes", ".toml"));
-    const cur = this.themes.get(this.theme.name);
-    if (cur) this.themes.current = cur;
-    this.requestFrame();
+    this.refreshTheme(true);
   }
 
   /** Push theme + fx settings to the CSS post-effect layers. */
@@ -406,6 +422,7 @@ export class Deck implements InputSink {
   applySettings(key: string): void {
     const s = this.settings.data;
     if (key === "appearance.theme") this.setTheme(s.appearance.theme);
+    else if (key === "appearance.tweaks") this.refreshTheme();
     else if (key === "appearance.fontWeight" || key === "appearance.fontSize" || key === "appearance.scale") void this.applyFont();
     else if (key === "journal.folder") this.vault.journalFolder = s.journal.folder;
     else if (key === "user.handle") this.shell.exec.env.USER = s.user.handle;

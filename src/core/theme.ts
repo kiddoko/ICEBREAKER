@@ -1,4 +1,4 @@
-import { parse as parseToml } from "smol-toml";
+import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import { hex, type RGB } from "./color";
 
 /**
@@ -27,6 +27,36 @@ export interface ThemeGlyphs {
   /** Unchecked / checked task box. */
   todo: string;
   done: string;
+}
+
+/** The animated layer behind the panels ([background]). */
+export interface ThemeBackground {
+  /** fog · snow · rain · stars · embers · scan · none (plugins can add more). */
+  effect: string;
+  /** 0–1: how much of it. */
+  density: number;
+  /** 0.25–3: how fast. */
+  speed: number;
+  /** Main / second color (null = from [ui]: ambient and accent). */
+  color: RGB | null;
+  color2: RGB | null;
+  /** Characters the effect may use (effect-specific, empty = its own). */
+  glyphs: string;
+}
+
+/** UI sounds ([sound]): a synth pack and a pitch. Files in .icebreaker/sounds still win. */
+export interface ThemeSound {
+  /** retro · crystal · soft · industrial */
+  pack: string;
+  pitch: number;
+}
+
+/** Motion ([anim]). */
+export interface ThemeAnim {
+  /** How a selected HOME widget shows it: brackets · pulse · scan · none. */
+  select: string;
+  /** Characters widgets dissolve from when they appear. */
+  noise: string;
 }
 
 /**
@@ -72,6 +102,11 @@ export interface Theme {
   logo?: string;
   glyphs: ThemeGlyphs;
   font: ThemeFont;
+  background: ThemeBackground;
+  sound: ThemeSound;
+  anim: ThemeAnim;
+  /** The theme it was built on (meta.extends), if any. */
+  extends?: string;
   source: "builtin" | "vault";
 }
 
@@ -148,7 +183,25 @@ export function parseTheme(source: string, base: Theme | null, origin: Theme["so
     },
     logo: typeof (doc.ascii as Table | undefined)?.logo === "string" ? String((doc.ascii as Table).logo) : base?.logo,
     glyphs: parseGlyphs((doc.glyphs ?? {}) as Table, base?.glyphs),
-    font: parseFont((doc.font ?? {}) as Table, base ? DEFAULT_FONT : null),
+    font: parseFont((doc.font ?? {}) as Table, base?.font ?? null),
+    background: parseBackground((doc.background ?? {}) as Table, base?.background, (k) => {
+      const raw = ((doc.background ?? {}) as Table)[k];
+      if (raw === undefined) return undefined;
+      const v = String(raw);
+      if (v === "" || v === "auto") return null;
+      if (v.startsWith("#")) return hex(v);
+      if (v in palette) return palette[v];
+      throw new Error(`[background] ${k} = "${v}": not a #hex color nor a [palette] name`);
+    }),
+    sound: {
+      pack: typeof ((doc.sound ?? {}) as Table).pack === "string" ? String(((doc.sound ?? {}) as Table).pack) : base?.sound.pack ?? "retro",
+      pitch: clampNum(((doc.sound ?? {}) as Table).pitch, base?.sound.pitch ?? 1, 0.25, 4),
+    },
+    anim: {
+      select: typeof ((doc.anim ?? {}) as Table).select === "string" ? String(((doc.anim ?? {}) as Table).select) : base?.anim.select ?? "brackets",
+      noise: typeof ((doc.anim ?? {}) as Table).noise === "string" && ((doc.anim ?? {}) as Table).noise ? String(((doc.anim ?? {}) as Table).noise) : base?.anim.noise ?? DEFAULT_NOISE,
+    },
+    extends: typeof meta.extends === "string" ? meta.extends : undefined,
     source: origin,
   };
 }
@@ -162,11 +215,60 @@ function parseGlyphs(t: Table, base: ThemeGlyphs | undefined): ThemeGlyphs {
   return g;
 }
 
-/** Fonts are not inherited from the base theme: a theme without [font] uses JetBrains Mono. */
-function parseFont(t: Table, _base: ThemeFont | null): ThemeFont {
-  const w = Array.isArray(t.weights) && t.weights.length === 2 ? (t.weights.map(Number) as [number, number]) : null;
-  const scale = typeof t.scale === "number" ? Math.max(0.5, Math.min(2, t.scale)) : 1;
-  return { family: typeof t.family === "string" && t.family ? t.family : DEFAULT_FONT.family, scale, weights: w };
+/** Font settings are inherited from the base theme, key by key. */
+function parseFont(t: Table, base: ThemeFont | null): ThemeFont {
+  const b = base ?? DEFAULT_FONT;
+  const w = Array.isArray(t.weights) && t.weights.length === 2 ? (t.weights.map(Number) as [number, number]) : t.family !== undefined && t.weights === undefined ? null : b.weights;
+  const family = typeof t.family === "string" && t.family ? t.family : b.family;
+  // a different font starts from its own size, not the previous font's correction
+  const scale = clampNum(t.scale, family !== b.family ? 1 : b.scale, 0.5, 2);
+  return { family, scale, weights: w };
+}
+
+const DEFAULT_NOISE = "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄ0123456789:=*+<>";
+const DEFAULT_BACKGROUND: ThemeBackground = { effect: "fog", density: 0.6, speed: 1, color: null, color2: null, glyphs: "" };
+
+function clampNum(v: unknown, fallback: number, lo: number, hi: number): number {
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v) : NaN;
+  return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : fallback;
+}
+
+function parseBackground(t: Table, base: ThemeBackground | undefined, color: (k: string) => RGB | null | undefined): ThemeBackground {
+  const b = base ?? DEFAULT_BACKGROUND;
+  const c1 = color("color"), c2 = color("color2");
+  return {
+    effect: typeof t.effect === "string" && t.effect ? t.effect : b.effect,
+    density: clampNum(t.density, b.density, 0, 1),
+    speed: clampNum(t.speed, b.speed, 0.1, 4),
+    color: c1 === undefined ? b.color : c1,
+    color2: c2 === undefined ? b.color2 : c2,
+    glyphs: typeof t.glyphs === "string" ? t.glyphs : b.glyphs,
+  };
+}
+
+/**
+ * Personal tweaks on top of a theme, as "section.key" → value
+ * ({ "ui.accent": "#ff2e88", "background.effect": "snow" }). They're kept in
+ * settings.json (appearance.tweaks.<theme>), so the theme file stays intact.
+ */
+export type Tweaks = Record<string, string | number>;
+
+export function tweaksToToml(name: string, tweaks: Tweaks, extendsName?: string): string {
+  const doc: Record<string, Record<string, unknown>> = { meta: { name, ...(extendsName ? { extends: extendsName } : {}) } };
+  for (const [k, v] of Object.entries(tweaks)) {
+    const dot = k.indexOf(".");
+    if (dot < 1) continue;
+    const sec = k.slice(0, dot), key = k.slice(dot + 1);
+    (doc[sec] ??= {})[key] = sec === "font" && key === "weights" && typeof v === "string" ? v.split(/[ ,]+/).map(Number) : v;
+  }
+  return stringifyToml(doc);
+}
+
+/** The theme with its tweaks applied (throws if a tweak is invalid). */
+export function applyTweaks(theme: Theme, tweaks: Tweaks | undefined): Theme {
+  if (!tweaks || !Object.keys(tweaks).length) return theme;
+  const t = parseTheme(tweaksToToml(theme.name, tweaks), theme, theme.source);
+  return { ...t, author: theme.author, description: theme.description, extends: theme.extends };
 }
 
 // Built-in themes are the .toml files in /themes, bundled at build time.
@@ -211,9 +313,11 @@ export class ThemeManager {
   loadUserThemes(files: { path: string; content: string }[]): void {
     for (const [name, t] of this.themes) if (t.source === "vault") this.themes.delete(name);
     this.errors = [];
+    // themes can build on another one: [meta] extends = "phosphor"
     for (const f of files) {
       try {
-        const t = parseTheme(f.content, this.default, "vault");
+        const ext = /^\s*extends\s*=\s*"([^"]+)"/m.exec(f.content)?.[1];
+        const t = parseTheme(f.content, (ext && this.themes.get(ext)) || this.default, "vault");
         this.themes.set(t.name, t);
       } catch (e) {
         this.errors.push({ file: f.path, error: e instanceof Error ? e.message : String(e) });

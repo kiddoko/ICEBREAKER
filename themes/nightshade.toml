@@ -128,3 +128,26 @@ bullet  = "›"                    # list items
 spinner = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"            # one character per frame
 todo    = "□"
 done    = "■"
+
+# What moves behind the panels. effect: fog · snow · rain · stars · embers · scan · none
+# (plugins can add more). density 0–1, speed 0.1–4, color / color2: palette name or
+# #hex (leave out = from [ui]), glyphs: characters the effect may use.
+[background]
+effect  = "snow"
+density = 0.55
+speed   = 0.8
+color   = "lavender"
+color2  = "pink"
+glyphs  = "·∙*"
+
+# UI sounds: pack = retro (square blips) · crystal (glassy chimes) · soft · industrial.
+# pitch multiplies every note. Files in <vault>/.icebreaker/sounds/ still win.
+[sound]
+pack  = "crystal"
+pitch = 1.0
+
+# Motion. select: how a selected HOME widget shows it — brackets · pulse · scan · none.
+# noise: the characters widgets dissolve from when they appear.
+[anim]
+select = "brackets"
+noise  = "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄ0123456789:=*+<>"

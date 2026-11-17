@@ -1,4 +1,4 @@
-import { mix, NONE } from "../core/color";
+import { mix, NONE, type RGB } from "../core/color";
 import type { Rect } from "../core/grid";
 import type { UI } from "../ui/ui";
 
@@ -10,10 +10,10 @@ import type { UI } from "../ui/ui";
 const RAMP = [" ", " ", " ", "·", "·", ":", "∙", "+", "×", "◇"];
 const FPS = 12;
 
-export function drawAmbient(ui: UI, r: Rect, intensity = 1): void {
-  const t = ui.now / 1000;
-  const dim = ui.c.ambient;
-  const bright = mix(ui.c.ambient, ui.c.accent, 0.35);
+export function drawAmbient(ui: UI, r: Rect, intensity = 1, color: RGB = ui.c.ambient, accent: RGB = ui.c.accent, seconds = ui.now / 1000): void {
+  const t = seconds;
+  const dim = color;
+  const bright = mix(color, accent, 0.35);
   for (let y = r.y; y < r.y + r.h; y++) {
     for (let x = r.x; x < r.x + r.w; x++) {
       const n = fbm(x * 0.09, y * 0.18 - t * 0.12, t * 0.08);

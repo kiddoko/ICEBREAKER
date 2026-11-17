@@ -28,6 +28,7 @@ import type { App, AppSpec, PaletteAction } from "../apps/types";
 import type { Theme } from "../core/theme";
 import type { Command } from "../shell/types";
 import type { WidgetSpec } from "../widgets/types";
+import type { BackgroundSpec } from "../fx/backgrounds";
 
 export type Permission = "vault:read" | "vault:write" | "ai";
 
@@ -90,6 +91,13 @@ export interface IcebreakerAPI {
    * (Hits can also take `{ cmd: "…" }` directly: `ui.hit(rect, { cmd, tip })`.)
    */
   shell: { run(line: string): Promise<number> };
+
+  /**
+   * Add an animated background a theme can use ([background] effect = "<id>.<name>"):
+   * `render(ui, rect, { density, speed, color, color2, glyphs, t })` draws one
+   * frame; `t` is seconds × speed. Keep it a pure function of `t`.
+   */
+  backgrounds: { register(spec: BackgroundSpec): void };
 
   /** Small JSON key/value store private to this plugin (.icebreaker/plugin-data/<id>.json). */
   storage: {

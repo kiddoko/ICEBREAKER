@@ -1,3 +1,4 @@
+import { registerBackground } from "../fx/backgrounds";
 import { vaultTools } from "../ai/tools";
 import type { Deck } from "../deck";
 import type { IcebreakerAPI, Permission, PluginManifest, PluginModule } from "./api";
@@ -214,6 +215,7 @@ export class PluginHost {
       },
       palette: { register: (a) => deck.actions.register(a, m.id) },
       shell: { run: (line) => deck.act(line) },
+      backgrounds: { register: (b) => registerBackground({ ...b, name: b.name.startsWith(`${m.id}.`) ? b.name : `${m.id}.${b.name}` }) },
       widgets: {
         register: (w) => void deck.widgets.register({ ...w, id: w.id.startsWith(`${m.id}.`) ? w.id : `${m.id}.${w.id}` }, m.id),
       },
