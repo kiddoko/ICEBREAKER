@@ -29,7 +29,7 @@ async function scanTasks(deck: Deck): Promise<void> {
 
 const tasksWidget: WidgetSpec = {
   id: "tasks",
-  title: "tasks",
+  title: "checkboxes",
   description: "open checkboxes (- [ ]) from all your notes",
   size: { w: 4, h: 6 },
   min: { w: 3, h: 2 },
@@ -48,7 +48,7 @@ const tasksWidget: WidgetSpec = {
       const tx = ui.text(r.x + 1, row.y, hot ? g.done : g.todo, { fg: hot ? c.accent : c.subtle }) + 1;
       ui.text(tx, row.y, t.text, { fg: hot ? c.accent : c.fg }, r.x + r.w - 1 - tx - (r.w > 40 ? 14 : 0));
       if (r.w > 40) ui.textRight(r.x + r.w - 1, row.y, basename(t.path, ".md").slice(0, 12), { fg: c.faint });
-      ui.hit(row, { cmd: `open ${q(t.path)}`, tip: "todo in the shell lists them all" });
+      ui.hit(row, { cmd: `open ${q(t.path)}`, tip: "checkboxes in the shell lists them all" });
     });
   },
 };

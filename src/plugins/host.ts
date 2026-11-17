@@ -213,6 +213,7 @@ export class PluginHost {
         open: (kind, args) => deck.openApp(kind, args),
       },
       palette: { register: (a) => deck.actions.register(a, m.id) },
+      shell: { run: (line) => deck.act(line) },
       widgets: {
         register: (w) => void deck.widgets.register({ ...w, id: w.id.startsWith(`${m.id}.`) ? w.id : `${m.id}.${w.id}` }, m.id),
       },

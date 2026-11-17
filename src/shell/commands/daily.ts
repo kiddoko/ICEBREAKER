@@ -3,6 +3,7 @@ import { ASK_SYSTEM_PROMPT } from "../../ai/prompts";
 import { ensureEntry } from "../../vault/journal";
 import { isoDate } from "../../vault/paths";
 import type { Command, ShellContext } from "../types";
+import { q } from "../../ui/ui";
 
 /**
  * `daily`: the end-of-day check-in, asked right in the shell.
@@ -10,7 +11,8 @@ import type { Command, ShellContext } from "../types";
  * answers can be skipped with enter. Everything lands in today's journal
  * entry under "## daily log", with Obsidian/Dataview-style fields
  * (`mood:: 4`) so you can chart them later (`daily trend`).
- * Tomorrow's tasks become `- [ ]` checkboxes: the TASKS card picks them up.
+ * Tomorrow's tasks go to the TODO module (due tomorrow) when it's on,
+ * else they're written as `- [ ]` checkboxes.
  */
 
 const SCALES = {
@@ -80,7 +82,10 @@ async function checkIn(ctx: ShellContext): Promise<number> {
     ];
     const items = [win && `- **win** ${win}`, friction && `- **friction** ${friction}`, improve && `- **improve** ${improve}`, grateful && `- **grateful** ${grateful}`, note && `- **note** ${note}`].filter(Boolean) as string[];
     if (items.length) lines.push("", ...items);
-    if (tasks.length) lines.push("", "### tomorrow", ...tasks.map((t) => `- [ ] ${t}`));
+    // tomorrow's tasks: into the TODO module if it's there, else checkboxes in the entry
+    const toModule = tasks.length > 0 && !!deck.commands.get("todo");
+    if (toModule) for (const t of tasks) await ctx.shell.run(`todo add ${q(t)} --due tomorrow`);
+    if (tasks.length) lines.push("", "### tomorrow", ...tasks.map((t) => (toModule ? `- ${t}` : `- [ ] ${t}`)));
     const block = lines.join("\n");
 
     text = await deck.vault.read(path); // may have changed while answering
@@ -136,7 +141,7 @@ export const daily: Command = {
   aliases: ["dlog", "eod"],
   summary: "end-of-day check-in: mood, wins, friction, tomorrow's tasks",
   usage: "daily            answer the questions (1-5 for quick answers)\ndaily trend [n]  mood / energy / output over the last n days (14)",
-  man: "Writes a '## daily log' section in today's journal entry, with fields like `mood:: 4` that Obsidian Dataview can read.\nTomorrow's tasks are saved as checkboxes, so the TASKS card shows them.",
+  man: "Writes a '## daily log' section in today's journal entry, with fields like `mood:: 4` that Obsidian Dataview can read.\nTomorrow's tasks are added to your to-do list (todo, due tomorrow).",
   complete: () => ["trend"],
   async run(ctx) {
     if (ctx.args[0] === "trend") return trend(ctx, Math.max(3, Math.min(60, Number(ctx.args[1]) || 14)));

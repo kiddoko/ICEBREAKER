@@ -84,6 +84,13 @@ export interface IcebreakerAPI {
     vaultTools(): ToolSpec[];
   };
 
+  /**
+   * Run a shell command as if typed, echoed in the shell. Use it for what
+   * your UI does on click, so users learn your commands by clicking around.
+   * (Hits can also take `{ cmd: "…" }` directly: `ui.hit(rect, { cmd, tip })`.)
+   */
+  shell: { run(line: string): Promise<number> };
+
   /** Small JSON key/value store private to this plugin (.icebreaker/plugin-data/<id>.json). */
   storage: {
     get<T>(key: string, fallback: T): Promise<T>;

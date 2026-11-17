@@ -108,11 +108,12 @@ const note: Command = {
   },
 };
 
-const todo: Command = {
-  name: "todo",
+/** Checkboxes written in notes. (The to-do list itself is the TODO module: `todo`.) */
+const checkboxes: Command = {
+  name: "checkboxes",
   aliases: ["tasks"],
-  summary: "list open checkboxes (- [ ]) across the vault",
-  usage: "todo [-a]   (-a includes done tasks)",
+  summary: "list open checkboxes (- [ ]) written in your notes",
+  usage: "checkboxes [-a]   (-a includes done ones)",
   async run(ctx) {
     const all = ctx.args.includes("-a");
     const files = ctx.deck.vault.markdown().map((e) => e.path);
@@ -433,4 +434,4 @@ const today: Command = {
   },
 };
 
-export const deckCommands: Command[] = [...uiCommands, newsCommand, daily, chat, account, lock, sound, open, journal, note, todo, ask, link, sysmon, theme, fx, config, vaultCmd, plugin, today];
+export const deckCommands: Command[] = [...uiCommands, newsCommand, daily, chat, account, lock, sound, open, journal, note, checkboxes, ask, link, sysmon, theme, fx, config, vaultCmd, plugin, today];

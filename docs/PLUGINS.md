@@ -104,7 +104,8 @@ The full surface is typed and commented in
 [`src/plugins/api.ts`](../src/plugins/api.ts). Highlights:
 
 - `ib.ai.session({ system, tools })` → streaming chat; `ib.ai.vaultTools()` lets the model read notes.
-- `ib.storage.get/set` → a private JSON file per plugin.
+- `ib.storage.get/set` → a private JSON file per plugin (`.icebreaker/plugin-data/<id>.json`).
+- `ib.shell.run(line)` → run a command, echoed in the shell (what your clicks should do).
 - `ib.ui.notify / confirm / prompt` → talk to the user.
 - `ib.lib` → the same building blocks the core uses: `TextEditor`, `ListView`,
   `ChatView`, `bigText`, `fmt` (ANSI colors), color helpers, attribute flags.
@@ -113,8 +114,24 @@ Inside `render(ui, rect, focused)` you get the full drawing toolkit
 ([`src/ui/ui.ts`](../src/ui/ui.ts)): `text`, `box`, `fill`, `bar`, `chart`,
 `button`, `hit`, `animate`… Call `ui.animate(ms)` to get another frame for animations.
 
-The built-in [LINGO plugin](../plugins/lingo/main.ts) is a complete example
-(app + command + AI session + storage + vault writes).
+### One feature, one module: the command is the source of truth
+
+ICEBREAKER modules follow one rule: **everything the UI does is a shell
+command.** Your app and widget don't change data themselves, they run your
+command with `ib.shell.run("mymodule do-thing 3")`, which is echoed in the
+shell. Users learn the command line just by clicking around, and power users
+get a scriptable module for free.
+
+For plain clicks you don't even need a handler: `ui.hit(rect, { cmd: "todo done 3", tip: "space" })`
+runs the command on click and shows it (plus the tip) in a hover tooltip.
+`ib.lib.parseFlags` reads `--flags`, `ib.lib.q` quotes an argument safely.
+
+Examples to copy from:
+
+- [TODO](../plugins/todo/main.ts): the reference module. A `todo` command
+  (add / done / prio / due / rm / restore…), an app, a HOME widget, data in
+  `ib.storage`. No permission needed.
+- [LINGO](../plugins/lingo/main.ts): app + command + AI session + storage + vault writes.
 
 ## Sharing
 

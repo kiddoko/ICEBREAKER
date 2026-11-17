@@ -29,7 +29,7 @@ Everything works with **keyboard only**, **mouse only**, a **gamepad**, or any m
 
 ## Mouse
 Click anything: tabs, files, tiles, buttons, calendar days. Every click runs a
-shell command, shown in the shell (marked ◂ click): click around to learn the
+shell command, shown in the shell (marked ◂ ui): click around to learn the
 command line. Hover something for a moment to see its command and shortcut. Drag to select text,
 wheel to scroll, double-click to select a word, Ctrl+click to follow a link.
 Drag the line above the shell to resize it. The ⌨ button in the status bar opens

@@ -122,7 +122,7 @@ export class ShellApp implements App {
 
   private echoPrompt(line: string, fromClick = false): void {
     this.term.ensureNewline();
-    this.term.write(`\x1b[35m${display(this.exec.cwd)}\x1b[0m \x1b[95m❯\x1b[0m ${line}${fromClick ? "  \x1b[2m◂ click\x1b[0m" : ""}\n`);
+    this.term.write(`\x1b[35m${display(this.exec.cwd)}\x1b[0m \x1b[95m❯\x1b[0m ${line}${fromClick ? "  \x1b[2m◂ ui\x1b[0m" : ""}\n`);
   }
 
   /**

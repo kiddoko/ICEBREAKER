@@ -551,7 +551,7 @@ export const LAYOUT_PRESETS: Record<"essentials" | "productivity" | "gadget", Wi
   productivity: [
     { id: "clock", x: 0, y: 0, w: 4, h: 4 },
     { id: "focus", x: 0, y: 4, w: 4, h: 4 },
-    { id: "tasks", x: 4, y: 0, w: 4, h: 8 },
+    { id: "todo.list", x: 4, y: 0, w: 4, h: 8 },
     { id: "calendar", x: 8, y: 0, w: 4, h: 6 },
     { id: "streak", x: 8, y: 6, w: 4, h: 2 },
     { id: "weather", x: 0, y: 8, w: 6, h: 4 },

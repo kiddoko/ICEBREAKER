@@ -18,6 +18,7 @@ scanlines — but works with the keyboard, the mouse, or a gamepad.
 - **LINK** — chat with Claude, which can search and read your notes (and write them, with your approval). Or use a local open-source model through [Ollama](https://ollama.com).
 - **Plugins** — small JS modules with a documented API and declared permissions. LINGO, an AI language tutor, ships as an example.
 - **Themes** — TOML files, hot-swappable: colors, font, border style and symbols. Default: `nightshade` (violet, Catppuccin-flavoured). Also `amber`, `neon-ronin`, `phosphor`, `ghost`, `redline`, `graphite`.
+- **Modules** — one feature, one module, each with its own command, app and HOME widget. First one: **TODO** (`todo add "walk the dog" --urgent --due tomorrow +home`, or the app, or the widget).
 - **Daily log** — `daily` asks a short end-of-day check-in in the shell (quick answers 1-5) and writes it to your journal; `daily trend` charts it.
 - **Login** — optional account that locks the deck at start-up. The password is hashed with Argon2id and never stored. It locks the app, it does not encrypt your notes (they stay readable Markdown files). Forgot it? Quit, delete `account.json` in the config folder (macOS: `~/Library/Application Support/org.icebreaker.deck/`), restart.
 - **Sounds** — UI blips synthesized on the fly; drop your own `move.wav`, `open.wav`, `confirm.wav`, `back.wav`, `success.wav`, `error.wav`, `notify.wav`, `boot.wav`, `unlock.wav`, `denied.wav` (or .ogg / .mp3) in `.icebreaker/sounds/` to replace them.
