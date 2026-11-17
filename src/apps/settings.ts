@@ -71,8 +71,9 @@ export class SettingsApp implements App {
     return [
       { section: "APPEARANCE", label: "", value: () => "" },
       cycle("appearance.theme", "theme", d.themes.list().map((t) => t.name)),
-      cycle("appearance.fontSize", "font size", [11, 12, 13, 14, 15, 16, 18, 20, 22, 24], undefined, (v) => `${v}px`),
-      cycle("appearance.fontWeight", "font weight", ["light", "regular"]),
+      cycle("appearance.scale", "interface scale", [25, 50, 75, 80, 90, 100, 110, 125, 150, 175, 200], undefined, (v) => `${v}%`),
+      cycle("appearance.fontSize", "text size at 100%", [10, 11, 12, 13, 14, 15, 16, 18, 20], undefined, (v) => `${v}px`),
+      cycle("appearance.fontWeight", "font weight", ["thin", "light", "regular"]),
       toggle("appearance.startFullscreen", "start fullscreen"),
       cycle("appearance.maxFps", "fps cap", [30, 60, 120, 0], undefined, (v) => (v ? `${v}` : "unlimited")),
       toggle("appearance.showFps", "show fps"),
@@ -86,6 +87,9 @@ export class SettingsApp implements App {
       toggle("fx.glitch", "glitch transitions"),
       cycle("fx.screensaverMinutes", "screensaver after", [0, 5, 10, 20, 30], undefined, (v) => (v ? `${v} min` : "never")),
       cycle("boot.mode", "boot sequence", ["full", "fast", "off"]),
+      { section: "SOUND", label: "", value: () => "" },
+      toggle("sound.enabled", "ui sounds"),
+      cycle("sound.volume", "volume", [10, 25, 50, 75, 100], undefined, (v) => `${v}%`),
       {
         label: "presets: minimal / max / potato",
         value: () => "open",

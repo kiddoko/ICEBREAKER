@@ -110,6 +110,7 @@ export function createWebPlatform(): Platform {
       },
     },
     envApiKey: async () => null,
+    account: webAccount(),
     window: {
       setFullscreen: async (on) => {
         if (on && !document.fullscreenElement) await document.documentElement.requestFullscreen().catch(() => {});
@@ -117,6 +118,57 @@ export function createWebPlatform(): Platform {
       },
       isFullscreen: async () => !!document.fullscreenElement,
       quit: async () => window.close(),
+    },
+  };
+}
+
+/**
+ * Browser preview only: same contract as the desktop account, with PBKDF2
+ * (600 000 rounds, WebCrypto) in localStorage. The desktop app uses Argon2id.
+ */
+function webAccount(): Platform["account"] {
+  const KEY = "icebreaker.account";
+  const b64 = (u: Uint8Array) => btoa(String.fromCharCode(...u));
+  const unb64 = (s: string): Uint8Array<ArrayBuffer> => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+  const derive = async (pw: string, salt: Uint8Array<ArrayBuffer>) => {
+    const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveBits"]);
+    return new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: 600_000 }, key, 256));
+  };
+  const load = () => {
+    try {
+      return JSON.parse(localStorage.getItem(KEY) ?? "null") as { user: string; salt: string; hash: string } | null;
+    } catch {
+      return null;
+    }
+  };
+  const check = async (user: string, pw: string) => {
+    const a = load();
+    if (!a) return true;
+    const h = await derive(pw, unb64(a.salt));
+    const want = unb64(a.hash);
+    let diff = h.length ^ want.length;
+    for (let i = 0; i < h.length; i++) diff |= h[i] ^ (want[i] ?? 0);
+    return diff === 0 && a.user.trim().toLowerCase() === user.trim().toLowerCase();
+  };
+  const store = async (user: string, pw: string) => {
+    if (!user.trim() || pw.length < 8) throw new Error(pw.length < 8 ? "the password must be at least 8 characters" : "the account name can't be empty");
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    localStorage.setItem(KEY, JSON.stringify({ user: user.trim(), salt: b64(salt), hash: b64(await derive(pw, salt)) }));
+  };
+  return {
+    status: async () => load()?.user ?? null,
+    create: async (user, pw) => {
+      if (load()) throw new Error("an account already exists");
+      await store(user, pw);
+    },
+    verify: check,
+    change: async (pw, user, npw) => {
+      if (!(await check(load()?.user ?? "", pw))) throw new Error("wrong password");
+      await store(user, npw);
+    },
+    remove: async (pw) => {
+      if (!(await check(load()?.user ?? "", pw))) throw new Error("wrong password");
+      localStorage.removeItem(KEY);
     },
   };
 }

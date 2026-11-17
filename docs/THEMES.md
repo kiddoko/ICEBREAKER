@@ -32,6 +32,16 @@ title_focus = "#39ff14"
 | `[syntax]` | Markdown highlighting in the editor and chat                          |
 | `[ansi]`   | the 16 terminal colors used by shell output (`colors` shows them)     |
 | `[fx]`     | `bloom`, `scanlines`, `vignette` strengths (0–1), `gradient` for logos |
+| `[font]`   | `family`, `scale` (size correction), `weights = [normal, bold]`        |
+| `[glyphs]` | `mark` (◆), `bullet` (›), `spinner` frames, `todo` / `done` boxes       |
+
+Bundled fonts (SIL OFL): JetBrains Mono (default), IBM Plex Mono, Fira Code,
+Space Mono, VT323, Share Tech Mono. Any font installed on the system works too.
+A theme without `[font]` uses JetBrains Mono and the user's weight setting.
+
+Built-in themes to start from: `nightshade`, `amber`, `neon-ronin`,
+`phosphor` (green screen, VT323), `ghost` (ice white, Plex Mono),
+`redline` (black and red, Share Tech Mono), `graphite` (monochrome, Fira Code).
 
 Values are either `"#rrggbb"` or a name from `[palette]`.
 [`nightshade.toml`](../themes/nightshade.toml) lists every key with a comment.

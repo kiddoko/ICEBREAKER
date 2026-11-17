@@ -31,6 +31,8 @@ export interface VaultBackend {
   trash(path: string): Promise<string>;
   rename(from: string, to: string): Promise<void>;
   exists(path: string): Promise<boolean>;
+  /** Raw bytes of a small file (desktop only). */
+  readBytes?(path: string): Promise<ArrayBuffer>;
 }
 
 export interface SystemStats {
@@ -69,6 +71,18 @@ export interface Platform {
     detect(): Promise<string | null>;
     run(req: { id: string; prompt: string; system: string; resume?: string | null; model?: string }, onLine: (line: string) => void): Promise<{ code: number; stderr: string }>;
     cancel(id: string): Promise<void>;
+  };
+  /**
+   * The deck account (login at start-up). Passwords are hashed with Argon2id
+   * on the native side; the hash never comes back here (see account.rs).
+   */
+  account: {
+    /** Account name, or null when there's no lock. */
+    status(): Promise<string | null>;
+    create(user: string, password: string): Promise<void>;
+    verify(user: string, password: string): Promise<boolean>;
+    change(password: string, newUser: string, newPassword: string): Promise<void>;
+    remove(password: string): Promise<void>;
   };
   window: {
     setFullscreen(on: boolean): Promise<void>;

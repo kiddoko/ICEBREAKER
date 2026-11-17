@@ -100,6 +100,12 @@ export class Workspace {
     } else this.focus = "main";
   }
 
+  /** An interactive shell command asks something: make sure it's seen. */
+  focusShellIfHidden(): void {
+    this.shellVisible = true;
+    this.focus = "shell";
+  }
+
   toggleSidebar(): void {
     this.sidebarVisible = !this.sidebarVisible;
     if (this.sidebarVisible) this.focus = "sidebar";
@@ -210,10 +216,16 @@ export class Workspace {
       modal.onText?.(t);
       return;
     }
-    this.paneTarget()?.onText?.(t);
+    if (this.paneTarget()?.onText?.(t)) return;
+    // Nobody typing? `h` goes HOME from anywhere.
+    if (t === "h" || t === "H") this.deck.openApp("home");
   }
 
   handleAction(a: Action, source: ActionSource): void {
+    const snd = this.deck.sound;
+    if (a === "up" || a === "down" || a === "left" || a === "right" || a === "tab-next" || a === "tab-prev") snd.play("move");
+    else if (a === "confirm") snd.play("confirm");
+    else if (a === "back") snd.play("back");
     // The on-screen keyboard eats gamepad input while open, even above dialogs.
     const osk = this.overlays.find((o) => o instanceof Osk && !o.done);
     if (osk?.onAction?.(a, source)) return;
@@ -279,6 +291,7 @@ export class Workspace {
           }
         }
         const h = pick((x) => !!(x.onClick || x.onDrag));
+        if (h?.onClick) this.deck.sound.play("move");
         this.dragging = h ?? null;
         h?.onClick?.(m);
         break;
@@ -361,7 +374,7 @@ export class Workspace {
     const d = this.deck;
     ui.fill(r, { bg: c.panelAlt });
     let x = ui.text(r.x, r.y, " ", { bg: c.panelAlt });
-    x = ui.gradientText(x, r.y, "◆ ICEBREAKER", ui.theme.gradient, BOLD, (ui.now / 8000) % 1);
+    x = ui.gradientText(x, r.y, `${ui.theme.glyphs.mark} ICEBREAKER`, ui.theme.gradient, BOLD, (ui.now / 8000) % 1);
     x += 2;
 
     // right side first, so tabs know how much room they have
@@ -369,7 +382,7 @@ export class Workspace {
     const time = now.toLocaleTimeString(d.settings.data.user.locale || undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const date = now.toLocaleDateString(d.settings.data.user.locale || undefined, { weekday: "short", day: "numeric", month: "short" });
     ui.animate(1000 - now.getMilliseconds());
-    const ai = d.ai.ready ? `◆ ${d.ai.provider.label}` : "○ offline";
+    const ai = d.ai.ready ? `${ui.theme.glyphs.mark} ${d.ai.provider.label}` : "○ offline";
     const right = ` ${ai}  │  ${date}  ${time} `;
     const rx = r.x + r.w - strWidth(right);
     ui.text(rx, r.y, right, { fg: c.muted, bg: c.panelAlt });

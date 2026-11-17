@@ -16,6 +16,31 @@ import { hex, type RGB } from "./color";
 
 export type BorderStyle = "round" | "single" | "heavy" | "double";
 
+/** Small symbols a theme can swap (all optional in the .toml, under [glyphs]). */
+export interface ThemeGlyphs {
+  /** Before focused titles and the logo: ◆ ▸ ◢ ■ … */
+  mark: string;
+  /** List bullets (news, tasks…). */
+  bullet: string;
+  /** Spinner frames, one character each. */
+  spinner: string;
+  /** Unchecked / checked task box. */
+  todo: string;
+  done: string;
+}
+
+/**
+ * Typeface. `family` must be one of the bundled fonts (see FONTS in
+ * core/fonts.ts) or installed on the system. `scale` corrects fonts that look
+ * smaller or bigger than JetBrains Mono at the same pixel size; `weights` pins
+ * [normal, bold] for fonts that only ship one weight (empty = user setting).
+ */
+export interface ThemeFont {
+  family: string;
+  scale: number;
+  weights: [number, number] | null;
+}
+
 export interface UiColors {
   bg: RGB; panel: RGB; panelAlt: RGB; highlight: RGB; selection: RGB;
   fg: RGB; muted: RGB; subtle: RGB; faint: RGB;
@@ -45,6 +70,8 @@ export interface Theme {
   fx: { bloom: number; scanlines: number; vignette: number };
   /** Optional replacement for the boot logo. */
   logo?: string;
+  glyphs: ThemeGlyphs;
+  font: ThemeFont;
   source: "builtin" | "vault";
 }
 
@@ -120,8 +147,26 @@ export function parseTheme(source: string, base: Theme | null, origin: Theme["so
       vignette: num("vignette", base?.fx.vignette ?? 0.5),
     },
     logo: typeof (doc.ascii as Table | undefined)?.logo === "string" ? String((doc.ascii as Table).logo) : base?.logo,
+    glyphs: parseGlyphs((doc.glyphs ?? {}) as Table, base?.glyphs),
+    font: parseFont((doc.font ?? {}) as Table, base ? DEFAULT_FONT : null),
     source: origin,
   };
+}
+
+export const DEFAULT_GLYPHS: ThemeGlyphs = { mark: "◆", bullet: "›", spinner: "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏", todo: "□", done: "■" };
+export const DEFAULT_FONT: ThemeFont = { family: "JetBrains Mono", scale: 1, weights: null };
+
+function parseGlyphs(t: Table, base: ThemeGlyphs | undefined): ThemeGlyphs {
+  const g = { ...(base ?? DEFAULT_GLYPHS) };
+  for (const k of Object.keys(DEFAULT_GLYPHS) as (keyof ThemeGlyphs)[]) if (typeof t[k] === "string" && t[k]) g[k] = String(t[k]);
+  return g;
+}
+
+/** Fonts are not inherited from the base theme: a theme without [font] uses JetBrains Mono. */
+function parseFont(t: Table, _base: ThemeFont | null): ThemeFont {
+  const w = Array.isArray(t.weights) && t.weights.length === 2 ? (t.weights.map(Number) as [number, number]) : null;
+  const scale = typeof t.scale === "number" ? Math.max(0.5, Math.min(2, t.scale)) : 1;
+  return { family: typeof t.family === "string" && t.family ? t.family : DEFAULT_FONT.family, scale, weights: w };
 }
 
 // Built-in themes are the .toml files in /themes, bundled at build time.

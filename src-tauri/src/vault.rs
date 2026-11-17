@@ -167,6 +167,18 @@ pub fn vault_read(state: State<VaultState>, path: String) -> CmdResult<String> {
     fs::read_to_string(resolve(&root, &path)?).map_err(|e| format!("{path}: {e}"))
 }
 
+/// Raw bytes of a small file (custom UI sounds). `None` when it doesn't exist.
+#[tauri::command]
+pub fn vault_read_bytes(state: State<VaultState>, path: String) -> CmdResult<tauri::ipc::Response> {
+    let root = root(&state)?;
+    let p = resolve(&root, &path)?;
+    let meta = fs::metadata(&p).map_err(|e| format!("{path}: {e}"))?;
+    if meta.len() > 8 * 1024 * 1024 {
+        return Err(format!("{path}: larger than 8 MB"));
+    }
+    Ok(tauri::ipc::Response::new(fs::read(&p).map_err(|e| format!("{path}: {e}"))?))
+}
+
 /// Read many files in one round-trip (used by grep, search and the AI tools).
 #[tauri::command]
 pub fn vault_read_many(state: State<VaultState>, paths: Vec<String>) -> CmdResult<Vec<Option<String>>> {

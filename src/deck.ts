@@ -15,7 +15,9 @@ import { GamepadInput } from "./core/gamepad";
 import { Grid } from "./core/grid";
 import { InputManager, type Action, type ActionSource, type InputSink, type KeyInput, type MouseInput } from "./core/input";
 import { FrameLoop } from "./core/loop";
+import { fontStack, loadFont, WEIGHTS } from "./core/fonts";
 import { Renderer } from "./core/renderer";
+import { Sound } from "./core/sound";
 import type { SettingsStore } from "./core/settings";
 import { ThemeManager, type Theme } from "./core/theme";
 import { glitch } from "./fx/glitch";
@@ -32,6 +34,7 @@ import { ensureEntry } from "./vault/journal";
 import { basename, join, slugify } from "./vault/paths";
 import { Vault } from "./vault/vault";
 import { BootScreen, type BootLine } from "./workspace/boot";
+import { LockScreen } from "./workspace/lock";
 import { applyFxPreset } from "./workspace/fxpanel";
 import type { ToastKind } from "./workspace/overlays";
 import { Workspace } from "./workspace/workspace";
@@ -59,11 +62,16 @@ export class Deck implements InputSink {
   readonly loop: FrameLoop;
   readonly input: InputManager;
   readonly gamepad: GamepadInput;
+  readonly sound = new Sound();
 
   private readonly ui = new UI();
   private grid = new Grid(1, 1);
   private hits: Hit[] = [];
   private boot: BootScreen | null = null;
+  /** Login screen; while it's up nothing else is drawn or gets input. */
+  private lock: LockScreen | null = null;
+  /** Account name when the deck has a login (null = no lock). */
+  account: string | null = null;
   private glitchUntil = 0;
   private lastActivity = performance.now();
 
@@ -75,7 +83,7 @@ export class Deck implements InputSink {
     this.vault = new Vault(platform.vault);
     this.ai = new AIManager(settings);
     this.plugins = new PluginHost(this);
-    this.renderer = new Renderer(el("screen") as HTMLCanvasElement, el("bloom") as HTMLCanvasElement, settings.data.appearance.fontSize, settings.data.appearance.fontWeight);
+    this.renderer = new Renderer(el("screen") as HTMLCanvasElement, el("bloom") as HTMLCanvasElement, settings.data.appearance.fontSize);
     this.loop = new FrameLoop(this.frame, settings.data.appearance.maxFps);
     this.input = new InputManager(this, this.renderer, el("deck"), el("keyboard-sink") as HTMLTextAreaElement);
     this.input.onActivity = () => {
@@ -110,6 +118,12 @@ export class Deck implements InputSink {
     await this.reloadUserThemes();
     this.themes.current = this.themes.get(s.appearance.theme) ?? this.themes.default;
 
+    this.account = await this.platform.account.status().catch(() => null);
+    if (this.account) this.lockNow();
+    this.sound.enabled = s.sound.enabled;
+    this.sound.volume = s.sound.volume / 100;
+    void this.reloadSounds();
+
     this.registerCore();
     await this.plugins.init();
 
@@ -117,11 +131,12 @@ export class Deck implements InputSink {
     this.openApp("home");
     if (!s.setup.done) this.openApp("setup");
     this.applyFx();
-    this.resize();
+    await this.applyFont();
     // (browsers only allow fullscreen after a click, so this is desktop-only)
     if (s.appearance.startFullscreen && this.platform.kind === "desktop") void this.platform.window.setFullscreen(true).catch(() => {});
 
     if (s.boot.mode !== "off") this.boot = new BootScreen(await this.bootLines(), await this.memMB(), s.boot.mode);
+    this.sound.play("boot");
     setInterval(() => this.checkIdle(), 15_000);
     this.loop.request();
   }
@@ -135,6 +150,8 @@ export class Deck implements InputSink {
     act("journal.today", "Journal: today", () => void this.openJournal(new Date()), "ctrl+j", "journal");
     act("journal.yesterday", "Journal: yesterday", () => void this.openJournal(new Date(Date.now() - 86400_000)), undefined, "journal");
     act("note.new", "New note", () => void this.newNote(), "ctrl+n", "notes");
+    act("daily.log", "Daily log (end-of-day check-in)", () => void this.shell.runLine("daily"), undefined, "journal");
+    act("deck.lock", "Lock the deck", () => this.account ? this.lockNow() : this.notify("no account yet — run `account create` in the shell"), undefined, "deck");
     act("setup.run", "Setup (first-run questionnaire)", () => void this.openApp("setup"), undefined, "deck");
     act("modules.open", "Modules (all apps and plugins)", () => void this.openApp("modules"), undefined, "deck");
     act("link.open", "Open LINK (AI chat)", () => void this.openApp("link"), "ctrl+space", "ai");
@@ -198,6 +215,7 @@ export class Deck implements InputSink {
     if (this.grid.cols !== this.renderer.cols || this.grid.rows !== this.renderer.rows) this.grid = new Grid(this.renderer.cols, this.renderer.rows);
     const ui = this.ui;
     ui.begin(this.grid, this.theme, now, this.input.mouseCell);
+    ui.cellAspect = this.renderer.cellW / this.renderer.cellH;
 
     this.boot?.render(ui);
     if (this.boot?.done) {
@@ -206,7 +224,8 @@ export class Deck implements InputSink {
       ui.begin(this.grid, this.theme, now, this.input.mouseCell);
       this.glitch(450);
     }
-    if (!this.boot) this.workspace.render(ui);
+    if (!this.boot && this.lock) this.lock.render(ui);
+    else if (!this.boot) this.workspace.render(ui);
 
     const g = this.glitchUntil - performance.now();
     if (g > 0) {
@@ -218,6 +237,21 @@ export class Deck implements InputSink {
     this.hits = ui.hits;
     return ui.wakeIn;
   };
+
+  /** Show the login screen (only when an account exists). */
+  lockNow(): void {
+    if (!this.account) return;
+    this.lock = new LockScreen(this, this.account, () => {
+      this.lock = null;
+      this.glitch(400);
+      this.notify(`welcome back, ${this.settings.data.user.handle}`, "success");
+    });
+    this.requestFrame();
+  }
+
+  get locked(): boolean {
+    return this.lock !== null;
+  }
 
   requestFrame(): void {
     this.loop.request();
@@ -232,12 +266,14 @@ export class Deck implements InputSink {
 
   key(k: KeyInput): void {
     if (this.boot) return this.boot.skip();
+    if (this.lock) return this.lock.onKey(k), this.requestFrame();
     this.workspace.handleKey(k);
     this.requestFrame();
   }
 
   text(t: string): void {
     if (this.boot) return this.boot.skip();
+    if (this.lock) return this.lock.onText(t), this.requestFrame();
     this.workspace.handleText(t);
     this.requestFrame();
   }
@@ -253,6 +289,7 @@ export class Deck implements InputSink {
 
   action(a: Action, source: ActionSource): void {
     if (this.boot) return this.boot.skip();
+    if (this.lock) return;
     this.workspace.handleAction(a, source);
     this.requestFrame();
   }
@@ -260,6 +297,7 @@ export class Deck implements InputSink {
   // ── verbs used by apps, commands and plugins ─────────────────────────────
 
   notify(text: string, kind: ToastKind = "info"): void {
+    this.sound.play(kind === "error" ? "error" : kind === "success" ? "success" : "notify");
     this.workspace.notify(text, kind);
     this.requestFrame();
   }
@@ -283,6 +321,7 @@ export class Deck implements InputSink {
       return null;
     }
     try {
+      if (this.workspace.activeApp?.key !== kind) this.sound.play("open");
       const app = this.workspace.open(spec.create(this, args));
       this.requestFrame();
       return app;
@@ -319,8 +358,10 @@ export class Deck implements InputSink {
   setTheme(name: string): boolean {
     const t = this.themes.get(name);
     if (!t) return false;
+    const fontChanged = this.themes.current.font.family !== t.font.family || this.themes.current.font.scale !== t.font.scale || String(this.themes.current.font.weights) !== String(t.font.weights);
     this.themes.current = t;
     if (this.settings.data.appearance.theme !== name) this.settings.set("appearance.theme", name);
+    if (fontChanged) void this.applyFont();
     this.applyFx();
     this.renderer.invalidate();
     this.glitch(300);
@@ -357,19 +398,35 @@ export class Deck implements InputSink {
   applySettings(key: string): void {
     const s = this.settings.data;
     if (key === "appearance.theme") this.setTheme(s.appearance.theme);
-    else if (key === "appearance.fontWeight") { this.renderer.setWeight(s.appearance.fontWeight); this.resize(); }
-    else if (key === "appearance.fontSize") this.zoom(0, s.appearance.fontSize);
+    else if (key === "appearance.fontWeight" || key === "appearance.fontSize" || key === "appearance.scale") void this.applyFont();
     else if (key === "journal.folder") this.vault.journalFolder = s.journal.folder;
     else if (key === "user.handle") this.shell.exec.env.USER = s.user.handle;
     else if (key.startsWith("fx.") || key === "appearance.maxFps") this.applyFx();
+    else if (key.startsWith("sound.")) {
+      this.sound.enabled = s.sound.enabled;
+      this.sound.volume = s.sound.volume / 100;
+      this.sound.play("confirm");
+    }
     this.requestFrame();
   }
 
-  /** dir +1 / -1 changes the font size, 0 resets (or sets `exact`). */
-  zoom(dir: number, exact?: number): void {
-    const size = exact ?? (dir === 0 ? 15 : this.renderer.fontSize + dir);
-    this.renderer.setFontSize(size);
-    if (this.settings.data.appearance.fontSize !== this.renderer.fontSize) this.settings.set("appearance.fontSize", this.renderer.fontSize);
+  /** dir +1 / -1 changes the interface scale by 10 % (25–200 %), 0 resets to 100 %. */
+  zoom(dir: number): void {
+    const cur = this.settings.data.appearance.scale;
+    const next = dir === 0 ? 100 : Math.max(25, Math.min(200, Math.round(cur / 5) * 5 + dir * 10));
+    if (next !== cur) this.settings.set("appearance.scale", next);
+    void this.applyFont();
+    this.notify(`scale ${next}%`);
+  }
+
+  /** Typeface, weight and size from the theme + appearance settings. */
+  async applyFont(): Promise<void> {
+    const a = this.settings.data.appearance;
+    const f = this.theme.font;
+    const weights = f.weights ?? WEIGHTS[a.fontWeight] ?? WEIGHTS.thin;
+    await loadFont(f.family, weights);
+    this.renderer.setFont(fontStack(f.family), weights);
+    this.renderer.setFontSize((a.fontSize * Math.max(25, Math.min(200, a.scale || 100)) * f.scale) / 100);
     this.resize();
   }
 
@@ -387,6 +444,13 @@ export class Deck implements InputSink {
     await this.plugins.reload();
     this.openApp("home");
     this.notify(`vault: ${this.vault.root}`, "success");
+  }
+
+  /** (Re)load custom sounds from .icebreaker/sounds. Returns how many were found. */
+  async reloadSounds(): Promise<number> {
+    const rb = this.platform.vault.readBytes;
+    if (!rb) return 0;
+    return this.sound.loadCustom(async (p) => ((await this.vault.exists(p).catch(() => false)) ? rb(p) : null));
   }
 
   glitch(ms: number): void {

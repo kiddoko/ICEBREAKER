@@ -56,6 +56,8 @@ export class UI {
   hits: Hit[] = [];
   /** Where the text cursor is this frame (for IME placement), if anyone drew one. */
   caret: { x: number; y: number } | null = null;
+  /** Cell width ÷ cell height (≈0.5): use it to draw round things (see ui/dots.ts). */
+  cellAspect = 0.5;
   private wake = Infinity;
 
   begin(grid: Grid, theme: Theme, now: number, mouse: { x: number; y: number }): void {
@@ -182,8 +184,10 @@ export class UI {
 
     let titleEnd = r.x + 2;
     if (o.title) {
-      const label = o.focused ? ` ◆ ${o.title} ` : ` ${o.title} `;
-      const style = o.focused ? { fg: this.c.panel, bg: this.c.titleFocus, attrs: BOLD } : { fg: this.c.title, bg };
+      // focused: accent text with a mark, no filled badge (stays readable next to the tab bar)
+      const mark = this.theme.glyphs.mark;
+      const label = o.focused ? ` ${mark} ${o.title} ` : ` ${o.title} `;
+      const style = o.focused ? { fg: this.c.titleFocus, bg, attrs: BOLD } : { fg: this.c.title, bg };
       titleEnd = this.text(r.x + 2, r.y, label, style, r.w - 4);
     }
     if (o.info) {
@@ -244,7 +248,8 @@ export class UI {
 
   spinner(): string {
     this.animate(80);
-    return SPINNER[Math.floor(this.now / 80) % SPINNER.length];
+    const frames = [...(this.theme.glyphs.spinner || SPINNER)];
+    return frames[Math.floor(this.now / 80) % frames.length];
   }
 
   /** Draw a block cursor at (x, y), blinking. Also tells the IME where we are. */

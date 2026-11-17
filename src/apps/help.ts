@@ -22,7 +22,9 @@ Everything works with **keyboard only**, **mouse only**, a **gamepad**, or any m
 - \`Alt+←↑↓→\` — move focus between panes · \`Alt+1…9\` — switch tab
 - \`Ctrl+Tab\` / \`Ctrl+Shift+Tab\` — next / previous tab · \`Ctrl+W\` — close tab
 - \`Ctrl+S\` — save (notes also autosave) · \`Ctrl+Enter\` — follow [[link]] under cursor
-- \`Ctrl+=\` / \`Ctrl+-\` / \`Ctrl+0\` — zoom · \`F11\` — fullscreen · \`F1\` — this manual
+- \`Ctrl+=\` / \`Ctrl+-\` / \`Ctrl+0\` — interface scale 25–200 % · \`F11\` — fullscreen · \`F1\` — this manual
+- \`h\` — back to HOME from anywhere you're not typing
+- In the shell: \`daily\` — end-of-day check-in · \`chat\` — talk to the AI · \`lock\` — lock the deck
 
 ## Mouse
 Click anything: tabs, files, tiles, buttons, calendar days. Drag to select text,

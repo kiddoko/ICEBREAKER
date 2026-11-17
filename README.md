@@ -17,7 +17,10 @@ scanlines — but works with the keyboard, the mouse, or a gamepad.
 - **A real-ish shell** — pipes, redirections, globs, history, fish-style suggestions, 70+ commands working on your vault. `cat note.md | ask "summarize"` works.
 - **LINK** — chat with Claude, which can search and read your notes (and write them, with your approval). Or use a local open-source model through [Ollama](https://ollama.com).
 - **Plugins** — small JS modules with a documented API and declared permissions. LINGO, an AI language tutor, ships as an example.
-- **Themes** — TOML files, hot-swappable. Default: `nightshade` (violet, Catppuccin-flavoured). Also `amber` and `neon-ronin`.
+- **Themes** — TOML files, hot-swappable: colors, font, border style and symbols. Default: `nightshade` (violet, Catppuccin-flavoured). Also `amber`, `neon-ronin`, `phosphor`, `ghost`, `redline`, `graphite`.
+- **Daily log** — `daily` asks a short end-of-day check-in in the shell (quick answers 1-5) and writes it to your journal; `daily trend` charts it.
+- **Login** — optional account that locks the deck at start-up. The password is hashed with Argon2id and never stored. It locks the app, it does not encrypt your notes (they stay readable Markdown files). Forgot it? Quit, delete `account.json` in the config folder (macOS: `~/Library/Application Support/org.icebreaker.deck/`), restart.
+- **Sounds** — UI blips synthesized on the fly; drop your own `move.wav`, `open.wav`, `confirm.wav`, `back.wav`, `success.wav`, `error.wav`, `notify.wav`, `boot.wav`, `unlock.wav`, `denied.wav` (or .ogg / .mp3) in `.icebreaker/sounds/` to replace them.
 - **Light** — renders only what changed, sleeps when idle, `fx potato` for old laptops. ~10 MB binary.
 
 Everything is local: your notes are files on your disk, settings are JSON, nothing phones home. Network traffic only goes where you point it: the AI provider *you* configure, the weather widget (open-meteo.com, no account) and GitHub when you install a plugin or theme.
@@ -48,7 +51,8 @@ To talk to Claude: get an API key at [console.anthropic.com](https://console.ant
 | move between panes | `Alt+←↑↓→` | Select |
 | tabs | `Alt+1…9`, `Ctrl+Tab`, `Ctrl+W` | LB / RB |
 | on-screen keyboard | status bar `⌨` | X |
-| zoom / fullscreen | `Ctrl+=` `Ctrl+-` / `F11` | — |
+| interface scale (25–200 %) / fullscreen | `Ctrl+=` `Ctrl+-` `Ctrl+0` / `F11` | — |
+| back to HOME | `h` (when not typing) | Start |
 
 The mouse works everywhere: tabs, tree, tiles, calendar, buttons, drag-to-select, drag the shell border to resize.
 

@@ -111,3 +111,20 @@ bloom     = 0.3
 scanlines = 0.10
 vignette  = 0.55
 gradient  = ["violet", "mauve", "pink"]
+
+# Typeface. Bundled: "JetBrains Mono" (default), "IBM Plex Mono", "Fira Code",
+# "Space Mono", "VT323", "Share Tech Mono" — or any font installed on the system.
+# scale: size correction vs JetBrains Mono · weights: [normal, bold], pins the
+# weights for fonts with only one (leave it out to follow the user's setting).
+[font]
+family = "JetBrains Mono"
+# scale = 1.0
+# weights = [400, 700]
+
+# Small symbols the UI uses.
+[glyphs]
+mark    = "◆"                    # focused titles, logo
+bullet  = "›"                    # list items
+spinner = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"            # one character per frame
+todo    = "□"
+done    = "■"

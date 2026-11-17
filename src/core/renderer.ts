@@ -1,9 +1,10 @@
 import { GlyphAtlas } from "./atlas";
 import { css } from "./color";
 import { BOLD, Grid, ITALIC, STRIKE, UNDERLINE } from "./grid";
+import { fontStack } from "./fonts";
 import { charWidth } from "./unicode";
 
-export const FONT_STACK = '"JetBrains Mono", "Cascadia Mono", "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace';
+export const FONT_STACK = fontStack("JetBrains Mono");
 
 /**
  * Paints a Grid onto the canvas.
@@ -29,30 +30,33 @@ export class Renderer {
   private dirty = new Uint8Array(0);
   private fontPx = 16;
   private baseline = 0;
-  /** Light = JetBrains Mono 300 / 600 (crisp on HiDPI), regular = 400 / 700. */
-  private light = true;
+  /** [normal, bold] weights. Thin 200/500 is the crispest on HiDPI screens. */
+  private weights: readonly [number, number] = [200, 500];
+  private stack = FONT_STACK;
+  private lineHeight = 1.12;
   bloomEnabled = true;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly bloom: HTMLCanvasElement,
     fontSize: number,
-    weight: "light" | "regular" = "light",
   ) {
     this.ctx = canvas.getContext("2d", { alpha: false })!;
     this.bloomCtx = bloom.getContext("2d")!;
-    this.light = weight === "light";
     this.setFontSize(fontSize);
   }
 
-  /** Change the font size (zoom). Rebuilds metrics and forces a full repaint. */
+  /** Change the font size in CSS px (zoom). Rebuilds metrics and forces a full repaint. */
   setFontSize(size: number): void {
-    this.fontPx = Math.max(8, Math.min(48, size));
+    this.fontPx = Math.max(4, Math.min(64, size));
     this.measure();
   }
 
-  setWeight(weight: "light" | "regular"): void {
-    this.light = weight === "light";
+  /** Change typeface and weights (themes, the weight setting). */
+  setFont(stack: string, weights: readonly [number, number], lineHeight = 1.12): void {
+    this.stack = stack;
+    this.weights = weights;
+    this.lineHeight = lineHeight;
     this.measure();
   }
 
@@ -62,8 +66,8 @@ export class Renderer {
 
   private font(attrs: number): string {
     const style = attrs & ITALIC ? "italic " : "";
-    const weight = attrs & BOLD ? (this.light ? "600 " : "700 ") : this.light ? "300 " : "400 ";
-    return `${style}${weight}${Math.round(this.fontPx * this.dpr)}px ${FONT_STACK}`;
+    const weight = attrs & BOLD ? this.weights[1] : this.weights[0];
+    return `${style}${weight} ${Math.round(this.fontPx * this.dpr)}px ${this.stack}`;
   }
 
   private measure(): void {
@@ -73,9 +77,8 @@ export class Renderer {
     const m = ctx.measureText("M");
     const ascent = m.fontBoundingBoxAscent ?? m.actualBoundingBoxAscent;
     const descent = m.fontBoundingBoxDescent ?? m.actualBoundingBoxDescent;
-    const lineHeight = 1.12;
     this.cellW = Math.ceil(m.width);
-    this.cellH = Math.ceil((ascent + descent) * lineHeight);
+    this.cellH = Math.ceil((ascent + descent) * this.lineHeight);
     this.baseline = Math.round((this.cellH - (ascent + descent)) / 2 + ascent);
     this.atlas = new GlyphAtlas(this.cellW, this.cellH, this.baseline, (a) => this.font(a));
     this.front = null;

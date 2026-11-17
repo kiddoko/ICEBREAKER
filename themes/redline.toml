@@ -1,0 +1,87 @@
+# REDLINE — corporate black and warning red. Share Tech Mono, hard corners.
+
+[meta]
+name = "redline"
+author = "icebreaker"
+description = "Black glass, warning red, Share Tech Mono."
+border = "heavy"
+
+[palette]
+black = "#080506"
+deep  = "#100a0b"
+dark  = "#1b1012"
+wine  = "#3a1519"
+rust  = "#6e2a2f"
+ash   = "#8a7a7c"
+bone  = "#e9dcdc"
+red   = "#ff2a3d"
+hot   = "#ff6b5b"
+gold  = "#ffb340"
+teal  = "#3ef0c8"
+
+[ui]
+bg = "black"
+panel = "deep"
+panel_alt = "dark"
+highlight = "dark"
+selection = "#40121a"
+fg = "bone"
+muted = "ash"
+subtle = "rust"
+faint = "wine"
+accent = "red"
+accent_alt = "gold"
+border = "wine"
+border_focus = "red"
+title = "ash"
+title_focus = "red"
+cursor = "red"
+success = "teal"
+warning = "gold"
+error = "hot"
+info = "gold"
+ambient = "#2a0a0e"
+status_bg = "dark"
+status_fg = "ash"
+
+[syntax]
+heading1 = "red"
+heading2 = "gold"
+heading3 = "hot"
+bold = "bone"
+italic = "hot"
+code = "gold"
+code_bg = "dark"
+link = "red"
+wikilink = "gold"
+tag = "red"
+quote = "ash"
+list = "red"
+checkbox = "gold"
+
+[ansi]
+magenta = "red"
+cyan = "teal"
+blue = "gold"
+yellow = "gold"
+red = "hot"
+bright_magenta = "red"
+bright_cyan = "teal"
+
+[fx]
+bloom = 0.4
+scanlines = 0.08
+vignette = 0.65
+gradient = ["red", "hot", "gold"]
+
+[font]
+family = "Share Tech Mono"
+scale = 1.08
+weights = [400, 400]
+
+[glyphs]
+mark = "◢"
+bullet = "▸"
+spinner = "▖▘▝▗"
+todo = "◇"
+done = "◆"

@@ -24,9 +24,19 @@ export interface Settings {
   /** First-run questionnaire (apps/setup.ts). */
   setup: { done: boolean };
   vault: { path: string };
-  appearance: { theme: string; fontSize: number; startFullscreen: boolean; fontWeight: "light" | "regular"; maxFps: number; showFps: boolean; lineNumbers: boolean };
+  appearance: {
+    theme: string;
+    /** Text size in px at 100 % scale. */
+    fontSize: number;
+    /** Interface scale in percent (25–200), changed with ctrl +/-. */
+    scale: number;
+    startFullscreen: boolean;
+    fontWeight: "thin" | "light" | "regular";
+    maxFps: number; showFps: boolean; lineNumbers: boolean };
   fx: { bloom: boolean; scanlines: boolean; vignette: boolean; ambient: boolean; flicker: boolean; glitch: boolean; screensaverMinutes: number };
   boot: { mode: "full" | "fast" | "off" };
+  /** UI sounds (core/sound.ts). Volume 0–100. */
+  sound: { enabled: boolean; volume: number };
   ai: {
     provider: "claude-code" | "anthropic" | "ollama";
     /** Model for the Claude Code provider: "sonnet", "opus"… (empty = the CLI default). */
@@ -51,11 +61,12 @@ export const DEFAULT_SETTINGS: Settings = {
   user: { handle: "netrunner", locale: "", location: { precision: "none", name: "", country: "", lat: null, lon: null } },
   setup: { done: false },
   vault: { path: "" },
-  appearance: { theme: "nightshade", fontSize: 15, startFullscreen: false, fontWeight: "light", maxFps: 60, showFps: true, lineNumbers: true },
+  appearance: { theme: "nightshade", fontSize: 13, scale: 100, startFullscreen: false, fontWeight: "thin", maxFps: 60, showFps: true, lineNumbers: true },
   // Minimal by default: the animated background and short glitch transitions.
   // The heavy CRT stuff (bloom, scanlines, vignette, flicker) is one click away in the FX panel.
   fx: { bloom: false, scanlines: false, vignette: false, ambient: true, flicker: false, glitch: true, screensaverMinutes: 0 },
   boot: { mode: "full" },
+  sound: { enabled: true, volume: 50 },
   ai: {
     provider: "claude-code",
     claudeCodeModel: "",

@@ -206,7 +206,7 @@ const neofetch: Command = {
       `${key("Uptime")}: ${formatUptime(s.uptime)}`,
       `${key("Shell")}: ibsh 0.1`,
       `${key("Theme")}: ${t.name}`,
-      `${key("Font")}: JetBrains Mono ${d.settings.data.appearance.fontSize}px`,
+      `${key("Font")}: ${d.theme.font.family} ${d.settings.data.appearance.fontSize}px @ ${d.settings.data.appearance.scale}%`,
       `${key("CPU")}: ${s.cpuBrand || "unknown"} (${s.cores.length})`,
       `${key("Memory")}: ${humanSize(s.memUsed).replace("M", " MiB")} / ${humanSize(s.memTotal).replace("M", " MiB")}`,
       `${key("Vault")}: ${d.vault.markdown().length} notes · ${d.vault.journalDates().size} journal days`,

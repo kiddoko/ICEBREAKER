@@ -15,7 +15,7 @@ interface Step {
   title: string;
   question: string;
   /** Text steps take typed input; choice steps a pick from `options`. */
-  text?: { placeholder: string };
+  text?: { placeholder: string; mask?: boolean };
   options?: () => Option[];
   skip?: () => boolean;
 }
@@ -36,6 +36,8 @@ export class SetupApp implements App {
   private error = "";
   private places: Place[] = [];
   private a: Record<string, string> = {};
+  /** First password entry, kept only until the confirmation (never in `a`). */
+  private pw = "";
   private readonly steps: Step[];
 
   constructor(private readonly deck: Deck) {
@@ -44,6 +46,18 @@ export class SetupApp implements App {
     this.steps = [
       { id: "intro", title: "JACK IN", question: "A few questions to set up your deck. Takes a minute, all optional.", options: () => [{ value: "go", label: "Let's go" }, { value: "skip", label: "Skip — use the defaults" }] },
       { id: "handle", title: "HANDLE", question: "What should the deck call you?", text: { placeholder: "netrunner" } },
+      {
+        id: "lock", title: "ACCESS",
+        question: "Lock the deck with a login? The password is hashed (Argon2id) and never stored. It locks the app — your notes stay plain Markdown files on disk.",
+        options: () => [
+          { value: "create", label: "Create a login", hint: "name + password at every start" },
+          { value: "none", label: "No login", hint: "add one later: account create" },
+        ],
+        skip: () => !!deck.account,
+      },
+      { id: "acct-user", title: "ACCOUNT", question: "Account name:", text: { placeholder: "" }, skip: () => !!deck.account || this.a.lock !== "create" },
+      { id: "acct-pass", title: "PASSWORD", question: "Choose a password (8 characters or more). There is no recovery: if you forget it, you'll have to delete the login file.", text: { placeholder: "8 characters or more", mask: true }, skip: () => !!deck.account || this.a.lock !== "create" },
+      { id: "acct-pass2", title: "PASSWORD", question: "Type it again:", text: { placeholder: "same password", mask: true }, skip: () => !!deck.account || this.a.lock !== "create" },
       { id: "locale", title: "LANGUAGE", question: "Dates, calendar and news language.", options: () => [{ value: "fr-FR", label: "Français" }, { value: "en-US", label: "English (US)" }, { value: "en-GB", label: "English (UK)" }, { value: "", label: "Same as the system" }] },
       {
         id: "precision", title: "LOCATION", question: "Weather and local news need to know roughly where you are. Share only what you want — it stays on this machine.",
@@ -72,7 +86,7 @@ export class SetupApp implements App {
         options: () => [
           { value: "essentials", label: "Essentials", hint: "clock, weather, calendar, system, notes" },
           { value: "productivity", label: "Productivity", hint: "tasks, focus timer, streak, news" },
-          { value: "gadget", label: "Gadget", hint: "matrix rain, moon, world clock, quotes" },
+          { value: "gadget", label: "Gadget", hint: "neural link, moon, world clock, quotes" },
         ],
       },
       {
@@ -83,6 +97,10 @@ export class SetupApp implements App {
           { value: "potato", label: "Potato", hint: "no effects, for old laptops" },
         ],
       },
+      {
+        id: "sound", title: "SOUND", question: "UI sounds? (blips and clicks of an old OS doing its best — replaceable, see docs)",
+        options: () => [{ value: "on", label: "On" }, { value: "off", label: "Off" }],
+      },
       { id: "done", title: "READY", question: "Deck configured. Everything is in Settings if you change your mind.", options: () => [{ value: "go", label: "Jack in" }] },
     ];
   }
@@ -92,7 +110,7 @@ export class SetupApp implements App {
   }
 
   status(): string {
-    return this.cur.text ? "type · enter next · esc back" : "↑↓ choose · enter next · esc back";
+    return this.cur.text ? "type · enter next · esc back" : "1-9 or ↑↓ choose · enter next · esc back";
   }
 
   private get cur(): Step {
@@ -114,7 +132,7 @@ export class SetupApp implements App {
     this.error = "";
     this.places = [];
     const st = this.cur;
-    this.input = st.id === "handle" ? this.a.handle ?? "" : "";
+    this.input = "";
     const opts = this.options();
     this.sel = Math.max(0, opts.findIndex((o) => o.value === this.a[st.id]));
   }
@@ -123,8 +141,14 @@ export class SetupApp implements App {
     const st = this.cur;
     if (this.busy) return;
     if (st.id === "place") return this.submitPlace();
+    if (st.id === "acct-pass") {
+      if (this.input.length < 8) return void (this.error = "8 characters or more");
+      this.pw = this.input;
+      return this.go(1);
+    }
+    if (st.id === "acct-pass2") return this.createAccount();
     if (st.text) {
-      this.a[st.id] = this.input.trim() || st.text.placeholder;
+      this.a[st.id] = this.input.trim() || this.placeholder(st);
       return this.go(1);
     }
     const o = this.options()[this.sel];
@@ -133,6 +157,37 @@ export class SetupApp implements App {
     if (st.id === "intro" && o.value === "skip") return this.finish(true);
     if (st.id === "done") return this.finish(false);
     this.go(1);
+  }
+
+  /** Typing replaces the suggestion; enter on empty keeps it. */
+  private placeholder(st: Step): string {
+    if (st.id === "handle") return this.a.handle || "netrunner";
+    if (st.id === "acct-user") return this.a["acct-user"] || this.a.handle || "netrunner";
+    return st.text?.placeholder ?? "";
+  }
+
+  private async createAccount(): Promise<void> {
+    if (this.input !== this.pw) {
+      this.pw = "";
+      this.go(-1);
+      this.error = "they didn't match — choose it again";
+      return;
+    }
+    this.busy = true;
+    try {
+      const user = (this.a["acct-user"] || this.a.handle || "netrunner").trim();
+      await this.deck.platform.account.create(user, this.pw);
+      this.deck.account = await this.deck.platform.account.status();
+      this.deck.sound.play("unlock");
+      this.go(1);
+    } catch (e) {
+      this.error = e instanceof Error ? e.message : String(e);
+    } finally {
+      this.pw = "";
+      this.input = "";
+      this.busy = false;
+      this.deck.requestFrame();
+    }
   }
 
   private async submitPlace(): Promise<void> {
@@ -172,14 +227,33 @@ export class SetupApp implements App {
       if (this.a.ai && this.a.ai !== "keep") set("ai.provider", this.a.ai);
       if (this.a.home) set("home.widgets", LAYOUT_PRESETS[this.a.home as keyof typeof LAYOUT_PRESETS]);
       if (this.a.fx) applyFxPreset(this.deck, this.a.fx as "minimal" | "max" | "potato");
+      if (this.a.sound) set("sound.enabled", this.a.sound === "on");
     }
     set("setup.done", true);
+    const ws = this.deck.workspace;
+    const i = ws.tabs.indexOf(this);
+    if (i >= 0) ws.tabs.splice(i, 1);
+    ws.active = Math.max(0, Math.min(ws.active, ws.tabs.length - 1));
     this.deck.openApp("home");
     this.deck.notify(skipped ? "setup skipped — ctrl+k → Setup to run it later" : `welcome, ${this.a.handle || "netrunner"}`, "success");
   }
 
   onText(t: string): boolean {
-    if (!this.cur.text || this.places.length) return false;
+    if (this.busy) return true;
+    if (!this.cur.text || this.places.length) {
+      // quick answers: 1-9 picks an option
+      const n = Number(t);
+      if (/^[1-9]$/.test(t) && n <= this.options().length) {
+        this.sel = n - 1;
+        void this.next();
+      }
+      return true;
+    }
+    if (t.includes("\n")) {
+      this.input += t.replace(/[\r\n]+/g, "");
+      void this.next();
+      return true;
+    }
     this.input += t;
     this.error = "";
     return true;
@@ -228,18 +302,18 @@ export class SetupApp implements App {
     y++;
     if (st.text && !this.places.length) {
       const box = ui.box({ x, y, w, h: 3 }, { focused: true });
-      const shown = this.input || st.text.placeholder;
+      const shown = st.text.mask && this.input ? "•".repeat(this.input.length) : this.input || this.placeholder(st);
       ui.text(box.x + 1, box.y, shown, { fg: this.input ? c.fg : c.faint }, box.w - 2);
       if (focused) ui.cursor(box.x + 1 + Math.min(this.input.length, box.w - 3), box.y);
       y += 4;
-      if (this.busy) ui.textCenter(r, y, `${ui.spinner()} locating…`, { fg: c.muted });
+      if (this.busy) ui.textCenter(r, y, `${ui.spinner()} ${st.id.startsWith("acct") ? "hashing…" : "locating…"}`, { fg: c.muted });
     } else {
       this.options().forEach((o, i) => {
         const row = { x, y, w, h: 1 };
         const sel = i === this.sel;
         const hot = ui.hovered(row);
         if (sel) ui.fill(row, { bg: mix(c.accent, c.bg, 0.82) });
-        ui.text(x + 1, y, sel ? "▶" : " ", { fg: c.accent, attrs: Math.floor(ui.now / 500) % 2 ? BOLD : 0 });
+        ui.text(x + 1, y, sel ? "▶" : String(i + 1), { fg: sel ? c.accent : c.subtle, attrs: Math.floor(ui.now / 500) % 2 ? BOLD : 0 });
         ui.text(x + 3, y, o.label, { fg: sel || hot ? c.accent : c.fg, bg: sel ? mix(c.accent, c.bg, 0.82) : undefined, attrs: sel ? BOLD : 0 });
         if (o.hint) ui.textRight(x + w - 1, y, o.hint, { fg: c.subtle, bg: sel ? mix(c.accent, c.bg, 0.82) : undefined });
         ui.hit(row, { onClick: () => { this.sel = i; void this.next(); } });

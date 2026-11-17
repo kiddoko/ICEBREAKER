@@ -5,6 +5,7 @@
 //! UI and logic lives in TypeScript (../src). Every `#[tauri::command]` here is
 //! called from src/platform/tauri.ts with `invoke("command_name", args)`.
 
+mod account;
 mod claude_code;
 mod config;
 mod net;
@@ -23,6 +24,7 @@ pub fn run() {
         .manage(vault::VaultState::default())
         .manage(system::SystemState::default())
         .manage(claude_code::ClaudeCodeState::default())
+        .manage(account::AccountState::default())
         .invoke_handler(tauri::generate_handler![
             vault::vault_default_path,
             vault::vault_mount,
@@ -30,6 +32,7 @@ pub fn run() {
             vault::vault_walk,
             vault::vault_read,
             vault::vault_read_many,
+            vault::vault_read_bytes,
             vault::vault_write,
             vault::vault_mkdir,
             vault::vault_trash,
@@ -45,6 +48,11 @@ pub fn run() {
             claude_code::claude_code_cancel,
             net::news_rss,
             net::open_url,
+            account::account_status,
+            account::account_create,
+            account::account_verify,
+            account::account_change,
+            account::account_remove,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ICEBREAKER");

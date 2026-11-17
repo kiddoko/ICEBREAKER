@@ -7,6 +7,9 @@ import { applyFxPreset } from "../../workspace/fxpanel";
 import { fetchIndex, installPlugin, installTheme } from "../../plugins/install";
 import { parseFlags } from "../parser";
 import type { Command } from "../types";
+import { account, lock } from "./account";
+import { chat, daily } from "./daily";
+import { sound } from "./sound";
 
 /** Commands specific to ICEBREAKER: notes, journal, AI, themes, plugins, settings. */
 
@@ -428,4 +431,4 @@ const today: Command = {
   },
 };
 
-export const deckCommands: Command[] = [open, journal, note, todo, ask, link, sysmon, theme, fx, config, vaultCmd, plugin, today];
+export const deckCommands: Command[] = [daily, chat, account, lock, sound, open, journal, note, todo, ask, link, sysmon, theme, fx, config, vaultCmd, plugin, today];

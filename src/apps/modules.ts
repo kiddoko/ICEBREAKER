@@ -43,7 +43,9 @@ export class ModulesApp implements App {
       .filter((s) => s.launcher)
       .map((s) => ({ icon: s.icon ?? "◇", title: s.title, description: s.description ?? "", source: d.apps.sourceOf(s.kind) ?? "core", run: () => void d.openApp(s.kind) }));
     tiles.splice(1, 0, { icon: "✚", title: "New note", description: "blank page, any title", source: "core", run: () => void d.newNote() });
+    tiles.splice(2, 0, { icon: "☾", title: "Daily log", description: "end-of-day check-in, in the shell", source: "core", run: () => void d.shell.runLine("daily") });
     tiles.push({ icon: "❯", title: "Shell", description: "the real deal", source: "core", run: () => d.workspace.focusShell() });
+    tiles.push({ icon: "◆", title: "AI in the shell", description: "a conversation, right in ibsh", source: "core", run: () => void d.shell.runLine("chat") });
     tiles.push({ icon: "?", title: "Manual", description: "keys, pad, commands", source: "core", run: () => void d.openApp("help") });
     return tiles;
   }

@@ -1,0 +1,88 @@
+# GHOST — cold white on blue-black, hairline type. A clean room in orbit.
+
+[meta]
+name = "ghost"
+author = "icebreaker"
+description = "Ice white on blue-black, hairline IBM Plex Mono."
+border = "single"
+
+[palette]
+void  = "#06080d"
+deep  = "#0b0f17"
+navy  = "#121926"
+steel = "#1d2738"
+slate = "#3a4a63"
+fog   = "#6b7d99"
+mist  = "#a9b8cf"
+snow  = "#e8f0ff"
+ice   = "#7fd4ff"
+cyan  = "#3ee8ff"
+rose  = "#ff6b8b"
+sun   = "#ffd479"
+mint  = "#6bffb8"
+
+[ui]
+bg = "void"
+panel = "deep"
+panel_alt = "navy"
+highlight = "navy"
+selection = "#18304a"
+fg = "snow"
+muted = "mist"
+subtle = "fog"
+faint = "steel"
+accent = "ice"
+accent_alt = "cyan"
+border = "steel"
+border_focus = "ice"
+title = "fog"
+title_focus = "ice"
+cursor = "cyan"
+success = "mint"
+warning = "sun"
+error = "rose"
+info = "ice"
+ambient = "#0c1a2a"
+status_bg = "navy"
+status_fg = "mist"
+
+[syntax]
+heading1 = "snow"
+heading2 = "ice"
+heading3 = "cyan"
+bold = "snow"
+italic = "mist"
+code = "cyan"
+code_bg = "navy"
+link = "ice"
+wikilink = "cyan"
+tag = "ice"
+quote = "fog"
+list = "ice"
+checkbox = "cyan"
+
+[ansi]
+magenta = "ice"
+cyan = "cyan"
+blue = "ice"
+green = "mint"
+red = "rose"
+yellow = "sun"
+bright_magenta = "cyan"
+bright_cyan = "cyan"
+
+[fx]
+bloom = 0.25
+scanlines = 0.05
+vignette = 0.5
+gradient = ["mist", "ice", "cyan"]
+
+[font]
+family = "IBM Plex Mono"
+
+[glyphs]
+mark = "▪"
+bullet = "·"
+spinner = "◜◝◞◟"
+todo = "○"
+done = "●"

@@ -8,6 +8,14 @@ import { basename, dirname, display, resolvePath } from "../vault/paths";
 import type { UI } from "../ui/ui";
 import { ShellExecutor } from "./exec";
 import { TerminalBuffer } from "./terminal";
+import type { ReadOptions } from "./types";
+
+interface Reading {
+  label: string;
+  opts: ReadOptions;
+  sel: number;
+  done(v: string | null): void;
+}
 
 const HISTORY_FILE = ".icebreaker/shell_history";
 
@@ -28,6 +36,8 @@ export class ShellApp implements App {
   private scroll = 0;
   private lastInputAt = 0;
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
+  /** An interactive command is waiting for an answer (ctx.read). */
+  private reading: Reading | null = null;
 
   constructor(private readonly deck: Deck) {
     this.exec = new ShellExecutor(
@@ -38,6 +48,46 @@ export class ShellApp implements App {
       },
       () => this.term.clear(),
     );
+    this.exec.readLine = (label, opts, signal) => this.readLine(label, opts, signal);
+  }
+
+  private readLine(label: string, opts: ReadOptions, signal: AbortSignal): Promise<string | null> {
+    return new Promise((resolve) => {
+      this.input = "";
+      this.cursor = 0;
+      const done = (v: string | null) => {
+        if (this.reading !== r) return;
+        this.reading = null;
+        const shown = v === null ? "^C" : opts.mask ? "•".repeat(Math.min(12, v.length)) : v || "—";
+        this.term.write(`\x1b[2m${label} ❯\x1b[0m ${shown}\n`);
+        this.input = "";
+        this.cursor = 0;
+        this.deck.sound.play(v === null ? "back" : "confirm");
+        resolve(v);
+        this.deck.requestFrame();
+      };
+      const r: Reading = { label, opts, sel: 0, done };
+      this.reading = r;
+      signal.addEventListener("abort", () => done(null));
+      this.deck.workspace.focusShellIfHidden();
+      this.deck.requestFrame();
+    });
+  }
+
+  /** Is the shell waiting for an answer? (the workspace keeps focus here) */
+  get waiting(): boolean {
+    return this.reading !== null;
+  }
+
+  private answer(): void {
+    const r = this.reading;
+    if (!r) return;
+    const ch = r.opts.choices ?? [];
+    const t = this.input.trim();
+    const n = /^[1-9]$/.test(t) ? Number(t) : 0;
+    if (ch.length && n >= 1 && n <= ch.length) return r.done(ch[n - 1]);
+    if (ch.length && !r.opts.allowText) return r.done(t ? (ch.find((c) => c.toLowerCase().startsWith(t.toLowerCase())) ?? ch[r.sel]) : ch[r.sel]);
+    r.done(this.input);
   }
 
   title(): string {
@@ -45,6 +95,7 @@ export class ShellApp implements App {
   }
 
   status(): string {
+    if (this.reading) return this.reading.opts.choices?.length ? "1-9 or click to answer · esc stop" : "type your answer · enter next · esc stop";
     return this.exec.running ? "running… ctrl+c to interrupt" : `${display(this.exec.cwd)} · tab complete · ↑ history`;
   }
 
@@ -77,6 +128,18 @@ export class ShellApp implements App {
   // ── input ────────────────────────────────────────────────────────────────
 
   onText(t: string): boolean {
+    const r = this.reading;
+    if (r) {
+      const ch = r.opts.choices ?? [];
+      // quick answers: a digit picks a chip right away (unless typing free text)
+      if (ch.length && /^[1-9]$/.test(t) && (!r.opts.allowText || !this.input) && Number(t) <= ch.length) {
+        r.done(ch[Number(t) - 1]);
+        return true;
+      }
+      this.insert(t.replace(/\n+$/, "").replace(/\n/g, " "));
+      if (t.endsWith("\n")) this.answer();
+      return true;
+    }
     if (this.exec.running) return true;
     const clean = t.replace(/\n+$/, "");
     if (clean.includes("\n")) {
@@ -122,7 +185,15 @@ export class ShellApp implements App {
       this.term.clear();
       return true;
     }
-    if (this.exec.running) return k.key !== "esc";
+    const rd = this.reading;
+    if (rd) {
+      const n = rd.opts.choices?.length ?? 0;
+      if (k.combo === "esc") return this.exec.interrupt(), true;
+      if (k.combo === "enter") return this.answer(), true;
+      if (n && (k.combo === "up" || k.combo === "left") && !this.input) return (rd.sel = (rd.sel - 1 + n) % n), this.deck.sound.play("move"), true;
+      if (n && (k.combo === "down" || k.combo === "right" || k.combo === "tab") && !this.input) return (rd.sel = (rd.sel + 1) % n), this.deck.sound.play("move"), true;
+      if (k.combo === "up" || k.combo === "down" || k.combo === "tab") return true;
+    } else if (this.exec.running) return k.key !== "esc";
 
     switch (k.combo) {
       case "enter":
@@ -194,6 +265,7 @@ export class ShellApp implements App {
   }
 
   onAction(a: Action): boolean {
+    if (this.reading && a === "confirm") return this.answer(), true;
     if (a === "scroll-up") this.scroll += 3;
     else if (a === "scroll-down") this.scroll = Math.max(0, this.scroll - 3);
     else if (a === "confirm") void this.submit();
@@ -280,7 +352,7 @@ export class ShellApp implements App {
   // ── drawing ──────────────────────────────────────────────────────────────
 
   render(ui: UI, r: Rect, focused: boolean): void {
-    const promptH = 1;
+    const promptH = this.reading?.opts.choices?.length ? 2 : 1;
     const total = this.term.rowCount(r.w);
     const outH = Math.min(total, r.h - promptH);
     const maxScroll = Math.max(0, total - outH);
@@ -291,12 +363,48 @@ export class ShellApp implements App {
     const py = r.y + outH;
     if (this.scroll > 0) {
       ui.textRight(r.x + r.w, r.y + r.h - 1, ` ↓ scrolled ${this.scroll} `, { fg: ui.c.panel, bg: ui.c.accent });
+    } else if (this.reading) {
+      this.drawReading(ui, r.x, py, r.w, focused);
     } else if (this.exec.running) {
       ui.text(r.x, py, `${ui.spinner()} `, { fg: ui.c.accent });
     } else {
       this.drawPrompt(ui, r.x, py, r.w, focused);
     }
     ui.hit(r, { onWheel: (d) => this.onAction(d < 0 ? "scroll-up" : "scroll-down") });
+  }
+
+  /** The question line: numbered quick-answer chips, then "label ❯ answer". */
+  private drawReading(ui: UI, x0: number, y: number, w: number, focused: boolean): void {
+    const c = ui.c;
+    const rd = this.reading!;
+    const ch = rd.opts.choices ?? [];
+    if (ch.length) {
+      let x = x0;
+      ch.forEach((label, i) => {
+        const chip = ` ${i + 1} ${label} `;
+        const cw = strWidth(chip);
+        if (x + cw > x0 + w) return;
+        const rect = { x, y, w: cw, h: 1 };
+        const sel = i === rd.sel && !this.input;
+        const hot = ui.hovered(rect);
+        ui.text(x, y, chip, sel ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: hot ? c.accent : c.fg, bg: c.highlight });
+        ui.text(x + 1, y, String(i + 1), { fg: sel ? c.panel : c.accent, bg: sel ? c.accent : c.highlight, attrs: BOLD });
+        ui.hit(rect, { onClick: () => rd.done(label) });
+        x += cw + 1;
+      });
+      y++;
+    }
+    let x = ui.text(x0, y, ` ${rd.label} `, { fg: c.panel, bg: focused ? c.accentAlt : c.subtle, attrs: BOLD });
+    x = ui.text(x, y, " ❯ ", { fg: c.accentAlt, attrs: BOLD });
+    const shown = rd.opts.mask ? "•".repeat(this.input.length) : this.input;
+    const room = x0 + w - x - 1;
+    const cw = strWidth(shown.slice(0, this.cursor));
+    const off = Math.max(0, cw - room + 1);
+    if (!this.input) {
+      const hint = rd.opts.placeholder ?? (ch.length && !rd.opts.allowText ? "1-9 · ←→ · enter" : "enter = skip · esc = stop");
+      ui.text(x, y, hint, { fg: c.faint }, room);
+    } else ui.text(x, y, [...shown].slice(off).join(""), { fg: c.fg }, room);
+    if (focused) ui.cursor(x + cw - off, y, this.lastInputAt);
   }
 
   private drawPrompt(ui: UI, x0: number, y: number, w: number, focused: boolean): void {

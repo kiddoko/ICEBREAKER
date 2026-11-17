@@ -4,6 +4,7 @@ import { resolvePlace } from "../core/location";
 import { strWidth } from "../core/unicode";
 import type { Deck } from "../deck";
 import type { SystemStats } from "../platform/types";
+import { dots, fitMatrix, matrixSize, matrixText } from "../ui/dots";
 import type { UI } from "../ui/ui";
 import { basename, dirname } from "../vault/paths";
 import { EXTRA_WIDGETS } from "./extra";
@@ -99,27 +100,28 @@ const clock: WidgetSpec = {
     const locale = deck.settings.data.user.locale || undefined;
     const sep = now.getSeconds() % 2 === 0 ? ":" : " ";
     const time = `${String(now.getHours()).padStart(2, "0")}${sep}${String(now.getMinutes()).padStart(2, "0")}`;
-    const date = now.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" }).toUpperCase();
-    const extra = r.h >= 5 ? 2 : r.h >= 4 ? 1 : 0; // rows under the digits: seconds line, date
-    const k = fitDigits(time.replace(" ", ":"), r.w - 2, r.h - extra, r.h >= 10 ? 2 : 1);
-    const grad = ui.theme.gradient.length ? ui.theme.gradient : [c.accent, c.accentAlt];
+    const date = now.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
+    const shown = time.replace(" ", ":");
+    const extra = r.h >= 4 ? 2 : r.h >= 3 ? 1 : 0; // rows under the digits: seconds line, date
+    // dot-matrix digits: 2 rows tall, doubled only in really big cards
+    const k = fitMatrix(shown, r.w - 2, r.h - extra, r.h >= 12 && r.w >= 40 ? 2 : 1);
     if (k) {
-      const d = digitsSize(time.replace(" ", ":"), k);
+      const d = matrixSize(shown, k);
       const top = r.y + Math.max(0, Math.floor((r.h - d.h - extra) / 2));
       const x = r.x + Math.floor((r.w - d.w) / 2);
-      drawDigits(ui, x, top, time, k, grad, "clock");
+      const grad = ui.theme.gradient.length ? ui.theme.gradient : [c.accent, c.accentAlt];
+      matrixText(ui, x, top, time, k, (row, rows) => grad[Math.min(grad.length - 1, Math.floor((row / rows) * grad.length))]);
       let y = top + d.h;
       if (extra >= 1) {
         const s = now.getSeconds() + now.getMilliseconds() / 1000;
         const filled = Math.round((s / 60) * d.w);
-        ui.text(x, y, "━".repeat(Math.max(0, filled - 1)), { fg: c.accent });
-        if (filled > 0) ui.text(x + filled - 1, y, "╸", { fg: mix(c.accent, 0xffffff, 0.5), attrs: BOLD });
+        ui.text(x, y, "─".repeat(Math.max(0, filled)), { fg: c.accent });
         ui.text(x + filled, y, "─".repeat(Math.max(0, d.w - filled)), { fg: c.faint });
         y++;
       }
       if (extra >= 2) ui.textCenter(r, y, date, { fg: c.muted });
     } else {
-      ui.textCenter(r, r.y + Math.floor((r.h - 1) / 2), time.replace(" ", ":"), { fg: c.accent, attrs: BOLD });
+      ui.textCenter(r, r.y + Math.floor((r.h - 1) / 2), shown, { fg: c.accent, attrs: BOLD });
     }
     ui.animate(Math.min(250, 1000 - (Date.now() % 1000)));
   },
@@ -201,32 +203,58 @@ export function sky(code: number): Sky {
 const SKY_LABEL: Record<Sky, string> = { sun: "clear", partly: "partly cloudy", cloud: "overcast", fog: "fog", rain: "rain", snow: "snow", storm: "thunderstorm" };
 export const SKY_ICON: Record<Sky, string> = { sun: "clear", partly: "mixed", cloud: "cloudy", fog: "fog", rain: "rain", snow: "snow", storm: "storm" };
 
-/** Animated 5-line art: rays turn, rain and snow fall, fog drifts. */
-function skyArt(s: Sky, t: number): string[] {
-  const f = Math.floor(t / 450);
-  const fall = (a: string, b: string) => (f % 2 ? [a, b] : [b, a]);
-  switch (s) {
-    case "sun":
-      return f % 2
-        ? ["   \\   /   ", "    .-.    ", " - (   ) - ", "    `-'    ", "   /   \\   "]
-        : ["    \\ /    ", "  - .-. -  ", "   (   )   ", "  - `-' -  ", "    / \\    "];
-    case "partly":
-      return ["   \\  /    ", " _ /\"\".-.  ", "   \\_(   ). ", "   /(___(__)", "            "];
-    case "cloud":
-      return f % 4 < 2
-        ? ["            ", "     .--.   ", "  .-(    ). ", " (___.__)__)", "            "]
-        : ["            ", "    .--.    ", " .-(    ).  ", "(___.__)__) ", "            "];
-    case "fog": {
-      const a = " _ - _ - _ -", b = "  - _ - _ - ";
-      return ["            ", ...(f % 2 ? [a, b, a] : [b, a, b]), "            "];
+/**
+ * Weather icon drawn in braille dots with true proportions (round sun, puffy
+ * cloud outline). Animated: rays turn, rain and snow fall, fog drifts.
+ */
+function drawSky(ui: UI, r: Rect, s: Sky, t: number, sunCol: RGB, cloudCol: RGB, dropCol: RGB): void {
+  const W = r.w * ui.cellAspect, H = r.h;
+  const cx = W / 2, cy = H / 2;
+  const hasCloud = s !== "sun";
+  // cloud: three bumps on a flat base, raised when something falls from it
+  const lift = s === "rain" || s === "snow" || s === "storm" ? -0.7 : s === "partly" ? 0.35 : 0;
+  const bumps: [number, number, number][] = [[cx - 1.0, cy + 0.25 + lift, 0.75], [cx + 0.05, cy - 0.25 + lift, 1.05], [cx + 1.15, cy + 0.3 + lift, 0.7]];
+  const base = cy + 0.95 + lift;
+  const inCloud = (x: number, y: number, shrink: number) => y < base - shrink && bumps.some(([bx, by, br]) => (x - bx) ** 2 + (y - by) ** 2 < (br - shrink) ** 2);
+  const sx = s === "partly" ? cx - 0.9 : cx, sy = s === "partly" ? cy - 0.75 : cy;
+  const spin = t / 4000;
+  dots(ui, r, [sunCol, cloudCol, dropCol], (x, y) => {
+    if (hasCloud && inCloud(x, y, 0)) return inCloud(x, y, 0.2) ? 0 : 2; // outline only
+    if (s === "sun" || s === "partly") {
+      const dx = x - sx, dy = y - sy, d = Math.hypot(dx, dy);
+      const R = s === "sun" ? 1.0 : 0.75;
+      if (d < R) return 1;
+      if (d > R * 1.45 && d < R * 2.0) {
+        const a = Math.atan2(dy, dx) / (Math.PI / 4) + spin;
+        if (Math.abs(a - Math.round(a)) * (Math.PI / 4) * d < 0.09) return 1;
+      }
     }
-    case "rain":
-      return ["     .-.    ", "    (   ).  ", "   (___(__) ", ...fall("    ' ' ' ' ", "   ' ' ' '  ")];
-    case "snow":
-      return ["     .-.    ", "    (   ).  ", "   (___(__) ", ...fall("    *  *  * ", "   *  *  *  ")];
-    case "storm":
-      return ["     .-.    ", "    (   ).  ", "   (___(__) ", f % 3 ? "    ' ' ' ' " : "   _/ ' _/  ", f % 3 ? "   ' ' ' '  " : "   /   ' /  "];
-  }
+    const below = y > base + 0.15;
+    if (s === "rain" || s === "storm") {
+      // slanted streaks falling
+      const u = x + y * 0.35, v = y - t / 260;
+      if (below && Math.abs(u - Math.round(u / 0.7) * 0.7) < 0.07 && ((v % 0.9) + 0.9) % 0.9 < 0.4) return 3;
+    }
+    if (s === "storm" && below) {
+      // a zig-zag bolt that flashes now and then
+      if (Math.floor(t / 300) % 5 < 2) {
+        const k = (y - base) / 1.6;
+        const bx = cx + 0.1 + (k < 0.5 ? -k * 0.8 : -0.4 + (k - 0.5) * 0.9);
+        if (k < 1 && Math.abs(x - bx) < 0.1) return 1;
+      }
+    }
+    if (s === "snow" && below) {
+      const v = y - t / 900;
+      const col = Math.round(x / 0.55);
+      const yy = (((v + col * 0.37) % 0.8) + 0.8) % 0.8;
+      if (Math.abs(x - col * 0.55) < 0.08 && yy < 0.12) return 3;
+    }
+    if (s === "fog") {
+      const off = Math.sin(x * 1.6 + t / 700) * 0.12;
+      for (const ly of [cy + 0.95, cy + 1.45, cy + 1.95]) if (Math.abs(y - ly - off) < 0.07 && (x + t / 1500 + ly) % 1.3 < 1.0) return 2;
+    }
+    return 0;
+  });
 }
 
 const ARROWS = ["↓", "↙", "←", "↖", "↑", "↗", "→", "↘"]; // direction the wind blows toward
@@ -253,8 +281,8 @@ const weatherWidget: WidgetSpec = {
     const artColor = s === "sun" ? c.warning : s === "storm" ? c.accentAlt : s === "snow" ? c.fg : c.info;
     const showArt = r.w >= 36 && r.h >= 5;
     if (showArt) {
-      skyArt(s, ui.now).forEach((line, i) => ui.text(r.x + 1, r.y + i, line, { fg: artColor }, 12));
-      ui.animate(450);
+      drawSky(ui, { x: r.x + 1, y: r.y, w: 12, h: 5 }, s, ui.now, c.warning, mix(c.fg, c.bg, 0.25), artColor);
+      ui.animate(s === "sun" || s === "partly" || s === "cloud" ? 200 : 60);
     }
     // big temperature + place
     const tx = r.x + (showArt ? 14 : 1);

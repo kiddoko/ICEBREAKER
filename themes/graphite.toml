@@ -1,0 +1,95 @@
+# GRAPHITE — no color at all, just light and shadow. Fira Code, thin lines.
+
+[meta]
+name = "graphite"
+author = "icebreaker"
+description = "Monochrome greys, Fira Code. Pure focus."
+border = "single"
+
+[palette]
+k0 = "#0a0a0a"
+k1 = "#111111"
+k2 = "#191919"
+k3 = "#262626"
+k4 = "#3a3a3a"
+k5 = "#5c5c5c"
+k6 = "#8a8a8a"
+k7 = "#b8b8b8"
+k8 = "#e6e6e6"
+w  = "#ffffff"
+
+[ui]
+bg = "k0"
+panel = "k1"
+panel_alt = "k2"
+highlight = "k3"
+selection = "k4"
+fg = "k8"
+muted = "k7"
+subtle = "k6"
+faint = "k4"
+accent = "w"
+accent_alt = "k7"
+border = "k3"
+border_focus = "k7"
+title = "k6"
+title_focus = "w"
+cursor = "w"
+success = "k8"
+warning = "k7"
+error = "w"
+info = "k7"
+ambient = "k2"
+status_bg = "k2"
+status_fg = "k6"
+
+[syntax]
+heading1 = "w"
+heading2 = "k8"
+heading3 = "k7"
+bold = "w"
+italic = "k7"
+code = "k8"
+code_bg = "k2"
+link = "w"
+wikilink = "w"
+tag = "k7"
+quote = "k6"
+list = "k7"
+checkbox = "w"
+hr = "k4"
+frontmatter = "k5"
+
+[ansi]
+black = "k4"
+red = "w"
+green = "k8"
+yellow = "k8"
+blue = "k7"
+magenta = "w"
+cyan = "k7"
+white = "k7"
+bright_black = "k5"
+bright_red = "w"
+bright_green = "w"
+bright_yellow = "w"
+bright_blue = "k8"
+bright_magenta = "w"
+bright_cyan = "k8"
+bright_white = "w"
+
+[fx]
+bloom = 0.2
+scanlines = 0.06
+vignette = 0.5
+gradient = ["k7", "w"]
+
+[font]
+family = "Fira Code"
+
+[glyphs]
+mark = "■"
+bullet = "–"
+spinner = "◐◓◑◒"
+todo = "☐"
+done = "☒"

@@ -5,7 +5,8 @@ import type { Deck } from "../deck";
 import { decrypt } from "../fx/glitch";
 import { Rain } from "../fx/rain";
 import { basename } from "../vault/paths";
-import { digitsSize, drawDigits, fitDigits, isoDay, streakOf } from "./builtin";
+import { cellsFor, dots, fitMatrix, matrixSize, matrixText } from "../ui/dots";
+import { isoDay, streakOf } from "./builtin";
 import type { WidgetSpec } from "./types";
 
 /* Extra cards shipped with the deck: not all on the default HOME, all one `a` away. */
@@ -64,7 +65,7 @@ const newsWidget: WidgetSpec = {
       const row = { x: r.x, y, w: r.w, h: 1 };
       const hot = ui.hovered(row);
       const src = r.w >= 50 && !open ? h.source.slice(0, 14) : "";
-      ui.text(r.x + 1, y, open ? "▾" : "›", { fg: c.accent });
+      ui.text(r.x + 1, y, open ? "▾" : ui.theme.glyphs.bullet, { fg: c.accent });
       if (!open) {
         ui.text(r.x + 3, y, p < 1 ? decrypt(h.title, p, ui.now) : h.title, { fg: hot ? c.accent : i === 0 ? c.fg : c.muted }, r.w - 5 - (src ? src.length + 1 : 0));
         if (src) ui.textRight(r.x + r.w - 1, y, src, { fg: c.faint, attrs: DIM });
@@ -126,8 +127,9 @@ const tasksWidget: WidgetSpec = {
     tasks.slice(0, r.h - 1).forEach((t, i) => {
       const row = { x: r.x, y: r.y + 1 + i, w: r.w, h: 1 };
       const hot = ui.hovered(row);
-      ui.text(r.x + 1, row.y, hot ? "▣" : "□", { fg: hot ? c.accent : c.subtle });
-      ui.text(r.x + 3, row.y, t.text, { fg: hot ? c.accent : c.fg }, r.w - 4 - (r.w > 40 ? 14 : 0));
+      const g = ui.theme.glyphs;
+      const tx = ui.text(r.x + 1, row.y, hot ? g.done : g.todo, { fg: hot ? c.accent : c.subtle }) + 1;
+      ui.text(tx, row.y, t.text, { fg: hot ? c.accent : c.fg }, r.x + r.w - 1 - tx - (r.w > 40 ? 14 : 0));
       if (r.w > 40) ui.textRight(r.x + r.w - 1, row.y, basename(t.path, ".md").slice(0, 12), { fg: c.faint });
       ui.hit(row, { onClick: () => void deck.openFile(t.path) });
     });
@@ -164,14 +166,15 @@ const focusWidget: WidgetSpec = {
     const flash = ui.now < focus.flashUntil && Math.floor(ui.now / 200) % 2 === 0;
     if (ui.now < focus.flashUntil) ui.animate(100);
     const col = focus.phase === "focus" ? c.accent : c.success;
-    const k = fitDigits(t, r.w - 2, r.h - 2, 3);
-    const label = `${focus.running ? "▶" : "❚❚"} ${focus.phase.toUpperCase()}`;
+    const k = fitMatrix(t, r.w - 2, r.h - 2, r.h >= 12 && r.w >= 40 ? 2 : 1);
+    const label = `${focus.running ? "▶" : "❚❚"} ${focus.phase}`;
     if (k) {
-      const d = digitsSize(t, k);
+      const d = matrixSize(t, k);
       const y = r.y + Math.max(0, Math.floor((r.h - d.h - 2) / 2));
-      drawDigits(ui, r.x + Math.floor((r.w - d.w) / 2), y, t, k, flash ? [c.fg] : [col, mix(col, c.bg, 0.3)], "focus", false);
-      ui.bar(r.x + Math.floor((r.w - d.w) / 2), y + d.h, d.w, 1 - focus.left / total, col, c.faint);
-      ui.textCenter(r, y + d.h + 1, label, { fg: focus.running ? col : c.subtle, attrs: BOLD });
+      const x = r.x + Math.floor((r.w - d.w) / 2);
+      matrixText(ui, x, y, t, k, () => (flash ? c.fg : col));
+      ui.bar(x, y + d.h, d.w, 1 - focus.left / total, col, c.faint);
+      ui.textCenter(r, y + d.h + 1, label, { fg: focus.running ? col : c.subtle });
     } else ui.textCenter(r, r.y, `${label} ${t}`, { fg: col, attrs: BOLD });
   },
   activate: () => {
@@ -196,28 +199,20 @@ const moonWidget: WidgetSpec = {
     const lit = (1 - Math.cos(phase * 2 * Math.PI)) / 2;
     const names = ["new moon", "waxing crescent", "first quarter", "waxing gibbous", "full moon", "waning gibbous", "last quarter", "waning crescent"];
     const name = names[Math.round(phase * 8) % 8];
-    // braille disc: 2×4 dots per cell → a smooth circle at any size
-    const rows = Math.max(2, Math.min(r.h, 6));
-    const cols = rows * 2; // cells are ~2:1, so twice as many columns
-    const R = rows * 2; // radius in dots (4 dots per row / 2)
+    // a round disc whatever the font: drawn in physical units (see ui/dots.ts)
+    const rows = Math.max(2, Math.min(r.h, 5));
+    const cols = cellsFor(ui, rows);
+    const R = rows / 2;
     const x0 = r.x + 1, y0 = r.y + Math.floor((r.h - rows) / 2);
-    const BITS = [[0x1, 0x8], [0x2, 0x10], [0x4, 0x20], [0x40, 0x80]];
-    for (let cy = 0; cy < rows; cy++)
-      for (let cx = 0; cx < cols; cx++) {
-        let litBits = 0, rim = 0;
-        for (let dy = 0; dy < 4; dy++)
-          for (let dx = 0; dx < 2; dx++) {
-            const px = (cx * 2 + dx + 0.5 - R) / R, py = (cy * 4 + dy + 0.5 - R) / R;
-            const d2 = px * px + py * py;
-            if (d2 > 1) continue;
-            const term = Math.cos(phase * 2 * Math.PI) * Math.sqrt(Math.max(0, 1 - py * py));
-            const isLit = phase < 0.5 ? px > term : px < -term;
-            if (isLit) litBits |= BITS[dy][dx];
-            else if (d2 > 0.72) rim |= BITS[dy][dx];
-          }
-        if (litBits) ui.text(x0 + cx, y0 + cy, String.fromCodePoint(0x2800 + litBits), { fg: mix(c.fg, c.warning, 0.2) });
-        else if (rim) ui.text(x0 + cx, y0 + cy, String.fromCodePoint(0x2800 + rim), { fg: c.faint });
-      }
+    const k = Math.cos(phase * 2 * Math.PI);
+    dots(ui, { x: x0, y: y0, w: cols, h: rows }, [c.faint, mix(c.fg, c.warning, 0.2)], (x, y) => {
+      const px = (x - cols * ui.cellAspect / 2) / R, py = (y - R) / R;
+      const d2 = px * px + py * py;
+      if (d2 > 1) return 0;
+      const term = k * Math.sqrt(Math.max(0, 1 - py * py));
+      const isLit = phase < 0.5 ? px > term : px < -term;
+      return isLit ? 2 : d2 > 0.78 ? 1 : 0;
+    });
     const tx = x0 + cols + 3;
     if (tx + 10 < r.x + r.w) {
       const ty = r.y + Math.max(0, Math.floor((r.h - 3) / 2));
@@ -386,26 +381,34 @@ const aiWidget: WidgetSpec = {
     const ok = deck.ai.ready;
     const label = deck.ai.provider.label;
     const col = ok ? c.accent : c.error;
-    // a ring of nodes around a core; a signal travels the ring, the core breathes
-    const rows = Math.max(3, Math.min(r.h - 2, 7));
-    const cx = r.x + Math.floor(r.w / 2), cy = r.y + Math.floor(rows / 2);
-    const ry = Math.floor(rows / 2), rx = ry * 2;
-    const n = 12;
-    const head = Math.floor(ui.now / 140) % n;
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2 - Math.PI / 2;
-      const x = cx + Math.round(Math.cos(a) * rx), y = cy + Math.round(Math.sin(a) * ry);
-      const dist = (head - i + n) % n;
-      const glyph = !ok ? "·" : dist === 0 ? "◆" : dist < 3 ? "◇" : "·";
-      ui.text(x, y, glyph, { fg: ok && dist < 3 ? mix(col, 0xffffff, 0.5 - dist * 0.2) : c.faint });
-    }
+    // a dotted orbit around a core; a signal runs the orbit, the core breathes
+    const rows = Math.max(3, Math.min(r.h - 2, 5));
+    const cols = Math.min(r.w, cellsFor(ui, rows));
+    const box = { x: r.x + Math.floor((r.w - cols) / 2), y: r.y, w: cols, h: rows };
+    const R = rows / 2 - 0.2, ox = (cols * ui.cellAspect) / 2, oy = rows / 2;
+    const head = (ui.now / 1600) % 1; // fraction of a turn
     const breath = (Math.sin(ui.now / 700) + 1) / 2;
-    ui.text(cx - 1, cy, ok ? "[■]" : "[×]", { fg: mix(col, c.bg, 0.5 - breath * 0.5), attrs: BOLD });
+    dots(ui, box, [c.faint, mix(col, c.bg, 0.55), col, mix(col, 0xffffff, 0.45)], (x, y) => {
+      const dx = x - ox, dy = y - oy, d = Math.hypot(dx, dy);
+      if (d < R * (0.22 + breath * 0.08)) return ok ? 3 : 2; // core
+      if (Math.abs(d - R) < 0.07) {
+        if (!ok) return 1;
+        const a = ((Math.atan2(dy, dx) / (Math.PI * 2) + 1.25) % 1); // 0 at the top, clockwise
+        const lag = (head - a + 1) % 1;
+        return lag < 0.03 ? 4 : lag < 0.25 ? 3 : 1;
+      }
+      // a faint inner ring, counter-rotating
+      if (Math.abs(d - R * 0.6) < 0.05) {
+        const a = (Math.atan2(dy, dx) / (Math.PI * 2) + 1 - head) % 1;
+        return ok && (a * 12) % 1 < 0.5 ? 2 : 0;
+      }
+      return 0;
+    });
     const y = r.y + rows + 1;
     if (y < r.y + r.h) ui.textCenter(r, y, label, { fg: c.fg, attrs: BOLD });
     if (y + 1 < r.y + r.h) ui.textCenter(r, y + 1, ok ? "● link up" : "○ offline", { fg: ok ? c.success : c.error });
     if (!ok && y + 2 < r.y + r.h) ui.textCenter(r, y + 2, "enter: settings", { fg: c.faint });
-    ui.animate(ok ? 140 : 1000);
+    ui.animate(ok ? 50 : 1000);
   },
   activate: ({ deck }) => void deck.openApp(deck.ai.ready ? "link" : "settings"),
 };

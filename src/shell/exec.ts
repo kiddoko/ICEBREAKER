@@ -3,7 +3,7 @@ import { levenshtein } from "../core/fuzzy";
 import type { Deck } from "../deck";
 import { basename, dirname, globToRegex, resolvePath } from "../vault/paths";
 import { parse, ParseError, type SimpleCommand, type Word } from "./parser";
-import type { ShellContext, ShellControls } from "./types";
+import type { ReadOptions, ShellContext, ShellControls } from "./types";
 
 /**
  * Runs parsed command lines. Pipelines run one command after another, each
@@ -15,6 +15,8 @@ export class ShellExecutor {
   history: string[] = [];
   lastStatus = 0;
   private abort: AbortController | null = null;
+  /** Set by the shell panel: shows a question and resolves with the answer. */
+  readLine: ((label: string, opts: ReadOptions, signal: AbortSignal) => Promise<string | null>) | null = null;
 
   constructor(
     private readonly deck: Deck,
@@ -156,6 +158,7 @@ export class ShellExecutor {
         self.deck.requestFrame();
       },
       resolve: (p) => resolvePath(self.cwd, p),
+      read: (label, opts = {}) => (self.readLine && !self.abort!.signal.aborted ? self.readLine(label, opts, self.abort!.signal) : Promise.resolve(null)),
     };
     try {
       const code = await cmd.run(ctx);

@@ -23,6 +23,7 @@ export function createTauriPlatform(): Platform {
       trash: (path) => invoke<string>("vault_trash", { path }),
       rename: (from, to) => invoke<void>("vault_rename", { from, to }),
       exists: (path) => invoke<boolean>("vault_exists", { path }),
+      readBytes: (path) => invoke<ArrayBuffer>("vault_read_bytes", { path }),
     },
     config: {
       read: (name) => invoke<string | null>("config_read", { name }),
@@ -40,6 +41,13 @@ export function createTauriPlatform(): Platform {
         return invoke<{ code: number; stderr: string }>("claude_code_run", { req, onLine: ch });
       },
       cancel: (id) => invoke<void>("claude_code_cancel", { id }),
+    },
+    account: {
+      status: () => invoke<string | null>("account_status"),
+      create: (user, password) => invoke<void>("account_create", { user, password }),
+      verify: (user, password) => invoke<boolean>("account_verify", { user, password }),
+      change: (password, newUser, newPassword) => invoke<void>("account_change", { password, newUser, newPassword }),
+      remove: (password) => invoke<void>("account_remove", { password }),
     },
     window: {
       setFullscreen: (on) => win.setFullscreen(on),
