@@ -138,6 +138,8 @@ export class InputManager {
       const macOption = IS_MAC && e.altKey && !e.ctrlKey && !e.metaKey;
       const printable = [...e.key].length === 1 && (!(e.ctrlKey || e.metaKey || e.altKey) || altGr || macOption);
       if (printable || e.key === "Dead") return; // becomes an `input` event
+      // ⌘Q ⌘H ⌘M ⌃⌘F are the macOS menu bar's: if we preventDefault them, WKWebView swallows them.
+      if (IS_MAC && e.metaKey && (["q", "h", "m"].includes(e.key.toLowerCase()) || (e.ctrlKey && e.code === "KeyF"))) return;
       const k = toKeyInput(e);
       // Let paste reach the textarea so we get the `paste` event with the clipboard text.
       if (k.combo === "ctrl+v" || k.combo === "meta+v" || k.combo === "shift+insert") return;

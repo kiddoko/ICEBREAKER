@@ -1,5 +1,7 @@
 import type { SettingsStore } from "../core/settings";
 import { AnthropicProvider } from "./anthropic";
+import { ClaudeCodeProvider } from "./claudecode";
+import type { Platform } from "../platform/types";
 import { OllamaProvider } from "./ollama";
 import type { ChatHandlers, ChatSession, Provider, SessionOptions } from "./types";
 
@@ -12,6 +14,9 @@ export type { ChatHandlers, ChatSession, Provider, SessionOptions, ToolSpec } fr
 export class AIManager {
   private cached: Provider | null = null;
   envKey: string | null = null;
+  /** Set at startup by the Deck: the platform's Claude Code bridge and where the CLI lives. */
+  claudeCode: Platform["claudeCode"];
+  claudeCodePath: string | null = null;
 
   constructor(private readonly settings: SettingsStore) {
     settings.onChange((path) => {
@@ -30,7 +35,9 @@ export class AIManager {
       this.cached =
         ai.provider === "ollama"
           ? new OllamaProvider(ai.ollamaHost, ai.ollamaModel)
-          : new AnthropicProvider(this.settings.secrets.anthropicApiKey || this.envKey || "", ai.model, ai.effort);
+          : ai.provider === "claude-code"
+            ? new ClaudeCodeProvider(this.claudeCode, this.claudeCodePath, ai.claudeCodeModel)
+            : new AnthropicProvider(this.settings.secrets.anthropicApiKey || this.envKey || "", ai.model, ai.effort);
     }
     return this.cached;
   }

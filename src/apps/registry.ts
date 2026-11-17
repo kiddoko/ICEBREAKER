@@ -21,6 +21,11 @@ class Registry<T> {
     return this.items.get(key)?.item;
   }
 
+  /** "core" or the id of the plugin that registered it. */
+  sourceOf(key: string): string | undefined {
+    return this.items.get(key)?.source;
+  }
+
   list(): T[] {
     return [...this.items.values()].map((v) => v.item);
   }

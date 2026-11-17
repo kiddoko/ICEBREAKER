@@ -15,6 +15,9 @@
 import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/700.css";
 import "@fontsource/jetbrains-mono/400-italic.css";
+import "@fontsource/jetbrains-mono/300.css";
+import "@fontsource/jetbrains-mono/600.css";
+import "@fontsource/jetbrains-mono/300-italic.css";
 import "./style.css";
 import { SettingsStore } from "./core/settings";
 import { FONT_STACK } from "./core/renderer";
@@ -30,6 +33,9 @@ async function main(): Promise<void> {
     document.fonts.load(`400 16px ${FONT_STACK}`),
     document.fonts.load(`700 16px ${FONT_STACK}`),
     document.fonts.load(`italic 400 16px ${FONT_STACK}`),
+    document.fonts.load(`300 16px ${FONT_STACK}`),
+    document.fonts.load(`600 16px ${FONT_STACK}`),
+    document.fonts.load(`italic 300 16px ${FONT_STACK}`),
   ]).catch(() => {});
 
   const deck = new Deck(platform, settings);

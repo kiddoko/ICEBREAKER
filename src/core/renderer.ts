@@ -29,15 +29,19 @@ export class Renderer {
   private dirty = new Uint8Array(0);
   private fontPx = 16;
   private baseline = 0;
+  /** Light = JetBrains Mono 300 / 600 (crisp on HiDPI), regular = 400 / 700. */
+  private light = true;
   bloomEnabled = true;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly bloom: HTMLCanvasElement,
     fontSize: number,
+    weight: "light" | "regular" = "light",
   ) {
     this.ctx = canvas.getContext("2d", { alpha: false })!;
     this.bloomCtx = bloom.getContext("2d")!;
+    this.light = weight === "light";
     this.setFontSize(fontSize);
   }
 
@@ -47,13 +51,18 @@ export class Renderer {
     this.measure();
   }
 
+  setWeight(weight: "light" | "regular"): void {
+    this.light = weight === "light";
+    this.measure();
+  }
+
   get fontSize(): number {
     return this.fontPx;
   }
 
   private font(attrs: number): string {
     const style = attrs & ITALIC ? "italic " : "";
-    const weight = attrs & BOLD ? "700 " : "400 ";
+    const weight = attrs & BOLD ? (this.light ? "600 " : "700 ") : this.light ? "300 " : "400 ";
     return `${style}${weight}${Math.round(this.fontPx * this.dpr)}px ${FONT_STACK}`;
   }
 
@@ -84,8 +93,8 @@ export class Renderer {
     const h = this.rows * this.cellH;
     this.canvas.width = w;
     this.canvas.height = h;
-    this.bloom.width = Math.ceil(w / 4);
-    this.bloom.height = Math.ceil(h / 4);
+    this.bloom.width = Math.ceil(w / 2);
+    this.bloom.height = Math.ceil(h / 2);
 
     const cssW = w / this.dpr;
     const cssH = h / this.dpr;

@@ -277,7 +277,7 @@ const reboot: Command = {
 
 const fullscreen: Command = {
   name: "fullscreen",
-  summary: "toggle fullscreen (F11)",
+  summary: "toggle fullscreen (F11, ⌃⌘F on macOS)",
   async run(ctx) {
     await ctx.deck.toggleFullscreen();
   },

@@ -64,7 +64,7 @@ export function activate(ib) {
     kind: "hello",
     title: "Hello",
     icon: "✦",
-    launcher: true, // tile on the home screen
+    launcher: true, // tile on the MODULES page
     create: () => ({
       kind: "hello",
       key: "hello",
@@ -80,6 +80,25 @@ export function activate(ib) {
 
 export function deactivate() {}
 ```
+
+### A widget on the HOME grid
+
+```js
+ib.widgets.register({
+  id: "quote",                  // becomes "hello.quote"
+  title: "quote",
+  size: { w: 4, h: 3 },         // grid units: 12 columns wide, 1 row = 2 text lines
+  min: { w: 3, h: 2 },
+  render(ui, rect, { focused }) {
+    ui.textCenter(rect, rect.y + 1, "the street finds its own uses", { fg: ui.c.muted });
+  },
+  activate() { ib.ui.notify("enter pressed on the widget"); },
+});
+```
+
+The user adds it from HOME: `e` (edit layout) then `a`. Widgets render every
+frame they're visible: keep `render` cheap, cache anything slow (network, AI)
+in a variable, and call `ui.animate(ms)` only if something moves.
 
 The full surface is typed and commented in
 [`src/plugins/api.ts`](../src/plugins/api.ts). Highlights:
@@ -99,5 +118,6 @@ The built-in [LINGO plugin](../plugins/lingo/main.ts) is a complete example
 
 ## Sharing
 
-A plugin is a folder: zip it, put it in a git repo, send it. To install, drop
-it into `.icebreaker/plugins/` and `plugin enable <id>`.
+Put `plugin.json` + `main.js` in a public GitHub repo: anyone can then
+`plugin install you/your-repo`. Publishing, the community index and review
+rules are in [COMMUNITY.md](COMMUNITY.md).

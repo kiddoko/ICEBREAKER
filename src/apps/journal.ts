@@ -153,7 +153,7 @@ export class JournalApp implements App {
   private drawCalendar(ui: UI, r: Rect, focused: boolean): void {
     const c = ui.c;
     const locale = this.deck.settings.data.user.locale || undefined;
-    const y0 = r.y;
+    const y0 = r.y + 1; // one row of air under the pane title
     const month = new Date(this.day.getFullYear(), this.day.getMonth(), 1);
     const label = month.toLocaleDateString(locale, { month: "long", year: "numeric" });
     const gridX = r.x + Math.max(1, Math.floor((r.w - 21) / 2));

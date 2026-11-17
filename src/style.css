@@ -32,10 +32,10 @@ body {
   display: block;
 }
 
-/* Glow: a quarter-resolution copy of the screen, blurred and added on top. */
+/* Glow: a half-resolution copy of the screen, blurred and added on top. */
 #bloom {
   pointer-events: none;
-  filter: blur(6px) saturate(1.5);
+  filter: blur(3px) saturate(1.4);
   mix-blend-mode: screen;
   opacity: var(--bloom);
 }

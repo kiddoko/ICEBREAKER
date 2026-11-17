@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Platform, SystemStats, VaultEntry } from "./types";
 
@@ -30,6 +30,15 @@ export function createTauriPlatform(): Platform {
     },
     system: { stats: () => invoke<SystemStats>("system_stats") },
     envApiKey: () => invoke<string | null>("env_api_key"),
+    claudeCode: {
+      detect: () => invoke<string | null>("claude_code_detect"),
+      run: (req, onLine) => {
+        const ch = new Channel<string>();
+        ch.onmessage = onLine;
+        return invoke<{ code: number; stderr: string }>("claude_code_run", { req, onLine: ch });
+      },
+      cancel: (id) => invoke<void>("claude_code_cancel", { id }),
+    },
     window: {
       setFullscreen: (on) => win.setFullscreen(on),
       isFullscreen: () => win.isFullscreen(),

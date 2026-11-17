@@ -3,6 +3,7 @@ import { helpSpec } from "./apps/help";
 import { homeSpec } from "./apps/home";
 import { journalSpec, JournalApp } from "./apps/journal";
 import { linkSpec } from "./apps/link";
+import { modulesSpec } from "./apps/modules";
 import { noteSpec } from "./apps/note";
 import { ActionRegistry, AppRegistry } from "./apps/registry";
 import { settingsSpec } from "./apps/settings";
@@ -33,6 +34,8 @@ import { BootScreen, type BootLine } from "./workspace/boot";
 import { applyFxPreset } from "./workspace/fxpanel";
 import type { ToastKind } from "./workspace/overlays";
 import { Workspace } from "./workspace/workspace";
+import { BUILTIN_WIDGETS } from "./widgets/builtin";
+import { WidgetRegistry } from "./widgets/types";
 
 /**
  * The composition root: creates every subsystem, wires them together and
@@ -46,6 +49,7 @@ export class Deck implements InputSink {
   readonly commands = new CommandRegistry();
   readonly apps = new AppRegistry();
   readonly actions = new ActionRegistry();
+  readonly widgets = new WidgetRegistry();
   readonly ai: AIManager;
   readonly plugins: PluginHost;
   readonly workspace: Workspace;
@@ -70,7 +74,7 @@ export class Deck implements InputSink {
     this.vault = new Vault(platform.vault);
     this.ai = new AIManager(settings);
     this.plugins = new PluginHost(this);
-    this.renderer = new Renderer(el("screen") as HTMLCanvasElement, el("bloom") as HTMLCanvasElement, settings.data.appearance.fontSize);
+    this.renderer = new Renderer(el("screen") as HTMLCanvasElement, el("bloom") as HTMLCanvasElement, settings.data.appearance.fontSize, settings.data.appearance.fontWeight);
     this.loop = new FrameLoop(this.frame, settings.data.appearance.maxFps);
     this.input = new InputManager(this, this.renderer, el("deck"), el("keyboard-sink") as HTMLTextAreaElement);
     this.input.onActivity = () => {
@@ -98,6 +102,8 @@ export class Deck implements InputSink {
     const s = this.settings.data;
     this.vault.journalFolder = s.journal.folder;
     this.ai.envKey = await this.platform.envApiKey().catch(() => null);
+    this.ai.claudeCode = this.platform.claudeCode;
+    this.ai.claudeCodePath = (await this.platform.claudeCode?.detect().catch(() => null)) ?? null;
     await this.vault.mount(s.vault.path);
     if (!s.vault.path) this.settings.set("vault.path", this.vault.root);
     await this.reloadUserThemes();
@@ -111,7 +117,7 @@ export class Deck implements InputSink {
     this.applyFx();
     this.resize();
     // (browsers only allow fullscreen after a click, so this is desktop-only)
-    if (s.appearance.fullscreen && this.platform.kind === "desktop") void this.platform.window.setFullscreen(true).catch(() => {});
+    if (s.appearance.startFullscreen && this.platform.kind === "desktop") void this.platform.window.setFullscreen(true).catch(() => {});
 
     if (s.boot.mode !== "off") this.boot = new BootScreen(await this.bootLines(), await this.memMB(), s.boot.mode);
     setInterval(() => this.checkIdle(), 15_000);
@@ -120,16 +126,19 @@ export class Deck implements InputSink {
 
   private registerCore(): void {
     for (const c of [...fileCommands, ...systemCommands, ...deckCommands]) this.commands.register({ ...c, source: "core" });
-    for (const a of [homeSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec]) this.apps.register(a);
+    for (const w of BUILTIN_WIDGETS) this.widgets.register(w);
+    for (const a of [homeSpec, modulesSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec]) this.apps.register(a);
 
     const act = (id: string, title: string, run: () => void, hint?: string, group = "deck") => this.actions.register({ id, title, run, hint, group });
     act("journal.today", "Journal: today", () => void this.openJournal(new Date()), "ctrl+j", "journal");
     act("journal.yesterday", "Journal: yesterday", () => void this.openJournal(new Date(Date.now() - 86400_000)), undefined, "journal");
     act("note.new", "New note", () => void this.newNote(), "ctrl+n", "notes");
+    act("modules.open", "Modules (all apps and plugins)", () => void this.openApp("modules"), undefined, "deck");
     act("link.open", "Open LINK (AI chat)", () => void this.openApp("link"), "ctrl+space", "ai");
     act("ai.key", "Set Anthropic API key", () => void this.shell.runLine("config key"), undefined, "ai");
-    act("ai.provider", "Toggle AI provider (Claude ⇄ local Ollama)", () => {
-      this.settings.set("ai.provider", this.settings.data.ai.provider === "anthropic" ? "ollama" : "anthropic");
+    act("ai.provider", "Cycle AI provider (Claude Code ⇄ Anthropic API ⇄ local Ollama)", () => {
+      const order = ["claude-code", "anthropic", "ollama"] as const;
+      this.settings.set("ai.provider", order[(order.indexOf(this.settings.data.ai.provider) + 1) % order.length]);
       this.notify(`AI provider: ${this.settings.data.ai.provider}`);
     }, undefined, "ai");
     act("shell.focus", "Focus shell", () => this.workspace.focusShell(), "ctrl+`", "view");
@@ -345,8 +354,8 @@ export class Deck implements InputSink {
   applySettings(key: string): void {
     const s = this.settings.data;
     if (key === "appearance.theme") this.setTheme(s.appearance.theme);
+    else if (key === "appearance.fontWeight") { this.renderer.setWeight(s.appearance.fontWeight); this.resize(); }
     else if (key === "appearance.fontSize") this.zoom(0, s.appearance.fontSize);
-    else if (key === "appearance.fullscreen") void this.platform.window.setFullscreen(s.appearance.fullscreen);
     else if (key === "journal.folder") this.vault.journalFolder = s.journal.folder;
     else if (key === "user.handle") this.shell.exec.env.USER = s.user.handle;
     else if (key.startsWith("fx.") || key === "appearance.maxFps") this.applyFx();
@@ -364,7 +373,6 @@ export class Deck implements InputSink {
   async toggleFullscreen(): Promise<void> {
     const on = !(await this.platform.window.isFullscreen());
     await this.platform.window.setFullscreen(on);
-    this.settings.set("appearance.fullscreen", on);
   }
 
   async mountVault(path: string): Promise<void> {

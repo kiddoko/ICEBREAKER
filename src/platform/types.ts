@@ -60,6 +60,12 @@ export interface Platform {
   system: { stats(): Promise<SystemStats> };
   /** ANTHROPIC_API_KEY from the environment, if set. */
   envApiKey(): Promise<string | null>;
+  /** The local Claude Code CLI (desktop only). Runs on the user's Claude plan instead of an API key. */
+  claudeCode?: {
+    detect(): Promise<string | null>;
+    run(req: { id: string; prompt: string; system: string; resume?: string | null; model?: string }, onLine: (line: string) => void): Promise<{ code: number; stderr: string }>;
+    cancel(id: string): Promise<void>;
+  };
   window: {
     setFullscreen(on: boolean): Promise<void>;
     isFullscreen(): Promise<boolean>;

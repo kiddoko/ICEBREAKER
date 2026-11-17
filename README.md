@@ -20,7 +20,7 @@ scanlines — but works with the keyboard, the mouse, or a gamepad.
 - **Themes** — TOML files, hot-swappable. Default: `nightshade` (violet, Catppuccin-flavoured). Also `amber` and `neon-ronin`.
 - **Light** — renders only what changed, sleeps when idle, `fx potato` for old laptops. ~10 MB binary.
 
-Everything is local: your notes are files on your disk, settings are JSON, nothing phones home. The only network traffic is to the AI provider *you* configure.
+Everything is local: your notes are files on your disk, settings are JSON, nothing phones home. Network traffic only goes where you point it: the AI provider *you* configure, the weather widget (open-meteo.com, no account) and GitHub when you install a plugin or theme.
 
 ## Quick start
 
@@ -75,13 +75,15 @@ themes/          built-in themes (nightshade.toml is the annotated reference)
 
 - Write a plugin → [docs/PLUGINS.md](docs/PLUGINS.md)
 - Make a theme → [docs/THEMES.md](docs/THEMES.md)
+- Share them, install other people's → [docs/COMMUNITY.md](docs/COMMUNITY.md)
 
 ## Roadmap
 
 - [ ] Vault file watcher (pick up edits made in Obsidian/vim live)
 - [ ] Backlinks panel and a graph view in braille
 - [ ] Tool use for local models (Ollama), more providers (llama.cpp server, LM Studio)
-- [ ] Plugins in a sandboxed Worker; a shareable theme & plugin registry (`plugin install <url>`)
+- [x] `plugin install` / `theme install` from GitHub + a community index
+- [ ] Plugins in a sandboxed Worker
 - [ ] Vim keybindings in the editor
 - [ ] Native gamepad backend (gilrs) for Linux WebKitGTK builds without the Gamepad API
 - [ ] Encrypted journal option

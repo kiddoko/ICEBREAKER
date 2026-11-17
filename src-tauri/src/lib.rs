@@ -5,6 +5,7 @@
 //! UI and logic lives in TypeScript (../src). Every `#[tauri::command]` here is
 //! called from src/platform/tauri.ts with `invoke("command_name", args)`.
 
+mod claude_code;
 mod config;
 mod system;
 mod vault;
@@ -20,6 +21,7 @@ pub fn run() {
     builder
         .manage(vault::VaultState::default())
         .manage(system::SystemState::default())
+        .manage(claude_code::ClaudeCodeState::default())
         .invoke_handler(tauri::generate_handler![
             vault::vault_default_path,
             vault::vault_mount,
@@ -37,6 +39,9 @@ pub fn run() {
             config::env_api_key,
             config::app_quit,
             system::system_stats,
+            claude_code::claude_code_detect,
+            claude_code::claude_code_run,
+            claude_code::claude_code_cancel,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ICEBREAKER");
@@ -75,5 +80,11 @@ fn mac_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<tauri
         ],
     )?;
     let view_menu = Submenu::with_items(app, "View", true, &[&PredefinedMenuItem::fullscreen(app, None)?])?;
-    Menu::with_items(app, &[&app_menu, &edit_menu, &view_menu])
+    let window_menu = Submenu::with_items(
+        app,
+        "Window",
+        true,
+        &[&PredefinedMenuItem::minimize(app, None)?, &PredefinedMenuItem::maximize(app, None)?],
+    )?;
+    Menu::with_items(app, &[&app_menu, &edit_menu, &view_menu, &window_menu])
 }

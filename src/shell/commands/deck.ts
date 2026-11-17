@@ -4,6 +4,7 @@ import { ASK_SYSTEM_PROMPT } from "../../ai/prompts";
 import { appendLog, ensureEntry } from "../../vault/journal";
 import { join, slugify } from "../../vault/paths";
 import { applyFxPreset } from "../../workspace/fxpanel";
+import { fetchIndex, installPlugin, installTheme } from "../../plugins/install";
 import { parseFlags } from "../parser";
 import type { Command } from "../types";
 
@@ -169,8 +170,8 @@ const sysmon: Command = {
 const theme: Command = {
   name: "theme",
   summary: "list, switch, create and reload themes",
-  usage: "theme [ls]\ntheme set <name>\ntheme new <name>     (copies the current theme into your vault and opens it)\ntheme reload         (re-read .icebreaker/themes/*.toml)",
-  complete: () => ["ls", "set", "new", "reload", ...[]],
+  usage: "theme [ls]\ntheme set <name>\ntheme new <name>     (copies the current theme into your vault and opens it)\ntheme reload         (re-read .icebreaker/themes/*.toml)\ntheme install <user/repo/file.toml | id>   (download a community theme)",
+  complete: () => ["ls", "set", "new", "reload", "install"],
   async run(ctx) {
     const [sub, name] = ctx.args;
     const d = ctx.deck;
@@ -189,6 +190,18 @@ const theme: Command = {
         return 1;
       }
       ctx.out(`theme → ${name}\n`);
+      return;
+    }
+    if (sub === "install") {
+      if (!name) return ctx.err("usage: theme install <user/repo/file.toml | id>\n"), 1;
+      try {
+        const path = await installTheme(d, name);
+        await d.reloadUserThemes();
+        ctx.out(`${fmt.green("✓")} ${path} — try it: ${fmt.magenta(`theme set ${path.split("/").pop()!.replace(/\.toml$/, "")}`)}\n`);
+      } catch (e) {
+        ctx.err(`theme install: ${e instanceof Error ? e.message : e}\n`);
+        return 1;
+      }
       return;
     }
     if (sub === "reload") {
@@ -332,7 +345,7 @@ const plugin: Command = {
   name: "plugin",
   aliases: ["plugins"],
   summary: "list, enable, disable, scaffold plugins",
-  usage: "plugin [ls]\nplugin enable <id>\nplugin disable <id>\nplugin reload\nplugin new <id>     (scaffold a plugin in .icebreaker/plugins/<id>)",
+  usage: "plugin [ls]\nplugin enable <id>\nplugin disable <id>\nplugin reload\nplugin new <id>     (scaffold a plugin in .icebreaker/plugins/<id>)\nplugin install <user/repo | id>   (download from GitHub / the community index)\nplugin update <id>  (re-download an installed plugin)\nplugin search [words]  (browse the community index)",
   man: "Plugins live in <vault>/.icebreaker/plugins/<id>/ with a plugin.json and a main.js.\nVault plugins are disabled until you enable them; you'll see the permissions they ask for first.\nSee docs/PLUGINS.md.",
   async run(ctx) {
     const host = ctx.deck.plugins;
@@ -367,6 +380,38 @@ const plugin: Command = {
       const path = await host.scaffold(slugify(id));
       ctx.out(`created ${path}. Edit it, then: plugin enable ${slugify(id)}\n`);
       await ctx.deck.openFile(path);
+      return;
+    }
+    if (sub === "install" || sub === "update") {
+      let src = id;
+      if (sub === "update" && id) {
+        const path = `.icebreaker/plugins/${id}/plugin.json`;
+        src = (await ctx.deck.vault.exists(path)) ? JSON.parse(await ctx.deck.vault.read(path)).source : undefined;
+        if (!src) return ctx.err(`${id}: not installed from a repo (no "source" in its plugin.json)\n`), 1;
+      }
+      if (!src) return ctx.err(`usage: plugin ${sub} <user/repo | id>\n`), 1;
+      ctx.out(fmt.dim(`fetching ${src}…\n`));
+      try {
+        const p = await installPlugin(ctx.deck, src);
+        await host.reload();
+        ctx.out(`${fmt.green("✓")} ${p.name} (${p.id}) ${sub === "update" ? "updated" : "installed"} — permissions: ${p.permissions.join(", ") || "none"}\n`);
+        if (sub === "install") ctx.out(`read its code in .icebreaker/plugins/${p.id}/, then: ${fmt.magenta(`plugin enable ${p.id}`)}\n`);
+      } catch (e) {
+        ctx.err(`plugin ${sub}: ${e instanceof Error ? e.message : e}\n`);
+        return 1;
+      }
+      return;
+    }
+    if (sub === "search") {
+      const q = ctx.args.slice(1).join(" ").toLowerCase();
+      try {
+        const hits = (await fetchIndex(ctx.deck)).filter((e) => !q || `${e.id} ${e.name} ${e.description}`.toLowerCase().includes(q));
+        if (!hits.length) ctx.out("nothing found\n");
+        for (const e of hits) ctx.out(`${fmt.magenta(padEnd(e.id, 18))} ${padEnd(e.kind, 7)} ${e.description} ${fmt.dim(`— ${e.author}`)}\n`);
+      } catch (e) {
+        ctx.err(`plugin search: ${e instanceof Error ? e.message : e}\n`);
+        return 1;
+      }
       return;
     }
     ctx.err(`plugin: unknown subcommand ${sub}\n`);

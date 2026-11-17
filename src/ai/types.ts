@@ -33,7 +33,7 @@ export interface SessionOptions {
 }
 
 export interface Provider {
-  readonly id: "anthropic" | "ollama";
+  readonly id: "claude-code" | "anthropic" | "ollama";
   /** Short label for status bars: "claude-opus-5-5". */
   readonly label: string;
   /** Can it be used right now (key present, host set)? Returns a reason if not. */

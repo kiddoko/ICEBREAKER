@@ -1,4 +1,5 @@
 import type { Platform } from "../platform/types";
+import type { WidgetPlacement } from "../widgets/types";
 
 /**
  * User settings, saved as JSON in the OS config folder
@@ -13,11 +14,13 @@ import type { Platform } from "../platform/types";
 export interface Settings {
   user: { handle: string; locale: string };
   vault: { path: string };
-  appearance: { theme: string; fontSize: number; fullscreen: boolean; maxFps: number; showFps: boolean; lineNumbers: boolean };
+  appearance: { theme: string; fontSize: number; startFullscreen: boolean; fontWeight: "light" | "regular"; maxFps: number; showFps: boolean; lineNumbers: boolean };
   fx: { bloom: boolean; scanlines: boolean; vignette: boolean; ambient: boolean; flicker: boolean; glitch: boolean; screensaverMinutes: number };
   boot: { mode: "full" | "fast" | "off" };
   ai: {
-    provider: "anthropic" | "ollama";
+    provider: "claude-code" | "anthropic" | "ollama";
+    /** Model for the Claude Code provider: "sonnet", "opus"… (empty = the CLI default). */
+    claudeCodeModel: string;
     model: string;
     effort: "low" | "medium" | "high" | "xhigh" | "max";
     ollamaHost: string;
@@ -26,7 +29,8 @@ export interface Settings {
   };
   journal: { folder: string };
   editor: { autosave: boolean; tabSize: number };
-  plugins: { enabled: string[]; disabled: string[] };
+  plugins: { enabled: string[]; disabled: string[]; registry: string };
+  home: { widgets: WidgetPlacement[]; weatherCity: string };
 }
 
 export interface Secrets {
@@ -36,13 +40,14 @@ export interface Secrets {
 export const DEFAULT_SETTINGS: Settings = {
   user: { handle: "netrunner", locale: "" },
   vault: { path: "" },
-  appearance: { theme: "nightshade", fontSize: 15, fullscreen: true, maxFps: 60, showFps: true, lineNumbers: true },
+  appearance: { theme: "nightshade", fontSize: 15, startFullscreen: false, fontWeight: "light", maxFps: 60, showFps: true, lineNumbers: true },
   // Minimal by default: the animated background and short glitch transitions.
   // The heavy CRT stuff (bloom, scanlines, vignette, flicker) is one click away in the FX panel.
   fx: { bloom: false, scanlines: false, vignette: false, ambient: true, flicker: false, glitch: true, screensaverMinutes: 0 },
   boot: { mode: "full" },
   ai: {
-    provider: "anthropic",
+    provider: "claude-code",
+    claudeCodeModel: "",
     model: "claude-opus-5-5",
     effort: "medium",
     ollamaHost: "http://localhost:11434",
@@ -51,7 +56,10 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   journal: { folder: "journal" },
   editor: { autosave: true, tabSize: 2 },
-  plugins: { enabled: [], disabled: [] },
+  // the community index: a JSON list of plugins/themes (see docs/COMMUNITY.md)
+  plugins: { enabled: [], disabled: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-community/main/index.json" },
+  // empty = the default layout (widgets/builtin.ts)
+  home: { widgets: [], weatherCity: "Paris" },
 };
 
 type Listener = (path: string) => void;

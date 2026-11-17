@@ -185,6 +185,7 @@ export class PluginHost {
     this.deck.commands.unregisterSource(id);
     this.deck.apps.unregisterSource(id);
     this.deck.actions.unregisterSource(id);
+    this.deck.widgets.unregisterSource(id);
   }
 
   /** Build the API object for one plugin, enforcing its declared permissions. */
@@ -212,6 +213,9 @@ export class PluginHost {
         open: (kind, args) => deck.openApp(kind, args),
       },
       palette: { register: (a) => deck.actions.register(a, m.id) },
+      widgets: {
+        register: (w) => void deck.widgets.register({ ...w, id: w.id.startsWith(`${m.id}.`) ? w.id : `${m.id}.${w.id}` }, m.id),
+      },
       vault: {
         read: (p) => (need("vault:read"), deck.vault.read(p)),
         exists: (p) => (need("vault:read"), deck.vault.exists(p)),

@@ -33,6 +33,11 @@ pub struct Entry {
 const SKIPPED_DIRS: &[&str] = &[".git", ".obsidian", ".icebreaker", ".trash", "node_modules"];
 const MAX_WALK_ENTRIES: usize = 50_000;
 
+/// The mounted vault folder (also used by claude_code.rs as the CLI's working directory).
+pub(crate) fn vault_root(state: &State<VaultState>) -> CmdResult<PathBuf> {
+    root(state)
+}
+
 fn root(state: &State<VaultState>) -> CmdResult<PathBuf> {
     state
         .root

@@ -27,6 +27,7 @@ import type { ChatSession, SessionOptions, ToolSpec } from "../ai/types";
 import type { App, AppSpec, PaletteAction } from "../apps/types";
 import type { Theme } from "../core/theme";
 import type { Command } from "../shell/types";
+import type { WidgetSpec } from "../widgets/types";
 
 export type Permission = "vault:read" | "vault:write" | "ai";
 
@@ -54,6 +55,12 @@ export interface IcebreakerAPI {
 
   /** Add entries to the command palette (Ctrl+K). */
   palette: { register(action: PaletteAction): void };
+
+  /**
+   * Add a widget to the HOME grid (the user places it with `e` then `a`).
+   * The id is prefixed with your plugin id automatically: "clock" → "myplugin.clock".
+   */
+  widgets: { register(spec: WidgetSpec): void };
 
   /** The user's notes. Paths are vault-relative: "notes/idea.md". */
   vault: {
