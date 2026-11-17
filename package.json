@@ -1,0 +1,28 @@
+{
+  "name": "icebreaker",
+  "private": true,
+  "version": "0.1.0",
+  "description": "ICEBREAKER — an open-source, terminal-styled cyberdeck for notes, journaling and AI-powered plugins.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "check": "tsc --noEmit",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "app": "tauri dev",
+    "app:build": "tauri build"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.9.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@tauri-apps/api": "^2.12.5",
+    "smol-toml": "^1.9.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  }
+}

@@ -1,0 +1,29 @@
+[package]
+name = "icebreaker"
+version = "0.1.0"
+description = "ICEBREAKER — open-source terminal-styled cyberdeck for notes, journaling and AI plugins"
+license = "MIT"
+edition = "2021"
+
+[lib]
+# The `_lib` suffix avoids a name clash with the binary on Windows (Tauri convention).
+name = "icebreaker_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+# only the CPU/memory/process part — keeps compile times and binary size down
+sysinfo = { version = "0.40.4", default-features = false, features = ["system"] }
+tauri = { version = "2", features = [] }
+
+[profile.release]
+# Small, fast binary: important for the "runs on a potato laptop" goal.
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

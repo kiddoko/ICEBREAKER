@@ -1,0 +1,67 @@
+import type { SettingsStore } from "../core/settings";
+import { AnthropicProvider } from "./anthropic";
+import { OllamaProvider } from "./ollama";
+import type { ChatHandlers, ChatSession, Provider, SessionOptions } from "./types";
+
+export type { ChatHandlers, ChatSession, Provider, SessionOptions, ToolSpec } from "./types";
+
+/**
+ * Picks the AI provider from settings (`ai.provider`) and hands out sessions.
+ * Rebuilt lazily whenever the relevant settings change.
+ */
+export class AIManager {
+  private cached: Provider | null = null;
+  envKey: string | null = null;
+
+  constructor(private readonly settings: SettingsStore) {
+    settings.onChange((path) => {
+      if (path.startsWith("ai.")) this.cached = null;
+    });
+  }
+
+  /** Call after changing the API key. */
+  refresh(): void {
+    this.cached = null;
+  }
+
+  get provider(): Provider {
+    if (!this.cached) {
+      const ai = this.settings.data.ai;
+      this.cached =
+        ai.provider === "ollama"
+          ? new OllamaProvider(ai.ollamaHost, ai.ollamaModel)
+          : new AnthropicProvider(this.settings.secrets.anthropicApiKey || this.envKey || "", ai.model, ai.effort);
+    }
+    return this.cached;
+  }
+
+  get ready(): boolean {
+    return this.provider.readiness().ok;
+  }
+
+  /** Human-readable reason when not ready. */
+  get problem(): string | null {
+    const r = this.provider.readiness();
+    return r.ok ? null : r.reason;
+  }
+
+  session(opts: SessionOptions): ChatSession {
+    const r = this.provider.readiness();
+    if (!r.ok) throw new Error(r.reason);
+    return this.provider.createSession(opts);
+  }
+
+  /** One-shot question → full answer (streams through onText if given). */
+  async ask(prompt: string, opts: { system?: string; onText?: (d: string) => void; signal?: AbortSignal } = {}): Promise<string> {
+    const s = this.session({ system: opts.system ?? "You are a concise assistant inside a terminal. Answer directly; plain text or light Markdown." });
+    let out = "";
+    const handlers: ChatHandlers = {
+      onText: (d) => {
+        out += d;
+        opts.onText?.(d);
+      },
+    };
+    await s.send(prompt, handlers, opts.signal);
+    return out;
+  }
+}

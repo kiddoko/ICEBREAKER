@@ -1,0 +1,74 @@
+# NEON RONIN — rain-slick streets, teal and hot pink.
+
+[meta]
+name = "neon-ronin"
+author = "icebreaker"
+description = "Teal steel and hot pink neon."
+border = "heavy"
+
+[palette]
+night  = "#070b10"
+steel  = "#0d141c"
+slate  = "#16212c"
+fog    = "#24323f"
+haze   = "#4a6072"
+mist   = "#8aa4b8"
+ice    = "#d6f1ff"
+teal   = "#00e5c7"
+pink   = "#ff2e88"
+violet = "#a970ff"
+gold   = "#ffd166"
+
+[ui]
+bg = "night"
+panel = "steel"
+panel_alt = "slate"
+highlight = "slate"
+selection = "#2a1430"
+fg = "ice"
+muted = "mist"
+subtle = "haze"
+faint = "fog"
+accent = "teal"
+accent_alt = "pink"
+border = "fog"
+border_focus = "teal"
+title = "haze"
+title_focus = "teal"
+cursor = "pink"
+success = "teal"
+warning = "gold"
+error = "pink"
+info = "violet"
+ambient = "#0f2a2e"
+status_bg = "slate"
+status_fg = "mist"
+
+[syntax]
+heading1 = "pink"
+heading2 = "teal"
+heading3 = "violet"
+bold = "gold"
+italic = "pink"
+code = "teal"
+code_bg = "slate"
+link = "violet"
+wikilink = "pink"
+tag = "teal"
+quote = "haze"
+list = "pink"
+checkbox = "teal"
+
+[ansi]
+magenta = "pink"
+cyan = "teal"
+blue = "violet"
+yellow = "gold"
+bright_magenta = "pink"
+bright_cyan = "teal"
+
+[fx]
+bloom = 0.5
+scanlines = 0.08
+vignette = 0.6
+gradient = ["teal", "violet", "pink"]

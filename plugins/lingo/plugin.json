@@ -1,0 +1,8 @@
+{
+  "id": "lingo",
+  "name": "LINGO",
+  "version": "0.1.0",
+  "description": "AI language tutor: conversation, drills, stories — vocabulary saved to your vault",
+  "author": "icebreaker",
+  "permissions": ["ai", "vault:read", "vault:write"]
+}

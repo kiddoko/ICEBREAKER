@@ -1,0 +1,84 @@
+# AMBER — monochrome phosphor terminal, 1983 vibes.
+# A good example of a small theme: everything not set here comes from nightshade.
+
+[meta]
+name = "amber"
+author = "icebreaker"
+description = "Monochrome amber phosphor. For long nights."
+border = "single"
+
+[palette]
+black  = "#0d0800"
+deep   = "#140c00"
+dark   = "#2a1a00"
+dim    = "#6b4700"
+mid    = "#a86f00"
+amber  = "#ffb000"
+bright = "#ffd36b"
+hot    = "#ff7a1a"
+
+[ui]
+bg = "black"
+panel = "deep"
+panel_alt = "deep"
+highlight = "dark"
+selection = "#4a3000"
+fg = "amber"
+muted = "mid"
+subtle = "dim"
+faint = "dark"
+accent = "bright"
+accent_alt = "hot"
+border = "dim"
+border_focus = "amber"
+title = "mid"
+title_focus = "bright"
+cursor = "bright"
+success = "amber"
+warning = "hot"
+error = "hot"
+info = "bright"
+ambient = "#2a1900"
+status_bg = "deep"
+status_fg = "amber"
+
+[syntax]
+heading1 = "bright"
+heading2 = "bright"
+heading3 = "amber"
+bold = "bright"
+italic = "mid"
+code = "bright"
+code_bg = "dark"
+link = "bright"
+wikilink = "hot"
+tag = "hot"
+quote = "mid"
+list = "bright"
+checkbox = "bright"
+hr = "dim"
+frontmatter = "dim"
+
+[ansi]
+black = "dim"
+red = "hot"
+green = "amber"
+yellow = "bright"
+blue = "mid"
+magenta = "hot"
+cyan = "bright"
+white = "amber"
+bright_black = "mid"
+bright_red = "hot"
+bright_green = "bright"
+bright_yellow = "bright"
+bright_blue = "amber"
+bright_magenta = "hot"
+bright_cyan = "bright"
+bright_white = "bright"
+
+[fx]
+bloom = 0.55
+scanlines = 0.18
+vignette = 0.7
+gradient = ["mid", "amber", "bright"]

@@ -1,0 +1,112 @@
+# ╭──────────────────────────────────────────────────────────────────────╮
+# │  NIGHTSHADE — the default ICEBREAKER theme                            │
+# │  Deep void, violet ICE. Palette inspired by Catppuccin Mocha (MIT,    │
+# │  https://catppuccin.com) — darker background, more neon.              │
+# │                                                                      │
+# │  This file is the reference: every key a theme can set is here.      │
+# │  Your own themes go in <vault>/.icebreaker/themes/*.toml and only     │
+# │  need the keys they change. Try: `theme new mytheme` in the shell.    │
+# ╰──────────────────────────────────────────────────────────────────────╯
+
+[meta]
+name = "nightshade"
+author = "icebreaker"
+description = "Deep void, violet ICE. Catppuccin-flavoured."
+border = "round"          # round | single | heavy | double
+
+# Raw colors. Names are yours to choose; [ui] / [syntax] / [ansi] refer to them.
+[palette]
+void     = "#0b0b12"
+crust    = "#11111b"
+mantle   = "#181825"
+base     = "#1e1e2e"
+surface0 = "#313244"
+surface1 = "#45475a"
+surface2 = "#585b70"
+overlay0 = "#6c7086"
+overlay1 = "#7f849c"
+subtext0 = "#a6adc8"
+subtext1 = "#bac2de"
+text     = "#cdd6f4"
+lavender = "#b4befe"
+mauve    = "#cba6f7"
+violet   = "#9d7cd8"
+grape    = "#3b2f5c"
+pink     = "#f5c2e7"
+red      = "#f38ba8"
+peach    = "#fab387"
+yellow   = "#f9e2af"
+green    = "#a6e3a1"
+teal     = "#94e2d5"
+sky      = "#89dceb"
+blue     = "#89b4fa"
+
+# What each part of the interface uses (palette name or "#hex").
+[ui]
+bg           = "void"      # behind everything
+panel        = "crust"     # inside boxes
+panel_alt    = "mantle"    # bars, overlays
+highlight    = "surface0"  # current line, hovered row
+selection    = "grape"     # selected text
+fg           = "text"
+muted        = "subtext0"
+subtle       = "overlay0"
+faint        = "surface1"
+accent       = "mauve"
+accent_alt   = "pink"
+border       = "surface0"
+border_focus = "mauve"
+title        = "overlay1"
+title_focus  = "mauve"
+cursor       = "pink"
+success      = "green"
+warning      = "yellow"
+error        = "red"
+info         = "sky"
+ambient      = "#2b2242"   # glyphs of the animated background
+status_bg    = "mantle"
+status_fg    = "subtext1"
+
+# Markdown highlighting in the editor.
+[syntax]
+heading1    = "mauve"
+heading2    = "lavender"
+heading3    = "blue"
+bold        = "peach"
+italic      = "pink"
+code        = "green"
+code_bg     = "mantle"
+link        = "sky"
+wikilink    = "mauve"
+tag         = "teal"
+quote       = "overlay1"
+list        = "mauve"
+checkbox    = "green"
+hr          = "surface2"
+frontmatter = "overlay0"
+
+# The 16 terminal colors (used by shell output and plugins printing ANSI codes).
+[ansi]
+black          = "surface1"
+red            = "red"
+green          = "green"
+yellow         = "yellow"
+blue           = "blue"
+magenta        = "mauve"
+cyan           = "teal"
+white          = "subtext1"
+bright_black   = "surface2"
+bright_red     = "red"
+bright_green   = "green"
+bright_yellow  = "yellow"
+bright_blue    = "blue"
+bright_magenta = "pink"
+bright_cyan    = "sky"
+bright_white   = "text"
+
+# Post-effects (0 = off). The user can still disable them all with `fx potato`.
+[fx]
+bloom     = 0.42
+scanlines = 0.10
+vignette  = 0.55
+gradient  = ["violet", "mauve", "pink"]
