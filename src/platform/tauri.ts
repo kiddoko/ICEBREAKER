@@ -49,6 +49,10 @@ export function createTauriPlatform(): Platform {
       change: (password, newUser, newPassword) => invoke<void>("account_change", { password, newUser, newPassword }),
       remove: (password) => invoke<void>("account_remove", { password }),
     },
+    dev: {
+      factoryReset: () => invoke<string[]>("dev_factory_reset"),
+      restart: () => invoke<void>("dev_restart"),
+    },
     window: {
       setFullscreen: (on) => win.setFullscreen(on),
       isFullscreen: () => win.isFullscreen(),

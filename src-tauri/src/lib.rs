@@ -8,6 +8,7 @@
 mod account;
 mod claude_code;
 mod config;
+mod dev; // DEV ONLY — remove before release
 mod net;
 mod system;
 mod vault;
@@ -53,6 +54,8 @@ pub fn run() {
             account::account_verify,
             account::account_change,
             account::account_remove,
+            dev::dev_factory_reset, // DEV ONLY
+            dev::dev_restart,       // DEV ONLY
         ])
         .run(tauri::generate_context!())
         .expect("error while running ICEBREAKER");

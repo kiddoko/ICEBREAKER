@@ -84,6 +84,8 @@ export interface Platform {
     change(password: string, newUser: string, newPassword: string): Promise<void>;
     remove(password: string): Promise<void>;
   };
+  /** DEV ONLY — remove before release: back to a first launch (see dev.rs). */
+  dev?: { factoryReset(): Promise<string[]>; restart(): Promise<void> };
   window: {
     setFullscreen(on: boolean): Promise<void>;
     isFullscreen(): Promise<boolean>;

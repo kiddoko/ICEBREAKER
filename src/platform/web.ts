@@ -111,6 +111,14 @@ export function createWebPlatform(): Platform {
     },
     envApiKey: async () => null,
     account: webAccount(),
+    dev: {
+      factoryReset: async () => {
+        const keys = Object.keys(localStorage).filter((k) => k.startsWith("icebreaker"));
+        keys.forEach((k) => localStorage.removeItem(k));
+        return [`${keys.length} browser storage keys cleared`];
+      },
+      restart: async () => location.reload(),
+    },
     window: {
       setFullscreen: async (on) => {
         if (on && !document.fullscreenElement) await document.documentElement.requestFullscreen().catch(() => {});

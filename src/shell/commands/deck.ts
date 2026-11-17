@@ -11,6 +11,7 @@ import { account, lock } from "./account";
 import { chat, daily } from "./daily";
 import { sound } from "./sound";
 import { uiCommands } from "./ui";
+import { devCommands } from "./dev"; // DEV ONLY
 import { newsCommand } from "../../widgets/news";
 
 /** Commands specific to ICEBREAKER: notes, journal, AI, themes, plugins, settings. */
@@ -434,4 +435,4 @@ const today: Command = {
   },
 };
 
-export const deckCommands: Command[] = [...uiCommands, newsCommand, daily, chat, account, lock, sound, open, journal, note, checkboxes, ask, link, sysmon, theme, fx, config, vaultCmd, plugin, today];
+export const deckCommands: Command[] = [...devCommands, ...uiCommands, newsCommand, daily, chat, account, lock, sound, open, journal, note, checkboxes, ask, link, sysmon, theme, fx, config, vaultCmd, plugin, today];

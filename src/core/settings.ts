@@ -159,7 +159,16 @@ export class SettingsStore {
     return out;
   }
 
+  private frozen = false;
+
+  /** Stop writing settings.json (before a factory reset moves the folder away). */
+  freeze(): void {
+    this.frozen = true;
+    clearTimeout(this.saveTimer);
+  }
+
   private scheduleSave(): void {
+    if (this.frozen) return;
     clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => {
       this.platform.config.write("settings.json", JSON.stringify(this.data, null, 2)).catch((e) => console.error("settings save failed", e));
