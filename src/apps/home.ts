@@ -50,7 +50,7 @@ export class HomeApp implements App {
   status(): string {
     return this.editing
       ? "EDIT · arrows move · shift+arrows resize · a add · x remove · r reset · esc done"
-      : "←↑↓→ select · enter open · e edit layout · m modules · ctrl+k everything else";
+      : "←↑↓→ select · enter open · [ ] pages · e edit layout · m modules · ctrl+k everything else";
   }
 
   private get layout(): WidgetPlacement[] {
@@ -64,11 +64,11 @@ export class HomeApp implements App {
 
   /** Widgets whose spec is loaded (a plugin may have been removed). */
   private placed(): { p: WidgetPlacement; i: number }[] {
-    return this.layout.map((p, i) => ({ p, i })).filter(({ p }) => this.deck.widgets.get(p.id));
+    return this.layout.map((p, i) => ({ p, i })).filter(({ p }) => (p.page ?? 0) === this.page && this.deck.widgets.get(p.id));
   }
 
   private overlaps(layout: WidgetPlacement[], i: number, c: WidgetPlacement): boolean {
-    return layout.some((o, j) => j !== i && c.x < o.x + o.w && o.x < c.x + c.w && c.y < o.y + o.h && o.y < c.y + c.h);
+    return layout.some((o, j) => j !== i && (o.page ?? 0) === (c.page ?? 0) && c.x < o.x + o.w && o.x < c.x + c.w && c.y < o.y + o.h && o.y < c.y + c.h);
   }
 
   /** Move/resize widget i if the result stays on the grid and doesn't overlap. */
@@ -115,7 +115,7 @@ export class HomeApp implements App {
     const cur = layout[i];
     if (!cur) return;
     if (this.want?.i !== i) this.want = { i, w: cur.w, h: cur.h };
-    const bottom = layout.reduce((m, p) => Math.max(m, p.y + p.h), 0);
+    const bottom = layout.filter((p) => ((p.page ?? 0) === this.page)).reduce((m, p) => Math.max(m, p.y + p.h), 0);
     for (let step = 1; step <= Math.max(COLS, bottom + 2); step++) {
       const x = cur.x + dx * step, y = cur.y + dy * step;
       if (x < 0 || y < 0 || x >= COLS || y > bottom + 1) return;
@@ -157,7 +157,7 @@ export class HomeApp implements App {
     const spec = this.deck.widgets.get(id);
     if (!spec || this.layout.some((p) => p.id === id)) return false;
     const layout = this.layout.map((p) => ({ ...p }));
-    const bottom = layout.reduce((m, p) => Math.max(m, p.y + p.h), 0);
+    const bottom = layout.filter((p) => ((p.page ?? 0) === this.page)).reduce((m, p) => Math.max(m, p.y + p.h), 0);
     const visible = Math.max(1, Math.floor(this.areaH / ROW));
     const sizes: [number, number][] = [];
     const min = spec.min ?? { w: 1, h: 1 };
@@ -168,17 +168,47 @@ export class HomeApp implements App {
       for (const [w, h] of sizes)
         for (let y = 0; y + h <= maxY; y++)
           for (let x = 0; x + w <= COLS; x++) {
-            const cand = { id, x, y, w, h };
+            const cand = { id, page: this.page, x, y, w, h };
             if (!this.overlaps(layout, -1, cand)) return cand;
           }
       return null;
     };
-    const spot = fit(visible) ?? { id, x: 0, y: bottom, w: Math.min(COLS, spec.size.w), h: spec.size.h };
+    const spot = fit(visible) ?? { id, page: this.page, x: 0, y: bottom, w: Math.min(COLS, spec.size.w), h: spec.size.h };
     layout.push(spot);
     this.selected = layout.length - 1;
     this.reveal = true;
     this.save(layout);
     if (spot.y + spot.h > visible) this.deck.notify(`${spec.title}: no room on screen — placed below (scroll down, or e to rearrange)`);
+    return true;
+  }
+
+  /** Current page (0-based). Widgets live on one page each (placement.page). */
+  page = 0;
+
+  /** Pages that exist: the highest page used, plus the one we're on. */
+  pageCount(): number {
+    return Math.max(this.page, ...this.layout.map((p) => p.page ?? 0)) + 1;
+  }
+
+  /** Go to a page; one past the last makes a new empty page. */
+  setPage(n: number): void {
+    this.page = Math.max(0, Math.min(this.pageCount(), n));
+    this.scroll = 0;
+    this.selected = this.placed()[0]?.i ?? 0;
+    this.deck.notify(`HOME page ${this.page + 1}/${this.pageCount()}`);
+  }
+
+  /** Send a widget to another page (`home move <widget> <page>`). */
+  moveToPage(id: string, n: number): boolean {
+    const layout = this.layout.map((p) => ({ ...p }));
+    const p = layout.find((x) => x.id === id);
+    if (!p) return false;
+    const target = Math.max(0, n);
+    const others = layout.filter((o) => o !== p && (o.page ?? 0) === target);
+    p.page = target;
+    p.y = others.reduce((m, o) => Math.max(m, o.y + o.h), 0); // at the bottom of that page, free for sure
+    p.x = 0;
+    this.save(layout);
     return true;
   }
 
@@ -233,6 +263,8 @@ export class HomeApp implements App {
 
   /** Letters arrive as text (they're printable), so route them to the same shortcuts. */
   onText(t: string): boolean {
+    if (t === "]" || t === ">") return this.setPage(this.page + 1), true;
+    if (t === "[" || t === "<") return this.setPage(this.page - 1), true;
     if (t.length !== 1 || !"emaxr".includes(t)) return false;
     return this.onKey({ key: t, code: "", ctrl: false, alt: false, shift: false, meta: false, combo: t });
   }
@@ -290,7 +322,7 @@ export class HomeApp implements App {
     this.origin = { x: area.x, y: area.y };
     const colX = (n: number) => this.origin.x + Math.round(n * this.colW);
     this.areaH = area.h;
-    const contentH = this.layout.reduce((m, p) => Math.max(m, (p.y + p.h) * ROW), 0);
+    const contentH = this.layout.filter((p) => ((p.page ?? 0) === this.page)).reduce((m, p) => Math.max(m, (p.y + p.h) * ROW), 0);
     const maxScroll = Math.max(0, contentH - area.h);
     if (this.reveal) {
       const p = this.layout[this.selected];
@@ -366,6 +398,21 @@ export class HomeApp implements App {
     if (this.scroll < maxScroll) ui.textRight(r.x + r.w - 1, r.y + r.h - 1, ` ↓ more (wheel) `, { fg: c.panel, bg: c.accent });
     if (this.scroll > 0) ui.textRight(r.x + r.w - 1, r.y, ` ↑ ${this.scroll} `, { fg: c.muted });
 
+    // pages: ‹ 1 2 3 + › at the bottom left (always while editing)
+    const pages = this.pageCount();
+    if (pages > 1 || this.editing) {
+      let px = r.x + 2;
+      const py = r.y + r.h - 1;
+      px = ui.text(px, py, " pages ", { fg: c.subtle });
+      for (let n = 0; n <= pages; n++) {
+        const label = n === pages ? " + " : ` ${n + 1} `;
+        const on = n === this.page;
+        const rect = { x: px, y: py, w: label.length, h: 1 };
+        ui.text(px, py, label, on ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: ui.hovered(rect) ? c.accent : c.muted, bg: c.highlight });
+        ui.hit(rect, { cmd: `home page ${n === pages ? "new" : n + 1}`, tip: n === pages ? "a new empty page" : "[ / ] to flip pages" });
+        px += label.length + 1;
+      }
+    }
     if (this.editing) ui.textRight(r.x + r.w - 1, r.y, " EDIT LAYOUT ", { fg: c.panel, bg: c.accent, attrs: BOLD });
   }
 }

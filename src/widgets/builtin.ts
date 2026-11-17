@@ -94,7 +94,7 @@ const clock: WidgetSpec = {
   title: "clock",
   description: "big time, minute progress, date",
   size: { w: 4, h: 4 },
-  min: { w: 3, h: 2 },
+  min: { w: 2, h: 2 },
   render(ui, r, { deck }) {
     const c = ui.c;
     const now = new Date();
@@ -265,7 +265,7 @@ const weatherWidget: WidgetSpec = {
   title: "weather",
   description: "now, the next 24 h and the week (open-meteo.com)",
   size: { w: 4, h: 7 },
-  min: { w: 3, h: 3 },
+  min: { w: 2, h: 2 },
   render(ui, r, { deck }) {
     const c = ui.c;
     const loc = deck.settings.data.user.location;
@@ -356,7 +356,7 @@ const calendar: WidgetSpec = {
   title: "calendar",
   description: "this month, journal days lit, click a day",
   size: { w: 4, h: 7 },
-  min: { w: 3, h: 5 },
+  min: { w: 2, h: 2 },
   render(ui, r, { deck }) {
     const c = ui.c;
     const locale = deck.settings.data.user.locale || undefined;
@@ -430,7 +430,7 @@ const system: WidgetSpec = {
   title: "system",
   description: "cpu history, memory, uptime",
   size: { w: 4, h: 3 },
-  min: { w: 3, h: 2 },
+  min: { w: 2, h: 2 },
   render(ui, r, { deck }) {
     const c = ui.c;
     if (Date.now() - statsAt > 1500) {
@@ -472,7 +472,7 @@ const recent: WidgetSpec = {
   title: "recent",
   description: "last edited notes",
   size: { w: 6, h: 4 },
-  min: { w: 3, h: 2 },
+  min: { w: 2, h: 2 },
   render(ui, r, { deck }) {
     const c = ui.c;
     const notes = [...deck.vault.markdown()].sort((a, b) => b.modified - a.modified).slice(0, r.h);
@@ -507,7 +507,7 @@ const modules: WidgetSpec = {
   title: "modules",
   description: "launch apps and plugins",
   size: { w: 6, h: 4 },
-  min: { w: 3, h: 2 },
+  min: { w: 2, h: 2 },
   render(ui, r, { deck }) {
     const c = ui.c;
     const items = [

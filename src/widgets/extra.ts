@@ -32,7 +32,7 @@ const tasksWidget: WidgetSpec = {
   title: "checkboxes",
   description: "open checkboxes (- [ ]) from all your notes",
   size: { w: 4, h: 6 },
-  min: { w: 3, h: 2 },
+  min: { w: 2, h: 2 },
   render(ui, r, { deck }) {
     const c = ui.c;
     if (Date.now() - tasksAt > 30_000) {
@@ -62,7 +62,7 @@ const focusWidget: WidgetSpec = {
   title: "focus",
   description: "25/5 pomodoro — enter starts/pauses",
   size: { w: 4, h: 4 },
-  min: { w: 3, h: 2 },
+  min: { w: 2, h: 2 },
   render(ui, r, { deck }) {
     const c = ui.c;
     const now = Date.now();
@@ -107,7 +107,7 @@ const moonWidget: WidgetSpec = {
   title: "moon",
   description: "tonight's moon phase",
   size: { w: 4, h: 4 },
-  min: { w: 3, h: 3 },
+  min: { w: 2, h: 2 },
   render(ui, r) {
     const c = ui.c;
     const synodic = 29.530588853;
@@ -163,7 +163,7 @@ const worldWidget: WidgetSpec = {
   title: "world clock",
   description: "time elsewhere (config set home.worldClocks …)",
   size: { w: 5, h: 3 },
-  min: { w: 3, h: 2 },
+  min: { w: 2, h: 2 },
   render(ui, r, { deck }) {
     const c = ui.c;
     const here = new Date();
@@ -211,7 +211,7 @@ const quoteWidget: WidgetSpec = {
   title: "quote",
   description: "a line to think about, every hour",
   size: { w: 4, h: 3 },
-  min: { w: 3, h: 2 },
+  min: { w: 2, h: 2 },
   render(ui, r) {
     const c = ui.c;
     const idx = Math.floor(Date.now() / 3_600_000) % QUOTES.length;
@@ -248,7 +248,7 @@ const streakWidget: WidgetSpec = {
   title: "streak",
   description: "journal heatmap, GitHub style",
   size: { w: 4, h: 2 },
-  min: { w: 3, h: 1 },
+  min: { w: 2, h: 1 },
   render(ui, r, { deck }) {
     const c = ui.c;
     const entries = deck.vault.journalDates();
@@ -279,7 +279,7 @@ const aiWidget: WidgetSpec = {
   title: "neural link",
   description: "the AI you're wired to, and whether it's up",
   size: { w: 3, h: 6 },
-  min: { w: 3, h: 3 },
+  min: { w: 2, h: 2 },
   render(ui, r, { deck }) {
     const c = ui.c;
     const ok = deck.ai.ready;

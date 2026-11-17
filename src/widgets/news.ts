@@ -114,7 +114,7 @@ export const newsWidget: WidgetSpec = {
   title: "news",
   description: "headlines for your area or a topic, with summaries",
   size: { w: 6, h: 5 },
-  min: { w: 4, h: 2 },
+  min: { w: 2, h: 2 },
   render(ui, r, { deck }) {
     const c = ui.c;
     if (stale(deck) && !state.loading && !state.error) void loadNews(deck);

@@ -633,7 +633,7 @@ export function activate(ib: IcebreakerAPI): void {
     title: "todo",
     description: "what's left to do (TODO module)",
     size: { w: 4, h: 5 },
-    min: { w: 3, h: 2 },
+    min: { w: 2, h: 2 },
     render(ui, r) {
       const c = ui.c;
       const g = ui.theme.glyphs;

@@ -109,7 +109,7 @@ export function activate(ib: IcebreakerAPI): void {
     title: "music",
     description: "what's playing (Spotify, Music…) with play / pause / skip",
     size: { w: 4, h: 4 },
-    min: { w: 3, h: 2 },
+    min: { w: 2, h: 2 },
     render(ui, r) {
       const c = ui.c;
       if (!ib.media.available()) return void ui.text(r.x + 1, r.y, "music needs the desktop app", { fg: c.muted }, r.w - 2);

@@ -24,10 +24,13 @@ const homeCmd: Command = {
     ["home add todo.list", "add the to-do widget"],
     ["home rm matrix", "take one off"],
     ["home edit", "rearrange with the arrows (they shrink to fit)"],
+    ["home page 2", "go to page 2 (keys: [ and ])"],
+    ["home page new", "a new empty page; widgets you add land there"],
+    ["home move music.now 2", "send a widget to page 2"],
   ],
   summary: "the HOME dashboard: open it, edit it, add / remove widgets",
   usage: "home                open HOME (key: h)\nhome edit           rearrange (key: e)\nhome done           leave edit mode\nhome add <widget>   put a widget on the grid\nhome rm <widget>    take it off\nhome widgets        what's available\nhome reset          default layout",
-  complete: () => ["edit", "done", "add", "rm", "widgets", "reset"],
+  complete: () => ["edit", "done", "add", "rm", "widgets", "reset", "page", "move"],
   run(ctx) {
     const d = ctx.deck;
     const [sub, id] = ctx.args;
@@ -41,6 +44,19 @@ const homeCmd: Command = {
     if (sub === "edit") return h.setEditing(true), 0;
     if (sub === "done") return h.setEditing(false), 0;
     if (sub === "reset") return h.resetLayout(), 0;
+    if (sub === "page") {
+      const a = id ?? "";
+      const n = a === "next" ? h.page + 1 : a === "prev" ? h.page - 1 : a === "new" ? h.pageCount() : Number(a) - 1;
+      if (!a) return ctx.out(`page ${h.page + 1}/${h.pageCount()}\n`), 0;
+      if (!Number.isFinite(n)) return ctx.err("usage: home page <n> | next | prev | new\n"), 1;
+      return h.setPage(n), 0;
+    }
+    if (sub === "move") {
+      const n = Number(ctx.args[2]) - 1;
+      if (!id || !Number.isFinite(n) || n < 0) return ctx.err("usage: home move <widget> <page>\n"), 1;
+      if (!h.moveToPage(id, n)) return ctx.err(`home: ${id} isn't on HOME\n`), 1;
+      return h.setPage(n), 0;
+    }
     if (sub === "add" || sub === "rm") {
       if (!id && sub === "add") return h.add(), 0; // no name: the picker
       if (!id) return ctx.err(`usage: home ${sub} <widget>   (home widgets lists them)\n`), 1;

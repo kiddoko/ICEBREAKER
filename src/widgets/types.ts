@@ -35,6 +35,8 @@ export interface WidgetContext {
 /** Where a widget sits on the grid (saved in settings.json → home.widgets). */
 export interface WidgetPlacement {
   id: string;
+  /** HOME page (0 = first). */
+  page?: number;
   x: number;
   y: number;
   w: number;
