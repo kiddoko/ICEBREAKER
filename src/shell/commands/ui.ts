@@ -42,6 +42,7 @@ const homeCmd: Command = {
     if (sub === "done") return h.setEditing(false), 0;
     if (sub === "reset") return h.resetLayout(), 0;
     if (sub === "add" || sub === "rm") {
+      if (!id && sub === "add") return h.add(), 0; // no name: the picker
       if (!id) return ctx.err(`usage: home ${sub} <widget>   (home widgets lists them)\n`), 1;
       if (!d.widgets.get(id)) return ctx.err(`home: no widget "${id}" (home widgets)\n`), 1;
       const ok = sub === "add" ? h.place(id) : h.unplace(id);

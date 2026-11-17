@@ -286,9 +286,12 @@ const aiWidget: WidgetSpec = {
     const label = deck.ai.provider.label;
     const col = ok ? c.accent : c.error;
     // a dotted orbit around a core; a signal runs the orbit, the core breathes
-    const rows = Math.max(3, Math.min(r.h - 2, 5));
+    // ring + a blank line + the label lines, centered in the card; the ring grows with it
+    const lines = ok ? 2 : 3;
+    const rows = Math.max(3, Math.min(r.h - lines - 1, 9));
+    const top = r.y + Math.max(0, Math.round((r.h - rows - 1 - lines) / 2));
     const cols = Math.min(r.w, cellsFor(ui, rows));
-    const box = { x: r.x + Math.floor((r.w - cols) / 2), y: r.y, w: cols, h: rows };
+    const box = { x: r.x + Math.floor((r.w - cols) / 2), y: top, w: cols, h: rows };
     const R = rows / 2 - 0.2, ox = (cols * ui.cellAspect) / 2, oy = rows / 2;
     const head = (ui.now / 1600) % 1; // fraction of a turn
     const breath = (Math.sin(ui.now / 700) + 1) / 2;
@@ -308,7 +311,7 @@ const aiWidget: WidgetSpec = {
       }
       return 0;
     });
-    const y = r.y + rows + 1;
+    const y = top + rows + 1;
     if (y < r.y + r.h) ui.textCenter(r, y, label, { fg: c.fg, attrs: BOLD });
     if (y + 1 < r.y + r.h) ui.textCenter(r, y + 1, ok ? "● link up" : "○ offline", { fg: ok ? c.success : c.error });
     if (!ok && y + 2 < r.y + r.h) ui.textCenter(r, y + 2, "enter: settings", { fg: c.faint });

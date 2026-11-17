@@ -215,6 +215,19 @@ export class PluginHost {
       },
       palette: { register: (a) => deck.actions.register(a, m.id) },
       shell: { run: (line) => deck.act(line) },
+      media: {
+        available: () => !!deck.platform.media,
+        status: async () => {
+          need("media");
+          if (!deck.platform.media) throw new Error("music control needs the desktop app");
+          return deck.platform.media.status();
+        },
+        control: async (action) => {
+          need("media");
+          if (!deck.platform.media) throw new Error("music control needs the desktop app");
+          return deck.platform.media.control(action);
+        },
+      },
       backgrounds: { register: (b) => registerBackground({ ...b, name: b.name.startsWith(`${m.id}.`) ? b.name : `${m.id}.${b.name}` }) },
       widgets: {
         register: (w) => void deck.widgets.register({ ...w, id: w.id.startsWith(`${m.id}.`) ? w.id : `${m.id}.${w.id}` }, m.id),

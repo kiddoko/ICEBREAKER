@@ -108,7 +108,7 @@ const clock: WidgetSpec = {
     const k = fitMatrix(shown, r.w - 2, r.h - extra, r.h >= 12 && r.w >= 40 ? 2 : 1);
     if (k) {
       const d = matrixSize(shown, k);
-      const top = r.y + Math.max(0, Math.floor((r.h - d.h - extra) / 2));
+      const top = r.y + Math.max(0, Math.round((r.h - d.h - extra) / 2));
       const x = r.x + Math.floor((r.w - d.w) / 2);
       const grad = ui.theme.gradient.length ? ui.theme.gradient : [c.accent, c.accentAlt];
       matrixText(ui, x, top, time, k, (row, rows) => grad[Math.min(grad.length - 1, Math.floor((row / rows) * grad.length))]);

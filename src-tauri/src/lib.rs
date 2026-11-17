@@ -9,6 +9,7 @@ mod account;
 mod claude_code;
 mod config;
 mod dev; // DEV ONLY — remove before release
+mod media;
 mod net;
 mod system;
 mod vault;
@@ -49,6 +50,8 @@ pub fn run() {
             claude_code::claude_code_cancel,
             net::news_rss,
             net::open_url,
+            media::media_status,
+            media::media_control,
             account::account_status,
             account::account_create,
             account::account_verify,

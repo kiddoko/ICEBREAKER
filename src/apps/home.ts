@@ -7,6 +7,7 @@ import type { UI } from "../ui/ui";
 import { DEFAULT_LAYOUT } from "../widgets/builtin";
 import type { WidgetPlacement } from "../widgets/types";
 import type { App, AppSpec } from "./types";
+import { WidgetPicker } from "../workspace/widgetpicker";
 
 /** Grid geometry: 12 columns, one row unit = 2 text rows. */
 const COLS = 12;
@@ -142,14 +143,9 @@ export class HomeApp implements App {
     if (w && (spot.w < w.w || spot.h < w.h) && (was.w >= w.w && was.h >= w.h)) this.deck.notify(`${this.deck.widgets.get(spot.id)?.title ?? spot.id}: shrunk to fit — it grows back where there's room (shift+arrows to resize)`);
   }
 
-  private async add(): Promise<void> {
-    const used = new Set(this.layout.map((p) => p.id));
-    const free = this.deck.widgets.list().filter((s) => !used.has(s.id));
-    if (!free.length) return this.deck.notify("every widget is already on the grid");
-    const pick = await this.deck.prompt(`add widget: ${free.map((s) => s.id).join(", ")}`, { initial: free[0].id });
-    const spec = free.find((s) => s.id === pick?.trim());
-    if (!spec) return;
-    this.place(spec.id);
+  /** The widget picker (list + description + live preview). */
+  add(): void {
+    this.deck.workspace.push(new WidgetPicker(this.deck));
   }
 
   /**
@@ -337,12 +333,12 @@ export class HomeApp implements App {
         focused: sel,
         border: this.editing && sel ? "heavy" : "round",
       });
-      ui.hit(rect, {
-        onClick: (m) => {
+      const frameHit = {
+        onClick: (m: { x: number; y: number }) => {
           this.selected = i;
           if (this.editing) this.drag = { index: i, dx: m.x - rect.x, dy: m.y - rect.y };
         },
-        onDrag: (m) => {
+        onDrag: (m: { x: number; y: number }) => {
           const d = this.drag;
           if (!this.editing || !d || d.index !== i) return;
           const nx = Math.round((m.x - this.origin.x - d.dx) / this.colW);
@@ -352,7 +348,10 @@ export class HomeApp implements App {
         },
         onDouble: () => !this.editing && spec.activate && void this.deck.act(`widget ${p.id}`),
         tip: this.editing ? "drag to move · shift+arrows resize · x remove" : spec.activate ? `${spec.description ?? spec.title}\ndouble-click / enter → widget ${p.id}` : spec.description,
-      });
+      };
+      // normally the widget's own buttons sit on top of its frame; while editing,
+      // the frame covers everything, so a click only selects (and drags)
+      if (!this.editing) ui.hit(rect, frameHit);
       ui.clip(inner, () => {
         try {
           spec.render(ui, inner, { deck: this.deck, focused: sel });
@@ -360,6 +359,7 @@ export class HomeApp implements App {
           ui.text(inner.x, inner.y, `⚠ ${e instanceof Error ? e.message : e}`, { fg: c.error }, inner.w);
         }
       });
+      if (this.editing) ui.hit(rect, frameHit);
       if (anim) drawEffects(ui, rect, inner, i, sel, this.shownAt, this.selAt);
     }
     ui.grid.popClip();

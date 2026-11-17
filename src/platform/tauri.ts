@@ -1,6 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { Platform, SystemStats, VaultEntry } from "./types";
+import type { MediaStatus, Platform, SystemStats, VaultEntry } from "./types";
 
 /**
  * Desktop platform: thin wrappers around the Rust commands defined in
@@ -48,6 +48,10 @@ export function createTauriPlatform(): Platform {
       verify: (user, password) => invoke<boolean>("account_verify", { user, password }),
       change: (password, newUser, newPassword) => invoke<void>("account_change", { password, newUser, newPassword }),
       remove: (password) => invoke<void>("account_remove", { password }),
+    },
+    media: {
+      status: () => invoke<MediaStatus | null>("media_status"),
+      control: (action) => invoke<void>("media_control", { action }),
     },
     dev: {
       factoryReset: () => invoke<string[]>("dev_factory_reset"),

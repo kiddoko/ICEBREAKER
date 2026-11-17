@@ -84,6 +84,15 @@ export interface Platform {
     change(password: string, newUser: string, newPassword: string): Promise<void>;
     remove(password: string): Promise<void>;
   };
+  /**
+   * What's playing on this computer and play/pause/next/volume (desktop:
+   * Spotify + Music on macOS, any MPRIS player through playerctl on Linux).
+   */
+  media?: {
+    status(): Promise<MediaStatus | null>;
+    /** toggle · play · pause · next · prev · vol+ · vol- · vol:<0-100> */
+    control(action: string): Promise<void>;
+  };
   /** DEV ONLY — remove before release: back to a first launch (see dev.rs). */
   dev?: { factoryReset(): Promise<string[]>; restart(): Promise<void> };
   window: {
@@ -91,4 +100,18 @@ export interface Platform {
     isFullscreen(): Promise<boolean>;
     quit(): Promise<void>;
   };
+}
+
+export interface MediaStatus {
+  player: string;
+  playing: boolean;
+  title: string;
+  artist: string;
+  album: string;
+  /** seconds */
+  position: number;
+  /** seconds, 0 = unknown */
+  duration: number;
+  /** 0–100 */
+  volume: number | null;
 }

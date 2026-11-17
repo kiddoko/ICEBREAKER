@@ -18,6 +18,7 @@
  * Permissions (declared in plugin.json, shown to the user before enabling):
  *   vault:read   read notes            vault:write  create / change notes
  *   ai           talk to the AI provider (uses the user's key / local model)
+ *   media        see and control the music playing on the computer
  *
  * See docs/PLUGINS.md for a walkthrough, and `plugin new <id>` in the shell
  * for a ready-to-edit template.
@@ -29,8 +30,9 @@ import type { Theme } from "../core/theme";
 import type { Command } from "../shell/types";
 import type { WidgetSpec } from "../widgets/types";
 import type { BackgroundSpec } from "../fx/backgrounds";
+import type { MediaStatus } from "../platform/types";
 
-export type Permission = "vault:read" | "vault:write" | "ai";
+export type Permission = "vault:read" | "vault:write" | "ai" | "media";
 
 export interface PluginManifest {
   id: string;
@@ -98,6 +100,13 @@ export interface IcebreakerAPI {
    * frame; `t` is seconds × speed. Keep it a pure function of `t`.
    */
   backgrounds: { register(spec: BackgroundSpec): void };
+
+  /**
+   * The music playing on this computer (permission "media"). `status()` is
+   * null when nothing plays; it throws where it isn't supported (browser,
+   * Windows for now). Actions: toggle play pause next prev vol+ vol- vol:<0-100>.
+   */
+  media: { available(): boolean; status(): Promise<MediaStatus | null>; control(action: string): Promise<void> };
 
   /** Small JSON key/value store private to this plugin (.icebreaker/plugin-data/<id>.json). */
   storage: {
