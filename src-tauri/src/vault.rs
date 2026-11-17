@@ -101,10 +101,17 @@ pub fn vault_default_path(app: AppHandle) -> CmdResult<String> {
     Ok(docs.join("Icebreaker").to_string_lossy().into_owned())
 }
 
-/// Use `path` as the vault (created if it doesn't exist).
+/// Use `path` as the vault (created if it doesn't exist). `~` means the home folder.
 #[tauri::command]
-pub fn vault_mount(state: State<VaultState>, path: String) -> CmdResult<String> {
-    let dir = PathBuf::from(&path);
+pub fn vault_mount(app: AppHandle, state: State<VaultState>, path: String) -> CmdResult<String> {
+    let path = path.trim().trim_matches('"').to_string();
+    let dir = match path.strip_prefix('~') {
+        Some(rest) => {
+            let home = app.path().home_dir().map_err(|e| e.to_string())?;
+            home.join(rest.trim_start_matches(['/', '\\']))
+        }
+        None => PathBuf::from(&path),
+    };
     fs::create_dir_all(&dir).map_err(|e| format!("cannot create vault at {path}: {e}"))?;
     let dir = dir.canonicalize().map(strip_verbatim).unwrap_or(dir);
     *state.root.lock().map_err(|e| e.to_string())? = Some(dir.clone());
