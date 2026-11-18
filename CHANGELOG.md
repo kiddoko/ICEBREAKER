@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Everything is a module: NEXUS, UPLINK, JOURNAL, SYSMON, THEME STUDIO, VOICE,
+  NEWS, WEATHER, CLOCKS, FOCUS, CHECKBOXES, MOON, MATRIX, QUOTES join the
+  bundled CALENDAR, MUSIC, TODO, LINGO — switch off, remove, reinstall.
+- MODULES is a pseudo-3D hive of every module.
+- Windows: PowerShell 7 or Windows PowerShell in the shell panel with your
+  profile (oh-my-posh…) and ICEBREAKER's commands; the system media controls
+  for the music widget. fish gets the bridge too. Linux CI builds with ALSA.
+- Pop-ups block clicks behind them; a failing neural voice falls back.
+
 - STORE: modules and themes from GitHub and your own sources (https, or http
   on your local network); install, enable, update, remove; `store`.
 - NEXUS: new note / folder, search the vault, rename, trash, sort, actions menu.

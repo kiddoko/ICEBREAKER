@@ -11,6 +11,17 @@ A plugin is a folder in your vault:
 Fastest start: run `plugin new hello` in the shell — it writes both files and
 opens `main.js`. Edit, save, `plugin reload`.
 
+## Everything is a module
+
+Only the frame is core: HOME, notes and the editor, the file tree, the shell,
+settings, setup and the STORE. Everything else is a module — the ones that ship
+with the deck too (`plugins/core-packages.ts` packages the features written in
+the core; `/plugins` holds the bundled plugins). They all go through the same
+host: `plugin enable / disable`, `store remove / install`. Your module can be
+an app, a command, a widget, a theme background, or one small tweak: set
+`"launcher": false` in `plugin.json` to keep a widget-only module out of the
+MODULES hive, and `"icon"` to give it a glyph there.
+
 ## plugin.json
 
 ```json

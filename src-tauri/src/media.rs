@@ -4,7 +4,9 @@
 //! that are already running are asked, so nothing gets launched and there's
 //! no "where is Spotify?" dialog. The first time, macOS asks whether
 //! ICEBREAKER may control them (System Settings → Privacy → Automation).
-//! Linux: playerctl (MPRIS: Spotify, VLC, browsers, mpv…). Windows: not yet.
+//! Linux: playerctl (MPRIS: Spotify, VLC, browsers, mpv…).
+//! Windows: the system media controls (whatever shows in the volume flyout:
+//! Spotify, browsers, the Media Player…) through Windows PowerShell + WinRT.
 
 use serde::Serialize;
 use std::process::Command;
@@ -153,8 +155,69 @@ pub fn media_status() -> Result<Option<MediaStatus>, String> {
     return mac_status();
     #[cfg(target_os = "linux")]
     return linux_status();
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    #[cfg(windows)]
+    return win_status();
+    #[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
     Err("music control isn't available on this system yet".into())
+}
+
+// ── Windows: GlobalSystemMediaTransportControlsSessionManager (WinRT), from
+//    Windows PowerShell 5.1 (pwsh 7 has no WinRT projection) ──
+#[cfg(windows)]
+const WIN_PRELUDE: &str = r#"
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Runtime.WindowsRuntime
+$asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' })[0]
+function Await($op, $type) { $t = $asTask.MakeGenericMethod($type).Invoke($null, @($op)); $t.Wait(-1) | Out-Null; $t.Result }
+[void][Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType = WindowsRuntime]
+$mgr = Await ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
+$s = $mgr.GetCurrentSession()
+"#;
+
+#[cfg(windows)]
+fn win_ps(script: &str) -> Result<String, String> {
+    run(Command::new("powershell.exe").args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &format!("{WIN_PRELUDE}\n{script}")]))
+}
+
+#[cfg(windows)]
+fn win_status() -> Result<Option<MediaStatus>, String> {
+    let out = win_ps(r#"
+if (-not $s) { 'none'; exit }
+$p = Await ($s.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
+$i = $s.GetPlaybackInfo(); $tl = $s.GetTimelineProperties()
+"$($s.SourceAppUserModelId)`t$($i.PlaybackStatus -eq 'Playing')`t$($p.Title)`t$($p.Artist)`t$($p.AlbumTitle)`t$($tl.Position.TotalSeconds)`t$($tl.EndTime.TotalSeconds)"
+"#)?;
+    let line = out.trim();
+    if line.is_empty() || line == "none" {
+        return Ok(None);
+    }
+    let f: Vec<&str> = line.split('\t').collect();
+    if f.len() < 7 {
+        return Ok(None);
+    }
+    let player = f[0].split(['!', '.']).find(|x| !x.is_empty() && !x.chars().all(|c| c.is_ascii_hexdigit())).unwrap_or(f[0]).to_string();
+    Ok(Some(MediaStatus { player, playing: f[1].eq_ignore_ascii_case("true"), title: f[2].into(), artist: f[3].into(), album: f[4].into(), position: num(f[5]), duration: num(f[6]), volume: None }))
+}
+
+#[cfg(windows)]
+fn win_control(action: &str) -> Result<(), String> {
+    // volume: the system's own volume keys (VK_VOLUME_UP / DOWN)
+    if action == "vol+" || action == "vol-" {
+        let key = if action == "vol+" { 175 } else { 174 };
+        run(Command::new("powershell.exe").args(["-NoProfile", "-Command", &format!("$w = New-Object -ComObject WScript.Shell; 1..5 | ForEach-Object {{ $w.SendKeys([char]{key}) }}")]))?;
+        return Ok(());
+    }
+    let call = match action {
+        "toggle" => "TryTogglePlayPauseAsync",
+        "play" => "TryPlayAsync",
+        "pause" => "TryPauseAsync",
+        "next" => "TrySkipNextAsync",
+        "prev" => "TrySkipPreviousAsync",
+        a if a.starts_with("vol:") => return Err("on Windows: music vol + / - (the system volume)".into()),
+        other => return Err(format!("unknown action {other}")),
+    };
+    win_ps(&format!("if (-not $s) {{ exit }}\n[void](Await ($s.{call}()) ([bool]))"))?;
+    Ok(())
 }
 
 /// toggle · play · pause · next · prev · vol+ · vol- · vol:<0-100>
@@ -164,7 +227,9 @@ pub fn media_control(action: String) -> Result<(), String> {
     return mac_control(&action);
     #[cfg(target_os = "linux")]
     return linux_control(&action);
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    #[cfg(windows)]
+    return win_control(&action);
+    #[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
     {
         let _ = action;
         Err("music control isn't available on this system yet".into())
