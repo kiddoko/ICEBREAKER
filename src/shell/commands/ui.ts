@@ -229,9 +229,9 @@ const explore: Command = {
 const termCmd: Command = {
   name: "term",
   summary: "the shell panel: your terminals, ibsh, history; a terminal in the main window",
-  usage: "term            your system terminal (zsh, bash…)\nterm new        another terminal tab (+ on the panel)\nterm close [n]  close one (× on the panel)\nterm rename [n] <name>   rename one (right-click on its tab)\nterm <n>        go to terminal n\nterm open       a terminal in the main window (a tab of its own)\nterm hide       fold the shell panel away (term show, ctrl+`)\nterm max        big shell, the page goes below (again: back)\nterm ibsh       ICEBREAKER's shell\nterm history    what clicks ran\nterm restart    a fresh system shell\nterm mode system|ibsh   which one the panel uses",
+  usage: "term            your system terminal (zsh, bash…)\nterm new        another terminal tab (+ on the panel)\nterm close [n]  close one (× on the panel)\nterm rename [n] <name>   rename one (right-click on its tab)\nterm <n>        go to terminal n\nterm open       a terminal in the main window (a tab of its own)\nterm hide       fold the shell panel away (term show, ctrl+`)\nterm max        the shell becomes a big tab after the others (⤢)\nterm dock       a terminal tab goes back to the panel\nterm ibsh       ICEBREAKER's shell\nterm history    what clicks ran\nterm restart    a fresh system shell\nterm mode system|ibsh   which one the panel uses",
   examples: [["term", "jump to your real terminal"], ["term new", "a second terminal"], ["term open", "a terminal as a big tab"], ["term hide", "fold the panel away"]],
-  complete: () => ["new", "close", "rename", "open", "hide", "show", "max", "ibsh", "history", "restart", "mode"],
+  complete: () => ["new", "close", "rename", "open", "dock", "hide", "show", "max", "ibsh", "history", "restart", "mode"],
   run(ctx) {
     const d = ctx.deck;
     const ws = d.workspace;
@@ -244,6 +244,7 @@ const termCmd: Command = {
     if (a === "hide") return (ws.shellVisible = false), (ws.focus = "main"), 0;
     if (a === "show") return ws.showShellTab(ws.shellTab), 0;
     if (a === "max") return ws.toggleShellMax(), 0;
+    if (a === "dock") return ws.dockTerminal(), 0;
     if (a === "open") return void d.openApp("terminal", { fresh: true }), 0;
     if (!d.platform.pty) return ctx.err("term: needs the desktop app\n"), 1;
     if (!ws.termAvailable && a !== "ibsh" && a !== "history") return ctx.err("term: the panel is in ibsh mode (term mode system)\n"), 1;

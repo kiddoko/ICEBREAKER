@@ -17,15 +17,17 @@ export class TerminalApp implements App {
   readonly key: string;
   readonly term: SystemTerminal;
 
-  constructor(deck: Deck) {
+  /** moved back to the shell panel: closing the tab must not kill it */
+  docked = false;
+  constructor(deck: Deck, term?: SystemTerminal) {
     this.key = `terminal:${++opened}`;
-    this.term = new SystemTerminal(deck);
+    this.term = term ?? new SystemTerminal(deck);
   }
   title(): string {
     return this.term.name;
   }
   status(): string {
-    return "ctrl = Control · ⌘ shortcuts stay the deck's · ⌘W closes the tab (and its shell)";
+    return "ctrl = Control · ⌘ shortcuts stay the deck's · ⌘W closes it (and its shell) · term dock puts it back in the panel";
   }
   onKey(k: KeyInput): boolean {
     return this.term.onKey(k);
@@ -37,7 +39,7 @@ export class TerminalApp implements App {
     return this.term.onAction(a);
   }
   close(): boolean {
-    this.term.dispose();
+    if (!this.docked) this.term.dispose();
     return true;
   }
   render(ui: UI, r: Rect, focused: boolean): void {
@@ -52,3 +54,28 @@ export const terminalSpec: AppSpec = {
   icon: "❯",
   create: (deck) => new TerminalApp(deck),
 };
+
+/** ibsh as a big tab (⤢ maximize on the ibsh panel tab). */
+export class IbshApp implements App {
+  readonly kind = "ibsh";
+  readonly key = "ibsh";
+  constructor(private readonly deck: Deck) {}
+  title(): string {
+    return "ibsh";
+  }
+  status(): string {
+    return `${this.deck.shell.status()} · term dock: back to the panel`;
+  }
+  onKey(k: KeyInput): boolean {
+    return this.deck.shell.onKey(k);
+  }
+  onText(t: string): boolean {
+    return this.deck.shell.onText(t);
+  }
+  onAction(a: Action): boolean {
+    return this.deck.shell.onAction(a);
+  }
+  render(ui: UI, r: Rect, focused: boolean): void {
+    this.deck.shell.render(ui, r, focused);
+  }
+}

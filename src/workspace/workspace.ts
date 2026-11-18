@@ -1,4 +1,4 @@
-import { TerminalApp } from "../apps/terminal";
+import { IbshApp, TerminalApp } from "../apps/terminal";
 import { t } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC, type Action, type ActionSource, type KeyInput, type MouseInput } from "../core/input";
@@ -84,9 +84,30 @@ export class Workspace {
   /** The shell takes the big area; the active page moves to the strip below. */
   shellMax = false;
 
-  toggleShellMax(on = !this.shellMax): void {
-    this.shellMax = on;
-    if (on) this.showShellTab(this.shellTab);
+  /**
+   * ⤢ maximize: the shell shown in the panel becomes a big tab after the
+   * others (the page you were on stays a tab); the panel folds away. `term dock`
+   * (or ⤓ in its status) puts a terminal back in the panel.
+   */
+  toggleShellMax(): void {
+    if (this.shellTab === "term" && this.termAvailable && this.terms.length) {
+      const [tm] = this.terms.splice(this.termIndex, 1);
+      this.termIndex = Math.max(0, Math.min(this.termIndex, this.terms.length - 1));
+      this.open(new TerminalApp(this.deck, tm));
+    } else this.open(new IbshApp(this.deck));
+    this.shellVisible = false;
+    this.focus = "main";
+  }
+
+  /** A terminal tab goes back to the shell panel (same session). */
+  dockTerminal(): void {
+    const app = this.activeApp;
+    if (app instanceof TerminalApp) {
+      app.docked = true;
+      this.terms.push(app.term);
+      this.termIndex = this.terms.length - 1;
+      void this.closeTab().then(() => this.showShellTab("term"));
+    } else if (app instanceof IbshApp) void this.closeTab().then(() => this.showShellTab("ibsh"));
   }
 
   /** Type a macro into the system terminal (asking for its {blanks} first). */
@@ -575,10 +596,10 @@ export class Workspace {
       ui.hit(hr, { cmd: "term hide", tip: "fold the shell away · ctrl+` brings it back" });
       tx += hr.w + 1;
       // ⤢ maximize / ⤡ restore: drawn like the tabs next to it
-      const mlabel = max ? ` ⤡ ${t("restore")} ` : ` ⤢ ${t("maximize")} `;
+      const mlabel = ` ⤢ ${t("maximize")} `;
       const mx = { x: tx, y: r.y, w: strWidth(mlabel), h: 1 };
       ui.text(mx.x, r.y, mlabel, { fg: ui.hovered(mx) ? c.accent : c.title, bg: c.panel });
-      ui.hit(mx, { cmd: "term max", tip: max ? "back to normal" : "make the shell big (the page moves below)" });
+      ui.hit(mx, { cmd: "term max", tip: "this shell becomes a big tab (term dock puts it back)" });
       tx += mx.w + 1;
       // macro bar above the system terminal (one free row under the tabs)
       let termR = si;
