@@ -101,7 +101,7 @@ body {
    mixes badly with the glow's blend mode and lets colour through */
 #deck.monochrome {
   /* greys, then a little warmth back so paper stays cream */
-  filter: grayscale(1) sepia(0.32) brightness(0.98);
+  filter: grayscale(1) sepia(0.32) brightness(0.97) contrast(1.04);
 }
 
 #deck.flicker {

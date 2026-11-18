@@ -61,6 +61,8 @@ export interface ThemeAnim {
   page: string;
   /** Characters that just changed (typing, new output): none · ink (they settle in, like e-ink) · glow (they flash). */
   type: string;
+  /** The screensaver: city (neon night) · paper (an e-reader's sleep screen). */
+  screensaver: string;
 }
 
 /**
@@ -217,6 +219,7 @@ export function parseTheme(source: string, base: Theme | null, origin: Theme["so
       noise: typeof ((doc.anim ?? {}) as Table).noise === "string" && ((doc.anim ?? {}) as Table).noise ? String(((doc.anim ?? {}) as Table).noise) : base?.anim.noise ?? DEFAULT_NOISE,
       page: typeof ((doc.anim ?? {}) as Table).page === "string" ? String(((doc.anim ?? {}) as Table).page) : base?.anim.page ?? "glitch",
       type: typeof ((doc.anim ?? {}) as Table).type === "string" ? String(((doc.anim ?? {}) as Table).type) : base?.anim.type ?? "none",
+      screensaver: typeof ((doc.anim ?? {}) as Table).screensaver === "string" ? String(((doc.anim ?? {}) as Table).screensaver) : base?.anim.screensaver ?? "city",
     },
     extends: typeof meta.extends === "string" ? meta.extends : undefined,
     source: origin,

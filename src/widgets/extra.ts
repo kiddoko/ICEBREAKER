@@ -91,7 +91,14 @@ const focusWidget: WidgetSpec = {
       matrixText(ui, x, y, t, k, () => (flash ? c.fg : col));
       ui.bar(x, y + d.h, d.w, 1 - focus.left / total, col, c.faint);
       ui.textCenter(r, y + d.h + 1, label, { fg: focus.running ? col : c.subtle });
-    } else ui.textCenter(r, r.y, `${label} ${t}`, { fg: col, attrs: BOLD });
+    } else {
+      // tiny (2×2): the time, what it's doing, a thin bar
+      const lines = Math.min(3, r.h);
+      const y = r.y + Math.max(0, Math.floor((r.h - lines) / 2));
+      ui.textCenter(r, y, t, { fg: flash ? c.fg : col, attrs: BOLD });
+      if (lines >= 2) ui.textCenter(r, y + 1, label, { fg: focus.running ? col : c.subtle });
+      if (lines >= 3 && r.w > 4) ui.bar(r.x + 1, y + 2, r.w - 2, 1 - focus.left / total, col, c.faint);
+    }
   },
 };
 

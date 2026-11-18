@@ -44,6 +44,15 @@ export class DeckVoice {
     if (!info.system) throw new Error("no voice on this system — voice install");
     if (v.name && !info.piper_voices.includes(v.name)) return { engine: "system", voice: v.name };
     this.systemVoice[lang] ??= pickSystemVoice(await this.deck.platform.voice!.list("system").catch(() => []), lang);
+    // no Japanese voice installed (common on Windows): say how to get one instead of reading it with an English voice
+    if (!this.systemVoice[lang] && lang === "ja") {
+      delete this.systemVoice[lang];
+      throw new Error(
+        /Win/.test(navigator.userAgent)
+          ? "no Japanese voice on this PC — Settings → Time & language → Speech → Add voices → Japanese (Haruka), then restart ICEBREAKER"
+          : "no Japanese voice on this computer — System Settings → Accessibility → Spoken Content → System voice → Manage voices → Kyoko",
+      );
+    }
     return { engine: "system", voice: this.systemVoice[lang] };
   }
   private systemVoice: Record<string, string> = {};

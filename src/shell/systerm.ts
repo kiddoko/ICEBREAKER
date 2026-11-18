@@ -47,6 +47,12 @@ export class SystemTerminal {
     const n = ++SystemTerminal.count;
     this.name = n === 1 ? "icbrkr_trm" : `icbrkr_trm${n}`;
     this.term = new Terminal({ cols: 80, rows: 24, scrollback: 5000, allowProposedApi: true });
+    // The terminal's own answers (cursor position, device attributes…) go back to
+    // the shell. Windows' ConPTY asks where the cursor is at start-up and shows
+    // nothing until it hears back: without this, PowerShell stayed blank.
+    this.term.onData((d) => {
+      if (this.alive) void this.deck.platform.pty?.write(this.id, d);
+    });
   }
 
   get alive(): boolean {

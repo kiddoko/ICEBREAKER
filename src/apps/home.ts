@@ -1,4 +1,5 @@
 import { t } from "../core/i18n";
+import { strWidth } from "../core/unicode";
 import { mix } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
@@ -50,7 +51,7 @@ export class HomeApp implements App {
 
   status(): string {
     return this.editing
-      ? t("EDIT · arrows move · shift+arrows resize · a add · x remove · r reset · esc done")
+      ? t("EDIT · arrows move · shift+arrows grow · alt+shift+arrows shrink · a add · x remove · r reset · esc done")
       : t("←↑↓→ select · enter open · [ ] pages · e edit layout · m modules · ctrl+k everything else");
   }
 
@@ -89,6 +90,8 @@ export class HomeApp implements App {
 
   /** Size a widget would like to have while it's moved around (its size before it had to shrink). */
   private want: { i: number; w: number; h: number } | null = null;
+  /** screen lines per grid row (ROW at least; more when the page has room) */
+  private rowH = ROW;
 
   /** Biggest size ≤ the wanted one (≥ the widget's minimum) that fits at (x, y), or null. */
   private fitAt(layout: WidgetPlacement[], i: number, x: number, y: number): WidgetPlacement | null {
@@ -159,7 +162,7 @@ export class HomeApp implements App {
     if (!spec || this.layout.some((p) => p.id === id)) return false;
     const layout = this.layout.map((p) => ({ ...p }));
     const bottom = layout.filter((p) => ((p.page ?? 0) === this.page)).reduce((m, p) => Math.max(m, p.y + p.h), 0);
-    const visible = Math.max(1, Math.floor(this.areaH / ROW));
+    const visible = Math.max(1, Math.floor(this.areaH / this.rowH));
     const sizes: [number, number][] = [];
     const min = spec.min ?? { w: 1, h: 1 };
     // shrink a little to fit on screen, never down to a useless sliver
@@ -336,10 +339,15 @@ export class HomeApp implements App {
       case "right": this.move(i, 1, 0); return true;
       case "up": this.move(i, 0, -1); return true;
       case "down": this.move(i, 0, 1); return true;
-      case "shift+left": this.change(i, (p) => ({ ...p, w: p.w - 1 })); return true;
+      // shift+arrow: that side grows outward · alt+shift+arrow: that side comes back in
+      case "shift+left": this.change(i, (p) => ({ ...p, x: p.x - 1, w: p.w + 1 })); return true;
       case "shift+right": this.change(i, (p) => ({ ...p, w: p.w + 1 })); return true;
-      case "shift+up": this.change(i, (p) => ({ ...p, h: p.h - 1 })); return true;
+      case "shift+up": this.change(i, (p) => ({ ...p, y: p.y - 1, h: p.h + 1 })); return true;
       case "shift+down": this.change(i, (p) => ({ ...p, h: p.h + 1 })); return true;
+      case "alt+shift+left": this.change(i, (p) => ({ ...p, x: p.x + 1, w: p.w - 1 })); return true;
+      case "alt+shift+right": this.change(i, (p) => ({ ...p, w: p.w - 1 })); return true;
+      case "alt+shift+up": this.change(i, (p) => ({ ...p, y: p.y + 1, h: p.h - 1 })); return true;
+      case "alt+shift+down": this.change(i, (p) => ({ ...p, h: p.h - 1 })); return true;
       case "tab": this.selected = (this.selected + 1) % Math.max(1, this.layout.length); return true;
       case "a": void this.add(); return true;
       case "x": case "delete": case "backspace": this.remove(i); return true;
@@ -378,13 +386,18 @@ export class HomeApp implements App {
     this.origin = { x: area.x, y: area.y };
     const colX = (n: number) => this.origin.x + Math.round(n * this.colW);
     this.areaH = area.h;
-    const contentH = (this.editing ? this.layout : this.compact(this.layout)).filter((p) => ((p.page ?? 0) === this.page)).reduce((m, p) => Math.max(m, (p.y + p.h) * ROW - 1), 0); // the last row is a gap, not content
+    // Rows stretch to fill the page (themes have different font sizes, so a fixed
+    // row height left half the screen empty on one and overflowed on another);
+    // the same in and out of edit mode. Too much to fit: 2 lines a row, and it scrolls.
+    const used = this.compact(this.layout).filter((p) => (p.page ?? 0) === this.page && this.deck.widgets.get(p.id)).reduce((m, p) => Math.max(m, p.y + p.h), 0);
+    this.rowH = used ? Math.max(ROW, Math.min(4, (area.h + 1) / used)) : ROW;
+    const contentH = (this.editing ? this.layout : this.compact(this.layout)).filter((p) => ((p.page ?? 0) === this.page)).reduce((m, p) => Math.max(m, Math.round((p.y + p.h) * this.rowH) - 1), 0); // the last row is a gap, not content
     const maxScroll = Math.max(0, contentH - area.h);
     // widgets sit where they were placed: top-left, the same in and out of edit mode
     if (this.reveal) {
       const p = (this.editing ? this.layout : this.compact(this.layout))[this.selected];
       if (p) {
-        const top = p.y * ROW, bot = (p.y + p.h) * ROW - 1;
+        const top = Math.round(p.y * this.rowH), bot = Math.round((p.y + p.h) * this.rowH) - 1;
         if (top < this.scroll) this.scroll = top;
         else if (bot > this.scroll + area.h) this.scroll = bot - area.h + 1;
       }
@@ -393,16 +406,16 @@ export class HomeApp implements App {
     this.scroll = Math.max(0, Math.min(maxScroll, this.scroll));
     const toRect = (p: WidgetPlacement): Rect => ({
       x: colX(p.x),
-      y: this.origin.y + p.y * ROW - this.scroll,
+      y: this.origin.y + Math.round(p.y * this.rowH) - this.scroll,
       w: colX(p.x + p.w) - colX(p.x) - 1,
-      h: p.h * ROW - 1,
+      h: Math.round((p.y + p.h) * this.rowH) - Math.round(p.y * this.rowH) - 1,
     });
     ui.hit(area, { onWheel: (d) => (this.scroll = Math.max(0, Math.min(maxScroll, this.scroll + d))) });
 
     if (this.editing) {
       // grid dots so you can see where things snap
-      for (let gy = 0; this.origin.y + gy * ROW < r.y + r.h; gy++)
-        for (let gx = 0; gx <= COLS; gx++) ui.text(colX(gx) - (gx ? 1 : 0), this.origin.y + gy * ROW, "·", { fg: c.faint });
+      for (let gy = 0; this.origin.y + Math.round(gy * this.rowH) < r.y + r.h; gy++)
+        for (let gx = 0; gx <= COLS; gx++) ui.text(colX(gx) - (gx ? 1 : 0), this.origin.y + Math.round(gy * this.rowH), "·", { fg: c.faint });
     }
 
     if (!this.placed().length) {
@@ -431,13 +444,13 @@ export class HomeApp implements App {
           const d = this.drag;
           if (!this.editing || !d || d.index !== i) return;
           const nx = Math.round((m.x - this.origin.x - d.dx) / this.colW);
-          const ny = Math.round((m.y - this.origin.y - d.dy + this.scroll) / ROW);
+          const ny = Math.round((m.y - this.origin.y - d.dy + this.scroll) / this.rowH);
           const ww = this.want?.i === i ? this.want.w : p.w;
           this.moveAbs(i, Math.max(0, Math.min(COLS - ww, nx)), Math.max(0, ny));
         },
         onDouble: () => !this.editing && (spec.popup || spec.activate || spec.open) && void this.deck.act(`widget ${p.id}`),
         menu: () => this.widgetMenu(i),
-        tip: this.editing ? "drag to move · shift+arrows resize · x remove" : spec.popup || spec.activate || spec.open ? `${spec.description ?? spec.title}\ndouble-click / enter → widget ${p.id}` : spec.description,
+        tip: this.editing ? "drag to move · shift+arrows grow that side · alt+shift shrinks · x remove" : spec.popup || spec.activate || spec.open ? `${spec.description ?? spec.title}\ndouble-click / enter → widget ${p.id}` : spec.description,
       };
       // normally the widget's own buttons sit on top of its frame; while editing,
       // the frame covers everything, so a click only selects (and drags)
@@ -447,6 +460,11 @@ export class HomeApp implements App {
           spec.render(ui, inner, { deck: this.deck, focused: sel });
         } catch (e) {
           ui.text(inner.x, inner.y, `⚠ ${e instanceof Error ? e.message : e}`, { fg: c.error }, inner.w);
+        }
+        // too small to draw anything: show its name, so it never just vanishes
+        if (inner.w > 0 && inner.h > 0 && blank(ui, inner)) {
+          ui.textCenter(inner, inner.y + Math.floor((inner.h - 1) / 2), spec.title, { fg: c.subtle });
+          if (inner.h > 2) ui.textCenter(inner, inner.y + Math.floor((inner.h - 1) / 2) + 1, t("bigger: e, shift+arrows"), { fg: c.faint });
         }
       });
       if (this.editing) ui.hit(rect, frameHit);
@@ -471,7 +489,18 @@ export class HomeApp implements App {
         px += label.length + 1;
       }
     }
-    if (this.editing) ui.textRight(r.x + r.w - 1, r.y, " EDIT LAYOUT ", { fg: c.panel, bg: c.accent, attrs: BOLD });
+    if (this.editing) {
+      // impossible to miss: a band across the top, gently pulsing, with a way out
+      const band = { x: r.x, y: r.y, w: r.w, h: 1 };
+      const pulse = 0.75 + 0.25 * Math.sin(ui.now / 400);
+      ui.fill(band, { bg: mix(c.bg, c.accent, pulse) });
+      ui.text(r.x + 1, r.y, ` ✎ ${t("EDIT MODE")} · ${t("drag to move · shift+arrows grow · alt+shift+arrows shrink · a add · x remove")}`, { fg: c.panel, bg: mix(c.bg, c.accent, pulse), attrs: BOLD }, r.w - 12);
+      const done = ` ✓ ${t("done")} `;
+      const dr = { x: r.x + r.w - strWidth(done) - 1, y: r.y, w: strWidth(done), h: 1 };
+      ui.text(dr.x, dr.y, done, { fg: ui.hovered(dr) ? c.accent : c.fg, bg: ui.hovered(dr) ? c.panel : c.panelAlt, attrs: BOLD });
+      ui.hit(dr, { cmd: "home done", tip: "esc · e" });
+      ui.animate(60);
+    }
   }
 }
 
@@ -554,3 +583,14 @@ export const homeSpec: AppSpec = {
   title: "Home",
   create: (deck) => new HomeApp(deck),
 };
+
+/** Did nothing get drawn in r (only spaces)? */
+function blank(ui: UI, r: Rect): boolean {
+  const g = ui.grid;
+  for (let y = Math.max(0, r.y); y < Math.min(g.rows, r.y + r.h); y++)
+    for (let x = Math.max(0, r.x); x < Math.min(g.cols, r.x + r.w); x++) {
+      const ch = g.ch[y * g.cols + x];
+      if (ch && ch !== 32) return false;
+    }
+  return true;
+}

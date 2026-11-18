@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- e-ink: matte old-cream paper, darker ink (never pure black), more contrast;
+  colour tags written as words (greys can't show colours); its own screensaver,
+  an e-reader sleep screen (an engraved moon and hills, the time, redrawn once a
+  minute). Themes pick their screensaver with `[anim] screensaver = "city" | "paper"`.
+- New theme e-ink-night: e-ink's dark mode with its own greys (cream ink on
+  charcoal), not just e-ink inverted.
+- HOME edit mode can't be missed: a pulsing band across the top with the keys and
+  a ✓ done button. Widgets grow in any direction: shift+arrow pushes that side
+  out, alt+shift+arrow brings it back. FOCUS has a compact 2×2 look.
+- HOME rows stretch to fill the page (each theme's font size used to leave it
+  half empty or overflowing); a widget too small to draw anything shows its name.
+- Windows: PowerShell no longer stays blank (the terminal now answers ConPTY's
+  start-up cursor query); the boot sound plays without a click first (WebView2
+  autoplay); Japanese voice: a clear message when Windows has no Japanese voice.
+
 - Tabs: ⇧Esc (or ⌘W) closes a tab and shows the one before it; a stray Esc never
   closes one any more. 1…9 switch tabs when you're not typing. NEXUS, STORE,
   MODULES and settings open without a tab (their button lights up; Esc closes them).

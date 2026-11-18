@@ -107,7 +107,7 @@ Widgets on a 12-column grid, several pages (\`[\` \`]\`).
 |---|---|
 | ←↑↓→ / Tab | choose a widget |
 | enter | open its pop-up (bigger, usable) |
-| e | edit: arrows move, shift+arrows resize, **a** add, **x** remove |
+| e | edit: arrows move, shift+arrows grow that side (alt+shift shrinks), **a** add, **x** remove |
 | m | MODULES |
 
 Widgets rise to the top on their own; holes close up.

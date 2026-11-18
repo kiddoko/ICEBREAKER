@@ -10,13 +10,14 @@ border = "single"
 widget_frame = "line"     # widgets get a rule on top, no box
 
 [palette]
-paper    = "#d9d3c3"
-paper2   = "#cfc9b8"
-rule     = "#bdb7a6"
-grey3    = "#99937f"
-grey2    = "#6f6a5c"
-grey1    = "#4a463d"
-ink      = "#262420"
+# old cream paper, matte (less bright than white), and a dark ink that is never pure black
+paper    = "#cdc3aa"
+paper2   = "#c3b89e"
+rule     = "#ada286"
+grey3    = "#857b65"
+grey2    = "#5a5243"
+grey1    = "#3a342a"
+ink      = "#1d1915"
 
 [ui]
 bg = "paper"
@@ -112,3 +113,4 @@ select = "brackets"
 page = "eink"             # black / white refresh flash, then the ink settles
 type = "ink"              # what you type fades in from grey
 noise = "░▒▓"
+screensaver = "paper"     # an e-reader's sleep screen: an engraving and the time, redrawn once a minute

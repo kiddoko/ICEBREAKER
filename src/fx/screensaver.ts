@@ -24,7 +24,89 @@ const TICKER = [
 ];
 const SIGNS = ["ICE", "NOODLES", "ホテル", "BAR", "24H", "NEXUS", "シティ", "OPEN"];
 
+/** The theme picks its screensaver ([anim] screensaver). */
 export function drawScreensaver(ui: UI, r: Rect): void {
+  if (ui.theme.anim.screensaver === "paper") return drawPaper(ui, r);
+  drawCity(ui, r);
+}
+
+const PAPER_LINES = [
+  "the page waits for you",
+  "rest your eyes · the ink keeps your words",
+  "nothing is lost while the deck sleeps",
+  "a quiet screen is a full battery",
+  "come back when the kettle sings",
+];
+
+/**
+ * e-ink's sleep screen, like an e-reader: an engraving of a moon over hills in
+ * shades of ink, the time and the date, a line of text. It changes once a
+ * minute (with the theme's page flash), never in between: e-paper holds still.
+ */
+function drawPaper(ui: UI, r: Rect): void {
+  const c = ui.c;
+  const now = new Date();
+  ui.fill(r, { bg: c.bg });
+  // a thin double frame, like a book plate
+  const m = Math.max(1, Math.floor(Math.min(r.w, r.h) * 0.06));
+  const f = { x: r.x + m * 2, y: r.y + m, w: r.w - m * 4, h: r.h - m * 2 };
+  if (f.w > 20 && f.h > 10) {
+    ui.box(f, { border: "single", bg: c.bg, fill: false });
+    ui.box({ x: f.x + 1, y: f.y + 1, w: f.w - 2, h: f.h - 2 }, { border: "single", bg: c.bg, fill: false });
+  }
+  const art = { x: f.x + 3, y: f.y + 2, w: f.w - 6, h: Math.floor((f.h - 4) * 0.48) };
+  // light shades only: an engraving, not a wall of blocks
+  const shade = ["", "·", "∙", "░", "▒", "▓"];
+  const ink = (k: number) => mix(c.bg, c.fg, 0.18 + k * 0.62);
+  const seed = now.getHours() * 60 + now.getMinutes();
+  // the moon: a crescent (the lit disc minus a shifted shadow disc), somewhere new each minute
+  const mx = art.x + art.w * (0.22 + rnd(seed, 1) * 0.56), my = art.y + art.h * 0.3;
+  const rad = Math.max(2, Math.min(art.h * 0.24, art.w * 0.1));
+  const ridge = (fx: number, base: number, amp: number, f1: number, f2: number, ph: number) =>
+    art.y + art.h * (base + amp * Math.sin(fx * f1 + ph) + amp * 0.45 * Math.sin(fx * f2 + ph * 1.7));
+  for (let y = art.y; y < art.y + art.h; y++) {
+    for (let x = art.x; x < art.x + art.w; x++) {
+      const fx = (x - art.x) / art.w;
+      const n = rnd(x, y);
+      // three hills, far → near: lighter and sparser far away, denser in front
+      const far = ridge(fx, 0.5, 0.16, 3, 8, seed * 0.13);
+      const mid = ridge(fx, 0.68, 0.12, 5, 12, 2 + seed * 0.07);
+      const near = ridge(fx, 0.84, 0.08, 7, 17, 4.1);
+      let k = 0;
+      if (y >= near) k = n > 0.2 ? 3 : 2;
+      else if (y >= mid) k = n > 0.5 ? 2 : 1;
+      else if (y >= far) k = n > 0.55 ? 1 : 0;
+      else {
+        const dx = (x - mx) * ui.cellAspect, dy = y - my; // columns → rows: a round moon
+        const lit = Math.hypot(dx, dy) < rad;
+        const shadow = Math.hypot(dx - rad * 0.55, dy - rad * 0.15) < rad * 0.95;
+        if (lit && !shadow) k = 4;
+        else if (lit) k = n > 0.55 ? 1 : 0; // the dark part, barely there
+        else if (Math.hypot(dx, dy) < rad * 1.7 && n > 0.93) k = 1; // halo
+        else if (rnd(x * 3, y * 7) > 0.988) k = 2; // a star
+      }
+      if (k > 0) ui.text(x, y, shade[k], { fg: ink(k / 5) });
+    }
+  }
+  ui.hline(art.x, art.y + art.h, art.w, { fg: ink(0.6) }, "─");
+  // the time, big, and the date
+  const time = now.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  const below = art.y + art.h + 1;
+  const kk = fitMatrix(time, Math.floor(f.w * 0.6), Math.max(3, f.y + f.h - below - 6), 3);
+  let ty = below;
+  if (kk) {
+    const sz = matrixSize(time, kk);
+    matrixText(ui, r.x + Math.floor((r.w - sz.w) / 2), ty, time, kk, () => c.fg);
+    ty += sz.h + 1;
+  } else ui.textCenter(r, ty++, time, { fg: c.fg, attrs: BOLD });
+  ui.textCenter(r, ty, now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }), { fg: c.muted });
+  ui.textCenter(r, ty + 2, `— ${PAPER_LINES[seed % PAPER_LINES.length]} —`, { fg: c.subtle });
+  ui.textCenter(r, f.y + f.h - 2, "ICEBREAKER · asleep · any key", { fg: c.faint });
+  // next change: the next minute
+  ui.animate(60_000 - (now.getSeconds() * 1000 + now.getMilliseconds()) + 30);
+}
+
+function drawCity(ui: UI, r: Rect): void {
   const c = ui.c;
   const t = ui.now / 1000;
   ui.fill(r, { bg: c.bg });

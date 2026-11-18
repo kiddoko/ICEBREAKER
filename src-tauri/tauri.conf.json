@@ -19,7 +19,8 @@
         "minWidth": 640,
         "minHeight": 400,
         "backgroundColor": "#0b0b12",
-        "center": true
+        "center": true,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required"
       }
     ],
     "security": {

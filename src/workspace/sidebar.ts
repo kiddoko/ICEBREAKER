@@ -1,4 +1,5 @@
 import { q, type MenuEntry } from "../ui/ui";
+import { strWidth } from "../core/unicode";
 import { copyToClipboard } from "../core/clipboard";
 import { t } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
@@ -251,7 +252,28 @@ export class Sidebar {
     // (click = see only that colour)
     const counts = this.deck.marks.counts();
     let dx = r.x + 1;
-    for (const tc of TAG_NAMES) {
+    let tagRows = 1;
+    // greys-only themes (e-ink): colours can't be told apart, so they're written
+    // (3 letters: rou/ros, ver/vio stay distinct), on two lines if the tree is narrow
+    if (ui.theme.fx.monochrome) {
+      let ty = r.y + 1;
+      for (const tc of TAG_NAMES) {
+        const label = t(tc).slice(0, 3);
+        const w = strWidth(label);
+        if (dx + w > r.x + r.w - 1) {
+          if (tagRows >= 2) break;
+          tagRows++;
+          ty++;
+          dx = r.x + 1;
+        }
+        const on = this.filter === tc;
+        const rect = { x: dx, y: ty, w: w + 1, h: 1 };
+        const hot = ui.hovered(rect);
+        ui.text(dx, ty, label, { fg: on ? c.panel : counts[tc] || hot ? c.fg : c.faint, bg: on ? c.accent : hot ? c.highlight : undefined, attrs: counts[tc] || on ? BOLD : 0 });
+        ui.hit(rect, { cmd: on ? "tag view off" : `tag view ${tc}`, tip: `${t(tc)} · ${counts[tc]}\n${on ? t("click: show everything") : t("click: show only this colour")}` });
+        dx += w + 1;
+      }
+    } else for (const tc of TAG_NAMES) {
       if (dx + 2 > r.x + r.w) break;
       const on = this.filter === tc;
       const n = counts[tc];
@@ -262,14 +284,14 @@ export class Sidebar {
       dx += 2;
     }
     if (this.filter && dx + 4 <= r.x + r.w) {
-      const xr = { x: dx, y: r.y + 1, w: 3, h: 1 };
-      ui.text(dx, r.y + 1, " × ", { fg: ui.hovered(xr) ? c.error : c.subtle });
+      const xr = { x: dx, y: r.y + tagRows, w: 3, h: 1 };
+      ui.text(dx, r.y + tagRows, " × ", { fg: ui.hovered(xr) ? c.error : c.subtle });
       ui.hit(xr, { cmd: "tag view off", tip: t("show everything") });
     }
-    ui.hline(r.x, r.y + 2, r.w, { fg: c.faint }, "┄");
+    ui.hline(r.x, r.y + 1 + tagRows, r.w, { fg: c.faint }, "┄");
     // ★ pinned: notes, folders, modules (p pins the selected entry)
     const favs = favorites(this.deck);
-    let top = r.y + 3;
+    let top = r.y + 2 + tagRows;
     if (favs.length) {
       const shown = favs.slice(0, Math.max(1, Math.min(8, Math.floor(r.h / 3))));
       for (const f of shown) {
@@ -299,6 +321,7 @@ export class Sidebar {
 
     const guide = { fg: mix(c.subtle, c.bg, 0.35) };
     const marks = this.deck.marks;
+    const mono = ui.theme.fx.monochrome;
     this.list.render(ui, list, focused, ({ entry, depth, last, rails, count, flat }, row, selected) => {
       const isOpen = activeKey === `note:${entry.path}`;
       const tag = marks.tagOf(entry.path);
@@ -324,16 +347,19 @@ export class Sidebar {
         x = ui.text(x, row.y, depth > 0 ? "─" : "", guide);
         x = ui.text(x, row.y, opened ? "▾" : "▸", { fg: tint ?? c.accent });
         if (custom) x = ui.text(x, row.y, custom, { fg: tint ?? c.accent });
-        x = ui.text(x, row.y, ` ${entry.name}/`, { fg: c.fg, attrs: BOLD }, row.w - (x - row.x) - 5);
-        if (count !== undefined && row.w - (x - row.x) > 4) ui.textRight(row.x + row.w - 1, row.y, String(count), { fg: selected ? c.subtle : c.faint });
+        const word = mono && tag ? `${t(tag)} ` : "";
+        x = ui.text(x, row.y, ` ${entry.name}/`, { fg: c.fg, attrs: BOLD }, row.w - (x - row.x) - 5 - strWidth(word));
+        if (count !== undefined && row.w - (x - row.x) > 4 + strWidth(word)) ui.textRight(row.x + row.w - 1, row.y, `${word}${count}`, { fg: selected ? c.subtle : c.faint });
       } else {
         const md = entry.name.endsWith(".md");
         x = ui.text(x, row.y, depth > 0 ? "─" : "", guide);
         x = ui.text(x, row.y, custom ?? (md ? (tag ? "●" : " ") : fileIcon(entry.name)), { fg: tint ?? c.accentAlt });
+        const word = mono && tag ? t(tag) : "";
         ui.text(x, row.y, md ? entry.name.replace(/\.md$/, "") : entry.name, {
           fg: isOpen ? c.accentAlt : selected ? c.fg : c.muted,
           attrs: isOpen ? BOLD : 0,
-        }, row.w - (x - row.x) - 1);
+        }, row.w - (x - row.x) - 1 - (word ? strWidth(word) + 1 : 0));
+        if (word) ui.textRight(row.x + row.w - 1, row.y, word, { fg: selected ? c.subtle : c.faint });
         if (isOpen) ui.text(row.x, row.y, "▌", { fg: c.accentAlt });
       }
     });
