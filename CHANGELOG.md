@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- CLOCKS app: the time in your clock face, several named timers at once
+  (`timer 4m tea`, `timer stop 2`), a stopwatch with laps (`stopwatch lap`),
+  the world with day/night. Timers ring through notifications.
 - WEATHER app: any place (s to search, saved places with ←→), the sky as an
   ASCII animation (sun rays, drifting clouds, rain, snow, storm flashes, fog,
   a moon at night), the next 24 h as a curve with the rain chances, the week.

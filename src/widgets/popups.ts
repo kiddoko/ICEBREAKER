@@ -1,3 +1,4 @@
+import { clockState, dur, soonestTimer, swNow, type ClockTimer } from "./clockstate";
 import { NEWS_CATEGORIES } from "./news";
 import { clockCommand } from "./clockfaces";
 import { t } from "../core/i18n";
@@ -19,7 +20,6 @@ import type { Command } from "../shell/types";
 import { q } from "../ui/ui";
 import { basename } from "../vault/paths";
 import { currentWeather, isoDay, sky, streakOf } from "./builtin";
-import { phrase } from "../core/voice";
 import { focus, MATRIX_SETS, matrixLook, openTasks } from "./extra";
 import type { PopupContext, WidgetPopupSpec, WidgetSpec } from "./types";
 import { Field } from "./field";
@@ -327,13 +327,6 @@ async function askTopic(deck: Deck): Promise<void> {
 
 /* ─────────── clock: a timer and a stopwatch ─────────── */
 
-const clockState = { timerEnd: 0, timerTotal: 0, swStart: 0, swAcc: 0 };
-const dur = (ms: number) => {
-  const s = Math.max(0, Math.round(ms / 1000));
-  const h = Math.floor(s / 3600);
-  return `${h ? `${h}:` : ""}${pad2(Math.floor((s % 3600) / 60))}:${pad2(s % 60)}`;
-};
-const swNow = () => clockState.swAcc + (clockState.swStart ? Date.now() - clockState.swStart : 0);
 let timerWatch: ReturnType<typeof setInterval> | null = null;
 
 const clockPopup: WidgetPopupSpec = {
@@ -350,10 +343,12 @@ const clockPopup: WidgetPopupSpec = {
     ui.textCenter(r, r.y + 1, now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" }), { fg: c.fg });
     ui.textCenter(r, r.y + 2, `${t("day {n}", { n: doy })} · ${Intl.DateTimeFormat().resolvedOptions().timeZone}`, { fg: c.subtle });
     // timer
-    const left = clockState.timerEnd ? clockState.timerEnd - Date.now() : 0;
+    const tm = soonestTimer();
+    const left = tm ? tm.end - Date.now() : 0;
     ui.text(r.x + 3, r.y + 5, t("TIMER"), { fg: c.subtle, attrs: BOLD });
-    ui.text(r.x + 13, r.y + 5, clockState.timerEnd ? dur(left) : "--:--", { fg: clockState.timerEnd ? c.fg : c.faint, attrs: BOLD });
-    if (clockState.timerEnd) ui.bar(r.x + 24, r.y + 5, r.w - 28, 1 - left / clockState.timerTotal, c.accent, c.faint);
+    ui.text(r.x + 13, r.y + 5, tm ? dur(left) : "--:--", { fg: tm ? c.fg : c.faint, attrs: BOLD });
+    if (tm) ui.bar(r.x + 24, r.y + 5, r.w - 28 - (clockState.timers.length > 1 ? 4 : 0), 1 - left / tm.total, c.accent, c.faint);
+    if (clockState.timers.length > 1) ui.textRight(r.x + r.w - 2, r.y + 5, `+${clockState.timers.length - 1}`, { fg: c.subtle });
     let x = r.x + 3;
     for (const [label, cmd] of [[t("1 min"), "timer 1m"], [t("5 min"), "timer 5m"], [t("25 min"), "timer 25m"], [t("stop"), "timer stop"]]) x += ui.button(x, r.y + 6, label, () => {}, { cmd }) + 2;
     // stopwatch
@@ -386,43 +381,67 @@ const clockPopup: WidgetPopupSpec = {
 
 export const timerCommand: Command = {
   name: "timer",
-  summary: "a countdown (the clock's pop-up shows it): timer 5m · timer stop",
-  usage: "timer               time left\ntimer <5m | 90s | 1h30 | 25>\ntimer stop",
+  summary: "countdowns, several at once, named (the clock pop-up and the CLOCKS app show them)",
+  usage: "timer                     the timers running\ntimer <5m | 90s | 1h30 | 25> [label]   a new one\ntimer stop [n | all]      stop one (the next to ring) or all",
+  examples: [["timer 4m tea", "tea in 4 minutes"], ["timer 25 work", "25 minutes"], ["timer stop all", "stop them all"]],
   run(ctx) {
-    const [a] = ctx.args;
-    if (!a) return ctx.out(clockState.timerEnd ? `${dur(clockState.timerEnd - Date.now())} left\n` : "no timer\n"), 0;
-    if (a === t("stop")) {
-      clockState.timerEnd = 0;
+    const [a, ...rest] = ctx.args;
+    if (!a) {
+      if (!clockState.timers.length) return ctx.out("no timer\n"), 0;
+      for (const tm of [...clockState.timers].sort((x, y) => x.end - y.end)) ctx.out(`${String(tm.id).padStart(2)}  ${dur(tm.end - Date.now())}  ${tm.label}\n`);
+      return 0;
+    }
+    if (a === "stop" || a === t("stop")) {
+      const which = rest[0];
+      if (which === "all") clockState.timers = [];
+      else {
+        const tm = which ? clockState.timers.find((x) => x.id === Number(which)) : soonestTimer();
+        if (!tm) return ctx.err("timer: no such timer\n"), 1;
+        clockState.timers = clockState.timers.filter((x) => x !== tm);
+      }
+      ctx.deck.requestFrame();
       return ctx.out("timer stopped\n"), 0;
     }
     const m = /^(?:(\d+)h)?(?:(\d+)m?)?(?:(\d+)s)?$/.exec(a);
     const ms = m ? ((Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0)) * 60 + Number(m[3] ?? 0)) * 1000 : 0;
-    if (!ms) return ctx.err("usage: timer 5m | 90s | 1h30 | 25 (minutes)\n"), 1;
-    clockState.timerEnd = Date.now() + ms;
+    if (!ms) return ctx.err("usage: timer 5m | 90s | 1h30 | 25 (minutes) [label]\n"), 1;
+    const tm: ClockTimer = { id: clockState.nextTimer++, label: rest.join(" ") || dur(ms), end: Date.now() + ms, total: ms };
+    clockState.timers.push(tm);
     void ctx.deck.stats.add("clocks.timers", 1, "clocks", { label: "timers started", kind: "counter" }).catch(() => {});
-    clockState.timerTotal = ms;
     const deck = ctx.deck;
-    if (timerWatch) clearInterval(timerWatch);
-    timerWatch = setInterval(() => {
-      if (!clockState.timerEnd || Date.now() < clockState.timerEnd) return;
-      clockState.timerEnd = 0;
-      clearInterval(timerWatch!);
-      deck.sound.play("notify");
-      deck.notify("⏰ timer done", "success");
-      if (deck.settings.data.voice.enabled) deck.voice.say(phrase(deck.settings.data.voice.language, "timer"));
-    }, 500);
-    ctx.out(`timer: ${dur(ms)}\n`);
+    // one watcher for every timer
+    if (!timerWatch)
+      timerWatch = setInterval(() => {
+        const now = Date.now();
+        for (const done of clockState.timers.filter((x) => now >= x.end)) {
+          clockState.timers = clockState.timers.filter((x) => x !== done);
+          deck.alert(`⏰ ${done.label}`, t("timer done"));
+        }
+        if (!clockState.timers.length) {
+          clearInterval(timerWatch!);
+          timerWatch = null;
+        }
+        deck.requestFrame();
+      }, 500);
+    ctx.out(`timer #${tm.id}: ${dur(ms)}${rest.length ? ` · ${tm.label}` : ""}\n`);
     return 0;
   },
 };
 
 export const stopwatchCommand: Command = {
   name: "stopwatch",
-  summary: "a stopwatch (the clock's pop-up shows it): start · stop · toggle · reset",
+  summary: "a stopwatch (the clock pop-up, the CLOCKS app): start · stop · toggle · lap · reset",
   run(ctx) {
     const [a = "toggle"] = ctx.args;
     const running = !!clockState.swStart;
-    if (a === "reset") Object.assign(clockState, { swStart: 0, swAcc: 0 });
+    if (a === "reset") Object.assign(clockState, { swStart: 0, swAcc: 0, laps: [] });
+    else if (a === "lap") {
+      if (!running && !clockState.swAcc) return ctx.err("stopwatch: not running\n"), 1;
+      clockState.laps.push(swNow());
+      ctx.out(`lap ${clockState.laps.length}: ${dur(swNow())}\n`);
+      ctx.deck.requestFrame();
+      return 0;
+    }
     else if ((a === "start" || a === "toggle") && !running) clockState.swStart = Date.now();
     else if ((a === "stop" || a === "toggle") && running) {
       clockState.swAcc += Date.now() - clockState.swStart;
@@ -686,7 +705,7 @@ const POPUPS: Record<string, { popup?: WidgetPopupSpec; open?: string }> = {
   modules: { popup: modulesPopup, open: "launch modules" },
   ai: { popup: aiPopup, open: "launch link" },
   chat: { popup: chatPopup, open: "launch link" },
-  clock: { popup: clockPopup },
+  clock: { popup: clockPopup, open: "launch clocks" },
   matrix: { popup: matrixPopup },
   tasks: { popup: tasksPopup },
 };
