@@ -46,6 +46,14 @@ async function refresh(deck: Deck): Promise<void> {
 }
 
 const installedPlugin = (deck: Deck, id: string) => deck.plugins.list().find((p) => p.manifest.id === id);
+/** Built-in modules the user removed: offered again in the STORE. */
+function removedBuiltins(deck: Deck): IndexEntry[] {
+  const removed = deck.settings.data.plugins.removed ?? [];
+  return deck.plugins
+    .allBuiltins()
+    .filter((p) => removed.includes(p.manifest.id))
+    .map((p) => ({ id: p.manifest.id, name: p.manifest.name, description: p.manifest.description ?? "", author: "icebreaker · built-in", repo: "built-in", kind: "plugin" as const }));
+}
 const installedTheme = (deck: Deck, id: string) => deck.themes.list().find((th) => th.name === id && th.source === "vault");
 function stateOf(deck: Deck, e: IndexEntry): "enabled" | "installed" | "" {
   if (e.kind === "theme") return installedTheme(deck, e.id) ? "installed" : "";
@@ -95,7 +103,7 @@ class StoreApp implements App {
       const list = owned(d);
       return this.query ? fuzzyFilter(this.query, list, (o) => `${o.name} ${o.id} ${o.description}`, 100) : list;
     }
-    const list = cache.entries.filter((e) => e.kind === (this.tab === "modules" ? "plugin" : "theme"));
+    const list = [...(this.tab === "modules" ? removedBuiltins(d) : []), ...cache.entries.filter((e) => e.kind === (this.tab === "modules" ? "plugin" : "theme"))];
     return this.query ? fuzzyFilter(this.query, list, (e) => `${e.name} ${e.id} ${e.description} ${e.author}`, 100) : list;
   }
 
@@ -120,8 +128,8 @@ class StoreApp implements App {
       if (row === d.settings.data.plugins.registry) return d.notify(t("the official index stays — add yours next to it"), "warning");
       return void d.act(`store sources rm ${q(row)}`);
     }
-    if ("builtin" in row && row.builtin) return d.notify(t("built-in modules can only be switched off"), "warning");
-    if (await d.confirm(t("Remove {name}?", { name: row.name }), t("Its files go to .trash in your vault."))) void d.act(`store remove ${row.id}`);
+    const builtin = "builtin" in row && row.builtin;
+    if (await d.confirm(t("Remove {name}?", { name: row.name }), builtin ? t("It ships with the deck: the STORE can reinstall it any time.") : t("Its files go to .trash in your vault."))) void d.act(`store remove ${row.id}`);
   }
 
   private async addSource(): Promise<void> {
@@ -348,6 +356,11 @@ export const storeCommand: Command = {
       }
       case "install": {
         if (!arg) return ctx.err("usage: store install <id>\n"), 1;
+        if ((d.settings.data.plugins.removed ?? []).includes(arg)) {
+          await d.plugins.restoreBuiltin(arg);
+          ctx.out(`${fmt.green("✓")} ${arg} is back\n`);
+          return 0;
+        }
         const e = await find(arg);
         const kind = e?.kind ?? (arg.endsWith(".toml") ? "theme" : "plugin");
         const src = e?.repo ?? arg;
@@ -374,7 +387,11 @@ export const storeCommand: Command = {
         }
         const p = installedPlugin(d, arg);
         if (!p) return ctx.err(`store: "${arg}" isn't installed\n`), 1;
-        if (p.source === "builtin") return ctx.err(`store: ${arg} is built in — plugin disable ${arg} switches it off\n`), 1;
+        if (p.source === "builtin") {
+          await d.plugins.removeBuiltin(arg);
+          ctx.out(`${arg}: removed · store install ${arg} brings it back\n`);
+          return 0;
+        }
         if (p.active) await d.act(`plugin disable ${arg}`);
         await d.vault.trash(`.icebreaker/plugins/${arg}`);
         await d.plugins.reload();

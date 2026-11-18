@@ -402,6 +402,7 @@ export const FR: Record<string, string> = {
   "built-in modules can only be switched off": "les modules intégrés peuvent seulement être désactivés",
   "Remove {name}?": "Retirer {name} ?",
   "Its files go to .trash in your vault.": "Ses fichiers vont dans .trash, dans ton vault.",
+  "It ships with the deck: the STORE can reinstall it any time.": "Il est livré avec le deck : le STORE peut le réinstaller quand tu veux.",
   "Enable {name}?": "Activer {name} ?",
   "It asks for": "Il demande",
   "nothing special": "rien de particulier",

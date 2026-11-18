@@ -45,6 +45,12 @@ export interface PluginManifest {
   permissions?: Permission[];
   /** Entry file, default "main.js". */
   main?: string;
+  /** A glyph for the module launcher ("♪"). */
+  icon?: string;
+  /** Show it in the module launcher (default true). A module that only adds a widget may say false. */
+  launcher?: boolean;
+  /** (internal) a feature that ships with the deck, packaged as a module */
+  core?: boolean;
 }
 
 export interface IcebreakerAPI {

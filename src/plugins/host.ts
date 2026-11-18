@@ -1,3 +1,4 @@
+import { corePackageEntries } from "./core-packages";
 import { registerBackground } from "../fx/backgrounds";
 import { vaultTools } from "../ai/tools";
 import type { Deck } from "../deck";
@@ -109,11 +110,39 @@ export class PluginHost {
 
   // ── internals ────────────────────────────────────────────────────────────
 
-  private discoverBuiltins(): LoadedPlugin[] {
-    return Object.entries(BUILTIN_MANIFESTS).map(([path, manifest]) => {
+  /** Every module that ships with the deck: the bundled plugins and the core's packages. */
+  allBuiltins(): LoadedPlugin[] {
+    const bundled = Object.entries(BUILTIN_MANIFESTS).map(([path, manifest]) => {
       const main = path.replace(/plugin\.json$/, "main.ts");
       return { manifest, source: "builtin" as const, active: false, load: BUILTIN_MAINS[main] };
     });
+    const core = corePackageEntries(this.deck, APP_VERSION).map((e) => ({ ...e, source: "builtin" as const, active: false }));
+    return [...core, ...bundled];
+  }
+
+  private discoverBuiltins(): LoadedPlugin[] {
+    const removed = this.deck.settings.data.plugins.removed ?? [];
+    return this.allBuiltins().filter((p) => !removed.includes(p.manifest.id));
+  }
+
+  /** Uninstall a built-in module (it can be reinstalled from the STORE). */
+  async removeBuiltin(id: string): Promise<void> {
+    const s = this.deck.settings;
+    const p = this.plugins.find((x) => x.manifest.id === id);
+    if (p?.active) await this.deactivate(p);
+    s.set("plugins.removed", [...new Set([...(s.data.plugins.removed ?? []), id])]);
+    this.plugins = this.plugins.filter((x) => x.manifest.id !== id);
+  }
+
+  /** Put a removed built-in module back (on). */
+  async restoreBuiltin(id: string): Promise<void> {
+    const s = this.deck.settings;
+    s.set("plugins.removed", (s.data.plugins.removed ?? []).filter((x) => x !== id));
+    s.set("plugins.disabled", s.data.plugins.disabled.filter((x) => x !== id));
+    const p = this.allBuiltins().find((x) => x.manifest.id === id);
+    if (!p) throw new Error(`no built-in module "${id}"`);
+    this.plugins.push(p);
+    await this.activate(p);
   }
 
   private async discoverVault(): Promise<LoadedPlugin[]> {

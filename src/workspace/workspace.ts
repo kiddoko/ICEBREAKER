@@ -607,7 +607,7 @@ export class Workspace {
       ["explorer", `⬡ ${t("nexus")}`, "launch explorer", "the vault in 3D · explore in the shell"],
     ];
     for (const [kind, label, cmd, tip] of nav) {
-      if (kind === "store" && !d.apps.get("store")) continue;
+      if (!d.apps.get(kind)) continue; // its module is off or removed
       const lw = strWidth(label) + 2;
       nx -= lw;
       const rect = { x: nx, y: r.y, w: lw, h: 1 };

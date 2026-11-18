@@ -40,6 +40,7 @@ import { BootScreen, type BootLine } from "./workspace/boot";
 import { CellFx, Transitions } from "./fx/transition";
 import { DeckVoice, phrase } from "./core/voice";
 import { storeCommand, storeSpec } from "./apps/store";
+import { detachCorePackages } from "./plugins/core-packages";
 import { installStealth } from "./core/stealth";
 import { setLang, t } from "./core/i18n";
 import type { ChoiceOption } from "./plugins/api";
@@ -189,6 +190,7 @@ export class Deck implements InputSink {
     });
 
     await step(() => this.registerCore(), () => ({ text: `Shell ibsh: ${this.commands.names().length} commands · ${this.apps.list().length} apps · ${this.widgets.list().length} widgets`, status: "OK" }));
+    detachCorePackages(this); // core features become modules (plugins/core-packages.ts)
     await step(() => this.plugins.init(), () => ({ text: `Plugins: ${this.plugins.active().map((p) => p.manifest.id).join(", ") || "none"}`, status: this.plugins.list().some((p) => p.error) ? "WARN" : "OK" }));
     this.platform.bridge?.onRun((req) => void this.runBridged(req));
     // files changed in the terminal, Obsidian, Finder…: refresh the tree, search, widgets
