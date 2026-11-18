@@ -8,6 +8,9 @@
   minute). Themes pick their screensaver with `[anim] screensaver = "city" | "paper"`.
 - New theme e-ink-night: e-ink's dark mode with its own greys (cream ink on
   charcoal), not just e-ink inverted.
+- HOME drag & drop: the widget follows the mouse as a ghost, the spot it would
+  land on shows dashed ("no room here" otherwise), and it moves only when you let
+  go (no more hopping around while you drag). Hits can have `onUp`.
 - HOME edit mode can't be missed: a pulsing band across the top with the keys and
   a ✓ done button. Widgets grow in any direction: shift+arrow pushes that side
   out, alt+shift+arrow brings it back. FOCUS has a compact 2×2 look.

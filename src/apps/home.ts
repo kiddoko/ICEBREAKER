@@ -30,7 +30,8 @@ export class HomeApp implements App {
   readonly key = "home";
   private selected = 0;
   private editing = false;
-  private drag: { index: number; dx: number; dy: number } | null = null;
+  /** a widget being dragged: where it was grabbed, where the mouse is, where it would land */
+  private drag: { index: number; dx: number; dy: number; mx: number; my: number; spot: WidgetPlacement | null } | null = null;
   private colW = 1;
   private origin = { x: 0, y: 0 };
   /** Vertical scroll in text rows (the grid can be taller than the screen). */
@@ -126,16 +127,6 @@ export class HomeApp implements App {
       const spot = this.fitAt(layout, i, x, y);
       if (spot) return this.place2(layout, i, spot);
     }
-  }
-
-  /** Mouse drag: try to sit at (x, y), shrinking if needed. */
-  private moveAbs(i: number, x: number, y: number): void {
-    const layout = this.layout.map((p) => ({ ...p }));
-    const cur = layout[i];
-    if (!cur || (cur.x === x && cur.y === y)) return;
-    if (this.want?.i !== i) this.want = { i, w: cur.w, h: cur.h };
-    const spot = this.fitAt(layout, i, x, y);
-    if (spot) this.place2(layout, i, spot);
   }
 
   private place2(layout: WidgetPlacement[], i: number, spot: WidgetPlacement): void {
@@ -438,15 +429,29 @@ export class HomeApp implements App {
       const frameHit = {
         onClick: (m: { x: number; y: number }) => {
           this.selected = i;
-          if (this.editing) this.drag = { index: i, dx: m.x - rect.x, dy: m.y - rect.y };
+          if (this.editing) this.drag = { index: i, dx: m.x - rect.x, dy: m.y - rect.y, mx: m.x, my: m.y, spot: null };
         },
+        // the widget follows the mouse as a ghost; the spot it would land on lights up; it lands on release
         onDrag: (m: { x: number; y: number }) => {
           const d = this.drag;
           if (!this.editing || !d || d.index !== i) return;
+          d.mx = m.x;
+          d.my = m.y;
           const nx = Math.round((m.x - this.origin.x - d.dx) / this.colW);
           const ny = Math.round((m.y - this.origin.y - d.dy + this.scroll) / this.rowH);
           const ww = this.want?.i === i ? this.want.w : p.w;
-          this.moveAbs(i, Math.max(0, Math.min(COLS - ww, nx)), Math.max(0, ny));
+          const x = Math.max(0, Math.min(COLS - ww, nx)), y = Math.max(0, ny);
+          if (this.want?.i !== i) this.want = { i, w: p.w, h: p.h };
+          const cur = this.layout[i];
+          d.spot = !cur ? null : cur.x === x && cur.y === y ? { ...cur } : this.fitAt(this.layout.map((q) => ({ ...q })), i, x, y);
+          this.deck.requestFrame();
+        },
+        onUp: () => {
+          const d = this.drag;
+          this.drag = null;
+          const cur = this.layout[i];
+          if (!d?.spot || d.index !== i || !cur || (cur.x === d.spot.x && cur.y === d.spot.y && cur.w === d.spot.w)) return;
+          this.place2(this.layout.map((q) => ({ ...q })), i, d.spot);
         },
         onDouble: () => !this.editing && (spec.popup || spec.activate || spec.open) && void this.deck.act(`widget ${p.id}`),
         menu: () => this.widgetMenu(i),
@@ -469,6 +474,19 @@ export class HomeApp implements App {
       });
       if (this.editing) ui.hit(rect, frameHit);
       if (anim) drawEffects(ui, rect, inner, i, sel, this.shownAt, this.selAt);
+    }
+    // dragging: where it would land (dashed), and the widget itself following the mouse
+    const dg = this.drag;
+    if (this.editing && dg) {
+      const p = this.layout[dg.index];
+      const spec = p && this.deck.widgets.get(p.id);
+      if (p && spec) {
+        if (dg.spot) ui.box(toRect(dg.spot), { border: "dashed", focused: true, fill: false, title: t("drop here") });
+        const r0 = toRect(p);
+        const ghost = { x: dg.mx - dg.dx, y: dg.my - dg.dy, w: r0.w, h: r0.h };
+        ui.box(ghost, { border: "double", focused: true, fill: false, title: spec.title.toUpperCase() });
+        if (!dg.spot) ui.textCenter(ghost, ghost.y + Math.floor(ghost.h / 2), t("no room here"), { fg: c.subtle });
+      }
     }
     ui.grid.popClip();
     if (this.scroll < maxScroll) ui.textRight(r.x + r.w - 1, r.y + r.h - 1, ` ↓ more (wheel) `, { fg: c.panel, bg: c.accent });

@@ -675,6 +675,8 @@ export const FR: Record<string, string> = {
   "click: open / fold · → ←": "clic : ouvrir / replier · → ←",
   "none yet — F2 binds a key": "aucun pour l'instant — F2 en assigne un",
   wheel: "molette",
+  "drop here": "lâcher ici",
+  "no room here": "pas de place ici",
   "close the tab and show the one before it (HOME stays)": "fermer l'onglet et montrer celui d'avant (HOME reste)",
   "back to the page (from the tree or the shell); closes NEXUS, STORE, MODULES, settings": "revenir à la page (depuis l'arbo ou le shell) ; ferme NEXUS, STORE, MODULES, réglages",
   "the menu of the thing under the mouse (or the selected one): rename, pin, colour, copy, paste…": "le menu de ce qui est sous la souris (ou sélectionné) : renommer, épingler, couleur, copier, coller…",

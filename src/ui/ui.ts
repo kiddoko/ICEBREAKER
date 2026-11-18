@@ -35,6 +35,8 @@ export interface Hit {
   onDouble?: (m: MouseInput) => void;
   /** Called on mouse moves while the button is held after a click on this area. */
   onDrag?: (m: MouseInput) => void;
+  /** The button is released after a click on this area (end of a drag). */
+  onUp?: (m: MouseInput) => void;
   onWheel?: (delta: number) => void;
   /** Right click: a custom handler. Most places give a `menu` instead. */
   onRight?: (m: MouseInput) => void;

@@ -685,6 +685,7 @@ export class Workspace {
         this.dragging?.onDrag?.(m);
         break;
       case "up":
+        this.dragging?.onUp?.(m);
         this.dragging = null;
         break;
       case "dblclick":
