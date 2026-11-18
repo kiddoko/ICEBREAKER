@@ -61,7 +61,7 @@ export interface ThemeAnim {
   page: string;
   /** Characters that just changed (typing, new output): none · ink (they settle in, like e-ink) · glow (they flash). */
   type: string;
-  /** The screensaver: city (neon night) · paper (an e-reader's sleep screen). */
+  /** The screensaver: city (neon night) · paper (an e-reader's sleep screen) · terminal (an 80s mainframe) · sonar (the deep) · warp (hyperspace). */
   screensaver: string;
 }
 

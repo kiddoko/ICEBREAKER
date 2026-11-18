@@ -112,3 +112,4 @@ select = "scan"
 noise = "01"
 page = "wipe"             # a CRT roll
 type = "glow"              # fresh phosphor glows
+screensaver = "terminal"

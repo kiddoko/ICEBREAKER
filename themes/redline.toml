@@ -103,3 +103,4 @@ pitch = 1.0
 select = "pulse"
 noise = "0123456789ABCDEF"
 page = "glitch"
+screensaver = "city"

@@ -106,3 +106,4 @@ pitch = 0.9
 select = "pulse"
 noise = "░▒▓"
 type = "ink"
+screensaver = "terminal"

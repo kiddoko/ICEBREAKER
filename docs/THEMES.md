@@ -36,7 +36,7 @@ title_focus = "#39ff14"
 | `[glyphs]` | `mark` (◆), `bullet` (›), `spinner` frames, `todo` / `done` boxes       |
 | `[background]` | `effect` (fog · snow · rain · stars · embers · scan · grain · circuit · sonar · none), `density`, `speed`, `color`, `color2`, `glyphs` |
 | `[sound]`  | `pack` (retro · crystal · soft · industrial · paper · neon · sonar), `pitch` |
-| `[anim]`   | `select` (brackets · pulse · scan · none), `noise` (what widgets appear from), `page` (glitch · eink · wipe · fade · none: changing page), `type` (none · ink · glow: characters that just changed), `screensaver` (city · paper: what the screensaver draws) |
+| `[anim]`   | `select` (brackets · pulse · scan · none), `noise` (what widgets appear from), `page` (glitch · eink · wipe · fade · none: changing page), `type` (none · ink · glow: characters that just changed), `screensaver` (city · paper · terminal · sonar · warp: what the screensaver draws) |
 
 `[meta] extends = "phosphor"` builds on another theme: write only what changes.
 

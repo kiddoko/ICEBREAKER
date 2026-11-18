@@ -116,3 +116,4 @@ select = "scan"
 page = "fade"             # pages surface from the dark
 type = "ink"              # characters rise out of the water
 noise = "∘°·•○◦"
+screensaver = "sonar"

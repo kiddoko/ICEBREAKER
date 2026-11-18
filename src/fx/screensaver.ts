@@ -26,8 +26,128 @@ const SIGNS = ["ICE", "NOODLES", "ホテル", "BAR", "24H", "NEXUS", "シティ"
 
 /** The theme picks its screensaver ([anim] screensaver). */
 export function drawScreensaver(ui: UI, r: Rect): void {
-  if (ui.theme.anim.screensaver === "paper") return drawPaper(ui, r);
+  const kind = ui.theme.anim.screensaver;
+  if (kind === "paper") return drawPaper(ui, r);
+  if (kind === "terminal") return drawTerminal(ui, r);
+  if (kind === "sonar") return drawSonar(ui, r);
+  if (kind === "warp") return drawWarp(ui, r);
   drawCity(ui, r);
+}
+
+const time2 = () => {
+  const n = new Date();
+  return `${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`;
+};
+
+/** the time in big dot-matrix digits, centred on (cx, cy) */
+function bigTime(ui: UI, r: Rect, cx: number, cy: number, color: (row: number, rows: number) => number, maxW = r.w * 0.5): number {
+  const time = time2();
+  const k = fitMatrix(time, Math.floor(maxW), Math.floor(r.h * 0.3), 2) || fitMatrix(time, r.w - 4, r.h - 6, 1);
+  if (!k) return cy;
+  const sz = matrixSize(time, k);
+  matrixText(ui, Math.round(cx - sz.w / 2), Math.round(cy - sz.h / 2), time, k, color);
+  return Math.round(cy + sz.h / 2);
+}
+
+const LOG = [
+  "MEM CHECK ........ OK", "VAULT INDEX ...... SYNCED", "UPLINK ........... STANDBY", "ICE SCAN ......... NOTHING NEW",
+  "CRON  0 7 * * *   daily", "TAPE 2 REWIND .... DONE", "PUNCH CARD 0451 READ", "CORE TEMP 41C", "PRINTER OFFLINE",
+  "SLEEP MODE: ANY KEY TO WAKE", "LOGIN: netrunner", "NOTES PENDING .... 0", "BACKUP ........... TONIGHT",
+];
+
+/**
+ * A mainframe console from the 80s, for the phosphor themes: a log types itself
+ * line by line, hex dumps scroll by, the time in big digits, a blinking block.
+ */
+function drawTerminal(ui: UI, r: Rect): void {
+  const c = ui.c;
+  const t = ui.now / 1000;
+  ui.fill(r, { bg: c.bg });
+  const lineEvery = 0.9; // seconds per line
+  const rows = r.h - 2;
+  const n = Math.floor(t / lineEvery) + rows; // the screen is full from the start
+  for (let i = 0; i < rows; i++) {
+    const k = n - (rows - 1 - i);
+    if (k < 0) continue;
+    const hex = Array.from({ length: 6 }, (_, j) => Math.floor(rnd(k, j) * 65536).toString(16).padStart(4, "0").toUpperCase()).join(" ");
+    let line = rnd(k, 9) > 0.45 ? `${String(k * 16).padStart(6, "0")}  ${hex}` : `> ${LOG[Math.floor(rnd(k, 3) * LOG.length)]}`;
+    // the newest line types itself
+    if (i === rows - 1) line = line.slice(0, Math.floor(((t % lineEvery) / lineEvery) * line.length * 1.4));
+    ui.text(r.x + 2, r.y + 1 + i, line, { fg: i === rows - 1 ? c.fg : mix(c.bg, c.fg, 0.25 + (i / rows) * 0.5) }, Math.floor(r.w * 0.55));
+    if (i === rows - 1 && Math.floor(t * 2) % 2 === 0) ui.text(r.x + 2 + line.length, r.y + 1 + i, "█", { fg: c.accent });
+  }
+  // the time, right side, in a frame
+  const bx = r.x + Math.floor(r.w * 0.62), bw = r.w - (bx - r.x) - 2;
+  if (bw > 14) {
+    const box = { x: bx, y: r.y + 2, w: bw, h: Math.min(r.h - 4, 12) };
+    ui.box(box, { border: "double", fill: true, bg: c.bg, title: "SYSTEM CLOCK" });
+    const bottom = bigTime(ui, box, box.x + box.w / 2, box.y + box.h / 2 - 1, () => c.accent, box.w - 4);
+    ui.textCenter(box, Math.min(box.y + box.h - 2, bottom + 1), new Date().toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }).toUpperCase(), { fg: c.subtle });
+  }
+  ui.textRight(r.x + r.w - 2, r.y + r.h - 1, "READY. ANY KEY", { fg: c.faint });
+  ui.animate(60);
+}
+
+/**
+ * Deep-sea sonar for abyss: rings spreading from the middle, a sweep turning,
+ * echoes lighting up when it passes, the time in the centre.
+ */
+function drawSonar(ui: UI, r: Rect): void {
+  const c = ui.c;
+  const t = ui.now / 1000;
+  ui.fill(r, { bg: c.bg });
+  const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+  const maxR = Math.min(r.h / 2 - 1, (r.w / 2 - 1) * ui.cellAspect);
+  const sweep = (t * 0.9) % (Math.PI * 2);
+  for (let y = r.y; y < r.y + r.h; y++) {
+    for (let x = r.x; x < r.x + r.w; x++) {
+      const dx = (x - cx) * ui.cellAspect, dy = y - cy;
+      const d = Math.hypot(dx, dy);
+      if (d > maxR) continue;
+      const a = (Math.atan2(dy, dx) + Math.PI * 2) % (Math.PI * 2);
+      const behind = (sweep - a + Math.PI * 2) % (Math.PI * 2); // 0 = the sweep is on it
+      // range rings (every quarter), the outer rim, a pulse spreading out, the sweep's thin fading trail
+      const ringStep = maxR / 4;
+      const ring = Math.abs(d - Math.round(d / ringStep) * ringStep) < 0.45 && d > 0.5;
+      const rim = d > maxR - 0.6;
+      const pulse = Math.abs(d - ((t * maxR * 0.35) % maxR)) < 0.45;
+      const trail = behind < 0.7 ? 1 - behind / 0.7 : 0;
+      // echoes: fixed points that light up when the sweep passes
+      const echo = rnd(Math.round(x / 3), Math.round(y / 2)) > 0.992 && d > maxR * 0.2;
+      let ch = "", k = 0;
+      if (echo) (ch = "◆"), (k = 0.3 + trail * 0.7);
+      else if (behind < 0.06) (ch = "•"), (k = 0.9); // the sweep line itself
+      else if (trail > 0.05 && rnd(x, y) > 0.7) (ch = "·"), (k = trail * 0.7);
+      else if (rim) (ch = "·"), (k = 0.45);
+      else if (pulse) (ch = "∘"), (k = 0.4);
+      else if (ring) (ch = "·"), (k = 0.3);
+      if (ch) ui.text(x, y, ch, { fg: mix(c.bg, echo ? c.accentAlt : c.accent, k) });
+    }
+  }
+  const bottom = bigTime(ui, r, cx, cy, () => c.fg, maxR / ui.cellAspect);
+  ui.textCenter(r, Math.min(r.y + r.h - 2, bottom + 1), "· · · depth 4 000 m · · ·", { fg: c.subtle });
+  ui.animate(70);
+}
+
+/** Hyperspace for ghost / nightshade: stars rushing out from the centre, the time holding still. */
+function drawWarp(ui: UI, r: Rect): void {
+  const c = ui.c;
+  const t = ui.now / 1000;
+  ui.fill(r, { bg: c.bg });
+  const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+  for (let i = 0; i < 320; i++) {
+    const ang = rnd(i, 1) * Math.PI * 2;
+    const speed = 0.4 + rnd(i, 2) * 0.8;
+    const z = (rnd(i, 3) + t * speed * 0.35) % 1; // 0 far → 1 here
+    const dist = z * z * Math.max(r.w, r.h) * 0.75;
+    const x = Math.round(cx + Math.cos(ang) * dist / ui.cellAspect * 0.5), y = Math.round(cy + Math.sin(ang) * dist * 0.5);
+    if (x < r.x || x >= r.x + r.w || y < r.y || y >= r.y + r.h) continue;
+    const ch = z > 0.75 ? (Math.abs(Math.cos(ang)) > 0.75 ? "━" : Math.abs(Math.sin(ang)) > 0.75 ? "┃" : "✦") : z > 0.4 ? "•" : "·";
+    ui.text(x, y, ch, { fg: mix(c.bg, z > 0.6 ? c.fg : c.accent, 0.45 + z * 0.55), attrs: z > 0.75 ? BOLD : 0 });
+  }
+  const bottom = bigTime(ui, r, cx, cy - 1, (row, rows) => (ui.theme.gradient[Math.min(ui.theme.gradient.length - 1, Math.floor((row / rows) * ui.theme.gradient.length))] ?? c.accent));
+  ui.textCenter(r, Math.min(r.y + r.h - 2, bottom + 1), new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }), { fg: c.subtle });
+  ui.animate(40);
 }
 
 const PAPER_LINES = [

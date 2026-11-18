@@ -115,3 +115,4 @@ select = "pulse"
 page = "wipe"             # the new page rolls in under a bright scan line
 type = "glow"              # new characters flash, then cool down
 noise = "▖▗▘▙▚▛▜▝▞▟◢◣◤◥"
+screensaver = "city"

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- A screensaver per theme: terminal (an 80s mainframe typing its log, a framed
+  clock) for phosphor, amber and graphite; sonar (range rings, a sweep, echoes)
+  for abyss; warp (stars rushing past) for ghost and nightshade; the neon city
+  for neon-district, neon-ronin and redline; the paper sleep screen for e-ink.
+
 - NEXUS is an endless ring: past the last thing comes the first, the disc keeps
   turning the same way (no jump back); a few things spread round the whole disc.
 

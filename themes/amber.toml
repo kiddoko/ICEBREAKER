@@ -97,3 +97,4 @@ pitch = 0.8
 select = "brackets"
 noise = "░▒▓"
 type = "glow"
+screensaver = "terminal"
