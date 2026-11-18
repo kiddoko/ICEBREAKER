@@ -270,6 +270,31 @@ pub fn vault_trash(state: State<VaultState>, path: String) -> CmdResult<String> 
     Ok(to_rel(&root, &dest))
 }
 
+/// SELF-DESTRUCT: delete everything inside the vault folder, for good (no
+/// trash). `confirm` must be the vault folder's name — a second lock on top of
+/// the confirmations the deck asks for. The folder itself stays, empty.
+#[tauri::command]
+pub fn vault_destroy(state: State<VaultState>, confirm: String) -> CmdResult<u64> {
+    let root = root(&state)?;
+    let name = root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    if name.is_empty() || confirm != name {
+        return Err("self-destruct: the confirmation doesn't match the vault's folder name".into());
+    }
+    // never the home folder or a filesystem root, whatever the settings say
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from);
+    if root.parent().is_none() || home.as_deref() == Some(root.as_path()) {
+        return Err("self-destruct: refusing to empty a home folder or a disk root".into());
+    }
+    let mut n = 0u64;
+    for entry in fs::read_dir(&root).map_err(|e| e.to_string())? {
+        let p = entry.map_err(|e| e.to_string())?.path();
+        let r = if p.is_dir() && !p.is_symlink() { fs::remove_dir_all(&p) } else { fs::remove_file(&p) };
+        r.map_err(|e| format!("{}: {e}", p.display()))?;
+        n += 1;
+    }
+    Ok(n)
+}
+
 #[tauri::command]
 pub fn vault_rename(state: State<VaultState>, from: String, to: String) -> CmdResult<()> {
     let root = root(&state)?;

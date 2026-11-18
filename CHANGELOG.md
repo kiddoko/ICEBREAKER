@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `self-destruct`: deletes the whole vault for good, behind a dialog, the
+  folder's name, DESTROY in capitals, your password (if the deck has a login)
+  and a 10-second countdown that ctrl+c stops. Copies elsewhere aren't touched.
 - New app icon: "IB" in ASCII block letters on black glass, with a glow and
   scanlines (scripts/make-icon.swift draws it).
 - CRT: colour fringes (chromatic aberration, `fx chroma 30`) and softness

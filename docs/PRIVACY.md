@@ -72,3 +72,7 @@ their README and code before enabling them.
 ## Contact
 
 Open an issue on the project's repository.
+
+## Self-destruct
+
+`self-destruct` in the shell deletes everything inside the vault folder for good (not to the trash). It asks four times — a dialog, the folder's name, `DESTROY` in capitals, your password if the deck has a login — then counts down from 10 (ctrl+c stops it). Copies elsewhere are **not** touched: iCloud / Dropbox / Syncthing copies on other devices, git remotes, Time Machine and other backups.

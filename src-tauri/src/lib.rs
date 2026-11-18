@@ -51,6 +51,7 @@ pub fn run() {
             vault::vault_write,
             vault::vault_mkdir,
             vault::vault_trash,
+            vault::vault_destroy,
             vault::vault_rename,
             vault::vault_exists,
             config::config_read,
