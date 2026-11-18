@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- New app icon: "IB" in ASCII block letters on black glass, with a glow and
+  scanlines (scripts/make-icon.swift draws it).
 - CRT: colour fringes (chromatic aberration, `fx chroma 30`) and softness
   (glyphs a touch out of focus, `fx softness 40`) — in the FX panel and
   Settings too. Softness is baked into the glyph cache: free at run time.
