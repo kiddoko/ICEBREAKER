@@ -201,7 +201,24 @@ const osk: Command = {
   },
 };
 
+const explore: Command = {
+  name: "explore",
+  aliases: ["nexus"],
+  summary: "NEXUS: walk the vault in pseudo-3D",
+  usage: "explore [folder]",
+  examples: [["explore", "the vault root"], ["explore journal", "start in a folder"]],
+  complete: "path",
+  async run(ctx) {
+    const dir = ctx.args[0] ? ctx.resolve(ctx.args[0]).replace(/\/$/, "") : ctx.cwd;
+    if (dir && !ctx.deck.vault.entries.some((e) => e.isDir && e.path === dir)) return ctx.err(`explore: no folder ${ctx.args[0]}\n`), 1;
+    const open = ctx.deck.workspace.findTab("explorer");
+    if (open) await ctx.deck.workspace.closeTab(ctx.deck.workspace.tabs.indexOf(open));
+    ctx.deck.openApp("explorer", dir);
+  },
+};
+
 export const uiCommands: Command[] = [
+  explore,
   homeCmd,
   widget,
   tab,

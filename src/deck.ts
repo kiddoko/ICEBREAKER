@@ -6,6 +6,7 @@ import { linkSpec } from "./apps/link";
 import { modulesSpec } from "./apps/modules";
 import { setupSpec } from "./apps/setup";
 import { studioSpec } from "./apps/studio";
+import { explorerSpec } from "./apps/explorer";
 import { noteSpec } from "./apps/note";
 import { ActionRegistry, AppRegistry } from "./apps/registry";
 import { settingsSpec } from "./apps/settings";
@@ -147,7 +148,7 @@ export class Deck implements InputSink {
   private registerCore(): void {
     for (const c of [...fileCommands, ...systemCommands, ...deckCommands]) this.commands.register({ ...c, source: "core" });
     for (const w of BUILTIN_WIDGETS) this.widgets.register(w);
-    for (const a of [homeSpec, modulesSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec]) this.apps.register(a);
+    for (const a of [homeSpec, modulesSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec]) this.apps.register(a);
 
     const act = (id: string, title: string, run: () => void, hint?: string, group = "deck") => this.actions.register({ id, title, run, hint, group });
     act("journal.today", "Journal: today", () => void this.openJournal(new Date()), "ctrl+j", "journal");
