@@ -56,6 +56,8 @@ export interface Settings {
   sound: { enabled: boolean; volume: number };
   /** How alerts (reminders, modules' ib.ui.alert) reach you: sound (+ voice), visual (system notification + toast), both, or none. */
   notifications: { mode: "both" | "sound" | "visual" | "none" };
+  /** Your own shortcuts: key combo → shell command (`bind ctrl+shift+1 "open notes/ideas.md"`). */
+  keys: Record<string, string>;
   ai: {
     provider: "claude-code" | "anthropic" | "ollama";
     /** Model for the Claude Code provider: "sonnet", "opus"… (empty = the CLI default). */
@@ -116,6 +118,7 @@ export const DEFAULT_SETTINGS: Settings = {
   boot: { mode: "full" },
   sound: { enabled: true, volume: 50 },
   notifications: { mode: "both" },
+  keys: {},
   shell: {
     mode: "system",
     macros: [

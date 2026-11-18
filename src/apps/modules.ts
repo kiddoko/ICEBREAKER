@@ -111,7 +111,7 @@ export class ModulesApp implements App {
     const n = this.carts().length;
     switch (a) {
       case "left": this.sel = (this.sel - 1 + n) % n; return true;
-      case "right": this.sel = (this.sel + 1) % n; return true;
+      case "right": case "item-next": this.sel = (this.sel + 1) % n; return true;
       // deeper into the hive / back toward you — and round again at the ends
       case "up": this.sel = this.sel + this.cols < n ? this.sel + this.cols : this.sel % this.cols; return true;
       case "down": {

@@ -1,3 +1,4 @@
+import { shortcutCommands, shortcutsSpec } from "./apps/shortcuts";
 import { StatsStore } from "./core/stats";
 import { AIManager } from "./ai";
 import { helpSpec } from "./apps/help";
@@ -252,14 +253,16 @@ export class Deck implements InputSink {
   }
 
   private registerCore(): void {
-    for (const c of [...fileCommands, ...systemCommands, ...deckCommands, storeCommand]) this.commands.register({ ...c, source: "core" });
+    for (const c of [...fileCommands, ...systemCommands, ...deckCommands, storeCommand, ...shortcutCommands]) this.commands.register({ ...c, source: "core" });
     for (const w of BUILTIN_WIDGETS) this.widgets.register(w);
-    for (const a of [homeSpec, modulesSpec, storeSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec]) this.apps.register(a);
+    for (const a of [homeSpec, modulesSpec, storeSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec, shortcutsSpec]) this.apps.register(a);
 
     const act = (id: string, title: string, run: () => void, hint?: string, group = "deck") => this.actions.register({ id, title, run, hint, group });
     act("journal.today", "Journal: today", () => void this.openJournal(new Date()), "ctrl+j", "journal");
     act("journal.yesterday", "Journal: yesterday", () => void this.openJournal(new Date(Date.now() - 86400_000)), undefined, "journal");
     act("note.new", "New note", () => void this.newNote(), "ctrl+n", "notes");
+    act("folder.new", "New folder", () => void this.newFolder(), "ctrl+shift+n", "notes");
+    act("shortcuts.open", "Keyboard shortcuts (all, searchable)", () => void this.openApp("shortcuts"), "ctrl+/", "deck");
     act("daily.log", "Daily log (end-of-day check-in)", () => void this.shell.runLine("daily"), undefined, "journal");
     act("deck.lock", "Lock the deck", () => this.account ? this.lockNow() : this.notify("no account yet — run `account create` in the shell"), undefined, "deck");
     act("setup.run", "Setup (first-run questionnaire)", () => void this.openApp("setup"), undefined, "deck");
@@ -505,6 +508,13 @@ export class Deck implements InputSink {
     const path = join(folder, `${slugify(title)}.md`);
     if (!(await this.vault.exists(path))) await this.vault.write(path, `# ${title.trim()}\n\n`);
     await this.openFile(path);
+  }
+
+  /** Ask for a name, make the folder (inside `parent`, default the vault root). */
+  async newFolder(parent = ""): Promise<void> {
+    const name = await this.prompt("New folder", { placeholder: "e.g. projects" });
+    if (!name?.trim()) return;
+    await this.act(`mkdir ${q(parent ? `${parent.replace(/\/$/, "")}/${name.trim()}` : name.trim())}`);
   }
 
   setTheme(name: string): boolean {

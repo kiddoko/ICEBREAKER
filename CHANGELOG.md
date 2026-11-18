@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- SHORTCUTS page (`ctrl+/`, or `shortcuts`): every shortcut by category,
+  with a search field. Your own shortcuts: `bind ctrl+shift+1 "open notes/x.md"`
+  (or F2 on the page), `unbind`. New: `ctrl+shift+h` HOME, `ctrl+shift+m`
+  MODULES, `ctrl+shift+n` new folder, `ctrl+shift+l` lock.
+- Tab = the next thing on the screen (widget, card, line); Shift+Tab = the
+  next part of the screen (tree → deck → shell).
+- Energy: no frames at all while the window is hidden or minimized; 12 fps
+  animations in the background or after 90 s idle; the bloom is blurred in a
+  small canvas instead of a full-window filter; a leaner glyph cache.
+- HOME: widgets sit at the top and close the holes (same in and out of edit
+  mode); the calendar widget fills its box.
+- MODULES hive: loops forward (after the last row, the first one again), more
+  depth, a lighter floor. Widget-only modules (voice, checkboxes, moon,
+  matrix, quotes) leave the hive. Slower scan sweeps.
+- Tab titles in lowercase. LINGO removed (it'll come back, rebuilt).
 - Notifications: sound and on screen, sound only, on screen only, or nothing
   — a new setup step, and Settings → sound → notifications.
 - STATS module: numbers over time from modules and from you — `stats`,

@@ -478,8 +478,12 @@ export class TextEditor {
         return true;
       case "tab":
         if (this.opts.singleLine) return false;
-        if (k.shift) this.outdent();
-        else this.insert(" ".repeat(this.opts.tabSize));
+        if (k.shift) {
+          // nothing to unindent: let shift+tab move to the next pane
+          const s = this.lines[this.cursor.line];
+          if (s.length === s.trimStart().length) return false;
+          this.outdent();
+        } else this.insert(" ".repeat(this.opts.tabSize));
         return true;
     }
     return false;

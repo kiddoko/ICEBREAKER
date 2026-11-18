@@ -297,6 +297,8 @@ export class Workspace {
       return;
     }
     if (this.globalKey(k)) return;
+    // shift+tab: the next part of the screen — unless the note editor still has something to unindent
+    if (k.combo === "shift+tab" && !this.paneTarget()?.onKey?.(k)) return this.cycleFocus();
     this.routeKey(k, false);
   }
 
@@ -315,6 +317,8 @@ export class Workspace {
     };
     const a = !k.ctrl && !k.alt ? fallback[k.key] : undefined;
     if (a) this.handleAction(a, "keyboard");
+    // tab: the next thing on the screen (apps that don't say otherwise: the next line)
+    else if (k.combo === "tab" && target && !target.onAction?.("item-next")) target.onAction?.("down");
   }
 
   handleText(t: string): void {
@@ -366,7 +370,15 @@ export class Workspace {
   private globalKey(k: KeyInput): boolean {
     const d = this.deck;
     const c = k.combo;
+    // your own shortcuts first (bind / the SHORTCUTS page)
+    const mine = d.settings.data.keys?.[c];
+    if (mine) return void d.act(mine), true;
     if (c === "ctrl+k" || c === "ctrl+p") return this.palette(), true;
+    if (k.ctrl && !k.alt && (k.key === "/" || k.code === "Slash")) return void d.openApp("shortcuts"), true;
+    if (c === "ctrl+shift+h") return void d.openApp("home"), true;
+    if (c === "ctrl+shift+m") return void d.openApp("modules"), true;
+    if (c === "ctrl+shift+n") return void d.newFolder(), true;
+    if (c === "ctrl+shift+l") return void d.act("lock"), true;
     if (c === "ctrl+j") return void d.openJournal(new Date()), true;
     if (c === "ctrl+n") return void d.newNote(), true;
     if (c === "ctrl+space") return void d.openApp("link"), true;

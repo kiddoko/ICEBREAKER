@@ -16,6 +16,8 @@ function manual(deck: Deck): string {
 Everything works with **keyboard only**, **mouse only**, a **gamepad**, or any mix.
 
 ## Keyboard
+**Every shortcut, searchable: \`Ctrl+/\` (the SHORTCUTS page, or \`shortcuts\` in the shell).** Bind your own with \`bind\`.
+- \`Tab\` — the next thing on the screen (widget, card, line) · \`Shift+Tab\` — the next part of the screen (tree → deck → shell)
 - \`Ctrl+K\` / \`Ctrl+P\` — command palette (search everything)
 - \`Ctrl+J\` — today's journal · \`Ctrl+N\` — new note · \`Ctrl+Space\` — AI link · \`Ctrl+,\` — settings
 - \`Ctrl+\`\` (key under Esc) — show / focus the shell · \`Ctrl+B\` — toggle the file tree

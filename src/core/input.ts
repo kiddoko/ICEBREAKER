@@ -47,6 +47,8 @@ export type Action =
   | "confirm" | "back"
   | "page-up" | "page-down" | "home" | "end"
   | "tab-next" | "tab-prev" | "focus-next"
+  /** Tab: the next thing on the screen (widget, card, line) */
+  | "item-next"
   | "palette" | "osk" | "menu"
   | "scroll-up" | "scroll-down";
 
