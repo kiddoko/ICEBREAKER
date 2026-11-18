@@ -153,7 +153,7 @@ export class SetupApp implements App {
       {
         id: "voice-lang", title: "VOICE",
         question: "Which language should the voice speak?",
-        options: () => LANGS.map((l) => ({ value: l.id, label: l.name })),
+        options: () => [...LANGS.map((l) => ({ value: l.id, label: l.name })), { value: "ja", label: "日本語", hint: "Japanese, always — the cyberpunk option" }],
         skip: () => !deck.platform.voice || this.a.voice === "off" || !this.a.voice,
       },
       {
@@ -163,7 +163,7 @@ export class SetupApp implements App {
           { value: "piper", label: "Download the neural voice", hint: "better — open source, offline after" },
           { value: "system", label: "The system voice", hint: "no download" },
         ],
-        skip: () => !deck.platform.voice || this.a.voice === "off" || !this.a.voice || this.a.mode === "stealth",
+        skip: () => !deck.platform.voice || this.a.voice === "off" || !this.a.voice || this.a.mode === "stealth" || this.a["voice-lang"] === "ja",
       },
       {
         id: "theme", title: "LOOK",

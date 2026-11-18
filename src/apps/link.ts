@@ -139,7 +139,7 @@ export class LinkApp implements App {
       const final = this.chat.entries.filter((e) => e.role === "assistant").pop();
       if (final) this.transcript.push(`## ◆ ${this.deck.ai.provider.label}\n\n${final.text}\n`);
       const v = this.deck.settings.data.voice;
-      if (final && answer && v.enabled && v.readAI) this.deck.voice.say(final.text);
+      if (final && answer && v.enabled && v.readAI) void this.deck.voice.speak(final.text);
       void this.persist();
       redraw();
     }

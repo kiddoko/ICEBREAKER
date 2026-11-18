@@ -1,4 +1,5 @@
 import { fmt } from "../../core/ansi";
+import { phrase } from "../../core/voice";
 import type { Command } from "../types";
 
 const onOff = (v: string | undefined, cur: boolean) => (v === "on" ? true : v === "off" ? false : !cur);
@@ -18,8 +19,8 @@ export const voiceCommand: Command = {
     "voice volume <0-100>",
     "voice engine auto | piper | system",
     "voice list · voice use <name>",
-    "voice language en | fr   what it speaks",
-    "voice install [en | fr]  download the open-source neural voice (once)",
+    "voice language en | fr | ja   what it speaks (ja: Japanese, always)",
+    "voice install [en | en-us | fr]   download an open-source neural voice (once)",
   ].join("\n"),
   examples: [
     ["voice install fr", "the neural engine and a French voice (~85 MB, once)"],
@@ -48,7 +49,7 @@ export const voiceCommand: Command = {
         case "on": case "off": deck.settings.set("voice.enabled", a === "on"); if (a === "off") deck.voice.stop(); ctx.out(`voice ${a}\n`); return 0;
         case "say": case "test":
           if (!v.enabled) deck.settings.set("voice.enabled", true);
-          deck.voice.say(a === "test" ? (v.language === "fr" ? `Liaison établie. Bonjour, ${deck.settings.data.user.handle}.` : `Link established. Hello, ${deck.settings.data.user.handle}.`) : rest || ctx.stdin);
+          deck.voice.say(a === "test" ? phrase(v.language, "test", deck.settings.data.user.handle) : rest || ctx.stdin);
           return 0;
         case "stop": deck.voice.stop(); return 0;
         case "read": deck.settings.set("voice.readAI", onOff(b, v.readAI)); ctx.out(`read LINK's answers: ${deck.settings.data.voice.readAI ? "on" : "off"}\n`); return 0;
@@ -74,18 +75,18 @@ export const voiceCommand: Command = {
         }
         case "use": deck.settings.set("voice.name", rest); ctx.out(`voice: ${rest || "default"}\n`); return 0;
         case "language": case "lang":
-          if (b !== "en" && b !== "fr") return ctx.err("usage: voice language en | fr\n"), 1;
+          if (b !== "en" && b !== "fr" && b !== "ja") return ctx.err("usage: voice language en | fr | ja\n"), 1;
           deck.settings.set("voice.language", b);
           deck.settings.set("voice.name", "");
-          ctx.out(`the voice speaks ${b === "fr" ? "French" : "English"}${(await deck.platform.voice!.info()).piper_voices.some((x) => x.includes(`-${b}_`)) ? "" : ` · neural voice: voice install ${b}`}\n`);
+          ctx.out(`the voice speaks ${b === "fr" ? "French" : b === "ja" ? "Japanese (the system voice; AI answers are translated before they're read)" : "English"}${b === "ja" || (await deck.platform.voice!.info()).piper_voices.some((x) => x.includes(`-${b}_`)) ? "" : ` · neural voice: voice install ${b}`}\n`);
           return 0;
         case "install": {
           const lang = b ?? v.language;
-          if (lang !== "en" && lang !== "fr") return ctx.err("voice install en | fr\n"), 1;
+          if (!["en", "en-us", "fr"].includes(lang)) return ctx.err(lang === "ja" ? "voice: Japanese uses the system voice (Kyoko on macOS) — nothing to download\n" : "voice install en | en-us | fr\n"), 1;
           ctx.out(fmt.dim(`downloading the neural engine and the "${lang}" voice (once, ~85 MB)…\n`));
           const name = await deck.platform.voice!.install(lang);
           deck.settings.set("voice.engine", "auto");
-          deck.settings.set("voice.language", lang);
+          deck.settings.set("voice.language", lang.slice(0, 2));
           deck.settings.set("voice.name", name);
           ctx.out(`${fmt.green("✓")} ${name} · try: voice test\n`);
           return 0;

@@ -260,10 +260,13 @@ pub async fn voice_install(app: AppHandle, lang: String) -> Result<String, Strin
             let _ = std::fs::remove_dir_all(d.join("engine"));
             std::fs::rename(d.join(&name), d.join("engine")).map_err(|e| format!("install: {e}"))?;
         }
+        // female voices: Jenny (British English), Amy (American English), Siwis (French)
         let model = match lang.as_str() {
+            "en" | "en-gb" => "vits-piper-en_GB-jenny_dioco-medium",
+            "en-us" => "vits-piper-en_US-amy-medium",
             "fr" => "vits-piper-fr_FR-siwis-medium",
-            "en" => "vits-piper-en_US-lessac-medium",
-            other => return Err(format!("no voice for \"{other}\" yet (fr, en)")),
+            "ja" => return Err("Japanese speaks with the system's Japanese voice (Kyoko on macOS): nothing to download".into()),
+            other => return Err(format!("no voice for \"{other}\" yet (en, en-us, fr, ja)")),
         };
         let models = d.join("models");
         let archive = d.join(format!("{model}.tar.bz2"));

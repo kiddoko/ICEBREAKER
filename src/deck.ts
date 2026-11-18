@@ -38,7 +38,7 @@ import { basename, join, slugify } from "./vault/paths";
 import { Vault } from "./vault/vault";
 import { BootScreen, type BootLine } from "./workspace/boot";
 import { CellFx, Transitions } from "./fx/transition";
-import { DeckVoice } from "./core/voice";
+import { DeckVoice, phrase } from "./core/voice";
 import { installStealth } from "./core/stealth";
 import { setLang, t } from "./core/i18n";
 import type { ChoiceOption } from "./plugins/api";
@@ -579,8 +579,7 @@ export class Deck implements InputSink {
     if (this.greeted || !v.enabled || !v.greet || !this.voice.available) return;
     this.greeted = true;
     const h = this.settings.data.user.handle || "netrunner";
-    const fr = v.language === "fr";
-    this.voice.say(fr ? `Bienvenue, ${h}. Liaison établie.` : `Welcome, ${h}. Link established.`);
+    this.voice.say(phrase(v.language, "welcome", h));
   }
 
   /** The big moments (boot, unlock, theme change): the theme's page transition, glitch by default. */

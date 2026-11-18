@@ -18,6 +18,7 @@ import type { Command } from "../shell/types";
 import { q, type UI } from "../ui/ui";
 import { basename } from "../vault/paths";
 import { currentWeather, isoDay, sky, streakOf } from "./builtin";
+import { phrase } from "../core/voice";
 import { focus, MATRIX_SETS, matrixLook, openTasks } from "./extra";
 import type { PopupContext, WidgetPopupSpec, WidgetSpec } from "./types";
 
@@ -391,7 +392,7 @@ export const timerCommand: Command = {
       clearInterval(timerWatch!);
       deck.sound.play("notify");
       deck.notify("⏰ timer done", "success");
-      if (deck.settings.data.voice.enabled) deck.voice.say(deck.settings.data.voice.language === "fr" ? "Minuteur terminé." : "Timer done.");
+      if (deck.settings.data.voice.enabled) deck.voice.say(phrase(deck.settings.data.voice.language, "timer"));
     }, 500);
     ctx.out(`timer: ${dur(ms)}\n`);
     return 0;
@@ -626,7 +627,7 @@ const aiPopup: WidgetPopupSpec = {
       .then((full) => {
         asked.a = full || asked.a;
         const v = deck.settings.data.voice;
-        if (v.enabled && v.readAI) deck.voice.say(asked.a);
+        if (v.enabled && v.readAI) void deck.voice.speak(asked.a);
       })
       .catch((e) => (asked.error = e instanceof Error ? e.message : String(e)))
       .finally(() => {
