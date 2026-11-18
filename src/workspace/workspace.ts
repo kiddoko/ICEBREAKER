@@ -7,7 +7,9 @@ import { strWidth } from "../core/unicode";
 import type { App } from "../apps/types";
 import type { Deck } from "../deck";
 import { drawBackground } from "../fx/backgrounds";
-import { inside, q, type Hit, type UI } from "../ui/ui";
+import { inside, q, type Hit, type MenuEntry, type MenuItem, type UI } from "../ui/ui";
+import { copyToClipboard, readClipboard } from "../core/clipboard";
+import { ContextMenu } from "./contextmenu";
 import { ConfirmDialog, Osk, Palette, PromptDialog, Toasts, type Overlay, type ToastKind, ChooseDialog } from "./overlays";
 import type { ChoiceOption } from "../plugins/api";
 import { FxPanel } from "./fxpanel";
@@ -46,6 +48,8 @@ export class Workspace {
   /** Hover tooltip: what's under the mouse and since when. */
   private tip = { key: "", since: 0 };
   tipHidden = false;
+  /** where the text cursor was last frame (the menu key opens the menu there) */
+  private lastCaret: { x: number; y: number } | null = null;
   /** The shell panel's tabs: your system terminal, ibsh, what clicks ran. */
   shellTab: ShellTab = "ibsh";
   private shellTabChosen = false;
@@ -286,7 +290,7 @@ export class Workspace {
   }
 
   get topModal(): Overlay | undefined {
-    return [...this.overlays].reverse().find((o) => o.modal);
+    return [...this.overlays].reverse().find((o) => o.modal && !o.done);
   }
 
   palette(): void {
@@ -330,6 +334,118 @@ export class Workspace {
     this.push(new Screensaver());
   }
 
+  // ── right-click menus ────────────────────────────────────────────────────
+
+  /**
+   * Open a context menu at (x, y) with `items` for the thing clicked, then
+   * the common lines: copy/paste where there's text, palette, shortcuts, settings.
+   */
+  openMenu(items: MenuEntry[], x: number, y: number, title?: string): void {
+    for (const o of this.overlays) if (o instanceof ContextMenu) o.done = true;
+    const has = (label: string) => items.some((e) => e !== "-" && e.label === label);
+    const tail: MenuEntry[] = ["-"];
+    if (!items.length && (this.focus === "main" || this.focus === "shell")) tail.push(...this.editMenu(), "-");
+    if (!has(t("command palette"))) tail.push({ label: t("command palette"), cmd: "palette", hint: IS_MAC ? "⌘K" : "ctrl+K" });
+    tail.push({ label: t("shortcuts"), cmd: "shortcuts", hint: IS_MAC ? "⌘/" : "ctrl+/" }, { label: t("settings"), cmd: "settings", hint: IS_MAC ? "⌘," : "ctrl+," });
+    this.deck.sound.play("move");
+    this.push(new ContextMenu([...items, ...tail], x, y, (it) => this.runMenuItem(it), title));
+  }
+
+  private runMenuItem(it: MenuItem): void {
+    // the menu is gone before its action runs (so keys reach the page again)
+    this.overlays = this.overlays.filter((o) => !o.done);
+    this.deck.sound.play("confirm");
+    if (it.cmd) void this.deck.act(it.cmd);
+    else void Promise.resolve(it.run?.()).catch((e) => this.notify(String((e as Error)?.message ?? e), "error"));
+    this.deck.requestFrame();
+  }
+
+  /** copy / cut / paste / select all, sent to whatever has the focus. */
+  editMenu(opts: { copy?: boolean; cut?: boolean; selectAll?: boolean } = {}): MenuEntry[] {
+    const m = IS_MAC ? "⌘" : "ctrl+";
+    const key = (letter: string) => () =>
+      this.routeKey({ key: letter, code: `Key${letter.toUpperCase()}`, ctrl: true, alt: false, shift: false, meta: false, combo: `ctrl+${letter}`, rawCtrl: !IS_MAC, rawMeta: IS_MAC }, false);
+    const out: MenuEntry[] = [];
+    if (opts.copy !== false) out.push({ label: t("copy"), run: key("c"), hint: `${m}C` });
+    if (opts.cut !== false) out.push({ label: t("cut"), run: key("x"), hint: `${m}X` });
+    out.push({ label: t("paste"), run: async () => { const txt = await readClipboard(); if (txt) this.handleText(txt); else this.notify(t("the clipboard is empty (or can't be read)"), "warning"); }, hint: `${m}V` });
+    if (opts.selectAll !== false) out.push({ label: t("select all"), run: key("a"), hint: `${m}A` });
+    return out;
+  }
+
+  /** The focused pane's own menu (empty spot, or the menu key). */
+  private paneMenu(): MenuEntry[] {
+    if (this.focus === "sidebar" && this.sidebarVisible) return this.sidebar.menu();
+    if (this.focus === "shell" && this.shellVisible) return this.shellMenu();
+    return this.activeApp?.menu?.() ?? [];
+  }
+
+  /** The menu key (or shift+F10, gamepad: hold select): the focused thing's menu, without the mouse. */
+  private keyboardMenu(): void {
+    const at = this.focus === "sidebar" && this.sidebarVisible ? this.sidebar.anchor() : null;
+    const r = this.rects[this.focus] ?? { x: 2, y: 2, w: 10, h: 4 };
+    const pos = at ?? this.lastCaret ?? { x: r.x + 2, y: r.y + 1 };
+    this.openMenu(this.paneMenu(), pos.x, pos.y + 1);
+  }
+
+  /** Right-click on a terminal tab. */
+  private termTabMenu(i: number): MenuEntry[] {
+    return [
+      { label: t("rename…"), run: () => this.renameTerminal(i), hint: "term rename" },
+      { label: t("new terminal"), cmd: "term new" },
+      { label: t("restart this shell"), run: () => { this.termIndex = i; void this.deck.act("term restart"); } },
+      { label: t("open in a tab of its own"), run: () => { this.termIndex = i; void this.deck.act("term max"); } },
+      "-",
+      { label: t("close"), cmd: `term close ${i + 1}`, danger: true, disabled: this.terms.length < 2 },
+    ];
+  }
+
+  /** Right-click in the shell panel. */
+  private shellMenu(): MenuEntry[] {
+    const term = this.shellTab === "term" && this.termAvailable;
+    const items: MenuEntry[] = [...this.editMenu(term ? { copy: false, cut: false, selectAll: false } : {}), "-"];
+    if (term) items.push({ label: t("clear the screen"), run: () => void this.terminal.onKey({ key: "l", code: "KeyL", ctrl: true, alt: false, shift: false, meta: false, combo: "ctrl+l", rawCtrl: true, rawMeta: false }), hint: "ctrl+L" });
+    else if (this.shellTab === "ibsh") items.push({ label: t("clear the screen"), cmd: "clear" });
+    items.push(
+      { label: t("new terminal"), cmd: "term new" },
+      ...(term ? [{ label: t("rename…"), run: () => this.renameTerminal() } as MenuItem] : []),
+      { label: t("scripts"), cmd: "script menu" },
+      "-",
+      { label: this.shellMax ? t("put back in the panel") : t("maximize"), cmd: this.shellMax ? "term dock" : "term max" },
+      { label: t("hide the shell"), cmd: "term hide", hint: "ctrl+`" },
+    );
+    return items;
+  }
+
+  /** Right-click on a tab of the top bar. */
+  private tabMenu(i: number): MenuEntry[] {
+    const app = this.tabs[i];
+    const note = app?.kind === "note" ? app.key.slice(5) : "";
+    const items: MenuEntry[] = [
+      { label: t("close"), cmd: `tab close ${i + 1}`, hint: IS_MAC ? "⌘W" : "ctrl+W" },
+      { label: t("close the others"), run: () => this.closeMany((j) => j !== i), disabled: this.tabs.length < 2 },
+      { label: t("close the ones on the right"), run: () => this.closeMany((j) => j > i), disabled: i >= this.tabs.length - 1 },
+    ];
+    if (note) {
+      const pinned = (this.deck.settings.data.favorites ?? []).some((f) => f.target === note);
+      items.push(
+        "-",
+        { label: t("show in the tree"), run: () => { if (!this.sidebarVisible) this.toggleSidebar(); this.sidebar.reveal(note); this.focus = "sidebar"; } },
+        { label: pinned ? t("unpin") : t("pin"), cmd: `${pinned ? "unpin" : "pin"} ${q("/" + note)}` },
+        { label: t("copy path"), run: () => (copyToClipboard(note), this.notify(t("path copied"))) },
+      );
+    }
+    return items;
+  }
+
+  /** Close every tab `which` says, right to left (a tab can refuse: unsaved). */
+  private async closeMany(which: (i: number) => boolean): Promise<void> {
+    const keep = this.tabs[this.active];
+    for (let j = this.tabs.length - 1; j >= 0; j--) if (which(j)) await this.closeTab(j);
+    const i = keep ? this.tabs.indexOf(keep) : -1;
+    if (i >= 0) this.switchTab(i);
+  }
+
   // ── input routing ────────────────────────────────────────────────────────
 
   private paneTarget(): { onKey?(k: KeyInput): boolean; onText?(t: string): boolean; onAction?(a: Action): boolean } | undefined {
@@ -357,6 +473,7 @@ export class Workspace {
     // a terminal tab in the main window: same rule
     const ta = this.activeApp;
     if (this.focus === "main" && ta instanceof TerminalApp && ta.term.wants(k)) return void ta.term.onKey(k);
+    if (k.combo === "contextmenu" || k.combo === "shift+f10") return this.keyboardMenu();
     if (this.globalKey(k)) return;
     // shift+tab: the next part of the screen — unless the note editor still has something to unindent
     if (k.combo === "shift+tab" && !this.paneTarget()?.onKey?.(k)) return this.cycleFocus();
@@ -465,6 +582,12 @@ export class Workspace {
   }
 
   handleMouse(m: MouseInput, hits: Hit[]): void {
+    // right-click outside an open menu: that menu goes, the click lands on what's under it
+    const open = this.overlays.find((o): o is ContextMenu => o instanceof ContextMenu && !o.done);
+    if (open && m.kind === "down" && m.button === 2 && !open.contains(m.x, m.y)) {
+      open.done = true;
+      hits = hits.slice(0, open.hitStart);
+    }
     const pick = (want: (h: Hit) => boolean) => {
       for (let i = hits.length - 1; i >= 0; i--) {
         if (!inside(hits[i].rect, m.x, m.y)) continue;
@@ -482,7 +605,11 @@ export class Workspace {
           }
         }
         if (m.button === 2) {
-          pick((x) => !!x.onRight)?.onRight?.(m);
+          this.tipHidden = true;
+          const h = pick((x) => !!(x.onRight || x.menu));
+          if (h?.menu && !this.topModal) this.openMenu(h.menu(m), m.x, m.y);
+          else if (h?.onRight) h.onRight(m);
+          else if (!this.topModal) this.openMenu(this.paneMenu(), m.x, m.y);
           break;
         }
         const h = pick((x) => !!(x.onClick || x.onDrag || x.cmd));
@@ -543,6 +670,7 @@ export class Workspace {
     const app = this.activeApp;
     const mainFocused = this.focus === "main" && !this.topModal;
     const inner = ui.box(mainR, { title: app ? t(app.title()).toUpperCase() : "", focused: mainFocused, info: app?.kind === "note" ? app.key.slice(5) : app && app.kind !== app.title().toLowerCase() ? app.kind : undefined });
+    if (app?.menu) ui.hit(inner, { menu: () => app.menu!() });
     if (app) ui.clip(inner, () => app.render(ui, inner, mainFocused));
 
     if (this.shellVisible) {
@@ -567,7 +695,7 @@ export class Workspace {
         const rect = { x: tx, y: r.y, w: strWidth(text), h: 1 };
         const style = on ? (shellFocused ? { fg: c.titleFocus, bg: c.panel, attrs: BOLD } : { fg: c.fg, bg: c.panel, attrs: BOLD }) : { fg: ui.hovered(rect) ? c.accent : c.title, bg: c.panel };
         ui.text(tx, r.y, text, style);
-        ui.hit(rect, { onClick: () => (ti >= 0 && (this.termIndex = ti), this.showShellTab(id)), onRight: ti >= 0 ? () => void this.renameTerminal(ti) : undefined, tip: id === "term" ? `right-click: rename · term rename <name>\n${this.terms[ti]?.shellName ?? ""}: your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)` : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash" : "what clicks ran, with their output" });
+        ui.hit(rect, { onClick: () => (ti >= 0 && (this.termIndex = ti), this.showShellTab(id)), menu: ti >= 0 ? () => this.termTabMenu(ti) : undefined, tip: id === "term" ? `right-click: rename, close… · term rename <name>\n${this.terms[ti]?.shellName ?? ""}: your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)` : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash" : "what clicks ran, with their output" });
         tx += rect.w + 1;
         // + a new terminal, after the last one · × close the one shown (when there are several)
         if (id === "term" && ti === this.terms.length - 1) {
@@ -620,6 +748,7 @@ export class Workspace {
         ui.text(bx, my, " + ", { fg: ui.hovered(plus) ? c.accent : c.subtle, bg: c.highlight, attrs: BOLD });
         ui.hit(plus, { onClick: () => void this.editMacro(-1), tip: "new macro · or: macro add <label> <command>" });
       }
+      ui.hit(si, { menu: () => this.shellMenu() });
       ui.clip(si, () => {
         if (this.shellTab === "term") this.terminal.render(ui, termR, shellFocused);
         else if (this.shellTab === "history") d.shell.renderHistory(ui, si);
@@ -646,6 +775,7 @@ export class Workspace {
     for (const o of this.overlays) if (o instanceof Osk) o.render(ui, screen);
     this.toasts.render(ui, screen);
     this.renderTip(ui, screen);
+    if (ui.caret) this.lastCaret = { ...ui.caret };
   }
 
   /** After ~0.6 s on something clickable: its shell command and a tip. */
@@ -743,7 +873,7 @@ export class Workspace {
       // close button
       const closeX = x;
       ui.text(closeX, r.y, isActive || hot ? "×" : " ", { fg: isActive ? c.panel : c.subtle, bg: style.bg });
-      ui.hit(rect, { cmd: `tab ${i + 1}`, tip: IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}` });
+      ui.hit(rect, { cmd: `tab ${i + 1}`, tip: `${IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`} · right-click: close others…`, menu: () => this.tabMenu(i) });
       ui.hit({ x: closeX, y: r.y, w: 1, h: 1 }, { cmd: `tab close ${i + 1}`, tip: "ctrl+w · esc closes the focused page" });
       x += 2;
     });

@@ -6,6 +6,28 @@ import { charWidth, strWidth, truncate } from "../core/unicode";
 
 export type { Rect, Style };
 
+/** One line of a right-click menu. `"-"` is a separator. */
+export type MenuEntry = MenuItem | "-";
+
+export interface MenuItem {
+  label: string;
+  /** A shell command to run (echoed like any click), or… */
+  cmd?: string;
+  /** …a function. */
+  run?: () => void | Promise<void>;
+  /** Shown on the right: a shortcut ("⌘C") or a hint. */
+  hint?: string;
+  /** Red: deletes or destroys something. */
+  danger?: boolean;
+  disabled?: boolean;
+  /** A coloured dot before the label (colour tags). */
+  color?: RGB;
+  /** A ✓ before the label. */
+  checked?: boolean;
+  /** Opens a sub-menu (▸). */
+  sub?: MenuEntry[] | (() => MenuEntry[]);
+}
+
 /** A clickable / scrollable area registered while drawing (immediate-mode UI). */
 export interface Hit {
   rect: Rect;
@@ -14,8 +36,13 @@ export interface Hit {
   /** Called on mouse moves while the button is held after a click on this area. */
   onDrag?: (m: MouseInput) => void;
   onWheel?: (delta: number) => void;
-  /** Right click (rename, more…). */
+  /** Right click: a custom handler. Most places give a `menu` instead. */
   onRight?: (m: MouseInput) => void;
+  /**
+   * What right-click shows here (a context menu). The deck adds the common
+   * lines (copy/paste in text, palette, shortcuts, settings) under it.
+   */
+  menu?: (m?: MouseInput) => MenuEntry[];
   /**
    * The shell command this click runs. It's echoed in the shell, so clicking
    * around teaches the command line. Hovering shows it in a tooltip.

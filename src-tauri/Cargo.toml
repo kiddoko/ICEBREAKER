@@ -30,6 +30,7 @@ sysinfo = { version = "0.40.4", default-features = false, features = ["system"] 
 tauri = { version = "2", features = [] }
 tiny_http = "0.12"
 tauri-plugin-notification = "2"
+tauri-plugin-clipboard-manager = "2"
 
 [profile.release]
 # Small, fast binary: important for the "runs on a potato laptop" goal.

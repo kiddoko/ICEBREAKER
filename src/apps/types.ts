@@ -1,7 +1,7 @@
 import type { Action, KeyInput } from "../core/input";
 import type { Rect } from "../core/grid";
 import type { Deck } from "../deck";
-import type { UI } from "../ui/ui";
+import type { MenuEntry, UI } from "../ui/ui";
 
 /**
  * An App is anything that lives in a tab: the note editor, the journal, the
@@ -25,6 +25,11 @@ export interface App {
   status?(): string;
   /** Unsaved changes (shows ● in the tab). */
   dirty?(): boolean;
+  /**
+   * Right-click on an empty spot of the page (or the menu key / shift+F10).
+   * Things drawn with `ui.hit(rect, { menu })` get their own menu first.
+   */
+  menu?(): MenuEntry[];
   /** Called before closing; return false to cancel. */
   close?(): Promise<boolean> | boolean;
 }

@@ -5,7 +5,7 @@ import type { Action, KeyInput } from "../core/input";
 import { strWidth } from "../core/unicode";
 import type { Deck } from "../deck";
 import { decrypt } from "../fx/glitch";
-import type { UI } from "../ui/ui";
+import type { MenuEntry, UI } from "../ui/ui";
 import type { App, AppSpec } from "./types";
 
 /** One cartridge in the hive: a module, or one of the deck's own doors. */
@@ -89,6 +89,25 @@ export class ModulesApp implements App {
     if (c.module && !c.on) return void this.deck.act(`plugin enable ${c.id}`);
     if (c.launch) return void this.deck.act(c.launch);
     if (c.widgetsOnly) this.deck.notify(t("{name} adds widgets: on HOME, e then a", { name: c.name }));
+  }
+
+  /** Right-click on a card. */
+  private cartMenu(c: Cart): MenuEntry[] {
+    const items: MenuEntry[] = [];
+    if (c.module && !c.on) items.push({ label: t("switch on"), run: () => this.run(c), hint: "enter" });
+    else if (c.launch || !c.module) items.push({ label: t("launch"), run: () => this.run(c), hint: "enter" });
+    if (c.module) {
+      if (c.on) items.push({ label: t("switch off"), cmd: `plugin disable ${c.id}`, hint: "space" });
+      items.push({ label: t("pin"), cmd: `pin ${c.id}`, hint: "p" }, "-", { label: t("remove…"), run: () => void this.onText("x"), danger: true, hint: "x" });
+    }
+    items.push("-", { label: t("store"), cmd: "store", hint: "s" });
+    return items;
+  }
+
+  /** Right-click on an empty spot: the selected card. */
+  menu(): MenuEntry[] {
+    const c = this.carts()[this.sel];
+    return c ? this.cartMenu(c) : [{ label: t("store"), cmd: "store" }];
   }
 
   onText(s: string): boolean {
@@ -204,7 +223,7 @@ export class ModulesApp implements App {
         const lift = isSel ? 1 : 0;
         const rect = { x, y: y - lift, w: cw, h: ch };
         if (rect.y >= field.y && rect.y + rect.h <= field.y + field.h + 1) this.drawCart(ui, rect, cart, isSel && focused, fade, age - i * 40);
-        ui.hit(rect, { onClick: () => (this.sel = i), onDouble: () => this.run(cart), tip: cart.description });
+        ui.hit(rect, { onClick: () => (this.sel = i), onDouble: () => this.run(cart), tip: cart.description, menu: () => ((this.sel = i), this.cartMenu(cart)) });
         x += cw + gap;
       });
     }

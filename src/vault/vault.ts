@@ -14,7 +14,7 @@ export class Vault {
   /** Absolute path of the mounted folder (for display). */
   root = "";
   entries: VaultEntry[] = [];
-  readonly events = new Emitter<{ changed: { path: string } ; rescanned: void }>();
+  readonly events = new Emitter<{ changed: { path: string }; rescanned: void; renamed: { from: string; to: string }; trashed: { path: string } }>();
 
   constructor(private readonly backend: VaultBackend) {}
 
@@ -113,12 +113,14 @@ export class Vault {
     const p = normalize(path);
     const dest = await this.backend.trash(p);
     this.entries = this.entries.filter((e) => e.path !== p && !e.path.startsWith(p + "/"));
+    this.events.emit("trashed", { path: p });
     this.events.emit("changed", { path: p });
     return dest;
   }
 
   async rename(from: string, to: string): Promise<void> {
     await this.backend.rename(normalize(from), normalize(to));
+    this.events.emit("renamed", { from: normalize(from), to: normalize(to) });
     await this.rescan();
     this.events.emit("changed", { path: normalize(to) });
   }

@@ -3,7 +3,10 @@ import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import { TextEditor } from "../ui/editor";
 import { linkAt } from "../ui/markdown";
-import type { UI } from "../ui/ui";
+import type { MenuEntry, UI } from "../ui/ui";
+import { copyToClipboard } from "../core/clipboard";
+import { t } from "../core/i18n";
+import { q } from "../ui/ui";
 import { basename, dirname, join } from "../vault/paths";
 import type { App, AppSpec } from "./types";
 
@@ -119,6 +122,31 @@ export class NoteApp implements App {
     return true;
   }
 
+  /** Right-click in the note: edit, links, the note itself. */
+  menu(): MenuEntry[] {
+    const d = this.deck;
+    const ed = this.editor;
+    const hasSel = !!ed.selection();
+    const { line, col } = ed.cursor;
+    const link = linkAt(ed.lines[line] ?? "", col);
+    const pinned = (d.settings.data.favorites ?? []).some((f) => f.target === this.path);
+    const m = d.workspace.editMenu();
+    for (const e of m) if (e !== "-" && (e.label === t("copy") || e.label === t("cut"))) e.disabled = !hasSel;
+    return [
+      ...m,
+      "-",
+      { label: t("undo"), run: () => ed.undo(), hint: "⌘Z" },
+      { label: t("redo"), run: () => ed.redo(), hint: "⇧⌘Z" },
+      ...(link ? ["-" as const, { label: /^https?:/.test(link) ? t("copy the link") : t("follow the link"), run: () => (/^https?:/.test(link) ? copyToClipboard(link) : void this.followLink()), hint: "⌘⏎" }] : []),
+      "-",
+      { label: t("save"), run: () => this.save().then(() => d.notify(`saved ${this.path}`, "success")), hint: "⌘S", disabled: !this.dirty() },
+      { label: pinned ? t("unpin") : t("pin"), cmd: `${pinned ? "unpin" : "pin"} ${q(this.path)}` },
+      { label: t("show in the tree"), run: () => { d.workspace.sidebar.reveal(this.path); } },
+      { label: t("copy path"), run: () => (copyToClipboard(this.path), d.notify(t("path copied"))) },
+      ...(this.path.endsWith(".md") ? [{ label: t("copy [[link]]"), run: () => (copyToClipboard(`[[${basename(this.path, ".md")}]]`), d.notify(t("link copied"))) }] : []),
+    ];
+  }
+
   onKey(k: KeyInput): boolean {
     if (k.combo === "ctrl+s") {
       void this.save().then(() => this.deck.notify(`saved ${this.path}`, "success"));
@@ -159,6 +187,14 @@ export class NoteApp implements App {
         this.editor.cursor = this.editor.posAt(m.x, m.y);
       },
       onWheel: (d) => this.editor.scroll(d),
+      // right-click: the cursor goes there (unless it's inside the selection), then the menu
+      menu: (m) => {
+        if (m && !this.editor.selection()) {
+          this.editor.cursor = this.editor.posAt(m.x, m.y);
+          this.editor.anchor = null;
+        }
+        return this.menu();
+      },
     });
   }
 }

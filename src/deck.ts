@@ -38,6 +38,8 @@ import type { Platform } from "./platform/types";
 import { PluginHost } from "./plugins/host";
 import { deckCommands } from "./shell/commands/deck";
 import { fileCommands } from "./shell/commands/files";
+import { iconCommand, tagCommand } from "./shell/commands/marks";
+import { Marks } from "./vault/marks";
 import { systemCommands } from "./shell/commands/system";
 import { ShellApp } from "./shell/shell";
 import { ShellExecutor } from "./shell/exec";
@@ -78,6 +80,8 @@ export class Deck implements InputSink {
   readonly ai: AIManager;
   /** numbers kept over time by modules (ib.stats), shown by STATS */
   readonly stats: StatsStore;
+  /** colour tags + custom icons of files and folders (.icebreaker/tags.json, icons.json) */
+  readonly marks: Marks;
   /** settings modules declare (ib.settings.register) — shown under MODULES in Settings */
   readonly moduleSettings = new Map<string, ModuleSettingSpec[]>();
   moduleSettingValue(id: string, key: string): unknown {
@@ -127,6 +131,7 @@ export class Deck implements InputSink {
     const el = (id: string) => document.getElementById(id)!;
     this.vault = new Vault(platform.vault);
     this.stats = new StatsStore(this.vault);
+    this.marks = new Marks(this.vault);
     this.ai = new AIManager(settings);
     // the AI wrote notes: pick them up in the tree, search, widgets…
     this.ai.onVaultWrite = () => void this.vault.rescan().then(() => this.requestFrame());
@@ -278,7 +283,7 @@ export class Deck implements InputSink {
   }
 
   private registerCore(): void {
-    for (const c of [...fileCommands, ...systemCommands, ...deckCommands, storeCommand, ...shortcutCommands, scriptCommand, pinCommand, unpinCommand, weatherCommand, startHereCommand]) this.commands.register({ ...c, source: "core" });
+    for (const c of [...fileCommands, ...systemCommands, ...deckCommands, storeCommand, ...shortcutCommands, scriptCommand, pinCommand, unpinCommand, tagCommand, iconCommand, weatherCommand, startHereCommand]) this.commands.register({ ...c, source: "core" });
     for (const w of [...BUILTIN_WIDGETS, pinnedWidget]) this.widgets.register(w);
     for (const a of [homeSpec, modulesSpec, storeSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec, shortcutsSpec, terminalSpec, weatherSpec, clocksSpec, focusSpec]) this.apps.register(a);
 

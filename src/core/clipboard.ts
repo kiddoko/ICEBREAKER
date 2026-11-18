@@ -29,3 +29,23 @@ export function takePendingCopy(): string | null {
   pending = null;
   return t;
 }
+
+/**
+ * Read the clipboard (right-click → paste). The desktop app asks the native
+ * side (no permission bubble); the browser preview uses the Clipboard API.
+ */
+export async function readClipboard(): Promise<string> {
+  if ("__TAURI_INTERNALS__" in window) {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return (await invoke<string>("plugin:clipboard-manager|read_text")) ?? "";
+    } catch {
+      /* fall through */
+    }
+  }
+  try {
+    return (await navigator.clipboard?.readText?.()) ?? "";
+  } catch {
+    return "";
+  }
+}

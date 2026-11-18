@@ -4,7 +4,7 @@ import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import { drawBackground } from "../fx/backgrounds";
-import type { UI } from "../ui/ui";
+import type { MenuEntry, UI } from "../ui/ui";
 import { DEFAULT_LAYOUT } from "../widgets/builtin";
 import type { WidgetPlacement } from "../widgets/types";
 import type { App, AppSpec } from "./types";
@@ -213,6 +213,35 @@ export class HomeApp implements App {
     return true;
   }
 
+  /** Right-click on an empty spot of HOME. */
+  menu(): MenuEntry[] {
+    return [
+      { label: t("add a widget…"), run: () => this.add(), hint: "a" },
+      { label: this.editing ? t("done rearranging") : t("rearrange the widgets"), cmd: this.editing ? "home done" : "home edit", hint: this.editing ? "esc" : "e" },
+      { label: t("new page"), cmd: "home page new" },
+      "-",
+      { label: t("default layout"), run: async () => { if (await this.deck.confirm(t("Back to the default layout?"), t("Your widgets go back to where they were at the start."))) void this.deck.act("home reset"); }, danger: true },
+    ];
+  }
+
+  /** Right-click on a widget. */
+  private widgetMenu(i: number): MenuEntry[] {
+    const p = this.layout[i];
+    const spec = p && this.deck.widgets.get(p.id);
+    if (!p || !spec) return this.menu();
+    this.selected = i;
+    const has = spec.popup || spec.activate || spec.open;
+    return [
+      ...(has ? [{ label: spec.popup ? t("open its pop-up") : t("open"), cmd: `widget ${p.id}`, hint: "enter" }] : []),
+      ...(spec.open ? [{ label: t("open its module"), cmd: `widget ${p.id} open` }] : []),
+      "-",
+      { label: this.editing ? t("done rearranging") : t("move / resize"), cmd: this.editing ? "home done" : "home edit", hint: "e" },
+      { label: t("add a widget…"), run: () => this.add(), hint: "a" },
+      "-",
+      { label: t("remove from HOME"), cmd: `home rm ${p.id}`, danger: true, hint: "x" },
+    ];
+  }
+
   /** Edit mode on/off (`home edit`). */
   setEditing(on: boolean): void {
     if (this.editing && !on) this.settle();
@@ -407,6 +436,7 @@ export class HomeApp implements App {
           this.moveAbs(i, Math.max(0, Math.min(COLS - ww, nx)), Math.max(0, ny));
         },
         onDouble: () => !this.editing && (spec.popup || spec.activate || spec.open) && void this.deck.act(`widget ${p.id}`),
+        menu: () => this.widgetMenu(i),
         tip: this.editing ? "drag to move · shift+arrows resize · x remove" : spec.popup || spec.activate || spec.open ? `${spec.description ?? spec.title}\ndouble-click / enter → widget ${p.id}` : spec.description,
       };
       // normally the widget's own buttons sit on top of its frame; while editing,

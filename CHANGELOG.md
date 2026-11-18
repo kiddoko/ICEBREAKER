@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- Right-click everywhere: a menu for the thing under the mouse — tree entries
+  (open, new note/folder here, rename, duplicate, pin, copy path / [[link]],
+  colour, icon, trash), tabs (close, close the others / the ones on the right,
+  show in the tree), terminal tabs (rename, restart, close), the shell (paste,
+  clear, new terminal, maximize, hide), the note editor (copy, cut, paste,
+  select all, undo, redo, follow the link, save), HOME widgets (pop-up, module,
+  move, remove), MODULES cards (launch, switch on/off, pin, remove). Keyboard:
+  the menu key or shift+F10; sub-menus open on the right. Paste reads the
+  clipboard natively (no permission bubble).
+- Colour tags like Ableton (red, orange, yellow, green, cyan, blue, purple,
+  pink) on files and folders, on the icon only; dots above the tree show one
+  colour at a time. `tag <path> <colour>`, `tag ls <colour>`, `tag view <colour>`.
+- Custom icons per file or folder (`icon <path> ★`). Tags and icons are in the
+  vault (.icebreaker/tags.json, icons.json) and follow renames.
+- Tree: F2 renames, Delete moves to the trash (after asking).
+
 - File tree: an icon per file type (∿ Python, ʝ JS/TS, ❯ scripts, λ code, ⚙ config,
   ▣ images, ♪ audio, ▶ video, ▤ PDF, ▥ tables…).
 - MODULES hive: card descriptions wrap instead of being cut.

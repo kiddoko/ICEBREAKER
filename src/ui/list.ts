@@ -1,7 +1,7 @@
 import { mix } from "../core/color";
 import type { Action } from "../core/input";
 import type { Rect } from "../core/grid";
-import type { UI } from "./ui";
+import type { MenuEntry, UI } from "./ui";
 
 /**
  * A scrollable, selectable list. You give it items and a function that draws
@@ -24,6 +24,8 @@ export class ListView<T> {
   /** Shell command a click on this item runs (shown in the shell and in the tooltip). */
   cmdOf?: (item: T) => string | undefined;
   tipOf?: (item: T) => string | undefined;
+  /** Right-click menu of a row (the row gets selected first). */
+  menuOf?: (item: T, index: number) => MenuEntry[];
   /** Called when the selection moves (e.g. to show a preview). */
   onSelect?: (item: T, index: number) => void;
   private viewH = 1;
@@ -104,6 +106,7 @@ export class ListView<T> {
       ui.hit(row, {
         cmd: this.cmdOf?.(item),
         tip: this.tipOf?.(item),
+        menu: this.menuOf ? () => (this.select(idx), this.menuOf!(item, idx)) : undefined,
         onClick: () => this.select(idx),
         onDouble: () => {
           this.select(idx);

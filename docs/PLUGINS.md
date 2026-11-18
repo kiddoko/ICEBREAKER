@@ -160,6 +160,25 @@ get a scriptable module for free.
 
 For plain clicks you don't even need a handler: `ui.hit(rect, { cmd: "todo done 3", tip: "space" })`
 runs the command on click and shows it (plus the tip) in a hover tooltip.
+Give it a right-click menu with `menu`:
+
+```ts
+ui.hit(rect, {
+  cmd: `todo done ${id}`,
+  menu: () => [
+    { label: "done", cmd: `todo done ${id}` },
+    { label: "colour", sub: [{ label: "red", cmd: `todo color ${id} red` }] },
+    "-",
+    { label: "delete", cmd: `todo rm ${id}`, danger: true },
+  ],
+});
+```
+
+A line has `label`, then `cmd` (a shell command) or `run` (a function), and
+optionally `hint` (shown on the right), `danger`, `disabled`, `checked`,
+`color` or `sub` (a sub-menu). `"-"` is a separator. The deck adds the common
+lines (palette, shortcuts, settings) under yours. An app can also have a
+`menu()` method: right-click on an empty spot of its page, or the menu key.
 `ib.lib.parseFlags` reads `--flags`, `ib.lib.q` quotes an argument safely.
 
 Give your command `usage`, `examples` and `man`: `yourcmd -h` (and `man yourcmd`)

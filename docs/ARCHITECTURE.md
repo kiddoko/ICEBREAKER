@@ -45,7 +45,9 @@ Routing (`workspace/workspace.ts`):
 
 So an app that only implements `onAction` works with keyboard, gamepad and
 on-screen keyboard. Mouse: during render, `ui.hit(rect, { onClick, onDrag, onWheel })`
-registers areas; the last registered area under the pointer wins.
+registers areas; the last registered area under the pointer wins. Right-click
+opens the `menu` of the top area that has one (`workspace/contextmenu.ts`),
+else the focused app's `menu()`.
 
 Text goes through a hidden `<textarea>` so IME (日本語), dead keys (ê, ü) and
 paste work like in any native app.

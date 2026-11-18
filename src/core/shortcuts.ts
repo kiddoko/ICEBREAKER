@@ -36,6 +36,7 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: "ctrl+= · ctrl+- · ctrl+0", what: "interface bigger · smaller · 100 %", cat: "everywhere" },
   { keys: "f11", what: "fullscreen", cat: "everywhere", cmd: "fullscreen" },
   { keys: "esc", what: "close the page and go back (HOME stays)", cat: "everywhere" },
+  { keys: "right-click · menu key · shift+f10", what: "the menu of the thing under the mouse (or the selected one): rename, pin, colour, copy, paste…", cat: "everywhere" },
 
   // panes & tabs
   { keys: "tab", what: "next thing on the screen: widget, card, line", cat: "panes & tabs" },
@@ -56,6 +57,9 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: "tab · shift+tab", what: "indent · unindent (shift+tab leaves the note when there's nothing to unindent)", cat: "notes" },
   { keys: "ctrl+z · ctrl+shift+z", what: "undo · redo", cat: "notes" },
   { keys: "n · r", what: "in the tree: new note here · rescan the vault", cat: "notes" },
+  { keys: "f2", what: "in the tree: rename", cat: "notes" },
+  { keys: "delete · ctrl+backspace", what: "in the tree: move to the trash (asks first)", cat: "notes" },
+  { keys: "p", what: "in the tree: pin / unpin", cat: "notes" },
 
   // home
   { keys: "←↑↓→ · tab", what: "choose a widget", cat: "home" },

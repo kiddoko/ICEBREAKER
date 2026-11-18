@@ -116,11 +116,19 @@ Widgets rise to the top on their own; holes close up.
 \`\`\`
 VAULT              8
  + note   + dir
+ ●●●●●●●●            ← colour tags: click one to see only that colour
  ★ ✎ ideas          ← pinned (p pins the selected thing)
  ▾ journal/      2
  ├─ 2026-11-17
  └─ 2026-11-18
+ ▸⚡ projects/        ← a custom icon, tagged cyan
 \`\`\`
+
+**Right-click anything** (or the menu key, shift+F10): open, rename (F2),
+duplicate, pin, copy the path or a [[link]], a **colour** (red, orange, yellow,
+green, cyan, blue, purple, pink — like Ableton), an **icon**, the trash.
+In the shell: \`tag notes/ideas.md red\`, \`tag view red\`, \`icon projects ⚡\`.
+Tags and icons live in your vault (.icebreaker/tags.json, icons.json).
 
 ## Tabs, pins, settings
 - Tabs on top (⌘1…9, ⌘W closes). Esc closes a page and goes back.
@@ -187,7 +195,7 @@ On a Mac, ⌘ plays the role of Ctrl.
 |---|---|
 | click | does it — and shows the command in the shell |
 | double-click | open |
-| right-click | rename (terminal tabs) |
+| right-click | a menu for what's under it: notes, folders, tabs, widgets, cards, the shell, the editor (copy, paste…) |
 | hover | the command and the shortcut |
 
 | Gamepad | |

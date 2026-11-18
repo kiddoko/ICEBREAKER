@@ -29,6 +29,7 @@ pub fn run() {
 
     builder
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .manage(vault::VaultState::default())
         .manage(system::SystemState::default())
         .manage(claude_code::ClaudeCodeState::default())

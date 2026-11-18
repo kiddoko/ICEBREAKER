@@ -117,7 +117,7 @@ export class ExplorerApp implements App {
     this.pos = this.sel;
     this.deck.notify(`nexus: sorted by ${this.sortBy}`);
   }
-  private async menu(): Promise<void> {
+  private async actionMenu(): Promise<void> {
     const e = this.current;
     const actions: [string, string, () => unknown][] = [
       ["New note here", "+", () => this.newNote()],
@@ -170,7 +170,7 @@ export class ExplorerApp implements App {
   onText(t: string): boolean {
     if (t === "/") return void this.search(), true;
     if (t === "+") return void this.newNote(), true;
-    if (t === ":") return void this.menu(), true;
+    if (t === ":") return void this.actionMenu(), true;
     if (!/^[\p{L}\p{N}._ -]$/u.test(t)) return false;
     if (t === "h" && !this.typed) return false; // h → HOME, unless typing a name
     const now = performance.now();
@@ -195,7 +195,7 @@ export class ExplorerApp implements App {
       case "confirm": case "up": this.open(this.items()[this.sel]); return true;
       case "down": return this.up();
       case "back": return this.up(); // at the root, esc closes the tab as usual
-      case "menu": void this.menu(); return true;
+      case "menu": void this.actionMenu(); return true;
       default: return false;
     }
   }
@@ -263,7 +263,7 @@ export class ExplorerApp implements App {
     // the toolbar: every action, one click away
     let tx = r.x + r.w - 1;
     const tools: [string, () => unknown, string][] = [
-      [" : ", () => this.menu(), "every action · : · pad menu"],
+      [" : ", () => this.actionMenu(), "every action · : · pad menu"],
       [` ⇅ ${this.sortBy} `, () => this.cycleSort(), "sort: name · modified · size"],
       [" ✕ ", () => this.trash(), "to the trash · delete"],
       [" ✎ ", () => this.rename(), "rename · F2"],
