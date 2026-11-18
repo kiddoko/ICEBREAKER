@@ -35,6 +35,7 @@ import type { WidgetSpec } from "../widgets/types";
 import type { BackgroundSpec } from "../fx/backgrounds";
 import type { LocalTrack, MediaStatus, PlayerStatus } from "../platform/types";
 import type { Stat, StatMeta, StatPoint } from "../core/stats";
+import type { ServiceInfo, ServiceSpec } from "./services";
 
 export type Permission = "vault:read" | "vault:write" | "ai" | "media" | "google-calendar" | "stats:read";
 
@@ -180,6 +181,25 @@ export interface IcebreakerAPI {
     remove(name: string): Promise<boolean>;
     /** called with the stat id whenever a stat you may read changes; returns unsubscribe */
     onChange(fn: (id: string) => void): () => void;
+  };
+
+  /**
+   * Modules talk to each other. Expose functions under your id; call any
+   * module's (built-in or downloaded). A function can require a permission
+   * from its callers ({ needs: "vault:write" }).
+   *
+   *   ib.modules.expose("add", { doc: "add(title) → the new task", fn: (title) => … });
+   *   if (ib.modules.has("todo", "add")) await ib.modules.call("todo", "add", "walk the dog");
+   *   await ib.modules.call("journal", "append", "ran 5 km");   // needs vault:write
+   *   ib.modules.list()  // every exposed function, with its doc
+   */
+  modules: {
+    expose(name: string, spec: ServiceSpec | ServiceSpec["fn"]): void;
+    call<T = unknown>(module: string, name: string, ...args: unknown[]): Promise<T>;
+    has(module: string, name?: string): boolean;
+    list(module?: string): ServiceInfo[];
+    /** every module on the deck: id, name, on/off */
+    installed(): { id: string; name: string; active: boolean }[];
   };
 
   /** Small JSON key/value store private to this plugin (.icebreaker/plugin-data/<id>.json). */

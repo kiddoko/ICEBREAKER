@@ -73,7 +73,23 @@ export function activate(ib: IcebreakerAPI): void {
     loaded = true;
     check();
   })();
-  const save = () => ib.storage.set("reminders", list).then(() => ib.ui.redraw());
+  const save = () => {
+    void ib.stats.set("pending", list.filter((r) => !r.done && !r.fired).length, { label: "reminders pending" }).catch(() => {});
+    return ib.storage.set("reminders", list).then(() => ib.ui.redraw());
+  };
+  ib.modules.expose("list", { doc: "list() → the reminders still to come { id, title, due (ISO), before }", fn: async () => (await ready, list.filter((r) => !r.done && !r.fired).map((r) => ({ ...r }))) });
+  ib.modules.expose("add", {
+    doc: "add(title, dueISO, beforeMinutes = 15) → the new reminder",
+    fn: async (title: string, due: string, before = 15) => {
+      await ready;
+      const d = new Date(due);
+      if (Number.isNaN(d.getTime())) throw new Error(`reminders.add: "${due}" isn't a date`);
+      const r: Reminder = { id: next++, title: String(title), due: d.toISOString(), before: Number(before) || 0, done: false, warned: false, fired: false };
+      list.push(r);
+      await save();
+      return { ...r };
+    },
+  });
 
   const when = (r: Reminder) => {
     const d = new Date(r.due);
@@ -100,6 +116,7 @@ export function activate(ib: IcebreakerAPI): void {
       if (!r.fired && now >= due) {
         r.fired = r.warned = true;
         changed = true;
+        void ib.stats.add("rung", 1, { label: "reminders rung", kind: "counter" }).catch(() => {});
         ib.ui.alert(`⏰ ${r.title}`, t("now"));
       } else if (!r.warned && r.before > 0 && now >= due - r.before * 60000) {
         r.warned = true;

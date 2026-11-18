@@ -392,6 +392,7 @@ export const timerCommand: Command = {
     const ms = m ? ((Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0)) * 60 + Number(m[3] ?? 0)) * 1000 : 0;
     if (!ms) return ctx.err("usage: timer 5m | 90s | 1h30 | 25 (minutes)\n"), 1;
     clockState.timerEnd = Date.now() + ms;
+    void ctx.deck.stats.add("clocks.timers", 1, "clocks", { label: "timers started", kind: "counter" }).catch(() => {});
     clockState.timerTotal = ms;
     const deck = ctx.deck;
     if (timerWatch) clearInterval(timerWatch);

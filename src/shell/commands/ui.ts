@@ -302,6 +302,50 @@ export const uiCommands: Command[] = [
   palette,
   osk,
   opener("settings", "settings", "settings (ctrl+,)", ["prefs"]),
-  opener("modules", "modules", "all apps and plugins (key on HOME: m)"),
+  {
+    name: "modules",
+    summary: "all apps and plugins (key on HOME: m); what they expose to each other",
+    usage: "modules                         the MODULES hive\nmodules api [module]            functions modules expose to each other (ib.modules)\nmodules call <module> <fn> [args…]   call one (args: text, numbers or JSON)",
+    examples: [
+      ["modules api", "every function a module can call"],
+      ['modules call todo add "walk the dog"', "add a task through the TODO module's API"],
+      ["modules call sysmon stats", "the machine's vitals as JSON"],
+    ],
+    complete: () => ["api", "call"],
+    async run(ctx) {
+      const d = ctx.deck;
+      const [sub, mod, fn, ...rest] = ctx.args;
+      if (!sub) return void d.openApp("modules"), 0;
+      if (sub === "api") {
+        const list = d.services.list(mod);
+        if (!list.length) return ctx.out(fmt.dim(mod ? `${mod} exposes nothing (or is off)\n` : "nothing exposed\n")), 0;
+        let last = "";
+        for (const s of list) {
+          if (s.module !== last) ctx.out(`${fmt.bold(s.module)}\n`), (last = s.module);
+          ctx.out(`  ${fmt.cyan(s.name.padEnd(12))} ${s.doc}${s.needs ? fmt.yellow(`  [${s.needs}]`) : ""}\n`);
+        }
+        return 0;
+      }
+      if (sub === "call") {
+        if (!mod || !fn) return ctx.err("usage: modules call <module> <fn> [args…]\n"), 1;
+        const args = rest.map((a) => {
+          try {
+            return JSON.parse(a);
+          } catch {
+            return a;
+          }
+        });
+        try {
+          // the shell is you: every permission
+          const out = await d.services.call({ id: "shell", permissions: "all" }, mod, fn, args);
+          if (out !== undefined) ctx.out(`${typeof out === "string" ? out : JSON.stringify(out, null, 2)}\n`);
+          return 0;
+        } catch (e) {
+          return ctx.err(`modules: ${e instanceof Error ? e.message : e}\n`), 1;
+        }
+      }
+      return ctx.err("usage: modules [api [module] | call <module> <fn> [args…]]\n"), 1;
+    },
+  },
   opener("manual", "help", "the manual: keys, mouse, gamepad, commands (F1)"),
 ];

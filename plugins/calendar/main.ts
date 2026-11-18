@@ -270,6 +270,15 @@ export function activate(ib: IcebreakerAPI): void {
   const between = (from: Date, to: Date) => visible().filter((e) => dayOf(e.start) < to && dayOf(e.end) > from).sort(byStart);
   /** events starting on or after `from`, for `days` days */
   const upcomingAfter = (from: Date, days: number) => visible().filter((e) => dayOf(e.start) >= from && dayOf(e.start) < addDays(from, days)).sort(byStart);
+  // ── for other modules (ib.modules.call("calendar", …)) ──
+  ib.modules.expose("events", {
+    doc: "events(fromISO, toISO) → [{ id, cal, title, start, end, allDay, where }]",
+    fn: (from: string, to: string) => (refreshLocal(), between(new Date(from), new Date(to)).map((e) => ({ ...e }))),
+  });
+  ib.modules.expose("today", { doc: "today() → today's events", fn: () => (refreshLocal(), between(dayOf(ymd(new Date())), addDays(dayOf(ymd(new Date())), 1)).map((e) => ({ ...e }))) });
+  ib.modules.expose("add", { doc: 'add("dentist fri 14:30 --cal work") → same words as `cal add`', fn: (words: string) => ib.shell.run(`cal add ${words}`) });
+  const recordUpcoming = () => void ib.stats.set("week", upcomingAfter(dayOf(ymd(new Date())), 7).length, { label: "events this week" }).catch(() => {});
+  setTimeout(recordUpcoming, 3000);
   const upcoming = (n: number) =>
     visible()
       .filter((e) => dayOf(e.end).getTime() > Date.now())

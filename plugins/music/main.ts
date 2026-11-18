@@ -100,6 +100,7 @@ export function activate(ib: IcebreakerAPI): void {
     qi = i;
     const t = byPath.get(queue[i]);
     await player.load(queue[i], true, t?.duration);
+    void ib.stats.add("played", 1, { label: "tracks played", kind: "counter" }).catch(() => {});
     setTimeout(() => void pollLocal(), 150);
   }
   async function playList(paths: string[], start = 0): Promise<void> {
@@ -197,6 +198,8 @@ export function activate(ib: IcebreakerAPI): void {
   };
   /** What the widget and `music` show: the local player first. */
   const shown = (): MediaStatus | null => localStatus() ?? status;
+  ib.modules.expose("status", { doc: "status() → what's playing { title, artist, playing, position, duration } or null", fn: () => shown() });
+  ib.modules.expose("control", { doc: 'control("play" | "pause" | "toggle" | "next" | "prev")', fn: (a: string) => ib.shell.run(`music ${a}`) });
   const position = () => {
     const s = shown();
     if (!s) return 0;

@@ -216,6 +216,7 @@ export class PluginHost {
     this.deck.apps.unregisterSource(id);
     this.deck.actions.unregisterSource(id);
     this.deck.widgets.unregisterSource(id);
+    this.deck.services.unregisterSource(id);
   }
 
   /** Build the API object for one plugin, enforcing its declared permissions. */
@@ -350,6 +351,13 @@ export class PluginHost {
           onChange: (fn) => st.onChange((id) => readable(id) && fn(id)),
         };
       })(),
+      modules: {
+        expose: (name, spec) => deck.services.expose(m.id, name, spec),
+        call: (module, name, ...args) => deck.services.call({ id: m.id, permissions: granted }, module, name, args) as Promise<never>,
+        has: (module, name) => deck.services.has(module, name),
+        list: (module) => deck.services.list(module),
+        installed: () => deck.plugins.list().map((p) => ({ id: p.manifest.id, name: p.manifest.name, active: p.active })),
+      },
       storage: {
         get: async <T,>(key: string, fallback: T) => ((await readData())[key] as T) ?? fallback,
         set: async (key, value) => {

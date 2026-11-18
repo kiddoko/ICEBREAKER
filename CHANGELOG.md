@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Modules talk to each other: `ib.modules.expose / call / has / list` — every
+  built-in module publishes functions (todo.add, journal.append, calendar.events,
+  uplink.ask, sysmon.stats…) that downloaded modules can call, permissions
+  checked. Shell: `modules api`, `modules call todo add "walk the dog"`.
+- STATS gets the modules' numbers: tasks open / added / done, reminders
+  pending / rung, events this week, tracks played, focus sessions and minutes,
+  timers, journal pages, messages to the AI. A setup page (s in STATS, or
+  `stats setup`) lists each module with its stats to show or hide;
+  `stats hide|unhide <id|module>`.
 - `self-destruct`: deletes the whole vault for good, behind a dialog, the
   folder's name, DESTROY in capitals, your password (if the deck has a login)
   and a 10-second countdown that ctrl+c stops. Copies elsewhere aren't touched.

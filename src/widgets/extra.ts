@@ -77,6 +77,10 @@ const focusWidget: WidgetSpec = {
       focus.left -= now - focus.last;
       focus.last = now;
       if (focus.left <= 0) {
+        if (focus.phase === "focus") {
+          void deck.stats.add("focus.sessions", 1, "focus", { label: "focus sessions", kind: "counter" }).catch(() => {});
+          void deck.stats.add("focus.minutes", focus.work, "focus", { label: "minutes of focus", kind: "counter", unit: "min" }).catch(() => {});
+        }
         focus.phase = focus.phase === "focus" ? "break" : "focus";
         focus.left = (focus.phase === "focus" ? focus.work : focus.rest) * 60_000;
         focus.flashUntil = ui.now + 3000;

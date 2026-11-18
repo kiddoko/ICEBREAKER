@@ -26,6 +26,12 @@ export function activate(ib: IcebreakerAPI): void {
   const run = (line: string) => void ib.shell.run(line);
   let all: Stat[] = [];
   let pinned: string[] = [];
+  /** stats you chose not to see (the setup page: s in the app, or stats hide) */
+  let hidden: string[] = [];
+  const visible = () => all.filter((s) => !hidden.includes(s.id));
+  /** the setup page opens next time the app is shown (`stats setup`) */
+  let wantSetup = false;
+  const moduleName = (id: string) => (id === "deck" ? "DECK" : ib.modules.installed().find((m) => m.id === id)?.name ?? id.toUpperCase());
   let loaded = false;
 
   const refresh = async () => {
@@ -35,6 +41,7 @@ export function activate(ib: IcebreakerAPI): void {
   };
   const ready = (async () => {
     pinned = await ib.storage.get<string[]>("pinned", []);
+    hidden = await ib.storage.get<string[]>("hidden", []);
     await refresh();
   })();
   let pending: ReturnType<typeof setTimeout> | null = null;
@@ -48,7 +55,7 @@ export function activate(ib: IcebreakerAPI): void {
   const values = async (id: string, days: number) => (await ib.stats.series(id, days)).map((p) => p.value);
   /** a number with its unit; deltas get a sign */
   const show = (s: Stat, v = s.value) => formatStat(s, v);
-  const shown = () => (pinned.length ? pinned.map(find).filter((s): s is Stat => !!s) : all);
+  const shown = () => (pinned.length ? pinned.map(find).filter((s): s is Stat => !!s) : visible());
   /** cached 14-day series for lists/widgets (refreshed with the list) */
   const sparks = new Map<string, string>();
   const spark = (s: Stat, w = 14) => {
@@ -71,6 +78,8 @@ export function activate(ib: IcebreakerAPI): void {
       "stats add <name> [n] [--unit u]           a counter of yours (adds up per day)",
       "stats pin <id> · stats unpin <id>         choose what the widget shows",
       "stats rm <name>                           forget one of yours",
+      "stats hide <id|module> · stats unhide …   choose what STATS shows",
+      "stats setup                               the page to choose (s in the app)",
       "stats open                                the STATS app",
     ].join("\n"),
     examples: [
@@ -78,7 +87,7 @@ export function activate(ib: IcebreakerAPI): void {
       ["stats add pushups 20", "a counter: today's total grows"],
       ["stats show deck.commands 90", "commands run, last 90 days"],
     ],
-    complete: () => ["ls", "show", "set", "add", "pin", "unpin", "rm", "open", ...all.map((s) => s.id)],
+    complete: () => ["ls", "show", "set", "add", "pin", "unpin", "rm", "open", "hide", "unhide", "setup", ...all.map((s) => s.id)],
     async run(ctx) {
       await ready;
       const { flags, rest } = parseFlags(ctx.args, ["unit", "label"]);
@@ -90,7 +99,7 @@ export function activate(ib: IcebreakerAPI): void {
         const w = Math.max(...list.map((s) => s.id.length));
         for (const s of list) {
           const p = await values(s.id, 14);
-          ctx.out(`${s.id.padEnd(w)}  ${fmt.bold(show(s).padStart(12))}  ${fmt.cyan(sparkline(p, 14))}  ${fmt.dim(t(s.label))}${pinned.includes(s.id) ? fmt.yellow(" ★") : ""}\n`);
+          ctx.out(`${s.id.padEnd(w)}  ${fmt.bold(show(s).padStart(12))}  ${fmt.cyan(sparkline(p, 14))}  ${fmt.dim(t(s.label))}${pinned.includes(s.id) ? fmt.yellow(" ★") : ""}${hidden.includes(s.id) ? fmt.dim(" (hidden)") : ""}\n`);
         }
         return 0;
       }
@@ -126,6 +135,17 @@ export function activate(ib: IcebreakerAPI): void {
         await ib.storage.set("pinned", pinned);
         ib.ui.redraw();
         ctx.out(`${sub === "pin" ? fmt.yellow("★") : fmt.dim("☆")} ${t(s.label)}\n`);
+        return 0;
+      }
+      if (sub === "setup") return (wantSetup = true), void ib.apps.open("stats"), 0;
+      if (sub === "hide" || sub === "unhide") {
+        if (!a) return ctx.err(`usage: stats ${sub} <id | module>\n`), 1;
+        const ids = all.filter((x) => x.id === a || x.source === a || x.id === `stats.${a}`).map((x) => x.id);
+        if (!ids.length) return ctx.err(`stats: no stat or module "${a}" (stats ls)\n`), 1;
+        hidden = sub === "hide" ? [...new Set([...hidden, ...ids])] : hidden.filter((x) => !ids.includes(x));
+        await ib.storage.set("hidden", hidden);
+        ib.ui.redraw();
+        ctx.out(`${sub === "hide" ? fmt.dim("☐ hidden") : fmt.green("☑ shown")}: ${ids.join(", ")}\n`);
         return 0;
       }
       if (sub === "rm" || sub === "remove") {
@@ -172,16 +192,72 @@ export function activate(ib: IcebreakerAPI): void {
     private range = 1;
     private series: number[] = [];
     private seriesFor = "";
+    private setup = false;
+    private setupSel = 0;
+    /** the setup page: each module, then its stats, with a box to show / hide */
+    private setupRows(): ({ kind: "mod"; id: string } | { kind: "stat"; s: Stat })[] {
+      const out: ({ kind: "mod"; id: string } | { kind: "stat"; s: Stat })[] = [];
+      for (const src of [...new Set(all.map((x) => x.source))].sort()) {
+        out.push({ kind: "mod", id: src });
+        for (const x of all.filter((y) => y.source === src)) out.push({ kind: "stat", s: x });
+      }
+      return out;
+    }
+    private toggleRow(i: number): void {
+      const row = this.setupRows()[i];
+      if (!row) return;
+      if (row.kind === "stat") return run(`stats ${hidden.includes(row.s.id) ? "unhide" : "hide"} ${row.s.id}`);
+      const mine = all.filter((x) => x.source === row.id);
+      run(`stats ${mine.every((x) => hidden.includes(x.id)) ? "unhide" : "hide"} ${row.id}`);
+    }
+    private renderSetup(ui: UI, r: Rect, focused: boolean): void {
+      const c = ui.c;
+      const w = Math.min(r.w - 4, 80), x = r.x + Math.floor((r.w - w) / 2);
+      let y = r.y + 1;
+      ui.button(x, y, t("‹ back to the stats"), () => (this.setup = false), { tip: "s · esc" });
+      ui.text(x + 24, y, t("what STATS shows — space or click to switch"), { fg: c.muted }, w - 24);
+      y += 2;
+      const rows = this.setupRows();
+      this.setupSel = Math.min(this.setupSel, Math.max(0, rows.length - 1));
+      const room = r.y + r.h - y - 1;
+      const from = Math.max(0, Math.min(this.setupSel - Math.floor(room / 2), rows.length - room));
+      rows.slice(from, from + room).forEach((row, k) => {
+        const i = from + k;
+        const line = { x, y, w, h: 1 };
+        const bg = i === this.setupSel && focused ? mix(c.accent, c.bg, 0.8) : ui.hovered(line) ? c.highlight : undefined;
+        if (bg) ui.fill(line, { bg });
+        const st = bg ? { bg } : {};
+        if (row.kind === "mod") {
+          const mine = all.filter((s) => s.source === row.id);
+          const on = mine.filter((s) => !hidden.includes(s.id)).length;
+          const box = on === mine.length ? "☑" : on ? "◐" : "☐";
+          ui.text(x + 1, y, box, { fg: on ? c.accent : c.faint, ...st });
+          ui.text(x + 3, y, moduleName(row.id), { fg: c.title, attrs: BOLD, ...st });
+          ui.textRight(x + w - 1, y, `${on}/${mine.length}`, { fg: c.subtle, ...st });
+        } else {
+          const off = hidden.includes(row.s.id);
+          ui.text(x + 1, y, "└", { fg: c.faint, ...st });
+          ui.text(x + 3, y, off ? "☐" : "☑", { fg: off ? c.faint : c.accent, ...st });
+          ui.text(x + 5, y, t(row.s.label), { fg: off ? c.muted : c.fg, ...st }, w - 30);
+          ui.textRight(x + w - 1, y, `${show(row.s)}  ${row.s.id}`, { fg: c.subtle, ...st });
+        }
+        ui.hit(line, { onClick: () => ((this.setupSel = i), this.toggleRow(i)), tip: row.kind === "mod" ? `stats hide ${row.id} · stats unhide ${row.id}` : `stats hide ${row.s.id}` });
+        y++;
+      });
+      if (!rows.length) ui.text(x, y, t("no stats yet"), { fg: c.muted });
+    }
     title() {
       return "Stats";
     }
     status() {
-      return t("a new · enter update · p pin · ←→ range · x remove");
+      return this.setup ? t("↑↓ choose · space show / hide · s back") : t("a new · enter update · p pin · ←→ range · x remove · s choose what shows");
     }
     private cur(): Stat | undefined {
-      return all[this.sel];
+      return visible()[this.sel];
     }
     onText(s: string): boolean {
+      if (s === "s") return (this.setup = !this.setup), true;
+      if (this.setup) return s === " " ? (this.toggleRow(this.setupSel), true) : false;
       const st = this.cur();
       if (s === "a" || s === "+") return void addFlow(), true;
       if (s === "p" && st) return run(`stats ${pinned.includes(st.id) ? "unpin" : "pin"} ${st.id}`), true;
@@ -192,7 +268,15 @@ export function activate(ib: IcebreakerAPI): void {
       return k.combo === "delete" ? this.onText("x") : false;
     }
     onAction(a: Action): boolean {
-      const n = all.length;
+      if (this.setup) {
+        const n = this.setupRows().length;
+        if (a === "up") return (this.setupSel = n ? (this.setupSel - 1 + n) % n : 0), true;
+        if (a === "down" || a === "item-next") return (this.setupSel = n ? (this.setupSel + 1) % n : 0), true;
+        if (a === "confirm") return this.toggleRow(this.setupSel), true;
+        if (a === "back") return (this.setup = false), true;
+        return false;
+      }
+      const n = visible().length;
       if (a === "up") return (this.sel = n ? (this.sel - 1 + n) % n : 0), true;
       if (a === "down") return (this.sel = n ? (this.sel + 1) % n : 0), true;
       if (a === "left") return (this.range = Math.max(0, this.range - 1)), true;
@@ -206,17 +290,20 @@ export function activate(ib: IcebreakerAPI): void {
     render(ui: UI, r: Rect, focused: boolean): void {
       const c = ui.c;
       if (!loaded) return;
+      if (wantSetup) (this.setup = true), (wantSetup = false);
+      if (this.setup) return this.renderSetup(ui, r, focused);
       ui.animate(60_000);
       const listW = Math.min(46, Math.floor(r.w * 0.42));
       let y = r.y + 1;
-      ui.button(r.x + 2, y, t("+ track something"), () => void addFlow(), { tip: "a" });
+      const bw = ui.button(r.x + 2, y, t("+ track something"), () => void addFlow(), { tip: "a" });
+      ui.button(r.x + 4 + bw, y, t("⚙ what shows"), () => (this.setup = true), { tip: "s · stats setup" });
       y += 2;
-      this.sel = Math.min(this.sel, Math.max(0, all.length - 1));
-      if (!all.length) {
+      this.sel = Math.min(this.sel, Math.max(0, visible().length - 1));
+      if (!visible().length) {
         ui.text(r.x + 2, y, t("no stats yet — a starts one; modules add theirs"), { fg: c.muted }, r.w - 4);
         return;
       }
-      all.forEach((s, i) => {
+      visible().forEach((s, i) => {
         if (y >= r.y + r.h - 1) return;
         const row = { x: r.x + 1, y, w: listW, h: 1 };
         const sel = i === this.sel;
@@ -305,8 +392,8 @@ export function activate(ib: IcebreakerAPI): void {
       hint: "a new · enter update · p pin · ↑↓",
       render(ui, r) {
         const c = ui.c;
-        popSel = Math.min(popSel, Math.max(0, all.length - 1));
-        all.slice(0, r.h - 2).forEach((s, i) => {
+        popSel = Math.min(popSel, Math.max(0, visible().length - 1));
+        visible().slice(0, r.h - 2).forEach((s, i) => {
           const row = { x: r.x, y: r.y + i, w: r.w, h: 1 };
           const bg = i === popSel ? mix(c.accent, c.bg, 0.8) : undefined;
           if (bg) ui.fill(row, { bg });
@@ -317,20 +404,20 @@ export function activate(ib: IcebreakerAPI): void {
           ui.text(r.x + 3, r.y + i, t(s.label), { fg: c.fg, ...st }, end - r.x - 20);
           ui.hit(row, { onClick: () => (popSel = i), tip: `stats show ${s.id}` });
         });
-        if (!all.length) ui.text(r.x + 2, r.y, t("no stats yet — a starts one; modules add theirs"), { fg: c.muted });
+        if (!visible().length) ui.text(r.x + 2, r.y, t("no stats yet — a starts one; modules add theirs"), { fg: c.muted });
         ui.button(r.x + 2, r.y + r.h - 1, t("+ track something"), () => void addFlow(), { tip: "a" });
       },
       onText: (s, { close }) => {
-        const st = all[popSel];
+        const st = visible()[popSel];
         if (s === "a" || s === "+") return close(), void addFlow(), true;
         if (s === "p" && st) return run(`stats ${pinned.includes(st.id) ? "unpin" : "pin"} ${st.id}`), true;
         return false;
       },
       onAction: (a, { close }) => {
-        const n = all.length;
+        const n = visible().length;
         if (a === "up") return (popSel = n ? (popSel - 1 + n) % n : 0), true;
         if (a === "down") return (popSel = n ? (popSel + 1) % n : 0), true;
-        if (a === "confirm" && all[popSel]) return close(), void updateFlow(all[popSel]), true;
+        if (a === "confirm" && visible()[popSel]) return close(), void updateFlow(visible()[popSel]), true;
         return false;
       },
     },
@@ -364,6 +451,23 @@ export function activate(ib: IcebreakerAPI): void {
     "a new · enter update · p pin · ↑↓": "a nouveau · entrée mettre à jour · p épingler · ↑↓",
     "your numbers and their last days (STATS module) — stats pin <id> to choose": "tes chiffres et leurs derniers jours (module STATS) — stats pin <id> pour choisir",
     "numbers over time, from modules and from you": "des chiffres dans le temps, des modules et de toi",
+    "‹ back to the stats": "‹ retour aux stats",
+    "what STATS shows — space or click to switch": "ce que STATS affiche — espace ou clic pour basculer",
+    "↑↓ choose · space show / hide · s back": "↑↓ choisir · espace afficher / masquer · s retour",
+    "a new · enter update · p pin · ←→ range · x remove · s choose what shows": "a nouveau · entrée mettre à jour · p épingler · ←→ période · x retirer · s choisir l'affichage",
+    "⚙ what shows": "⚙ affichage",
+    "tasks open": "tâches ouvertes",
+    "tasks added": "tâches ajoutées",
+    "tasks done": "tâches faites",
+    "reminders pending": "rappels à venir",
+    "reminders rung": "rappels sonnés",
+    "events this week": "événements cette semaine",
+    "tracks played": "morceaux joués",
+    "focus sessions": "sessions de focus",
+    "minutes of focus": "minutes de focus",
+    "timers started": "minuteurs lancés",
+    "journal pages": "pages de journal",
+    "messages to the AI": "messages à l'IA",
     "commands run": "commandes lancées",
     "notes in the vault": "notes dans le coffre",
   });

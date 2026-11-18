@@ -188,11 +188,39 @@ export function activate(ib: IcebreakerAPI): void {
     ib.ui.redraw();
   })();
   const save = async () => {
+    void ib.stats.set("open", tasks.filter((t) => !t.done).length, { label: "tasks open" }).catch(() => {});
     await ib.storage.set("tasks", tasks);
     await ib.storage.set("trash", trash.slice(-20));
     await ib.storage.set("next", nextId);
     ib.ui.redraw();
   };
+
+  // ── what other modules can do with tasks (ib.modules.call("todo", …)) ──
+  ib.modules.expose("list", { doc: "list() → every task { id, text, prio, due, tags, done }", fn: async () => (await ready, tasks.map((t) => ({ ...t }))) });
+  ib.modules.expose("add", {
+    doc: 'add(text, { due: "YYYY-MM-DD", prio: "urgent|high|moderate|low", tags: [] }) → the new task',
+    fn: async (text: string, o: { due?: string; prio?: Prio; tags?: string[] } = {}) => {
+      await ready;
+      const t: Task = { id: nextId++, text: String(text), prio: o.prio && PRIOS.includes(o.prio) ? o.prio : "moderate", due: o.due ?? null, tags: o.tags ?? [], done: false, created: new Date().toISOString(), doneAt: null };
+      tasks.push(t);
+      void ib.stats.add("added", 1, { label: "tasks added", kind: "counter" }).catch(() => {});
+      await save();
+      return { ...t };
+    },
+  });
+  ib.modules.expose("done", {
+    doc: "done(id) → marks a task done (true if found)",
+    fn: async (id: number) => {
+      await ready;
+      const t = tasks.find((x) => x.id === Number(id));
+      if (!t || t.done) return false;
+      t.done = true;
+      t.doneAt = new Date().toISOString();
+      void ib.stats.add("done", 1, { label: "tasks done", kind: "counter" }).catch(() => {});
+      await save();
+      return true;
+    },
+  });
 
   const rank = (t: Task) => PRIOS.indexOf(t.prio);
   const sorted = (list: Task[]) =>
@@ -280,6 +308,7 @@ export function activate(ib: IcebreakerAPI): void {
           if (!p.text) return ctx.err('usage: todo add "what to do" [--urgent] [--due tomorrow] [+tag]\n'), 1;
           const t: Task = { id: nextId++, text: p.text, prio: p.prio ?? "moderate", due: p.due ?? null, tags: p.tags, done: false, created: new Date().toISOString(), doneAt: null };
           tasks.push(t);
+          void ib.stats.add("added", 1, { label: "tasks added", kind: "counter" }).catch(() => {});
           await save();
           ctx.out(`${fmt.green("+")} ${fmt.dim(`#${t.id}`)} ${describe(t)}\n`);
           return 0;
@@ -293,6 +322,7 @@ export function activate(ib: IcebreakerAPI): void {
             t.doneAt = t.done ? new Date().toISOString() : null;
             ctx.out(`${t.done ? fmt.green("☑") : "☐"} ${t.text}\n`);
           }
+          if (sub === "done") void ib.stats.add("done", list.length, { label: "tasks done", kind: "counter" }).catch(() => {});
           await save();
           const left = tasks.filter((t) => !t.done).length;
           if (sub === "done" && left === 0) ib.ui.notify("all done. go outside.", "success");

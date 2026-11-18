@@ -31,6 +31,8 @@ const state = {
   widened: false,
 };
 const seenAt = new Map<string, number>();
+/** the headlines on screen (other modules read them through ib.modules: news.headlines) */
+export const currentHeadlines = (): Headline[] => state.items.slice();
 let hover = { i: -1, since: 0 };
 
 function query(deck: Deck): string {

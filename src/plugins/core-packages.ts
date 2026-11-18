@@ -1,3 +1,4 @@
+import { coreServices } from "./core-services";
 import type { AppSpec, PaletteAction } from "../apps/types";
 import type { Deck } from "../deck";
 import type { Command } from "../shell/types";
@@ -96,6 +97,7 @@ export function corePackageEntries(deck: Deck, version: string): { manifest: Plu
         for (const a of st.apps) deck.apps.register(a, p.id);
         for (const w of st.widgets) deck.widgets.register(w, p.id);
         for (const x of st.actions) deck.actions.register(x, p.id);
+        deck.services.exposeAll(p.id, coreServices(deck)[p.id] ?? {});
       },
     }),
   }));

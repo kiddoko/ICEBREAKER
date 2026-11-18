@@ -71,10 +71,17 @@ export class AIManager {
     return this.provider.readiness();
   }
 
+  /** Called once per message sent to the AI (the deck counts them in STATS). */
+  onMessage: () => void = () => {};
+
   session(opts: SessionOptions): ChatSession {
     const r = this.readiness();
     if (!r.ok) throw new Error(r.reason);
-    return this.provider.createSession(opts);
+    const s = this.provider.createSession(opts);
+    return {
+      send: (text, handlers, signal) => (this.onMessage(), s.send(text, handlers, signal)),
+      reset: () => s.reset(),
+    };
   }
 
   /** One-shot question → full answer (streams through onText if given). */

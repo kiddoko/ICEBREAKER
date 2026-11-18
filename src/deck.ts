@@ -1,3 +1,4 @@
+import { ServiceRegistry } from "./plugins/services";
 import { shortcutCommands, shortcutsSpec } from "./apps/shortcuts";
 import { StatsStore } from "./core/stats";
 import { AIManager } from "./ai";
@@ -69,6 +70,8 @@ export class Deck implements InputSink {
   readonly ai: AIManager;
   /** numbers kept over time by modules (ib.stats), shown by STATS */
   readonly stats: StatsStore;
+  /** what modules expose to each other (ib.modules) */
+  readonly services = new ServiceRegistry();
   readonly plugins: PluginHost;
   readonly workspace: Workspace;
   readonly shell: ShellApp;
@@ -106,6 +109,7 @@ export class Deck implements InputSink {
     this.ai = new AIManager(settings);
     // the AI wrote notes: pick them up in the tree, search, widgets…
     this.ai.onVaultWrite = () => void this.vault.rescan().then(() => this.requestFrame());
+    this.ai.onMessage = () => void this.stats.add("uplink.messages", 1, "uplink", { label: "messages to the AI", kind: "counter" }).catch(() => {});
     this.plugins = new PluginHost(this);
     this.renderer = new Renderer(el("screen") as HTMLCanvasElement, el("bloom") as HTMLCanvasElement, settings.data.appearance.fontSize);
     this.loop = new FrameLoop(this.frame, settings.data.appearance.maxFps);
@@ -430,7 +434,10 @@ export class Deck implements InputSink {
   private recordVaultStats(): void {
     if (this.vaultStatsOn) return void this.stats.set("deck.notes", this.vault.markdown().length, "deck").catch(() => {});
     this.vaultStatsOn = true;
-    const record = () => void this.stats.set("deck.notes", this.vault.markdown().length, "deck", { label: "notes in the vault" }).catch(() => {});
+    const record = () => {
+      void this.stats.set("deck.notes", this.vault.markdown().length, "deck", { label: "notes in the vault" }).catch(() => {});
+      void this.stats.set("journal.days", this.vault.journalDates().size, "journal", { label: "journal pages" }).catch(() => {});
+    };
     record();
     this.vault.events.on("rescanned", record);
   }
