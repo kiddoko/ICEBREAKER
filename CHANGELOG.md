@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- REMINDERS module: local reminders, a system notification 15 min before and
+  on time (macOS, Windows, Linux), with a retro "tu-dut"; `remind`.
+- Notifications for modules: `ib.ui.alert(title, body)` — system
+  notification, alert sound, toast, and the voice when it's on.
+- No AI while the UPLINK module is off. Effect levels in Settings; softer
+  vignette, stronger scanlines with a CRT rim. Setup previews themes live.
+- Lists and the MODULES hive wrap around at the ends.
+
 - Everything is a module: NEXUS, UPLINK, JOURNAL, SYSMON, THEME STUDIO, VOICE,
   NEWS, WEATHER, CLOCKS, FOCUS, CHECKBOXES, MOON, MATRIX, QUOTES join the
   bundled CALENDAR, MUSIC, TODO, LINGO — switch off, remove, reinstall.

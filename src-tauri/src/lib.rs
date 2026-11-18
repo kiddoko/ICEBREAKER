@@ -27,6 +27,7 @@ pub fn run() {
     let builder = builder.menu(mac_menu);
 
     builder
+        .plugin(tauri_plugin_notification::init())
         .manage(vault::VaultState::default())
         .manage(system::SystemState::default())
         .manage(claude_code::ClaudeCodeState::default())

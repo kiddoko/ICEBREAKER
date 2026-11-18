@@ -135,6 +135,8 @@ The full surface is typed and commented in
 - `ib.storage.get/set` → a private JSON file per plugin (`.icebreaker/plugin-data/<id>.json`).
 - `ib.shell.run(line)` → run a command, echoed in the shell (what your clicks should do).
 - `ib.ui.notify / confirm / prompt / choose` → talk to the user (`choose` = pick one option from a filtered list).
+- `ib.ui.alert(title, body)` → get the user's attention even in the background: a system notification, the alert sound, the voice if it's on (see the REMINDERS module).
+- `ib.ai` is the UPLINK module's AI: when the user switches UPLINK off, there's no AI for anyone.
 - `ib.media.player` → play local audio files (permission `media`); `ib.google.*` → the user's Google Calendar (permission `google-calendar`; keep Google data in `ib.google.cache`, never in the vault).
 - `ib.lib.t("English text")` → the user's language (English or French); add your own French with `ib.lib.addTranslations("fr", { "Add": "Ajouter" })`.
 - `ib.lib` → the same building blocks the core uses: `TextEditor`, `ListView`,

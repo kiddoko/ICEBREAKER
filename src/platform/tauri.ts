@@ -33,6 +33,11 @@ export function createTauriPlatform(): Platform {
     system: { stats: () => invoke<SystemStats>("system_stats") },
     envApiKey: () => invoke<string | null>("env_api_key"),
     newsRss: (query, lang, country, provider) => invoke<string>("news_rss", { query, lang, country, provider: provider ?? null }),
+    notify: async (title, body) => {
+      const n = await import("@tauri-apps/plugin-notification");
+      if (!(await n.isPermissionGranted()) && (await n.requestPermission()) !== "granted") throw new Error("notifications aren't allowed (system settings)");
+      n.sendNotification({ title, body });
+    },
     netGet: (url) => invoke<string>("net_get", { url }),
     openUrl: (url) => invoke<void>("open_url", { url }),
     claudeCode: {

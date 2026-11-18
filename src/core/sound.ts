@@ -11,8 +11,9 @@
  *   success  something worked (toast)         error    something failed
  *   notify   neutral toast                    boot     power-on
  *   unlock   login accepted                   denied   wrong password
+ *   alert    a reminder / system notification: a retro "tu-dut", twice
  */
-export const SOUND_NAMES = ["move", "open", "confirm", "back", "success", "error", "notify", "boot", "unlock", "denied"] as const;
+export const SOUND_NAMES = ["move", "open", "confirm", "back", "success", "error", "notify", "boot", "unlock", "denied", "alert"] as const;
 export type SoundName = (typeof SOUND_NAMES)[number];
 
 type Synth = (ctx: AudioContext, out: AudioNode, t: number) => void;
@@ -205,6 +206,13 @@ const SYNTHS: Record<SoundName, Synth> = {
   notify: (c, o, t) => {
     tone(c, o, t, 880, 0.09, "triangle", 0.25);
     tone(c, o, t + 0.07, 1320, 0.12, "sine", 0.12);
+  },
+  alert: (c, o, t) => {
+    // tu-dut · tu-dut, like an old pager
+    for (const at of [0, 0.42]) {
+      tone(c, o, t + at, 988, 0.11, "square", 0.22);
+      tone(c, o, t + at + 0.13, 1319, 0.16, "square", 0.22);
+    }
   },
   boot: (c, o, t) => {
     // disk spin-up: grinding seeks, then the POST beep

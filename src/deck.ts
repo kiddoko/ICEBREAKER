@@ -579,6 +579,18 @@ export class Deck implements InputSink {
     return this.sound.loadCustom(async (p) => ((await this.vault.exists(p).catch(() => false)) ? rb(p) : null));
   }
 
+  /**
+   * Get the user's attention, even when the deck is in the background: the
+   * system notification, the "alert" sound (tu-dut), a toast — and the voice
+   * reads it when it's on. Modules call it through ib.ui.alert.
+   */
+  alert(title: string, body = ""): void {
+    this.sound.play("alert");
+    this.notify(body ? `${title} — ${body}` : title, "warning");
+    void this.platform.notify?.(title, body).catch((e) => console.warn("[notify]", e));
+    if (this.settings.data.voice.enabled) this.voice.say(body ? `${title}. ${body}` : title);
+  }
+
   /** "Welcome, netrunner": once per start, when the desktop appears (voice.greet). */
   private greeted = false;
   greet(): void {

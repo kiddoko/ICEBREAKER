@@ -165,6 +165,8 @@ export interface IcebreakerAPI {
     notify(text: string, kind?: "info" | "success" | "warning" | "error"): void;
     confirm(title: string, detail?: string): Promise<boolean>;
     prompt(title: string, opts?: { initial?: string; placeholder?: string; mask?: boolean }): Promise<string | null>;
+    /** Get the user's attention: system notification + the alert sound (+ the voice, if on). */
+    alert(title: string, body?: string): void;
     /** Pick one option (type to filter). Resolves with its index, or null. */
     choose(title: string, options: ChoiceOption[], opts?: { selected?: number }): Promise<number | null>;
     theme(): Theme;

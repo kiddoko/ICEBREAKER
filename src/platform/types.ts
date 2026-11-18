@@ -122,6 +122,8 @@ export interface Platform {
     /** downloads piper + a voice ("fr", "en"…); resolves with the voice id */
     install(lang: string): Promise<string>;
   };
+  /** A system notification (desktop: the OS's own, with the app's name). */
+  notify?(title: string, body: string): Promise<void>;
   /** Called (debounced) when files in the vault change outside the app. */
   onVaultChange?(cb: () => void): void;
   /** Your system shell in a pseudo-terminal (desktop). */

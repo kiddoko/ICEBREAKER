@@ -339,6 +339,7 @@ export class PluginHost {
         confirm: (t, d) => deck.confirm(t, d),
         prompt: (t, o) => deck.prompt(t, o),
         choose: (t, options, o) => deck.choose(t, options, o),
+        alert: (title, body) => deck.alert(title, body),
         theme: () => deck.theme,
         redraw: () => deck.requestFrame(),
       },
