@@ -12,36 +12,17 @@ import { fmt } from "../core/ansi";
 import { mix } from "../core/color";
 import { BOLD } from "../core/grid";
 import { fuzzyFilter } from "../core/fuzzy";
-import type { KeyInput } from "../core/input";
 import { strWidth } from "../core/unicode";
 import type { Deck } from "../deck";
 import type { Command } from "../shell/types";
-import { q, type UI } from "../ui/ui";
+import { q } from "../ui/ui";
 import { basename } from "../vault/paths";
 import { currentWeather, isoDay, sky, streakOf } from "./builtin";
 import { phrase } from "../core/voice";
 import { focus, MATRIX_SETS, matrixLook, openTasks } from "./extra";
 import type { PopupContext, WidgetPopupSpec, WidgetSpec } from "./types";
-
-/** A one-line text field for pop-ups (typed text arrives through onText). */
-class Field {
-  text = "";
-  onText(t: string): void {
-    this.text += t.replace(/[\r\n]/g, "");
-  }
-  onKey(k: KeyInput): boolean {
-    if (k.combo === "backspace") return (this.text = this.text.slice(0, -1)), true;
-    if (k.combo === "ctrl+u") return (this.text = ""), true;
-    return false;
-  }
-  render(ui: UI, x: number, y: number, w: number, placeholder: string): void {
-    const c = ui.c;
-    ui.fill({ x, y, w, h: 1 }, { bg: c.highlight });
-    ui.text(x + 1, y, "❯", { fg: c.accent, bg: c.highlight, attrs: BOLD });
-    ui.text(x + 3, y, this.text || placeholder, { fg: this.text ? c.fg : c.faint, bg: c.highlight }, w - 4);
-    ui.cursor(x + 3 + Math.min(strWidth(this.text), w - 5), y);
-  }
-}
+import { Field } from "./field";
+import { chatPopup } from "./chatbox";
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const mmss = (ms: number) => {
@@ -678,6 +659,7 @@ const POPUPS: Record<string, { popup?: WidgetPopupSpec; open?: string }> = {
   system: { popup: systemPopup, open: "launch sysmon" },
   modules: { popup: modulesPopup, open: "launch modules" },
   ai: { popup: aiPopup, open: "launch link" },
+  chat: { popup: chatPopup, open: "launch link" },
   clock: { popup: clockPopup },
   matrix: { popup: matrixPopup },
   tasks: { popup: tasksPopup },

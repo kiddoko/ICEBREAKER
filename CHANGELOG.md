@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- UPLINK chatbox widget: a running conversation with your AI right on HOME;
+  enter opens it bigger to type, ctrl+l starts a new one, ctrl+s reads the
+  answer aloud. (`home add chat`)
 - TODO: recurring tasks — every day, several times a day (`--times 3`),
   every other day, chosen weekdays (`--every mon,wed,sat`), every (other)
   week, every month; for 10 / 100 times, a year, or forever (`--cycles`).

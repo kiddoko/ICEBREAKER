@@ -1,3 +1,4 @@
+import { chatWidget } from "./chatbox";
 import { t } from "../core/i18n";
 import { q } from "../ui/ui";
 import { mix } from "../core/color";
@@ -474,4 +475,4 @@ const aiWidget: WidgetSpec = {
 };
 
 export { aiWidget };
-export const EXTRA_WIDGETS: WidgetSpec[] = [aiWidget, newsWidget, focusWidget, moonWidget, matrixWidget, worldWidget, quoteWidget, streakWidget];
+export const EXTRA_WIDGETS: WidgetSpec[] = [aiWidget, chatWidget, newsWidget, focusWidget, moonWidget, matrixWidget, worldWidget, quoteWidget, streakWidget];
