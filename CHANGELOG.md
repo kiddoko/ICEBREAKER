@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- File tree: [+ note] and [+ dir] buttons (in the selected folder), tree
+  guides ├─ └─ │, item counts, a marker on the open note; dot-files hidden.
 - SHORTCUTS page (`ctrl+/`, or `shortcuts`): every shortcut by category,
   with a search field. Your own shortcuts: `bind ctrl+shift+1 "open notes/x.md"`
   (or F2 on the page), `unbind`. New: `ctrl+shift+h` HOME, `ctrl+shift+m`

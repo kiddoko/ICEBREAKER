@@ -1,5 +1,6 @@
 import { q } from "../ui/ui";
 import { BOLD, type Rect } from "../core/grid";
+import { mix } from "../core/color";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import type { VaultEntry } from "../platform/types";
@@ -10,6 +11,12 @@ import { dirname } from "../vault/paths";
 interface Row {
   entry: VaultEntry;
   depth: number;
+  /** last child of its folder (└─ instead of ├─) */
+  last: boolean;
+  /** for each ancestor level: does a line (│) continue below it? */
+  rails: boolean[];
+  /** folders: how many things inside */
+  count?: number;
 }
 
 /** The file tree. Enter/click opens a note or folds a folder; `n` new note, `r` rescan. */
@@ -30,16 +37,19 @@ export class Sidebar {
   private rebuild(): void {
     const all = this.deck.vault.entries;
     const rows: Row[] = [];
-    const walk = (dir: string, depth: number) => {
-      const kids = all
-        .filter((e) => dirname(e.path) === dir)
+    const kidsOf = (dir: string) =>
+      all
+        .filter((e) => dirname(e.path) === dir && !e.name.startsWith("."))
         .sort((a, b) => Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name, undefined, { numeric: true }));
-      for (const e of kids) {
-        rows.push({ entry: e, depth });
-        if (e.isDir && this.open.has(e.path)) walk(e.path, depth + 1);
-      }
+    const walk = (dir: string, depth: number, rails: boolean[]) => {
+      const kids = kidsOf(dir);
+      kids.forEach((e, i) => {
+        const last = i === kids.length - 1;
+        rows.push({ entry: e, depth, last, rails, count: e.isDir ? kidsOf(e.path).length : undefined });
+        if (e.isDir && this.open.has(e.path)) walk(e.path, depth + 1, [...rails, !last]);
+      });
     };
-    walk("", 0);
+    walk("", 0, []);
     const current = this.list.current?.entry.path;
     this.list.items = rows;
     const idx = rows.findIndex((r) => r.entry.path === current);
@@ -90,21 +100,50 @@ export class Sidebar {
     return this.list.onAction(a);
   }
 
+  /** The folder new things go in: the selected folder, or the selected file's folder. */
+  private here(): string {
+    const cur = this.list.current?.entry;
+    return cur ? (cur.isDir ? cur.path : dirname(cur.path)) : "";
+  }
+
   render(ui: UI, r: Rect, focused: boolean): void {
     if (this.builtFrom !== this.version) this.rebuild();
     const c = ui.c;
     const activeKey = this.deck.workspace.activeApp?.key ?? "";
-    this.list.render(ui, r, focused, ({ entry, depth }, row, selected) => {
-      const indent = "  ".repeat(depth);
-      const icon = entry.isDir ? (this.open.has(entry.path) ? "▾ " : "▸ ") : entry.name.endsWith(".md") ? "· " : "◦ ";
+
+    // the toolbar: [+ note] [+ dir], like an old file manager
+    const here = this.here();
+    let bx = r.x + 1;
+    bx += ui.button(bx, r.y, "+ note", () => void this.deck.newNote(here || "notes"), { tip: `new note in /${here || "notes"}\nctrl+n · n` }) + 1;
+    ui.button(bx, r.y, "+ dir", () => void this.deck.newFolder(here), { tip: `new folder in /${here}\nctrl+shift+n` });
+    ui.hline(r.x, r.y + 1, r.w, { fg: c.faint }, "┄");
+    const list = { x: r.x, y: r.y + 2, w: r.w, h: Math.max(0, r.h - 2) };
+
+    const guide = { fg: mix(c.subtle, c.bg, 0.35) };
+    this.list.render(ui, list, focused, ({ entry, depth, last, rails, count }, row, selected) => {
       const isOpen = activeKey === `note:${entry.path}`;
-      const name = entry.isDir ? entry.name : entry.name.replace(/\.md$/, "");
-      let x = ui.text(row.x + 1, row.y, indent + icon, { fg: entry.isDir ? c.accent : c.subtle });
-      x = ui.text(x, row.y, name, {
-        fg: isOpen ? c.accentAlt : entry.isDir ? c.fg : selected ? c.fg : c.muted,
-        attrs: entry.isDir || isOpen ? BOLD : 0,
-      }, row.w - (x - row.x) - 1);
+      let x = row.x + 1;
+      // tree guides: │ for open branches above, then ├─ or └─
+      // (top-level items have no connector: their rail is rails[0], not drawn)
+      for (let i = 1; i < depth; i++) x = ui.text(x, row.y, rails[i] ? "│ " : "  ", guide);
+      if (depth > 0) x = ui.text(x, row.y, last ? "└" : "├", guide);
+      if (entry.isDir) {
+        const opened = this.open.has(entry.path);
+        x = ui.text(x, row.y, depth > 0 ? "─" : "", guide);
+        x = ui.text(x, row.y, opened ? "▾" : "▸", { fg: c.accent });
+        x = ui.text(x, row.y, ` ${entry.name}/`, { fg: c.fg, attrs: BOLD }, row.w - (x - row.x) - 5);
+        if (count !== undefined && row.w - (x - row.x) > 4) ui.textRight(row.x + row.w - 1, row.y, String(count), { fg: selected ? c.subtle : c.faint });
+      } else {
+        const md = entry.name.endsWith(".md");
+        x = ui.text(x, row.y, depth > 0 ? "─" : "", guide);
+        x = ui.text(x, row.y, md ? " " : "◦", { fg: c.subtle });
+        ui.text(x, row.y, md ? entry.name.replace(/\.md$/, "") : entry.name, {
+          fg: isOpen ? c.accentAlt : selected ? c.fg : c.muted,
+          attrs: isOpen ? BOLD : 0,
+        }, row.w - (x - row.x) - 1);
+        if (isOpen) ui.text(row.x, row.y, "▌", { fg: c.accentAlt });
+      }
     });
-    if (this.list.items.length === 0) ui.text(r.x + 2, r.y + 1, "empty vault", { fg: c.subtle });
+    if (this.list.items.length === 0) ui.text(list.x + 2, list.y + 1, "empty vault", { fg: c.subtle });
   }
 }
