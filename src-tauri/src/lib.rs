@@ -9,6 +9,7 @@ mod account;
 mod audio;
 mod claude_code;
 mod config;
+mod files;
 mod dev; // DEV ONLY — remove before release
 mod google;
 mod media;
@@ -52,6 +53,9 @@ pub fn run() {
             vault::vault_mkdir,
             vault::vault_trash,
             vault::vault_destroy,
+            files::fs_home,
+            files::fs_list,
+            files::fs_read_text,
             vault::vault_rename,
             vault::vault_exists,
             config::config_read,

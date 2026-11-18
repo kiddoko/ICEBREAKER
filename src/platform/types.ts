@@ -130,11 +130,17 @@ export interface Platform {
   onVaultChange?(cb: () => void): void;
   /** The window got minimized (true) or restored (false). */
   onMinimized?(cb: (minimized: boolean) => void): Promise<void>;
+  /** The whole computer, read-only, for the deck's own file picker (desktop). */
+  files?: {
+    home(): Promise<string>;
+    list(path: string): Promise<{ name: string; path: string; isDir: boolean; size: number }[]>;
+    readText(path: string): Promise<string>;
+  };
   /** Your system shell in a pseudo-terminal (desktop). */
   pty?: {
     /** Starts the shell; resolves with its name ("zsh"). */
     /** `modules`: command names that win over same-named system programs (cal, todo…). */
-    spawn(id: string, cols: number, rows: number, onData: (text: string) => void, modules?: string[]): Promise<string>;
+    spawn(id: string, cols: number, rows: number, onData: (text: string) => void, modules?: string[], prompt?: "icebreaker" | "mine"): Promise<string>;
     write(id: string, data: string): Promise<void>;
     resize(id: string, cols: number, rows: number): Promise<void>;
     kill(id: string): Promise<void>;

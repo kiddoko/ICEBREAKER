@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Terminals get ICEBREAKER's own prompt (◆ ~/path ❯, the same for everyone,
+  zsh / bash / fish / PowerShell); Settings → terminal prompt → mine keeps
+  your own theme (oh-my-zsh, starship, oh-my-posh…).
+- Scripts: import from anywhere on the computer with the deck's own file
+  browser (≡ scripts → import, or `script import "<path>" [folder]`), into
+  subfolders of scripts/. Any language: .ibsh runs in the deck; .sh .py .js
+  .ps1 .zsh .fish .rb… run in your terminal with their interpreter.
 - Settings: every setting has a real description (under the list, for the
   row you're on or under the mouse); a section per module after the normal
   ones (WEATHER, NEWS, FOCUS, CLOCKS, and modules' own via `ib.settings`,

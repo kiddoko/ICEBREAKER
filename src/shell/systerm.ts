@@ -65,7 +65,7 @@ export class SystemTerminal {
           data = data.replace(EXIT_MARK, "\r\n\x1b[2m[process exited — press enter to start a new shell]\x1b[0m\r\n");
         }
         this.term.write(data, () => this.deck.requestFrame());
-      }, this.moduleCommands())
+      }, this.moduleCommands(), this.deck.settings.data.shell.prompt ?? "icebreaker")
       .then((name) => (this.shellName = name))
       .catch((e) => {
         this.error = String(e);

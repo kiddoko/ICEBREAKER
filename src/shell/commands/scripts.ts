@@ -10,6 +10,13 @@
 import { fmt } from "../../core/ansi";
 import type { Deck } from "../../deck";
 import type { Command } from "../types";
+import { pickFile } from "../../workspace/filepicker";
+import { q } from "../../ui/ui";
+
+/** Scripts that aren't ibsh run in your system terminal with their interpreter. */
+const RUNNERS: Record<string, string> = { ".sh": "bash", ".bash": "bash", ".zsh": "zsh", ".fish": "fish", ".py": "python3", ".js": "node", ".mjs": "node", ".rb": "ruby", ".pl": "perl", ".ps1": "pwsh -File", ".lua": "lua" };
+const SCRIPT_EXTS = [".ibsh", ...Object.keys(RUNNERS)];
+const extOf = (p: string) => (/\.[a-z0-9]+$/i.exec(p)?.[0] ?? "").toLowerCase();
 
 const DIR = ".icebreaker/scripts";
 
@@ -41,7 +48,10 @@ note {title}
 };
 
 export interface Script {
+  /** "morning", "work/backup.py" — the folder under scripts/ included; ibsh scripts without their .ibsh */
   name: string;
+  /** the interpreter for non-ibsh scripts ("" = ibsh, run by the deck) */
+  runner: string;
   path: string;
   /** the first comment line */
   about: string;
@@ -49,28 +59,67 @@ export interface Script {
 }
 
 export async function listScripts(deck: Deck, seed = false): Promise<Script[]> {
-  let files = await deck.vault.toolFiles("scripts", ".ibsh");
-  if (!files.length && seed) {
-    await deck.vault.mkdir(DIR).catch(() => {});
-    for (const [name, body] of Object.entries(EXAMPLES)) await deck.vault.write(`${DIR}/${name}.ibsh`, body);
-    files = await deck.vault.toolFiles("scripts", ".ibsh");
+  const v = deck.vault;
+  const walk = async (dir: string): Promise<string[]> => {
+    if (!(await v.exists(dir))) return [];
+    const out: string[] = [];
+    for (const e of await v.list(dir)) {
+      if (e.isDir) out.push(...(await walk(e.path)));
+      else if (SCRIPT_EXTS.includes(extOf(e.name))) out.push(e.path);
+    }
+    return out;
+  };
+  let paths = await walk(DIR);
+  if (!paths.length && seed) {
+    await v.mkdir(DIR).catch(() => {});
+    for (const [name, body] of Object.entries(EXAMPLES)) await v.write(`${DIR}/${name}.ibsh`, body);
+    paths = await walk(DIR);
   }
-  return files
-    .map((f) => {
-      const name = f.path.split("/").pop()!.replace(/\.ibsh$/, "");
-      const lines = f.content.split("\n");
-      const about = (lines.find((l) => l.trim().startsWith("#")) ?? "").replace(/^\s*#\s*/, "");
-      return { name, path: f.path, about, lines };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const out: Script[] = [];
+  for (const path of paths) {
+    const ext = extOf(path);
+    const rel = path.slice(DIR.length + 1);
+    const content = await v.read(path).catch(() => "");
+    const lines = content.split("\n");
+    const about = (lines.find((l) => /^\s*(#|\/\/)(?!!)/.test(l)) ?? "").replace(/^\s*(#|\/\/)\s*/, "");
+    out.push({ name: ext === ".ibsh" ? rel.slice(0, -5) : rel, runner: RUNNERS[ext] ?? "", path, about, lines });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Import a file from anywhere on the computer into the vault's scripts (optionally a subfolder). */
+export async function importScript(deck: Deck, from: string, folder = ""): Promise<string> {
+  if (!deck.platform.files) throw new Error("importing needs the desktop app");
+  const body = await deck.platform.files.readText(from);
+  const name = from.split(/[\\/]/).pop()!;
+  const dir = folder ? `${DIR}/${folder.replace(/^\/+|\/+$/g, "")}` : DIR;
+  await deck.vault.mkdir(dir).catch(() => {});
+  const to = `${dir}/${name}`;
+  await deck.vault.write(to, body);
+  return to;
+}
+
+/** Pick a file with the deck's file browser, choose where it goes, import it. */
+export async function importFlow(deck: Deck): Promise<void> {
+  const from = await pickFile(deck, "IMPORT A SCRIPT", SCRIPT_EXTS);
+  if (!from) return;
+  const folders = [...new Set((await listScripts(deck)).map((s) => s.name.split("/").slice(0, -1).join("/")).filter(Boolean))];
+  const opts = [{ label: "scripts/", hint: "the top" }, ...folders.map((f) => ({ label: `scripts/${f}/`, hint: "" })), { label: "+ a new folder…", hint: "" }];
+  const i = await deck.choose("Put it in…", opts);
+  if (i === null) return;
+  let folder = i === 0 ? "" : i <= folders.length ? folders[i - 1] : (await deck.prompt("Folder name", { placeholder: "work, backup, fun…" }))?.trim() ?? "";
+  if (i === opts.length - 1 && !folder) return;
+  folder = folder.replace(/\s+/g, "-");
+  void deck.act(`script import ${q(from)}${folder ? ` ${q(folder)}` : ""}`);
 }
 
 /** The menu (≡ scripts on the shell panel, or the palette): pick one, it runs. */
 export async function scriptsMenu(deck: Deck): Promise<void> {
   const list = await listScripts(deck, true);
-  const options = [...list.map((s) => ({ label: s.name, hint: s.about })), { label: "+ new script", hint: "a file in .icebreaker/scripts" }, { label: "✎ edit one…", hint: "open it in the editor" }];
+  const options = [...list.map((s) => ({ label: s.name, hint: s.runner ? `${s.runner} · ${s.about}` : s.about })), { label: "+ new script", hint: "a file in .icebreaker/scripts" }, { label: "✎ edit one…", hint: "open it in the editor" }, { label: "⇣ import a script…", hint: "from anywhere on this computer" }];
   const i = await deck.choose("Scripts", options);
   if (i === null) return;
+  if (i === options.length - 1) return void importFlow(deck);
   if (i < list.length) return void deck.act(`script ${list[i].name}`);
   if (i === list.length) {
     const name = await deck.prompt("New script name", { placeholder: "backup-notes" });
@@ -85,7 +134,7 @@ export const scriptCommand: Command = {
   name: "script",
   aliases: ["scripts"],
   summary: "shell lines kept in the vault and run in one go (the ≡ scripts menu)",
-  usage: "script                 list them (and the menu: ≡ scripts on the shell panel)\nscript <name>          run it\nscript new <name>      a new one, opened in the editor\nscript edit <name>     change it\nscript rm <name>       move it to the trash\nscript menu            the menu",
+  usage: "script                 list them (and the menu: ≡ scripts on the shell panel)\nscript <name>          run it\nscript new <name>      a new one, opened in the editor\nscript edit <name>     change it\nscript rm <name>       move it to the trash\nscript import [\"<path>\"] [folder]   bring a script from anywhere (no path: the file browser)\nscript menu            the menu\n\n.ibsh scripts run in the deck; .sh .py .js .ps1 .zsh .fish .rb… run in your system terminal.",
   man: "A script is a text file in .icebreaker/scripts/<name>.ibsh: one command per line, # for comments.\nA line that fails stops the script, unless it ends with `|| true`.\n{name} in a line is asked for when the script runs (like macros).\nctrl+c stops a running script.",
   examples: [
     ["script morning", "the morning briefing"],
@@ -95,13 +144,25 @@ export const scriptCommand: Command = {
     const d = ctx.deck;
     const [sub, name] = ctx.args;
     const list = await listScripts(d, true);
-    const find = (n: string | undefined) => list.find((s) => s.name === n) ?? list.find((s) => n && s.name.startsWith(n));
+    const base = (s: Script) => s.name.split("/").pop()!.replace(/\.[a-z0-9]+$/i, "");
+    const find = (n: string | undefined) => (n ? list.find((s) => s.name === n) ?? list.find((s) => base(s) === n) ?? list.find((s) => s.name.startsWith(n) || base(s).startsWith(n)) : undefined);
     if (!sub || sub === "ls" || sub === "list") {
       for (const s of list) ctx.out(`${fmt.bold(s.name.padEnd(16))} ${fmt.dim(s.about)}\n`);
       if (!list.length) ctx.out(fmt.dim("no scripts — script new <name>\n"));
       return 0;
     }
     if (sub === "menu") return void scriptsMenu(d), 0;
+    if (sub === "import") {
+      // script import "<path>" [folder]   (no path: the file browser)
+      if (!name) return void importFlow(d), 0;
+      try {
+        const to = await importScript(d, name, ctx.args[2]);
+        ctx.out(`${fmt.green("⇣")} ${to}\n`);
+        return 0;
+      } catch (e) {
+        return ctx.err(`script: ${e instanceof Error ? e.message : e}\n`), 1;
+      }
+    }
     if (sub === "new" || sub === "edit") {
       if (!name) return ctx.err(`usage: script ${sub} <name>\n`), 1;
       const path = `${DIR}/${name}.ibsh`;
@@ -119,6 +180,13 @@ export const scriptCommand: Command = {
     }
     const s = find(sub === "run" ? name : sub);
     if (!s) return ctx.err(`script: no script "${sub === "run" ? name ?? "" : sub}" (script ls)\n`), 1;
+    if (s.runner) {
+      if (!d.workspace.termAvailable) return ctx.err(`script: ${s.name} needs your system terminal (${s.runner}) — term mode system, desktop app\n`), 1;
+      const abs = `${d.vault.root}/${s.path}`.replace(/\\/g, "/");
+      ctx.out(fmt.dim(`▶ ${s.runner} ${s.name} (in your terminal)\n`));
+      void d.workspace.runMacro({ label: s.name, cmd: `${s.runner} ${q(abs)}` });
+      return 0;
+    }
     ctx.out(fmt.dim(`▶ ${s.name}\n`));
     const asked = new Map<string, string>();
     for (const raw of s.lines) {

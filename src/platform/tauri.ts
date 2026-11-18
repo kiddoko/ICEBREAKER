@@ -58,6 +58,11 @@ export function createTauriPlatform(): Platform {
       remove: (password) => invoke<void>("account_remove", { password }),
     },
     onVaultChange: (cb) => void listen("vault-fs", () => cb()),
+    files: {
+      home: () => invoke<string>("fs_home"),
+      list: (path) => invoke("fs_list", { path }),
+      readText: (path) => invoke<string>("fs_read_text", { path }),
+    },
     onMinimized: async (cb) => {
       let was = false;
       await win.onResized(async () => {
@@ -66,10 +71,10 @@ export function createTauriPlatform(): Platform {
       });
     },
     pty: {
-      spawn: (id, cols, rows, onData, modules) => {
+      spawn: (id, cols, rows, onData, modules, prompt) => {
         const ch = new Channel<string>();
         ch.onmessage = onData;
-        return invoke<string>("pty_spawn", { id, cols, rows, onData: ch, modules: modules ?? [] });
+        return invoke<string>("pty_spawn", { id, cols, rows, onData: ch, modules: modules ?? [], prompt: prompt ?? "icebreaker" });
       },
       write: (id, data) => invoke<void>("pty_write", { id, data }),
       resize: (id, cols, rows) => invoke<void>("pty_resize", { id, cols, rows }),
