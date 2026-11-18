@@ -5,6 +5,7 @@ name = "neon-ronin"
 author = "icebreaker"
 description = "Teal steel and hot pink neon."
 border = "heavy"
+widget_frame = "corners"
 
 [palette]
 night  = "#070b10"
@@ -86,3 +87,4 @@ pitch = 1.1
 
 [anim]
 select = "brackets"
+type = "glow"

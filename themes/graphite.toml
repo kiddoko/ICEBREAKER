@@ -5,6 +5,7 @@ name = "graphite"
 author = "icebreaker"
 description = "Monochrome greys, Fira Code. Pure focus."
 border = "single"
+widget_frame = "single"
 
 [palette]
 k0 = "#0a0a0a"
@@ -104,3 +105,4 @@ pitch = 0.9
 [anim]
 select = "pulse"
 noise = "░▒▓"
+type = "ink"

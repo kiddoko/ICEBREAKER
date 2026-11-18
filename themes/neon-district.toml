@@ -1,0 +1,117 @@
+# NEON DISTRICT — synthwave streets at 3 a.m. Hot pink and cyan on deep violet,
+# circuit traces pulsing behind the panels, pages rolling in under a scan line.
+
+[meta]
+name = "neon-district"
+author = "icebreaker"
+description = "Hot pink and cyan over a violet night, circuit traces, synth plucks."
+border = "heavy"
+widget_frame = "corners"  # widgets only get their four corners
+
+[palette]
+night    = "#0d0221"
+deep     = "#140433"
+street   = "#1d0846"
+haze     = "#2a0e5c"
+grid     = "#3d2468"
+lilac    = "#7a5fa8"
+mist     = "#b49ad8"
+white    = "#f5e9ff"
+pink     = "#ff2e88"
+cyan     = "#00f0ff"
+purple   = "#a855f7"
+yellow   = "#ffe14d"
+green    = "#3dffa8"
+
+[ui]
+bg = "night"
+panel = "deep"
+panel_alt = "street"
+highlight = "haze"
+selection = "#4a1050"
+fg = "white"
+muted = "mist"
+subtle = "lilac"
+faint = "grid"
+accent = "pink"
+accent_alt = "cyan"
+border = "grid"
+border_focus = "pink"
+title = "lilac"
+title_focus = "cyan"
+cursor = "cyan"
+success = "green"
+warning = "yellow"
+error = "pink"
+info = "cyan"
+ambient = "#2a1050"
+status_bg = "street"
+status_fg = "mist"
+
+[syntax]
+heading1 = "pink"
+heading2 = "cyan"
+heading3 = "purple"
+bold = "yellow"
+italic = "mist"
+code = "cyan"
+code_bg = "street"
+link = "cyan"
+wikilink = "pink"
+tag = "purple"
+quote = "lilac"
+list = "pink"
+checkbox = "green"
+hr = "grid"
+frontmatter = "lilac"
+
+[ansi]
+black = "grid"
+red = "pink"
+green = "green"
+yellow = "yellow"
+blue = "purple"
+magenta = "pink"
+cyan = "cyan"
+white = "mist"
+bright_black = "lilac"
+bright_red = "pink"
+bright_green = "green"
+bright_yellow = "yellow"
+bright_blue = "purple"
+bright_magenta = "pink"
+bright_cyan = "cyan"
+bright_white = "white"
+
+[fx]
+bloom = 0.55
+scanlines = 0.12
+vignette = 0.5
+gradient = ["pink", "purple", "cyan"]
+
+[font]
+family = "Space Mono"
+
+[glyphs]
+mark = "▲"
+bullet = "»"
+spinner = "▖▘▝▗"
+todo = "◇"
+done = "◆"
+
+[background]
+effect = "circuit"
+density = 0.6
+speed = 1.0
+color = "grid"
+color2 = "cyan"
+
+[sound]
+pack = "neon"
+pitch = 1.0
+
+[anim]
+select = "pulse"
+page = "wipe"             # the new page rolls in under a bright scan line
+type = "glow"              # new characters flash, then cool down
+noise = "▖▗▘▙▚▛▜▝▞▟◢◣◤◥"

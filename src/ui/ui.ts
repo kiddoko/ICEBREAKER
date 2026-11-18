@@ -23,12 +23,17 @@ export interface Hit {
   tip?: string;
 }
 
-const BORDERS = {
+const BORDERS: Record<string, { tl: string; tr: string; bl: string; br: string; h: string; v: string; hb?: string }> = {
   round: { tl: "╭", tr: "╮", bl: "╰", br: "╯", h: "─", v: "│" },
   single: { tl: "┌", tr: "┐", bl: "└", br: "┘", h: "─", v: "│" },
   heavy: { tl: "┏", tr: "┓", bl: "┗", br: "┛", h: "━", v: "┃" },
   double: { tl: "╔", tr: "╗", bl: "╚", br: "╝", h: "═", v: "║" },
+  // widget frame styles a theme can pick ([meta] widget_frame)
+  dashed: { tl: "┌", tr: "┐", bl: "└", br: "┘", h: "╌", v: "╎" },
+  corners: { tl: "┌", tr: "┐", bl: "└", br: "┘", h: " ", v: " " },
+  line: { tl: "─", tr: "─", bl: " ", br: " ", h: "─", v: " ", hb: " " },
 };
+export const BORDER_STYLES = Object.keys(BORDERS);
 
 export interface BoxOptions {
   title?: string;
@@ -38,7 +43,7 @@ export interface BoxOptions {
   /** Fill the inside with the panel color (default true). */
   fill?: boolean;
   bg?: RGB;
-  border?: keyof typeof BORDERS;
+  border?: string;
 }
 
 const SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
@@ -175,13 +180,13 @@ export class UI {
    */
   box(r: Rect, o: BoxOptions = {}): Rect {
     if (r.w < 2 || r.h < 2) return { x: r.x, y: r.y, w: 0, h: 0 };
-    const b = BORDERS[o.border ?? this.theme.border];
+    const b = BORDERS[o.border ?? this.theme.border] ?? BORDERS.round;
     const bc = o.focused ? this.c.borderFocus : this.c.border;
     const bg = o.bg ?? this.c.panel;
     if (o.fill !== false) this.fill(r, { bg });
     const st = { fg: bc, bg };
     this.hline(r.x + 1, r.y, r.w - 2, st, b.h);
-    this.hline(r.x + 1, r.y + r.h - 1, r.w - 2, st, b.h);
+    this.hline(r.x + 1, r.y + r.h - 1, r.w - 2, st, b.hb ?? b.h);
     this.vline(r.x, r.y + 1, r.h - 2, st, b.v);
     this.vline(r.x + r.w - 1, r.y + 1, r.h - 2, st, b.v);
     this.text(r.x, r.y, b.tl, st);

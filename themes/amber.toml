@@ -6,6 +6,7 @@ name = "amber"
 author = "icebreaker"
 description = "Monochrome amber phosphor. For long nights."
 border = "single"
+widget_frame = "corners"
 
 [palette]
 black  = "#0d0800"
@@ -95,3 +96,4 @@ pitch = 0.8
 [anim]
 select = "brackets"
 noise = "░▒▓"
+type = "glow"

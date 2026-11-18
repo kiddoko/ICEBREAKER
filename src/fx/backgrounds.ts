@@ -214,3 +214,71 @@ registerBackground({
     }
   },
 });
+
+registerBackground({
+  name: "grain",
+  description: "still paper grain: a few faint specks that never move (e-ink)",
+  fps: 1,
+  render(ui, r, p) {
+    const n = Math.round(r.w * r.h * 0.02 * p.density);
+    const glyphs = [...(p.glyphs || "·.˙")];
+    for (let i = 0; i < n; i++) {
+      const x = Math.floor(rnd(i, 21) * r.w), y = Math.floor(rnd(i, 22) * r.h);
+      put(ui, r.x + x, r.y + y, glyphs[i % glyphs.length], mix(ui.c.bg, p.color, 0.25 + rnd(i, 23) * 0.25));
+    }
+  },
+});
+
+registerBackground({
+  name: "circuit",
+  description: "circuit-board traces with data pulses running along them",
+  fps: 15,
+  render(ui, r, p) {
+    // traces on a coarse grid: each one a horizontal run then a vertical one
+    const n = Math.max(3, Math.round((r.w * r.h) / 260 * p.density));
+    for (let i = 0; i < n; i++) {
+      const x0 = Math.floor(rnd(i, 31) * r.w), y0 = Math.floor(rnd(i, 32) * r.h);
+      const len = 6 + Math.floor(rnd(i, 33) * 18), drop = Math.floor((rnd(i, 34) - 0.5) * 10);
+      const dir = rnd(i, 35) > 0.5 ? 1 : -1;
+      const cells: [number, number, string][] = [];
+      for (let k = 0; k < len; k++) cells.push([x0 + k * dir, y0, "─"]);
+      const xc = x0 + len * dir;
+      cells.push([xc, y0, drop === 0 ? "•" : drop > 0 ? (dir > 0 ? "┐" : "┌") : dir > 0 ? "┘" : "└"]);
+      for (let k = 1; k <= Math.abs(drop); k++) cells.push([xc, y0 + k * Math.sign(drop), k === Math.abs(drop) ? "•" : "│"]);
+      cells.unshift([x0 - dir, y0, "○"]);
+      // the pulse: a bright spot running from one end to the other
+      const period = 3 + rnd(i, 36) * 5;
+      const head = mod(p.t + rnd(i, 37) * period, period) / period * (cells.length + 6) - 3;
+      cells.forEach(([x, y, ch], k) => {
+        if (x < 0 || y < 0 || x >= r.w || y >= r.h) return;
+        const d = Math.abs(k - head);
+        const glow = d < 3 ? 1 - d / 3 : 0;
+        put(ui, r.x + x, r.y + y, ch, mix(mix(ui.c.bg, p.color, 0.55), p.color2, glow));
+      });
+    }
+  },
+});
+
+registerBackground({
+  name: "sonar",
+  description: "slow sonar rings from the deep, fading as they spread",
+  fps: 12,
+  render(ui, r, p) {
+    const pings = Math.max(1, Math.round(3 * p.density));
+    for (let i = 0; i < pings; i++) {
+      const period = 6 + i * 1.7;
+      const cyc = Math.floor((p.t + i * 2.3) / period);
+      const age = ((p.t + i * 2.3) % period) / period;
+      const cx = rnd(cyc, 41 + i) * r.w, cy = rnd(cyc, 51 + i) * r.h;
+      const R = age * Math.max(r.w, r.h) * 0.6;
+      const steps = Math.max(24, Math.round(R * 4));
+      const col = mix(mix(ui.c.bg, p.color, 0.8), p.color2, (1 - age) * 0.6);
+      for (let k = 0; k < steps; k++) {
+        if (rnd(k, cyc * 7 + i) > 0.55 + (1 - age) * 0.4) continue;
+        const a = (k / steps) * Math.PI * 2;
+        const x = Math.round(cx + Math.cos(a) * R * 2), y = Math.round(cy + Math.sin(a) * R);
+        if (x >= 0 && y >= 0 && x < r.w && y < r.h) put(ui, r.x + x, r.y + y, age < 0.5 ? "∘" : "·", mix(col, ui.c.bg, age));
+      }
+    }
+  },
+});

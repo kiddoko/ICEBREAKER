@@ -5,6 +5,7 @@ name = "redline"
 author = "icebreaker"
 description = "Black glass, warning red, Share Tech Mono."
 border = "heavy"
+widget_frame = "heavy"
 
 [palette]
 black = "#080506"
@@ -101,3 +102,4 @@ pitch = 1.0
 [anim]
 select = "pulse"
 noise = "0123456789ABCDEF"
+page = "glitch"

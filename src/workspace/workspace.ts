@@ -175,7 +175,9 @@ export class Workspace {
 
   switchTab(i: number): void {
     if (this.tabs.length === 0) return;
-    this.active = ((i % this.tabs.length) + this.tabs.length) % this.tabs.length;
+    const next = ((i % this.tabs.length) + this.tabs.length) % this.tabs.length;
+    if (next !== this.active) this.deck.pageTurn();
+    this.active = next;
     this.focus = "main";
   }
 

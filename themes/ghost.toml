@@ -5,6 +5,7 @@ name = "ghost"
 author = "icebreaker"
 description = "Ice white on blue-black, hairline IBM Plex Mono."
 border = "single"
+widget_frame = "line"
 
 [palette]
 void  = "#06080d"
@@ -101,3 +102,4 @@ pitch = 1.2
 [anim]
 select = "pulse"
 noise = "·:∙"
+page = "fade"

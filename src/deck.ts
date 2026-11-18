@@ -37,6 +37,7 @@ import { ensureEntry } from "./vault/journal";
 import { basename, join, slugify } from "./vault/paths";
 import { Vault } from "./vault/vault";
 import { BootScreen, type BootLine } from "./workspace/boot";
+import { CellFx, Transitions } from "./fx/transition";
 import type { ChoiceOption } from "./plugins/api";
 import { LockScreen } from "./workspace/lock";
 import { applyFxPreset } from "./workspace/fxpanel";
@@ -81,6 +82,8 @@ export class Deck implements InputSink {
   /** Account name when the deck has a login (null = no lock). */
   account: string | null = null;
   private glitchUntil = 0;
+  private readonly transitions = new Transitions();
+  private readonly cellFx = new CellFx();
   private lastActivity = performance.now();
 
   constructor(
@@ -263,6 +266,11 @@ export class Deck implements InputSink {
     if (!this.boot && this.lock) this.lock.render(ui);
     else if (!this.boot) this.workspace.render(ui);
 
+    // theme motion on the finished frame: changed cells, then page transitions
+    if (this.settings.data.fx.glitch) {
+      if (this.cellFx.apply(this.grid, this.theme, performance.now())) ui.animate(16);
+      if (this.transitions.apply(this.grid, this.theme, performance.now())) ui.animate(16);
+    }
     const g = this.glitchUntil - performance.now();
     if (g > 0) {
       glitch(this.grid, Math.min(1, g / 300), Math.floor(now / 50));
@@ -398,7 +406,10 @@ export class Deck implements InputSink {
       return null;
     }
     try {
-      if (this.workspace.activeApp?.key !== kind) this.sound.play("open");
+      if (this.workspace.activeApp?.key !== kind) {
+        this.sound.play("open");
+        this.pageTurn();
+      }
       const app = this.workspace.open(spec.create(this, args));
       this.requestFrame();
       return app;
@@ -481,7 +492,7 @@ export class Deck implements InputSink {
     document.getElementById("bloom")!.style.display = fx.bloom ? "block" : "none";
     document.getElementById("scanlines")!.style.display = fx.scanlines ? "block" : "none";
     document.getElementById("vignette")!.style.display = fx.vignette ? "block" : "none";
-    document.getElementById("deck")!.classList.toggle("flicker", fx.flicker);
+    document.getElementById("deck")!.classList.toggle("flicker", fx.flicker && t.fx.flicker);
     this.renderer.bloomEnabled = fx.bloom;
     this.loop.maxFps = this.settings.data.appearance.maxFps;
     this.requestFrame();
@@ -547,9 +558,21 @@ export class Deck implements InputSink {
     return this.sound.loadCustom(async (p) => ((await this.vault.exists(p).catch(() => false)) ? rb(p) : null));
   }
 
+  /** The big moments (boot, unlock, theme change): the theme's page transition, glitch by default. */
   glitch(ms: number): void {
     if (!this.settings.data.fx.glitch) return;
+    const page = this.theme.anim.page;
+    if (page === "none") return;
+    if (page !== "glitch") return this.pageTurn(true);
     this.glitchUntil = performance.now() + ms;
+    this.requestFrame();
+  }
+
+  /** A page or tab change: themes with an eink / wipe / fade transition play it (glitch stays for big moments). */
+  pageTurn(big = false): void {
+    const page = this.theme.anim.page;
+    if (!this.settings.data.fx.glitch || page === "none" || (page === "glitch" && !big)) return;
+    this.transitions.run(page, page === "eink" ? 420 : page === "wipe" ? 260 : 220);
     this.requestFrame();
   }
 

@@ -1,0 +1,118 @@
+# ABYSS — three thousand metres down. Teal and green bioluminescence on black
+# water, sonar rings spreading behind the panels, pages surfacing slowly.
+
+[meta]
+name = "abyss"
+author = "icebreaker"
+description = "Bioluminescence in the deep: teal glow, sonar rings, slow pings."
+border = "round"
+widget_frame = "dashed"   # dashed outlines, like a depth gauge
+
+[palette]
+water    = "#01070d"
+deep     = "#031018"
+current  = "#06192a"
+glow0    = "#0a2638"
+silt     = "#123642"
+rock     = "#3c6a75"
+foam     = "#6fa3ab"
+pale     = "#cfeff0"
+teal     = "#2de2c8"
+lume     = "#7dffb3"
+blue     = "#1f8fff"
+jelly    = "#c77dff"
+amber    = "#ffd36e"
+coral    = "#ff6b8a"
+
+[ui]
+bg = "water"
+panel = "deep"
+panel_alt = "current"
+highlight = "glow0"
+selection = "#0d3a48"
+fg = "pale"
+muted = "foam"
+subtle = "rock"
+faint = "silt"
+accent = "teal"
+accent_alt = "jelly"
+border = "silt"
+border_focus = "teal"
+title = "rock"
+title_focus = "lume"
+cursor = "lume"
+success = "lume"
+warning = "amber"
+error = "coral"
+info = "blue"
+ambient = "#0b3340"
+status_bg = "current"
+status_fg = "foam"
+
+[syntax]
+heading1 = "teal"
+heading2 = "lume"
+heading3 = "blue"
+bold = "pale"
+italic = "jelly"
+code = "lume"
+code_bg = "current"
+link = "blue"
+wikilink = "teal"
+tag = "jelly"
+quote = "rock"
+list = "teal"
+checkbox = "lume"
+hr = "silt"
+frontmatter = "rock"
+
+[ansi]
+black = "silt"
+red = "coral"
+green = "lume"
+yellow = "amber"
+blue = "blue"
+magenta = "jelly"
+cyan = "teal"
+white = "foam"
+bright_black = "rock"
+bright_red = "coral"
+bright_green = "lume"
+bright_yellow = "amber"
+bright_blue = "blue"
+bright_magenta = "jelly"
+bright_cyan = "teal"
+bright_white = "pale"
+
+[fx]
+bloom = 0.45
+scanlines = 0.05
+vignette = 0.7
+gradient = ["blue", "teal", "lume"]
+
+[font]
+family = "IBM Plex Mono"
+
+[glyphs]
+mark = "◉"
+bullet = "∘"
+spinner = "◜◝◞◟"
+todo = "○"
+done = "●"
+
+[background]
+effect = "sonar"
+density = 0.6
+speed = 0.8
+color = "teal"
+color2 = "lume"
+
+[sound]
+pack = "sonar"
+pitch = 1.0
+
+[anim]
+select = "scan"
+page = "fade"             # pages surface from the dark
+type = "ink"              # characters rise out of the water
+noise = "∘°·•○◦"

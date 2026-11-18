@@ -26,23 +26,34 @@ title_focus = "#39ff14"
 
 | section    | what                                                                  |
 |------------|-----------------------------------------------------------------------|
-| `[meta]`   | `name`, `author`, `description`, `border` (round / single / heavy / double) |
+| `[meta]`   | `name`, `author`, `description`, `border` (round / single / heavy / double), `widget_frame` for HOME widgets (those + dashed / corners / line), `extends` |
 | `[palette]`| named colors, referenced by the sections below                         |
 | `[ui]`     | backgrounds, text, accent, borders, cursor, status colors…            |
 | `[syntax]` | Markdown highlighting in the editor and chat                          |
 | `[ansi]`   | the 16 terminal colors used by shell output (`colors` shows them)     |
-| `[fx]`     | `bloom`, `scanlines`, `vignette` strengths (0–1), `gradient` for logos |
+| `[fx]`     | `bloom`, `scanlines`, `vignette` strengths (0–1), `flicker = false` (this theme never flickers), `gradient` for logos |
 | `[font]`   | `family`, `scale` (size correction), `weights = [normal, bold]`        |
 | `[glyphs]` | `mark` (◆), `bullet` (›), `spinner` frames, `todo` / `done` boxes       |
-| `[background]` | `effect` (fog · snow · rain · stars · embers · scan · none), `density`, `speed`, `color`, `color2`, `glyphs` |
-| `[sound]`  | `pack` (retro · crystal · soft · industrial), `pitch`                    |
-| `[anim]`   | `select` (brackets · pulse · scan · none), `noise` (what widgets appear from) |
+| `[background]` | `effect` (fog · snow · rain · stars · embers · scan · grain · circuit · sonar · none), `density`, `speed`, `color`, `color2`, `glyphs` |
+| `[sound]`  | `pack` (retro · crystal · soft · industrial · paper · neon · sonar), `pitch` |
+| `[anim]`   | `select` (brackets · pulse · scan · none), `noise` (what widgets appear from), `page` (glitch · eink · wipe · fade · none: changing page), `type` (none · ink · glow: characters that just changed) |
 
 `[meta] extends = "phosphor"` builds on another theme: write only what changes.
 
 Bundled fonts (SIL OFL): JetBrains Mono (default), IBM Plex Mono, Fira Code,
 Space Mono, VT323, Share Tech Mono. Any font installed on the system works too.
 A theme without `[font]` uses JetBrains Mono and the user's weight setting.
+
+## Built-in themes
+
+| theme | look | motion |
+|-------|------|--------|
+| nightshade | violet ICE on the void (default, the reference file) | snow · glitch |
+| e-ink | matte paper, black ink and greys, no CRT at all | paper grain · e-ink refresh flash · typing settles like ink · paper taps |
+| neon-district | hot pink and cyan synthwave | circuit traces · wipe · glowing keystrokes · synth plucks |
+| abyss | teal bioluminescence in black water | sonar rings · fade · deep pings |
+| phosphor | 1983 green screen, pixel font | CRT scan · wipe · glowing phosphor |
+| amber, ghost, graphite, redline, neon-ronin | see their files | each with its own frames and motion |
 
 ## Tweaking without writing a file
 

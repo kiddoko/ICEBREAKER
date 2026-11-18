@@ -40,6 +40,9 @@ export const SOUND_PACKS: Record<string, { description: string; voice: Voice }> 
   crystal: { description: "glassy chimes with a little echo", voice: { wave: "sine", pitch: 2, length: 1.7, noise: 0, echo: 0.35, tone: 9000 } },
   soft: { description: "muted, rounded ticks — barely there", voice: { wave: "triangle", pitch: 0.75, length: 0.8, noise: 0.25, echo: 0, tone: 2600 } },
   industrial: { description: "low saws and relay clatter", voice: { wave: "sawtooth", pitch: 0.55, length: 1.1, noise: 1.8, echo: 0.15, tone: 3200 } },
+  paper: { description: "dry, papery taps — an e-reader turning pages", voice: { wave: "triangle", pitch: 0.5, length: 0.45, noise: 2.2, echo: 0, tone: 1800 } },
+  neon: { description: "bright FM-ish synth plucks with a long tail", voice: { wave: "sawtooth", pitch: 1.5, length: 1.4, noise: 0, echo: 0.55, tone: 6000 } },
+  sonar: { description: "deep sine pings that ring out", voice: { wave: "sine", pitch: 0.7, length: 2.4, noise: 0, echo: 0.5, tone: 4200 } },
 };
 
 let V: Voice = SOUND_PACKS.retro.voice;

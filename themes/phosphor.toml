@@ -5,6 +5,7 @@ name = "phosphor"
 author = "icebreaker"
 description = "Green P1 phosphor, pixel font, a terminal from 1983."
 border = "single"
+widget_frame = "single"
 
 [palette]
 black  = "#020a04"
@@ -109,3 +110,5 @@ pitch = 0.9
 [anim]
 select = "scan"
 noise = "01"
+page = "wipe"             # a CRT roll
+type = "glow"              # fresh phosphor glows

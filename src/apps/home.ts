@@ -375,7 +375,7 @@ export class HomeApp implements App {
         title: spec.title.toUpperCase(),
         info: this.editing && sel ? `${p.w}×${p.h}` : undefined,
         focused: sel,
-        border: this.editing && sel ? "heavy" : "round",
+        border: this.editing && sel ? "heavy" : ui.theme.widgetFrame,
       });
       const frameHit = {
         onClick: (m: { x: number; y: number }) => {

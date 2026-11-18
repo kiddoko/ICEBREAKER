@@ -31,7 +31,7 @@ export interface ThemeGlyphs {
 
 /** The animated layer behind the panels ([background]). */
 export interface ThemeBackground {
-  /** fog · snow · rain · stars · embers · scan · none (plugins can add more). */
+  /** fog · snow · rain · stars · embers · scan · grain · circuit · sonar · none (plugins can add more). */
   effect: string;
   /** 0–1: how much of it. */
   density: number;
@@ -46,7 +46,7 @@ export interface ThemeBackground {
 
 /** UI sounds ([sound]): a synth pack and a pitch. Files in .icebreaker/sounds still win. */
 export interface ThemeSound {
-  /** retro · crystal · soft · industrial */
+  /** retro · crystal · soft · industrial · paper · neon · sonar */
   pack: string;
   pitch: number;
 }
@@ -57,6 +57,10 @@ export interface ThemeAnim {
   select: string;
   /** Characters widgets dissolve from when they appear. */
   noise: string;
+  /** Changing page or tab: glitch · eink (a black/white refresh flash) · wipe · fade · none. */
+  page: string;
+  /** Characters that just changed (typing, new output): none · ink (they settle in, like e-ink) · glow (they flash). */
+  type: string;
 }
 
 /**
@@ -97,7 +101,9 @@ export interface Theme {
   ansi: RGB[];
   /** Two or more colors used for logos and big headings. */
   gradient: RGB[];
-  fx: { bloom: number; scanlines: number; vignette: number };
+  fx: { bloom: number; scanlines: number; vignette: number; flicker: boolean };
+  /** How HOME widgets are framed: round · single · heavy · double · dashed · corners · line. */
+  widgetFrame: string;
   /** Optional replacement for the boot logo. */
   logo?: string;
   glyphs: ThemeGlyphs;
@@ -180,7 +186,10 @@ export function parseTheme(source: string, base: Theme | null, origin: Theme["so
       bloom: num("bloom", base?.fx.bloom ?? 0.4),
       scanlines: num("scanlines", base?.fx.scanlines ?? 0.1),
       vignette: num("vignette", base?.fx.vignette ?? 0.5),
+      // false: this theme never flickers, whatever the user's CRT setting (e-ink…)
+      flicker: typeof fxRaw.flicker === "boolean" ? fxRaw.flicker : base?.fx.flicker ?? true,
     },
+    widgetFrame: typeof meta.widget_frame === "string" ? String(meta.widget_frame) : base?.widgetFrame ?? "round",
     logo: typeof (doc.ascii as Table | undefined)?.logo === "string" ? String((doc.ascii as Table).logo) : base?.logo,
     glyphs: parseGlyphs((doc.glyphs ?? {}) as Table, base?.glyphs),
     font: parseFont((doc.font ?? {}) as Table, base?.font ?? null),
@@ -200,6 +209,8 @@ export function parseTheme(source: string, base: Theme | null, origin: Theme["so
     anim: {
       select: typeof ((doc.anim ?? {}) as Table).select === "string" ? String(((doc.anim ?? {}) as Table).select) : base?.anim.select ?? "brackets",
       noise: typeof ((doc.anim ?? {}) as Table).noise === "string" && ((doc.anim ?? {}) as Table).noise ? String(((doc.anim ?? {}) as Table).noise) : base?.anim.noise ?? DEFAULT_NOISE,
+      page: typeof ((doc.anim ?? {}) as Table).page === "string" ? String(((doc.anim ?? {}) as Table).page) : base?.anim.page ?? "glitch",
+      type: typeof ((doc.anim ?? {}) as Table).type === "string" ? String(((doc.anim ?? {}) as Table).type) : base?.anim.type ?? "none",
     },
     extends: typeof meta.extends === "string" ? meta.extends : undefined,
     source: origin,

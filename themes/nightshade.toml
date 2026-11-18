@@ -13,6 +13,7 @@ name = "nightshade"
 author = "icebreaker"
 description = "Deep void, violet ICE. Catppuccin-flavoured."
 border = "round"          # round | single | heavy | double
+widget_frame = "round"    # HOME widgets: round · single · heavy · double · dashed · corners · line
 
 # Raw colors. Names are yours to choose; [ui] / [syntax] / [ansi] refer to them.
 [palette]
@@ -106,6 +107,7 @@ bright_white   = "text"
 
 # Post-effect strengths (0–1), used when the user turns them on
 # (status bar "✦ fx" button, or `fx bloom on`). They're off by default.
+# flicker = false would keep this theme still even with the CRT flicker on.
 [fx]
 bloom     = 0.3
 scanlines = 0.10
@@ -129,7 +131,8 @@ spinner = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"            # one character per frame
 todo    = "□"
 done    = "■"
 
-# What moves behind the panels. effect: fog · snow · rain · stars · embers · scan · none
+# What moves behind the panels. effect: fog · snow · rain · stars · embers · scan ·
+# grain (still paper) · circuit · sonar · none
 # (plugins can add more). density 0–1, speed 0.1–4, color / color2: palette name or
 # #hex (leave out = from [ui]), glyphs: characters the effect may use.
 [background]
@@ -140,7 +143,8 @@ color   = "lavender"
 color2  = "pink"
 glyphs  = "·∙*"
 
-# UI sounds: pack = retro (square blips) · crystal (glassy chimes) · soft · industrial.
+# UI sounds: pack = retro (square blips) · crystal (glassy chimes) · soft · industrial ·
+# paper (dry taps) · neon (synth plucks) · sonar (deep pings).
 # pitch multiplies every note. Files in <vault>/.icebreaker/sounds/ still win.
 [sound]
 pack  = "crystal"
@@ -148,6 +152,10 @@ pitch = 1.0
 
 # Motion. select: how a selected HOME widget shows it — brackets · pulse · scan · none.
 # noise: the characters widgets dissolve from when they appear.
+# page: changing page or tab — glitch (big moments only) · eink · wipe · fade · none.
+# type: characters that just changed — none · ink (settle in from grey) · glow (flash).
 [anim]
 select = "brackets"
+page   = "glitch"
+type   = "none"
 noise  = "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄ0123456789:=*+<>"
