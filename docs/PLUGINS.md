@@ -94,9 +94,24 @@ ib.widgets.register({
   render(ui, rect, { focused }) {
     ui.textCenter(rect, rect.y + 1, "the street finds its own uses", { fg: ui.c.muted });
   },
-  activate() { ib.ui.notify("enter pressed on the widget"); },
+  open: "hello open",            // the module this widget belongs to
+  popup: {                      // enter / double-click / pad A on HOME opens it
+    title: "quote",
+    size: { w: 50, h: 6 },
+    hint: "space: another one",
+    render(ui, rect, { close }) { ui.textCenter(rect, rect.y + 2, "…", { fg: ui.c.fg }); },
+    onText(t) { if (t === " ") { ib.shell.run("hello quote"); return true; } return false; },
+  },
 });
 ```
+
+**Enter, double-click and the gamepad's A** on a HOME widget follow one rule:
+its `popup` if it has one (the widget, bigger and usable — add a city, quick-add
+a task…), else its `activate()`, else its module (`open`). A pop-up always gets
+an "open <module>" button (enter) and closes with esc / B. Give the pop-up keys
+(`onText` / `onKey` / `onAction` — return true when you used it) and make every
+button a command (`ui.button(x, y, label, () => {}, { cmd: "hello quote" })`).
+`widget <id>`, `widget <id> open` and `widget <id> do` drive the same from the shell.
 
 The user adds it from HOME: `e` (edit layout) then `a`. Widgets render every
 frame they're visible: keep `render` cheap, cache anything slow (network, AI)
@@ -108,7 +123,8 @@ The full surface is typed and commented in
 - `ib.ai.session({ system, tools })` → streaming chat; `ib.ai.vaultTools()` lets the model read notes.
 - `ib.storage.get/set` → a private JSON file per plugin (`.icebreaker/plugin-data/<id>.json`).
 - `ib.shell.run(line)` → run a command, echoed in the shell (what your clicks should do).
-- `ib.ui.notify / confirm / prompt` → talk to the user.
+- `ib.ui.notify / confirm / prompt / choose` → talk to the user (`choose` = pick one option from a filtered list).
+- `ib.media.player` → play local audio files (permission `media`); `ib.google.*` → the user's Google Calendar (permission `google-calendar`; keep Google data in `ib.google.cache`, never in the vault).
 - `ib.lib` → the same building blocks the core uses: `TextEditor`, `ListView`,
   `ChatView`, `bigText`, `fmt` (ANSI colors), color helpers, attribute flags.
 
@@ -138,6 +154,16 @@ Examples to copy from:
   (add / done / prio / due / rm / restore…), an app, a HOME widget, data in
   `ib.storage`. No permission needed.
 - [LINGO](../plugins/lingo/main.ts): app + command + AI session + storage + vault writes.
+- [CALENDAR](../plugins/calendar/main.ts): data as Markdown files in the vault, an optional online service (Google) behind a mode, a settings page inside the app, a widget whose pop-up adds events.
+- [MUSIC](../plugins/music/main.ts): a native player behind a permission, a library app, a widget with a pop-up.
+
+### Offline first
+
+Every module must work **offline, without an account and without AI**, or say
+in its README what needs the network. Users can turn on **stealth mode**
+(`stealth on`): then `fetch()` to the internet and the online native calls
+(Google, news, installs) fail with a `stealth mode: …` error — catch it and
+show your offline face instead of an error screen.
 
 ## Sharing
 

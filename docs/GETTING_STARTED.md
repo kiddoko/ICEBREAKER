@@ -52,19 +52,42 @@ One feature = one module, each with its **command**, its **app** and its **HOME
 widget**: TODO, CALENDAR, MUSIC, LINGO… `Ctrl+K` → *Modules* lists them, and you
 can switch any of them off. More from the community: `plugin search`.
 
-## 5. Staying offline
+## 5. Staying offline: stealth mode
 
-Nothing needs the internet. Choose "No AI" (or a local model with Ollama), keep
-the calendar local (`cal mode local`), set location to "Nothing", and the deck
-never opens a connection. See [PRIVACY.md](PRIVACY.md).
+Nothing needs the internet. Pick **Stealth** at the start of the setup, or type
+`stealth on` any time: the deck then never goes online — no cloud AI (a local
+model through Ollama still works, on this machine or a computer on your
+network), no weather, news, Google or installs. The status bar shows `◉ stealth`.
+Your vault can still live on your own server: mount it as a network drive and
+point the deck at it (`vault mount /Volumes/nas/vault`). See [PRIVACY.md](PRIVACY.md).
 
-## 6. Where things are
+## 6. A voice
+
+```bash
+voice install fr      # piper (open source) + a French voice, once (~85 MB)
+voice on              # then: voice test
+voice read on         # LINK reads its answers aloud
+voice robot 80        # more machine (0 = clean, 100 = full robot)
+```
+
+Without the download, the system voice works too (macOS `say`, `espeak-ng` on
+Linux, Windows' own). Everything is synthesized on your computer.
+
+## 7. Widgets and themes
+
+Enter, double-click or A on a HOME widget opens its **pop-up** — the widget,
+bigger and usable — with a button to its module. `theme set e-ink`,
+`theme set neon-district`, `theme set abyss`… each theme brings its own motion
+and sounds; `theme studio` tweaks everything live.
+
+## 8. Where things are
 
 | what | where |
 |------|-------|
 | notes, journal, calendar | your vault (plain files) |
 | modules' own data | `<vault>/.icebreaker/plugin-data/` |
 | your themes, plugins, sounds | `<vault>/.icebreaker/` |
-| settings, login, Google token | the app config folder (macOS: `~/Library/Application Support/org.icebreaker.deck/`) |
+| settings, login, Google token and cache | the app config folder (macOS: `~/Library/Application Support/org.icebreaker.deck/`) |
+| downloaded voices (piper) | the app data folder, `voice/` |
 
 Questions or bugs: open an issue.

@@ -24,9 +24,13 @@ names:
 | News widget | Google News / Bing News RSS | your search terms, language, country |
 | Google Calendar (optional) | googleapis.com | see below |
 | Installing modules / themes | GitHub | the name of what you install |
+| `voice install` (once) | GitHub (piper) and Hugging Face (the voice file) | nothing but the download request |
 
-Each of these can be left off. With no AI, no location and a local calendar, the
-deck makes no connection at all.
+The voice itself is synthesized on your computer: what it reads never leaves it.
+
+Each of these can be left off. **Stealth mode** (`stealth on`, or "Stealth" in
+the setup) turns all of them off at once and blocks any connection outside this
+computer and your local network.
 
 ## Google user data
 

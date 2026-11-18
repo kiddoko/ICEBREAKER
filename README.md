@@ -23,6 +23,10 @@ scanlines — but works with the keyboard, the mouse, or a gamepad.
 - **NEXUS** — walk your vault in pseudo-3D: files ride a carousel above a synthwave floor grid under glyph rain (`explore`, or MODULES → Nexus).
 - **Daily log** — `daily` asks a short end-of-day check-in in the shell (quick answers 1-5) and writes it to your journal; `daily trend` charts it.
 - **Login** — optional account that locks the deck at start-up. The password is hashed with Argon2id and never stored. It locks the app, it does not encrypt your notes (they stay readable Markdown files). Forgot it? Quit, delete `account.json` in the config folder (macOS: `~/Library/Application Support/org.icebreaker.deck/`), restart.
+- **Voice** — the deck can talk: a local, open-source voice (piper) or your system's, through a robot filter — clearly a machine, not choppy. It greets you at start-up and can read the AI's answers (`voice install`, `voice on`, `voice read on`). Nothing leaves your computer.
+- **Stealth mode** — `stealth on`: 100 % local. No internet at all; AI only through a local model (Ollama on this machine or a box at home); your vault can live on your own server.
+- **Themes** — 10 built-in looks, each with its own colors, font, background animation, sounds, widget frames and motion: from **e-ink** (matte paper, black and greys, pages that refresh like an e-reader) to **neon-district** (synthwave, circuit traces) and **abyss** (bioluminescent sonar). Make your own in a `.toml` file or the theme studio.
+- **Widgets that open up** — enter, double-click or the pad's A on a HOME widget opens its pop-up (add a city to the world clock, quick-add a task, the week's weather, the next moon phases…) with a button to its full module.
 - **Sounds** — UI blips synthesized on the fly; drop your own `move.wav`, `open.wav`, `confirm.wav`, `back.wav`, `success.wav`, `error.wav`, `notify.wav`, `boot.wav`, `unlock.wav`, `denied.wav` (or .ogg / .mp3) in `.icebreaker/sounds/` to replace them.
 - **Light** — renders only what changed, sleeps when idle, `fx potato` for old laptops. ~10 MB binary.
 

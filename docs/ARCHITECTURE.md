@@ -83,3 +83,18 @@ const hello: Command = {
 `AppSpec`, register it in `Deck.registerCore()`. Or do both from a plugin.
 
 **A theme / a plugin** — see THEMES.md and PLUGINS.md; no rebuild needed.
+
+## Theme motion, voice, stealth
+
+- **After the frame is drawn** (`deck.frame`): `fx/transition.ts` applies the
+  theme's `[anim] type` to cells that just changed (ink · glow), then its
+  `[anim] page` transition (eink · wipe · fade); `fx/glitch.ts` is the classic
+  glitch for big moments. All of it is skipped when the user turns animations off.
+- **Voice** (`core/voice.ts` + `src-tauri/src/voice.rs`): the native side turns
+  text into a WAV (piper or the system voice); the UI plays it through a Web
+  Audio robot chain. One sentence is synthesized while the previous one plays.
+- **Stealth** (`core/stealth.ts`): one guard for the whole app — it wraps
+  `fetch()` and the native calls that go online, and the AI manager refuses
+  cloud providers. Local hosts (this machine, private ranges, `.local`) pass.
+- **Widget pop-ups** (`workspace/widgetpopup.ts`, `widgets/popups.ts`): a
+  widget's `popup` spec rendered in a modal, with a button to its module.

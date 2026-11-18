@@ -92,7 +92,7 @@ export class SettingsApp implements App {
       toggle("fx.vignette", "vignette"),
       toggle("fx.ambient", "animated background"),
       toggle("fx.flicker", "crt flicker"),
-      toggle("fx.glitch", "glitch transitions"),
+      toggle("fx.glitch", "animations (glitch, page & typing motion)"),
       cycle("fx.screensaverMinutes", "screensaver after", [0, 5, 10, 20, 30], undefined, (v) => (v ? `${v} min` : "never")),
       cycle("boot.mode", "boot sequence", ["full", "fast", "off"]),
       { section: "SOUND", label: "", value: () => "" },
