@@ -228,21 +228,34 @@ const explore: Command = {
 
 const termCmd: Command = {
   name: "term",
-  summary: "the shell panel's tabs: your terminal, ibsh, history",
-  usage: "term            your system terminal (zsh, bash…)\nterm max        big shell, the page goes below (again: back)\nterm ibsh       ICEBREAKER's shell\nterm history    what clicks ran\nterm restart    a fresh system shell\nterm mode system|ibsh   which one the panel uses",
-  examples: [["term", "jump to your real terminal"], ["term history", "see what your clicks ran"], ["term mode ibsh", "vault-only shell, rm goes to .trash"]],
-  complete: () => ["ibsh", "history", "restart", "mode"],
+  summary: "the shell panel: your terminals, ibsh, history; a terminal in the main window",
+  usage: "term            your system terminal (zsh, bash…)\nterm new        another terminal tab (+ on the panel)\nterm close [n]  close one (× on the panel)\nterm <n>        go to terminal n\nterm open       a terminal in the main window (a tab of its own)\nterm hide       fold the shell panel away (term show, ctrl+`)\nterm max        big shell, the page goes below (again: back)\nterm ibsh       ICEBREAKER's shell\nterm history    what clicks ran\nterm restart    a fresh system shell\nterm mode system|ibsh   which one the panel uses",
+  examples: [["term", "jump to your real terminal"], ["term new", "a second terminal"], ["term open", "a terminal as a big tab"], ["term hide", "fold the panel away"]],
+  complete: () => ["new", "close", "open", "hide", "show", "max", "ibsh", "history", "restart", "mode"],
   run(ctx) {
-    const ws = ctx.deck.workspace;
+    const d = ctx.deck;
+    const ws = d.workspace;
     const [a, b] = ctx.args;
     if (a === "mode") {
       if (b !== "system" && b !== "ibsh") return ctx.err("usage: term mode system|ibsh\n"), 1;
-      ctx.deck.settings.set("shell.mode", b);
+      d.settings.set("shell.mode", b);
       return 0;
     }
-    if (a === "restart") return ws.sysTerm?.restart(), ws.showShellTab("term"), 0;
+    if (a === "hide") return (ws.shellVisible = false), (ws.focus = "main"), 0;
+    if (a === "show") return ws.showShellTab(ws.shellTab), 0;
     if (a === "max") return ws.toggleShellMax(), 0;
-    if (!a && !ws.termAvailable) return ctx.err(ctx.deck.platform.pty ? "term: the panel is in ibsh mode (term mode system)\n" : "term: needs the desktop app\n"), 1;
+    if (a === "open") return void d.openApp("terminal", { fresh: true }), 0;
+    if (!d.platform.pty) return ctx.err("term: needs the desktop app\n"), 1;
+    if (!ws.termAvailable && a !== "ibsh" && a !== "history") return ctx.err("term: the panel is in ibsh mode (term mode system)\n"), 1;
+    if (a === "new") return ws.newTerminal(), 0;
+    if (a === "close") return ws.closeTerminal(b ? Number(b) - 1 : undefined), 0;
+    if (a === "restart") return ws.sysTerm?.restart(), ws.showShellTab("term"), 0;
+    if (a && /^\d+$/.test(a)) {
+      const i = Number(a) - 1;
+      if (!ws.terms[i]) return ctx.err(`term: no terminal ${a} (there are ${ws.terms.length})\n`), 1;
+      ws.termIndex = i;
+      return ws.showShellTab("term"), 0;
+    }
     ws.showShellTab(a === "ibsh" ? "ibsh" : a === "history" ? "history" : "term");
   },
 };

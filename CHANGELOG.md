@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Shell: several system terminals as tabs (+ adds one, × closes it, `term new`,
+  `term 2`), a terminal in a main-window tab (`term open`), ▾ to fold the
+  panel away (`term hide`, ctrl+` brings it back).
+- Scripts: shell lines kept in the vault (.icebreaker/scripts/*.ibsh) and run in
+  one go from the ≡ scripts menu, the palette or `script <name>`; {blanks} are
+  asked; four examples (morning, end-of-day, inbox-sweep, quick-note).
+- `mv a.md b.md folder/` moves several notes at once.
 - Settings redesigned: categories on the left, their settings on the right,
   a search over every setting (just type), and under the list the shell
   command that does the same (`config set …`). New: KEYS, MODULES, DANGER ZONE,

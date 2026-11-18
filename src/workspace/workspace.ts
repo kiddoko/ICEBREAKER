@@ -1,3 +1,4 @@
+import { TerminalApp } from "../apps/terminal";
 import { t } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC, type Action, type ActionSource, type KeyInput, type MouseInput } from "../core/input";
@@ -48,7 +49,30 @@ export class Workspace {
   /** The shell panel's tabs: your system terminal, ibsh, what clicks ran. */
   shellTab: ShellTab = "ibsh";
   private shellTabChosen = false;
-  sysTerm: SystemTerminal | null = null;
+  /** your system terminals (tabs in the shell panel; + adds one) */
+  terms: SystemTerminal[] = [];
+  termIndex = 0;
+  get sysTerm(): SystemTerminal | null {
+    return this.terms[this.termIndex] ?? null;
+  }
+
+  /** One more system terminal, shown at once. */
+  newTerminal(): void {
+    if (!this.termAvailable) return this.deck.notify(this.deck.platform.pty ? "the shell panel is in ibsh mode (term mode system)" : "needs the desktop app", "warning");
+    this.terms.push(new SystemTerminal(this.deck));
+    this.termIndex = this.terms.length - 1;
+    this.showShellTab("term");
+  }
+
+  /** Close terminal i (default: the one shown); its shell is killed. */
+  closeTerminal(i = this.termIndex): void {
+    const t = this.terms[i];
+    if (!t) return;
+    t.dispose();
+    this.terms.splice(i, 1);
+    this.termIndex = Math.max(0, Math.min(this.termIndex, this.terms.length - 1));
+    if (!this.terms.length && this.shellTab === "term") this.showShellTab("ibsh");
+  }
   /** The shell takes the big area; the active page moves to the strip below. */
   shellMax = false;
 
@@ -91,7 +115,8 @@ export class Workspace {
   }
 
   private get terminal(): SystemTerminal {
-    return (this.sysTerm ??= new SystemTerminal(this.deck));
+    if (!this.terms.length) this.terms.push(new SystemTerminal(this.deck));
+    return this.terms[Math.min(this.termIndex, this.terms.length - 1)];
   }
 
   showShellTab(t: ShellTab): void {
@@ -107,8 +132,12 @@ export class Workspace {
   }
 
   private cycleShellTab(): void {
+    // every terminal, then ibsh, then history
+    if (this.shellTab === "term" && this.termIndex < this.terms.length - 1) return (this.termIndex++, this.showShellTab("term"));
     const tabs: ShellTab[] = [...(this.termAvailable ? (["term"] as ShellTab[]) : []), "ibsh", "history"];
-    this.showShellTab(tabs[(tabs.indexOf(this.shellTab) + 1) % tabs.length]);
+    const next = tabs[(tabs.indexOf(this.shellTab) + 1) % tabs.length];
+    if (next === "term") this.termIndex = 0;
+    this.showShellTab(next);
   }
 
   /** Tabs in the order they were looked at (keys), for esc → back. */
@@ -296,6 +325,9 @@ export class Workspace {
       this.terminal.onKey(k);
       return;
     }
+    // a terminal tab in the main window: same rule
+    const ta = this.activeApp;
+    if (this.focus === "main" && ta instanceof TerminalApp && ta.term.wants(k)) return void ta.term.onKey(k);
     if (this.globalKey(k)) return;
     // shift+tab: the next part of the screen — unless the note editor still has something to unindent
     if (k.combo === "shift+tab" && !this.paneTarget()?.onKey?.(k)) return this.cycleFocus();
@@ -489,21 +521,47 @@ export class Workspace {
       if (this.shellTab === "term" && !this.termAvailable) this.shellTab = "ibsh";
       const si = ui.box(r, { focused: shellFocused, info: t("F12 tabs · ctrl+` toggle") });
       // tabs on the top border: your shell · ibsh · history
-      const tabs: [ShellTab, string][] = [
-        ...(this.termAvailable ? ([["term", this.sysTerm?.shellName ?? "terminal"]] as [ShellTab, string][]) : []),
-        ["ibsh", "ibsh"],
-        ["history", d.shell.unseen ? `${t("history")} •${d.shell.unseen}` : t("history")],
+      if (this.termAvailable && !this.terms.length) this.terms.push(new SystemTerminal(d));
+      const tabs: [ShellTab, string, number][] = [
+        ...(this.termAvailable ? this.terms.map((tm, i) => ["term", `${tm.shellName}${this.terms.length > 1 ? ` ${i + 1}` : ""}`, i] as [ShellTab, string, number]) : []),
+        ["ibsh", "ibsh", -1],
+        ["history", d.shell.unseen ? `${t("history")} •${d.shell.unseen}` : t("history"), -1],
       ];
       let tx = r.x + 2;
-      for (const [id, label] of tabs) {
-        const on = id === this.shellTab;
+      for (const [id, label, ti] of tabs) {
+        const on = id === this.shellTab && (ti < 0 || ti === this.termIndex);
         const text = on ? ` ${ui.theme.glyphs.mark} ${label} ` : ` ${label} `;
         const rect = { x: tx, y: r.y, w: strWidth(text), h: 1 };
         const style = on ? (shellFocused ? { fg: c.titleFocus, bg: c.panel, attrs: BOLD } : { fg: c.fg, bg: c.panel, attrs: BOLD }) : { fg: ui.hovered(rect) ? c.accent : c.title, bg: c.panel };
         ui.text(tx, r.y, text, style);
-        ui.hit(rect, { onClick: () => this.showShellTab(id), tip: id === "term" ? "your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)" : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash" : "what clicks ran, with their output" });
+        ui.hit(rect, { onClick: () => (ti >= 0 && (this.termIndex = ti), this.showShellTab(id)), tip: id === "term" ? "your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)" : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash" : "what clicks ran, with their output" });
         tx += rect.w + 1;
+        // + a new terminal, after the last one · × close the one shown (when there are several)
+        if (id === "term" && ti === this.terms.length - 1) {
+          if (this.terms.length > 1 && this.shellTab === "term") {
+            const xr = { x: tx - 1, y: r.y, w: 3, h: 1 };
+            ui.text(xr.x, r.y, " × ", { fg: ui.hovered(xr) ? c.error : c.subtle, bg: c.panel });
+            ui.hit(xr, { cmd: "term close", tip: "close this terminal" });
+            tx += 3;
+          }
+          const pr = { x: tx, y: r.y, w: 3, h: 1 };
+          ui.text(pr.x, r.y, " + ", { fg: ui.hovered(pr) ? c.accent : c.subtle, bg: c.panel });
+          ui.hit(pr, { cmd: "term new", tip: "another terminal" });
+          tx += 4;
+        }
       }
+      // ≡ scripts: your saved shell scripts, one click to run
+      const slabel = ` ≡ ${t("scripts")} `;
+      const sr = { x: tx, y: r.y, w: strWidth(slabel), h: 1 };
+      ui.text(sr.x, r.y, slabel, { fg: ui.hovered(sr) ? c.accent : c.title, bg: c.panel });
+      ui.hit(sr, { cmd: "script menu", tip: "your scripts (.icebreaker/scripts) · script new <name>" });
+      tx += sr.w + 1;
+      // ▾ fold the panel away (ctrl+` brings it back)
+      const hlabel = ` ▾ ${t("hide")} `;
+      const hr = { x: tx, y: r.y, w: strWidth(hlabel), h: 1 };
+      ui.text(hr.x, r.y, hlabel, { fg: ui.hovered(hr) ? c.accent : c.title, bg: c.panel });
+      ui.hit(hr, { cmd: "term hide", tip: "fold the shell away · ctrl+` brings it back" });
+      tx += hr.w + 1;
       // ⤢ maximize / ⤡ restore: drawn like the tabs next to it
       const mlabel = max ? ` ⤡ ${t("restore")} ` : ` ⤢ ${t("maximize")} `;
       const mx = { x: tx, y: r.y, w: strWidth(mlabel), h: 1 };

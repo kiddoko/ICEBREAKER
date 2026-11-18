@@ -345,9 +345,15 @@ const rm: Command = {
 const mv: Command = {
   name: "mv",
   summary: "move or rename",
-  usage: "mv source dest",
+  usage: "mv source dest\nmv a.md b.md … folder/   several into a folder",
   complete: "path",
   async run(ctx) {
+    if (ctx.args.length > 2) {
+      const dir = ctx.resolve(ctx.args[ctx.args.length - 1]);
+      if (!ctx.deck.vault.isDir(dir)) return ctx.err("mv: with several sources, the last one must be a folder\n"), 1;
+      for (const a of ctx.args.slice(0, -1)) await ctx.deck.vault.rename(ctx.resolve(a), join(dir, basename(ctx.resolve(a))));
+      return 0;
+    }
     const [src, dest] = ctx.args;
     if (!src || !dest) {
       ctx.err("usage: mv source dest\n");

@@ -393,6 +393,8 @@ export const FR: Record<string, string> = {
   "never": "jamais",
   "fast": "rapide",
   "full": "complète",
+  "scripts": "scripts",
+  "hide": "masquer",
   "Reminders and modules can call you. How?": "Les rappels et les modules peuvent t'appeler. Comment ?",
   "Sound and on screen": "Son et à l'écran",
   "Sound only": "Son seulement",

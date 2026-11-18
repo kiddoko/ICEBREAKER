@@ -1,3 +1,5 @@
+import { terminalSpec } from "./apps/terminal";
+import { scriptCommand, scriptsMenu } from "./shell/commands/scripts";
 import { ServiceRegistry } from "./plugins/services";
 import { shortcutCommands, shortcutsSpec } from "./apps/shortcuts";
 import { StatsStore } from "./core/stats";
@@ -257,15 +259,17 @@ export class Deck implements InputSink {
   }
 
   private registerCore(): void {
-    for (const c of [...fileCommands, ...systemCommands, ...deckCommands, storeCommand, ...shortcutCommands]) this.commands.register({ ...c, source: "core" });
+    for (const c of [...fileCommands, ...systemCommands, ...deckCommands, storeCommand, ...shortcutCommands, scriptCommand]) this.commands.register({ ...c, source: "core" });
     for (const w of BUILTIN_WIDGETS) this.widgets.register(w);
-    for (const a of [homeSpec, modulesSpec, storeSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec, shortcutsSpec]) this.apps.register(a);
+    for (const a of [homeSpec, modulesSpec, storeSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec, shortcutsSpec, terminalSpec]) this.apps.register(a);
 
     const act = (id: string, title: string, run: () => void, hint?: string, group = "deck") => this.actions.register({ id, title, run, hint, group });
     act("journal.today", "Journal: today", () => void this.openJournal(new Date()), "ctrl+j", "journal");
     act("journal.yesterday", "Journal: yesterday", () => void this.openJournal(new Date(Date.now() - 86400_000)), undefined, "journal");
     act("note.new", "New note", () => void this.newNote(), "ctrl+n", "notes");
     act("folder.new", "New folder", () => void this.newFolder(), "ctrl+shift+n", "notes");
+    act("scripts.menu", "Scripts… (run one of your saved shell scripts)", () => void scriptsMenu(this), undefined, "shell");
+    act("terminal.open", "Terminal in a tab", () => void this.act("term open"), undefined, "shell");
     act("shortcuts.open", "Keyboard shortcuts (all, searchable)", () => void this.openApp("shortcuts"), "ctrl+/", "deck");
     act("daily.log", "Daily log (end-of-day check-in)", () => void this.shell.runLine("daily"), undefined, "journal");
     act("deck.lock", "Lock the deck", () => this.account ? this.lockNow() : this.notify("no account yet — run `account create` in the shell"), undefined, "deck");
