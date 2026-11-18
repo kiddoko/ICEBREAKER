@@ -3,6 +3,8 @@ import type { Action, ActionSource, KeyInput } from "../core/input";
 import { fuzzyFilter } from "../core/fuzzy";
 import { strWidth } from "../core/unicode";
 import type { PaletteAction } from "../apps/types";
+import type { ChoiceOption } from "../plugins/api";
+import { hex } from "../core/color";
 import { TextEditor } from "../ui/editor";
 import { ListView } from "../ui/list";
 import type { UI } from "../ui/ui";
@@ -209,6 +211,77 @@ export class PromptDialog implements Overlay {
     let x = inner.x + inner.w - 20;
     x += ui.button(x, inner.y + 3, "ok ⏎", () => this.finish(this.editor.text)) + 2;
     ui.button(x, inner.y + 3, "cancel", () => this.finish(null), { accent: c.subtle });
+  }
+}
+
+/** Pick one option from a list (type to filter). */
+export class ChooseDialog implements Overlay {
+  modal = true;
+  done = false;
+  private input = new TextEditor("", { singleLine: true, placeholder: "type to filter" });
+  private list = new ListView<{ o: ChoiceOption; i: number }>();
+  private lastQuery = "\0";
+
+  constructor(
+    private readonly title: string,
+    private readonly options: ChoiceOption[],
+    private readonly selected: number,
+    private readonly resolve: (i: number | null) => void,
+  ) {
+    this.input.onSubmit = () => this.finish(this.list.current?.i ?? null);
+    this.list.onActivate = () => this.finish(this.list.current?.i ?? null);
+  }
+
+  private finish(i: number | null): void {
+    if (this.done) return;
+    this.done = true;
+    this.resolve(i);
+  }
+
+  onKey(k: KeyInput): boolean {
+    if (k.key === "esc") this.finish(null);
+    else if (["up", "down", "pageup", "pagedown"].includes(k.key)) this.list.onAction(k.key === "up" ? "up" : k.key === "down" ? "down" : k.key === "pageup" ? "page-up" : "page-down");
+    else this.input.onKey(k);
+    return true;
+  }
+
+  onText(t: string): boolean {
+    this.input.onText(t);
+    return true;
+  }
+
+  onAction(a: Action): boolean {
+    if (a === "back") this.finish(null);
+    else if (a === "confirm") this.finish(this.list.current?.i ?? null);
+    else this.list.onAction(a);
+    return true;
+  }
+
+  render(ui: UI, screen: Rect): void {
+    const c = ui.c;
+    if (this.input.text !== this.lastQuery) {
+      const first = this.lastQuery === "\0";
+      this.lastQuery = this.input.text;
+      const all = this.options.map((o, i) => ({ o, i }));
+      this.list.items = this.input.text ? fuzzyFilter(this.input.text, all, (x) => `${x.o.label} ${x.o.hint ?? ""}`, 200) : all;
+      this.list.select(first ? Math.max(0, Math.min(this.selected, all.length - 1)) : 0);
+      if (!first) this.list.scrollTop = 0;
+    }
+    backdrop(ui, screen, () => this.finish(null));
+    const w = Math.max(48, strWidth(this.title) + 8, ...this.options.map((o) => strWidth(o.label) + strWidth(o.hint ?? "") + 10));
+    const box = centered(screen, Math.min(80, w), Math.min(this.options.length, 14) + 5);
+    const inner = ui.box(box, { title: "CHOOSE", focused: true, bg: c.panelAlt, info: `${this.list.items.length}` });
+    ui.text(inner.x + 1, inner.y, this.title, { fg: c.fg, attrs: BOLD }, inner.w - 2);
+    ui.text(inner.x + 1, inner.y + 1, "❯", { fg: c.accent, attrs: BOLD });
+    this.input.render(ui, { x: inner.x + 3, y: inner.y + 1, w: inner.w - 4, h: 1 }, true);
+    const listRect = { x: inner.x, y: inner.y + 2, w: inner.w, h: inner.h - 2 };
+    this.list.render(ui, listRect, true, (x, row, sel) => {
+      let lx = row.x + 1;
+      if (x.o.color) lx = ui.text(lx, row.y, "● ", { fg: hex(x.o.color) });
+      ui.text(lx, row.y, x.o.label, { fg: sel ? c.fg : c.muted, attrs: sel ? BOLD : 0 }, row.w - (lx - row.x) - strWidth(x.o.hint ?? "") - 3);
+      if (x.o.hint) ui.textRight(row.x + row.w - 2, row.y, x.o.hint, { fg: c.faint });
+    });
+    if (!this.list.items.length) ui.textCenter(listRect, listRect.y, "no match", { fg: c.subtle });
   }
 }
 

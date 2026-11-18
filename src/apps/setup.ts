@@ -87,8 +87,18 @@ export class SetupApp implements App {
           { value: "claude-code", label: "Claude Code", hint: deck.ai.claudeCodePath ? "found — uses your Claude plan, no API tokens" : "not found — install it and run `claude` once" },
           { value: "anthropic", label: "Anthropic API key", hint: "pay per token" },
           { value: "ollama", label: "Ollama", hint: "local models, fully offline" },
-          { value: "keep", label: "Decide later" },
+          { value: "keep", label: "No AI for now", hint: "everything else works without it, offline" },
         ],
+      },
+      {
+        id: "calendar", title: "CALENDAR",
+        question: "Your agenda. It can live entirely in your vault (plain Markdown, offline, no account), or also show your Google calendars.",
+        options: () => [
+          { value: "local", label: "In my vault only", hint: "nothing leaves this computer" },
+          ...(deck.platform.google ? [{ value: "google", label: "Connect Google Calendar", hint: "your browser opens Google's page" }] : []),
+          { value: "later", label: "Decide later", hint: "local works; cal google connect any time" },
+        ],
+        skip: () => !deck.commands.get("cal"),
       },
       {
         id: "home", title: "HOME", question: "Pick a starting dashboard. Press e on HOME to rearrange, a to add widgets.",
@@ -238,6 +248,9 @@ export class SetupApp implements App {
       if (this.a.fx) applyFxPreset(this.deck, this.a.fx as "minimal" | "max" | "potato");
       if (this.a.sound) set("sound.enabled", this.a.sound === "on");
       if (this.a.terminal) set("shell.mode", this.a.terminal);
+      // modules are configured through their commands, like everything else
+      if (this.a.calendar === "local") void this.deck.act("cal mode local");
+      if (this.a.calendar === "google") void this.deck.act("cal mode google");
     }
     set("setup.done", true);
     const ws = this.deck.workspace;

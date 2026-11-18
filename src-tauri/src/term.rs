@@ -59,6 +59,12 @@ __ib_run() {
   printf '%s\0' "$@" | command curl -sNf -X POST -H "X-IB-Token: $ICEBREAKER_TOKEN" -H "X-IB-Cwd: $PWD" --data-binary @- "http://127.0.0.1:$ICEBREAKER_PORT/run"
 }
 ib() { if [ $# -eq 0 ]; then echo "ib <command>: run an ICEBREAKER command (ib help lists them)"; else __ib_run "$@"; fi; }
+# module commands win over system programs of the same name (`command cal` still runs macOS's cal)
+for __ib_c in $(printf '%s' "$ICEBREAKER_MODULES"); do
+  alias "$__ib_c" >/dev/null 2>&1 && continue   # your own aliases stay yours
+  eval "$__ib_c() { __ib_run $__ib_c \"\$@\"; }"
+done
+unset __ib_c
 "#;
     if name.contains("zsh") {
         let zd = dir.join("zdotdir");
@@ -101,6 +107,7 @@ pub fn pty_spawn(
     cols: u16,
     rows: u16,
     on_data: Channel<String>,
+    modules: Option<Vec<String>>,
 ) -> Result<String, String> {
     let pair = native_pty_system()
         .openpty(PtySize { rows: rows.max(2), cols: cols.max(10), pixel_width: 0, pixel_height: 0 })
@@ -118,6 +125,12 @@ pub fn pty_spawn(
     let (port, token) = bridge.endpoint();
     cmd.env("ICEBREAKER_PORT", port.to_string());
     cmd.env("ICEBREAKER_TOKEN", token);
+    let modules: Vec<String> = modules
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_'))
+        .collect();
+    cmd.env("ICEBREAKER_MODULES", modules.join(" "));
     shell_init(&app, &shell, &mut cmd)?;
 
     let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ICEBREAKER</title>
+<meta name="description" content="ICEBREAKER — an open-source, terminal-styled cyberdeck for notes, journaling, your agenda and music.">
+<style>
+  :root { --bg: #0b0b12; --fg: #cdd6f4; --muted: #8b8fa8; --accent: #cba6f7; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 ui-monospace, "JetBrains Mono", Menlo, monospace; }
+  main { max-width: 760px; margin: 0 auto; padding: 48px 16px; }
+  h1 { color: var(--accent); letter-spacing: .2em; font-size: 28px; margin: 0 0 4px; }
+  h2 { color: var(--accent); font-size: 16px; margin-top: 36px; }
+  p, li { color: var(--fg); }
+  .muted { color: var(--muted); }
+  a { color: var(--accent); }
+  code { background: #1a1a26; padding: 1px 6px; border-radius: 3px; }
+  footer { margin-top: 48px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>◆ ICEBREAKER</h1>
+  <p class="muted">an open-source, terminal-styled cyberdeck for your desktop</p>
+
+  <p>ICEBREAKER is a desktop app (macOS, Windows, Linux) that turns a folder of
+  Markdown notes into a keyboard-driven deck: notes, a daily journal, your own
+  terminal, an AI assistant, and modules made by the community — each with its
+  own shell command, app and home-screen widget.</p>
+
+  <h2>CALENDAR and Google</h2>
+  <p>The CALENDAR module shows your agenda in the app and lets you add events
+  (<code>cal add "dentist" fri 14:30</code>), choosing which calendar they go
+  to. It can work with a local calendar only, or with your Google calendars
+  once you sign in with <code>cal google connect</code>.</p>
+  <ul>
+    <li>Calendar data stays on your computer. There is no ICEBREAKER server.</li>
+    <li>ICEBREAKER only changes events when you ask it to.</li>
+    <li><code>cal google disconnect</code> revokes access at any time.</li>
+  </ul>
+  <p>Details: <a href="privacy.html">privacy policy</a>.</p>
+
+  <footer>ICEBREAKER is free software (MIT licence).</footer>
+</main>
+</body>
+</html>

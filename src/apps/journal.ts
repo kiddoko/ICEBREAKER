@@ -145,7 +145,7 @@ export class JournalApp implements App {
           this.note.editor.anchor ??= { ...this.note.editor.cursor };
           this.note.editor.cursor = this.note.editor.posAt(m.x, m.y);
         },
-        onWheel: (d) => this.note?.editor.scroll(d * 3),
+        onWheel: (d) => this.note?.editor.scroll(d),
       });
     }
   }

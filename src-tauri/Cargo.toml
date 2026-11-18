@@ -15,6 +15,12 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 argon2 = { version = "0.5", features = ["std"] }
+# PKCE for the Google sign-in (google.rs)
+getrandom = "0.2"
+sha2 = "0.10"
+# local music: tags (no cover art) and playback (audio.rs)
+lofty = "0.22"
+rodio = { version = "0.20", default-features = false, features = ["symphonia-all"] }
 notify = "6"
 portable-pty = "0.9"
 serde = { version = "1.0.229", features = ["derive"] }

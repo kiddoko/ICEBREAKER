@@ -1,0 +1,934 @@
+/**
+ * CALENDAR — your agenda, as a module.
+ *
+ *   cal                         today and the next 7 days
+ *   cal add "dentist" fri 14:30 --for 45m --cal work
+ *   cal rm <ref> · cal next 5 · cal month · cal open fri
+ *   cal calendars · cal default <name> · cal show|hide <name>
+ *   cal google setup | connect | disconnect · cal sync
+ *
+ * Calendars: "local", plain Markdown in your vault (calendar/2026-11.md, one
+ * line per event — edit it anywhere, it's yours, offline, no account) and,
+ * once connected, your Google calendars (read + add + remove, through
+ * src-tauri/src/google.rs). Google data is cached OUTSIDE the vault
+ * (ib.google.cache, in the app config dir) so the AI and sync tools never see
+ * it; it shows up offline and at start-up, then refreshes every 10 minutes.
+ *
+ * The app and the widget change nothing themselves: they run `cal …` commands.
+ */
+import type { App } from "../../src/apps/types";
+import type { Rect } from "../../src/core/grid";
+import type { Action, KeyInput } from "../../src/core/input";
+import type { IcebreakerAPI } from "../../src/plugins/api";
+import type { ShellContext } from "../../src/shell/types";
+import type { UI } from "../../src/ui/ui";
+
+interface Cal {
+  /** "local" or "g:<google calendar id>" */
+  id: string;
+  name: string;
+  color: string;
+  writable: boolean;
+  primary?: boolean;
+}
+
+interface Ev {
+  /** "l<n>" for local events, the Google event id otherwise */
+  id: string;
+  cal: string;
+  title: string;
+  /** all-day: YYYY-MM-DD (end exclusive) · timed: ISO date-time */
+  start: string;
+  end: string;
+  allDay: boolean;
+  where?: string;
+}
+
+const DAY = 86_400_000;
+const pad = (n: number) => String(n).padStart(2, "0");
+const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const dayOf = (s: string) => new Date(s.length === 10 ? `${s}T00:00` : s);
+const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const hm = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+const WEEKDAYS: Record<string, number> = {
+  sun: 0, sunday: 0, dim: 0, dimanche: 0, mon: 1, monday: 1, lun: 1, lundi: 1, tue: 2, tuesday: 2, mar: 2, mardi: 2,
+  wed: 3, wednesday: 3, mer: 3, mercredi: 3, thu: 4, thursday: 4, jeu: 4, jeudi: 4, fri: 5, friday: 5, ven: 5, vendredi: 5,
+  sat: 6, saturday: 6, sam: 6, samedi: 6,
+};
+
+/** today, tomorrow, fri, +3d, 2w, 2026-12-01, 24/12 → a day (local midnight), or null. */
+export function parseDay(raw: string, from = new Date()): Date | null {
+  const s = raw.trim().toLowerCase();
+  const today = startOfDay(from);
+  if (["today", "tod", "auj", "aujourd'hui", "aujourdhui", "now"].includes(s)) return today;
+  if (["tomorrow", "tmr", "tom", "demain"].includes(s)) return addDays(today, 1);
+  if (["yesterday", "hier"].includes(s)) return addDays(today, -1);
+  let m = /^([+-])(\d{1,3})(d|j)?$/.exec(s);
+  if (m) return addDays(today, Number(m[2]) * (m[1] === "-" ? -1 : 1));
+  m = /^\+?(\d{1,2})(w|s)$/.exec(s);
+  if (m) return addDays(today, Number(m[1]) * 7);
+  if (s in WEEKDAYS) return addDays(today, (WEEKDAYS[s] - today.getDay() + 7) % 7 || 7);
+  m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s);
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  m = /^(\d{1,2})[/.](\d{1,2})(?:[/.](\d{2,4}))?$/.exec(s);
+  if (m) {
+    let y = m[3] ? Number(m[3]) : today.getFullYear();
+    if (y < 100) y += 2000;
+    const d = new Date(y, Number(m[2]) - 1, Number(m[1]));
+    if (!m[3] && d < today) d.setFullYear(y + 1);
+    return d;
+  }
+  return null;
+}
+
+/** 14:30, 14h30, 14h, 9am, 2pm → minutes after midnight, or null. */
+export function parseTime(raw: string): number | null {
+  const m = /^(\d{1,2})(?:[:h](\d{2})?)?\s*(am|pm)?$/i.exec(raw.trim());
+  if (!m || (!m[2] && !m[3] && !/[:h]/i.test(raw))) return null;
+  let h = Number(m[1]);
+  const min = Number(m[2] ?? 0);
+  if (m[3]?.toLowerCase() === "pm" && h < 12) h += 12;
+  if (m[3]?.toLowerCase() === "am" && h === 12) h = 0;
+  return h < 24 && min < 60 ? h * 60 + min : null;
+}
+
+/** 45m, 1h, 1h30, 90 → minutes, or null. */
+function parseDuration(raw: string): number | null {
+  const m = /^(?:(\d+)h)?(\d+)?(m|min)?$/i.exec(raw.trim());
+  if (!m || (!m[1] && !m[2])) return null;
+  return Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0);
+}
+
+/** "in 25 min", "in 3 h", "now" */
+function until(d: Date): string {
+  const min = Math.round((d.getTime() - Date.now()) / 60_000);
+  if (min <= 0) return "now";
+  if (min < 60) return `in ${min} min`;
+  if (min < 24 * 60) return `in ${Math.round(min / 60)} h`;
+  return `in ${Math.round(min / 1440)} d`;
+}
+
+let syncTimer: ReturnType<typeof setInterval> | null = null;
+
+export function activate(ib: IcebreakerAPI): void {
+  const { BOLD, DIM, hex, mix, strWidth, q, fmt, parseFlags } = ib.lib;
+  const run = (line: string) => void ib.shell.run(line);
+
+  // ── store ────────────────────────────────────────────────────────────────
+  const LOCAL: Cal = { id: "local", name: "local", color: "", writable: true };
+  /** "local": everything in the vault, Google hidden · "google" · "ask": not chosen yet */
+  let mode: "local" | "google" | "ask" = "ask";
+  let local: Ev[] = [];
+  let nextLocal = 1;
+  let google: { calendars: Cal[]; events: Ev[]; at: number } = { calendars: [], events: [], at: 0 };
+  let hidden: string[] = [];
+  let defaultCal = "local";
+  /** the user picked a default (else the primary Google calendar becomes it) */
+  let defaultChosen = false;
+  let connected = false;
+  let syncing = false;
+  let syncError: string | null = null;
+  let loaded = false;
+
+  // ── the local calendar: Markdown files in the vault ─────────────────────
+  //   - 2026-11-19 14:30-15:15 Dentist @ Cabinet Dupont ^l12
+  //   - 2026-11-24..2026-11-26 Trip ^l13          (all day, end included)
+  const DIR = "calendar";
+  const FILE = /^calendar\/(\d{4})-(\d{2})\.md$/;
+  const LINE = /^\s*[-*]\s+(\d{4}-\d{2}-\d{2})(?:\.\.(\d{4}-\d{2}-\d{2}))?\s+(?:(\d{1,2}[:h]\d{2}|\d{1,2}h)(?:-(\d{1,2}[:h]\d{2}|\d{1,2}h))?\s+)?(.*?)(?:\s+\^(l\d+))?\s*$/;
+  /** the lines of each month file that aren't events (title, your notes): kept as they are */
+  const extra = new Map<string, string[]>();
+  let localAt = 0;
+  const toLine = (e: Ev) => {
+    const s = dayOf(e.start);
+    let when: string;
+    if (e.allDay) {
+      const last = addDays(dayOf(e.end), -1);
+      when = ymd(last) > ymd(s) ? `${ymd(s)}..${ymd(last)}` : ymd(s);
+    } else when = `${ymd(s)} ${hm(s)}-${hm(dayOf(e.end))}`;
+    return `- ${when} ${e.title}${e.where ? ` @ ${e.where}` : ""} ^${e.id}`;
+  };
+  async function loadLocal(): Promise<void> {
+    localAt = Date.now();
+    const out: Ev[] = [];
+    const missing: Ev[] = [];
+    extra.clear();
+    for (const path of ib.vault.notes().filter((p) => FILE.test(p))) {
+      const text = await ib.vault.read(path).catch(() => "");
+      const keep: string[] = [];
+      for (const raw of text.split("\n")) {
+        const m = LINE.exec(raw);
+        if (!m) {
+          keep.push(raw);
+          continue;
+        }
+        const [, d1, d2, t1, t2, rest, id] = m;
+        const at = rest.lastIndexOf(" @ ");
+        const title = (at >= 0 ? rest.slice(0, at) : rest).trim() || "(no title)";
+        const where = at >= 0 ? rest.slice(at + 3).trim() : undefined;
+        const day = dayOf(d1);
+        let e: Ev;
+        if (t1) {
+          const [h1, m1 = 0] = t1.split(/[:h]/).map((x) => Number(x || 0));
+          const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h1, m1);
+          let end = new Date(start.getTime() + 3600_000);
+          if (t2) {
+            const [h2, m2 = 0] = t2.split(/[:h]/).map((x) => Number(x || 0));
+            end = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h2, m2);
+            if (end <= start) end = addDays(end, 1);
+          }
+          e = { id: id ?? "", cal: "local", title, start: start.toISOString(), end: end.toISOString(), allDay: false, where };
+        } else e = { id: id ?? "", cal: "local", title, start: d1, end: ymd(addDays(dayOf(d2 ?? d1), 1)), allDay: true, where };
+        if (!id) missing.push(e);
+        out.push(e);
+      }
+      while (keep.length && !keep[keep.length - 1].trim()) keep.pop();
+      extra.set(path, keep);
+    }
+    nextLocal = out.reduce((n, e) => Math.max(n, Number(e.id.slice(1)) + 1 || n), 1);
+    for (const e of missing) e.id = `l${nextLocal++}`; // written with their ^id next time that month is saved
+    local = out;
+  }
+  /** Rewrite the month files of these events (only those). */
+  async function writeMonths(evs: Ev[]): Promise<void> {
+    const months = new Set(evs.map((e) => ymd(dayOf(e.start)).slice(0, 7)));
+    await ib.vault.mkdir(DIR).catch(() => {});
+    for (const ym of months) {
+      const path = `${DIR}/${ym}.md`;
+      const head = extra.get(path) ?? [`# ${dayOf(`${ym}-01`).toLocaleDateString(undefined, { month: "long", year: "numeric" })}`, "", "<!-- ICEBREAKER calendar: one event per line. `cal -h` for the syntax. -->"];
+      const lines = local
+        .filter((e) => ymd(dayOf(e.start)).slice(0, 7) === ym)
+        .sort((a, b) => dayOf(a.start).getTime() - dayOf(b.start).getTime())
+        .map(toLine);
+      await ib.vault.write(path, `${head.join("\n")}\n\n${lines.join("\n")}\n`);
+      extra.set(path, head);
+    }
+    localAt = Date.now();
+  }
+  /** Pick up edits made outside (Obsidian, an editor, sync), at most every few seconds. */
+  const refreshLocal = () => {
+    if (Date.now() - localAt > 5000) {
+      localAt = Date.now();
+      void loadLocal().then(() => ib.ui.redraw());
+    }
+  };
+
+  const ready = (async () => {
+    mode = await ib.storage.get<"local" | "google" | "ask">("mode", "ask");
+    await loadLocal();
+    // events from older versions (plugin-data) move into the vault files
+    const old = await ib.storage.get<Ev[]>("local", []);
+    if (old.length) {
+      for (const e of old) local.push({ ...e, id: `l${nextLocal++}` });
+      await writeMonths(old);
+      await ib.storage.set("local", []);
+    }
+    // calendar names, ids (your e-mail), events: Google data, kept out of the vault
+    if (ib.google.available()) {
+      const g = await ib.google.cache.read<{ google?: typeof google; hidden?: string[]; defaultCal?: string; defaultChosen?: boolean }>({ google, hidden, defaultCal });
+      google = g.google ?? google;
+      hidden = g.hidden ?? [];
+      defaultCal = g.defaultCal ?? "local";
+      defaultChosen = !!g.defaultChosen;
+    }
+    loaded = true;
+    ib.ui.redraw();
+    if (ib.google.available()) {
+      connected = (await ib.google.status().catch(() => ({ connected: false }))).connected;
+      if (connected) void sync();
+    }
+  })();
+  const save = async () => {
+    if (ib.google.available()) await ib.google.cache.write({ google, hidden, defaultCal, defaultChosen });
+    ib.ui.redraw();
+  };
+
+  const calendars = (): Cal[] => [LOCAL, ...google.calendars];
+  const calOf = (id: string) => calendars().find((c) => c.id === id);
+  const colorOf = (ui: UI, id: string) => {
+    const c = calOf(id)?.color;
+    return c ? hex(c) : ui.c.accent;
+  };
+  const findCal = (name: string): Cal | undefined => {
+    const n = name.toLowerCase();
+    const all = calendars();
+    return all.find((c) => c.name.toLowerCase() === n || c.id.toLowerCase() === n) ?? all.find((c) => c.name.toLowerCase().includes(n));
+  };
+  const visible = () => [...local, ...google.events].filter((e) => !hidden.includes(e.cal) && calOf(e.cal));
+  /** Events that touch [from, to), sorted. */
+  const between = (from: Date, to: Date) =>
+    visible()
+      .filter((e) => dayOf(e.start) < to && dayOf(e.end) > from)
+      .sort((a, b) => Number(b.allDay) - Number(a.allDay) || dayOf(a.start).getTime() - dayOf(b.start).getTime());
+  const upcoming = (n: number) =>
+    visible()
+      .filter((e) => dayOf(e.end).getTime() > Date.now())
+      .sort((a, b) => dayOf(a.start).getTime() - dayOf(b.start).getTime())
+      .slice(0, n);
+
+  /** A short, stable handle for commands: l12 for local, 5 letters for Google. */
+  const ref = (e: Ev) => {
+    if (e.cal === "local") return e.id;
+    let h = 0;
+    for (const ch of e.id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return h.toString(36).slice(-5).padStart(5, "0");
+  };
+  const byRef = (r: string) => visible().find((e) => ref(e) === r.toLowerCase()) ?? [...local, ...google.events].find((e) => ref(e) === r.toLowerCase());
+
+  // ── Google ───────────────────────────────────────────────────────────────
+  const gid = (c: string) => encodeURIComponent(c.slice(2));
+  const fromGoogle = (cal: string, it: any): Ev | null => {
+    if (!it?.start || it.status === "cancelled") return null;
+    const allDay = !!it.start.date;
+    return { id: it.id, cal, title: it.summary || "(no title)", start: it.start.date ?? it.start.dateTime, end: it.end?.date ?? it.end?.dateTime ?? it.start.dateTime, allDay, where: it.location || undefined };
+  };
+
+  async function sync(): Promise<void> {
+    if (syncing || !connected) return;
+    syncing = true;
+    ib.ui.redraw();
+    try {
+      const list = await ib.google.calendar<{ items: any[] }>("GET", "users/me/calendarList", { query: { minAccessRole: "reader" } });
+      const cals: Cal[] = (list.items ?? []).map((c) => ({
+        id: `g:${c.id}`,
+        name: c.summaryOverride || c.summary || c.id,
+        color: c.backgroundColor || "",
+        writable: c.accessRole === "owner" || c.accessRole === "writer",
+        primary: !!c.primary,
+      }));
+      const from = addDays(startOfDay(new Date()), -31).toISOString();
+      const to = addDays(startOfDay(new Date()), 186).toISOString();
+      const events: Ev[] = [];
+      for (const c of cals) {
+        let page: string | undefined;
+        do {
+          const r = await ib.google.calendar<{ items: any[]; nextPageToken?: string }>("GET", `calendars/${gid(c.id)}/events`, {
+            query: { timeMin: from, timeMax: to, singleEvents: true, orderBy: "startTime", maxResults: 2500, pageToken: page },
+          });
+          for (const it of r.items ?? []) {
+            const e = fromGoogle(c.id, it);
+            if (e) events.push(e);
+          }
+          page = r.nextPageToken;
+        } while (page);
+      }
+      google = { calendars: cals, events, at: Date.now() };
+      if (defaultCal === "local" && !defaultChosen) {
+        const primary = cals.find((c) => c.primary);
+        if (primary) defaultCal = primary.id;
+      }
+      syncError = null;
+      await save();
+    } catch (e) {
+      syncError = e instanceof Error ? e.message : String(e);
+    } finally {
+      syncing = false;
+      ib.ui.redraw();
+    }
+  }
+  if (syncTimer) clearInterval(syncTimer);
+  syncTimer = setInterval(() => void sync(), 10 * 60_000);
+
+  // ── output helpers ───────────────────────────────────────────────────────
+  const ansiColor = (id: string, s: string) => {
+    const c = calOf(id)?.color;
+    if (!c) return fmt.magenta(s);
+    const n = parseInt(c.slice(1), 16);
+    return `\x1b[38;2;${(n >> 16) & 255};${(n >> 8) & 255};${n & 255}m${s}\x1b[39m`;
+  };
+  const when = (e: Ev) => (e.allDay ? "all day" : `${hm(dayOf(e.start))}–${hm(dayOf(e.end))}`);
+  const dayTitle = (d: Date) => {
+    const n = Math.round((startOfDay(d).getTime() - startOfDay(new Date()).getTime()) / DAY);
+    const label = d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+    return n === 0 ? `today · ${label}` : n === 1 ? `tomorrow · ${label}` : label;
+  };
+  const printDays = (ctx: ShellContext, from: Date, days: number, emptyToo: boolean) => {
+    let any = false;
+    for (let i = 0; i < days; i++) {
+      const d = addDays(from, i);
+      const evs = between(d, addDays(d, 1));
+      if (!evs.length && !emptyToo) continue;
+      any = true;
+      ctx.out(`${fmt.bold(dayTitle(d))}\n`);
+      if (!evs.length) ctx.out(fmt.dim("  nothing\n"));
+      for (const e of evs) ctx.out(`  ${ansiColor(e.cal, "●")} ${fmt.dim(when(e).padEnd(11))} ${e.title}${e.where ? fmt.dim(` · ${e.where}`) : ""} ${fmt.dim(`[${ref(e)}]`)}\n`);
+    }
+    if (!any) ctx.out(fmt.dim("nothing planned\n"));
+  };
+  const status = () => (mode === "local" && !connected ? `calendar in your vault (${DIR}/)` : connected ? (syncing ? "google: syncing…" : syncError ? `google: ${syncError}` : google.at ? `google: synced ${new Date(google.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}` : "google: connected") : "google: not connected (cal google connect)");
+
+  // ── add / remove ─────────────────────────────────────────────────────────
+  async function addEvent(cal: Cal, title: string, start: Date, allDay: boolean, minutes: number, where?: string): Promise<Ev> {
+    const end = allDay ? addDays(start, Math.max(1, Math.round(minutes / 1440))) : new Date(start.getTime() + minutes * 60_000);
+    if (cal.id === "local") {
+      const e: Ev = { id: `l${nextLocal++}`, cal: "local", title, start: allDay ? ymd(start) : start.toISOString(), end: allDay ? ymd(end) : end.toISOString(), allDay, where };
+      local.push(e);
+      await writeMonths([e]);
+      ib.ui.redraw();
+      return e;
+    }
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const body = {
+      summary: title,
+      location: where,
+      start: allDay ? { date: ymd(start) } : { dateTime: start.toISOString(), timeZone: tz },
+      end: allDay ? { date: ymd(end) } : { dateTime: end.toISOString(), timeZone: tz },
+    };
+    const it = await ib.google.calendar("POST", `calendars/${gid(cal.id)}/events`, { body });
+    const e = fromGoogle(cal.id, it)!;
+    google.events.push(e);
+    await save();
+    return e;
+  }
+
+  async function removeEvent(e: Ev): Promise<void> {
+    if (e.cal === "local") {
+      local = local.filter((x) => x !== e);
+      await writeMonths([e]);
+    } else {
+      await ib.google.calendar("DELETE", `calendars/${gid(e.cal)}/events/${encodeURIComponent(e.id)}`);
+      google.events = google.events.filter((x) => x !== e);
+    }
+    await save();
+  }
+
+  // ── the `cal` command ────────────────────────────────────────────────────
+  ib.commands.register({
+    name: "cal",
+    aliases: ["calendar", "agenda"],
+    summary: "your agenda: local + Google calendars (CALENDAR module)",
+    usage: [
+      "cal                      today and the next 7 days",
+      "cal today | tomorrow | week | <day>",
+      "cal next [n]             the next n events",
+      "cal month [day]          this month as a grid",
+      'cal add "title" <day> [14:30[-16:00]] [--for 1h] [--cal name] [--where place]',
+      "cal rm <ref>             remove an event ([ref] is shown next to it)",
+      "cal open [day]           the CALENDAR app",
+      "cal calendars            your calendars",
+      "cal default <name>       where `cal add` puts things",
+      "cal show | hide <name>   show or hide a calendar",
+      "cal sync                 fetch Google now",
+      "cal mode local | google  stay 100% local, or use Google too",
+      "cal google connect | disconnect | status · cal google setup [--default]",
+    ].join("\n"),
+    examples: [
+      ["cal", "the week ahead"],
+      ['cal add "dentist" fri 14:30 --for 45m', "on your default calendar"],
+      ['cal add "trip" 24/12 --for 3d --cal family', "an all-day event on 3 days"],
+      ['cal add "standup" tomorrow 9:30-9:45 --cal work', "a time range"],
+      ["cal next 3", "what's coming"],
+      ["cal google connect", "sign in to Google in your browser"],
+    ],
+    man: [
+      "Days: today, tomorrow, mon…sun (lun…dim), +3d, 2w, 2026-12-01, 24/12.",
+      "Times: 14:30, 14h30, 14h, 2pm. No time = all day. Default length: 1 h.",
+      "",
+      "LOCAL — the \"local\" calendar is plain Markdown in your vault, one file per month",
+      "(calendar/2026-11.md), one event per line; edit it anywhere, it's picked up:",
+      "  - 2026-11-19 14:30-15:15 Dentist @ Cabinet Dupont ^l12",
+      "  - 2026-11-24..2026-11-26 Trip ^l13",
+      "No account, no network, no AI needed. cal mode local hides Google entirely.",
+      "",
+      "GOOGLE — cal google connect: your browser opens Google's consent page, you allow, done.",
+      "The token stays in the app's config folder, never in your vault; cal google disconnect revokes it.",
+      "",
+      "Your own OAuth client instead of ICEBREAKER's (or a build without one):",
+      "  1. console.cloud.google.com → new project → enable \"Google Calendar API\"",
+      "  2. Google Auth Platform → Audience: External, publish the app",
+      "  3. Clients → Create client → Desktop app",
+      "  4. cal google setup   (paste the client ID and secret) · cal google setup --default goes back",
+      "  5. cal google connect",
+    ].join("\n"),
+    complete: () => ["today", "tomorrow", "week", "next", "month", "add", "rm", "open", "calendars", "default", "show", "hide", "sync", "google"],
+    async run(ctx) {
+      await ready;
+      await loadLocal(); // pick up edits made outside
+      const [sub, ...rest] = ctx.args;
+      const today = startOfDay(new Date());
+      try {
+        switch (sub) {
+          case undefined:
+            printDays(ctx, today, 8, false);
+            if (connected || syncError) ctx.out(fmt.dim(`${status()}\n`));
+            else if (mode === "ask") ctx.out(fmt.dim("your calendar lives in the vault (calendar/) · Google too? cal google connect · or stay local: cal mode local\n"));
+            return 0;
+          case "today": printDays(ctx, today, 1, true); return 0;
+          case "tomorrow": printDays(ctx, addDays(today, 1), 1, true); return 0;
+          case "week": printDays(ctx, today, 7, true); return 0;
+          case "next": {
+            const evs = upcoming(Number(rest[0]) || 5);
+            if (!evs.length) return ctx.out(fmt.dim("nothing coming up\n")), 0;
+            for (const e of evs) {
+              const s = dayOf(e.start);
+              ctx.out(`${ansiColor(e.cal, "●")} ${fmt.dim(s.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }).padEnd(14))} ${fmt.dim(e.allDay ? "all day" : hm(s))}  ${e.title} ${fmt.dim(`· ${until(s)} [${ref(e)}]`)}\n`);
+            }
+            return 0;
+          }
+          case "month": {
+            const d = rest[0] ? parseDay(rest[0]) : today;
+            if (!d) return ctx.err(`cal: can't read the day "${rest[0]}"\n`), 1;
+            const first = new Date(d.getFullYear(), d.getMonth(), 1);
+            ctx.out(`${fmt.bold(first.toLocaleDateString(undefined, { month: "long", year: "numeric" }))}\n`);
+            ctx.out(fmt.dim(" mo  tu  we  th  fr  sa  su\n"));
+            let line = "    ".repeat((first.getDay() + 6) % 7);
+            for (let day = first; day.getMonth() === first.getMonth(); day = addDays(day, 1)) {
+              const n = between(day, addDays(day, 1)).length;
+              const num = String(day.getDate()).padStart(3);
+              const cell = ymd(day) === ymd(today) ? fmt.bold(fmt.magenta(num)) : n ? fmt.cyan(num) : fmt.dim(num);
+              line += cell + (n ? fmt.yellow("•") : " ");
+              if (day.getDay() === 0) {
+                ctx.out(line + "\n");
+                line = "";
+              }
+            }
+            if (line) ctx.out(line + "\n");
+            return 0;
+          }
+          case "open": {
+            const d = rest[0] ? parseDay(rest[0]) : null;
+            if (rest[0] && !d) return ctx.err(`cal: can't read the day "${rest[0]}"\n`), 1;
+            const app = ib.apps.open("calendar") as CalendarApp | null;
+            if (d && app) app.goto(d);
+            return 0;
+          }
+          case "add": return await add(ctx, rest);
+          case "rm": case "remove": case "del": {
+            const e = rest[0] && byRef(rest[0]);
+            if (!e) return ctx.err(`cal: no event "${rest[0] ?? ""}" (the [ref] next to it in \`cal\`)\n`), 1;
+            const c = calOf(e.cal);
+            if (c && !c.writable) return ctx.err(`cal: "${c.name}" is read-only\n`), 1;
+            await removeEvent(e);
+            ctx.out(`${fmt.red("✕")} ${e.title} ${fmt.dim(`(${c?.name ?? e.cal})`)}\n`);
+            return 0;
+          }
+          case "calendars": case "cals": case "list": {
+            for (const c of calendars()) {
+              const flags = [c.id === defaultCal ? fmt.green("default") : "", hidden.includes(c.id) ? fmt.dim("hidden") : "", c.writable ? "" : fmt.dim("read-only")].filter(Boolean).join(" ");
+              ctx.out(`${ansiColor(c.id, "●")} ${c.name} ${flags}\n`);
+            }
+            ctx.out(fmt.dim(`${status()}\n`));
+            return 0;
+          }
+          case "default": {
+            if (!rest.length) return ctx.out(`${calOf(defaultCal)?.name ?? "local"}\n`), 0;
+            const c = findCal(rest.join(" "));
+            if (!c) return ctx.err(`cal: no calendar "${rest.join(" ")}" (see cal calendars)\n`), 1;
+            if (!c.writable) return ctx.err(`cal: "${c.name}" is read-only\n`), 1;
+            defaultCal = c.id;
+            defaultChosen = true;
+            await save();
+            ctx.out(`new events go to ${ansiColor(c.id, "●")} ${c.name}\n`);
+            return 0;
+          }
+          case "show": case "hide": {
+            const c = findCal(rest.join(" "));
+            if (!c) return ctx.err(`cal: no calendar "${rest.join(" ")}"\n`), 1;
+            hidden = hidden.filter((h) => h !== c.id);
+            if (sub === "hide") hidden.push(c.id);
+            await save();
+            ctx.out(`${c.name}: ${sub === "hide" ? "hidden" : "shown"}\n`);
+            return 0;
+          }
+          case "sync": {
+            if (!connected) return ctx.err("cal: Google isn't connected (cal google connect)\n"), 1;
+            await sync();
+            if (syncError) return ctx.err(`cal: ${syncError}\n`), 1;
+            ctx.out(`${fmt.green("✓")} ${google.calendars.length} calendars, ${google.events.length} events\n`);
+            return 0;
+          }
+          case "google": return await googleCmd(ctx, rest[0]);
+          case "mode": {
+            const m = rest[0];
+            if (!m) return ctx.out(`${mode === "ask" ? "not chosen yet (local works; Google: cal google connect)" : mode}\n`), 0;
+            if (m !== "local" && m !== "google") return ctx.err("cal mode local | google\n"), 1;
+            if (m === "local" && connected) {
+              if (!(await ib.ui.confirm("Stay local only?", "This disconnects Google and deletes its cached events from this computer.\nYour local calendar (calendar/ in the vault) is untouched."))) return ctx.err("cal: cancelled\n"), 1;
+              await googleCmd(ctx, "disconnect");
+            }
+            mode = m;
+            await ib.storage.set("mode", mode);
+            ib.ui.redraw();
+            if (m === "google") return await googleCmd(ctx, "connect");
+            ctx.out(`${fmt.green("✓")} local only: your calendar is in ${DIR}/ (plain Markdown), nothing leaves this computer\n`);
+            return 0;
+          }
+          default: {
+            // `cal fri`, `cal 24/12`: that day
+            const d = parseDay(sub);
+            if (d) return printDays(ctx, d, 1, true), 0;
+            ctx.err(`cal: "${sub}"? try cal -h\n`);
+            return 1;
+          }
+        }
+      } catch (e) {
+        ctx.err(`cal: ${e instanceof Error ? e.message : String(e)}\n`);
+        return 1;
+      }
+    },
+  });
+
+  async function add(ctx: ShellContext, args: string[]): Promise<number> {
+    const { flags, rest } = parseFlags(args, ["for", "cal", "c", "where", "to"]);
+    let day: Date | null = null;
+    let from: number | null = null;
+    let to: number | null = null;
+    const words: string[] = [];
+    for (const w of rest) {
+      const range = /^(.+?)-(.+)$/.exec(w);
+      if (from === null && range && parseTime(range[1]) !== null && parseTime(range[2]) !== null) {
+        from = parseTime(range[1]);
+        to = parseTime(range[2]);
+      } else if (from === null && parseTime(w) !== null) from = parseTime(w);
+      else if (!day && parseDay(w)) day = parseDay(w);
+      else words.push(w);
+    }
+    const title = words.join(" ").trim();
+    if (!title) return ctx.err('cal: what is it? cal add "title" <day> [time]\n'), 1;
+    if (!day) day = startOfDay(new Date());
+    if (typeof flags.to === "string") to = parseTime(flags.to);
+    const name = (flags.cal ?? flags.c) as string | true | undefined;
+    const cal = typeof name === "string" ? findCal(name) : calOf(defaultCal) ?? LOCAL;
+    if (!cal) return ctx.err(`cal: no calendar "${name}" (see cal calendars)\n`), 1;
+    if (!cal.writable) return ctx.err(`cal: "${cal.name}" is read-only\n`), 1;
+    let minutes = from === null ? 1440 : 60;
+    if (typeof flags.for === "string") {
+      const m = /^(\d+)(d|j)$/i.exec(flags.for);
+      const d = m ? Number(m[1]) * 1440 : parseDuration(flags.for);
+      if (d === null) return ctx.err(`cal: can't read the length "${flags.for}" (45m, 1h30, 2d)\n`), 1;
+      minutes = d;
+    } else if (from !== null && to !== null) minutes = (to - from + 1440) % 1440 || 60;
+    const start = from === null ? day : new Date(day.getFullYear(), day.getMonth(), day.getDate(), Math.floor(from / 60), from % 60);
+    const e = await addEvent(cal, title, start, from === null, minutes, typeof flags.where === "string" ? flags.where : undefined);
+    ctx.out(`${fmt.green("+")} ${ansiColor(cal.id, "●")} ${e.title} ${fmt.dim(`· ${dayTitle(dayOf(e.start))} · ${when(e)} · ${cal.name} [${ref(e)}]`)}\n`);
+    return 0;
+  }
+
+  async function googleCmd(ctx: ShellContext, what = "status"): Promise<number> {
+    if (!ib.google.available()) return ctx.err("cal: Google needs the desktop app\n"), 1;
+    const st = await ib.google.status();
+    switch (what) {
+      case "status":
+        ctx.out(`${st.configured ? fmt.green("✓") : fmt.yellow("·")} OAuth client: ${st.custom ? "yours" : st.configured ? "ICEBREAKER's" : "none in this build — cal google setup (see man cal)"}\n`);
+        ctx.out(`${st.connected ? fmt.green("✓") : fmt.yellow("·")} ${st.connected ? `signed in · ${google.calendars.length} calendars` : "not signed in — cal google connect"}\n`);
+        if (syncError) ctx.out(fmt.red(`${syncError}\n`));
+        return 0;
+      case "setup": {
+        if (ctx.args.includes("--default")) {
+          await ib.google.setup("", "");
+          connected = false;
+          ctx.out("back to ICEBREAKER's client · now: cal google connect\n");
+          return 0;
+        }
+        ctx.out(fmt.dim("Google Cloud console → Credentials → OAuth client ID → Desktop app (details: man cal)\n"));
+        const id = await ib.ui.prompt("Google OAuth client ID", { placeholder: "1234-abc.apps.googleusercontent.com" });
+        if (!id?.trim()) return ctx.err("cal: cancelled\n"), 1;
+        const secret = await ib.ui.prompt("Client secret", { mask: true, placeholder: "GOCSPX-…" });
+        if (!secret?.trim()) return ctx.err("cal: cancelled\n"), 1;
+        await ib.google.setup(id, secret);
+        ctx.out(`${fmt.green("✓")} saved. Now: cal google connect\n`);
+        return 0;
+      }
+      case "connect": case "login": {
+        if (!st.configured) return ctx.err("cal: this build has no ICEBREAKER client — use your own: cal google setup (see man cal)\n"), 1;
+        ctx.out(fmt.dim("your browser opens Google's consent page… (waiting up to 5 min)\n"));
+        await ib.google.connect();
+        connected = true;
+        mode = "google";
+        await ib.storage.set("mode", mode);
+        ctx.out(`${fmt.green("✓")} connected. Fetching your calendars…\n`);
+        await sync();
+        if (syncError) return ctx.err(`cal: ${syncError}\n`), 1;
+        ctx.out(`${google.calendars.length} calendars, ${google.events.length} events · default: ${calOf(defaultCal)?.name}\n`);
+        return 0;
+      }
+      case "disconnect": case "logout": {
+        await ib.google.disconnect();
+        connected = false;
+        google = { calendars: [], events: [], at: 0 };
+        hidden = hidden.filter((h) => !h.startsWith("g:"));
+        if (defaultCal.startsWith("g:")) defaultCal = "local";
+        defaultChosen = false;
+        await ib.storage.set("local", local); // (the Google cache file was deleted)
+        ctx.out("disconnected (cached Google events removed)\n");
+        return 0;
+      }
+      default:
+        ctx.err("cal google setup | connect | disconnect | status\n");
+        return 1;
+    }
+  }
+
+  /** Ask title / day / time / calendar, then run the `cal add` it adds up to. */
+  async function addFlow(day: Date): Promise<void> {
+    const title = await ib.ui.prompt("New event", { placeholder: "dentist" });
+    if (!title?.trim()) return;
+    const when = await ib.ui.prompt(`When? (${day.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })})`, {
+      placeholder: "14:30 · 9:30-10:15 · empty = all day · or another day: fri 18h",
+    });
+    if (when === null) return;
+    const writable = calendars().filter((c) => c.writable);
+    let cal = calOf(defaultCal) ?? LOCAL;
+    if (writable.length > 1) {
+      const i = await ib.ui.choose(
+        "Which calendar?",
+        writable.map((c) => ({ label: c.name, hint: c.id === defaultCal ? "default" : c.primary ? "primary" : "", color: c.color || undefined })),
+        { selected: Math.max(0, writable.findIndex((c) => c.id === defaultCal)) },
+      );
+      if (i === null) return;
+      cal = writable[i];
+    }
+    const hasDay = when.trim().split(/\s+/).some((w) => parseDay(w));
+    run(`cal add ${q(title.trim())}${hasDay ? "" : ` ${ymd(day)}`}${when.trim() ? ` ${when.trim()}` : ""} --cal ${q(cal.name)}`);
+  }
+
+  // ── the app ──────────────────────────────────────────────────────────────
+  class CalendarApp implements App {
+    readonly kind = "calendar";
+    readonly key = "calendar";
+    private day = startOfDay(new Date());
+    /** -1: the month grid has the keys; ≥0: an event of the day is selected */
+    private sel = -1;
+
+    title() {
+      return "Calendar";
+    }
+    status() {
+      return status();
+    }
+    goto(d: Date) {
+      this.day = startOfDay(d);
+      this.sel = -1;
+      ib.ui.redraw();
+    }
+    private get events() {
+      return between(this.day, addDays(this.day, 1));
+    }
+
+    onText(t: string): boolean {
+      switch (t) {
+        case "a": case "n": case "+": void addFlow(this.day); return true;
+        case "t": this.goto(new Date()); return true;
+        case "s": run("cal sync"); return true;
+        case "c": void this.pickCalendars(); return true;
+        case "[": case "<": this.goto(new Date(this.day.getFullYear(), this.day.getMonth() - 1, Math.min(this.day.getDate(), 28))); return true;
+        case "]": case ">": this.goto(new Date(this.day.getFullYear(), this.day.getMonth() + 1, Math.min(this.day.getDate(), 28))); return true;
+        case "x": this.remove(); return true;
+        default: return false;
+      }
+    }
+    onKey(k: KeyInput): boolean {
+      if (k.combo === "delete" || k.combo === "backspace") return this.remove(), true;
+      if (k.combo === "esc" && this.sel >= 0) return (this.sel = -1), true;
+      if (k.combo === "pageup") return this.onText("["), true;
+      if (k.combo === "pagedown") return this.onText("]"), true;
+      return false;
+    }
+    onAction(a: Action): boolean {
+      const n = this.events.length;
+      if (this.sel >= 0) {
+        if (a === "up") this.sel = this.sel === 0 ? -1 : this.sel - 1;
+        else if (a === "down") this.sel = Math.min(n - 1, this.sel + 1);
+        else if (a === "back") this.sel = -1;
+        else return false;
+        return true;
+      }
+      const move = { left: -1, right: 1, up: -7, down: 7 } as Record<string, number>;
+      if (a in move) return this.goto(addDays(this.day, move[a])), true;
+      if (a === "confirm") return n ? (this.sel = 0) : void addFlow(this.day), true;
+      if (a === "home") return this.goto(new Date()), true;
+      return false;
+    }
+    private remove(): void {
+      const e = this.events[this.sel];
+      if (!e) return;
+      void ib.ui.confirm(`Remove "${e.title}"?`, `${dayTitle(dayOf(e.start))} · ${when(e)} · ${calOf(e.cal)?.name}`).then((ok) => {
+        if (ok) run(`cal rm ${ref(e)}`);
+      });
+    }
+    private async pickCalendars(): Promise<void> {
+      const all = calendars();
+      const i = await ib.ui.choose(
+        "Show / hide a calendar",
+        all.map((c) => ({ label: c.name, hint: hidden.includes(c.id) ? "hidden" : "shown", color: c.color || undefined })),
+      );
+      if (i !== null) run(`cal ${hidden.includes(all[i].id) ? "show" : "hide"} ${q(all[i].name)}`);
+    }
+
+    render(ui: UI, r: Rect, focused: boolean): void {
+      const c = ui.c;
+      if (!loaded) return void ui.text(r.x + 1, r.y, `${ui.spinner()} loading…`, { fg: c.muted });
+      refreshLocal();
+      if (syncing) ui.animate(100);
+      const today = startOfDay(new Date());
+      const first = new Date(this.day.getFullYear(), this.day.getMonth(), 1);
+      const offset = (first.getDay() + 6) % 7;
+      const weeks = Math.ceil((offset + new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()) / 7);
+
+      // ── layout: month on the left, the day on the right (stacked when narrow)
+      const wide = r.w >= 70;
+      const gridW = wide ? Math.min(r.w - 34, Math.max(36, Math.floor(r.w * 0.58))) : r.w - 2;
+      const cw = Math.max(4, Math.floor(gridW / 7));
+      const headH = 2;
+      const gridH = wide ? r.h - headH - 2 : Math.min(r.h - headH - 8, weeks * 3 + 1);
+      const ch = Math.max(1, Math.floor((gridH - 1) / weeks));
+      const gx = r.x + 1;
+      const gy = r.y + headH;
+
+      // header: ‹ month › · today · + add · sync
+      let hx = gx;
+      const btn = (label: string, cmd: () => void, tip: string, accent = false) => {
+        const rect = { x: hx, y: r.y, w: strWidth(label), h: 1 };
+        const hot = ui.hovered(rect);
+        ui.text(hx, r.y, label, hot ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: accent ? c.accent : c.fg, bg: c.highlight });
+        ui.hit(rect, { onClick: cmd, tip });
+        hx += rect.w + 1;
+      };
+      btn(" ‹ ", () => this.onText("["), "previous month · [");
+      const month = first.toLocaleDateString(undefined, { month: "long", year: "numeric" }).toUpperCase();
+      hx = ui.text(hx + 1, r.y, month, { fg: c.fg, attrs: BOLD }) + 2;
+      btn(" › ", () => this.onText("]"), "next month · ]");
+      btn(" today ", () => this.goto(new Date()), "t");
+      btn(" + add ", () => void addFlow(this.day), "a · or: cal add \"title\" <day> <time>", true);
+      btn(" calendars ", () => void this.pickCalendars(), "c · show / hide calendars");
+      if (connected) btn(syncing ? ` ${ui.spinner()} sync ` : " ⟳ sync ", () => run("cal sync"), "s · cal sync");
+      else if (ib.google.available() && mode !== "local") btn(" + google ", () => run("cal google connect"), "connect your Google calendars · or stay local: cal mode local");
+      // (the sync state is in the status bar; errors show here too, when they fit)
+      if (syncError && r.x + r.w - 1 - strWidth(syncError) > hx + 1) ui.textRight(r.x + r.w - 1, r.y, syncError, { fg: c.error });
+
+      // weekday names
+      for (let i = 0; i < 7; i++) {
+        const n = new Date(2024, 0, 1 + i).toLocaleDateString(undefined, { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "");
+        ui.text(gx + i * cw + 1, gy, n.slice(0, cw - 1), { fg: i >= 5 ? c.accentAlt : c.subtle });
+      }
+      // days
+      for (let w = 0; w < weeks; w++) {
+        for (let i = 0; i < 7; i++) {
+          const d = addDays(first, w * 7 + i - offset);
+          if (d.getMonth() !== first.getMonth()) continue;
+          const cell = { x: gx + i * cw, y: gy + 1 + w * ch, w: cw - 1, h: ch };
+          const isSel = ymd(d) === ymd(this.day);
+          const isToday = ymd(d) === ymd(today);
+          const hot = ui.hovered(cell);
+          const bg = isSel ? mix(c.accent, c.bg, focused ? 0.7 : 0.82) : hot ? c.highlight : ch > 1 ? c.panelAlt : -1;
+          if (bg !== -1) ui.fill(cell, { bg });
+          ui.text(cell.x + 1, cell.y, String(d.getDate()), { fg: isToday ? c.accent : isSel ? c.fg : c.muted, attrs: isToday || isSel ? BOLD : 0, ...(bg !== -1 ? { bg } : {}) });
+          const evs = between(d, addDays(d, 1));
+          if (ch >= 2 && cw >= 6) {
+            // titles inside the cell when there's room
+            evs.slice(0, ch - 1).forEach((e, k) => {
+              ui.text(cell.x + 1, cell.y + 1 + k, "▎", { fg: colorOf(ui, e.cal), ...(bg !== -1 ? { bg } : {}) });
+              ui.text(cell.x + 2, cell.y + 1 + k, e.title, { fg: c.fg, attrs: DIM, ...(bg !== -1 ? { bg } : {}) }, cell.w - 2);
+            });
+          } else {
+            evs.slice(0, Math.max(0, cw - 4)).forEach((e, k) => ui.text(cell.x + 3 + k, cell.y, "•", { fg: colorOf(ui, e.cal), ...(bg !== -1 ? { bg } : {}) }));
+          }
+          ui.hit(cell, { onClick: () => this.goto(d), onDouble: () => void addFlow(d), tip: `${evs.length ? evs.map((e) => `${when(e)} ${e.title}`).join("\n") : "nothing"}\ndouble-click: add` });
+        }
+      }
+
+      // ── the selected day
+      const ax = wide ? gx + cw * 7 + 2 : gx;
+      const ay = wide ? gy : gy + 1 + weeks * ch + 1;
+      const aw = wide ? r.x + r.w - ax - 1 : r.w - 2;
+      if (wide) ui.vline(ax - 2, gy, r.h - headH, { fg: c.border });
+      ui.text(ax, ay, dayTitle(this.day), { fg: ymd(this.day) === ymd(today) ? c.accent : c.fg, attrs: BOLD }, aw);
+      const evs = this.events;
+      if (!evs.length) ui.text(ax, ay + 2, "nothing · a / enter adds", { fg: c.faint }, aw);
+      let y = ay + 2;
+      evs.forEach((e, k) => {
+        if (y >= r.y + r.h - 1) return;
+        const row = { x: ax, y, w: aw, h: 1 };
+        const isSel = k === this.sel;
+        const rbg = isSel ? mix(c.accent, c.bg, 0.75) : ui.hovered(row) ? c.highlight : -1;
+        if (rbg !== -1) ui.fill(row, { bg: rbg });
+        const st = rbg !== -1 ? { bg: rbg } : {};
+        ui.text(ax, y, "●", { fg: colorOf(ui, e.cal), ...st });
+        ui.text(ax + 2, y, when(e).padEnd(11), { fg: c.subtle, ...st });
+        const cal = calOf(e.cal)?.name ?? "";
+        const rx = cal && aw > 40 ? ui.textRight(ax + aw, y, cal, { fg: c.faint, ...st }) : ax + aw;
+        ui.text(ax + 14, y, e.title, { fg: c.fg, attrs: isSel ? BOLD : 0, ...st }, rx - ax - 15);
+        ui.hit(row, { onClick: () => (this.sel = k), tip: `${e.title}${e.where ? `\n${e.where}` : ""}\nx / delete: remove · cal rm ${ref(e)}` });
+        y++;
+        if (e.where && y < r.y + r.h - 1) ui.text(ax + 14, y++, e.where, { fg: c.faint }, aw - 14);
+      });
+      if (y < r.y + r.h - 2) ui.text(ax, r.y + r.h - 1, "arrows · enter · a add · x remove · [ ] months · t today · c calendars", { fg: c.faint }, aw);
+    }
+  }
+
+  ib.apps.register({
+    kind: "calendar",
+    title: "Calendar",
+    description: "your agenda: local + Google calendars",
+    icon: "▦",
+    launcher: true,
+    create: () => new CalendarApp(),
+  });
+  ib.palette.register({ id: "calendar.add", title: "Calendar: add an event", group: "calendar", run: () => void addFlow(startOfDay(new Date())) });
+  ib.palette.register({ id: "calendar.open", title: "Calendar", group: "calendar", run: () => run("cal open") });
+
+  // ── HOME widget: what's coming, as much as fits ──────────────────────────
+  ib.widgets.register({
+    id: "next",
+    title: "upcoming",
+    description: "your next events — more of them as you make it bigger (CALENDAR module)",
+    size: { w: 4, h: 4 },
+    min: { w: 2, h: 1 },
+    render(ui, r) {
+      const c = ui.c;
+      if (!loaded) return void ui.text(r.x + 1, r.y, `${ui.spinner()} loading…`, { fg: c.muted });
+      refreshLocal();
+      ui.animate(30_000); // "in 12 min" moves on
+      const evs = upcoming(r.h * 2);
+      if (!evs.length) {
+        ui.text(r.x + 1, r.y, "nothing coming up", { fg: c.muted }, r.w - 2);
+        if (r.h > 1) ui.hit({ x: r.x, y: r.y, w: r.w, h: 1 }, { cmd: "cal open", tip: "the CALENDAR app" });
+        return;
+      }
+      // one line: just the next one
+      if (r.h === 1) {
+        const e = evs[0];
+        const s = dayOf(e.start);
+        const tail = ` ${e.allDay ? "" : until(s)}`;
+        ui.text(r.x + 1, r.y, "●", { fg: colorOf(ui, e.cal) });
+        const end = ui.textRight(r.x + r.w - 1, r.y, tail, { fg: c.accent });
+        ui.text(r.x + 3, r.y, e.title, { fg: c.fg }, end - r.x - 4);
+        ui.hit({ ...r }, { cmd: `cal open ${ymd(s)}`, tip: `${dayTitle(s)} · ${when(e)}` });
+        return;
+      }
+      // grouped by day, as many lines as the widget has
+      let y = r.y;
+      let lastDay = "";
+      for (const e of evs) {
+        const s = dayOf(e.start);
+        const key = ymd(e.allDay ? s : s);
+        const needs = key !== lastDay ? 2 : 1;
+        if (y + needs > r.y + r.h) break;
+        if (key !== lastDay) {
+          lastDay = key;
+          const n = Math.round((startOfDay(s).getTime() - startOfDay(new Date()).getTime()) / DAY);
+          const label = n <= 0 ? "TODAY" : n === 1 ? "TOMORROW" : s.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" }).toUpperCase();
+          ui.text(r.x + 1, y++, label, { fg: n <= 0 ? c.accent : c.subtle, attrs: BOLD }, r.w - 2);
+        }
+        const row = { x: r.x, y, w: r.w, h: 1 };
+        const hot = ui.hovered(row);
+        ui.text(r.x + 1, y, "●", { fg: colorOf(ui, e.cal) });
+        const time = e.allDay ? "day" : hm(s);
+        ui.text(r.x + 3, y, time.padEnd(5), { fg: c.subtle });
+        const soon = !e.allDay && s.getTime() - Date.now() < 3 * 3600_000 && r.w >= 24 ? until(s) : "";
+        const end = soon ? ui.textRight(r.x + r.w - 1, y, soon, { fg: c.warning }) : r.x + r.w;
+        ui.text(r.x + 9, y, e.title, { fg: hot ? c.accent : c.fg }, end - r.x - 10);
+        ui.hit(row, { cmd: `cal open ${ymd(s)}`, tip: `${e.title}\n${dayTitle(s)} · ${when(e)}${e.where ? `\n${e.where}` : ""}\n${calOf(e.cal)?.name}` });
+        y++;
+      }
+    },
+    activate: () => run("cal open"),
+  });
+}
+
+export function deactivate(): void {
+  if (syncTimer) clearInterval(syncTimer);
+  syncTimer = null;
+}

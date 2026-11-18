@@ -19,16 +19,38 @@ scanlines — but works with the keyboard, the mouse, or a gamepad.
 - **LINK** — chat with Claude, which can search, read and write your notes ("make me a note with a shopping list for a spinach pie"). With Claude Code it writes inside the vault only, never elsewhere (`config set ai.allowWrites false` to keep it read-only); with an API key it asks before each write. Or use a local open-source model through [Ollama](https://ollama.com).
 - **Plugins** — small JS modules with a documented API and declared permissions. LINGO, an AI language tutor, ships as an example.
 - **Themes** — TOML files, hot-swappable: colors, font, border style and symbols. Default: `nightshade` (violet, Catppuccin-flavoured). Also `amber`, `neon-ronin`, `phosphor`, `ghost`, `redline`, `graphite`.
-- **Modules** — one feature, one module, each with its own command, app and HOME widget. So far: **TODO** (`todo add "walk the dog" --urgent --due tomorrow +home`, or the app, or the widget) and **MUSIC** (what's playing in Spotify / Music on macOS or any player on Linux via playerctl, with play / pause / skip / volume: `music toggle`, or the widget).
+- **Modules** — one feature, one module, each with its own command, app and HOME widget. So far: **TODO** (`todo add "walk the dog" --urgent --due tomorrow +home`, or the app, or the widget), **CALENDAR** (a local calendar plus your Google calendars: `cal add "dentist" fri 14:30 --cal work`, the app, and an "upcoming" widget that shows more as it grows; Google setup in `man cal`) and **MUSIC** (your own music folder played by the deck, a text-only mini iTunes with no cover art: `music play daft punk`; plus what's playing in Spotify / Music on macOS or any player on Linux).
 - **NEXUS** — walk your vault in pseudo-3D: files ride a carousel above a synthwave floor grid under glyph rain (`explore`, or MODULES → Nexus).
 - **Daily log** — `daily` asks a short end-of-day check-in in the shell (quick answers 1-5) and writes it to your journal; `daily trend` charts it.
 - **Login** — optional account that locks the deck at start-up. The password is hashed with Argon2id and never stored. It locks the app, it does not encrypt your notes (they stay readable Markdown files). Forgot it? Quit, delete `account.json` in the config folder (macOS: `~/Library/Application Support/org.icebreaker.deck/`), restart.
 - **Sounds** — UI blips synthesized on the fly; drop your own `move.wav`, `open.wav`, `confirm.wav`, `back.wav`, `success.wav`, `error.wav`, `notify.wav`, `boot.wav`, `unlock.wav`, `denied.wav` (or .ogg / .mp3) in `.icebreaker/sounds/` to replace them.
 - **Light** — renders only what changed, sleeps when idle, `fx potato` for old laptops. ~10 MB binary.
 
-Everything is local: your notes are files on your disk, settings are JSON, nothing phones home. Network traffic only goes where you point it: the AI provider *you* configure, the weather widget (open-meteo.com, no account) and GitHub when you install a plugin or theme.
+## Yours, offline, anonymous — if you want
 
-## Quick start
+ICEBREAKER offers tools; it never requires them. You can keep **everything in
+your vault** — notes, journal, calendar, tasks, music library — stay **offline**,
+use **no account** and **no AI**, and the deck works the same.
+
+- Your data is plain files on your disk (Markdown, TOML, JSON). Open them with anything; sync them with anything — or don't.
+- Nothing phones home. There is no ICEBREAKER server and no telemetry.
+- Network traffic only goes where *you* point it, when you use it: the AI provider you choose (or a local model with Ollama), the weather widget (open-meteo.com, no account), news feeds, Google Calendar if you connect it, and GitHub when you install a module or theme.
+- Google data, if you connect it, is never written into your vault (so no AI or sync tool sees it), and `cal google disconnect` removes it. See the [privacy policy](docs/PRIVACY.md).
+
+## Install
+
+Download the latest build for your system from the **Releases** page (or from the
+latest successful **Actions → build** run): `.zip` for macOS, `.exe` installer
+for Windows, `.AppImage` / `.deb` for Linux.
+
+- **macOS**: the app isn't notarized yet. The first time, right-click it → *Open*
+  (or run `xattr -dr com.apple.quarantine ICEBREAKER.app`).
+- **Windows**: SmartScreen may warn about an unknown publisher → *More info* → *Run anyway*.
+
+Then follow the first-run setup — every question can be skipped. New to the deck?
+Read **[Getting started](docs/GETTING_STARTED.md)**.
+
+## Build from source
 
 Requirements: [Node.js](https://nodejs.org) 20+, [Rust](https://rustup.rs), and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your OS (WebView2 on Windows is already there; on Linux `webkit2gtk-4.1`).
 
@@ -83,10 +105,13 @@ themes/          built-in themes (nightshade.toml is the annotated reference)
 - Write a plugin → [docs/PLUGINS.md](docs/PLUGINS.md)
 - Make a theme → [docs/THEMES.md](docs/THEMES.md)
 - Share them, install other people's → [docs/COMMUNITY.md](docs/COMMUNITY.md)
+- Contribute to the core → [CONTRIBUTING.md](CONTRIBUTING.md) · report a vulnerability → [SECURITY.md](SECURITY.md)
 
 ## Roadmap
 
-- [ ] Vault file watcher (pick up edits made in Obsidian/vim live)
+- [x] Vault file watcher (pick up edits made in Obsidian/vim live)
+- [x] CALENDAR module (vault-local Markdown, optional Google Calendar) · local MUSIC player
+- [ ] Notarized macOS builds, signed Windows installer
 - [ ] Backlinks panel and a graph view in braille
 - [ ] Tool use for local models (Ollama), more providers (llama.cpp server, LM Studio)
 - [x] `plugin install` / `theme install` from GitHub + a community index

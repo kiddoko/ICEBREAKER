@@ -197,6 +197,14 @@ export class PluginHost {
       if (!granted.has(perm)) throw new Error(`plugin "${m.id}" needs the "${perm}" permission in its plugin.json`);
     };
     const dataPath = `.icebreaker/plugin-data/${m.id}.json`;
+    const player = () => {
+      if (!deck.platform.player) throw new Error("the music player needs the desktop app");
+      return deck.platform.player;
+    };
+    const google = () => {
+      if (!deck.platform.google) throw new Error("Google needs the desktop app");
+      return deck.platform.google;
+    };
     const readData = async (): Promise<Record<string, unknown>> => {
       try {
         return (await deck.vault.exists(dataPath)) ? JSON.parse(await deck.vault.read(dataPath)) : {};
@@ -226,6 +234,44 @@ export class PluginHost {
           need("media");
           if (!deck.platform.media) throw new Error("music control needs the desktop app");
           return deck.platform.media.control(action);
+        },
+        player: {
+          available: () => !!deck.platform.player,
+          scan: (folder) => (need("media"), player().scan(folder)),
+          load: (path, play = true, duration) => (need("media"), player().load(path, play, duration)),
+          control: (action) => (need("media"), player().control(action)),
+          status: () => (need("media"), player().status()),
+        },
+      },
+      google: {
+        available: () => !!deck.platform.google,
+        status: () => (need("google-calendar"), google().status()),
+        setup: (id, secret) => (need("google-calendar"), google().setup(id, secret)),
+        connect: () => (need("google-calendar"), google().connect()),
+        disconnect: () => (need("google-calendar"), google().disconnect()),
+        calendar: async (method, path, opts = {}) => {
+          need("google-calendar");
+          const query = Object.entries(opts.query ?? {})
+            .filter(([, v]) => v !== undefined)
+            .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+            .join("&");
+          const text = await google().calendar(method, path, query || undefined, opts.body === undefined ? undefined : JSON.stringify(opts.body));
+          return text.trim() ? JSON.parse(text) : null;
+        },
+        cache: {
+          read: async <T,>(fallback: T) => {
+            need("google-calendar");
+            try {
+              const t = await google().cache();
+              return t ? (JSON.parse(t) as T) : fallback;
+            } catch {
+              return fallback;
+            }
+          },
+          write: async (value) => {
+            need("google-calendar");
+            await google().cache(JSON.stringify(value));
+          },
         },
       },
       backgrounds: { register: (b) => registerBackground({ ...b, name: b.name.startsWith(`${m.id}.`) ? b.name : `${m.id}.${b.name}` }) },
@@ -263,6 +309,7 @@ export class PluginHost {
         notify: (text, kind) => deck.notify(`${m.name}: ${text}`, kind),
         confirm: (t, d) => deck.confirm(t, d),
         prompt: (t, o) => deck.prompt(t, o),
+        choose: (t, options, o) => deck.choose(t, options, o),
         theme: () => deck.theme,
         redraw: () => deck.requestFrame(),
       },

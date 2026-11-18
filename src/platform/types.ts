@@ -93,12 +93,32 @@ export interface Platform {
     /** toggle · play · pause · next · prev · vol+ · vol- · vol:<0-100> */
     control(action: string): Promise<void>;
   };
+  /** Local music player: scan a folder, play files (desktop, see audio.rs). */
+  player?: {
+    scan(folder: string): Promise<LocalTrack[]>;
+    load(path: string, play: boolean, duration?: number): Promise<void>;
+    /** play · pause · toggle · stop · seek:<seconds> · vol:<0-100> */
+    control(action: string): Promise<void>;
+    status(): Promise<PlayerStatus>;
+  };
+  /** Google account through your own OAuth client (desktop, see google.rs). */
+  google?: {
+    status(): Promise<{ configured: boolean; custom: boolean; connected: boolean }>;
+    setup(clientId: string, clientSecret: string): Promise<void>;
+    connect(): Promise<void>;
+    disconnect(): Promise<void>;
+    /** Raw Calendar API v3 call; `path` is relative to /calendar/v3/. Returns the JSON text. */
+    calendar(method: string, path: string, query?: string, body?: string): Promise<string>;
+    /** Offline copy of Google data, kept outside the vault. No argument = read. */
+    cache(content?: string): Promise<string | null>;
+  };
   /** Called (debounced) when files in the vault change outside the app. */
   onVaultChange?(cb: () => void): void;
   /** Your system shell in a pseudo-terminal (desktop). */
   pty?: {
     /** Starts the shell; resolves with its name ("zsh"). */
-    spawn(id: string, cols: number, rows: number, onData: (text: string) => void): Promise<string>;
+    /** `modules`: command names that win over same-named system programs (cal, todo…). */
+    spawn(id: string, cols: number, rows: number, onData: (text: string) => void, modules?: string[]): Promise<string>;
     write(id: string, data: string): Promise<void>;
     resize(id: string, cols: number, rows: number): Promise<void>;
     kill(id: string): Promise<void>;
@@ -115,6 +135,29 @@ export interface Platform {
     isFullscreen(): Promise<boolean>;
     quit(): Promise<void>;
   };
+}
+
+export interface LocalTrack {
+  path: string;
+  title: string;
+  artist: string;
+  album: string;
+  track: number;
+  disc: number;
+  year: number;
+  /** seconds */
+  duration: number;
+}
+
+export interface PlayerStatus {
+  path: string | null;
+  playing: boolean;
+  position: number;
+  duration: number;
+  volume: number;
+  /** the track played to its end */
+  ended: boolean;
+  error: string | null;
 }
 
 export interface MediaStatus {

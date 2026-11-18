@@ -6,9 +6,11 @@
 //! called from src/platform/tauri.ts with `invoke("command_name", args)`.
 
 mod account;
+mod audio;
 mod claude_code;
 mod config;
 mod dev; // DEV ONLY — remove before release
+mod google;
 mod media;
 mod net;
 mod term;
@@ -30,6 +32,8 @@ pub fn run() {
         .manage(account::AccountState::default())
         .manage(term::PtyState::default())
         .manage(term::BridgeState::default())
+        .manage(google::GoogleState::default())
+        .manage(audio::AudioState::default())
         .setup(|app| {
             term::start_bridge(app.handle());
             Ok(())
@@ -64,6 +68,16 @@ pub fn run() {
             term::pty_kill,
             term::bridge_send,
             media::media_control,
+            google::google_status,
+            google::google_setup,
+            google::google_connect,
+            google::google_disconnect,
+            google::google_calendar,
+            google::google_cache,
+            audio::audio_scan,
+            audio::audio_load,
+            audio::audio_control,
+            audio::audio_status,
             account::account_status,
             account::account_create,
             account::account_verify,

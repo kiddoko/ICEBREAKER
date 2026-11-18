@@ -158,7 +158,7 @@ export class NoteApp implements App {
         this.editor.anchor ??= { ...this.editor.cursor };
         this.editor.cursor = this.editor.posAt(m.x, m.y);
       },
-      onWheel: (d) => this.editor.scroll(d * 3),
+      onWheel: (d) => this.editor.scroll(d),
     });
   }
 }

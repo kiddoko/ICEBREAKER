@@ -37,6 +37,7 @@ import { ensureEntry } from "./vault/journal";
 import { basename, join, slugify } from "./vault/paths";
 import { Vault } from "./vault/vault";
 import { BootScreen, type BootLine } from "./workspace/boot";
+import type { ChoiceOption } from "./plugins/api";
 import { LockScreen } from "./workspace/lock";
 import { applyFxPreset } from "./workspace/fxpanel";
 import type { ToastKind } from "./workspace/overlays";
@@ -71,6 +72,8 @@ export class Deck implements InputSink {
   private grid = new Grid(1, 1);
   private hits: Hit[] = [];
   private boot: BootScreen | null = null;
+  /** the last real boot, replayed by `reboot` */
+  private lastBoot: BootScreen | null = null;
   /** Until the boot screen exists: draw nothing (no flash of the login or the desktop). */
   private starting = true;
   /** Login screen; while it's up nothing else is drawn or gets input. */
@@ -116,36 +119,78 @@ export class Deck implements InputSink {
 
   async start(): Promise<void> {
     const s = this.settings.data;
-    this.vault.journalFolder = s.journal.folder;
-    this.ai.envKey = await this.platform.envApiKey().catch(() => null);
-    this.ai.claudeCode = this.platform.claudeCode;
-    this.ai.claudeCodePath = (await this.platform.claudeCode?.detect().catch(() => null)) ?? null;
-    await this.vault.mount(s.vault.path);
-    if (!s.vault.path) this.settings.set("vault.path", this.vault.root);
-    await this.reloadUserThemes();
+    const t0 = performance.now();
+    // look and feel first, so the boot screen is already in your theme and font
     this.refreshTheme(true);
-
-    this.account = await this.platform.account.status().catch(() => null);
-    if (this.account) this.lockNow();
-    this.sound.enabled = s.sound.enabled;
-    this.sound.volume = s.sound.volume / 100;
-    void this.reloadSounds();
-
-    this.registerCore();
-    await this.plugins.init();
-    this.platform.bridge?.onRun((req) => void this.runBridged(req));
-    // files changed in the terminal, Obsidian, Finder…: refresh the tree, search, widgets
-    this.platform.onVaultChange?.(() => void this.vault.rescan().then(() => this.requestFrame()));
-
-    this.shell.motd();
-    this.openApp("home");
-    if (!s.setup.done) this.openApp("setup");
     this.applyFx();
     await this.applyFont();
     // (browsers only allow fullscreen after a click, so this is desktop-only)
     if (s.appearance.startFullscreen && this.platform.kind === "desktop") void this.platform.window.setFullscreen(true).catch(() => {});
 
-    if (s.boot.mode !== "off") this.boot = new BootScreen(await this.bootLines(), await this.memMB(), s.boot.mode);
+    // the POST runs live: each line shows when its step is really done
+    const boot = s.boot.mode !== "off" ? new BootScreen(s.boot.mode) : null;
+    this.boot = boot;
+    this.starting = !boot;
+    this.loop.request();
+    const step = async <T>(run: () => Promise<T> | T, line: (v: T) => BootLine | null): Promise<T> => {
+      const t = performance.now();
+      try {
+        const v = await run();
+        const l = line(v);
+        if (l) boot?.log({ ms: performance.now() - t, ...l });
+        return v;
+      } catch (e) {
+        boot?.log({ text: `startup step failed: ${e instanceof Error ? e.message : e}`, status: "FAIL", ms: performance.now() - t });
+        throw e;
+      }
+    };
+
+    const stats = await step(
+      () => this.platform.system.stats().catch(() => null),
+      (st) => st ? { text: `CPU0  ${st.cpuBrand || "unknown cpu"} · ${st.cores.length} cores · ${st.host} · ${st.os}`, status: "INFO" } : { text: "CPU0  no system probe on this platform", status: "INFO" },
+    );
+    if (boot) boot.memMB = stats ? Math.round(stats.memTotal / 1024 ** 2) : 0;
+    this.vault.journalFolder = s.journal.folder;
+    await step(() => this.vault.mount(s.vault.path), () => ({ text: `Mounted vault at ${this.vault.root} (${this.vault.markdown().length} notes, ${this.vault.journalDates().size} journal entries)`, status: "OK" }));
+    if (!s.vault.path) this.settings.set("vault.path", this.vault.root);
+    const fontOf = () => `${this.theme.font.family}|${this.theme.font.scale}|${this.theme.font.weights}`;
+    const font = fontOf();
+    await step(() => this.reloadUserThemes(), () => ({ text: `Loaded theme ${this.theme.name} (${this.themes.list().length} available${this.themes.errors.length ? `, ${this.themes.errors.length} broken` : ""})`, status: this.themes.errors.length ? "WARN" : "OK" }));
+    this.refreshTheme(true);
+    if (fontOf() !== font) await this.applyFont(); // your theme lives in the vault and has its own font
+
+    this.account = await step(
+      () => this.platform.account.status().catch(() => null),
+      (a) => ({ text: a ? `Account ${a}: login required` : "No account: the deck opens unlocked", status: a ? "OK" : "INFO" }),
+    );
+    if (this.account) this.lockNow();
+    this.sound.enabled = s.sound.enabled;
+    this.sound.volume = s.sound.volume / 100;
+    await step(() => this.reloadSounds().catch(() => 0), (n) => ({ text: `Sound ${s.sound.enabled ? "on" : "muted"} · pack ${this.theme.sound.pack}${n ? ` · ${n} custom sounds` : ""}`, status: "OK" }));
+
+    await step(async () => {
+      this.ai.envKey = await this.platform.envApiKey().catch(() => null);
+      this.ai.claudeCode = this.platform.claudeCode;
+      this.ai.claudeCodePath = (await this.platform.claudeCode?.detect().catch(() => null)) ?? null;
+    }, () => {
+      const p = this.ai.problem;
+      return p ? { text: `Neural link offline: ${p}`, status: "WARN" } : { text: `Neural link: ${this.ai.provider.label}${this.ai.claudeCodePath ? ` (${this.ai.claudeCodePath})` : ""}`, status: "OK" };
+    });
+
+    await step(() => this.registerCore(), () => ({ text: `Shell ibsh: ${this.commands.names().length} commands · ${this.apps.list().length} apps · ${this.widgets.list().length} widgets`, status: "OK" }));
+    await step(() => this.plugins.init(), () => ({ text: `Plugins: ${this.plugins.active().map((p) => p.manifest.id).join(", ") || "none"}`, status: this.plugins.list().some((p) => p.error) ? "WARN" : "OK" }));
+    this.platform.bridge?.onRun((req) => void this.runBridged(req));
+    // files changed in the terminal, Obsidian, Finder…: refresh the tree, search, widgets
+    await step(() => this.platform.onVaultChange?.(() => void this.vault.rescan().then(() => this.requestFrame())), () => this.platform.onVaultChange ? { text: "Watching the vault for outside changes", status: "OK" } : null);
+    const pads = (navigator.getGamepads?.() ?? []).filter(Boolean).length;
+    boot?.log({ text: `Input: keyboard · mouse${pads ? ` · ${pads} gamepad${pads > 1 ? "s" : ""}` : " · gamepad (none plugged in)"}`, status: "OK" });
+
+    this.shell.motd();
+    this.openApp("home");
+    if (!s.setup.done) this.openApp("setup");
+    boot?.log({ text: `Reached target: Cyberspace. (startup took ${Math.round(performance.now() - t0)} ms)`, status: "OK" });
+    boot?.finish();
+    this.lastBoot = boot;
     this.starting = false;
     this.sound.play("boot");
     setInterval(() => this.checkIdle(), 15_000);
@@ -194,30 +239,6 @@ export class Deck implements InputSink {
       const name = await this.prompt("Theme name", { placeholder: "my-theme" });
       if (name) void this.shell.runLine(`theme new ${name}`);
     }, undefined, "dev");
-  }
-
-  /** The POST screen lists real facts about this machine and vault. */
-  private async bootLines(): Promise<BootLine[]> {
-    const stats = await Promise.race([this.platform.system.stats().catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), 400))]);
-    const ai = this.ai.problem;
-    return [
-      { text: `CPU0  ${stats?.cpuBrand || "neural bus"} · ${stats?.cores.length ?? "?"} cores`, status: "INFO" },
-      { text: `Host  ${stats?.host ?? "deck"} · ${stats?.os ?? this.platform.kind}`, status: "INFO" },
-      { text: `Mounted vault at ${this.vault.root} (${this.vault.markdown().length} notes)`, status: "OK" },
-      { text: `Indexed ${this.vault.journalDates().size} journal entries`, status: "OK" },
-      { text: `Loaded theme: ${this.theme.name} (${this.themes.list().length} available)`, status: this.themes.errors.length ? "WARN" : "OK" },
-      { text: "Started input daemon: keyboard · mouse · gamepad", status: "OK" },
-      { text: `Shell ibsh with ${this.commands.names().length} commands`, status: "OK" },
-      { text: `Plugins: ${this.plugins.active().map((p) => p.manifest.id).join(", ") || "none"}`, status: this.plugins.list().some((p) => p.error) ? "WARN" : "OK" },
-      ai ? { text: `Neural link offline: ${ai}`, status: "WARN" } : { text: `Neural link: ${this.ai.provider.label}`, status: "OK" },
-      { text: "No hostile ICE detected on local segment", status: "OK" },
-      { text: "Reached target: Cyberspace.", status: "OK" },
-    ];
-  }
-
-  private async memMB(): Promise<number> {
-    const s = await this.platform.system.stats().catch(() => null);
-    return s ? Math.round(s.memTotal / 1024 ** 2) : 16384;
   }
 
   // ── the frame ────────────────────────────────────────────────────────────
@@ -353,6 +374,13 @@ export class Deck implements InputSink {
 
   confirm(title: string, detail = ""): Promise<boolean> {
     const p = this.workspace.confirm(title, detail);
+    this.requestFrame();
+    return p;
+  }
+
+  /** Pick one option (type to filter): its index, or null. */
+  choose(title: string, options: ChoiceOption[], opts: { selected?: number } = {}): Promise<number | null> {
+    const p = this.workspace.choose(title, options, opts.selected ?? 0);
     this.requestFrame();
     return p;
   }
@@ -531,7 +559,7 @@ export class Deck implements InputSink {
   }
 
   reboot(): void {
-    this.boot = new BootScreen([{ text: "Rebooting deck…", status: "INFO" }, { text: `Vault ${basename(this.vault.root)} remounted`, status: "OK" }, { text: "Reached target: Cyberspace.", status: "OK" }], 16384, "full");
+    this.boot = this.lastBoot?.replay() ?? new BootScreen("full", [{ text: `Vault ${basename(this.vault.root)} remounted`, status: "OK" }, { text: "Reached target: Cyberspace.", status: "OK" }]);
     this.requestFrame();
   }
 

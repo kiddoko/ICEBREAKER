@@ -631,7 +631,7 @@ export class TextEditor {
         this.wantScroll = true;
       },
       onDouble: (m) => this.selectWordAt(this.posAt(m.x, m.y)),
-      onWheel: (d) => this.scroll(d * 3),
+      onWheel: (d) => this.scroll(d),
     });
   }
 }

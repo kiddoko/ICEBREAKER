@@ -1,24 +1,178 @@
 /**
- * MUSIC — what's playing on this computer, as a module.
+ * MUSIC — your music, as a module. Two sources, one set of controls:
  *
- *   music              what's playing
- *   music toggle       play / pause (also: play, pause, next, prev)
- *   music vol 40       volume (+ / - to nudge)
+ *   LOCAL   a folder of audio files played by ICEBREAKER itself (a mini
+ *           iTunes: artists, albums, tracks, queue, shuffle, repeat).
+ *           Tags are read, cover art never is: no images in the deck.
+ *   SYSTEM  what's playing on this computer (Spotify, Music; any MPRIS
+ *           player through playerctl on Linux).
  *
- * The HOME widget (music.now) shows the track, a progress line, a tiny
- * equalizer and the controls; every button runs a `music …` command.
- * Native side: src-tauri/src/media.rs (Spotify + Music on macOS, playerctl
- * on Linux). Permission: "media".
+ *   music                    what's playing
+ *   music toggle | play | pause | next | prev | stop
+ *   music play <search>      play what matches (track, album or artist)
+ *   music album <name> · music artist <name>
+ *   music folder [path] · music scan · music lib [artists|albums]
+ *   music shuffle [on|off] · music repeat [off|all|one] · music queue
+ *   music seek 1:30 | +10 | -10 · music vol [0-100 | + | -] · music open
+ *
+ * While a local track is loaded, the controls drive it; otherwise they drive
+ * the system player. Native side: audio.rs (local) and media.rs (system).
  */
+import type { App } from "../../src/apps/types";
+import type { Rect } from "../../src/core/grid";
+import type { Action, KeyInput } from "../../src/core/input";
 import type { IcebreakerAPI } from "../../src/plugins/api";
-import type { MediaStatus } from "../../src/platform/types";
+import type { LocalTrack, MediaStatus, PlayerStatus } from "../../src/platform/types";
+import type { UI } from "../../src/ui/ui";
 
 const ACTIONS: Record<string, string> = { toggle: "toggle", "play-pause": "toggle", play: "play", pause: "pause", next: "next", skip: "next", prev: "prev", previous: "prev", back: "prev" };
+type Repeat = "off" | "all" | "one";
+let tick: ReturnType<typeof setInterval> | null = null;
 
 export function activate(ib: IcebreakerAPI): void {
-  const { BOLD, strWidth, fmt } = ib.lib;
+  const { BOLD, strWidth, fmt, q, mix, fuzzyFilter } = ib.lib;
+  const run = (line: string) => void ib.shell.run(line);
+  const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
-  // ── state: polled while the widget is on screen (or a command asks) ──
+  // ── local library + player ───────────────────────────────────────────────
+  const player = ib.media.player;
+  let folder = "~/Music";
+  let lib: LocalTrack[] = [];
+  let scanning = false;
+  let queue: string[] = [];
+  let qi = -1;
+  let shuffle = false;
+  let repeat: Repeat = "off";
+  let local: PlayerStatus | null = null;
+  let localAt = 0;
+  const byPath = new Map<string, LocalTrack>();
+  const index = () => {
+    byPath.clear();
+    for (const t of lib) byPath.set(t.path, t);
+  };
+  const sortKey = (t: LocalTrack) => `${t.artist.toLowerCase()}\u0000${t.year.toString().padStart(4, "0")}\u0000${t.album.toLowerCase()}\u0000${String(t.disc).padStart(3, "0")}${String(t.track).padStart(4, "0")}\u0000${t.title.toLowerCase()}`;
+  const sortLib = () => lib.sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+  const ready = (async () => {
+    folder = await ib.storage.get("folder", folder);
+    lib = await ib.storage.get<LocalTrack[]>("library", []);
+    shuffle = await ib.storage.get("shuffle", false);
+    repeat = await ib.storage.get<Repeat>("repeat", "off");
+    index();
+    ib.ui.redraw();
+  })();
+  const saveLib = async () => {
+    await ib.storage.set("folder", folder);
+    await ib.storage.set("library", lib);
+  };
+
+  const artists = () => [...new Set(lib.map((t) => t.artist || "unknown artist"))];
+  const albumsOf = (artist?: string) => {
+    const seen = new Map<string, { album: string; artist: string; year: number; n: number }>();
+    for (const t of lib) {
+      if (artist && (t.artist || "unknown artist") !== artist) continue;
+      const k = `${t.artist}\u0000${t.album}`;
+      const a = seen.get(k);
+      if (a) a.n++;
+      else seen.set(k, { album: t.album || "unknown album", artist: t.artist, year: t.year, n: 1 });
+    }
+    return [...seen.values()];
+  };
+  const tracksOf = (album?: string, artist?: string) => lib.filter((t) => (album === undefined || (t.album || "unknown album") === album) && (artist === undefined || t.artist === artist || (!t.artist && artist === "unknown artist")));
+
+  async function scan(): Promise<number> {
+    scanning = true;
+    ib.ui.redraw();
+    try {
+      lib = await player.scan(folder);
+      sortLib();
+      index();
+      await saveLib();
+      return lib.length;
+    } finally {
+      scanning = false;
+      ib.ui.redraw();
+    }
+  }
+
+  const current = () => (qi >= 0 ? byPath.get(queue[qi]) ?? null : null);
+  async function playAt(i: number): Promise<void> {
+    if (i < 0 || i >= queue.length) return;
+    qi = i;
+    const t = byPath.get(queue[i]);
+    await player.load(queue[i], true, t?.duration);
+    setTimeout(() => void pollLocal(), 150);
+  }
+  async function playList(paths: string[], start = 0): Promise<void> {
+    if (!paths.length) return;
+    let list = [...paths];
+    if (shuffle) {
+      const first = list.splice(start, 1)[0];
+      for (let i = list.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [list[i], list[j]] = [list[j], list[i]];
+      }
+      list = [first, ...list];
+      start = 0;
+    }
+    queue = list;
+    await playAt(start);
+  }
+  async function step(dir: 1 | -1, auto = false): Promise<void> {
+    if (!queue.length) return;
+    if (auto && repeat === "one") return playAt(qi);
+    if (dir < 0 && local && local.position > 3) return playAt(qi); // back to the start first
+    let n = qi + dir;
+    if (n >= queue.length) {
+      if (repeat === "off" && auto) {
+        await player.control("stop");
+        qi = -1;
+        return void pollLocal();
+      }
+      n = 0;
+    }
+    if (n < 0) n = repeat === "off" ? 0 : queue.length - 1;
+    await playAt(n);
+  }
+  async function pollLocal(): Promise<void> {
+    if (!player.available()) return;
+    local = await player.status().catch(() => null);
+    localAt = Date.now();
+    if (local?.error) ib.ui.notify(local.error, "warning");
+    if (local?.ended && local.path) await step(1, true);
+    ib.ui.redraw();
+  }
+  if (tick) clearInterval(tick);
+  tick = setInterval(() => {
+    if (local?.path || qi >= 0) void pollLocal();
+  }, 1000);
+  const localActive = () => !!local?.path;
+  const localStatus = (): MediaStatus | null => {
+    if (!local?.path) return null;
+    const t = byPath.get(local.path);
+    const name = local.path.split(/[\\/]/).pop() ?? "";
+    return {
+      player: `local${shuffle ? " · shuffle" : ""}${repeat !== "off" ? ` · repeat ${repeat}` : ""}`,
+      playing: local.playing,
+      title: t?.title ?? name,
+      artist: t?.artist ?? "",
+      album: t?.album ?? "",
+      position: local.position + (local.playing ? (Date.now() - localAt) / 1000 : 0),
+      duration: local.duration || t?.duration || 0,
+      volume: local.volume,
+    };
+  };
+
+  /** Tracks matching a search: the best artist, album or track match. */
+  function search(query: string): LocalTrack[] {
+    const ql = query.toLowerCase();
+    const artist = artists().find((a) => a.toLowerCase() === ql);
+    if (artist) return tracksOf(undefined, artist);
+    const album = albumsOf().find((a) => a.album.toLowerCase() === ql);
+    if (album) return tracksOf(album.album, album.artist || undefined);
+    return fuzzyFilter(query, lib, (t) => `${t.title} ${t.artist} ${t.album}`, 500);
+  }
+
+  // ── state of the system player: polled while the widget is on screen ────
   let status: MediaStatus | null = null;
   let at = 0;
   let error: string | null = null;
@@ -26,7 +180,8 @@ export function activate(ib: IcebreakerAPI): void {
   let polledAt = 0;
 
   const poll = async (): Promise<void> => {
-    if (loading) return;
+    if (localActive()) return void (await pollLocal());
+    if (loading || !ib.media.available()) return;
     loading = true;
     polledAt = Date.now();
     try {
@@ -40,12 +195,25 @@ export function activate(ib: IcebreakerAPI): void {
       ib.ui.redraw();
     }
   };
-
-  /** Position now, moving on between two polls while it plays. */
-  const position = () => (status ? Math.min(status.duration || Infinity, status.position + (status.playing ? (Date.now() - at) / 1000 : 0)) : 0);
-  const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+  /** What the widget and `music` show: the local player first. */
+  const shown = (): MediaStatus | null => localStatus() ?? status;
+  const position = () => {
+    const s = shown();
+    if (!s) return 0;
+    if (localActive()) return Math.min(s.duration || Infinity, s.position);
+    return Math.min(s.duration || Infinity, s.position + (s.playing ? (Date.now() - at) / 1000 : 0));
+  };
 
   const control = async (action: string) => {
+    if (localActive() || (action === "play" && qi >= 0)) {
+      if (action === "next") return step(1);
+      if (action === "prev") return step(-1);
+      if (action === "vol+" || action === "vol-") {
+        const v = Math.max(0, Math.min(100, (local?.volume ?? 80) + (action === "vol+" ? 10 : -10)));
+        await player.control(`vol:${v}`);
+      } else await player.control(action);
+      return void setTimeout(() => void pollLocal(), 120);
+    }
     await ib.media.control(action);
     // the player needs a moment before it reports the new state
     setTimeout(() => void poll(), 300);
@@ -55,50 +223,423 @@ export function activate(ib: IcebreakerAPI): void {
   ib.commands.register({
     name: "music",
     aliases: ["np"],
-    summary: "what's playing, play / pause / skip / volume (MUSIC module)",
-    usage: "music                  what's playing\nmusic toggle           play / pause\nmusic play | pause | next | prev\nmusic vol [0-100 | + | -]",
+    summary: "your music: local files and what's playing (MUSIC module)",
+    usage: [
+      "music                    what's playing",
+      "music toggle | play | pause | next | prev | stop",
+      "music play <search>      play a track, album or artist from your folder",
+      "music album <name> [--from n] · music artist <name>",
+      "music folder [path]      where your music is (default ~/Music)",
+      "music scan               read the folder again",
+      "music lib [artists | albums | <search>]",
+      "music shuffle [on|off] · music repeat [off|all|one]",
+      "music queue · music seek 1:30 | +10 | -10",
+      "music vol [0-100 | + | -] · music open",
+    ].join("\n"),
     examples: [
-      ["music", "track, artist, where it's at"],
-      ["music toggle", "play / pause"],
+      ["music folder ~/Music", "then: music scan"],
+      ["music play daft punk", "everything that matches"],
+      ['music album "Discovery"', "an album, in order"],
+      ["music shuffle on", "mix the queue"],
       ["music next", "skip"],
       ["music vol 30", "volume to 30 %"],
-      ["music vol +", "a bit louder"],
     ],
-    man: "macOS: Spotify and Music (asked only if they're running; macOS asks once to let ICEBREAKER control them).\nLinux: any MPRIS player through playerctl (Spotify, VLC, browsers, mpv…).\nWindows: not yet.",
-    complete: () => ["toggle", "play", "pause", "next", "prev", "vol"],
+    man: "LOCAL: mp3, m4a/aac, flac, wav, ogg, aiff. Tags give artist / album / title; untagged files use their folders (Artist/Album/track.mp3). Cover art is never read.\nSYSTEM: macOS: Spotify and Music (macOS asks once to let ICEBREAKER control them). Linux: any MPRIS player through playerctl. Windows: not yet.\nWhile a local track is loaded, toggle/next/prev/vol drive it; `music stop` hands the controls back to the system player.",
+    complete: () => ["toggle", "play", "pause", "next", "prev", "stop", "album", "artist", "folder", "scan", "lib", "shuffle", "repeat", "queue", "seek", "vol", "open"],
     async run(ctx) {
-      if (!ib.media.available()) return ctx.err("music: needs the desktop app\n"), 1;
-      const [a, b] = ctx.args;
+      await ready;
+      const [a, ...more] = ctx.args;
+      const b = more[0];
+      const arg = more.join(" ").trim();
+      const needLocal = () => {
+        if (!player.available()) throw new Error("the local player needs the desktop app");
+      };
       try {
-        if (!a) {
-          await poll();
-          if (error) return ctx.err(`music: ${error}\n`), 1;
-          if (!status) return ctx.out(fmt.dim("nothing playing\n")), 0;
-          const s = status;
-          ctx.out(`${s.playing ? fmt.green("▶") : fmt.yellow("❚❚")} ${fmt.bold(s.title)} ${fmt.dim("—")} ${s.artist}${s.album ? fmt.dim(` · ${s.album}`) : ""}\n`);
-          ctx.out(fmt.dim(`${s.player} · ${clock(position())}${s.duration ? ` / ${clock(s.duration)}` : ""}${s.volume !== null ? ` · vol ${Math.round(s.volume)}%` : ""}\n`));
-          return 0;
-        }
-        if (a === "vol" || a === "volume") {
-          if (!b) {
+        switch (a) {
+          case undefined: {
             await poll();
-            return ctx.out(status?.volume !== null && status ? `${Math.round(status.volume!)}%\n` : "unknown\n"), 0;
+            if (error && !localActive()) return ctx.err(`music: ${error}\n`), 1;
+            const s = shown();
+            if (!s) return ctx.out(fmt.dim(lib.length ? `nothing playing · ${lib.length} tracks in ${folder} (music play <search>)\n` : "nothing playing\n")), 0;
+            ctx.out(`${s.playing ? fmt.green("▶") : fmt.yellow("❚❚")} ${fmt.bold(s.title)} ${fmt.dim("—")} ${s.artist}${s.album ? fmt.dim(` · ${s.album}`) : ""}\n`);
+            ctx.out(fmt.dim(`${s.player} · ${clock(position())}${s.duration ? ` / ${clock(s.duration)}` : ""}${s.volume !== null ? ` · vol ${Math.round(s.volume)}%` : ""}${localActive() ? ` · ${qi + 1}/${queue.length}` : ""}\n`));
+            return 0;
           }
-          const action = b === "+" ? "vol+" : b === "-" ? "vol-" : /^\d{1,3}%?$/.test(b) ? `vol:${parseInt(b)}` : "";
-          if (!action) return ctx.err("usage: music vol 0-100 | + | -\n"), 1;
-          await control(action);
-          return 0;
+          case "vol": case "volume": {
+            if (!b) {
+              await poll();
+              const v = shown()?.volume;
+              return ctx.out(v !== null && v !== undefined ? `${Math.round(v)}%\n` : "unknown\n"), 0;
+            }
+            const action = b === "+" ? "vol+" : b === "-" ? "vol-" : /^\d{1,3}%?$/.test(b) ? `vol:${parseInt(b)}` : "";
+            if (!action) return ctx.err("usage: music vol 0-100 | + | -\n"), 1;
+            await control(action);
+            return 0;
+          }
+          case "play": {
+            if (!arg) return await control("play"), 0;
+            needLocal();
+            const flags = arg.match(/^--path\s+(.+)$/);
+            if (flags) {
+              const p = flags[1].replace(/^["']|["']$/g, "");
+              const t = byPath.get(p);
+              const album = t ? tracksOf(t.album || "unknown album", t.artist || undefined).map((x) => x.path) : [p];
+              await playList(album, Math.max(0, album.indexOf(p)));
+            } else {
+              const found = search(arg);
+              if (!found.length) return ctx.err(`music: nothing matches "${arg}"${lib.length ? "" : " (empty library: music folder <path> then music scan)"}\n`), 1;
+              await playList(found.map((t) => t.path));
+            }
+            const t = current();
+            ctx.out(`${fmt.green("▶")} ${fmt.bold(t?.title ?? "")} ${fmt.dim(`— ${t?.artist ?? ""} · ${queue.length} in the queue`)}\n`);
+            return 0;
+          }
+          case "album": case "artist": {
+            needLocal();
+            const { flags, rest } = ib.lib.parseFlags(more, ["from", "artist"]);
+            const name = rest.join(" ").trim();
+            if (!name) return ctx.err(`usage: music ${a} <name>\n`), 1;
+            let tracks: LocalTrack[];
+            if (a === "artist") {
+              const hit = fuzzyFilter(name, artists(), (x) => x, 1)[0];
+              tracks = hit ? tracksOf(undefined, hit) : [];
+            } else {
+              const pool = albumsOf(typeof flags.artist === "string" ? flags.artist : undefined);
+              const hit = pool.find((x) => x.album.toLowerCase() === name.toLowerCase()) ?? fuzzyFilter(name, pool, (x) => `${x.album} ${x.artist}`, 1)[0];
+              tracks = hit ? tracksOf(hit.album, hit.artist || undefined) : [];
+            }
+            if (!tracks.length) return ctx.err(`music: no ${a} "${name}"\n`), 1;
+            const from = typeof flags.from === "string" ? Math.max(0, Number(flags.from) - 1) : 0;
+            await playList(tracks.map((t) => t.path), Math.min(from, tracks.length - 1));
+            ctx.out(`${fmt.green("▶")} ${fmt.bold(current()?.title ?? "")} ${fmt.dim(`— ${tracks[0].album} · ${tracks.length} tracks`)}\n`);
+            return 0;
+          }
+          case "stop": {
+            if (localActive() || qi >= 0) {
+              await player.control("stop");
+              qi = -1;
+              queue = [];
+              await pollLocal();
+              ctx.out(fmt.dim("stopped · the controls are back on the system player\n"));
+            } else await control("pause");
+            return 0;
+          }
+          case "folder": {
+            if (!arg) return ctx.out(`${folder}${lib.length ? fmt.dim(` · ${lib.length} tracks`) : ""}\n`), 0;
+            folder = arg.replace(/^["']|["']$/g, "");
+            await ib.storage.set("folder", folder);
+            ctx.out(fmt.dim(`scanning ${folder}…\n`));
+            const n = await scan();
+            ctx.out(`${fmt.green("✓")} ${n} tracks · ${artists().length} artists · ${albumsOf().length} albums\n`);
+            return 0;
+          }
+          case "scan": case "rescan": {
+            needLocal();
+            ctx.out(fmt.dim(`scanning ${folder}…\n`));
+            const n = await scan();
+            ctx.out(`${fmt.green("✓")} ${n} tracks · ${artists().length} artists · ${albumsOf().length} albums\n`);
+            return 0;
+          }
+          case "lib": case "library": case "ls": {
+            if (!lib.length) return ctx.out(fmt.dim(`empty — music folder <path> (now: ${folder})\n`)), 0;
+            if (!arg) return ctx.out(`${lib.length} tracks · ${artists().length} artists · ${albumsOf().length} albums ${fmt.dim(`in ${folder}`)}\n`), 0;
+            if (arg === "artists") for (const x of artists()) ctx.out(`${x} ${fmt.dim(`· ${albumsOf(x).length} albums`)}\n`);
+            else if (arg === "albums") for (const x of albumsOf()) ctx.out(`${fmt.bold(x.album)} ${fmt.dim(`— ${x.artist}${x.year ? ` · ${x.year}` : ""} · ${x.n} tracks`)}\n`);
+            else for (const t of search(arg).slice(0, 50)) ctx.out(`${t.title} ${fmt.dim(`— ${t.artist} · ${t.album} · ${clock(t.duration)}`)}\n`);
+            return 0;
+          }
+          case "shuffle": {
+            shuffle = b === "on" ? true : b === "off" ? false : !shuffle;
+            await ib.storage.set("shuffle", shuffle);
+            if (shuffle && queue.length > 1 && qi >= 0) {
+              const cur = queue[qi];
+              const rest = queue.filter((_, i) => i !== qi);
+              for (let i = rest.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [rest[i], rest[j]] = [rest[j], rest[i]];
+              }
+              queue = [cur, ...rest];
+              qi = 0;
+            }
+            ctx.out(`shuffle ${shuffle ? fmt.green("on") : "off"}\n`);
+            ib.ui.redraw();
+            return 0;
+          }
+          case "repeat": {
+            const order: Repeat[] = ["off", "all", "one"];
+            repeat = order.includes(b as Repeat) ? (b as Repeat) : order[(order.indexOf(repeat) + 1) % 3];
+            await ib.storage.set("repeat", repeat);
+            ctx.out(`repeat ${repeat}\n`);
+            ib.ui.redraw();
+            return 0;
+          }
+          case "queue": {
+            if (!queue.length) return ctx.out(fmt.dim("the queue is empty\n")), 0;
+            queue.slice(Math.max(0, qi - 2), qi + 15).forEach((p, k) => {
+              const i = Math.max(0, qi - 2) + k;
+              const t = byPath.get(p);
+              ctx.out(`${i === qi ? fmt.green("▶") : " "} ${fmt.dim(String(i + 1).padStart(3))} ${t?.title ?? p} ${fmt.dim(`— ${t?.artist ?? ""}`)}\n`);
+            });
+            return 0;
+          }
+          case "seek": {
+            if (!localActive()) return ctx.err("music: seek works on local tracks\n"), 1;
+            const m = /^([+-])?(?:(\d+):)?(\d+)$/.exec(b ?? "");
+            if (!m) return ctx.err("usage: music seek 1:30 | +10 | -10\n"), 1;
+            const secs = Number(m[2] ?? 0) * 60 + Number(m[3]);
+            const to = m[1] ? position() + (m[1] === "-" ? -secs : secs) : secs;
+            await player.control(`seek:${Math.max(0, to)}`);
+            setTimeout(() => void pollLocal(), 120);
+            return 0;
+          }
+          case "open": ib.apps.open("music"); return 0;
+          default: {
+            const action = ACTIONS[a];
+            if (!action) return ctx.err(`music: "${a}"? try music -h\n`), 1;
+            if (!localActive() && !ib.media.available()) return ctx.err("music: needs the desktop app\n"), 1;
+            await control(action);
+            return 0;
+          }
         }
-        const action = ACTIONS[a];
-        if (!action) return ctx.err(`music: "${a}"? try toggle, play, pause, next, prev, vol\n`), 1;
-        await control(action);
-        return 0;
       } catch (e) {
         ctx.err(`music: ${e instanceof Error ? e.message : String(e)}\n`);
         return 1;
       }
     },
   });
+
+  // ── the MUSIC app: a mini iTunes, text only ──────────────────────────────
+  type Col = 0 | 1 | 2;
+  class MusicApp implements App {
+    readonly kind = "music";
+    readonly key = "music";
+    private col: Col = 0;
+    private sel = [0, 0, 0];
+    private scroll = [0, 0, 0];
+    private query = "";
+    private typing = false;
+
+    title() {
+      return "Music";
+    }
+    status() {
+      return `${lib.length} tracks · ${folder}`;
+    }
+    private artistList() {
+      return ["all artists", ...artists()];
+    }
+    private albumList() {
+      const a = this.sel[0] > 0 ? this.artistList()[this.sel[0]] : undefined;
+      return albumsOf(a);
+    }
+    private trackList(): LocalTrack[] {
+      if (this.query) return fuzzyFilter(this.query, lib, (t) => `${t.title} ${t.artist} ${t.album}`, 400);
+      const al = this.albumList()[this.sel[1]];
+      return al ? tracksOf(al.album, al.artist || undefined) : [];
+    }
+    private len(col: Col) {
+      return col === 0 ? this.artistList().length : col === 1 ? this.albumList().length : this.trackList().length;
+    }
+    private playSel(): void {
+      if (this.col === 0) {
+        const a = this.artistList()[this.sel[0]];
+        run(this.sel[0] === 0 ? "music play --path " + q(lib[0]?.path ?? "") : `music artist ${q(a)}`);
+      } else if (this.col === 1) {
+        const al = this.albumList()[this.sel[1]];
+        if (al) run(`music album ${q(al.album)}${al.artist ? ` --artist ${q(al.artist)}` : ""}`);
+      } else {
+        const t = this.trackList()[this.sel[2]];
+        if (!t) return;
+        if (this.query) run(`music play --path ${q(t.path)}`);
+        else {
+          const al = this.albumList()[this.sel[1]];
+          run(`music album ${q(al.album)}${al.artist ? ` --artist ${q(al.artist)}` : ""} --from ${this.sel[2] + 1}`);
+        }
+      }
+    }
+
+    onText(t: string): boolean {
+      if (this.typing) {
+        if (t.includes("\n")) this.typing = false;
+        else this.query += t;
+        this.col = 2;
+        this.sel[2] = 0;
+        return true;
+      }
+      switch (t) {
+        case "/": this.typing = true; this.query = ""; return true;
+        case " ": run("music toggle"); return true;
+        case "n": run("music next"); return true;
+        case "p": run("music prev"); return true;
+        case "s": run("music shuffle"); return true;
+        case "r": run("music repeat"); return true;
+        case "+": case "=": run("music vol +"); return true;
+        case "-": run("music vol -"); return true;
+        case "x": run("music stop"); return true;
+        case "f": void this.pickFolder(); return true;
+        default: return false;
+      }
+    }
+    onKey(k: KeyInput): boolean {
+      if (this.typing) {
+        if (k.combo === "esc") return (this.typing = false), (this.query = ""), true;
+        if (k.combo === "backspace") return (this.query = this.query.slice(0, -1)), true;
+        if (k.combo === "enter") return (this.typing = false), true;
+        return k.combo.length === 1;
+      }
+      if (k.combo === "esc" && this.query) return (this.query = ""), true;
+      if (k.combo === "tab") return (this.col = ((this.col + 1) % 3) as Col), true;
+      if (k.combo === "shift+tab") return (this.col = ((this.col + 2) % 3) as Col), true;
+      if (k.combo === "left" && this.col > 0) return (this.col = (this.col - 1) as Col), true;
+      if (k.combo === "right" && this.col < 2) return (this.col = (this.col + 1) as Col), true;
+      return false;
+    }
+    onAction(a: Action): boolean {
+      const n = this.len(this.col);
+      const move = (d: number) => {
+        this.sel[this.col] = Math.max(0, Math.min(n - 1, this.sel[this.col] + d));
+        if (this.col === 0) this.sel[1] = this.sel[2] = 0;
+        if (this.col === 1) this.sel[2] = 0;
+      };
+      switch (a) {
+        case "up": move(-1); return true;
+        case "down": move(1); return true;
+        case "page-up": move(-10); return true;
+        case "page-down": move(10); return true;
+        case "confirm": this.playSel(); return true;
+        default: return false;
+      }
+    }
+    private async pickFolder(): Promise<void> {
+      const v = await ib.ui.prompt("Music folder", { initial: folder, placeholder: "~/Music" });
+      if (v?.trim()) run(`music folder ${q(v.trim())}`);
+    }
+
+    render(ui: UI, r: Rect, focused: boolean): void {
+      const c = ui.c;
+      if (!lib.length) {
+        const y = r.y + Math.floor(r.h / 2) - 2;
+        ui.textCenter(r, y, scanning ? `${ui.spinner()} reading ${folder}…` : "no music yet", { fg: c.muted, attrs: BOLD });
+        if (!scanning) {
+          ui.textCenter(r, y + 1, `folder: ${folder}`, { fg: c.faint });
+          const bx = r.x + Math.floor(r.w / 2) - 12;
+          ui.button(bx, y + 3, "scan", () => run("music scan"), { cmd: "music scan" });
+          ui.button(bx + 9, y + 3, "choose folder", () => void this.pickFolder(), { tip: "f · music folder <path>" });
+        } else ui.animate(100);
+        return;
+      }
+      // search line
+      const sy = r.y;
+      const sbg = this.typing ? mix(c.accent, c.bg, 0.86) : c.panelAlt;
+      ui.fill({ x: r.x + 1, y: sy, w: r.w - 2, h: 1 }, { bg: sbg });
+      ui.text(r.x + 2, sy, "/", { fg: c.accent, bg: sbg, attrs: BOLD });
+      ui.text(r.x + 4, sy, this.query || (this.typing ? "" : "search  (/)"), { fg: this.query ? c.fg : c.faint, bg: sbg }, r.w - 30);
+      if (this.typing && focused) ui.cursor(r.x + 4 + strWidth(this.query), sy);
+      ui.hit({ x: r.x + 1, y: sy, w: r.w - 30, h: 1 }, { onClick: () => ((this.typing = true), (this.query = "")), tip: "search titles, artists, albums" });
+      ui.textRight(r.x + r.w - 2, sy, `${lib.length} tracks · ${scanning ? "scanning…" : folder}`, { fg: c.faint, bg: sbg });
+
+      // three columns + now playing bar
+      const barH = 3;
+      const top = sy + 2;
+      const h = r.h - (top - r.y) - barH;
+      const w0 = Math.floor((r.w - 2) * 0.24), w1 = Math.floor((r.w - 2) * 0.3);
+      const cols: { x: number; w: number; title: string; items: string[]; hints: string[] }[] = [
+        { x: r.x + 1, w: w0, title: "ARTISTS", items: this.artistList(), hints: [] },
+        { x: r.x + 2 + w0, w: w1, title: "ALBUMS", items: this.albumList().map((a) => a.album), hints: this.albumList().map((a) => (a.year ? String(a.year) : "")) },
+        { x: r.x + 3 + w0 + w1, w: r.w - w0 - w1 - 4, title: this.query ? "RESULTS" : "TRACKS", items: this.trackList().map((t) => t.title), hints: this.trackList().map((t) => (this.query ? `${t.artist} · ${clock(t.duration)}` : clock(t.duration))) },
+      ];
+      const playing = local?.path ?? "";
+      const tracks = this.trackList();
+      cols.forEach((col, ci) => {
+        const on = this.col === ci;
+        ui.text(col.x, top - 1, col.title, { fg: on && focused ? c.accent : c.subtle, attrs: BOLD });
+        if (ci > 0) ui.vline(col.x - 1, top - 1, h + 1, { fg: c.border });
+        const viewH = h;
+        const sel = this.sel[ci];
+        if (sel < this.scroll[ci]) this.scroll[ci] = sel;
+        if (sel >= this.scroll[ci] + viewH) this.scroll[ci] = sel - viewH + 1;
+        const s0 = this.scroll[ci];
+        col.items.slice(s0, s0 + viewH).forEach((label, k) => {
+          const i = s0 + k;
+          const y = top + k;
+          const row = { x: col.x, y, w: col.w, h: 1 };
+          const isSel = i === sel;
+          const bg = isSel ? (on && focused ? mix(c.accent, c.bg, 0.72) : c.highlight) : ui.hovered(row) ? c.panelAlt : -1;
+          if (bg !== -1) ui.fill(row, { bg });
+          const st = bg !== -1 ? { bg } : {};
+          const isPlaying = ci === 2 && tracks[i]?.path === playing;
+          const num = ci === 2 && !this.query ? `${String(tracks[i]?.track || i + 1).padStart(2)} ` : "";
+          const lx = ui.text(col.x + 1, y, isPlaying ? (local?.playing ? "▶ " : "❚❚") : num, { fg: isPlaying ? c.accent : c.faint, ...st });
+          const hint = col.hints[i] ?? "";
+          const hx = hint ? ui.textRight(col.x + col.w - 1, y, hint, { fg: c.faint, ...st }) : col.x + col.w;
+          ui.text(isPlaying ? lx + 1 : lx, y, label, { fg: isPlaying ? c.accent : isSel ? c.fg : c.muted, attrs: isSel || isPlaying ? BOLD : 0, ...st }, hx - lx - 2);
+          ui.hit(row, {
+            onClick: () => {
+              this.col = ci as Col;
+              this.sel[ci] = i;
+              if (ci === 0) this.sel[1] = this.sel[2] = 0;
+              if (ci === 1) this.sel[2] = 0;
+            },
+            onDouble: () => {
+              this.col = ci as Col;
+              this.sel[ci] = i;
+              this.playSel();
+            },
+            tip: "double-click / enter: play",
+          });
+        });
+        ui.hit({ x: col.x, y: top, w: col.w, h: viewH }, {
+          onWheel: (d) => (this.scroll[ci] = Math.max(0, Math.min(Math.max(0, col.items.length - viewH), this.scroll[ci] + d))),
+        });
+      });
+
+      // now playing
+      const by = r.y + r.h - barH;
+      ui.hline(r.x + 1, by, r.w - 2, { fg: c.border });
+      const s = localStatus();
+      const t = current();
+      if (s && t) {
+        ui.text(r.x + 2, by + 1, s.playing ? "▶" : "❚❚", { fg: c.accent, attrs: BOLD });
+        ui.text(r.x + 5, by + 1, t.title, { fg: c.fg, attrs: BOLD }, Math.floor(r.w / 2));
+        ui.text(r.x + 5, by + 2, `${t.artist} · ${t.album}`, { fg: c.muted }, Math.floor(r.w / 2));
+        const pw = Math.max(10, Math.floor(r.w * 0.3));
+        const px = r.x + r.w - pw - 14;
+        const pos = position();
+        const ratio = s.duration ? pos / s.duration : 0;
+        ui.text(px - 6, by + 1, clock(pos).padStart(5), { fg: c.subtle });
+        ui.bar(px, by + 1, pw, ratio);
+        ui.text(px + pw + 1, by + 1, clock(s.duration), { fg: c.subtle });
+        ui.hit({ x: px, y: by + 1, w: pw, h: 1 }, { onClick: (m) => run(`music seek ${Math.floor(((m.x - px) / pw) * s.duration)}`), tip: "click to jump · music seek 1:30" });
+        if (ui.now) ui.animate(250);
+      } else ui.text(r.x + 2, by + 1, "nothing playing · enter plays the selection", { fg: c.faint });
+      // controls
+      let cx = r.x + r.w - 46;
+      const ctl = (label: string, cmd: string, tip: string, on = false) => {
+        const rect = { x: cx, y: by + 2, w: strWidth(label), h: 1 };
+        const hot = ui.hovered(rect);
+        ui.text(cx, by + 2, label, hot ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: on ? c.accent : c.fg, bg: c.highlight, attrs: on ? BOLD : 0 });
+        ui.hit(rect, { cmd, tip });
+        cx += rect.w + 1;
+      };
+      ctl(" |◀◀ ", "music prev", "p");
+      ctl(s?.playing ? " ❚❚ " : " ▶ ", "music toggle", "space");
+      ctl(" ▶▶| ", "music next", "n");
+      ctl(" shuffle ", "music shuffle", "s", shuffle);
+      ctl(` repeat ${repeat} `, "music repeat", "r", repeat !== "off");
+      ctl(" − ", "music vol -", "-");
+      ctl(" + ", "music vol +", `+ · volume ${Math.round(local?.volume ?? 80)}%`);
+    }
+  }
+
+  ib.apps.register({
+    kind: "music",
+    title: "Music",
+    description: "your music folder: artists, albums, tracks (no cover art)",
+    icon: "♪",
+    launcher: true,
+    create: () => new MusicApp(),
+  });
+  ib.palette.register({ id: "music.open", title: "Music library", group: "music", run: () => run("music open") });
 
   // ── the widget ──
 
@@ -112,10 +653,11 @@ export function activate(ib: IcebreakerAPI): void {
     min: { w: 2, h: 2 },
     render(ui, r) {
       const c = ui.c;
-      if (!ib.media.available()) return void ui.text(r.x + 1, r.y, "music needs the desktop app", { fg: c.muted }, r.w - 2);
-      if (Date.now() - polledAt > (status?.playing ? 2000 : 4000)) void poll();
+      if (!ib.media.available() && !localActive()) return void ui.text(r.x + 1, r.y, "music needs the desktop app", { fg: c.muted }, r.w - 2);
+      if (!localActive() && Date.now() - polledAt > (shown()?.playing ? 2000 : 4000)) void poll();
+      const status = shown();
       ui.animate(status?.playing ? 120 : 1000);
-      if (error) {
+      if (error && !localActive()) {
         ui.text(r.x + 1, r.y, `⚠ ${error}`, { fg: c.error }, r.w - 2);
         if (r.h > 1) ui.text(r.x + 1, r.y + 1, "enter: retry", { fg: c.faint });
         return;
@@ -123,7 +665,7 @@ export function activate(ib: IcebreakerAPI): void {
       if (!status) {
         const msg = loading && !at ? `${ui.spinner()} listening…` : "nothing playing";
         ui.textCenter(r, r.y + Math.floor((r.h - 1) / 2) - (r.h > 2 ? 1 : 0), msg, { fg: c.muted });
-        if (r.h > 2) ui.textCenter(r, r.y + Math.floor((r.h - 1) / 2), "play something in Spotify or Music", { fg: c.faint });
+        if (r.h > 2) ui.textCenter(r, r.y + Math.floor((r.h - 1) / 2), lib.length ? "enter: your library" : "Spotify, Music, or: music folder <path>", { fg: c.faint });
         return;
       }
       const s = status;
@@ -205,7 +747,13 @@ export function activate(ib: IcebreakerAPI): void {
       if (error) {
         error = null;
         void poll();
-      } else void ib.shell.run("music toggle");
+      } else if (!shown() && lib.length) run("music open");
+      else run("music toggle");
     },
   });
+}
+
+export function deactivate(): void {
+  if (tick) clearInterval(tick);
+  tick = null;
 }

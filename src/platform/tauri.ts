@@ -1,7 +1,7 @@
 import { listen } from "@tauri-apps/api/event";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { MediaStatus, Platform, SystemStats, VaultEntry } from "./types";
+import type { LocalTrack, MediaStatus, Platform, PlayerStatus, SystemStats, VaultEntry } from "./types";
 
 /**
  * Desktop platform: thin wrappers around the Rust commands defined in
@@ -52,10 +52,10 @@ export function createTauriPlatform(): Platform {
     },
     onVaultChange: (cb) => void listen("vault-fs", () => cb()),
     pty: {
-      spawn: (id, cols, rows, onData) => {
+      spawn: (id, cols, rows, onData, modules) => {
         const ch = new Channel<string>();
         ch.onmessage = onData;
-        return invoke<string>("pty_spawn", { id, cols, rows, onData: ch });
+        return invoke<string>("pty_spawn", { id, cols, rows, onData: ch, modules: modules ?? [] });
       },
       write: (id, data) => invoke<void>("pty_write", { id, data }),
       resize: (id, cols, rows) => invoke<void>("pty_resize", { id, cols, rows }),
@@ -68,6 +68,20 @@ export function createTauriPlatform(): Platform {
     media: {
       status: () => invoke<MediaStatus | null>("media_status"),
       control: (action) => invoke<void>("media_control", { action }),
+    },
+    player: {
+      scan: (folder) => invoke<LocalTrack[]>("audio_scan", { folder }),
+      load: (path, play, duration) => invoke<void>("audio_load", { path, play, duration }),
+      control: (action) => invoke<void>("audio_control", { action }),
+      status: () => invoke<PlayerStatus>("audio_status"),
+    },
+    google: {
+      status: () => invoke<{ configured: boolean; custom: boolean; connected: boolean }>("google_status"),
+      setup: (clientId, clientSecret) => invoke<void>("google_setup", { clientId, clientSecret }),
+      connect: () => invoke<void>("google_connect"),
+      disconnect: () => invoke<void>("google_disconnect"),
+      calendar: (method, path, query, body) => invoke<string>("google_calendar", { method, path, query, body }),
+      cache: (content) => invoke<string | null>("google_cache", { content: content ?? null }),
     },
     dev: {
       factoryReset: () => invoke<string[]>("dev_factory_reset"),

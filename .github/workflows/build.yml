@@ -59,6 +59,17 @@ jobs:
         if: matrix.name == 'linux'
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
+      # ICEBREAKER's Google OAuth client (CALENDAR), from the repository secrets
+      # GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET. Without them the build still
+      # works: users then bring their own client (see docs/GOOGLE.md).
+      - name: Google OAuth client
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        if: env.GOOGLE_CLIENT_ID != ''
+        shell: bash
+        run: printf '{"client_id":"%s","client_secret":"%s"}' "$GOOGLE_CLIENT_ID" "$GOOGLE_CLIENT_SECRET" > src-tauri/google-client.json
+
       - name: Build
         run: npm run tauri -- build ${{ matrix.args }}
 

@@ -316,7 +316,8 @@ export class HomeApp implements App {
       this.selAt = ui.now;
     }
     if (this.deck.settings.data.fx.ambient && !this.editing) drawBackground(ui, r, ui.theme, 0.8);
-    const area = { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 1 };
+    // one free cell on each side (a widget's right edge already leaves a 1-cell gap)
+    const area = { x: r.x + 1, y: r.y + 1, w: r.w - 1, h: r.h - 1 };
     // Columns stretch to the full width (cell edges are rounded, so they never drift).
     this.colW = Math.max(4, area.w / COLS);
     this.origin = { x: area.x, y: area.y };
@@ -326,6 +327,15 @@ export class HomeApp implements App {
     const maxScroll = Math.max(0, contentH - area.h);
     // a HOME that fits: as much room above as below (the last row has no gap under it)
     if (!this.editing && contentH - 1 < area.h) this.origin.y = area.y + Math.floor((area.h - (contentH - 1)) / 2);
+    // …and as much room left as right, when the widgets don't use every column
+    if (!this.editing) {
+      const onPage = this.layout.filter((p) => (p.page ?? 0) === this.page);
+      if (onPage.length) {
+        const minX = Math.min(...onPage.map((p) => p.x));
+        const maxX = Math.max(...onPage.map((p) => p.x + p.w));
+        this.origin.x = area.x + Math.round((((COLS - (maxX - minX)) / 2 - minX) * this.colW));
+      }
+    }
     if (this.reveal) {
       const p = this.layout[this.selected];
       if (p) {
@@ -342,7 +352,7 @@ export class HomeApp implements App {
       w: colX(p.x + p.w) - colX(p.x) - 1,
       h: p.h * ROW - 1,
     });
-    ui.hit(area, { onWheel: (d) => (this.scroll = Math.max(0, Math.min(maxScroll, this.scroll + d * 2))) });
+    ui.hit(area, { onWheel: (d) => (this.scroll = Math.max(0, Math.min(maxScroll, this.scroll + d))) });
 
     if (this.editing) {
       // grid dots so you can see where things snap

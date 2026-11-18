@@ -96,6 +96,6 @@ export class ListView<T> {
       const thumbY = r.y + Math.round((this.scrollTop / (this.items.length - this.viewH)) * (this.viewH - thumbH));
       ui.vline(r.x + r.w - 1, thumbY, thumbH, { fg: focused ? ui.c.accent : ui.c.subtle }, "▐");
     }
-    ui.hit(r, { onWheel: (d) => (this.scrollTop = Math.max(0, this.scrollTop + d * 2)) });
+    ui.hit(r, { onWheel: (d) => (this.scrollTop = Math.max(0, this.scrollTop + d)) });
   }
 }

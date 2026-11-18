@@ -6,7 +6,8 @@ import type { Deck } from "../deck";
 import { drawBackground } from "../fx/backgrounds";
 import { Rain } from "../fx/rain";
 import { inside, q, type Hit, type UI } from "../ui/ui";
-import { ConfirmDialog, Osk, Palette, PromptDialog, Toasts, type Overlay, type ToastKind } from "./overlays";
+import { ConfirmDialog, Osk, Palette, PromptDialog, Toasts, type Overlay, type ToastKind, ChooseDialog } from "./overlays";
+import type { ChoiceOption } from "../plugins/api";
 import { FxPanel } from "./fxpanel";
 import { Sidebar } from "./sidebar";
 import { SystemTerminal } from "../shell/systerm";
@@ -252,6 +253,10 @@ export class Workspace {
     return new Promise((resolve) => this.push(new ConfirmDialog(title, detail, resolve)));
   }
 
+  choose(title: string, options: ChoiceOption[], selected = 0): Promise<number | null> {
+    return new Promise((resolve) => this.push(new ChooseDialog(title, options, selected, resolve)));
+  }
+
   prompt(title: string, opts: { initial?: string; placeholder?: string; mask?: boolean } = {}): Promise<string | null> {
     return new Promise((resolve) => this.push(new PromptDialog(title, opts, resolve)));
   }
@@ -453,7 +458,7 @@ export class Workspace {
     this.rects.main = mainR;
     const app = this.activeApp;
     const mainFocused = this.focus === "main" && !this.topModal;
-    const inner = ui.box(mainR, { title: app ? app.title().toUpperCase() : "", focused: mainFocused, info: app?.kind === "note" ? app.key.slice(5) : app?.kind });
+    const inner = ui.box(mainR, { title: app ? app.title().toUpperCase() : "", focused: mainFocused, info: app?.kind === "note" ? app.key.slice(5) : app && app.kind !== app.title().toLowerCase() ? app.kind : undefined });
     if (app) ui.clip(inner, () => app.render(ui, inner, mainFocused));
 
     if (this.shellVisible) {
@@ -480,28 +485,29 @@ export class Workspace {
         ui.hit(rect, { onClick: () => this.showShellTab(id), tip: id === "term" ? "your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)" : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash" : "what clicks ran, with their output" });
         tx += rect.w + 1;
       }
-      // ⤢ maximize / ⤡ restore
+      // ⤢ maximize / ⤡ restore: drawn like the tabs next to it
       const mlabel = max ? " ⤡ restore " : " ⤢ maximize ";
-      const mx = { x: tx + 1, y: r.y, w: strWidth(mlabel), h: 1 };
-      ui.text(mx.x, r.y, mlabel, ui.hovered(mx) ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: c.muted, bg: c.highlight });
+      const mx = { x: tx, y: r.y, w: strWidth(mlabel), h: 1 };
+      ui.text(mx.x, r.y, mlabel, { fg: ui.hovered(mx) ? c.accent : c.title, bg: c.panel });
       ui.hit(mx, { cmd: "term max", tip: max ? "back to normal" : "make the shell big (the page moves below)" });
-      tx += mx.w + 2;
-      // macro bar above the system terminal
+      tx += mx.w + 1;
+      // macro bar above the system terminal (one free row under the tabs)
       let termR = si;
-      if (this.shellTab === "term" && this.termAvailable && si.h > 5) {
-        termR = { ...si, y: si.y + 2, h: si.h - 2 };
+      if (this.shellTab === "term" && this.termAvailable && si.h > 6) {
+        const my = si.y + 1;
+        termR = { ...si, y: si.y + 3, h: si.h - 3 };
         let bx = si.x;
         this.deck.settings.data.shell.macros.forEach((m, i) => {
           const label = ` ${m.label} `;
-          const rect = { x: bx, y: si.y, w: strWidth(label), h: 1 };
+          const rect = { x: bx, y: my, w: strWidth(label), h: 1 };
           if (bx + rect.w > si.x + si.w - 4) return;
           const hot = ui.hovered(rect);
-          ui.text(bx, si.y, label, hot ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: c.fg, bg: c.highlight });
+          ui.text(bx, my, label, hot ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: c.fg, bg: c.highlight });
           ui.hit(rect, { onClick: (mi) => void (mi.shift ? this.editMacro(i) : this.runMacro(m)), tip: `${m.cmd}\nshift+click: edit · macro rm ${m.label}` });
           bx += rect.w + 1;
         });
-        const plus = { x: bx, y: si.y, w: 3, h: 1 };
-        ui.text(bx, si.y, " + ", { fg: ui.hovered(plus) ? c.accent : c.subtle, bg: c.highlight, attrs: BOLD });
+        const plus = { x: bx, y: my, w: 3, h: 1 };
+        ui.text(bx, my, " + ", { fg: ui.hovered(plus) ? c.accent : c.subtle, bg: c.highlight, attrs: BOLD });
         ui.hit(plus, { onClick: () => void this.editMacro(-1), tip: "new macro · or: macro add <label> <command>" });
       }
       ui.clip(si, () => {

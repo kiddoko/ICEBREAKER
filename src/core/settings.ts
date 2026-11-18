@@ -103,7 +103,7 @@ export const DEFAULT_SETTINGS: Settings = {
   journal: { folder: "journal" },
   editor: { autosave: true, tabSize: 2 },
   // the community index: a JSON list of plugins/themes (see docs/COMMUNITY.md)
-  plugins: { enabled: [], disabled: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-community/main/index.json" },
+  plugins: { enabled: [], disabled: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json" },
   // empty = the default layout (widgets/builtin.ts)
   home: { widgets: [], weatherCity: "Paris", worldClocks: ["America/New_York", "Europe/London", "Asia/Tokyo"], newsTopic: "" },
 };
@@ -130,6 +130,8 @@ export class SettingsStore {
     const rawSecrets = await platform.config.read("secrets.json").catch(() => null);
     // (JSON copy rather than structuredClone: works on older macOS WebKit too)
     const data = deepMerge(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), safeJson(raw)) as Settings;
+    // the community index moved to icebreaker-modules
+    if (data.plugins.registry === "https://raw.githubusercontent.com/kiddoko/icebreaker-community/main/index.json") data.plugins.registry = DEFAULT_SETTINGS.plugins.registry;
     const secrets = { anthropicApiKey: "", ...(safeJson(rawSecrets) as Partial<Secrets>) };
     return new SettingsStore(platform, data, secrets);
   }

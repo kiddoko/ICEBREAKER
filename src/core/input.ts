@@ -103,6 +103,8 @@ function ctrlKey(letter: string, shift = false): KeyInput {
 export class InputManager {
   /** Last known mouse cell (for hover effects). */
   mouseCell = { x: -1, y: -1 };
+  private wheelPx = 0;
+  private wheelAt = 0;
   /** Called on any input — used for idle detection and to wake the frame loop. */
   onActivity: () => void = () => {};
   private buttons = 0;
@@ -225,8 +227,20 @@ export class InputManager {
       (e) => {
         e.preventDefault();
         this.onActivity();
-        const lines = e.deltaMode === 1 ? e.deltaY : e.deltaY / 40;
-        this.sink.mouse(make("wheel", e, Math.sign(lines) * Math.max(1, Math.round(Math.abs(lines)))));
+        // Trackpads send many tiny events: add up the pixels and report whole lines
+        // (one line = one cell). A lone notch of a slow mouse wheel still moves one line.
+        const cellH = this.renderer.cellH || 16;
+        const px = e.deltaMode === 1 ? e.deltaY * cellH : e.deltaMode === 2 ? e.deltaY * cellH * 20 : e.deltaY;
+        const now = performance.now();
+        const lone = now - this.wheelAt > 250;
+        this.wheelAt = now;
+        if (lone || Math.sign(px) !== Math.sign(this.wheelPx)) this.wheelPx = 0;
+        this.wheelPx += px;
+        let lines = Math.trunc(this.wheelPx / cellH);
+        if (!lines && lone && px) lines = Math.sign(px);
+        if (!lines) return;
+        this.wheelPx = lone && Math.abs(this.wheelPx) < cellH ? 0 : this.wheelPx - lines * cellH;
+        this.sink.mouse(make("wheel", e, lines));
       },
       { passive: false },
     );

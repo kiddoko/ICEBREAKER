@@ -60,13 +60,22 @@ export class SystemTerminal {
           data = data.replace(EXIT_MARK, "\r\n\x1b[2m[process exited — press enter to start a new shell]\x1b[0m\r\n");
         }
         this.term.write(data, () => this.deck.requestFrame());
-      })
+      }, this.moduleCommands())
       .then((name) => (this.shellName = name))
       .catch((e) => {
         this.error = String(e);
         this.exited = true;
         this.deck.requestFrame();
       });
+  }
+
+  /** Module commands (and aliases): in this shell they win over system programs with the same name (macOS `cal`…). */
+  private moduleCommands(): string[] {
+    return this.deck.commands
+      .all()
+      .filter((c) => c.source && c.source !== "core")
+      .flatMap((c) => [c.name, ...(c.aliases ?? [])])
+      .filter((n) => /^[a-z][a-z0-9_-]*$/.test(n));
   }
 
   restart(): void {
@@ -179,8 +188,8 @@ export class SystemTerminal {
     else if (focused && this.alive) ui.cursor(r.x + Math.min(buf.cursorX, r.w - 1), r.y + buf.cursorY, this.lastInputAt);
     ui.hit(r, {
       onWheel: (d) => {
-        if (buf.type === "alternate") this.write((d < 0 ? (this.term.modes.applicationCursorKeysMode ? "\x1bOA" : "\x1b[A") : this.term.modes.applicationCursorKeysMode ? "\x1bOB" : "\x1b[B").repeat(3));
-        else this.term.scrollLines(d < 0 ? -3 : 3);
+        if (buf.type === "alternate") this.write((d < 0 ? (this.term.modes.applicationCursorKeysMode ? "\x1bOA" : "\x1b[A") : this.term.modes.applicationCursorKeysMode ? "\x1bOB" : "\x1b[B").repeat(Math.min(10, Math.abs(d))));
+        else this.term.scrollLines(d);
         this.deck.requestFrame();
       },
     });

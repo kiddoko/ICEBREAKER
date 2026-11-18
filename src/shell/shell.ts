@@ -181,7 +181,7 @@ export class ShellApp implements App {
     const maxScroll = Math.max(0, total - r.h);
     this.historyScroll = Math.min(this.historyScroll, maxScroll);
     this.history.render(ui, r, Math.max(0, total - r.h - this.historyScroll));
-    ui.hit(r, { onWheel: (d) => this.historyPane.onAction(d < 0 ? "scroll-up" : "scroll-down") });
+    ui.hit(r, { onWheel: (d) => (this.historyScroll = Math.max(0, this.historyScroll - d)) });
   }
 
   // ── input ────────────────────────────────────────────────────────────────
@@ -429,7 +429,7 @@ export class ShellApp implements App {
     } else {
       this.drawPrompt(ui, r.x, py, r.w, focused);
     }
-    ui.hit(r, { onWheel: (d) => this.onAction(d < 0 ? "scroll-up" : "scroll-down") });
+    ui.hit(r, { onWheel: (d) => (this.scroll = Math.max(0, this.scroll - d)) });
   }
 
   /** The question line: numbered quick-answer chips, then "label ❯ answer". */

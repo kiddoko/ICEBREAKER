@@ -9,41 +9,74 @@ import type { UI } from "../ui/ui";
 export interface BootLine {
   text: string;
   status?: "OK" | "WARN" | "FAIL" | "INFO";
+  /** how long the step really took */
+  ms?: number;
 }
 
 /**
- * The boot sequence: a BIOS-style POST with real information about your
- * machine and vault, then the logo "decrypts" over falling glyphs.
- * Any key skips. `boot.mode` = full | fast | off.
+ * The boot sequence: a BIOS-style POST that runs live. Each line appears when
+ * the startup step it describes has really finished (with its real duration),
+ * then the logo "decrypts" over falling glyphs. Any key skips.
+ * `boot.mode` = full | fast | off.
  */
 export class BootScreen {
   done = false;
   private t0 = performance.now();
   private rain = new Rain(0.7);
   private readonly lineMs: number;
-  private readonly postEnd: number;
-  private readonly logoEnd: number;
-  private readonly end: number;
+  private readonly mode: "full" | "fast";
+  /** when each line became visible (ms since t0) */
+  private shownAt: number[] = [];
+  private finished = false;
+  /** set once startup is over: the POST ends, then the logo */
+  private postEnd = Infinity;
+  private logoEnd = Infinity;
+  private end = Infinity;
+  memMB = 0;
 
-  constructor(
-    private readonly lines: BootLine[],
-    private readonly memMB: number,
-    mode: "full" | "fast",
-  ) {
-    this.lineMs = mode === "full" ? 85 : 0;
-    this.postEnd = mode === "full" ? lines.length * this.lineMs + 500 : 0;
-    this.logoEnd = this.postEnd + (mode === "full" ? 1500 : 700);
-    this.end = this.logoEnd + (mode === "full" ? 1600 : 300);
+  constructor(mode: "full" | "fast", private readonly lines: BootLine[] = []) {
+    this.mode = mode;
+    // in full mode lines come in at a readable pace, never before their step is done
+    this.lineMs = mode === "full" ? 70 : 0;
+    if (lines.length) this.finish();
   }
 
   private get elapsed(): number {
     return performance.now() - this.t0;
   }
 
+  /** The same POST again, from the start (`reboot`). */
+  replay(): BootScreen {
+    const b = new BootScreen("full", [...this.lines]);
+    b.memMB = this.memMB;
+    return b;
+  }
+
+  /** A startup step finished. */
+  log(line: BootLine): void {
+    this.lines.push(line);
+  }
+
+  /** Startup is over: let the POST play out, then the logo. */
+  finish(): void {
+    this.finished = true;
+  }
+
+  /** The last line is on screen (at `at`): time the pause and the logo from there. */
+  private schedule(at: number): void {
+    this.postEnd = at + (this.mode === "full" ? 500 : 0);
+    this.logoEnd = this.postEnd + (this.mode === "full" ? 1500 : 700);
+    this.end = this.logoEnd + (this.mode === "full" ? 1600 : 300);
+  }
+
   /** A key was pressed: jump ahead (first to the logo, then out). */
   skip(): void {
-    if (this.elapsed < this.postEnd) this.t0 = performance.now() - this.postEnd;
-    else if (this.elapsed < this.logoEnd) this.t0 = performance.now() - this.logoEnd;
+    const t = this.elapsed;
+    this.shownAt = this.lines.map(() => 0); // show everything loaded so far
+    if (!this.finished) return; // can't get ahead of the real startup
+    if (!Number.isFinite(this.postEnd)) this.schedule(t);
+    if (t < this.postEnd) this.t0 = performance.now() - this.postEnd;
+    else if (t < this.logoEnd) this.t0 = performance.now() - this.logoEnd;
     else this.done = true;
   }
 
@@ -83,15 +116,22 @@ export class BootScreen {
 
   private renderPost(ui: UI, t: number): void {
     const c = ui.c;
-    const n = this.lineMs ? Math.min(this.lines.length, Math.floor(t / this.lineMs) + 1) : this.lines.length;
+    // a line shows once its step is done AND the previous one has had its moment
+    for (let i = this.shownAt.length; i < this.lines.length; i++) {
+      const at = Math.max(t, (this.shownAt[i - 1] ?? 0) + this.lineMs);
+      if (at > t) break;
+      this.shownAt.push(at);
+    }
+    const n = this.shownAt.length;
+    if (this.finished && n === this.lines.length && !Number.isFinite(this.postEnd)) this.schedule(this.shownAt[n - 1] ?? t);
     const x = 2;
     let y = 1;
     ui.text(x, y++, "ICEBREAKER BIOS v0.1.0 · open firmware · no warranty, no masters", { fg: c.accent, attrs: BOLD });
     ui.text(x, y++, "(c) the ICEBREAKER contributors — MIT licensed — https://github.com/", { fg: c.subtle, attrs: DIM });
     y++;
     // memory check counts up
-    const memP = Math.min(1, t / Math.max(1, this.postEnd * 0.4));
-    ui.text(x, y++, `MEM  testing ${String(Math.floor(this.memMB * memP)).padStart(6)} MB ${memP >= 1 ? "OK" : ""}`, { fg: c.fg });
+    const memP = this.memMB ? Math.min(1, t / 400) : 0;
+    ui.text(x, y++, `MEM  ${this.memMB ? "testing" : "probing"} ${String(Math.floor(this.memMB * memP)).padStart(6)} MB ${memP >= 1 ? "OK" : ""}`, { fg: c.fg });
     y++;
     for (let i = 0; i < n && y < ui.rows - 2; i++, y++) {
       const l = this.lines[i];
@@ -102,9 +142,14 @@ export class BootScreen {
         lx = ui.text(lx, y, ` ${l.status.padEnd(4).slice(0, 4)} `.slice(0, 6), { fg: color, attrs: BOLD });
         lx = ui.text(lx, y, "] ", { fg: c.subtle });
       }
-      ui.text(lx, y, l.text, { fg: l.status ? c.fg : c.muted }, ui.cols - lx - 2);
+      const ms = l.ms === undefined ? "" : l.ms < 1 ? "<1 ms" : `${Math.round(l.ms)} ms`;
+      const msW = ms ? strWidth(ms) + 2 : 0;
+      ui.text(lx, y, l.text, { fg: l.status ? c.fg : c.muted }, ui.cols - lx - 2 - msW);
+      if (ms) ui.textRight(ui.cols - 2, y, ms, { fg: (l.ms ?? 0) > 500 ? c.warning : c.subtle, attrs: DIM });
     }
-    if (n < this.lines.length || Math.floor(ui.now / 300) % 2) ui.text(x, y, "█", { fg: c.accent });
+    // still loading: a spinner on the next line; loaded: the blinking cursor
+    if (!this.finished && n === this.lines.length && y < ui.rows - 2) ui.text(x, y, `[  ${ui.spinner()}   ] working…`, { fg: c.subtle });
+    else if (n < this.lines.length || Math.floor(ui.now / 300) % 2) ui.text(x, y, "█", { fg: c.accent });
     if (this.elapsed < this.logoEnd) ui.textRight(ui.cols - 2, ui.rows - 1, "any key to skip", { fg: c.faint });
   }
 }

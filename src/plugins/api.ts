@@ -18,7 +18,9 @@
  * Permissions (declared in plugin.json, shown to the user before enabling):
  *   vault:read   read notes            vault:write  create / change notes
  *   ai           talk to the AI provider (uses the user's key / local model)
- *   media        see and control the music playing on the computer
+ *   media        see and control the music playing on the computer,
+ *                and play local music files (ib.media.player)
+ *   google-calendar   read and change the user's Google Calendar
  *
  * See docs/PLUGINS.md for a walkthrough, and `plugin new <id>` in the shell
  * for a ready-to-edit template.
@@ -30,9 +32,9 @@ import type { Theme } from "../core/theme";
 import type { Command } from "../shell/types";
 import type { WidgetSpec } from "../widgets/types";
 import type { BackgroundSpec } from "../fx/backgrounds";
-import type { MediaStatus } from "../platform/types";
+import type { LocalTrack, MediaStatus, PlayerStatus } from "../platform/types";
 
-export type Permission = "vault:read" | "vault:write" | "ai" | "media";
+export type Permission = "vault:read" | "vault:write" | "ai" | "media" | "google-calendar";
 
 export interface PluginManifest {
   id: string;
@@ -106,7 +108,45 @@ export interface IcebreakerAPI {
    * null when nothing plays; it throws where it isn't supported (browser,
    * Windows for now). Actions: toggle play pause next prev vol+ vol- vol:<0-100>.
    */
-  media: { available(): boolean; status(): Promise<MediaStatus | null>; control(action: string): Promise<void> };
+  media: {
+    available(): boolean;
+    status(): Promise<MediaStatus | null>;
+    control(action: string): Promise<void>;
+    /**
+     * ICEBREAKER's own player for local files (desktop). `scan` reads tags
+     * (never cover art); `control`: play pause toggle stop seek:<s> vol:<0-100>.
+     */
+    player: {
+      available(): boolean;
+      scan(folder: string): Promise<LocalTrack[]>;
+      load(path: string, play?: boolean, duration?: number): Promise<void>;
+      control(action: string): Promise<void>;
+      status(): Promise<PlayerStatus>;
+    };
+  };
+
+  /**
+   * The user's Google account (permission "google-calendar", desktop): they
+   * sign in in the browser (connect). Official builds carry ICEBREAKER's OAuth
+   * client; `setup` switches to the user's own (empty id = back to ICEBREAKER's).
+   * `calendar(method, path, { query, body })` calls the Calendar API v3
+   * (path relative to /calendar/v3/) and returns the parsed JSON.
+   */
+  google: {
+    available(): boolean;
+    /** configured: a client is available (the user's, or ICEBREAKER's built-in one) */
+    status(): Promise<{ configured: boolean; custom: boolean; connected: boolean }>;
+    setup(clientId: string, clientSecret: string): Promise<void>;
+    connect(): Promise<void>;
+    disconnect(): Promise<void>;
+    calendar<T = any>(method: string, path: string, opts?: { query?: Record<string, string | number | boolean | undefined>; body?: unknown }): Promise<T>;
+    /**
+     * Where to keep Google data offline: outside the vault (so the AI and
+     * sync tools never see it, as Google's Limited Use rules require), and
+     * deleted on disconnect. Never put Google data in ib.storage.
+     */
+    cache: { read<T>(fallback: T): Promise<T>; write(value: unknown): Promise<void> };
+  };
 
   /** Small JSON key/value store private to this plugin (.icebreaker/plugin-data/<id>.json). */
   storage: {
@@ -119,6 +159,8 @@ export interface IcebreakerAPI {
     notify(text: string, kind?: "info" | "success" | "warning" | "error"): void;
     confirm(title: string, detail?: string): Promise<boolean>;
     prompt(title: string, opts?: { initial?: string; placeholder?: string; mask?: boolean }): Promise<string | null>;
+    /** Pick one option (type to filter). Resolves with its index, or null. */
+    choose(title: string, options: ChoiceOption[], opts?: { selected?: number }): Promise<number | null>;
     theme(): Theme;
     /** Ask for a redraw (after changing state outside an input handler). */
     redraw(): void;
@@ -129,6 +171,14 @@ export interface IcebreakerAPI {
    * `ui` in your app's render(ui, rect, focused) is a UI instance (see src/ui/ui.ts).
    */
   lib: typeof import("./lib");
+}
+
+export interface ChoiceOption {
+  label: string;
+  /** dim text on the right */
+  hint?: string;
+  /** a colored ● before the label, "#rrggbb" */
+  color?: string;
 }
 
 /** What a plugin's main.js exports. */

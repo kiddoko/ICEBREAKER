@@ -58,6 +58,10 @@ hold many themes) and share `you/repo/name.toml`. A repo with a single
 
 ## The community index
 
+The official index is [kiddoko/icebreaker-modules](https://github.com/kiddoko/icebreaker-modules)
+(`index.json`, modules and themes). Themes made by the community also have a
+home: [kiddoko/icebreaker-themes](https://github.com/kiddoko/icebreaker-themes).
+
 `plugin search` and install-by-id read a JSON list from the URL in
 `plugins.registry` (`config set plugins.registry <url>` to use another one —
 a company or a friend group can run their own):

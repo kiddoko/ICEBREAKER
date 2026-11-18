@@ -29,6 +29,8 @@ opens `main.js`. Edit, save, `plugin reload`.
 | `vault:read`  | `ib.vault.read / exists / notes`, `ib.ai.vaultTools()` |
 | `vault:write` | `ib.vault.write / append / mkdir`                   |
 | `ai`          | `ib.ai.ask / session` (uses the user's provider)    |
+| `media`       | `ib.media.status / control` (the system player), `ib.media.player.*` (local files) |
+| `google-calendar` | `ib.google.*`: the user's Google Calendar, through their own OAuth client |
 
 Plugins from the vault are **off** until the user runs `plugin enable <id>`,
 which shows the permissions and asks for confirmation. Calling an API you
