@@ -22,7 +22,7 @@ import { FrameLoop } from "./core/loop";
 import { fontStack, loadFont, WEIGHTS } from "./core/fonts";
 import { Renderer } from "./core/renderer";
 import { Sound } from "./core/sound";
-import type { SettingsStore } from "./core/settings";
+import { DEFAULT_SETTINGS, type SettingsStore } from "./core/settings";
 import { applyTweaks, ThemeManager, type Theme } from "./core/theme";
 import { glitch } from "./fx/glitch";
 import type { Platform } from "./platform/types";
@@ -559,7 +559,7 @@ export class Deck implements InputSink {
     const t = this.theme;
     const root = document.documentElement.style;
     root.setProperty("--deck-bg", css(t.c.bg));
-    const lv = fx.levels ?? { bloom: 100, scanlines: 100, vignette: 100 };
+    const lv = { ...DEFAULT_SETTINGS.fx.levels, ...fx.levels };
     root.setProperty("--bloom", String(fx.bloom ? (t.fx.bloom * lv.bloom) / 100 : 0));
     root.setProperty("--scanlines", String(fx.scanlines ? (t.fx.scanlines * lv.scanlines) / 100 : 0));
     root.setProperty("--vignette", String(fx.vignette ? (t.fx.vignette * lv.vignette) / 100 : 0));
@@ -571,6 +571,8 @@ export class Deck implements InputSink {
     document.getElementById("deck")!.classList.toggle("monochrome", t.fx.monochrome);
     root.setProperty("--paper", String(t.fx.paper));
     this.renderer.bloomEnabled = fx.bloom;
+    this.renderer.setChroma(lv.chroma ?? 0, css(t.c.bg));
+    this.renderer.setSoftness(lv.softness ?? 0);
     this.loop.maxFps = this.settings.data.appearance.maxFps;
     this.requestFrame();
   }

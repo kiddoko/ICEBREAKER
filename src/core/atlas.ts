@@ -51,6 +51,12 @@ export class GlyphAtlas {
     dst.drawImage(page.canvas, sx, sy, w, this.cellH, dx, dy, w, this.cellH);
   }
 
+  /**
+   * CRT softness: glyphs are rasterized slightly out of focus (a blur of this
+   * many device px), once, in the cache — so it costs nothing per frame.
+   */
+  softness = 0;
+
   /** Free every page (the deck is hidden for a while); glyphs come back on demand. */
   release(): void {
     for (const p of this.pages) p.canvas.width = p.canvas.height = 0;
@@ -92,6 +98,7 @@ export class GlyphAtlas {
     ctx.clip();
     ctx.fillStyle = css(fg);
     ctx.globalAlpha = attrs & DIM ? 0.55 : 1;
+    if (this.softness > 0) ctx.filter = `blur(${this.softness.toFixed(2)}px)`;
 
     if (!drawSpecialGlyph(ctx, cp, x, y, w, this.cellH)) {
       const s = String.fromCodePoint(cp);

@@ -353,13 +353,14 @@ const fx: Command = {
     ["fx potato", "everything off, for old laptops"],
   ],
   summary: "toggle visual effects (bloom, scanlines, ambient…)",
-  usage: "fx                      show current state\nfx <effect> on|off      bloom scanlines vignette ambient flicker glitch\nfx minimal              default: ambient fog + glitch only\nfx max                  everything on\nfx potato               everything off, 30fps (weak laptops)\nfx panel                open the FX panel (also: ✦ fx in the status bar)",
+  usage: "fx                      show current state\nfx <effect> on|off      bloom scanlines vignette ambient flicker glitch\nfx minimal              default: ambient fog + glitch only\nfx max                  everything on\nfx potato               everything off, 30fps (weak laptops)\nfx panel                open the FX panel (also: ✦ fx in the status bar)\nfx <effect> <0-200>     strength: bloom scanlines vignette\nfx chroma <0-100>       red/blue fringes of an old tube (0 = off)\nfx softness <0-100>     glyphs a touch out of focus, like a CRT (0 = sharp)",
   run(ctx) {
     const d = ctx.deck;
     const effects = ["bloom", "scanlines", "vignette", "ambient", "flicker", "glitch"] as const;
     const [what, state] = ctx.args;
     if (!what) {
       for (const e of effects) ctx.out(`${padEnd(e, 10)} ${d.settings.data.fx[e] ? fmt.green("on") : fmt.gray("off")}\n`);
+      ctx.out(`${padEnd("chroma", 10)} ${d.settings.data.fx.levels.chroma ?? 0}%\n${padEnd("softness", 10)} ${d.settings.data.fx.levels.softness ?? 0}%\n`);
       ctx.out(`${padEnd("fps cap", 10)} ${d.settings.data.appearance.maxFps || "unlimited"}\n`);
       return;
     }
@@ -372,6 +373,21 @@ const fx: Command = {
     }
     if (what === "panel") {
       d.workspace.fxPanel();
+      return;
+    }
+    // strengths: fx bloom 150 · fx chroma 30 · fx softness 40
+    const levels = ["bloom", "scanlines", "vignette", "chroma", "softness"];
+    if (levels.includes(what) && state !== undefined && /^\d+$/.test(state)) {
+      const max = what === "chroma" || what === "softness" ? 100 : 200;
+      const v = Math.max(0, Math.min(max, Number(state)));
+      d.settings.set(`fx.levels.${what}`, v);
+      if (!["chroma", "softness"].includes(what) && v > 0) d.settings.set(`fx.${what}`, true);
+      d.applyFx();
+      ctx.out(`${what} ${v}%\n`);
+      return;
+    }
+    if (what === "chroma" || what === "softness") {
+      ctx.out(`${what} ${d.settings.data.fx.levels[what] ?? 0}% (fx ${what} <0-100>)\n`);
       return;
     }
     if (!(effects as readonly string[]).includes(what)) {

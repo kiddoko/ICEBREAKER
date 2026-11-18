@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- CRT: colour fringes (chromatic aberration, `fx chroma 30`) and softness
+  (glyphs a touch out of focus, `fx softness 40`) — in the FX panel and
+  Settings too. Softness is baked into the glyph cache: free at run time.
 - Clock widget faces: dots, segment, analog (a braille dial with hands),
   binary, minimal — and the seconds if you want them (`clock style analog`,
   `clock seconds on`, or f / s in its pop-up).

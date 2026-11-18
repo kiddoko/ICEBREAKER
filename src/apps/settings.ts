@@ -103,6 +103,8 @@ export class SettingsApp implements App {
       cycle("fx.levels.bloom", "bloom strength", [25, 50, 75, 100, 125, 150, 200], undefined, (v) => `${v}%`),
       cycle("fx.levels.scanlines", "scanlines strength", [25, 50, 75, 100, 125, 150, 200], undefined, (v) => `${v}%`),
       cycle("fx.levels.vignette", "vignette strength", [25, 50, 75, 100, 125, 150, 200], undefined, (v) => `${v}%`),
+      cycle("fx.levels.chroma", "colour fringes (CRT)", [0, 15, 30, 50, 75, 100], undefined, (v) => (v ? `${v}%` : t("off"))),
+      cycle("fx.levels.softness", "softness (CRT focus)", [0, 20, 40, 60, 80, 100], undefined, (v) => (v ? `${v}%` : t("sharp"))),
       cycle("fx.screensaverMinutes", "screensaver after", [0, 5, 10, 20, 30], undefined, (v) => (v ? `${v} min` : "never")),
       cycle("boot.mode", "boot sequence", ["full", "fast", "off"]),
       { section: "SOUND", label: "", value: () => "" },

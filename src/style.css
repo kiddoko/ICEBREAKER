@@ -27,7 +27,8 @@ body {
 }
 
 #screen,
-#bloom {
+#bloom,
+#chroma {
   position: absolute;
   display: block;
 }
@@ -39,6 +40,13 @@ body {
   mix-blend-mode: screen;
   opacity: var(--bloom);
 }
+/* chromatic aberration: red/blue fringes screened over the picture */
+#chroma {
+  pointer-events: none;
+  mix-blend-mode: screen;
+  display: none;
+}
+
 /* the renderer blurs the bloom itself: no per-frame CSS filter for the compositor */
 #bloom.canvas-blur {
   filter: none;

@@ -13,7 +13,10 @@ interface Row {
   /** a toggle (fx.<key>) or a preset */
   key?: FxKey;
   preset?: Preset;
+  /** a strength that steps 0 → … → 100 → 0 */
+  level?: "chroma" | "softness";
 }
+const LEVEL_STEPS = [0, 20, 40, 60, 100];
 
 type Preset = "minimal" | "max" | "potato";
 
@@ -42,6 +45,8 @@ export class FxPanel implements Overlay {
       { label: "scanlines", hint: "CRT lines", key: "scanlines" },
       { label: "vignette", hint: "dark corners", key: "vignette" },
       { label: "flicker", hint: "unstable tube", key: "flicker" },
+      { label: "fringes", hint: "colour split", level: "chroma" },
+      { label: "softness", hint: "CRT focus", level: "softness" },
       { label: "▸ minimal", hint: "default", preset: "minimal" },
       { label: "▸ max", hint: "everything on", preset: "max" },
       { label: "▸ potato", hint: "all off, 30fps", preset: "potato" },
@@ -51,6 +56,12 @@ export class FxPanel implements Overlay {
 
   private activate(row: Row): void {
     const s = this.deck.settings;
+    if (row.level) {
+      const cur = s.data.fx.levels[row.level] ?? 0;
+      const next = LEVEL_STEPS.find((v) => v > cur) ?? 0;
+      void this.deck.act(`fx ${row.level} ${next}`);
+      return;
+    }
     if (row.key) s.set(`fx.${row.key}`, !s.data.fx[row.key]);
     else if (row.preset) applyFxPreset(this.deck, row.preset);
     this.deck.applyFx();
@@ -90,11 +101,16 @@ export class FxPanel implements Overlay {
         const on = this.deck.settings.data.fx[row.key];
         ui.text(rr.x + 1, rr.y, on ? "■" : "□", { fg: on ? c.accent : c.subtle, attrs: BOLD });
         ui.text(rr.x + 3, rr.y, row.label, { fg: selected || on ? c.fg : c.muted });
+      } else if (row.level) {
+        const v = this.deck.settings.data.fx.levels[row.level] ?? 0;
+        ui.text(rr.x + 1, rr.y, v ? "■" : "□", { fg: v ? c.accent : c.subtle, attrs: BOLD });
+        ui.text(rr.x + 3, rr.y, `${row.label} ${v ? `${v}%` : ""}`, { fg: selected || v ? c.fg : c.muted });
       } else {
         ui.text(rr.x + 1, rr.y, row.label, { fg: selected ? c.accentAlt : c.muted, attrs: BOLD });
       }
       ui.textRight(rr.x + rr.w - 2, rr.y, row.hint, { fg: c.faint });
-      ui.hit(rr, { cmd: row.key ? `fx ${row.key} ${this.deck.settings.data.fx[row.key] ? "off" : "on"}` : `fx ${row.preset}` });
+      if (row.level) ui.hit(rr, { onClick: () => this.activate(row), tip: `fx ${row.level} <0-100>` });
+      else ui.hit(rr, { cmd: row.key ? `fx ${row.key} ${this.deck.settings.data.fx[row.key] ? "off" : "on"}` : `fx ${row.preset}` });
     });
     ui.text(inner.x + 1, inner.y + inner.h - 1, "esc close · `fx` in the shell", { fg: c.faint });
   }
@@ -104,5 +120,6 @@ export function applyFxPreset(deck: Deck, preset: Preset): void {
   const on = FX_PRESETS[preset];
   for (const key of FX_PRESETS.max) deck.settings.set(`fx.${key}`, on.includes(key));
   deck.settings.set("appearance.maxFps", preset === "potato" ? 30 : 60);
+  if (preset === "potato") for (const k of ["chroma", "softness"]) deck.settings.set(`fx.levels.${k}`, 0);
   deck.applyFx();
 }

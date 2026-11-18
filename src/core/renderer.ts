@@ -92,6 +92,7 @@ export class Renderer {
     this.cellH = Math.ceil((ascent + descent) * this.lineHeight);
     this.baseline = Math.round((this.cellH - (ascent + descent)) / 2 + ascent);
     this.atlas = new GlyphAtlas(this.cellW, this.cellH, this.baseline, (a) => this.font(a));
+    this.atlas.softness = this.soft ?? 0;
     this.front = null;
   }
 
@@ -120,8 +121,84 @@ export class Renderer {
       el.style.left = `${this.left}px`;
       el.style.top = `${this.top}px`;
     }
+    this.sizeChroma();
     this.front = null;
     return { cols: this.cols, rows: this.rows };
+  }
+
+  /** 0–100: CRT softness (glyphs a touch out of focus). Rebuilds the glyph cache. */
+  private soft = 0;
+  setSoftness(level: number): void {
+    const px = this.canvasBlur ? (Math.max(0, Math.min(100, level)) / 100) * 0.55 * this.dpr : 0;
+    if (Math.abs(px - this.soft) < 0.001) return;
+    this.soft = px;
+    this.atlas.softness = px;
+    this.release();
+  }
+
+  /** 0–100: chromatic aberration (red and blue fringes, an old tube's misconvergence). */
+  chroma = 0;
+  private chromaEl: HTMLCanvasElement | null = null;
+  private chromaCtx: CanvasRenderingContext2D | null = null;
+  private chromaTmp: HTMLCanvasElement | null = null;
+  /** the theme background, taken out of the fringes so only the text casts them */
+  private chromaBg = "#000000";
+  setChroma(level: number, bg = "#000000"): void {
+    this.chroma = Math.max(0, Math.min(100, level));
+    this.chromaBg = bg;
+    if (!this.chromaEl) {
+      this.chromaEl = document.getElementById("chroma") as HTMLCanvasElement | null;
+      this.chromaCtx = this.chromaEl?.getContext("2d") ?? null;
+      this.chromaTmp = document.createElement("canvas");
+    }
+    if (this.chromaEl) {
+      this.chromaEl.style.display = this.chroma > 0 ? "block" : "none";
+      this.chromaEl.style.opacity = String(0.25 + (this.chroma / 100) * 0.55);
+    }
+    this.sizeChroma();
+    this.front = null;
+  }
+  private sizeChroma(): void {
+    const el = this.chromaEl, tmp = this.chromaTmp;
+    if (!el || !tmp) return;
+    const w = this.chroma > 0 ? Math.ceil(this.canvas.width / 2) : 0, h = this.chroma > 0 ? Math.ceil(this.canvas.height / 2) : 0;
+    if (el.width !== w || el.height !== h) {
+      el.width = tmp.width = w;
+      el.height = tmp.height = h;
+    }
+    el.style.width = this.canvas.style.width;
+    el.style.height = this.canvas.style.height;
+    el.style.left = this.canvas.style.left;
+    el.style.top = this.canvas.style.top;
+  }
+  /** red copy nudged left + blue copy nudged right, screened over the picture (CSS) */
+  private drawChroma(): void {
+    const el = this.chromaEl, ctx = this.chromaCtx, tmp = this.chromaTmp;
+    if (!el || !ctx || !tmp || !el.width) return;
+    const w = el.width, h = el.height;
+    const o = 0.35 + (this.chroma / 100) * 0.9; // half-res px
+    const t = tmp.getContext("2d")!;
+    t.globalCompositeOperation = "source-over";
+    t.clearRect(0, 0, w, h);
+    t.drawImage(this.canvas, o, 0, w, h);
+    t.globalCompositeOperation = "difference";
+    t.fillStyle = this.chromaBg;
+    t.fillRect(0, 0, w, h);
+    t.globalCompositeOperation = "multiply";
+    t.fillStyle = "#0000ff";
+    t.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(this.canvas, -o, 0, w, h);
+    ctx.globalCompositeOperation = "difference";
+    ctx.fillStyle = this.chromaBg;
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = "multiply";
+    ctx.fillStyle = "#ff0000";
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.drawImage(tmp, 0, 0);
+    ctx.globalCompositeOperation = "source-over";
   }
 
   /** Hidden for a while: give the glyph cache's memory back (it refills on the next frames). */
@@ -228,6 +305,9 @@ export class Renderer {
       }
       b.drawImage(this.canvas, 0, 0, this.bloom.width, this.bloom.height);
       if (this.canvasBlur) b.filter = "none";
+    }
+    if (painted && this.chroma > 0) {
+      this.drawChroma();
     }
     return painted;
   }
