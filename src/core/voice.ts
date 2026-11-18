@@ -47,6 +47,7 @@ export class DeckVoice {
     return { engine: "system", voice: this.systemVoice[lang] };
   }
   private systemVoice: Record<string, string> = {};
+  private warned = new Set<string>();
 
   /**
    * Say something (queued after what's being said). The accent follows the
@@ -94,7 +95,18 @@ export class DeckVoice {
       const rate = this.deck.settings.data.voice.rate;
       const synth = async (item: { text: string; lang: string }) => {
         const { engine, voice } = await this.resolve(item.lang);
-        return this.deck.platform.voice!.speak(item.text, engine, voice, rate);
+        try {
+          return await this.deck.platform.voice!.speak(item.text, engine, voice, rate);
+        } catch (e) {
+          if (engine !== "piper") throw e;
+          // the neural voice failed: say it with the system voice, and say why once
+          if (!this.warned.has(voice)) {
+            this.warned.add(voice);
+            this.deck.notify(`voice: ${e instanceof Error ? e.message : e} — using the system voice (voice install ${item.lang} re-downloads it)`, "warning");
+          }
+          this.systemVoice[item.lang] ??= pickSystemVoice(await this.deck.platform.voice!.list("system").catch(() => []), item.lang);
+          return this.deck.platform.voice!.speak(item.text, "system", this.systemVoice[item.lang], rate);
+        }
       };
       let next: Promise<ArrayBuffer> | null = this.queue.length ? synth(this.queue.shift()!) : null;
       while (next && gen === this.gen) {

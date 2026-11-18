@@ -170,7 +170,21 @@ pub async fn voice_speak(app: AppHandle, text: String, engine: String, voice: St
             .output()
             .map_err(|e| format!("neural voice: {e}"))?;
             if !out.status.success() || !tmp2.is_file() {
-                return Err(format!("neural voice: {}", String::from_utf8_lossy(&out.stderr).lines().filter(|l| !l.trim().is_empty()).last().unwrap_or("failed")));
+                // keep the whole log (voice/last-error.log) and show its most telling line
+                let err = String::from_utf8_lossy(&out.stderr).to_string();
+                if let Some(log) = m.parent().and_then(|p| p.parent()).map(|p| p.join("last-error.log")) {
+                    let _ = std::fs::write(log, &err);
+                }
+                let line = err
+                    .lines()
+                    .filter(|l| !l.trim().is_empty() && !l.contains("Please read previous error"))
+                    .rfind(|l| l.to_lowercase().contains("error") || l.to_lowercase().contains("fail") || l.contains("not "))
+                    .unwrap_or("failed — see voice/last-error.log")
+                    .trim()
+                    .chars()
+                    .take(200)
+                    .collect::<String>();
+                return Err(format!("neural voice \"{voice}\": {line}"));
             }
             return Ok(());
         }
@@ -236,8 +250,9 @@ pub async fn voice_install(app: AppHandle, lang: String) -> Result<String, Strin
             let _ = std::fs::remove_file(archive);
             if ok { Ok(()) } else { Err("couldn't unpack the download".into()) }
         };
-        // leftovers of the old (broken) piper download
+        // leftovers of the old (broken) piper download, and the first English voice we shipped
         let _ = std::fs::remove_dir_all(d.join("piper"));
+        let _ = std::fs::remove_dir_all(d.join("models").join("vits-piper-en_US-lessac-medium"));
         if let Ok(rd) = std::fs::read_dir(&d) {
             for e in rd.flatten() {
                 if e.file_name().to_string_lossy().contains(".onnx") {

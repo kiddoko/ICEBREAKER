@@ -393,7 +393,11 @@ export class Workspace {
 
   handleMouse(m: MouseInput, hits: Hit[]): void {
     const pick = (want: (h: Hit) => boolean) => {
-      for (let i = hits.length - 1; i >= 0; i--) if (inside(hits[i].rect, m.x, m.y) && want(hits[i])) return hits[i];
+      for (let i = hits.length - 1; i >= 0; i--) {
+        if (!inside(hits[i].rect, m.x, m.y)) continue;
+        if (want(hits[i])) return hits[i];
+        if (hits[i].block) return undefined; // a modal: clicks don't fall through to what's behind
+      }
       return undefined;
     };
     switch (m.kind) {
@@ -691,6 +695,6 @@ class Screensaver implements Overlay {
   render(ui: UI, screen: Rect): void {
     ui.fill(screen, { bg: ui.c.bg });
     this.rain.render(ui, screen);
-    ui.hit(screen, { onClick: () => (this.done = true), onWheel: () => {} });
+    ui.hit(screen, { onClick: () => (this.done = true), onWheel: () => {}, block: true });
   }
 }

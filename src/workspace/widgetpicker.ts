@@ -69,7 +69,7 @@ export class WidgetPicker implements Overlay {
       this.list.scrollTop = 0;
     }
     ui.tint(screen, c.faint, c.bg);
-    ui.hit(screen, { onClick: () => (this.done = true), onWheel: () => {} });
+    ui.hit(screen, { onClick: () => (this.done = true), onWheel: () => {}, block: true });
     const W = Math.min(screen.w - 4, 110), H = Math.min(screen.h - 4, 30);
     const box = { x: Math.floor((screen.w - W) / 2), y: Math.max(1, Math.floor((screen.h - H) / 2)), w: W, h: H };
     const inner = ui.box(box, { title: t("ADD A WIDGET"), focused: true, bg: c.panelAlt, info: `${this.list.items.length} · ${t("enter adds · esc")}` });

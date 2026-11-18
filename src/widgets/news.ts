@@ -221,7 +221,7 @@ class NewsCard implements Overlay {
     const hgt = Math.min(screen.h - 4, title.length + summary.length + 7);
     const box = { x: Math.floor((screen.w - w) / 2), y: Math.max(1, Math.floor((screen.h - hgt) / 2)), w, h: hgt };
     const inner = ui.box(box, { title: `NEWS ${this.n}/${state.items.length}`, focused: true, bg: c.panelAlt, info: "←→ browse" });
-    ui.hit(screen, { onClick: () => {}, onWheel: () => {} });
+    ui.hit(screen, { onClick: () => {}, onWheel: () => {}, block: true });
     ui.hit(box, { onClick: () => {} });
     let y = inner.y;
     for (const l of title) ui.text(inner.x + 1, y++, l, { fg: c.fg, attrs: BOLD }, tw);

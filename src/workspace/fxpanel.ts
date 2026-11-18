@@ -79,7 +79,7 @@ export class FxPanel implements Overlay {
 
   render(ui: UI, screen: Rect): void {
     const c = ui.c;
-    ui.hit(screen, { onClick: () => (this.done = true), onWheel: () => {} });
+    ui.hit(screen, { onClick: () => (this.done = true), onWheel: () => {}, block: true });
     const w = 40;
     const h = this.list.items.length + 3;
     const r = { x: screen.x + screen.w - w - 1, y: screen.y + screen.h - h - 1, w, h };

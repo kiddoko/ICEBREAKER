@@ -96,7 +96,7 @@ export class LockScreen {
     const W = ui.cols, H = ui.rows;
     if (!this.shownAt) this.shownAt = ui.now;
     ui.fill({ x: 0, y: 0, w: W, h: H }, { bg: c.bg });
-    ui.hit({ x: 0, y: 0, w: W, h: H }, { onClick: () => {}, onWheel: () => {} });
+    ui.hit({ x: 0, y: 0, w: W, h: H }, { onClick: () => {}, onWheel: () => {}, block: true });
 
     const w = Math.min(44, W - 4);
     const shake = performance.now() - this.shakeAt < 300 ? Math.round(Math.sin((performance.now() - this.shakeAt) / 25) * 2) : 0;

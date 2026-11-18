@@ -21,6 +21,8 @@ export interface Hit {
   cmd?: string;
   /** Hover tooltip text (shortcuts, what it does). */
   tip?: string;
+  /** Nothing under it gets the mouse (modal backdrops, pop-ups). */
+  block?: boolean;
 }
 
 const BORDERS: Record<string, { tl: string; tr: string; bl: string; br: string; h: string; v: string; hb?: string }> = {
