@@ -1,3 +1,4 @@
+import { NEWS_CATEGORIES } from "./news";
 import { clockCommand } from "./clockfaces";
 import { t } from "../core/i18n";
 /**
@@ -280,8 +281,8 @@ const weatherPopup: WidgetPopupSpec = {
 
 const newsPopup: WidgetPopupSpec = {
   title: "news",
-  size: { w: 56, h: 6 },
-  hint: "t: topic · - : back to your area",
+  size: { w: 60, h: 9 },
+  hint: "t: topic · i: interests · - : back to your area",
   render(ui, r, { deck }) {
     const c = ui.c;
     const topic = deck.settings.data.home.newsTopic;
@@ -291,9 +292,34 @@ const newsPopup: WidgetPopupSpec = {
     x += ui.button(x, r.y + 3, t("change topic"), () => void askTopic(deck), { tip: "t · news topic <words>" }) + 2;
     x += ui.button(x, r.y + 3, t("my area"), () => {}, { cmd: "news topic -", tip: "-" }) + 2;
     ui.button(x, r.y + 3, t("refresh"), () => {}, { cmd: "news refresh" });
+    const mine = deck.settings.data.home.newsInterests ?? [];
+    ui.text(r.x + 2, r.y + 5, t("interests:"), { fg: c.muted });
+    ui.text(r.x + 14, r.y + 5, mine.join(" · ") || t("none — your area only"), { fg: mine.length ? c.accent : c.faint }, r.w - 16);
+    ui.button(r.x + 2, r.y + 7, t("+ / − interests"), () => void pickInterests(deck), { tip: "i · news add tech · news rm tech" });
   },
-  onText: (t, { deck }) => (t === "t" ? (void askTopic(deck), true) : t === "-" ? (void deck.act("news topic -"), true) : false),
+  onText: (t, { deck }) => (t === "t" ? (void askTopic(deck), true) : t === "i" ? (void pickInterests(deck), true) : t === "-" ? (void deck.act("news topic -"), true) : false),
 };
+/** Tick categories on and off (and type your own words), one pick at a time. */
+async function pickInterests(deck: Deck): Promise<void> {
+  for (;;) {
+    const mine = deck.settings.data.home.newsInterests ?? [];
+    const cats = Object.entries(NEWS_CATEGORIES);
+    const opts = [
+      ...cats.map(([id, c]) => ({ label: `${mine.includes(id) ? "☑" : "☐"} ${t(c.label)}`, hint: id })),
+      ...mine.filter((m) => !NEWS_CATEGORIES[m]).map((m) => ({ label: `☑ ${m}`, hint: t("your words") })),
+      { label: t("+ your own words…"), hint: "formula 1, linux, Lyon…" },
+    ];
+    const i = await deck.choose(t("News interests (esc when done)"), opts);
+    if (i === null) return;
+    if (i === opts.length - 1) {
+      const v = await deck.prompt(t("Follow what?"), { placeholder: "formula 1, linux, Lyon…" });
+      if (v?.trim()) await deck.act(`news add ${v.trim()}`);
+      continue;
+    }
+    const id = i < cats.length ? cats[i][0] : mine.filter((m) => !NEWS_CATEGORIES[m])[i - cats.length];
+    await deck.act(`news ${mine.includes(id) ? "rm" : "add"} ${id}`);
+  }
+}
 async function askTopic(deck: Deck): Promise<void> {
   const v = await deck.prompt("News topic", { initial: deck.settings.data.home.newsTopic, placeholder: "space, intelligence artificielle, F1…" });
   if (v !== null) void deck.act(v.trim() ? `news topic ${v.trim()}` : "news topic -");

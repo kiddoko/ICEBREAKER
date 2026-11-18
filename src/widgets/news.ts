@@ -18,7 +18,34 @@ import type { WidgetSpec } from "./types";
  *    it all; click it (or `news 3`) for the summary and a link out.
  */
 
-export interface Headline { title: string; source: string; at: number; link: string; summary: string }
+export interface Headline { title: string; source: string; at: number; link: string; summary: string; /** the interest it came from */ tag?: string }
+
+/** Ready-made categories: the words searched, in English and French. */
+export const NEWS_CATEGORIES: Record<string, { en: string; fr: string; label: string }> = {
+  tech: { en: "technology", fr: "technologie", label: "tech" },
+  ai: { en: "artificial intelligence", fr: "intelligence artificielle", label: "AI" },
+  science: { en: "science", fr: "science", label: "science" },
+  space: { en: "space exploration", fr: "espace astronomie", label: "space" },
+  politics: { en: "politics", fr: "politique", label: "politics" },
+  world: { en: "world news", fr: "international", label: "world" },
+  business: { en: "business economy", fr: "économie", label: "business" },
+  people: { en: "celebrities", fr: "people", label: "people" },
+  culture: { en: "culture", fr: "culture", label: "culture" },
+  art: { en: "art exhibition", fr: "art exposition", label: "art" },
+  music: { en: "music", fr: "musique", label: "music" },
+  cinema: { en: "movies", fr: "cinéma", label: "cinema" },
+  gaming: { en: "video games", fr: "jeux vidéo", label: "gaming" },
+  sports: { en: "sports", fr: "sport", label: "sports" },
+  health: { en: "health", fr: "santé", label: "health" },
+  environment: { en: "climate environment", fr: "climat environnement", label: "environment" },
+  security: { en: "cybersecurity", fr: "cybersécurité", label: "security" },
+};
+/** What to search for an interest: a category's words in your language, or the words themselves. */
+const interestQuery = (deck: Deck, i: string) => {
+  const cat = NEWS_CATEGORIES[i.toLowerCase()];
+  return cat ? (langOf(deck).startsWith("fr") ? cat.fr : cat.en) : i;
+};
+const interests = (deck: Deck) => deck.settings.data.home.newsInterests ?? [];
 
 const state = {
   items: [] as Headline[],
@@ -74,7 +101,7 @@ function parse(xmlText: string): Headline[] {
 
 export async function loadNews(deck: Deck): Promise<void> {
   const q = query(deck);
-  const key = `${q}|${langOf(deck)}|${countryOf(deck)}`;
+  const key = `${q}|${langOf(deck)}|${countryOf(deck)}|${interests(deck).join(",")}`;
   state.loading = true;
   try {
     const rss = deck.platform.newsRss;
@@ -87,6 +114,16 @@ export async function loadNews(deck: Deck): Promise<void> {
     if (q && items.length < 5) items = add(items, fresh(await get(q, "google")));
     state.widened = items.length < 5;
     if (items.length < 5) items = add(items, fresh(await get("", "google")));
+    // your interests, a few headlines each, woven in with the local ones
+    const mine = interests(deck);
+    if (mine.length) {
+      const per = Math.max(3, Math.floor(24 / (mine.length + 1)));
+      const batches = await Promise.all(mine.map((i) => get(interestQuery(deck, i), "bing").then((l) => fresh(l).slice(0, per).map((h) => ({ ...h, tag: NEWS_CATEGORIES[i.toLowerCase()]?.label ?? i })))));
+      const local = items.slice(0, per + 2);
+      const woven: Headline[] = [];
+      for (let k = 0; k < per + 2; k++) for (const list of [local, ...batches]) if (list[k] && !woven.some((w) => w.title === list[k].title)) woven.push(list[k]);
+      items = woven.slice(0, 30);
+    }
     if (!items.length) throw new Error("no recent news");
     Object.assign(state, { items, at: Date.now(), key, loaded: true, error: null });
   } catch (e) {
@@ -98,7 +135,7 @@ export async function loadNews(deck: Deck): Promise<void> {
 }
 
 function stale(deck: Deck): boolean {
-  const key = `${query(deck)}|${langOf(deck)}|${countryOf(deck)}`;
+  const key = `${query(deck)}|${langOf(deck)}|${countryOf(deck)}|${interests(deck).join(",")}`;
   return !state.loaded || state.key !== key || Date.now() - state.at > 20 * 60_000;
 }
 
@@ -255,11 +292,27 @@ export const newsCommand: Command = {
     ["news topic -", "back to your city"],
   ],
   summary: "headlines for your area or topic; read one, open it",
-  usage: "news              list the headlines\nnews <n>          summary of headline n (a card on screen)\nnews open <n>     open it in your browser\nnews refresh\nnews topic <words> | news topic -   (follow a topic / back to your city)",
-  complete: () => ["open", "refresh", "topic"],
+  usage: "news              list the headlines\nnews <n>          summary of headline n (a card on screen)\nnews open <n>     open it in your browser\nnews refresh\nnews topic <words> | news topic -   (follow a topic / back to your city)\nnews add <category | words>        an interest, mixed in (news add tech, news add \"formula 1\")\nnews rm <…> · news interests       (categories: tech ai science space politics world business people culture art music cinema gaming sports health environment security)",
+  complete: () => ["open", "refresh", "topic", "add", "rm", "interests", ...Object.keys(NEWS_CATEGORIES)],
   async run(ctx) {
     const { deck } = ctx;
     const [a, b] = ctx.args;
+    if (a === "interests" || a === "categories") {
+      ctx.out(`${"\x1b[1m"}yours:\x1b[0m ${interests(deck).join(", ") || "\x1b[2mnone — news add tech\x1b[0m"}\n`);
+      ctx.out(`\x1b[2mcategories: ${Object.keys(NEWS_CATEGORIES).join(" ")}  (or any words: news add "formula 1")\x1b[0m\n`);
+      return 0;
+    }
+    if (a === "add" || a === "rm") {
+      const what = ctx.args.slice(1).join(" ").trim().toLowerCase();
+      if (!what) return ctx.err(`usage: news ${a} <category | words>\n`), 1;
+      const cur = interests(deck);
+      const next = a === "add" ? [...new Set([...cur, what])] : cur.filter((x) => x !== what);
+      if (next.length === cur.length) return ctx.err(a === "add" ? `news: already following ${what}\n` : `news: not following ${what}\n`), 1;
+      deck.settings.set("home.newsInterests", next);
+      await loadNews(deck);
+      ctx.out(`news: ${next.join(", ") || "your area only"}\n`);
+      return 0;
+    }
     if (a === "topic") {
       deck.settings.set("home.newsTopic", b === "-" ? "" : ctx.args.slice(1).join(" "));
       await loadNews(deck);
@@ -269,7 +322,7 @@ export const newsCommand: Command = {
     if (a === "refresh" || stale(deck)) await loadNews(deck);
     if (state.error) return ctx.err(`news: ${state.error}\n`), 1;
     if (!a || a === "refresh") {
-      state.items.forEach((h, i) => ctx.out(`\x1b[35m${String(i + 1).padStart(2)}\x1b[0m ${h.title} \x1b[2m· ${h.source}\x1b[0m\n`));
+      state.items.forEach((h, i) => ctx.out(`\x1b[35m${String(i + 1).padStart(2)}\x1b[0m ${h.tag ? `\x1b[36m[${h.tag}]\x1b[0m ` : ""}${h.title} \x1b[2m· ${h.source}\x1b[0m\n`));
       return 0;
     }
     const n = Number(a === "open" ? b : a);
