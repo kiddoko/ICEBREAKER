@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- HABITS module (takes CHECKBOXES' place): daily boxes that reset every day,
+  several times a day (●●○○), chosen weekdays, streaks ▲, a 2-week strip, a
+  widget and its pop-up, the numbers in STATS. `habit add "read" --days mon,wed`.
+  `checkboxes` stays as a shell command.
 - Modules talk to each other: `ib.modules.expose / call / has / list` — every
   built-in module publishes functions (todo.add, journal.append, calendar.events,
   uplink.ask, sysmon.stats…) that downloaded modules can call, permissions

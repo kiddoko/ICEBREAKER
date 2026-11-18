@@ -33,7 +33,8 @@ async function scanTasks(deck: Deck): Promise<void> {
 /** open checkboxes found in the notes (the widget and its pop-up) */
 export const openTasks = () => tasks;
 
-const tasksWidget: WidgetSpec = {
+/** (the old CHECKBOXES widget — HABITS took its place; `checkboxes` stays a shell command) */
+export const tasksWidget: WidgetSpec = {
   id: "tasks",
   title: "checkboxes",
   description: "open checkboxes (- [ ]) from all your notes",
@@ -473,4 +474,4 @@ const aiWidget: WidgetSpec = {
 };
 
 export { aiWidget };
-export const EXTRA_WIDGETS: WidgetSpec[] = [aiWidget, newsWidget, tasksWidget, focusWidget, moonWidget, matrixWidget, worldWidget, quoteWidget, streakWidget];
+export const EXTRA_WIDGETS: WidgetSpec[] = [aiWidget, newsWidget, focusWidget, moonWidget, matrixWidget, worldWidget, quoteWidget, streakWidget];
