@@ -21,6 +21,7 @@
  *   media        see and control the music playing on the computer,
  *                and play local music files (ib.media.player)
  *   google-calendar   read and change the user's Google Calendar
+ *   stats:read   read the stats other modules keep (your own need nothing)
  *
  * See docs/PLUGINS.md for a walkthrough, and `plugin new <id>` in the shell
  * for a ready-to-edit template.
@@ -33,8 +34,9 @@ import type { Command } from "../shell/types";
 import type { WidgetSpec } from "../widgets/types";
 import type { BackgroundSpec } from "../fx/backgrounds";
 import type { LocalTrack, MediaStatus, PlayerStatus } from "../platform/types";
+import type { Stat, StatMeta, StatPoint } from "../core/stats";
 
-export type Permission = "vault:read" | "vault:write" | "ai" | "media" | "google-calendar";
+export type Permission = "vault:read" | "vault:write" | "ai" | "media" | "google-calendar" | "stats:read";
 
 export interface PluginManifest {
   id: string;
@@ -152,6 +154,32 @@ export interface IcebreakerAPI {
      * deleted on disconnect. Never put Google data in ib.storage.
      */
     cache: { read<T>(fallback: T): Promise<T>; write(value: unknown): Promise<void> };
+  };
+
+  /**
+   * Numbers kept over time, shown by the STATS module (and its widget).
+   * A name without a dot is yours: "left" → "<your id>.left". You write only
+   * your own stats; reading another module's ("budget.left") needs the
+   * "stats:read" permission. "value" stats keep the last value of each day,
+   * "counter" stats add up (per day). Stored in the vault (.icebreaker/stats.json).
+   *
+   *   await ib.stats.define("left", { label: "budget left", unit: "€" });
+   *   await ib.stats.set("left", 412.5);
+   *   await ib.stats.add("pages", 12);          // a counter
+   *   const last30 = await ib.stats.series("left", 30);
+   */
+  stats: {
+    define(name: string, meta: StatMeta): Promise<Stat>;
+    set(name: string, value: number, meta?: StatMeta): Promise<Stat>;
+    add(name: string, delta?: number, meta?: StatMeta): Promise<Stat>;
+    get(id: string): Promise<Stat | null>;
+    /** one point per day, oldest first (default 30 days) */
+    series(id: string, days?: number): Promise<StatPoint[]>;
+    /** every stat you may read (yours, or all with "stats:read"), optionally by id prefix */
+    list(prefix?: string): Promise<Stat[]>;
+    remove(name: string): Promise<boolean>;
+    /** called with the stat id whenever a stat you may read changes; returns unsubscribe */
+    onChange(fn: (id: string) => void): () => void;
   };
 
   /** Small JSON key/value store private to this plugin (.icebreaker/plugin-data/<id>.json). */

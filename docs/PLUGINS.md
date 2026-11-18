@@ -42,6 +42,7 @@ MODULES hive, and `"icon"` to give it a glyph there.
 | `ai`          | `ib.ai.ask / session` (uses the user's provider)    |
 | `media`       | `ib.media.status / control` (the system player), `ib.media.player.*` (local files) |
 | `google-calendar` | `ib.google.*`: the user's Google Calendar, through their own OAuth client |
+| `stats:read` | `ib.stats.get/series/list` on *other* modules' stats (your own need no permission) |
 
 Plugins from the vault are **off** until the user runs `plugin enable <id>`,
 which shows the permissions and asks for confirmation. Calling an API you
@@ -136,6 +137,7 @@ The full surface is typed and commented in
 - `ib.shell.run(line)` → run a command, echoed in the shell (what your clicks should do).
 - `ib.ui.notify / confirm / prompt / choose` → talk to the user (`choose` = pick one option from a filtered list).
 - `ib.ui.alert(title, body)` → get the user's attention even in the background: a system notification, the alert sound, the voice if it's on (see the REMINDERS module).
+- `ib.stats` → numbers kept over time, shown by the STATS module and its widget. `define("left", { label: "budget left", unit: "€" })`, `set("left", 412.5)` for a level, `add("pages", 12)` for a counter (adds up per day), `series(id, 30)` → one point per day, `onChange(fn)`. Names without a dot are yours (`left` → `budget.left`); you write only your own, reading another module's stats needs `stats:read`. The deck itself keeps `deck.commands` and `deck.notes`. Stored in the vault (`.icebreaker/stats.json`); recording works even while STATS is switched off.
 - `ib.ai` is the UPLINK module's AI: when the user switches UPLINK off, there's no AI for anyone.
 - `ib.media.player` → play local audio files (permission `media`); `ib.google.*` → the user's Google Calendar (permission `google-calendar`; keep Google data in `ib.google.cache`, never in the vault).
 - `ib.lib.t("English text")` → the user's language (English or French); add your own French with `ib.lib.addTranslations("fr", { "Add": "Ajouter" })`.

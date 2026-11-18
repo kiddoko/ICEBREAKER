@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- STATS module: numbers over time from modules and from you — `stats`,
+  graphs (7 / 30 / 90 / 365 days), a widget with sparklines, pins. Modules
+  record theirs with `ib.stats` (permission `stats:read` to read others').
+
 - REMINDERS module: local reminders, a system notification 15 min before and
   on time (macOS, Windows, Linux), with a retro "tu-dut"; `remind`.
 - Notifications for modules: `ib.ui.alert(title, body)` — system

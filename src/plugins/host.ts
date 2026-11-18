@@ -326,6 +326,30 @@ export class PluginHost {
           return granted.has("vault:write") ? tools : tools.filter((t) => t.name !== "write_note");
         },
       },
+      stats: (() => {
+        const own = (name: string) => (name.includes(".") ? name : `${m.id}.${name}`);
+        const mine = (name: string) => {
+          const id = own(name);
+          if (!id.startsWith(`${m.id}.`)) throw new Error(`plugin "${m.id}" can only write its own stats (${m.id}.…), not "${id}"`);
+          return id;
+        };
+        const readable = (id: string) => id.startsWith(`${m.id}.`) || granted.has("stats:read");
+        const canRead = (id: string) => {
+          if (!readable(id)) need("stats:read");
+          return id;
+        };
+        const st = deck.stats;
+        return {
+          define: (name, meta) => st.define(mine(name), meta, m.id),
+          set: (name, value, meta) => st.set(mine(name), value, m.id, meta),
+          add: (name, delta = 1, meta) => st.add(mine(name), delta, m.id, meta),
+          get: (id) => st.get(canRead(own(id))),
+          series: (id, days) => st.series(canRead(own(id)), days),
+          list: async (prefix) => (await st.list(prefix)).filter((s) => readable(s.id)),
+          remove: (name) => st.remove(mine(name)),
+          onChange: (fn) => st.onChange((id) => readable(id) && fn(id)),
+        };
+      })(),
       storage: {
         get: async <T,>(key: string, fallback: T) => ((await readData())[key] as T) ?? fallback,
         set: async (key, value) => {

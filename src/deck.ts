@@ -1,3 +1,4 @@
+import { StatsStore } from "./core/stats";
 import { AIManager } from "./ai";
 import { helpSpec } from "./apps/help";
 import { homeSpec } from "./apps/home";
@@ -65,6 +66,8 @@ export class Deck implements InputSink {
   readonly actions = new ActionRegistry();
   readonly widgets = new WidgetRegistry();
   readonly ai: AIManager;
+  /** numbers kept over time by modules (ib.stats), shown by STATS */
+  readonly stats: StatsStore;
   readonly plugins: PluginHost;
   readonly workspace: Workspace;
   readonly shell: ShellApp;
@@ -98,6 +101,7 @@ export class Deck implements InputSink {
   ) {
     const el = (id: string) => document.getElementById(id)!;
     this.vault = new Vault(platform.vault);
+    this.stats = new StatsStore(this.vault);
     this.ai = new AIManager(settings);
     // the AI wrote notes: pick them up in the tree, search, widgets…
     this.ai.onVaultWrite = () => void this.vault.rescan().then(() => this.requestFrame());
@@ -163,7 +167,7 @@ export class Deck implements InputSink {
     );
     if (boot) boot.memMB = stats ? Math.round(stats.memTotal / 1024 ** 2) : 0;
     this.vault.journalFolder = s.journal.folder;
-    await step(() => this.vault.mount(s.vault.path), () => ({ text: `Mounted vault at ${this.vault.root} (${this.vault.markdown().length} notes, ${this.vault.journalDates().size} journal entries)`, status: "OK" }));
+    await step(() => this.vault.mount(s.vault.path).then(() => this.recordVaultStats()), () => ({ text: `Mounted vault at ${this.vault.root} (${this.vault.markdown().length} notes, ${this.vault.journalDates().size} journal entries)`, status: "OK" }));
     if (!s.vault.path) this.settings.set("vault.path", this.vault.root);
     const fontOf = () => `${this.theme.font.family}|${this.theme.font.scale}|${this.theme.font.weights}`;
     const font = fontOf();
@@ -383,6 +387,16 @@ export class Deck implements InputSink {
       b.send(req.id, null, true, true);
       this.requestFrame();
     }
+  }
+
+  /** The deck's own stats: how many notes the vault holds (kept fresh on every rescan). */
+  private vaultStatsOn = false;
+  private recordVaultStats(): void {
+    if (this.vaultStatsOn) return void this.stats.set("deck.notes", this.vault.markdown().length, "deck").catch(() => {});
+    this.vaultStatsOn = true;
+    const record = () => void this.stats.set("deck.notes", this.vault.markdown().length, "deck", { label: "notes in the vault" }).catch(() => {});
+    record();
+    this.vault.events.on("rescanned", record);
   }
 
   /** Do something through its shell command, echoed in the shell (mouse actions use this). */

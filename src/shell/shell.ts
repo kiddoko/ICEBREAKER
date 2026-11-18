@@ -115,6 +115,7 @@ export class ShellApp implements App {
       this.saveHistory();
     }
     const code = await this.exec.run(line);
+    if (line.trim()) void this.deck.stats.add("deck.commands", 1, "deck", { label: "commands run", kind: "counter" }).catch(() => {});
     this.term.ensureNewline();
     this.deck.requestFrame();
     return code;
