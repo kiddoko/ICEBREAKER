@@ -20,6 +20,8 @@ fn main() {
             } else {
                 println!("cargo:warning=google-client.json: client_id / client_secret look wrong, ignored");
             }
+        } else {
+            println!("cargo:warning=google-client.json: needs \"client_id\": \"…\" and \"client_secret\": \"…\" (see google-client.example.json), ignored");
         }
     }
     tauri_build::build()
