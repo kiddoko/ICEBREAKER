@@ -100,7 +100,9 @@ export interface Settings {
   /** registry: the official index · sources: your own (URLs or user/repo of an index.json) */
   /** removed: built-in modules the user uninstalled (the STORE reinstalls them) */
   plugins: { enabled: string[]; disabled: string[]; removed: string[]; registry: string; sources: string[] };
-  home: { widgets: WidgetPlacement[]; weatherCity: string; worldClocks: string[]; newsTopic: string };
+  home: { widgets: WidgetPlacement[]; weatherCity: string; worldClocks: string[]; newsTopic: string;
+    /** the clock widget's face (clock style) and seconds (clock seconds) */
+    clockStyle: string; clockSeconds: boolean };
 }
 
 export interface Secrets {
@@ -149,7 +151,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // the community index: a JSON list of plugins/themes (see docs/COMMUNITY.md)
   plugins: { enabled: [], disabled: [], removed: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json", sources: [] },
   // empty = the default layout (widgets/builtin.ts)
-  home: { widgets: [], weatherCity: "Paris", worldClocks: ["America/New_York", "Europe/London", "Asia/Tokyo"], newsTopic: "" },
+  home: { widgets: [], weatherCity: "Paris", worldClocks: ["America/New_York", "Europe/London", "Asia/Tokyo"], newsTopic: "", clockStyle: "dots", clockSeconds: false },
 };
 
 type Listener = (path: string) => void;

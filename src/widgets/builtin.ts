@@ -5,10 +5,11 @@ import { resolvePlace } from "../core/location";
 import { strWidth } from "../core/unicode";
 import type { Deck } from "../deck";
 import type { SystemStats } from "../platform/types";
-import { dots, fitMatrix, matrixSize, matrixText } from "../ui/dots";
+import { dots } from "../ui/dots";
 import type { UI } from "../ui/ui";
 import { basename, dirname } from "../vault/paths";
 import { EXTRA_WIDGETS } from "./extra";
+import { drawClock } from "./clockfaces";
 import { withPopups } from "./popups";
 import type { WidgetPlacement, WidgetSpec } from "./types";
 
@@ -97,35 +98,7 @@ const clock: WidgetSpec = {
   size: { w: 4, h: 4 },
   min: { w: 2, h: 2 },
   render(ui, r, { deck }) {
-    const c = ui.c;
-    const now = new Date();
-    const locale = deck.settings.data.user.locale || undefined;
-    const sep = now.getSeconds() % 2 === 0 ? ":" : " ";
-    const time = `${String(now.getHours()).padStart(2, "0")}${sep}${String(now.getMinutes()).padStart(2, "0")}`;
-    const date = now.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
-    const shown = time.replace(" ", ":");
-    const extra = r.h >= 4 ? 2 : r.h >= 3 ? 1 : 0; // rows under the digits: seconds line, date
-    // dot-matrix digits: 2 rows tall, doubled only in really big cards
-    const k = fitMatrix(shown, r.w - 2, r.h - extra, r.h >= 12 && r.w >= 40 ? 2 : 1);
-    if (k) {
-      const d = matrixSize(shown, k);
-      const top = r.y + Math.max(0, Math.round((r.h - d.h - extra) / 2));
-      const x = r.x + Math.floor((r.w - d.w) / 2);
-      const grad = ui.theme.gradient.length ? ui.theme.gradient : [c.accent, c.accentAlt];
-      matrixText(ui, x, top, time, k, (row, rows) => grad[Math.min(grad.length - 1, Math.floor((row / rows) * grad.length))]);
-      let y = top + d.h;
-      if (extra >= 1) {
-        const s = now.getSeconds() + now.getMilliseconds() / 1000;
-        const filled = Math.round((s / 60) * d.w);
-        ui.text(x, y, "─".repeat(Math.max(0, filled)), { fg: c.accent });
-        ui.text(x + filled, y, "─".repeat(Math.max(0, d.w - filled)), { fg: c.faint });
-        y++;
-      }
-      if (extra >= 2) ui.textCenter(r, y, date, { fg: c.muted });
-    } else {
-      ui.textCenter(r, r.y + Math.floor((r.h - 1) / 2), shown, { fg: c.accent, attrs: BOLD });
-    }
-    ui.animate(Math.min(250, 1000 - (Date.now() % 1000)));
+    drawClock(ui, r, deck);
   },
 };
 

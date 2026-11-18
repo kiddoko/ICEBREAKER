@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Clock widget faces: dots, segment, analog (a braille dial with hands),
+  binary, minimal — and the seconds if you want them (`clock style analog`,
+  `clock seconds on`, or f / s in its pop-up).
 - File tree: [+ note] and [+ dir] buttons (in the selected folder), tree
   guides ├─ └─ │, item counts, a marker on the open note; dot-files hidden.
 - SHORTCUTS page (`ctrl+/`, or `shortcuts`): every shortcut by category,

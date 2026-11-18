@@ -1,3 +1,4 @@
+import { clockCommand } from "./clockfaces";
 import { t } from "../core/i18n";
 /**
  * Pop-ups of the built-in widgets (enter / double-click on HOME, or
@@ -330,9 +331,9 @@ let timerWatch: ReturnType<typeof setInterval> | null = null;
 
 const clockPopup: WidgetPopupSpec = {
   title: "clock",
-  size: { w: 54, h: 12 },
-  hint: "t timer · space stopwatch · r reset",
-  render(ui, r) {
+  size: { w: 54, h: 13 },
+  hint: "t timer · space stopwatch · r reset · f face · s seconds",
+  render(ui, r, { deck }) {
     const c = ui.c;
     ui.animate(200);
     const now = new Date();
@@ -354,10 +355,18 @@ const clockPopup: WidgetPopupSpec = {
     x = r.x + 3;
     x += ui.button(x, r.y + 9, clockState.swStart ? "❚❚ stop" : t("▶ start"), () => {}, { cmd: "stopwatch toggle", tip: "space" }) + 2;
     ui.button(x, r.y + 9, t("↺ reset"), () => {}, { cmd: "stopwatch reset", tip: "r" });
+    // the widget's face
+    x = r.x + 3;
+    const h = deck.settings.data.home;
+    x = ui.text(x, r.y + 11, `${t("FACE")} `, { fg: c.subtle, attrs: BOLD }) + 1;
+    x += ui.button(x, r.y + 11, `‹ ${t(h.clockStyle || "dots")} ›`, () => {}, { cmd: "clock style next", tip: "f" }) + 2;
+    ui.button(x, r.y + 11, h.clockSeconds ? t("seconds ✓") : t("seconds ✗"), () => {}, { cmd: "clock seconds", tip: "s" });
   },
   onText: (t, { deck }) => {
     if (t === " ") return void deck.act("stopwatch toggle"), true;
     if (t === "r") return void deck.act("stopwatch reset"), true;
+    if (t === "f") return void deck.act("clock style next"), true;
+    if (t === "s") return void deck.act("clock seconds"), true;
     if (t === "t") {
       void deck.prompt("Timer", { placeholder: "5m, 90s, 1h30" }).then((v) => {
         if (v?.trim()) void deck.act(`timer ${v.trim()}`);
@@ -678,4 +687,4 @@ export function withPopups(specs: WidgetSpec[]): WidgetSpec[] {
   return specs.map((s) => (POPUPS[s.id] ? { ...s, ...POPUPS[s.id] } : s));
 }
 
-export const popupCommands: Command[] = [focusCommand, moonCommand, timerCommand, stopwatchCommand, matrixCommand];
+export const popupCommands: Command[] = [focusCommand, moonCommand, timerCommand, stopwatchCommand, matrixCommand, clockCommand];
