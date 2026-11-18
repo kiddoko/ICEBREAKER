@@ -6,6 +6,25 @@ one is a single shell command.
 
 ## Installing
 
+The easy way: the **STORE** (top bar → ⇣ store, or `store`). It lists the
+modules and themes of every index it knows, shows what each asks for, and
+installs, enables, updates or removes them in a click — or a command:
+
+```bash
+store                                  # the STORE
+store search pomodoro · store install pomodoro · store remove pomodoro
+store sources add someone/their-modules            # another index, on GitHub
+store sources add https://my-server.example/ib/index.json   # your own server
+store sources add http://nas.local/icebreaker/index.json    # a box on your network
+```
+
+An index is a JSON list (see below). Host yours anywhere: a GitHub repo, a web
+server, a NAS at home — https anywhere, plain http only on your local network.
+Entries can point at GitHub (`user/repo`) or at any https folder holding
+`plugin.json` + `main.js` (or a `.toml` for themes).
+
+The same, by hand:
+
 ```bash
 plugin search pomodoro                     # browse the community index
 plugin install pomodoro                    # by id, from the index

@@ -1,3 +1,4 @@
+import { mix } from "../core/color";
 import type { Action } from "../core/input";
 import type { Rect } from "../core/grid";
 import type { UI } from "./ui";
@@ -15,6 +16,10 @@ export class ListView<T> {
   items: T[] = [];
   selected = 0;
   scrollTop = 0;
+  /** where the view really is (eases toward scrollTop: page jumps glide) */
+  private shownTop = 0;
+  private prevSel = -1;
+  private selAt = 0;
   onActivate?: (item: T, index: number) => void;
   /** Shell command a click on this item runs (shown in the shell and in the tooltip). */
   cmdOf?: (item: T) => string | undefined;
@@ -35,6 +40,10 @@ export class ListView<T> {
     }
     const n = Math.max(0, Math.min(this.items.length - 1, i));
     const changed = n !== this.selected;
+    if (changed) {
+      this.prevSel = this.selected;
+      this.selAt = performance.now();
+    }
     this.selected = n;
     this.reveal = true; // scrolled into view at the next render, when the height is known
     if (changed) this.onSelect?.(this.items[n], n);
@@ -69,14 +78,26 @@ export class ListView<T> {
     }
     this.scrollTop = Math.max(0, Math.min(this.scrollTop, Math.max(0, this.items.length - this.viewH)));
     if (this.selected >= this.items.length) this.selected = Math.max(0, this.items.length - 1);
+    // smooth scroll: the view eases toward its target, a few rows per frame
+    const gap = this.scrollTop - this.shownTop;
+    if (Math.abs(gap) > 0.5 && Math.abs(gap) < this.viewH * 3) {
+      this.shownTop += gap * 0.45;
+      ui.animate(16);
+    } else this.shownTop = this.scrollTop;
+    const top = Math.round(this.shownTop);
+    // the selection glides: the new row fades in, the old one fades out
+    const age = performance.now() - this.selAt;
+    if (age < 160) ui.animate(16);
+    const selBg = focused ? ui.c.selection : ui.c.highlight;
 
     for (let i = 0; i < this.viewH; i++) {
-      const idx = this.scrollTop + i;
+      const idx = top + i;
       const item = this.items[idx];
       if (item === undefined) break;
       const row = { x: r.x, y: r.y + i, w: r.w, h: 1 };
       const isSel = idx === this.selected;
-      if (isSel) ui.fill(row, { bg: focused ? ui.c.selection : ui.c.highlight });
+      if (isSel) ui.fill(row, { bg: age < 80 ? mix(ui.c.highlight, selBg, age / 80) : selBg });
+      else if (idx === this.prevSel && age < 160) ui.fill(row, { bg: mix(selBg, ui.c.panel, age / 160) });
       else if (ui.hovered(row)) ui.fill(row, { bg: ui.c.highlight });
       // the row's hit goes first, so clickable bits drawn inside the row sit on top of it
       ui.hit(row, {

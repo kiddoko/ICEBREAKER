@@ -30,8 +30,21 @@ export class FrameLoop {
     public maxFps = 60,
   ) {}
 
-  /** Ask for a frame now, or after `delayMs`. Multiple requests collapse into one. */
+  /** A frame wanted by an animation, not before this time (vsync-aligned, see request). */
+  private wantAt = 0;
+
+  /**
+   * Ask for a frame now, or after `delayMs`. Multiple requests collapse into one.
+   * Animations (anything sooner than ~3 display frames) ride requestAnimationFrame
+   * so every frame lands on a vsync — a setTimeout(16) drifts against the display
+   * and stutters, worst on 120 Hz screens. Longer waits use a timer (it sleeps).
+   */
   request(delayMs = 0): void {
+    if (delayMs > 1 && delayMs < 50) {
+      const at = performance.now() + delayMs;
+      this.wantAt = this.raf ? Math.min(this.wantAt, at) : at;
+      delayMs = 0;
+    } else if (delayMs <= 1) this.wantAt = 0;
     if (delayMs <= 1) {
       if (!this.raf) {
         this.raf = requestAnimationFrame(this.tick);
@@ -60,6 +73,12 @@ export class FrameLoop {
   private tick = (now: number): void => {
     this.raf = 0;
     clearTimeout(this.watchdog);
+    // an animation asked for a bit later: skip this vsync, catch the next one
+    if (this.wantAt && now < this.wantAt - 4) {
+      this.raf = requestAnimationFrame(this.tick);
+      return;
+    }
+    this.wantAt = 0;
     const minGap = this.maxFps > 0 ? 1000 / this.maxFps : 0;
     if (now - this.last < minGap - 1.5) {
       this.raf = requestAnimationFrame(this.tick); // too early for the cap: wait a vsync

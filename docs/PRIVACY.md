@@ -23,7 +23,7 @@ names:
 | Weather widget | open-meteo.com | the location you entered (city or coordinates) |
 | News widget | Google News / Bing News RSS | your search terms, language, country |
 | Google Calendar (optional) | googleapis.com | see below |
-| Installing modules / themes | GitHub | the name of what you install |
+| STORE: installing modules / themes | GitHub, or the sources you add yourself | the name of what you install |
 | `voice install` (once) | GitHub (the sherpa-onnx engine and a piper voice) | nothing but the download request |
 
 The voice itself is synthesized on your computer: what it reads never leaves it.

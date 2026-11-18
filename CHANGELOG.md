@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- STORE: modules and themes from GitHub and your own sources (https, or http
+  on your local network); install, enable, update, remove; `store`.
+- NEXUS: new note / folder, search the vault, rename, trash, sort, actions menu.
+- Top bar: nexus, store and modules buttons.
+- Voice: female neural voices (Jenny, Amy, Siwis), Japanese (system voice,
+  AI answers translated), the accent follows the text, a gentler robot filter.
+- Music pop-up redesigned: spectrum, progress knob, controls, volume, up next.
+- Smoother: animations ride the display's vsync; lists glide and scroll softly.
+
 - English or French: setup asks the deck's language and the voice's; Settings too.
 - The AI is your UPLINK (no more "neural link"); its widget shows idle,
   processing, speaking and offline, and its pop-up takes a quick question.

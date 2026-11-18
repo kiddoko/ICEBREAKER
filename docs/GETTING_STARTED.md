@@ -65,7 +65,8 @@ point the deck at it (`vault mount /Volumes/nas/vault`). See [PRIVACY.md](PRIVAC
 ## 6. A voice
 
 ```bash
-voice install fr      # the open-source neural voice in French, once (~85 MB) — or en
+voice install en      # a neural English voice (Jenny), once (~85 MB) — or fr (Siwis), en-us (Amy)
+voice language ja     # or: Japanese, always (the system's Japanese voice; AI answers get translated)
 voice on              # then: voice test
 voice read on         # LINK reads its answers aloud
 voice robot 80        # more machine (0 = clean, 100 = full robot)
@@ -82,7 +83,13 @@ bigger and usable — with a button to its module. `theme set e-ink`,
 `theme set neon-district`, `theme set abyss`… each theme brings its own motion
 and sounds; `theme studio` tweaks everything live.
 
-## 8. Where things are
+## 8. Store and NEXUS
+
+The top bar has your shortcuts: **⬡ nexus** (the vault in 3D: `+` new note,
+`/` search, F2 rename, delete → trash, `:` every action), **⇣ store** (modules
+and themes to install, and your own sources) and **▦ modules**.
+
+## 9. Where things are
 
 | what | where |
 |------|-------|

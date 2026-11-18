@@ -753,43 +753,94 @@ export function activate(ib: IcebreakerAPI): void {
     open: "music open",
     popup: {
       title: "music",
-      size: { w: 64, h: 14 },
+      size: { w: 66, h: 17 },
       hint: "space ▶❚❚ · n p · + - volume · s shuffle · r repeat",
       render(ui, r) {
         const c = ui.c;
         const s = shown();
-        if (s?.playing) ui.animate(250);
+        const playing = !!s?.playing;
+        ui.animate(playing ? 33 : 500);
+        const w = r.w - 4, x0 = r.x + 2;
         if (!s) {
-          ui.text(r.x + 2, r.y + 1, lib.length ? `nothing playing · ${lib.length} tracks in ${folder}` : "nothing playing · music folder <path> to add yours", { fg: c.muted }, r.w - 4);
-        } else {
-          ui.text(r.x + 2, r.y, s.player.toUpperCase(), { fg: c.accentAlt, attrs: BOLD });
-          ui.text(r.x + 2, r.y + 1, s.title || "—", { fg: c.fg, attrs: BOLD }, r.w - 4);
-          ui.text(r.x + 2, r.y + 2, [s.artist, s.album].filter(Boolean).join(" · "), { fg: c.muted }, r.w - 4);
-          if (s.duration) {
-            const pos = position();
-            ui.text(r.x + 2, r.y + 4, clock(pos), { fg: c.subtle });
-            ui.bar(r.x + 8, r.y + 4, r.w - 18, pos / s.duration);
-            ui.textRight(r.x + r.w - 2, r.y + 4, clock(s.duration), { fg: c.subtle });
+          ui.textCenter(r, r.y + 3, "♪", { fg: c.accent, attrs: BOLD });
+          ui.textCenter(r, r.y + 5, lib.length ? `nothing playing · ${lib.length} tracks in ${folder}` : "nothing playing", { fg: c.muted });
+          ui.textCenter(r, r.y + 6, lib.length ? "enter: your library" : "music folder <path> · or play something in Spotify / Music", { fg: c.faint });
+          return;
+        }
+        // source · title · artist
+        ui.text(x0, r.y, s.player.toUpperCase(), { fg: c.accentAlt, attrs: BOLD }, w);
+        ui.gradientText(x0, r.y + 1, (s.title || "—").slice(0, w), ui.theme.gradient, BOLD, (ui.now / 6000) % 1);
+        ui.text(x0, r.y + 2, [s.artist, s.album].filter(Boolean).join("  ·  "), { fg: c.muted }, w);
+        // a spectrum: smooth bars, alive while it plays
+        const bars = " ▁▂▃▄▅▆▇█";
+        const rows = 4, top = r.y + 4;
+        for (let i = 0; i < w; i++) {
+          const f = i / w;
+          const v = playing
+            ? 0.18 + 0.82 * Math.abs(Math.sin(ui.now / (210 + (i % 7) * 23) + i * 0.6) * Math.sin(ui.now / 530 + f * 4.2)) * (1 - f * 0.45)
+            : 0.06;
+          const level = v * rows * 8;
+          const col = mix(ui.theme.gradient[0] ?? c.accent, ui.theme.gradient[ui.theme.gradient.length - 1] ?? c.accentAlt, f);
+          for (let k = 0; k < rows; k++) {
+            const fill = Math.max(0, Math.min(8, Math.round(level - (rows - 1 - k) * 8)));
+            if (fill) ui.text(x0 + i, top + k, bars[fill], { fg: k === 0 ? mix(col, 0xffffff, 0.25) : col });
           }
         }
-        let x = r.x + 2;
-        const ctl = (label: string, cmd: string, on = false) => (x += ui.button(x, r.y + 6, label, () => {}, { cmd, selected: on }) + 2);
-        ctl("|◀◀", "music prev");
-        ctl(s?.playing ? "❚❚" : "▶", "music toggle");
-        ctl("▶▶|", "music next");
-        if (localActive() || qi >= 0) {
-          ctl("shuffle", "music shuffle", shuffle);
-          ctl(`repeat ${repeat}`, "music repeat", repeat !== "off");
+        // progress with a knob
+        const py = top + rows + 1;
+        if (s.duration) {
+          const pos = position();
+          const bw = w - 14;
+          const k = Math.round((pos / s.duration) * (bw - 1));
+          ui.text(x0, py, clock(pos).padStart(5), { fg: c.subtle });
+          ui.text(x0 + 7, py, "━".repeat(k), { fg: c.accent });
+          ui.text(x0 + 7 + k, py, "●", { fg: mix(c.accent, 0xffffff, 0.3), attrs: BOLD });
+          ui.text(x0 + 8 + k, py, "─".repeat(Math.max(0, bw - 1 - k)), { fg: c.faint });
+          ui.text(x0 + 8 + bw, py, clock(s.duration), { fg: c.subtle });
+          if (localActive()) ui.hit({ x: x0 + 7, y: py, w: bw, h: 1 }, { onClick: (m) => run(`music seek ${Math.floor(((m.x - x0 - 7) / bw) * s.duration)}`), tip: "click to jump" });
         }
-        ctl("−", "music vol -");
-        ctl("+", "music vol +");
-        if (queue.length && qi >= 0) {
-          ui.text(r.x + 2, r.y + 8, "NEXT", { fg: c.subtle, attrs: BOLD });
-          queue.slice(qi + 1, qi + 1 + (r.h - 9)).forEach((p, k) => {
-            const t = byPath.get(p);
-            ui.text(r.x + 2, r.y + 9 + k, `${t?.title ?? p}`, { fg: c.muted }, r.w - 24);
-            ui.textRight(r.x + r.w - 2, r.y + 9 + k, t?.artist ?? "", { fg: c.faint });
-          });
+        // controls, centred
+        const cy = py + 2;
+        const ctl: [string, string, boolean][] = [
+          ...(localActive() || qi >= 0 ? ([["⤮", "music shuffle", shuffle]] as [string, string, boolean][]) : []),
+          ["⏮", "music prev", false],
+          [playing ? "❚❚" : "▶", "music toggle", true],
+          ["⏭", "music next", false],
+          ...(localActive() || qi >= 0 ? ([[repeat === "one" ? "⟲¹" : "⟲", "music repeat", repeat !== "off"]] as [string, string, boolean][]) : []),
+        ];
+        const total = ctl.reduce((n, [l]) => n + strWidth(l) + 4, -2);
+        let cx = r.x + Math.floor((r.w - total) / 2);
+        for (const [label, cmd, on] of ctl) {
+          const lw = strWidth(label) + 2;
+          const rect = { x: cx, y: cy, w: lw, h: 1 };
+          const hot = ui.hovered(rect);
+          const big = cmd === "music toggle";
+          ui.text(cx, cy, ` ${label} `, hot || big ? { fg: c.panel, bg: hot ? c.accentAlt : c.accent, attrs: BOLD } : { fg: on ? c.accent : c.muted, attrs: on ? BOLD : 0 });
+          ui.hit(rect, { cmd, tip: cmd });
+          cx += lw + 2;
+        }
+        // volume
+        if (s.volume !== null) {
+          const vy = cy + 2, n = 20, lv = Math.round((s.volume / 100) * n);
+          const vx = r.x + Math.floor((r.w - n - 8) / 2);
+          ui.text(vx, vy, "−", { fg: c.subtle });
+          ui.hit({ x: vx, y: vy, w: 1, h: 1 }, { cmd: "music vol -" });
+          for (let i = 0; i < n; i++) ui.text(vx + 2 + i, vy, i < lv ? "▮" : "▯", { fg: i < lv ? mix(c.accent, c.accentAlt, i / n) : c.faint });
+          ui.text(vx + n + 3, vy, "+", { fg: c.subtle });
+          ui.hit({ x: vx + n + 3, y: vy, w: 1, h: 1 }, { cmd: "music vol +" });
+          ui.text(vx + n + 5, vy, `${Math.round(s.volume)}%`, { fg: c.faint });
+        }
+        // up next
+        if (queue.length && qi >= 0 && r.h > 14) {
+          const next = queue.slice(qi + 1, qi + 1 + (r.h - 14));
+          if (next.length) {
+            ui.text(x0, cy + 4, "UP NEXT", { fg: c.subtle, attrs: BOLD });
+            next.forEach((p, k) => {
+              const tr = byPath.get(p);
+              ui.text(x0 + 9, cy + 4 + k, tr?.title ?? p, { fg: c.muted }, w - 30);
+              ui.textRight(x0 + w, cy + 4 + k, tr?.artist ?? "", { fg: c.faint });
+            });
+          }
         }
       },
       onText: (t) => {
