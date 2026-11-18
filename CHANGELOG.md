@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Notifications: sound and on screen, sound only, on screen only, or nothing
+  — a new setup step, and Settings → sound → notifications.
 - STATS module: numbers over time from modules and from you — `stats`,
   graphs (7 / 30 / 90 / 365 days), a widget with sparklines, pins. Modules
   record theirs with `ib.stats` (permission `stats:read` to read others').

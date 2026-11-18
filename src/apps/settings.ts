@@ -108,6 +108,7 @@ export class SettingsApp implements App {
       { section: "SOUND", label: "", value: () => "" },
       toggle("sound.enabled", "ui sounds"),
       cycle("sound.volume", "volume", [10, 25, 50, 75, 100], undefined, (v) => `${v}%`),
+      cycle("notifications.mode", "notifications", ["both", "sound", "visual", "none"], undefined, (v) => t(({ both: "sound + screen", sound: "sound only", visual: "screen only", none: "off" } as Record<string, string>)[String(v)] ?? String(v))),
       {
         label: "presets: minimal / max / potato",
         value: () => "open",

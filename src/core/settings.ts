@@ -52,6 +52,8 @@ export interface Settings {
   };
   /** UI sounds (core/sound.ts). Volume 0–100. */
   sound: { enabled: boolean; volume: number };
+  /** How alerts (reminders, modules' ib.ui.alert) reach you: sound (+ voice), visual (system notification + toast), both, or none. */
+  notifications: { mode: "both" | "sound" | "visual" | "none" };
   ai: {
     provider: "claude-code" | "anthropic" | "ollama";
     /** Model for the Claude Code provider: "sonnet", "opus"… (empty = the CLI default). */
@@ -111,6 +113,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fx: { bloom: false, scanlines: false, vignette: false, ambient: true, flicker: false, glitch: true, screensaverMinutes: 0, levels: { bloom: 100, scanlines: 100, vignette: 100 } },
   boot: { mode: "full" },
   sound: { enabled: true, volume: 50 },
+  notifications: { mode: "both" },
   shell: {
     mode: "system",
     macros: [

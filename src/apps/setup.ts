@@ -192,6 +192,15 @@ export class SetupApp implements App {
         id: "sound", title: "SOUND", question: "UI sounds? (blips and clicks of an old OS doing its best — replaceable, see docs)",
         options: () => [{ value: "on", label: "On" }, { value: "off", label: "Off" }],
       },
+      {
+        id: "notifications", title: "NOTIFICATIONS", question: "Reminders and modules can call you. How?",
+        options: () => [
+          { value: "both", label: "Sound and on screen" },
+          { value: "sound", label: "Sound only" },
+          { value: "visual", label: "On screen only" },
+          { value: "none", label: "Nothing at all" },
+        ],
+      },
       { id: "done", title: "READY", question: "Deck configured. Everything is in Settings if you change your mind.", options: () => [{ value: "go", label: "Jack in" }] },
     ];
   }
@@ -332,6 +341,7 @@ export class SetupApp implements App {
       if (this.a.home) set("home.widgets", LAYOUT_PRESETS[this.a.home as keyof typeof LAYOUT_PRESETS]);
       if (this.a.fx) applyFxPreset(this.deck, this.a.fx as "minimal" | "max" | "potato");
       if (this.a.sound) set("sound.enabled", this.a.sound === "on");
+      if (this.a.notifications) set("notifications.mode", this.a.notifications);
       if (this.a.terminal) set("shell.mode", this.a.terminal);
       // modules are configured through their commands, like everything else
       if (this.a.calendar === "local") void this.deck.act("cal mode local");

@@ -599,10 +599,14 @@ export class Deck implements InputSink {
    * reads it when it's on. Modules call it through ib.ui.alert.
    */
   alert(title: string, body = ""): void {
-    this.sound.play("alert");
-    this.notify(body ? `${title} — ${body}` : title, "warning");
-    void this.platform.notify?.(title, body).catch((e) => console.warn("[notify]", e));
-    if (this.settings.data.voice.enabled) this.voice.say(body ? `${title}. ${body}` : title);
+    const mode = this.settings.data.notifications?.mode ?? "both";
+    const hear = mode === "both" || mode === "sound", see = mode === "both" || mode === "visual";
+    if (hear) this.sound.play("alert");
+    if (see) {
+      this.workspace.notify(body ? `${title} — ${body}` : title, "warning");
+      void this.platform.notify?.(title, body).catch((e) => console.warn("[notify]", e));
+    }
+    if (hear && this.settings.data.voice.enabled) this.voice.say(body ? `${title}. ${body}` : title);
   }
 
   /** "Welcome, netrunner": once per start, when the desktop appears (voice.greet). */
