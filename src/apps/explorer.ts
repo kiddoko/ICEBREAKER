@@ -217,9 +217,12 @@ export class ExplorerApp implements App {
     ui.animate(Math.abs(this.sel - this.pos) > 0.001 || warp > 0 ? 16 : 60);
 
     ui.fill(r, { bg: c.bg });
-    const horizon = r.y + Math.max(3, Math.floor(r.h * 0.34));
-    const previewH = r.h >= 26 ? 8 : r.h >= 18 ? 5 : 0;
-    const floorBottom = r.y + r.h - previewH - 1;
+    // a tall page (shell hidden): the scene keeps its size and sits in the middle
+    const sceneH = Math.min(r.h, 36);
+    const sy = r.y + Math.floor((r.h - sceneH) / 2);
+    const horizon = sy + Math.max(3, Math.floor(sceneH * 0.34));
+    const previewH = sceneH >= 26 ? 8 : sceneH >= 18 ? 5 : 0;
+    const floorBottom = sy + sceneH - previewH - 1;
 
     // ── sky: glyph rain, fading toward the horizon ──
     const sky = { x: r.x, y: r.y + 1, w: r.w, h: horizon - r.y - 1 };
@@ -302,7 +305,7 @@ export class ExplorerApp implements App {
     for (const v of visible) this.drawNode(ui, r, v, horizon, floorBottom, focused);
 
     // ── data panel: the one in front ──
-    if (previewH) this.drawData(ui, { x: r.x + 1, y: r.y + r.h - previewH, w: r.w - 2, h: previewH }, items[this.sel]);
+    if (previewH) this.drawData(ui, { x: r.x + 1, y: floorBottom + 1, w: r.w - 2, h: previewH }, items[this.sel]);
   }
 
   private drawNode(ui: UI, r: Rect, v: { e: VaultEntry; i: number; z: number; x: number }, horizon: number, floor: number, focused: boolean): void {

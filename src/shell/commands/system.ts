@@ -246,7 +246,7 @@ const fortune: Command = {
 
 const rain: Command = {
   name: "rain",
-  aliases: ["cmatrix"],
+  aliases: ["cmatrix", "screensaver"],
   summary: "falling glyphs screensaver (any key to exit)",
   run(ctx) {
     ctx.deck.screensaver();

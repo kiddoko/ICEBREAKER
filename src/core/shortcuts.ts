@@ -35,7 +35,9 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: "ctrl+shift+l", what: "lock the deck", cat: "everywhere", cmd: "lock" },
   { keys: "ctrl+= · ctrl+- · ctrl+0", what: "interface bigger · smaller · 100 %", cat: "everywhere" },
   { keys: "f11", what: "fullscreen", cat: "everywhere", cmd: "fullscreen" },
-  { keys: "esc", what: "close the page and go back (HOME stays)", cat: "everywhere" },
+  { keys: "shift+esc", what: "close the tab and show the one before it (HOME stays)", cat: "everywhere" },
+  { keys: "esc", what: "back to the page (from the tree or the shell); closes NEXUS, STORE, MODULES, settings", cat: "everywhere" },
+  { keys: "1…9", what: "go to that tab (when you're not typing)", cat: "panes & tabs" },
   { keys: "right-click · menu key · shift+f10", what: "the menu of the thing under the mouse (or the selected one): rename, pin, colour, copy, paste…", cat: "everywhere" },
 
   // panes & tabs

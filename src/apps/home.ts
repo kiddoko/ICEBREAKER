@@ -378,7 +378,7 @@ export class HomeApp implements App {
     this.origin = { x: area.x, y: area.y };
     const colX = (n: number) => this.origin.x + Math.round(n * this.colW);
     this.areaH = area.h;
-    const contentH = (this.editing ? this.layout : this.compact(this.layout)).filter((p) => ((p.page ?? 0) === this.page)).reduce((m, p) => Math.max(m, (p.y + p.h) * ROW), 0);
+    const contentH = (this.editing ? this.layout : this.compact(this.layout)).filter((p) => ((p.page ?? 0) === this.page)).reduce((m, p) => Math.max(m, (p.y + p.h) * ROW - 1), 0); // the last row is a gap, not content
     const maxScroll = Math.max(0, contentH - area.h);
     // widgets sit where they were placed: top-left, the same in and out of edit mode
     if (this.reveal) {

@@ -131,7 +131,7 @@ In the shell: \`tag notes/ideas.md red\`, \`tag view red\`, \`icon projects ⚡\
 Tags and icons live in your vault (.icebreaker/tags.json, icons.json).
 
 ## Tabs, pins, settings
-- Tabs on top (⌘1…9, ⌘W closes). Esc closes a page and goes back.
+- Tabs on top: 1…9 (when not typing) or ⌘1…9; ⌘W or ⇧Esc closes one and shows the tab before it. NEXUS, STORE, MODULES and settings open without a tab (Esc closes them).
 - **Pins**: notes, folders, modules at the top of the tree and in the *pinned*
   widget — \`pin projects --key ctrl+shift+p\`.
 - **Settings** (⌘,): categories left, settings right, type to search; each
@@ -189,6 +189,8 @@ On a Mac, ⌘ plays the role of Ctrl.
 | ⌘N · ⌘⇧N | new note · new folder |
 | ⌘J | today's journal |
 | ⌘⇧L | lock |
+| ⇧Esc · ⌘W | close the tab |
+| 1…9 | go to that tab (when not typing) |
 | Tab · ⇧Tab | next thing · next part of the screen |
 
 | Mouse | |

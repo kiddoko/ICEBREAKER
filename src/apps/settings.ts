@@ -3,6 +3,7 @@ import { displayKeys, SHORTCUTS } from "../core/shortcuts";
 import { SETTINGS_HELP } from "./settings-help";
 import { focus } from "../widgets/focusstate";
 import { q } from "../ui/ui";
+import { strWidth } from "../core/unicode";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import { mix } from "../core/color";
@@ -91,6 +92,21 @@ export class SettingsApp implements App {
         set(key, options[(i + dir + options.length) % options.length]);
       },
     });
+    /** a percentage: ←→ by 5, stops at the ends (a click at the end goes back to the start) */
+    const pct = (key: string, label: string, min = 0, max = 100, show: (v: number) => string = (v) => `${v}%`): Row => {
+      const step = (v: number, dir: number) => {
+        const cur = Math.round(Number(v ?? min) / 5) * 5;
+        if (dir > 0 && cur >= max) return min;
+        return Math.max(min, Math.min(max, cur + dir * 5));
+      };
+      return {
+        key,
+        label,
+        cmd: () => `config set ${key} ${step(s.get(key) as number, 1)}`,
+        value: () => show(Number(s.get(key) ?? min)),
+        change: (dir) => set(key, step(s.get(key) as number, dir < 0 ? -1 : 1)),
+      };
+    };
     const text = (key: string, label: string, section?: string, placeholder = ""): Row => ({
       section,
       key,
@@ -110,7 +126,22 @@ export class SettingsApp implements App {
       text("user.handle", "handle"),
       cycle("user.gender", "gender (optional)", ["", "woman", "man", "nonbinary", "other"], undefined, (v) => v || "not specified"),
       text("user.genderOther", "your own word (when gender is other)"),
-      cycle("user.pronouns", "pronouns", ["", "she/her", "he/him", "they/them", "elle", "il", "iel"], undefined, (v) => v || "not specified"),
+      {
+        key: "user.pronouns",
+        label: "pronouns",
+        cmd: () => `config set user.pronouns ${q(String(s.get("user.pronouns") ?? ""))}`,
+        value: () => String(s.get("user.pronouns") || "not specified"),
+        // the usual ones, or your own
+        change: async () => {
+          const opts = ["", "she/her", "he/him", "they/them", "elle", "il", "iel"];
+          const cur = String(s.get("user.pronouns") ?? "");
+          const i = await d.choose(t("pronouns"), [...opts.map((o) => ({ label: o || t("not specified") })), { label: t("my own…") }], { selected: Math.max(0, opts.indexOf(cur)) });
+          if (i === null) return;
+          if (i < opts.length) return set("user.pronouns", opts[i]);
+          const v = await d.prompt(t("Your pronouns"), { initial: opts.includes(cur) ? "" : cur, placeholder: "xe/xem" });
+          if (v !== null) set("user.pronouns", v.trim());
+        },
+      },
       text("user.locale", "date language", undefined, "fr-FR, en-US… (empty = system)"),
       { section: "APPEARANCE", label: "", value: () => "" },
       cycle("appearance.theme", "theme", d.themes.list().map((t) => t.name)),
@@ -130,30 +161,30 @@ export class SettingsApp implements App {
       toggle("fx.ambient", "animated background"),
       toggle("fx.flicker", "crt flicker"),
       toggle("fx.glitch", "animations (glitch, page & typing motion)"),
-      cycle("fx.levels.bloom", "bloom strength", [25, 50, 75, 100, 125, 150, 200], undefined, (v) => `${v}%`),
-      cycle("fx.levels.scanlines", "scanlines strength", [25, 50, 75, 100, 125, 150, 200], undefined, (v) => `${v}%`),
-      cycle("fx.levels.vignette", "vignette strength", [25, 50, 75, 100, 125, 150, 200], undefined, (v) => `${v}%`),
-      cycle("fx.levels.chroma", "colour fringes (CRT)", [0, 15, 30, 50, 75, 100], undefined, (v) => (v ? `${v}%` : t("off"))),
-      cycle("fx.levels.sharpness", "sharpness", [100, 80, 60, 40, 20, 0], undefined, (v) => (v === 100 ? t("razor sharp") : `${v}%`)),
+      {
+        label: "effect presets: minimal / max / potato",
+        value: () => "open",
+        change: () => d.workspace.fxPanel(),
+      },
+      pct("fx.levels.bloom", "bloom strength", 0, 200),
+      pct("fx.levels.scanlines", "scanlines strength", 0, 200),
+      pct("fx.levels.vignette", "vignette strength", 0, 200),
+      pct("fx.levels.chroma", "colour fringes (CRT)", 0, 100, (v) => (v ? `${v}%` : t("off"))),
+      pct("fx.levels.sharpness", "sharpness", 0, 100, (v) => (v === 100 ? t("razor sharp") : `${v}%`)),
       cycle("fx.screensaverMinutes", "screensaver after", [0, 5, 10, 20, 30], undefined, (v) => (v ? `${v} min` : "never")),
       cycle("boot.mode", "boot sequence", ["full", "fast", "off"]),
       { section: "SOUND", label: "", value: () => "" },
       toggle("sound.enabled", "ui sounds"),
-      cycle("sound.volume", "volume", [10, 25, 50, 75, 100], undefined, (v) => `${v}%`),
+      pct("sound.volume", "volume", 0, 100),
       cycle("notifications.mode", "notifications", ["both", "sound", "visual", "none"], undefined, (v) => t(({ both: "sound + screen", sound: "sound only", visual: "screen only", none: "off" } as Record<string, string>)[String(v)] ?? String(v))),
-      {
-        label: "presets: minimal / max / potato",
-        value: () => "open",
-        change: () => d.workspace.fxPanel(),
-      },
       { section: "VOICE", label: "", value: () => "" },
       toggle("voice.enabled", "voice"),
       toggle("voice.readAI", "read LINK's answers aloud"),
       toggle("voice.subtitles", "subtitles (what the voice says, bottom-right)"),
       toggle("voice.greet", "greeting at start-up"),
-      cycle("voice.robot", "robot filter", [0, 25, 40, 55, 70, 85, 100], undefined, (v) => `${v}%`),
-      cycle("voice.rate", "speed", [0.8, 0.9, 1, 1.1, 1.25, 1.5]),
-      cycle("voice.volume", "voice volume", [25, 50, 65, 80, 100], undefined, (v) => `${v}%`),
+      pct("voice.robot", "robot filter", 0, 100),
+      cycle("voice.rate", "speed", [0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.5], undefined, (v) => `×${v}`),
+      pct("voice.volume", "voice volume", 0, 100),
       cycle("voice.language", "voice language", ["en", "fr", "ja"], undefined, (v) => (v === "fr" ? "Français" : v === "ja" ? "日本語" : "English")),
       cycle("voice.engine", "engine", ["auto", "piper", "system"], undefined, (v) => (v === "auto" ? "auto (piper if installed)" : v)),
       {
@@ -220,14 +251,14 @@ export class SettingsApp implements App {
   }
 
   /** the categories, in order, with their rows */
-  private sections(): { name: string; rows: Row[]; group: "GENERAL" | "MODULES" }[] {
-    const out: { name: string; rows: Row[]; group: "GENERAL" | "MODULES" }[] = [];
+  private sections(): { name: string; rows: Row[]; group: "GENERAL" | "MODULES" | "DANGER" }[] {
+    const out: { name: string; rows: Row[]; group: "GENERAL" | "MODULES" | "DANGER" }[] = [];
     for (const r of this.list.items) {
-      if (!r.label && r.section) out.push({ name: r.section, rows: [], group: r.section === "OVERVIEW" || r.section.startsWith("◇") ? "MODULES" : "GENERAL" });
+      if (!r.label && r.section) out.push({ name: r.section, rows: [], group: r.section === "DANGER ZONE" ? "DANGER" : r.section === "OVERVIEW" || r.section.startsWith("◇") ? "MODULES" : "GENERAL" });
       else if (out.length) out[out.length - 1].rows.push(r);
     }
-    // two big groups: GENERAL, then MODULES (the overview, then each module)
-    return [...out.filter((x) => x.group === "GENERAL"), ...out.filter((x) => x.group === "MODULES")];
+    // GENERAL, then MODULES (the overview, then each module), then the danger zone alone at the bottom
+    return [...out.filter((x) => x.group === "GENERAL"), ...out.filter((x) => x.group === "MODULES"), ...out.filter((x) => x.group === "DANGER")];
   }
   private cat = 0;
   private sel = 0;
@@ -362,8 +393,9 @@ export class SettingsApp implements App {
     const sx = r.x + 2;
     ui.fill({ x: sx, y: sy, w: sw, h: 1 }, { bg: c.highlight });
     ui.text(sx + 1, sy, "⌕", { fg: c.accent, bg: c.highlight });
-    ui.text(sx + 3, sy, this.query || t("type to search every setting…"), { fg: this.query ? c.fg : c.muted, bg: c.highlight }, sw - 4);
-    if (focused && this.query) ui.cursor(sx + 3 + this.query.length, sy);
+    ui.text(sx + 3, sy, this.query || ` ${t("type to search every setting…")}`, { fg: this.query ? c.fg : c.muted, bg: c.highlight }, sw - 4);
+    // the blinking caret: you can type here
+    if (focused) ui.cursor(sx + 3 + strWidth(this.query), sy);
 
     // left: the categories
     const top = sy + 2;
@@ -372,7 +404,8 @@ export class SettingsApp implements App {
     secs.forEach((sec, i) => {
       if (i === 0 || sec.group !== secs[i - 1].group) {
         const hy = top + i + extra + (i ? 1 : 0);
-        if (hy < r.y + r.h - 2) ui.text(sx, hy, t(sec.group), { fg: c.subtle, attrs: BOLD });
+        if (hy < r.y + r.h - 2 && sec.group !== "DANGER") ui.text(sx, hy, t(sec.group), { fg: c.subtle, attrs: BOLD });
+        else if (hy < r.y + r.h - 2) ui.hline(sx, hy, catW, { fg: c.faint }, "┄");
         extra += i ? 2 : 1;
       }
       const y = top + i + extra;

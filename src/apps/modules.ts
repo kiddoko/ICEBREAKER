@@ -163,6 +163,8 @@ export class ModulesApp implements App {
     const baseW = Math.max(18, Math.min(30, Math.floor(r.w / 4)));
     this.cols = Math.max(2, Math.min(6, Math.floor((r.w - 4) / (baseW + 2))));
     const rows = Math.ceil(carts.length / this.cols);
+    // the wheel walks the hive a row at a time
+    ui.hit(field, { onWheel: (dw) => (this.sel = (((this.sel + Math.sign(dw) * this.cols) % carts.length) + carts.length) % carts.length) });
     // with 3 rows or more the hive is a loop: after the last row comes the first again, still forward
     const loop = rows >= 3;
     const selRow = Math.floor(this.sel / this.cols);

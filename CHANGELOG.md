@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- Tabs: ⇧Esc (or ⌘W) closes a tab and shows the one before it; a stray Esc never
+  closes one any more. 1…9 switch tabs when you're not typing. NEXUS, STORE,
+  MODULES and settings open without a tab (their button lights up; Esc closes them).
+- Settings: percentages step by 5 % and stop at the ends (sharpness no longer runs
+  backwards); custom pronouns; the effect presets moved from SOUND to APPEARANCE;
+  DANGER ZONE alone at the very bottom; a blinking caret in the search field.
+- Defaults: robot voice 100 %, voice volume 50 %, speed ×1.1, sharpness 80 % with a
+  gentler curve.
+- `mute` and a ♪ button bottom-right silence everything (ui sounds, voice, alerts);
+  ☾ starts the screensaver (`screensaver`).
+- System terminal: drag to select text, double-click selects a word, ⌘C (Ctrl+C
+  when something is selected, Ctrl+Shift+C) copies; right-click → copy / select all.
+  A maximized shell has a ⤓ dock button.
+- zsh + powerlevel10k: instant prompt off in the deck's terminals (the prompt_cr errors).
+- macOS speed: the colour fringes measure their own cost and refresh less often when
+  the webview is slow at them (they made tab switches and the login animation lag).
+- e-ink is grey again (a filter on single layers let the glow's colour through).
+- Shift+Tab always moves to the next part of the screen (it opened the shell's
+  completion); the wheel walks the MODULES hive; HOME no longer scrolls by one row
+  when nothing overflows; NEXUS stays centred on a tall page; scripts show their
+  full file name; choice lists never cut the label for its hint; the colour dots
+  have a row of their own above the tree.
+
 - Right-click everywhere: a menu for the thing under the mouse — tree entries
   (open, new note/folder here, rename, duplicate, pin, copy path / [[link]],
   colour, icon, trash), tabs (close, close the others / the ones on the right,

@@ -44,6 +44,7 @@ export class TerminalApp implements App {
   }
   render(ui: UI, r: Rect, focused: boolean): void {
     this.term.render(ui, r, focused);
+    dockButton(ui, r);
   }
 }
 
@@ -77,5 +78,16 @@ export class IbshApp implements App {
   }
   render(ui: UI, r: Rect, focused: boolean): void {
     this.deck.shell.render(ui, r, focused);
+    dockButton(ui, r);
   }
+}
+
+/** ⤓ dock, top-right of a maximized shell: back into the bottom panel. */
+function dockButton(ui: UI, r: Rect): void {
+  const label = " ⤓ dock ";
+  const rect = { x: r.x + r.w - label.length - 1, y: r.y, w: label.length, h: 1 };
+  if (rect.x < r.x) return;
+  const hot = ui.hovered(rect);
+  ui.text(rect.x, rect.y, label, { fg: hot ? ui.c.panel : ui.c.accent, bg: hot ? ui.c.accent : ui.c.highlight });
+  ui.hit(rect, { cmd: "term dock", tip: "back into the bottom panel" });
 }

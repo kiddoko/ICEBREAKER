@@ -116,7 +116,8 @@ export async function importFlow(deck: Deck): Promise<void> {
 /** The menu (≡ scripts on the shell panel, or the palette): pick one, it runs. */
 export async function scriptsMenu(deck: Deck): Promise<void> {
   const list = await listScripts(deck, true);
-  const options = [...list.map((s) => ({ label: s.name, hint: s.runner ? `${s.runner} · ${s.about}` : s.about })), { label: "+ new script", hint: "a file in .icebreaker/scripts" }, { label: "✎ edit one…", hint: "open it in the editor" }, { label: "⇣ import a script…", hint: "from anywhere on this computer" }];
+  // the whole file name, extension included (backup.py, morning.ibsh)
+  const options = [...list.map((s) => ({ label: s.path.slice(DIR.length + 1), hint: s.runner ? `${s.runner} · ${s.about}` : s.about })), { label: "+ new script", hint: "a file in .icebreaker/scripts" }, { label: "✎ edit one…", hint: "open it in the editor" }, { label: "⇣ import a script…", hint: "from anywhere on this computer" }];
   const i = await deck.choose("Scripts", options);
   if (i === null) return;
   if (i === options.length - 1) return void importFlow(deck);
@@ -126,7 +127,7 @@ export async function scriptsMenu(deck: Deck): Promise<void> {
     if (name?.trim()) void deck.act(`script new ${name.trim().replace(/\s+/g, "-")}`);
     return;
   }
-  const j = await deck.choose("Edit which script?", list.map((s) => ({ label: s.name, hint: s.about })));
+  const j = await deck.choose("Edit which script?", list.map((s) => ({ label: s.path.slice(DIR.length + 1), hint: s.about })));
   if (j !== null) void deck.act(`script edit ${list[j].name}`);
 }
 

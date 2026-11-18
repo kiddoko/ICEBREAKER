@@ -174,6 +174,32 @@ export class Renderer {
     el.style.top = this.canvas.style.top;
   }
   /** red copy nudged left + blue copy nudged right, screened over the picture (CSS) */
+  /**
+   * The fringes cost ~9 full-screen compositing passes. Chromium does them on
+   * the GPU; WebKit (macOS) and some Linux webviews do them on the CPU, and
+   * during an animation (tab switch, login screen) that makes every frame late.
+   * So they measure themselves: when they're expensive they only refresh every
+   * so often, with a last pass once the screen settles.
+   */
+  private chromaAt = 0;
+  private chromaEvery = 0;
+  private chromaTimer: ReturnType<typeof setTimeout> | 0 = 0;
+  private chromaFrame(): void {
+    const now = performance.now();
+    const wait = this.chromaAt + this.chromaEvery - now;
+    if (wait > 0) {
+      // too soon: one catch-up pass later (the screen may have settled by then)
+      if (!this.chromaTimer) this.chromaTimer = setTimeout(() => ((this.chromaTimer = 0), this.chromaFrame()), wait);
+      return;
+    }
+    const t0 = performance.now();
+    this.drawChroma();
+    const cost = performance.now() - t0;
+    this.chromaAt = now;
+    // cheap (< 2 ms): every frame; else at most ~1/8 of the time goes to it (max 5 per second)
+    this.chromaEvery = cost < 2 ? 0 : Math.min(200, cost * 8);
+  }
+
   private drawChroma(): void {
     const el = this.chromaEl, ctx = this.chromaCtx, tmp = this.chromaTmp;
     if (!el || !ctx || !tmp || !el.width) return;
@@ -308,9 +334,7 @@ export class Renderer {
       b.drawImage(this.canvas, 0, 0, this.bloom.width, this.bloom.height);
       if (this.canvasBlur) b.filter = "none";
     }
-    if (painted && this.chroma > 0) {
-      this.drawChroma();
-    }
+    if (painted && this.chroma > 0) this.chromaFrame();
     return painted;
   }
 }

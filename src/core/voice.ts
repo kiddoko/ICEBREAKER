@@ -55,7 +55,7 @@ export class DeckVoice {
    * AI answers first).
    */
   say(text: string, lang?: string): void {
-    if (!this.available) return;
+    if (!this.available || this.deck.settings.data.sound.muted) return;
     const clean = speakable(text);
     if (!clean) return;
     const v = this.deck.settings.data.voice.language;

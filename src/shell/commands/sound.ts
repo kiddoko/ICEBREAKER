@@ -2,6 +2,23 @@ import { fmt } from "../../core/ansi";
 import { SOUND_NAMES, type SoundName } from "../../core/sound";
 import type { Command } from "../types";
 
+/** Everything silent at once (the 🔇 button bottom-right). */
+export const mute: Command = {
+  name: "mute",
+  summary: "silence everything: ui sounds, the voice, alerts (again: sound back)",
+  usage: "mute         toggle\nmute on|off",
+  complete: () => ["on", "off"],
+  run(ctx) {
+    const s = ctx.deck.settings;
+    const a = ctx.args[0];
+    const next = a === "on" ? true : a === "off" ? false : !s.data.sound.muted;
+    s.set("sound.muted", next);
+    ctx.deck.applySettings("sound.muted");
+    ctx.out(next ? "🔇 muted — mute again to hear things\n" : "🔊 sound back\n");
+    return 0;
+  },
+};
+
 export const sound: Command = {
   name: "sound",
   examples: [

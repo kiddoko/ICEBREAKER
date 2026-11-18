@@ -60,7 +60,8 @@ export interface Settings {
     macros: { label: string; cmd: string }[];
   };
   /** UI sounds (core/sound.ts). Volume 0–100. */
-  sound: { enabled: boolean; volume: number };
+  /** muted: everything silent (ui sounds, voice, alerts) — the 🔇 button, `mute` */
+  sound: { enabled: boolean; volume: number; muted?: boolean };
   /** How alerts (reminders, modules' ib.ui.alert) reach you: sound (+ voice), visual (system notification + toast), both, or none. */
   notifications: { mode: "both" | "sound" | "visual" | "none" };
   /** Your own shortcuts: key combo → shell command (`bind ctrl+shift+1 "open notes/ideas.md"`). */
@@ -133,7 +134,7 @@ export const DEFAULT_SETTINGS: Settings = {
   appearance: { theme: "nightshade", tweaks: {}, fontSize: 13, scale: 100, startFullscreen: false, fontWeight: "thin", maxFps: 60, showFps: true, lineNumbers: true, backgroundSlow: true },
   // Minimal by default: the animated background and short glitch transitions.
   // The heavy CRT stuff (bloom, scanlines, vignette, flicker) is one click away in the FX panel.
-  fx: { bloom: false, scanlines: false, vignette: false, ambient: true, flicker: false, glitch: true, screensaverMinutes: 0, levels: { bloom: 100, scanlines: 100, vignette: 100, chroma: 0, sharpness: 100 } },
+  fx: { bloom: false, scanlines: false, vignette: false, ambient: true, flicker: false, glitch: true, screensaverMinutes: 0, levels: { bloom: 100, scanlines: 100, vignette: 100, chroma: 0, sharpness: 80 } },
   boot: { mode: "full" },
   sound: { enabled: true, volume: 50 },
   notifications: { mode: "both" },
@@ -166,7 +167,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   journal: { folder: "journal" },
   privacy: { stealth: false },
-  voice: { subtitles: true, enabled: false, engine: "auto", name: "", rate: 1, robot: 30, volume: 80, readAI: false, greet: true, language: "en" },
+  voice: { subtitles: true, enabled: false, engine: "auto", name: "", rate: 1.1, robot: 100, volume: 50, readAI: false, greet: true, language: "en" },
   editor: { autosave: true, tabSize: 2 },
   // the community index: a JSON list of plugins/themes (see docs/COMMUNITY.md)
   plugins: { enabled: [], disabled: [], removed: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json", sources: [] },

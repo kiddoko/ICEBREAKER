@@ -186,8 +186,52 @@ export class Workspace {
 
   // ── tabs ─────────────────────────────────────────────────────────────────
 
+  /**
+   * Pages reached from the buttons top-right (NEXUS, STORE, MODULES, settings):
+   * they show in the main area without a tab of their own, and go away when you
+   * go anywhere else. One at a time, kept last in `tabs`.
+   */
+  static readonly PAGES = new Set(["modules", "store", "explorer", "settings"]);
+  /** the tab to come back to when the page closes */
+  private pageReturn = 0;
+
+  /** the open button-page, if any (always the last of `tabs`) */
+  get page(): App | undefined {
+    const last = this.tabs[this.tabs.length - 1];
+    return last && Workspace.PAGES.has(last.kind) ? last : undefined;
+  }
+
+  /** the real tabs (what the tab bar shows and 1…9 count) */
+  get tabCount(): number {
+    return this.tabs.length - (this.page ? 1 : 0);
+  }
+
+  /** Close the button-page without going anywhere. */
+  private dropPage(): void {
+    const p = this.page;
+    if (!p) return;
+    void p.close?.();
+    this.tabs.pop();
+    this.active = Math.max(0, Math.min(this.pageReturn, this.tabs.length - 1));
+  }
+
   /** Show an app; if one with the same key is open, switch to it instead. */
   open(app: App): App {
+    if (Workspace.PAGES.has(app.kind)) {
+      const cur = this.page;
+      if (cur?.key === app.key) {
+        void app.close?.();
+        this.active = this.tabs.length - 1;
+      } else {
+        if (cur) this.dropPage();
+        else this.pageReturn = this.active;
+        this.tabs.push(app);
+        this.active = this.tabs.length - 1;
+      }
+      this.focus = "main";
+      return this.tabs[this.active];
+    }
+    if (this.page) this.dropPage();
     const existing = this.tabs.findIndex((t) => t.key === app.key);
     if (existing >= 0) {
       void app.close?.();
@@ -211,23 +255,22 @@ export class Workspace {
     const app = this.tabs[i];
     if (!app) return;
     if ((await app.close?.()) === false) return;
+    const wasPage = app === this.page;
     this.tabs.splice(i, 1);
+    // closing the tab you're on shows the one before it (in tab order)
+    if (wasPage) this.active = Math.max(0, Math.min(this.pageReturn, this.tabs.length - 1));
+    else if (i < this.active || (i === this.active && i > 0)) this.active--;
     if (this.active >= this.tabs.length) this.active = Math.max(0, this.tabs.length - 1);
     if (this.tabs.length === 0) this.deck.openApp("home");
     this.deck.requestFrame();
   }
 
-  /** esc on a page: close it and return to the one seen before (HOME stays). */
+  /** shift+esc (or a page's esc): close it and show the tab before it (HOME stays). */
   async closeAndGoBack(): Promise<void> {
     const app = this.activeApp;
     if (!app || app.kind === "home") return;
-    const before = this.visited.filter((k) => k !== app.key);
     await this.closeTab(this.active);
-    if (this.tabs.includes(app)) return; // it refused to close (unsaved…)
-    for (let j = before.length - 1; j >= 0; j--) {
-      const i = this.tabs.findIndex((t) => t.key === before[j]);
-      if (i >= 0) return this.switchTab(i);
-    }
+    this.deck.pageTurn();
   }
 
   private noteVisit(): void {
@@ -237,8 +280,11 @@ export class Workspace {
   }
 
   switchTab(i: number): void {
-    if (this.tabs.length === 0) return;
-    const next = ((i % this.tabs.length) + this.tabs.length) % this.tabs.length;
+    // leaving a button-page closes it (it's not a tab)
+    if (this.page && i !== this.tabs.length - 1) this.dropPage();
+    const n = this.tabCount || this.tabs.length;
+    if (n === 0) return;
+    const next = ((i % n) + n) % n;
     if (next !== this.active) this.deck.pageTurn();
     this.active = next;
     this.focus = "main";
@@ -403,7 +449,14 @@ export class Workspace {
   /** Right-click in the shell panel. */
   private shellMenu(): MenuEntry[] {
     const term = this.shellTab === "term" && this.termAvailable;
-    const items: MenuEntry[] = [...this.editMenu(term ? { copy: false, cut: false, selectAll: false } : {}), "-"];
+    const items: MenuEntry[] = term
+      ? [
+          { label: t("copy"), run: () => void this.terminal.copySelection(), hint: IS_MAC ? "⌘C" : "ctrl+shift+C", disabled: !this.terminal.hasSelection() },
+          ...this.editMenu({ copy: false, cut: false, selectAll: false }),
+          { label: t("select all"), run: () => this.terminal.selectAll(), hint: IS_MAC ? "⌘A" : "" },
+          "-",
+        ]
+      : [...this.editMenu(), "-"];
     if (term) items.push({ label: t("clear the screen"), run: () => void this.terminal.onKey({ key: "l", code: "KeyL", ctrl: true, alt: false, shift: false, meta: false, combo: "ctrl+l", rawCtrl: true, rawMeta: false }), hint: "ctrl+L" });
     else if (this.shellTab === "ibsh") items.push({ label: t("clear the screen"), cmd: "clear" });
     items.push(
@@ -465,6 +518,12 @@ export class Workspace {
       modal.onKey?.(k);
       return;
     }
+    // shift+tab: the next part of the screen. Only a note may keep it (to unindent);
+    // shells never get it (zsh/ibsh would open their completion instead)
+    if (k.combo === "shift+tab") {
+      if (this.focus === "main" && this.activeApp?.kind === "note" && this.activeApp.onKey?.(k)) return;
+      return this.cycleFocus();
+    }
     // the system terminal gets the keyboard (ctrl+c, ctrl+r, esc…); ⌘ shortcuts stay the deck's
     if (this.focus === "shell" && this.shellVisible && this.shellTab === "term" && this.termAvailable && this.terminal.wants(k)) {
       this.terminal.onKey(k);
@@ -475,8 +534,6 @@ export class Workspace {
     if (this.focus === "main" && ta instanceof TerminalApp && ta.term.wants(k)) return void ta.term.onKey(k);
     if (k.combo === "contextmenu" || k.combo === "shift+f10") return this.keyboardMenu();
     if (this.globalKey(k)) return;
-    // shift+tab: the next part of the screen — unless the note editor still has something to unindent
-    if (k.combo === "shift+tab" && !this.paneTarget()?.onKey?.(k)) return this.cycleFocus();
     this.routeKey(k, false);
   }
 
@@ -511,8 +568,9 @@ export class Workspace {
       return;
     }
     if (this.paneTarget()?.onText?.(t)) return;
-    // Nobody typing? `h` goes HOME from anywhere.
+    // Nobody typing? `h` goes HOME from anywhere, 1…9 go to that tab.
     if (t === "h" || t === "H") this.deck.openApp("home");
+    else if (/^[1-9]$/.test(t) && Number(t) <= this.tabCount) this.switchTab(Number(t) - 1);
   }
 
   handleAction(a: Action, source: ActionSource): void {
@@ -537,9 +595,11 @@ export class Workspace {
       case "tab-prev": this.switchTab(this.active - 1); break;
       case "focus-next": this.cycleFocus(); break;
       case "menu": this.deck.openApp("home"); break;
+      // esc: back to the page from the tree / shell; a button-page (NEXUS, STORE…) closes.
+      // Tabs close with shift+esc (or ctrl+W), so a stray esc never loses one. The gamepad's B still closes.
       case "back":
         if (this.focus !== "main") this.focus = "main";
-        else void this.closeAndGoBack();
+        else if (this.activeApp === this.page || source === "gamepad") void this.closeAndGoBack();
         break;
     }
   }
@@ -562,6 +622,7 @@ export class Workspace {
     if (c === "ctrl+space") return void d.openApp("link"), true;
     if (c === "ctrl+b") return this.toggleSidebar(), true;
     if (c === "ctrl+w") return void this.closeTab(), true;
+    if (c === "shift+esc") return void this.closeAndGoBack(), true;
     if (c === "ctrl+tab") return this.switchTab(this.active + 1), true;
     if (c === "ctrl+shift+tab") return this.switchTab(this.active - 1), true;
     if (c === "ctrl+," ) return void d.openApp("settings"), true;
@@ -841,7 +902,7 @@ export class Workspace {
       ["explorer", `⬡ ${t("nexus")}`, "launch explorer", "the vault in 3D · explore in the shell"],
     ];
     // a narrow window: the buttons shrink to their icon so the tabs keep their room
-    const tabsW = this.tabs.reduce((n, tb, i) => n + strWidth(` ${i + 1}:${tb.title().toLowerCase()} `) + 1, 0) + 4;
+    const tabsW = this.tabs.slice(0, this.tabCount).reduce((n, tb, i) => n + strWidth(` ${i + 1}:${tb.title().toLowerCase()} `) + 1, 0) + 4;
     const navW = nav.filter(([k]) => d.apps.get(k)).reduce((n, [, label]) => n + strWidth(label) + 3, 0);
     const compact = x + tabsW > gx - navW;
     for (const [kind, full, cmd, tip] of nav) {
@@ -859,7 +920,8 @@ export class Workspace {
     ui.text(rx + 1, r.y, ai, { fg: d.ai.ready ? c.accent : c.error, bg: c.panelAlt });
     ui.hit({ x: rx, y: r.y, w: strWidth(ai) + 2, h: 1 }, d.ai.ready ? { cmd: "link", tip: "ctrl+space · or `chat` right here in the shell" } : { cmd: "settings", tip: `AI offline: ${d.ai.problem ?? ""}` });
 
-    this.tabs.forEach((t, i) => {
+    // the button-pages (NEXUS, STORE…) have no tab: their button lights up instead
+    this.tabs.slice(0, this.tabCount).forEach((t, i) => {
       const label = ` ${i + 1}:${t.title().toLowerCase()}${t.dirty?.() ? " ●" : ""} `;
       const w = strWidth(label);
       if (x + w + 2 > nx) return;
@@ -874,7 +936,7 @@ export class Workspace {
       const closeX = x;
       ui.text(closeX, r.y, isActive || hot ? "×" : " ", { fg: isActive ? c.panel : c.subtle, bg: style.bg });
       ui.hit(rect, { cmd: `tab ${i + 1}`, tip: `${IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`} · right-click: close others…`, menu: () => this.tabMenu(i) });
-      ui.hit({ x: closeX, y: r.y, w: 1, h: 1 }, { cmd: `tab close ${i + 1}`, tip: "ctrl+w · esc closes the focused page" });
+      ui.hit({ x: closeX, y: r.y, w: 1, h: 1 }, { cmd: `tab close ${i + 1}`, tip: "ctrl+w · shift+esc closes it" });
       x += 2;
     });
     if (x + 3 < gx) {
@@ -938,6 +1000,9 @@ export class Workspace {
     parts.push(this.shellVisible ? { text: "▾ shell", fg: c.muted, cmd: "term hide", tip: "fold the shell away · ctrl+`" } : { text: "▴ shell", fg: c.accent, cmd: "term show", tip: "bring the shell back · ctrl+`" });
     parts.push({ text: "⌨", fg: this.overlays.some((o) => o instanceof Osk) ? c.accent : c.muted, cmd: "osk", tip: "on-screen keyboard · pad: X" });
     parts.push({ text: "✦ fx", fg: c.accentAlt, cmd: "view fx", tip: "bloom, scanlines… · `fx` in the shell" });
+    const muted = !!d.settings.data.sound.muted;
+    parts.push({ text: muted ? "⊘ mute" : "♪", fg: muted ? c.error : c.muted, cmd: "mute", tip: muted ? t("muted: click to hear things again") : t("mute everything (sounds, voice, alerts)") });
+    parts.push({ text: "☾", fg: c.muted, cmd: "screensaver", tip: t("screensaver now (any key brings you back)") });
     if (d.settings.data.appearance.showFps) parts.push({ text: `${d.loop.fps}fps ${d.loop.frameMs.toFixed(1)}ms`, fg: c.subtle });
     parts.push({ text: `^K ${t("palette")}`, fg: c.muted, cmd: "palette" });
     parts.push({ text: `F1 ${t("help")}`, fg: c.muted, cmd: "manual" });

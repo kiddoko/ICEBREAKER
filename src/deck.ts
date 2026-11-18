@@ -213,7 +213,7 @@ export class Deck implements InputSink {
       (a) => ({ text: a ? `Account ${a}: login required` : "No account: the deck opens unlocked", status: a ? "OK" : "INFO" }),
     );
     if (this.account) this.lockNow();
-    this.sound.enabled = s.sound.enabled;
+    this.sound.enabled = s.sound.enabled && !s.sound.muted;
     this.sound.volume = s.sound.volume / 100;
     await step(() => this.reloadSounds().catch(() => 0), (n) => ({ text: `Sound ${s.sound.enabled ? "on" : "muted"} · pack ${this.theme.sound.pack}${n ? ` · ${n} custom sounds` : ""}`, status: "OK" }));
 
@@ -599,7 +599,7 @@ export class Deck implements InputSink {
     root.setProperty("--scanlines", String(fx.scanlines ? (t.fx.scanlines * lv.scanlines) / 100 : 0));
     root.setProperty("--vignette", String(fx.vignette ? (t.fx.vignette * lv.vignette) / 100 : 0));
     document.getElementById("deck")!.classList.toggle("crt", fx.scanlines && t.fx.scanlines * lv.scanlines > 0);
-    document.getElementById("bloom")!.style.display = fx.bloom ? "block" : "none";
+    document.getElementById("bloom")!.style.display = fx.bloom && t.fx.bloom * lv.bloom > 0 ? "block" : "none";
     document.getElementById("scanlines")!.style.display = fx.scanlines ? "block" : "none";
     document.getElementById("vignette")!.style.display = fx.vignette ? "block" : "none";
     document.getElementById("deck")!.classList.toggle("flicker", fx.flicker && t.fx.flicker);
@@ -608,7 +608,8 @@ export class Deck implements InputSink {
     this.renderer.bloomEnabled = fx.bloom;
     this.renderer.setChroma(lv.chroma ?? 0, css(t.c.bg));
     const sharp = fx.levels.sharpness ?? 100 - (fx.levels.softness ?? 0);
-    this.renderer.setSoftness(100 - sharp);
+    // a gentler curve: 80 % is a light CRT softness, 0 % still readable
+    this.renderer.setSoftness((100 - sharp) * 0.6);
     this.loop.maxFps = this.settings.data.appearance.maxFps;
     this.requestFrame();
   }
@@ -624,8 +625,9 @@ export class Deck implements InputSink {
     else if (key === "user.handle") this.shell.exec.env.USER = s.user.handle;
     else if (key.startsWith("fx") || key === "appearance.maxFps") this.applyFx();
     else if (key.startsWith("sound.")) {
-      this.sound.enabled = s.sound.enabled;
+      this.sound.enabled = s.sound.enabled && !s.sound.muted;
       this.sound.volume = s.sound.volume / 100;
+      if (s.sound.muted) this.voice.stop();
       this.sound.play("confirm");
     }
     this.requestFrame();

@@ -280,8 +280,13 @@ export class ChooseDialog implements Overlay {
     this.list.render(ui, listRect, true, (x, row, sel) => {
       let lx = row.x + 1;
       if (x.o.color) lx = ui.text(lx, row.y, "● ", { fg: hex(x.o.color) });
-      ui.text(lx, row.y, x.o.label, { fg: sel ? c.fg : c.muted, attrs: sel ? BOLD : 0 }, row.w - (lx - row.x) - strWidth(x.o.hint ?? "") - 3);
-      if (x.o.hint) ui.textRight(row.x + row.w - 2, row.y, x.o.hint, { fg: c.faint });
+      // the label first (never cut for the hint); the hint gets what's left
+      const end = ui.text(lx, row.y, x.o.label, { fg: sel ? c.fg : c.muted, attrs: sel ? BOLD : 0 }, row.w - (lx - row.x) - 2);
+      const room = row.x + row.w - 2 - end - 3;
+      if (x.o.hint && room > 4) {
+        const h = truncate(x.o.hint, room);
+        ui.textRight(row.x + row.w - 2, row.y, h, { fg: c.faint });
+      }
     });
     if (!this.list.items.length) ui.textCenter(listRect, listRect.y, "no match", { fg: c.subtle });
   }

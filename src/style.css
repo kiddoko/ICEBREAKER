@@ -97,8 +97,9 @@ body {
 }
 
 /* themes with [fx] monochrome = true: everything in greys, even a colourful zsh */
-#deck.monochrome #screen,
-#deck.monochrome #bloom {
+/* on the whole stack (screen, glow, colour fringes): a filter on single layers
+   mixes badly with the glow's blend mode and lets colour through */
+#deck.monochrome {
   /* greys, then a little warmth back so paper stays cream */
   filter: grayscale(1) sepia(0.32) brightness(0.98);
 }

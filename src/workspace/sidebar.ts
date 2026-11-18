@@ -247,8 +247,8 @@ export class Sidebar {
     let bx = r.x + 1;
     bx += ui.button(bx, r.y, "+ note", () => void this.deck.newNote(here || "notes"), { tip: `new note in /${here || "notes"}\nctrl+n · n` }) + 1;
     ui.button(bx, r.y, "+ dir", () => void this.deck.newFolder(here), { tip: `new folder in /${here}\nctrl+shift+n` });
-    ui.hline(r.x, r.y + 1, r.w, { fg: c.faint }, "┄");
-    // colour tags: one dot per colour, click = see only that colour
+    // colour tags, on a row of their own: ● has some, ○ none yet, ◉ the one shown
+    // (click = see only that colour)
     const counts = this.deck.marks.counts();
     let dx = r.x + 1;
     for (const tc of TAG_NAMES) {
@@ -257,7 +257,7 @@ export class Sidebar {
       const n = counts[tc];
       const rect = { x: dx, y: r.y + 1, w: 2, h: 1 };
       const hot = ui.hovered(rect);
-      ui.text(dx, r.y + 1, on ? "◉" : "●", { fg: n || on || hot ? tagRGB(tc) : mix(tagRGB(tc), c.bg, 0.72), bg: on ? c.highlight : undefined });
+      ui.text(dx, r.y + 1, on ? "◉" : n ? "●" : "○", { fg: n || on || hot ? tagRGB(tc) : mix(tagRGB(tc), c.bg, 0.45), bg: on || hot ? c.highlight : undefined });
       ui.hit(rect, { cmd: on ? "tag view off" : `tag view ${tc}`, tip: `${t(tc)} · ${n}\n${on ? t("click: show everything") : t("click: show only this colour")}` });
       dx += 2;
     }
@@ -266,9 +266,10 @@ export class Sidebar {
       ui.text(dx, r.y + 1, " × ", { fg: ui.hovered(xr) ? c.error : c.subtle });
       ui.hit(xr, { cmd: "tag view off", tip: t("show everything") });
     }
+    ui.hline(r.x, r.y + 2, r.w, { fg: c.faint }, "┄");
     // ★ pinned: notes, folders, modules (p pins the selected entry)
     const favs = favorites(this.deck);
-    let top = r.y + 2;
+    let top = r.y + 3;
     if (favs.length) {
       const shown = favs.slice(0, Math.max(1, Math.min(8, Math.floor(r.h / 3))));
       for (const f of shown) {
