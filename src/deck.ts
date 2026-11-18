@@ -40,6 +40,7 @@ import { deckCommands } from "./shell/commands/deck";
 import { fileCommands } from "./shell/commands/files";
 import { iconCommand, tagCommand } from "./shell/commands/marks";
 import { Marks } from "./vault/marks";
+import { ErrorLog } from "./core/errors";
 import { systemCommands } from "./shell/commands/system";
 import { ShellApp } from "./shell/shell";
 import { ShellExecutor } from "./shell/exec";
@@ -82,6 +83,8 @@ export class Deck implements InputSink {
   readonly stats: StatsStore;
   /** colour tags + custom icons of files and folders (.icebreaker/tags.json, icons.json) */
   readonly marks: Marks;
+  /** every error, with a code (E101…): the shell's "errors" tab, `errors` */
+  readonly errors = new ErrorLog();
   /** settings modules declare (ib.settings.register) — shown under MODULES in Settings */
   readonly moduleSettings = new Map<string, ModuleSettingSpec[]>();
   moduleSettingValue(id: string, key: string): unknown {
@@ -274,6 +277,15 @@ export class Deck implements InputSink {
       if (on) this.loop.request();
     };
     window.addEventListener("focus", () => focus(true));
+    // what nobody caught still lands in the error log (with a sound, the errors tab blinks)
+    const caught = (msg: string) => {
+      this.errors.add(msg);
+      this.sound.play("error");
+      this.requestFrame();
+    };
+    window.addEventListener("error", (e) => caught(e.message || String(e.error)));
+    window.addEventListener("unhandledrejection", (e) => caught(e.reason instanceof Error ? e.reason.message : String(e.reason)));
+    this.errors.onAdd = () => this.requestFrame();
     window.addEventListener("blur", () => focus(false));
     // some webviews don't report a minimized window as hidden: ask the window itself
     void this.platform.onMinimized?.((min) => {
@@ -477,6 +489,7 @@ export class Deck implements InputSink {
 
   notify(text: string, kind: ToastKind = "info"): void {
     this.sound.play(kind === "error" ? "error" : kind === "success" ? "success" : "notify");
+    if (kind === "error") this.errors.add(text);
     this.workspace.notify(text, kind);
     this.requestFrame();
   }

@@ -116,6 +116,7 @@ themes/          built-in themes (nightshade.toml is the annotated reference)
 ```
 
 - Write a plugin → [docs/PLUGINS.md](docs/PLUGINS.md)
+- Error codes (E101…) and what to do → [docs/ERRORS.md](docs/ERRORS.md)
 - Make a theme → [docs/THEMES.md](docs/THEMES.md)
 - Share them, install other people's → [docs/COMMUNITY.md](docs/COMMUNITY.md)
 - Contribute to the core → [CONTRIBUTING.md](CONTRIBUTING.md) · report a vulnerability → [SECURITY.md](SECURITY.md)

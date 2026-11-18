@@ -460,7 +460,15 @@ export class HomeApp implements App {
         try {
           spec.render(ui, inner, { deck: this.deck, focused: sel });
         } catch (e) {
-          ui.text(inner.x, inner.y, `⚠ ${e instanceof Error ? e.message : e}`, { fg: c.error }, inner.w);
+          const msg = e instanceof Error ? e.message : String(e);
+          ui.text(inner.x, inner.y, `⚠ ${msg}`, { fg: c.error }, inner.w);
+          // once per widget and message, in the error log (E502)
+          const key = `${p.id}:${msg}`;
+          if (!loggedWidgetErrors.has(key)) {
+            loggedWidgetErrors.add(key);
+            this.deck.errors.add(`widget ${p.id}: ${msg}`, "E502");
+            this.deck.sound.play("error");
+          }
         }
         // too small to draw anything: show its name, so it never just vanishes
         if (inner.w > 0 && inner.h > 0 && blank(ui, inner)) {
@@ -608,3 +616,5 @@ function blank(ui: UI, r: Rect): boolean {
     }
   return true;
 }
+
+const loggedWidgetErrors = new Set<string>();

@@ -10,13 +10,14 @@ import { drawBackground } from "../fx/backgrounds";
 import { inside, q, type Hit, type MenuEntry, type MenuItem, type UI } from "../ui/ui";
 import { copyToClipboard, readClipboard } from "../core/clipboard";
 import { ContextMenu } from "./contextmenu";
+import { describe, ERRORS_DOC } from "../core/errors";
 import { ConfirmDialog, Osk, Palette, PromptDialog, Toasts, type Overlay, type ToastKind, ChooseDialog } from "./overlays";
 import type { ChoiceOption } from "../plugins/api";
 import { FxPanel } from "./fxpanel";
 import { Sidebar } from "./sidebar";
 import { SystemTerminal } from "../shell/systerm";
 
-export type ShellTab = "term" | "ibsh" | "history";
+export type ShellTab = "term" | "ibsh" | "history" | "errors";
 
 export type Pane = "sidebar" | "main" | "shell";
 
@@ -380,6 +381,41 @@ export class Workspace {
     this.push(new Screensaver());
   }
 
+  // ── the errors tab ───────────────────────────────────────────────────────
+
+  private errorsScroll = 0;
+  private readonly errorsPane = {
+    onAction: (a: Action) => {
+      if (a === "up" || a === "scroll-up") this.errorsScroll = Math.max(0, this.errorsScroll - 1);
+      else if (a === "down" || a === "scroll-down") this.errorsScroll++;
+      else return false;
+      return true;
+    },
+  };
+
+  /** Newest first: code, time, what it is, what happened, what to do, where the docs are. */
+  private renderErrors(ui: UI, r: Rect): void {
+    const c = ui.c;
+    const log = this.deck.errors;
+    log.unseen = 0;
+    const lines: { text: string; fg: number; attrs?: number; cmd?: string }[] = [];
+    for (const e of [...log.list].reverse()) {
+      const time = new Date(e.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      lines.push({ text: `${e.code}  ${time}  ${t(e.title)}`, fg: c.error, attrs: BOLD, cmd: `errors ${e.code}` });
+      lines.push({ text: `   ${e.detail}`, fg: c.fg });
+      lines.push({ text: `   → ${t(describe(e.code).hint)}`, fg: c.muted });
+      lines.push({ text: `   ${ERRORS_DOC}#${e.code.toLowerCase()}`, fg: c.faint });
+      lines.push({ text: "", fg: c.faint });
+    }
+    lines.push({ text: t("errors clear empties this list · errors <code> explains one"), fg: c.subtle });
+    this.errorsScroll = Math.max(0, Math.min(this.errorsScroll, lines.length - r.h));
+    lines.slice(this.errorsScroll, this.errorsScroll + r.h).forEach((l, i) => {
+      ui.text(r.x + 1, r.y + i, l.text, { fg: l.fg, attrs: l.attrs }, r.w - 2);
+      if (l.cmd) ui.hit({ x: r.x, y: r.y + i, w: r.w, h: 1 }, { cmd: l.cmd });
+    });
+    ui.hit(r, { onWheel: (dw) => (this.errorsScroll = Math.max(0, this.errorsScroll + dw)) });
+  }
+
   // ── right-click menus ────────────────────────────────────────────────────
 
   /**
@@ -505,6 +541,7 @@ export class Workspace {
     if (this.focus === "shell" && this.shellVisible) {
       if (this.shellTab === "term" && this.termAvailable) return this.terminal;
       if (this.shellTab === "history") return this.deck.shell.historyPane;
+      if (this.shellTab === "errors") return this.errorsPane;
       return this.deck.shell;
     }
     if (this.focus === "sidebar" && this.sidebarVisible) return this.sidebar;
@@ -749,15 +786,20 @@ export class Workspace {
         ...(this.termAvailable ? this.terms.map((tm, i) => ["term", tm.name, i] as [ShellTab, string, number]) : []),
         ["ibsh", "ibsh", -1],
         ["history", d.shell.unseen ? `${t("history")} •${d.shell.unseen}` : t("history"), -1],
+        // errors: only once there are some; blinks red while some are unread
+        ...(d.errors.list.length ? [["errors", d.errors.unseen ? `⚠ ${t("errors")} ${d.errors.unseen}` : t("errors"), -1] as [ShellTab, string, number]] : []),
       ];
       let tx = r.x + 2;
       for (const [id, label, ti] of tabs) {
         const on = id === this.shellTab && (ti < 0 || ti === this.termIndex);
         const text = on ? ` ${ui.theme.glyphs.mark} ${label} ` : ` ${label} `;
         const rect = { x: tx, y: r.y, w: strWidth(text), h: 1 };
-        const style = on ? (shellFocused ? { fg: c.titleFocus, bg: c.panel, attrs: BOLD } : { fg: c.fg, bg: c.panel, attrs: BOLD }) : { fg: ui.hovered(rect) ? c.accent : c.title, bg: c.panel };
+        const alarm = id === "errors" && d.errors.unseen > 0;
+        if (alarm) ui.animate(400);
+        const blink = alarm && Math.floor(ui.now / 400) % 2 === 0;
+        const style = alarm ? { fg: blink ? c.panel : c.error, bg: blink ? c.error : c.panel, attrs: BOLD } : on ? (shellFocused ? { fg: c.titleFocus, bg: c.panel, attrs: BOLD } : { fg: c.fg, bg: c.panel, attrs: BOLD }) : { fg: ui.hovered(rect) ? c.accent : c.title, bg: c.panel };
         ui.text(tx, r.y, text, style);
-        ui.hit(rect, { onClick: () => (ti >= 0 && (this.termIndex = ti), this.showShellTab(id)), menu: ti >= 0 ? () => this.termTabMenu(ti) : undefined, tip: id === "term" ? `right-click: rename, close… · term rename <name>\n${this.terms[ti]?.shellName ?? ""}: your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)` : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash" : "what clicks ran, with their output" });
+        ui.hit(rect, { onClick: () => (ti >= 0 && (this.termIndex = ti), this.showShellTab(id)), menu: ti >= 0 ? () => this.termTabMenu(ti) : undefined, tip: id === "term" ? `right-click: rename, close… · term rename <name>\n${this.terms[ti]?.shellName ?? ""}: your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)` : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash" : id === "errors" ? "what went wrong, with a code (docs/ERRORS.md) · errors clear" : "what clicks ran, with their output" });
         tx += rect.w + 1;
         // + a new terminal, after the last one · × close the one shown (when there are several)
         if (id === "term" && ti === this.terms.length - 1) {
@@ -814,6 +856,7 @@ export class Workspace {
       ui.clip(si, () => {
         if (this.shellTab === "term") this.terminal.render(ui, termR, shellFocused);
         else if (this.shellTab === "history") d.shell.renderHistory(ui, si);
+        else if (this.shellTab === "errors") this.renderErrors(ui, si);
         else d.shell.render(ui, si, shellFocused);
       });
       // drag the top border to resize

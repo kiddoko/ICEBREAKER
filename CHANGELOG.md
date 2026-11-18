@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Error system: every error gets a code (E101 vault … E901 unexpected) with what to
+  do. The shell panel grows an "errors" tab that blinks red with an error sound
+  while some are unread; `errors`, `errors E102`, `errors codes`, `errors clear`.
+  Uncaught errors and crashing widgets land there too. docs/ERRORS.md explains
+  every code (the tab links straight to it).
+
 - A screensaver per theme: terminal (an 80s mainframe typing its log, a framed
   clock) for phosphor, amber and graphite; sonar (range rings, a sweep, echoes)
   for abyss; warp (stars rushing past) for ghost and nightshade; the neon city

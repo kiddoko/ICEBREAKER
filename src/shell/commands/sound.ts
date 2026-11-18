@@ -1,6 +1,33 @@
 import { fmt } from "../../core/ansi";
 import { SOUND_NAMES, type SoundName } from "../../core/sound";
 import type { Command } from "../types";
+import { describe, ERROR_CODES, ERRORS_DOC } from "../../core/errors";
+
+/** The error log (the shell's errors tab). */
+export const errorsCommand: Command = {
+  name: "errors",
+  summary: "what went wrong, with codes (E101…) explained — the shell's errors tab",
+  usage: "errors            the list, newest first\nerrors <code>     what that code means and what to do (E102…)\nerrors codes      every code\nerrors clear      empty the list",
+  complete: () => ["clear", "codes", ...ERROR_CODES.map((e) => e.code)],
+  run(ctx) {
+    const log = ctx.deck.errors;
+    const a = (ctx.args[0] ?? "").toUpperCase();
+    if (a === "CLEAR") return log.clear(), ctx.out(fmt.dim("error log emptied\n")), 0;
+    if (a === "CODES") {
+      for (const e of ERROR_CODES) ctx.out(`${fmt.red(e.code)}  ${e.title}\n`);
+      return 0;
+    }
+    if (/^E\d{3}$/.test(a)) {
+      const e = describe(a);
+      ctx.out(`${fmt.red(fmt.bold(e.code))}  ${fmt.bold(e.title)}\n${e.hint}\n${fmt.dim(`${ERRORS_DOC}#${e.code.toLowerCase()}`)}\n`);
+      return 0;
+    }
+    if (!log.list.length) return ctx.out(fmt.dim("no errors · errors codes lists what they could be\n")), 0;
+    for (const e of [...log.list].reverse()) ctx.out(`${fmt.red(e.code)} ${fmt.dim(new Date(e.at).toLocaleTimeString())} ${e.title}\n   ${e.detail}\n`);
+    log.unseen = 0;
+    return 0;
+  },
+};
 
 /** Everything silent at once (the 🔇 button bottom-right). */
 export const mute: Command = {
