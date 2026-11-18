@@ -1,3 +1,4 @@
+import { pinCommand, pinnedWidget, unpinCommand } from "./workspace/favorites";
 import { terminalSpec } from "./apps/terminal";
 import { scriptCommand, scriptsMenu } from "./shell/commands/scripts";
 import { ServiceRegistry } from "./plugins/services";
@@ -259,8 +260,8 @@ export class Deck implements InputSink {
   }
 
   private registerCore(): void {
-    for (const c of [...fileCommands, ...systemCommands, ...deckCommands, storeCommand, ...shortcutCommands, scriptCommand]) this.commands.register({ ...c, source: "core" });
-    for (const w of BUILTIN_WIDGETS) this.widgets.register(w);
+    for (const c of [...fileCommands, ...systemCommands, ...deckCommands, storeCommand, ...shortcutCommands, scriptCommand, pinCommand, unpinCommand]) this.commands.register({ ...c, source: "core" });
+    for (const w of [...BUILTIN_WIDGETS, pinnedWidget]) this.widgets.register(w);
     for (const a of [homeSpec, modulesSpec, storeSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec, shortcutsSpec, terminalSpec]) this.apps.register(a);
 
     const act = (id: string, title: string, run: () => void, hint?: string, group = "deck") => this.actions.register({ id, title, run, hint, group });

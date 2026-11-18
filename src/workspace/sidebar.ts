@@ -1,6 +1,7 @@
 import { q } from "../ui/ui";
 import { BOLD, type Rect } from "../core/grid";
 import { mix } from "../core/color";
+import { favCommand, favIcon, favorites } from "./favorites";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import type { VaultEntry } from "../platform/types";
@@ -31,7 +32,7 @@ export class Sidebar {
     deck.vault.events.on("rescanned", () => this.version++);
     this.list.onActivate = (row) => this.activate(row);
     this.list.cmdOf = (row) => (row.entry.isDir ? undefined : `open ${q(row.entry.path)}`);
-    this.list.tipOf = (row) => (row.entry.isDir ? "click: select · double-click: fold" : "n new note here · r rescan")
+    this.list.tipOf = (row) => (row.entry.isDir ? "click: select · double-click: fold" : "n new note here · p pin · r rescan")
   }
 
   private rebuild(): void {
@@ -88,6 +89,12 @@ export class Sidebar {
   }
 
   onText(t: string): boolean {
+    if (t === "p" && this.list.current) {
+      const e = this.list.current.entry;
+      const pinned = favorites(this.deck).some((f) => f.target === e.path);
+      void this.deck.act(`${pinned ? "unpin" : "pin"} ${q(e.path)}`);
+      return true;
+    }
     if (t === "n") void this.deck.newNote(this.list.current ? (this.list.current.entry.isDir ? this.list.current.entry.path : dirname(this.list.current.entry.path)) : "notes");
     else if (t === "r") void this.deck.vault.rescan();
     else return false;
@@ -117,7 +124,26 @@ export class Sidebar {
     bx += ui.button(bx, r.y, "+ note", () => void this.deck.newNote(here || "notes"), { tip: `new note in /${here || "notes"}\nctrl+n · n` }) + 1;
     ui.button(bx, r.y, "+ dir", () => void this.deck.newFolder(here), { tip: `new folder in /${here}\nctrl+shift+n` });
     ui.hline(r.x, r.y + 1, r.w, { fg: c.faint }, "┄");
-    const list = { x: r.x, y: r.y + 2, w: r.w, h: Math.max(0, r.h - 2) };
+    // ★ pinned: notes, folders, modules (p pins the selected entry)
+    const favs = favorites(this.deck);
+    let top = r.y + 2;
+    if (favs.length) {
+      const shown = favs.slice(0, Math.max(1, Math.min(8, Math.floor(r.h / 3))));
+      for (const f of shown) {
+        const line = { x: r.x, y: top, w: r.w, h: 1 };
+        const hot = ui.hovered(line);
+        if (hot) ui.fill(line, { bg: c.highlight });
+        const st = hot ? { bg: c.highlight } : {};
+        ui.text(r.x + 1, top, "★", { fg: c.warning, ...st });
+        ui.text(r.x + 3, top, favIcon(f), { fg: c.accent, ...st });
+        ui.text(r.x + 5, top, f.label, { fg: hot ? c.fg : c.subtle, ...st }, r.w - 6);
+        ui.hit(line, { cmd: favCommand(this.deck, f), tip: `${favCommand(this.deck, f)}\nunpin ${f.target}` });
+        top++;
+      }
+      ui.hline(r.x, top, r.w, { fg: c.faint }, "┄");
+      top++;
+    }
+    const list = { x: r.x, y: top, w: r.w, h: Math.max(0, r.y + r.h - top) };
 
     const guide = { fg: mix(c.subtle, c.bg, 0.35) };
     this.list.render(ui, list, focused, ({ entry, depth, last, rails, count }, row, selected) => {

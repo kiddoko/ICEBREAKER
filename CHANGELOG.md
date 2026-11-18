@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Pinned: notes, folders and modules at the top of the file tree, in a
+  "pinned" HOME widget, and on a key if you want (`pin notes/ideas.md`,
+  `pin projects`, `pin todo --key ctrl+shift+t`; p in the tree or the hive).
 - Shell: several system terminals as tabs (+ adds one, × closes it, `term new`,
   `term 2`), a terminal in a main-window tab (`term open`), ▾ to fold the
   panel away (`term hide`, ctrl+` brings it back).

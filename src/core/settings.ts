@@ -60,6 +60,8 @@ export interface Settings {
   notifications: { mode: "both" | "sound" | "visual" | "none" };
   /** Your own shortcuts: key combo → shell command (`bind ctrl+shift+1 "open notes/ideas.md"`). */
   keys: Record<string, string>;
+  /** pinned notes, folders, modules (`pin`): top of the tree and the pinned widget */
+  favorites: { kind: "note" | "folder" | "module"; target: string; label: string }[];
   ai: {
     provider: "claude-code" | "anthropic" | "ollama";
     /** Model for the Claude Code provider: "sonnet", "opus"… (empty = the CLI default). */
@@ -123,6 +125,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sound: { enabled: true, volume: 50 },
   notifications: { mode: "both" },
   keys: {},
+  favorites: [],
   shell: {
     mode: "system",
     macros: [

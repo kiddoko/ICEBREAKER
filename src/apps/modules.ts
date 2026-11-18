@@ -101,6 +101,7 @@ export class ModulesApp implements App {
       return true;
     }
     if (s === "s") return void this.deck.act("store"), true;
+    if (s === "p" && c?.module) return void this.deck.act(`pin ${c.id}`), true;
     return false;
   }
   onKey(k: KeyInput): boolean {
