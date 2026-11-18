@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- NEXUS is an endless ring: past the last thing comes the first, the disc keeps
+  turning the same way (no jump back); a few things spread round the whole disc.
+
 - e-ink: matte old-cream paper, darker ink (never pure black), more contrast;
   colour tags written as words (greys can't show colours); its own screensaver,
   an e-reader sleep screen (an engraved moon and hills, the time, redrawn once a
@@ -12,8 +15,7 @@
   land on shows dashed ("no room here" otherwise), and it moves only when you let
   go (no more hopping around while you drag). Hits can have `onUp`.
 - HOME edit mode can't be missed: a pulsing band across the top with the keys and
-  a ✓ done button. Widgets grow in any direction: shift+arrow pushes that side
-  out, alt+shift+arrow brings it back. FOCUS has a compact 2×2 look.
+  a ✓ done button. FOCUS has a compact 2×2 look.
 - SHORTCUTS (⌘/) is a cheat sheet in columns (2-4 depending on the width), still
   searchable; Settings → KEYS opens it.
 - Input boxes can suggest: a ▾ list (↓ or a click), the rest of the best match in

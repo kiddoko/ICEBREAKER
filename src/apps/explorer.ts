@@ -163,7 +163,6 @@ export class ExplorerApp implements App {
     const n = this.items().length;
     if (!n) return;
     this.sel = (this.sel + d + n) % n;
-    if (Math.abs(this.sel - this.pos) > n / 2) this.pos = this.sel - d; // wrapped around: no long spin
     this.deck.sound.play("move");
   }
 
@@ -210,11 +209,15 @@ export class ExplorerApp implements App {
     this.sel = Math.min(this.sel, Math.max(0, items.length - 1));
     // ease the carousel; the floor moves with it
     const before = this.pos;
-    this.pos += (this.sel - this.pos) * Math.min(1, dt * 9);
-    if (Math.abs(this.sel - this.pos) < 0.001) this.pos = this.sel;
+    // a disc that never ends: pos keeps turning the short way round (past the last
+    // comes the first, still forward), it's never reset
+    const nItems = Math.max(1, items.length);
+    const gap = ringDelta(this.sel - this.pos, nItems);
+    this.pos += gap * Math.min(1, dt * 9);
+    if (Math.abs(ringDelta(this.sel - this.pos, nItems)) < 0.001) this.pos += ringDelta(this.sel - this.pos, nItems);
     const warp = Math.max(0, (this.warpUntil - now) / 450);
     this.travel += (this.pos - before) * 0.8 + dt * (0.15 + warp * 6);
-    ui.animate(Math.abs(this.sel - this.pos) > 0.001 || warp > 0 ? 16 : 60);
+    ui.animate(Math.abs(ringDelta(this.sel - this.pos, Math.max(1, items.length))) > 0.001 || warp > 0 ? 16 : 60);
 
     ui.fill(r, { bg: c.bg });
     // a tall page (shell hidden): the scene keeps its size and sits in the middle
@@ -292,11 +295,12 @@ export class ExplorerApp implements App {
     }
 
     // ── the carousel, drawn back to front ──
-    const step = 0.62; // radians between neighbours
+    // a ring: few things spread round the whole disc, many follow each other (0.62 rad apart)
+    const step = Math.max(0.62, (Math.PI * 2) / items.length);
     const radius = Math.min(r.w * 0.42, 60);
     const visible: { e: VaultEntry; i: number; z: number; x: number }[] = [];
     for (let i = 0; i < items.length; i++) {
-      const a = (i - this.pos) * step;
+      const a = ringDelta(i - this.pos, items.length) * step;
       if (Math.abs(a) > Math.PI * 0.62) continue;
       visible.push({ e: items[i], i, z: Math.cos(a), x: cx + Math.sin(a) * radius });
     }
@@ -398,3 +402,9 @@ export const explorerSpec: AppSpec = {
   launcher: true,
   create: (deck, args) => new ExplorerApp(deck, typeof args === "string" ? args : ""),
 };
+
+/** The shortest way round a ring of n: a signed distance in (-n/2, n/2]. */
+function ringDelta(d: number, n: number): number {
+  const m = ((d % n) + n) % n;
+  return m > n / 2 ? m - n : m;
+}

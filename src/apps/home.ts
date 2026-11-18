@@ -52,7 +52,7 @@ export class HomeApp implements App {
 
   status(): string {
     return this.editing
-      ? t("EDIT · arrows move · shift+arrows grow · alt+shift+arrows shrink · a add · x remove · r reset · esc done")
+      ? t("EDIT · arrows move · shift+arrows resize · a add · x remove · r reset · esc done")
       : t("←↑↓→ select · enter open · [ ] pages · e edit layout · m modules · ctrl+k everything else");
   }
 
@@ -330,15 +330,11 @@ export class HomeApp implements App {
       case "right": this.move(i, 1, 0); return true;
       case "up": this.move(i, 0, -1); return true;
       case "down": this.move(i, 0, 1); return true;
-      // shift+arrow: that side grows outward · alt+shift+arrow: that side comes back in
-      case "shift+left": this.change(i, (p) => ({ ...p, x: p.x - 1, w: p.w + 1 })); return true;
+      // shift+→ ↓ grow, shift+← ↑ shrink
+      case "shift+left": this.change(i, (p) => ({ ...p, w: p.w - 1 })); return true;
       case "shift+right": this.change(i, (p) => ({ ...p, w: p.w + 1 })); return true;
-      case "shift+up": this.change(i, (p) => ({ ...p, y: p.y - 1, h: p.h + 1 })); return true;
+      case "shift+up": this.change(i, (p) => ({ ...p, h: p.h - 1 })); return true;
       case "shift+down": this.change(i, (p) => ({ ...p, h: p.h + 1 })); return true;
-      case "alt+shift+left": this.change(i, (p) => ({ ...p, x: p.x + 1, w: p.w - 1 })); return true;
-      case "alt+shift+right": this.change(i, (p) => ({ ...p, w: p.w - 1 })); return true;
-      case "alt+shift+up": this.change(i, (p) => ({ ...p, y: p.y + 1, h: p.h - 1 })); return true;
-      case "alt+shift+down": this.change(i, (p) => ({ ...p, h: p.h - 1 })); return true;
       case "tab": this.selected = (this.selected + 1) % Math.max(1, this.layout.length); return true;
       case "a": void this.add(); return true;
       case "x": case "delete": case "backspace": this.remove(i); return true;
@@ -455,7 +451,7 @@ export class HomeApp implements App {
         },
         onDouble: () => !this.editing && (spec.popup || spec.activate || spec.open) && void this.deck.act(`widget ${p.id}`),
         menu: () => this.widgetMenu(i),
-        tip: this.editing ? "drag to move · shift+arrows grow that side · alt+shift shrinks · x remove" : spec.popup || spec.activate || spec.open ? `${spec.description ?? spec.title}\ndouble-click / enter → widget ${p.id}` : spec.description,
+        tip: this.editing ? "drag to move · shift+arrows resize · x remove" : spec.popup || spec.activate || spec.open ? `${spec.description ?? spec.title}\ndouble-click / enter → widget ${p.id}` : spec.description,
       };
       // normally the widget's own buttons sit on top of its frame; while editing,
       // the frame covers everything, so a click only selects (and drags)
@@ -512,7 +508,7 @@ export class HomeApp implements App {
       const band = { x: r.x, y: r.y, w: r.w, h: 1 };
       const pulse = 0.75 + 0.25 * Math.sin(ui.now / 400);
       ui.fill(band, { bg: mix(c.bg, c.accent, pulse) });
-      ui.text(r.x + 1, r.y, ` ✎ ${t("EDIT MODE")} · ${t("drag to move · shift+arrows grow · alt+shift+arrows shrink · a add · x remove")}`, { fg: c.panel, bg: mix(c.bg, c.accent, pulse), attrs: BOLD }, r.w - 12);
+      ui.text(r.x + 1, r.y, ` ✎ ${t("EDIT MODE")} · ${t("drag to move · shift+arrows resize · a add · x remove")}`, { fg: c.panel, bg: mix(c.bg, c.accent, pulse), attrs: BOLD }, r.w - 12);
       const done = ` ✓ ${t("done")} `;
       const dr = { x: r.x + r.w - strWidth(done) - 1, y: r.y, w: strWidth(done), h: 1 };
       ui.text(dr.x, dr.y, done, { fg: ui.hovered(dr) ? c.accent : c.fg, bg: ui.hovered(dr) ? c.panel : c.panelAlt, attrs: BOLD });
