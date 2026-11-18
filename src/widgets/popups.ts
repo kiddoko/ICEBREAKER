@@ -679,7 +679,7 @@ const POPUPS: Record<string, { popup?: WidgetPopupSpec; open?: string }> = {
   moon: { popup: moonPopup },
   recent: { popup: recentPopup },
   streak: { popup: streakPopup, open: "journal" },
-  weather: { popup: weatherPopup },
+  weather: { popup: weatherPopup, open: "weather open" },
   news: { popup: newsPopup },
   calendar: { popup: calendarPopup, open: "cal open" },
   system: { popup: systemPopup, open: "launch sysmon" },
