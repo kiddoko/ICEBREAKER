@@ -47,7 +47,6 @@ export class DeckVoice {
     return { engine: "system", voice: this.systemVoice[lang] };
   }
   private systemVoice: Record<string, string> = {};
-  private warned = new Set<string>();
 
   /**
    * Say something (queued after what's being said). The accent follows the
@@ -79,7 +78,13 @@ export class DeckVoice {
     }
   }
 
+  /** what the voice is saying right now (the subtitles pop-up shows it) */
+  subtitle: { text: string; at: number } | null = null;
+  /** the last neural-voice problem (shown by `voice`) */
+  lastError = "";
+
   stop(): void {
+    this.subtitle = null;
     this.gen++;
     this.queue = [];
     try {
@@ -96,25 +101,30 @@ export class DeckVoice {
       const synth = async (item: { text: string; lang: string }) => {
         const { engine, voice } = await this.resolve(item.lang);
         try {
-          return await this.deck.platform.voice!.speak(item.text, engine, voice, rate);
+          // the neural voices choke on fancy punctuation and symbols: plain text for them
+          return await this.deck.platform.voice!.speak(engine === "piper" ? neuralText(item.text) : item.text, engine, voice, rate);
         } catch (e) {
           if (engine !== "piper") throw e;
-          // the neural voice failed: say it with the system voice, and say why once
-          if (!this.warned.has(voice)) {
-            this.warned.add(voice);
-            this.deck.notify(`voice: ${e instanceof Error ? e.message : e} — using the system voice (voice install ${item.lang} re-downloads it)`, "warning");
-          }
+          // the neural voice failed: say it with the system voice — quietly (no toast mid-sentence);
+          // `voice` in the shell shows the last problem
+          this.lastError = `${voice}: ${e instanceof Error ? e.message : e}`;
+          console.warn("[voice]", this.lastError);
           this.systemVoice[item.lang] ??= pickSystemVoice(await this.deck.platform.voice!.list("system").catch(() => []), item.lang);
           return this.deck.platform.voice!.speak(item.text, "system", this.systemVoice[item.lang], rate);
         }
       };
-      let next: Promise<ArrayBuffer> | null = this.queue.length ? synth(this.queue.shift()!) : null;
+      const start = (item: { text: string; lang: string }) => ({ text: item.text, bytes: synth(item) });
+      let next: { text: string; bytes: Promise<ArrayBuffer> } | null = this.queue.length ? start(this.queue.shift()!) : null;
       while (next && gen === this.gen) {
-        const bytes = await next;
-        next = this.queue.length ? synth(this.queue.shift()!) : null; // the next sentence, while this one plays
+        const bytes = await next.bytes;
+        const text = next.text;
+        next = this.queue.length ? start(this.queue.shift()!) : null; // the next sentence, while this one plays
         if (gen !== this.gen) break;
+        this.subtitle = { text, at: performance.now() };
+        this.deck.requestFrame();
         await this.play(bytes);
       }
+      this.subtitle = null;
     } catch (e) {
       this.deck.notify(`voice: ${e instanceof Error ? e.message : e}`, "warning");
       this.queue = [];
@@ -245,4 +255,17 @@ export function phrase(lang: string, key: "welcome" | "test" | "timer", handle =
     ja: { welcome: `おかえりなさい、${handle}。リンク確立。`, test: `リンク確立。こんにちは、${handle}。`, timer: "タイマー終了。" },
   };
   return (P[lang] ?? P.en)[key];
+}
+
+/** Text a neural voice can read: no dashes, fancy quotes, ellipses or symbols. */
+export function neuralText(s: string): string {
+  return s
+    .replace(/[—–]/g, ", ")
+    .replace(/[«»“”„]/g, '"')
+    .replace(/[‘’‚]/g, "'")
+    .replace(/…/g, "...")
+    .replace(/[·•◆◇▸▾▴★☆⏰◉○●✓✗✕☑☐→←↑↓]/g, " ")
+    .replace(/[^\p{L}\p{N}\s.,;:!?'"()%&+\-/]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }

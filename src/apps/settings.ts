@@ -34,7 +34,21 @@ export class SettingsApp implements App {
   readonly key = "settings";
   private list = new ListView<Row>();
 
+  /** a neural voice for the voice's language is installed (null: don't know yet) */
+  private neural: boolean | null = null;
+  private async checkNeural(): Promise<void> {
+    try {
+      const info = await this.deck.platform.voice?.info();
+      const lang = this.deck.settings.data.voice.language;
+      this.neural = !!info?.piper && info.piper_voices.some((v) => v.includes(`-${lang}_`) || v.includes(`-${lang}-`));
+    } catch {
+      this.neural = false;
+    }
+    this.deck.requestFrame();
+  }
+
   constructor(private readonly deck: Deck) {
+    void this.checkNeural();
     this.list.items = this.rows();
     this.list.onActivate = (row) => void row.change?.(1);
     this.list.select(1);
@@ -109,7 +123,7 @@ export class SettingsApp implements App {
       toggle("appearance.lineNumbers", "line numbers"),
       toggle("appearance.backgroundSlow", "slow down in the background (energy)"),
 
-      { section: "EFFECTS", label: "", value: () => "" },
+      // (the effects are part of APPEARANCE)
       toggle("fx.bloom", "bloom glow"),
       toggle("fx.scanlines", "scanlines"),
       toggle("fx.vignette", "vignette"),
@@ -135,13 +149,26 @@ export class SettingsApp implements App {
       { section: "VOICE", label: "", value: () => "" },
       toggle("voice.enabled", "voice"),
       toggle("voice.readAI", "read LINK's answers aloud"),
+      toggle("voice.subtitles", "subtitles (what the voice says, bottom-right)"),
       toggle("voice.greet", "greeting at start-up"),
       cycle("voice.robot", "robot filter", [0, 25, 40, 55, 70, 85, 100], undefined, (v) => `${v}%`),
       cycle("voice.rate", "speed", [0.8, 0.9, 1, 1.1, 1.25, 1.5]),
       cycle("voice.volume", "voice volume", [25, 50, 65, 80, 100], undefined, (v) => `${v}%`),
       cycle("voice.language", "voice language", ["en", "fr", "ja"], undefined, (v) => (v === "fr" ? "Français" : v === "ja" ? "日本語" : "English")),
       cycle("voice.engine", "engine", ["auto", "piper", "system"], undefined, (v) => (v === "auto" ? "auto (piper if installed)" : v)),
-      { label: "natural voice (neural, ~60 MB)", value: () => (s.data.voice.language === "ja" ? "system voice" : "download"), cmd: () => "voice install", change: () => void d.act("voice install") },
+      {
+        label: "natural voice (neural, ~60 MB)",
+        value: () => (s.data.voice.language === "ja" ? "system voice" : this.neural === null ? "…" : this.neural ? "installed ✓" : "download ↓"),
+        cmd: () => `voice install ${s.data.voice.language === "en" ? "en" : s.data.voice.language}`,
+        change: () => {
+          if (s.data.voice.language === "ja") return d.notify("Japanese uses the system voice", "info");
+          if (this.neural) return void d.act("voice test");
+          // the download shows its progress in the shell
+          d.workspace.showShellTab("ibsh");
+          d.notify("downloading the natural voice — the shell shows the progress", "info");
+          void d.act(`voice install ${s.data.voice.language}`).then(() => this.checkNeural());
+        },
+      },
       { label: "hear it", value: () => "test", cmd: () => "voice test", change: () => void d.act("voice test") },
       { section: "PRIVACY", label: "", value: () => "" },
       toggle("privacy.stealth", "stealth: 100 % local, no internet"),
@@ -170,7 +197,7 @@ export class SettingsApp implements App {
       } },
       ...Object.entries(s.data.keys ?? {}).map(([k, cmd]): Row => ({ label: `★ ${cmd}`, value: () => displayKeys(k), cmd: () => `unbind ${k}`, change: () => void d.act(`unbind ${k}`) })),
       ...SHORTCUTS.map((sc): Row => ({ label: `${t(sc.what)}  · ${t(sc.cat)}`, value: () => displayKeys(sc.keys), cmd: sc.cmd ? () => sc.cmd! : undefined, change: sc.cmd ? () => void d.act(sc.cmd!) : undefined })),
-      { section: "MODULES", label: "", value: () => "" },
+      { section: "OVERVIEW", label: "", value: () => "" },
       { label: "modules on", value: () => `${d.plugins.active().length} / ${d.plugins.list().length}`, cmd: () => "modules", change: () => void d.openApp("modules") },
       { label: "store", value: () => "open", cmd: () => "store", change: () => void d.act("store") },
       { label: "what modules expose to each other", value: () => String(d.services.list().length), cmd: () => "modules api", change: () => void d.act("modules api") },
@@ -193,13 +220,14 @@ export class SettingsApp implements App {
   }
 
   /** the categories, in order, with their rows */
-  private sections(): { name: string; rows: Row[] }[] {
-    const out: { name: string; rows: Row[] }[] = [];
+  private sections(): { name: string; rows: Row[]; group: "GENERAL" | "MODULES" }[] {
+    const out: { name: string; rows: Row[]; group: "GENERAL" | "MODULES" }[] = [];
     for (const r of this.list.items) {
-      if (!r.label && r.section) out.push({ name: r.section, rows: [] });
+      if (!r.label && r.section) out.push({ name: r.section, rows: [], group: r.section === "OVERVIEW" || r.section.startsWith("◇") ? "MODULES" : "GENERAL" });
       else if (out.length) out[out.length - 1].rows.push(r);
     }
-    return out;
+    // two big groups: GENERAL, then MODULES (the overview, then each module)
+    return [...out.filter((x) => x.group === "GENERAL"), ...out.filter((x) => x.group === "MODULES")];
   }
   private cat = 0;
   private sel = 0;
@@ -340,8 +368,14 @@ export class SettingsApp implements App {
     // left: the categories
     const top = sy + 2;
     const catW = Math.min(24, Math.floor(r.w * 0.28));
+    let extra = 0;
     secs.forEach((sec, i) => {
-      const y = top + i;
+      if (i === 0 || sec.group !== secs[i - 1].group) {
+        const hy = top + i + extra + (i ? 1 : 0);
+        if (hy < r.y + r.h - 2) ui.text(sx, hy, t(sec.group), { fg: c.subtle, attrs: BOLD });
+        extra += i ? 2 : 1;
+      }
+      const y = top + i + extra;
       if (y >= r.y + r.h - 2) return;
       const line = { x: sx, y, w: catW, h: 1 };
       const on = i === this.cat && !this.query;

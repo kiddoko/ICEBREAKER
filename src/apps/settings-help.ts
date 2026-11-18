@@ -36,6 +36,7 @@ export const SETTINGS_HELP: Record<string, [string, string]> = {
   "sound.volume": ["How loud the interface sounds are.", "Le volume des sons de l'interface."],
   "notifications.mode": ["How reminders, timers, focus and modules call you: a sound (and the voice), something on screen (a system notification and a toast), both, or nothing at all.", "Comment les rappels, minuteurs, le focus et les modules t'appellent : un son (et la voix), quelque chose à l'écran (notification système + bulle), les deux, ou rien du tout."],
   "voice.enabled": ["The deck speaks: greetings, timers, reminders, and LINK's answers if you want.", "Le deck parle : accueil, minuteurs, rappels, et les réponses de LINK si tu veux."],
+  "voice.subtitles": ["While the voice speaks, its words type into a small box bottom-right, like the AI of a sci-fi film.", "Pendant que la voix parle, ses mots s'écrivent dans une petite boîte en bas à droite, comme l'IA d'un film de SF."],
   "voice.readAI": ["Reads LINK's (the AI's) answers aloud.", "Lit à voix haute les réponses de LINK (l'IA)."],
   "voice.greet": ["\"Welcome, netrunner\" when the deck starts.", "« Bienvenue, netrunner » au démarrage."],
   "voice.robot": ["How much robot filter is on the voice (0 = a plain human voice).", "La dose de filtre robot sur la voix (0 = voix humaine normale)."],

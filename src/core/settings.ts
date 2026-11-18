@@ -90,6 +90,8 @@ export interface Settings {
   privacy: { stealth: boolean };
   /** The deck's voice (core/voice.ts): local text-to-speech through a robot filter. */
   voice: {
+    /** what the voice says, in a small box bottom-right */
+    subtitles?: boolean;
     enabled: boolean;
     /** auto (piper if installed, else the system voice) · piper · system */
     engine: "auto" | "piper" | "system";
@@ -164,7 +166,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   journal: { folder: "journal" },
   privacy: { stealth: false },
-  voice: { enabled: false, engine: "auto", name: "", rate: 1, robot: 30, volume: 80, readAI: false, greet: true, language: "en" },
+  voice: { subtitles: true, enabled: false, engine: "auto", name: "", rate: 1, robot: 30, volume: 80, readAI: false, greet: true, language: "en" },
   editor: { autosave: true, tabSize: 2 },
   // the community index: a JSON list of plugins/themes (see docs/COMMUNITY.md)
   plugins: { enabled: [], disabled: [], removed: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json", sources: [] },

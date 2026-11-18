@@ -616,6 +616,7 @@ export class Workspace {
     }
 
     this.renderStatusBar(ui, { x: 0, y: H - 1, w: W, h: 1 });
+    this.renderSubtitles(ui, W, H);
 
     const screen = { x: 0, y: 0, w: W, h: H };
     this.overlays = this.overlays.filter((o) => !o.done);
@@ -729,6 +730,42 @@ export class Workspace {
       ui.text(x, r.y, "+", { fg: c.subtle, bg: c.panelAlt, attrs: BOLD });
       ui.hit({ x, y: r.y, w: 1, h: 1 }, { cmd: "palette", tip: "ctrl+k: open anything" });
     }
+  }
+
+  /** What the voice says, in a small sci-fi box bottom-right (voice.subtitles). */
+  private renderSubtitles(ui: UI, W: number, H: number): void {
+    const sub = this.deck.voice.subtitle;
+    if (!sub || this.deck.settings.data.voice.subtitles === false) return;
+    const c = ui.c;
+    const w = Math.min(46, W - 4);
+    const words = sub.text.split(/\s+/);
+    const lines: string[] = [];
+    let line = "";
+    for (const wd of words) {
+      if (strWidth(line + " " + wd) > w - 9 && line) (lines.push(line), (line = wd));
+      else line = line ? `${line} ${wd}` : wd;
+    }
+    lines.push(line);
+    const shown = lines.slice(0, 3);
+    const h = shown.length + 2;
+    const r = { x: W - w - 2, y: H - h - 2, w, h };
+    ui.box(r, { title: "VOICE", focused: true, bg: c.panelAlt });
+    // a little orbit spinning, the AI thinking out loud
+    const t = ui.now / 120;
+    const orbit = ["◜", "◝", "◞", "◟"];
+    ui.text(r.x + 2, r.y + 1, orbit[Math.floor(t) % 4], { fg: c.accent, attrs: BOLD, bg: c.panelAlt });
+    ui.text(r.x + 3, r.y + 1, orbit[Math.floor(t + 2) % 4], { fg: c.accentAlt, bg: c.panelAlt });
+    const wave = "▁▂▃▅▃▂";
+    ui.text(r.x + 2, r.y + 2, [...Array(3)].map((_, i) => wave[Math.floor(t + i * 2) % wave.length]).join(""), { fg: c.accent, bg: c.panelAlt });
+    // the words type in
+    const typed = Math.floor((ui.now - sub.at) / 28);
+    let left = typed;
+    shown.forEach((l, i) => {
+      const part = l.slice(0, Math.max(0, left));
+      left -= l.length + 1;
+      ui.text(r.x + 7, r.y + 1 + i, part, { fg: c.fg, bg: c.panelAlt }, w - 9);
+    });
+    ui.animate(60);
   }
 
   private renderStatusBar(ui: UI, r: Rect): void {

@@ -56,6 +56,8 @@ export class GlyphAtlas {
    * many device px), once, in the cache — so it costs nothing per frame.
    */
   softness = 0;
+  /** the webview can blur inside a canvas (ctx.filter) */
+  canvasBlur = false;
 
   /** Free every page (the deck is hidden for a while); glyphs come back on demand. */
   release(): void {
@@ -98,7 +100,12 @@ export class GlyphAtlas {
     ctx.clip();
     ctx.fillStyle = css(fg);
     ctx.globalAlpha = attrs & DIM ? 0.55 : 1;
-    if (this.softness > 0) ctx.filter = `blur(${this.softness.toFixed(2)}px)`;
+    if (this.softness > 0) {
+      // out of focus: a blur where the canvas has one, and a halo of the glyph's own colour everywhere
+      if (this.canvasBlur) ctx.filter = `blur(${(this.softness * 0.6).toFixed(2)}px)`;
+      ctx.shadowColor = css(fg);
+      ctx.shadowBlur = this.softness * 2.2;
+    }
 
     if (!drawSpecialGlyph(ctx, cp, x, y, w, this.cellH)) {
       const s = String.fromCodePoint(cp);
