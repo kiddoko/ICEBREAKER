@@ -558,7 +558,9 @@ export class Workspace {
     const pane = this.focus === "main" ? (this.activeApp?.kind ?? "deck") : this.focus === "sidebar" ? "vault" : "shell";
     let x = ui.text(r.x, r.y, ` ${pane.toUpperCase()} `, { fg: c.panel, bg: c.accent, attrs: BOLD });
     x = ui.text(x, r.y, "", { fg: c.accent, bg: c.statusBg });
-    const status = this.focus === "shell" ? d.shell.status() : this.focus === "sidebar" ? "enter open · n new note · r rescan" : (this.activeApp?.status?.() ?? "");
+    const status = this.focus === "shell" && this.shellTab === "term" && this.termAvailable
+      ? `${this.sysTerm?.shellName ?? "terminal"} · ⌘ or ctrl + letter = Control (nano: ⌘X quits) · ⌘C ⌘V copy/paste · ⌘K palette · F12 tabs`
+      : this.focus === "shell" ? d.shell.status() : this.focus === "sidebar" ? "enter open · n new note · r rescan" : (this.activeApp?.status?.() ?? "");
 
     // right side
     const parts: { text: string; fg: number; cmd?: string; tip?: string }[] = [];

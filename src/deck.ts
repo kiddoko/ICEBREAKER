@@ -71,6 +71,8 @@ export class Deck implements InputSink {
   private grid = new Grid(1, 1);
   private hits: Hit[] = [];
   private boot: BootScreen | null = null;
+  /** Until the boot screen exists: draw nothing (no flash of the login or the desktop). */
+  private starting = true;
   /** Login screen; while it's up nothing else is drawn or gets input. */
   private lock: LockScreen | null = null;
   /** Account name when the deck has a login (null = no lock). */
@@ -144,6 +146,7 @@ export class Deck implements InputSink {
     if (s.appearance.startFullscreen && this.platform.kind === "desktop") void this.platform.window.setFullscreen(true).catch(() => {});
 
     if (s.boot.mode !== "off") this.boot = new BootScreen(await this.bootLines(), await this.memMB(), s.boot.mode);
+    this.starting = false;
     this.sound.play("boot");
     setInterval(() => this.checkIdle(), 15_000);
     this.loop.request();
@@ -224,6 +227,10 @@ export class Deck implements InputSink {
     const ui = this.ui;
     ui.begin(this.grid, this.theme, now, this.input.mouseCell);
     ui.cellAspect = this.renderer.cellW / this.renderer.cellH;
+    if (this.starting) {
+      this.renderer.draw(this.grid);
+      return 100;
+    }
 
     this.boot?.render(ui);
     if (this.boot?.done) {
