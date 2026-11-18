@@ -1,3 +1,4 @@
+import { listen } from "@tauri-apps/api/event";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { MediaStatus, Platform, SystemStats, VaultEntry } from "./types";
@@ -48,6 +49,20 @@ export function createTauriPlatform(): Platform {
       verify: (user, password) => invoke<boolean>("account_verify", { user, password }),
       change: (password, newUser, newPassword) => invoke<void>("account_change", { password, newUser, newPassword }),
       remove: (password) => invoke<void>("account_remove", { password }),
+    },
+    pty: {
+      spawn: (id, cols, rows, onData) => {
+        const ch = new Channel<string>();
+        ch.onmessage = onData;
+        return invoke<string>("pty_spawn", { id, cols, rows, onData: ch });
+      },
+      write: (id, data) => invoke<void>("pty_write", { id, data }),
+      resize: (id, cols, rows) => invoke<void>("pty_resize", { id, cols, rows }),
+      kill: (id) => invoke<void>("pty_kill", { id }),
+    },
+    bridge: {
+      onRun: (cb) => void listen<{ id: string; line: string; cwd: string }>("bridge-run", (e) => cb(e.payload)),
+      send: (id, chunk, done, found) => void invoke("bridge_send", { id, chunk, done, found }),
     },
     media: {
       status: () => invoke<MediaStatus | null>("media_status"),

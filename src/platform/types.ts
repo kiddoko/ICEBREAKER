@@ -93,6 +93,19 @@ export interface Platform {
     /** toggle · play · pause · next · prev · vol+ · vol- · vol:<0-100> */
     control(action: string): Promise<void>;
   };
+  /** Your system shell in a pseudo-terminal (desktop). */
+  pty?: {
+    /** Starts the shell; resolves with its name ("zsh"). */
+    spawn(id: string, cols: number, rows: number, onData: (text: string) => void): Promise<string>;
+    write(id: string, data: string): Promise<void>;
+    resize(id: string, cols: number, rows: number): Promise<void>;
+    kill(id: string): Promise<void>;
+  };
+  /** ICEBREAKER commands typed in the system shell arrive here (see term.rs). */
+  bridge?: {
+    onRun(cb: (req: { id: string; line: string; cwd: string }) => void): void;
+    send(id: string, chunk: string | null, done: boolean, found: boolean): void;
+  };
   /** DEV ONLY — remove before release: back to a first launch (see dev.rs). */
   dev?: { factoryReset(): Promise<string[]>; restart(): Promise<void> };
   window: {

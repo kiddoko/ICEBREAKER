@@ -131,23 +131,57 @@ export class ShellApp implements App {
    * side without disturbing it.
    */
   async runAction(line: string): Promise<number> {
-    this.echoPrompt(line, true);
+    const cmd = this.deck.commands.get(line.trim().split(/\s+/)[0] ?? "");
+    // commands that ask questions run where you can answer them
+    if (cmd?.interactive) {
+      this.deck.workspace.showShellTab("ibsh");
+      return this.runLine(line);
+    }
     if (this.exec.history[this.exec.history.length - 1] !== line) {
       this.exec.history.push(line);
       this.saveHistory();
     }
-    this.scroll = 0;
-    let code: number;
-    if (!this.exec.running) code = await this.exec.run(line);
-    else {
-      const side = new ShellExecutor(this.deck, (text, isError) => this.term.write(text, isError ? { fg: this.deck.theme.ansi[1] } : undefined), () => this.term.clear());
-      side.cwd = this.exec.cwd;
-      side.env = this.exec.env;
-      code = await side.run(line);
-    }
-    this.term.ensureNewline();
+    const time = new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    this.history.ensureNewline();
+    this.history.write(`\x1b[2m${time}\x1b[0m \x1b[95m❯\x1b[0m ${line}\n`);
+    const side = new ShellExecutor(this.deck, (text, isError) => this.history.write(text, isError ? { fg: this.deck.theme.ansi[1] } : undefined), () => this.history.clear());
+    side.cwd = this.exec.cwd;
+    side.env = this.exec.env;
+    const code = await side.run(line);
+    this.history.ensureNewline();
+    if (!this.deck.workspace.isShellTab("history")) this.unseen++;
+    this.historyScroll = 0;
     this.deck.requestFrame();
     return code;
+  }
+
+  /** What clicks ran (the "history" tab), so the terminals stay clean. */
+  readonly history = new TerminalBuffer();
+  unseen = 0;
+  private historyScroll = 0;
+
+  readonly historyPane = {
+    onAction: (a: Action): boolean => {
+      if (a === "scroll-up" || a === "up") this.historyScroll += 3;
+      else if (a === "scroll-down" || a === "down") this.historyScroll = Math.max(0, this.historyScroll - 3);
+      else return false;
+      return true;
+    },
+    onKey: (k: KeyInput): boolean => {
+      if (k.combo === "pageup") return (this.historyScroll += 10), true;
+      if (k.combo === "pagedown") return (this.historyScroll = Math.max(0, this.historyScroll - 10)), true;
+      return false;
+    },
+  };
+
+  renderHistory(ui: UI, r: Rect): void {
+    this.unseen = 0;
+    const total = this.history.rowCount(r.w);
+    if (!total) return void ui.text(r.x, r.y, "commands run by clicking appear here, with their output — type them yourself next time", { fg: ui.c.faint }, r.w);
+    const maxScroll = Math.max(0, total - r.h);
+    this.historyScroll = Math.min(this.historyScroll, maxScroll);
+    this.history.render(ui, r, Math.max(0, total - r.h - this.historyScroll));
+    ui.hit(r, { onWheel: (d) => this.historyPane.onAction(d < 0 ? "scroll-up" : "scroll-down") });
   }
 
   // ── input ────────────────────────────────────────────────────────────────

@@ -37,6 +37,8 @@ export interface Settings {
     maxFps: number; showFps: boolean; lineNumbers: boolean };
   fx: { bloom: boolean; scanlines: boolean; vignette: boolean; ambient: boolean; flicker: boolean; glitch: boolean; screensaverMinutes: number };
   boot: { mode: "full" | "fast" | "off" };
+  /** The shell panel: your system shell with ICEBREAKER's commands, or ibsh only. */
+  shell: { mode: "system" | "ibsh" };
   /** UI sounds (core/sound.ts). Volume 0–100. */
   sound: { enabled: boolean; volume: number };
   ai: {
@@ -71,6 +73,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fx: { bloom: false, scanlines: false, vignette: false, ambient: true, flicker: false, glitch: true, screensaverMinutes: 0 },
   boot: { mode: "full" },
   sound: { enabled: true, volume: 50 },
+  shell: { mode: "system" },
   ai: {
     provider: "claude-code",
     claudeCodeModel: "",

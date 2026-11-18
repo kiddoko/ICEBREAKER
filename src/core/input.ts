@@ -23,6 +23,9 @@ export interface KeyInput {
   meta: boolean;
   /** "ctrl+shift+z" style string, modifiers always in this order. */
   combo: string;
+  /** The physical keys (on macOS `ctrl` above also covers ⌘): terminals need the real Control. */
+  rawCtrl?: boolean;
+  rawMeta?: boolean;
 }
 
 export type MouseKind = "down" | "up" | "move" | "drag" | "wheel" | "dblclick";
@@ -89,7 +92,7 @@ export function toKeyInput(e: KeyboardEvent): KeyInput {
   if (e.shiftKey) parts.push("shift");
   if (meta) parts.push("meta");
   parts.push(key);
-  return { key, code: e.code, ctrl, alt: e.altKey, shift: e.shiftKey, meta, combo: parts.join("+") };
+  return { key, code: e.code, ctrl, alt: e.altKey, shift: e.shiftKey, meta, combo: parts.join("+"), rawCtrl: e.ctrlKey, rawMeta: e.metaKey };
 }
 
 /** A synthetic ctrl+<letter> press (used to turn native menu commands into our shortcuts). */

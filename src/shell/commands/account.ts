@@ -20,6 +20,7 @@ async function newPassword(ctx: ShellContext): Promise<string | null> {
 
 export const account: Command = {
   name: "account",
+  interactive: true,
   examples: [
     ["account create", "add a login"],
     ["account passwd", "change it"],

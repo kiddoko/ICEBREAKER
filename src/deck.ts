@@ -29,8 +29,9 @@ import { deckCommands } from "./shell/commands/deck";
 import { fileCommands } from "./shell/commands/files";
 import { systemCommands } from "./shell/commands/system";
 import { ShellApp } from "./shell/shell";
+import { ShellExecutor } from "./shell/exec";
 import { CommandRegistry } from "./shell/types";
-import type { Hit } from "./ui/ui";
+import { q, type Hit } from "./ui/ui";
 import { UI } from "./ui/ui";
 import { ensureEntry } from "./vault/journal";
 import { basename, join, slugify } from "./vault/paths";
@@ -130,6 +131,7 @@ export class Deck implements InputSink {
 
     this.registerCore();
     await this.plugins.init();
+    this.platform.bridge?.onRun((req) => void this.runBridged(req));
 
     this.shell.motd();
     this.openApp("home");
@@ -299,6 +301,35 @@ export class Deck implements InputSink {
   }
 
   // ── verbs used by apps, commands and plugins ─────────────────────────────
+
+  /**
+   * An unknown command typed in the system terminal: if it's one of ours,
+   * run it with ibsh and stream the output back (args arrive NUL-separated).
+   */
+  private async runBridged(req: { id: string; line: string; cwd: string }): Promise<void> {
+    const b = this.platform.bridge!;
+    const args = req.line.split("\0");
+    if (args[args.length - 1] === "") args.pop();
+    const cmd = this.commands.get(args[0] ?? "");
+    if (!cmd) return b.send(req.id, null, true, false);
+    const line = args.map((a, i) => (i === 0 ? a : q(a))).join(" ");
+    if (cmd.interactive) {
+      this.workspace.showShellTab("ibsh");
+      void this.shell.runLine(line);
+      this.requestFrame();
+      return b.send(req.id, `\x1b[2m→ ${args[0]} asks questions: it's running in the ibsh tab\x1b[0m\n`, true, true);
+    }
+    const ex = new ShellExecutor(this, (text) => b.send(req.id, text, false, true), () => {});
+    ex.env = this.shell.exec.env;
+    const root = this.vault.root.replace(/\/$/, "");
+    ex.cwd = req.cwd === root ? "" : req.cwd.startsWith(`${root}/`) ? req.cwd.slice(root.length + 1) : "";
+    try {
+      await ex.run(line);
+    } finally {
+      b.send(req.id, null, true, true);
+      this.requestFrame();
+    }
+  }
 
   /** Do something through its shell command, echoed in the shell (mouse actions use this). */
   act(line: string): Promise<number> {

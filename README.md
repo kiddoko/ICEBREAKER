@@ -14,6 +14,7 @@ scanlines — but works with the keyboard, the mouse, or a gamepad.
 
 - **Notes** — plain Markdown, Obsidian-compatible vault (`[[wikilinks]]`, `#tags`, frontmatter). Point it at your existing vault.
 - **Journal** — one file per day, calendar, streaks, `journal add "…"` from the shell.
+- **Your real terminal, upgraded** — the shell panel runs your own zsh / bash (ssh, git, vim, htop…) in the vault folder, with every ICEBREAKER command added (`todo add …`, `journal`, `theme set …`; `ib <cmd>` when a name clashes). Your ~/.zshrc is loaded, never modified. Prefer a vault-only sandbox? `term mode ibsh`. Clicks log their commands in a separate **history** tab.
 - **A real-ish shell** — pipes, redirections, globs, history, fish-style suggestions, 70+ commands working on your vault. `cat note.md | ask "summarize"` works.
 - **LINK** — chat with Claude, which can search, read and write your notes ("make me a note with a shopping list for a spinach pie"). With Claude Code it writes inside the vault only, never elsewhere (`config set ai.allowWrites false` to keep it read-only); with an API key it asks before each write. Or use a local open-source model through [Ollama](https://ollama.com).
 - **Plugins** — small JS modules with a documented API and declared permissions. LINGO, an AI language tutor, ships as an example.

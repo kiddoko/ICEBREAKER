@@ -58,6 +58,15 @@ export class SetupApp implements App {
       { id: "acct-user", title: "ACCOUNT", question: "Account name:", text: { placeholder: "" }, skip: () => !!deck.account || this.a.lock !== "create" },
       { id: "acct-pass", title: "PASSWORD", question: "Choose a password (8 characters or more). There is no recovery: if you forget it, you'll have to delete the login file.", text: { placeholder: "8 characters or more", mask: true }, skip: () => !!deck.account || this.a.lock !== "create" },
       { id: "acct-pass2", title: "PASSWORD", question: "Type it again:", text: { placeholder: "same password", mask: true }, skip: () => !!deck.account || this.a.lock !== "create" },
+      {
+        id: "terminal", title: "TERMINAL",
+        question: "The shell panel can be your real terminal (zsh, bash…) with ICEBREAKER's commands added — ssh, git, vim, everything works. Or ICEBREAKER's own shell, limited to the vault.",
+        options: () => [
+          { value: "system", label: "My terminal + ICEBREAKER commands", hint: "careful: rm deletes for real there" },
+          { value: "ibsh", label: "ICEBREAKER shell only", hint: "the vault only, rm goes to .trash" },
+        ],
+        skip: () => !deck.platform.pty,
+      },
       { id: "locale", title: "LANGUAGE", question: "Dates, calendar and news language.", options: () => [{ value: "fr-FR", label: "Français" }, { value: "en-US", label: "English (US)" }, { value: "en-GB", label: "English (UK)" }, { value: "", label: "Same as the system" }] },
       {
         id: "precision", title: "LOCATION", question: "Weather and local news need to know roughly where you are. Share only what you want — it stays on this machine.",
@@ -228,6 +237,7 @@ export class SetupApp implements App {
       if (this.a.home) set("home.widgets", LAYOUT_PRESETS[this.a.home as keyof typeof LAYOUT_PRESETS]);
       if (this.a.fx) applyFxPreset(this.deck, this.a.fx as "minimal" | "max" | "potato");
       if (this.a.sound) set("sound.enabled", this.a.sound === "on");
+      if (this.a.terminal) set("shell.mode", this.a.terminal);
     }
     set("setup.done", true);
     const ws = this.deck.workspace;

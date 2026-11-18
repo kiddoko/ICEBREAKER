@@ -9,6 +9,9 @@ import { inside, type Hit, type UI } from "../ui/ui";
 import { ConfirmDialog, Osk, Palette, PromptDialog, Toasts, type Overlay, type ToastKind } from "./overlays";
 import { FxPanel } from "./fxpanel";
 import { Sidebar } from "./sidebar";
+import { SystemTerminal } from "../shell/systerm";
+
+export type ShellTab = "term" | "ibsh" | "history";
 
 export type Pane = "sidebar" | "main" | "shell";
 
@@ -40,6 +43,37 @@ export class Workspace {
   /** Hover tooltip: what's under the mouse and since when. */
   private tip = { key: "", since: 0 };
   tipHidden = false;
+  /** The shell panel's tabs: your system terminal, ibsh, what clicks ran. */
+  shellTab: ShellTab = "ibsh";
+  private shellTabChosen = false;
+  sysTerm: SystemTerminal | null = null;
+
+  /** The system terminal is on (desktop + setting shell.mode = system). */
+  get termAvailable(): boolean {
+    return !!this.deck.platform.pty && this.deck.settings.data.shell.mode === "system";
+  }
+
+  private get terminal(): SystemTerminal {
+    return (this.sysTerm ??= new SystemTerminal(this.deck));
+  }
+
+  showShellTab(t: ShellTab): void {
+    if (t === "term" && !this.termAvailable) t = "ibsh";
+    this.shellTab = t;
+    this.shellTabChosen = true;
+    this.shellVisible = true;
+    this.focus = "shell";
+  }
+
+  isShellTab(t: ShellTab): boolean {
+    return this.shellVisible && this.shellTab === t;
+  }
+
+  private cycleShellTab(): void {
+    const tabs: ShellTab[] = [...(this.termAvailable ? (["term"] as ShellTab[]) : []), "ibsh", "history"];
+    this.showShellTab(tabs[(tabs.indexOf(this.shellTab) + 1) % tabs.length]);
+  }
+
   /** Tabs in the order they were looked at (keys), for esc → back. */
   private visited: string[] = [];
 
@@ -198,7 +232,11 @@ export class Workspace {
   // ── input routing ────────────────────────────────────────────────────────
 
   private paneTarget(): { onKey?(k: KeyInput): boolean; onText?(t: string): boolean; onAction?(a: Action): boolean } | undefined {
-    if (this.focus === "shell" && this.shellVisible) return this.deck.shell;
+    if (this.focus === "shell" && this.shellVisible) {
+      if (this.shellTab === "term" && this.termAvailable) return this.terminal;
+      if (this.shellTab === "history") return this.deck.shell.historyPane;
+      return this.deck.shell;
+    }
     if (this.focus === "sidebar" && this.sidebarVisible) return this.sidebar;
     return this.activeApp;
   }
@@ -208,6 +246,11 @@ export class Workspace {
     const modal = this.topModal;
     if (modal) {
       modal.onKey?.(k);
+      return;
+    }
+    // the system terminal gets the keyboard (ctrl+c, ctrl+r, esc…); ⌘ shortcuts stay the deck's
+    if (this.focus === "shell" && this.shellVisible && this.shellTab === "term" && this.termAvailable && this.terminal.wants(k)) {
+      this.terminal.onKey(k);
       return;
     }
     if (this.globalKey(k)) return;
@@ -291,7 +334,8 @@ export class Workspace {
     if (c === "ctrl+," ) return void d.openApp("settings"), true;
     if (c === "f1") return void d.openApp("help"), true;
     if (c === "f11") return void d.toggleFullscreen(), true;
-    if (c === "f12" || (k.ctrl && !k.shift && k.code === "Backquote")) return this.focusShell(), true;
+    if (c === "f12") return this.focus === "shell" && this.shellVisible ? this.cycleShellTab() : this.focusShell(), true;
+    if (k.ctrl && !k.shift && k.code === "Backquote") return this.focusShell(), true;
     // Pane focus: Alt+arrows (macOS: ⌘⌥+arrows, since ⌥+arrows jumps words there)
     const paneMod = IS_MAC ? k.ctrl && k.alt : k.alt && !k.ctrl;
     if (paneMod && ["left", "right", "up", "down"].includes(k.key)) return this.moveFocus(k.key as "left"), true;
@@ -377,10 +421,33 @@ export class Workspace {
       const r = { x: body.x, y: top.y + top.h, w: body.w, h: shellH };
       this.rects.shell = r;
       const shellFocused = this.focus === "shell" && !this.topModal;
-      const si = ui.box(r, { title: "SHELL", focused: shellFocused, info: "ibsh · ctrl+` toggle" });
-      ui.clip(si, () => d.shell.render(ui, si, shellFocused));
+      const c = ui.c;
+      if (!this.shellTabChosen && this.termAvailable) this.shellTab = "term";
+      if (this.shellTab === "term" && !this.termAvailable) this.shellTab = "ibsh";
+      const si = ui.box(r, { focused: shellFocused, info: "F12 tabs · ctrl+` toggle" });
+      // tabs on the top border: your shell · ibsh · history
+      const tabs: [ShellTab, string][] = [
+        ...(this.termAvailable ? ([["term", this.sysTerm?.shellName ?? "terminal"]] as [ShellTab, string][]) : []),
+        ["ibsh", "ibsh"],
+        ["history", d.shell.unseen ? `history •${d.shell.unseen}` : "history"],
+      ];
+      let tx = r.x + 2;
+      for (const [id, label] of tabs) {
+        const on = id === this.shellTab;
+        const text = on ? ` ${ui.theme.glyphs.mark} ${label} ` : ` ${label} `;
+        const rect = { x: tx, y: r.y, w: strWidth(text), h: 1 };
+        const style = on ? (shellFocused ? { fg: c.titleFocus, bg: c.panel, attrs: BOLD } : { fg: c.fg, bg: c.panel, attrs: BOLD }) : { fg: ui.hovered(rect) ? c.accent : c.title, bg: c.panel };
+        ui.text(tx, r.y, text, style);
+        ui.hit(rect, { onClick: () => this.showShellTab(id), tip: id === "term" ? "your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)" : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash" : "what clicks ran, with their output" });
+        tx += rect.w + 1;
+      }
+      ui.clip(si, () => {
+        if (this.shellTab === "term") this.terminal.render(ui, si, shellFocused);
+        else if (this.shellTab === "history") d.shell.renderHistory(ui, si);
+        else d.shell.render(ui, si, shellFocused);
+      });
       // drag the top border to resize
-      const handle = { x: r.x + 12, y: r.y, w: r.w - 40, h: 1 };
+      const handle = { x: tx + 2, y: r.y, w: Math.max(0, r.x + r.w - 30 - tx), h: 1 };
       ui.hit(handle, {
         onClick: () => {},
         onDrag: (m) => {

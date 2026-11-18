@@ -11,6 +11,7 @@ mod config;
 mod dev; // DEV ONLY — remove before release
 mod media;
 mod net;
+mod term;
 mod system;
 mod vault;
 
@@ -27,6 +28,12 @@ pub fn run() {
         .manage(system::SystemState::default())
         .manage(claude_code::ClaudeCodeState::default())
         .manage(account::AccountState::default())
+        .manage(term::PtyState::default())
+        .manage(term::BridgeState::default())
+        .setup(|app| {
+            term::start_bridge(app.handle());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             vault::vault_default_path,
             vault::vault_mount,
@@ -51,6 +58,11 @@ pub fn run() {
             net::news_rss,
             net::open_url,
             media::media_status,
+            term::pty_spawn,
+            term::pty_write,
+            term::pty_resize,
+            term::pty_kill,
+            term::bridge_send,
             media::media_control,
             account::account_status,
             account::account_create,

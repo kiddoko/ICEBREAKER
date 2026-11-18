@@ -63,6 +63,8 @@ export interface Command {
    * a command line, or [command line, what it does].
    */
   examples?: (string | [string, string])[];
+  /** It asks questions (ctx.read): clicks and the system shell run it in the ibsh tab. */
+  interactive?: boolean;
   /** What Tab completes for arguments. */
   complete?: "path" | "command" | "none" | (() => string[]);
   /** Who registered it: "core" or a plugin id. */

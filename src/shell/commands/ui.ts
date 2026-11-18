@@ -217,8 +217,29 @@ const explore: Command = {
   },
 };
 
+const termCmd: Command = {
+  name: "term",
+  summary: "the shell panel's tabs: your terminal, ibsh, history",
+  usage: "term            your system terminal (zsh, bash…)\nterm ibsh       ICEBREAKER's shell\nterm history    what clicks ran\nterm restart    a fresh system shell\nterm mode system|ibsh   which one the panel uses",
+  examples: [["term", "jump to your real terminal"], ["term history", "see what your clicks ran"], ["term mode ibsh", "vault-only shell, rm goes to .trash"]],
+  complete: () => ["ibsh", "history", "restart", "mode"],
+  run(ctx) {
+    const ws = ctx.deck.workspace;
+    const [a, b] = ctx.args;
+    if (a === "mode") {
+      if (b !== "system" && b !== "ibsh") return ctx.err("usage: term mode system|ibsh\n"), 1;
+      ctx.deck.settings.set("shell.mode", b);
+      return 0;
+    }
+    if (a === "restart") return ws.sysTerm?.restart(), ws.showShellTab("term"), 0;
+    if (!a && !ws.termAvailable) return ctx.err(ctx.deck.platform.pty ? "term: the panel is in ibsh mode (term mode system)\n" : "term: needs the desktop app\n"), 1;
+    ws.showShellTab(a === "ibsh" ? "ibsh" : a === "history" ? "history" : "term");
+  },
+};
+
 export const uiCommands: Command[] = [
   explore,
+  termCmd,
   homeCmd,
   widget,
   tab,
