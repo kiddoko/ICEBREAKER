@@ -48,7 +48,7 @@ export function demoVault(): Record<string, string> {
     "notes/ideas.md": `# Ideas
 
 - a plugin that turns my journal into a weekly zine #idea
-- learn enough Japanese to read street signs in Shinjuku #lingo
+- learn enough Japanese to read street signs in Shinjuku #japanese
 - [[notes/reading-list]] needs pruning
 
 > The street finds its own uses for things.
@@ -77,7 +77,7 @@ tags: [journal]
 # ${iso(daysAgo(1))}
 
 ## log
-- 45 min of Japanese with the lingo plugin #lingo
+- 45 min of Japanese #japanese
 - [ ] finish the reading list review
 `,
   };

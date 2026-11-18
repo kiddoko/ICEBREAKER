@@ -65,7 +65,7 @@ export class HomeApp implements App {
 
   /** Widgets whose spec is loaded (a plugin may have been removed). */
   private placed(): { p: WidgetPlacement; i: number }[] {
-    return this.layout.map((p, i) => ({ p, i })).filter(({ p }) => (p.page ?? 0) === this.page && this.deck.widgets.get(p.id));
+    return (this.editing ? this.layout : this.compact(this.layout)).map((p, i) => ({ p, i })).filter(({ p }) => (p.page ?? 0) === this.page && this.deck.widgets.get(p.id));
   }
 
   private overlaps(layout: WidgetPlacement[], i: number, c: WidgetPlacement): boolean {
@@ -215,7 +215,32 @@ export class HomeApp implements App {
 
   /** Edit mode on/off (`home edit`). */
   setEditing(on: boolean): void {
+    if (this.editing && !on) this.settle();
     this.editing = on;
+  }
+
+  /**
+   * Gravity: every widget rises as high as it can (holes left by a removed
+   * widget close up). Shown that way outside edit mode, and saved that way
+   * when you leave it, so the layout looks the same in and out of edit mode.
+   */
+  private compact(layout: WidgetPlacement[]): WidgetPlacement[] {
+    const out = layout.map((p) => ({ ...p }));
+    const live = out.map((p, i) => ({ p, i })).filter(({ p }) => this.deck.widgets.get(p.id)).sort((a, b) => a.p.y - b.p.y || a.p.x - b.p.x);
+    const done: WidgetPlacement[] = [];
+    for (const { p } of live) {
+      const hits = (y: number) => done.some((o) => (o.page ?? 0) === (p.page ?? 0) && p.x < o.x + o.w && o.x < p.x + p.w && y < o.y + o.h && o.y < y + p.h);
+      let y = 0;
+      while (y < p.y && hits(y)) y++;
+      p.y = Math.min(p.y, y);
+      done.push(p);
+    }
+    return out;
+  }
+  private settle(): void {
+    const before = JSON.stringify(this.layout);
+    const after = this.compact(this.layout);
+    if (JSON.stringify(after) !== before) this.save(after);
   }
 
   /** Back to the default layout. */
@@ -290,7 +315,7 @@ export class HomeApp implements App {
       case "a": void this.add(); return true;
       case "x": case "delete": case "backspace": this.remove(i); return true;
       case "r": this.save([]); this.selected = 0; return true;
-      case "e": case "esc": case "enter": this.editing = false; return true;
+      case "e": case "esc": case "enter": this.setEditing(false); return true;
       default: return false;
     }
   }
@@ -324,21 +349,11 @@ export class HomeApp implements App {
     this.origin = { x: area.x, y: area.y };
     const colX = (n: number) => this.origin.x + Math.round(n * this.colW);
     this.areaH = area.h;
-    const contentH = this.layout.filter((p) => ((p.page ?? 0) === this.page)).reduce((m, p) => Math.max(m, (p.y + p.h) * ROW), 0);
+    const contentH = (this.editing ? this.layout : this.compact(this.layout)).filter((p) => ((p.page ?? 0) === this.page)).reduce((m, p) => Math.max(m, (p.y + p.h) * ROW), 0);
     const maxScroll = Math.max(0, contentH - area.h);
-    // a HOME that fits: as much room above as below (the last row has no gap under it)
-    if (!this.editing && contentH - 1 < area.h) this.origin.y = area.y + Math.floor((area.h - (contentH - 1)) / 2);
-    // …and as much room left as right, when the widgets don't use every column
-    if (!this.editing) {
-      const onPage = this.layout.filter((p) => (p.page ?? 0) === this.page);
-      if (onPage.length) {
-        const minX = Math.min(...onPage.map((p) => p.x));
-        const maxX = Math.max(...onPage.map((p) => p.x + p.w));
-        this.origin.x = area.x + Math.round((((COLS - (maxX - minX)) / 2 - minX) * this.colW));
-      }
-    }
+    // widgets sit where they were placed: top-left, the same in and out of edit mode
     if (this.reveal) {
-      const p = this.layout[this.selected];
+      const p = (this.editing ? this.layout : this.compact(this.layout))[this.selected];
       if (p) {
         const top = p.y * ROW, bot = (p.y + p.h) * ROW - 1;
         if (top < this.scroll) this.scroll = top;

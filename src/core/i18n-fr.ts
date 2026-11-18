@@ -78,7 +78,6 @@ export const FR: Record<string, string> = {
   "your music folder: artists, albums, tracks (no cover art)": "ton dossier de musique : artistes, albums, morceaux (sans pochettes)",
   "Calendar": "Calendrier",
   "your agenda: local + Google calendars": "ton agenda : local + agendas Google",
-  "Lingo": "Lingo",
   "AI language tutor": "prof de langues IA",
 
   // ── pop-ups

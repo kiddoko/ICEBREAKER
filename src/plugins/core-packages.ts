@@ -26,6 +26,8 @@ export interface CorePackage {
   apps?: string[];
   widgets?: string[];
   actions?: string[];
+  /** false: widget-only, not shown in the MODULES hive (still in STORE → installed, and `plugin ls`) */
+  launcher?: boolean;
 }
 
 export const CORE_PACKAGES: CorePackage[] = [
@@ -34,15 +36,15 @@ export const CORE_PACKAGES: CorePackage[] = [
   { id: "journal", name: "JOURNAL", icon: "☾", description: "one page a day, the daily check-in, streaks and the journal calendar", commands: ["journal", "today", "daily"], apps: ["journal"], widgets: ["streak", "calendar"], actions: ["journal.today", "journal.yesterday", "daily.log"] },
   { id: "sysmon", name: "SYSMON", icon: "▤", description: "the machine's vitals: cpu, memory, processes", commands: ["sysmon"], apps: ["sysmon"], widgets: ["system"] },
   { id: "studio", name: "THEME STUDIO", icon: "◐", description: "every knob of the current theme, with a live preview", apps: ["studio"] },
-  { id: "voice", name: "VOICE", icon: "◖", description: "the deck's voice: local text-to-speech through a robot filter", commands: ["voice"] },
+  { id: "voice", name: "VOICE", icon: "◖", description: "the deck's voice: local text-to-speech through a robot filter", commands: ["voice"], launcher: false },
   { id: "news", name: "NEWS", icon: "≡", description: "headlines for your area or a topic, with summaries", commands: ["news"], widgets: ["news"] },
   { id: "weather", name: "WEATHER", icon: "☂", description: "now, the next 24 h and the week (open-meteo.com)", widgets: ["weather"] },
   { id: "clocks", name: "CLOCKS", icon: "◷", description: "the clock, world clocks, a timer and a stopwatch", commands: ["timer", "stopwatch", "worldclock"], widgets: ["clock", "worldclock"] },
   { id: "focus", name: "FOCUS", icon: "◎", description: "a pomodoro timer", commands: ["focus"], widgets: ["focus"] },
-  { id: "checkboxes", name: "CHECKBOXES", icon: "☑", description: "every open - [ ] of your notes in one place", commands: ["checkboxes"], widgets: ["tasks"] },
-  { id: "moon", name: "MOON", icon: "◑", description: "tonight's moon and the next phases", commands: ["moon"], widgets: ["moon"] },
-  { id: "matrix", name: "MATRIX", icon: "ﾑ", description: "digital rain on HOME: does nothing, looks great", commands: ["matrix"], widgets: ["matrix"] },
-  { id: "quotes", name: "QUOTES", icon: "❝", description: "a line to think about, every hour", commands: ["quote"], widgets: ["quote"] },
+  { id: "checkboxes", name: "CHECKBOXES", icon: "☑", description: "every open - [ ] of your notes in one place", commands: ["checkboxes"], widgets: ["tasks"], launcher: false },
+  { id: "moon", name: "MOON", icon: "◑", description: "tonight's moon and the next phases", commands: ["moon"], widgets: ["moon"], launcher: false },
+  { id: "matrix", name: "MATRIX", icon: "ﾑ", description: "digital rain on HOME: does nothing, looks great", commands: ["matrix"], widgets: ["matrix"], launcher: false },
+  { id: "quotes", name: "QUOTES", icon: "❝", description: "a line to think about, every hour", commands: ["quote"], widgets: ["quote"], launcher: false },
 ];
 
 interface Stash {
@@ -85,7 +87,7 @@ export function detachCorePackages(deck: Deck): void {
 /** The packages as plugin-host entries. */
 export function corePackageEntries(deck: Deck, version: string): { manifest: PluginManifest; load: () => Promise<PluginModule> }[] {
   return CORE_PACKAGES.map((p) => ({
-    manifest: { id: p.id, name: p.name, version, description: p.description, author: "icebreaker", permissions: [], core: true, icon: p.icon },
+    manifest: { id: p.id, name: p.name, version, description: p.description, author: "icebreaker", permissions: [], core: true, icon: p.icon, launcher: p.launcher },
     load: async () => ({
       activate() {
         const st = stashes.get(p.id);

@@ -4,7 +4,6 @@ import { t } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
 import { strWidth } from "../core/unicode";
 import type { Deck } from "../deck";
-import { drawBackground } from "../fx/backgrounds";
 import { decrypt } from "../fx/glitch";
 import type { UI } from "../ui/ui";
 import type { App, AppSpec } from "./types";
@@ -40,6 +39,8 @@ export class ModulesApp implements App {
   private cols = 4;
   /** the row in front, eased (the hive slides toward you) */
   private depth = 0;
+  /** the selected row, counted without wrapping: going past the last row keeps going forward */
+  private vrow = 0;
   private lastT = 0;
   private bornAt = performance.now();
 
@@ -142,47 +143,60 @@ export class ModulesApp implements App {
     const baseW = Math.max(18, Math.min(30, Math.floor(r.w / 4)));
     this.cols = Math.max(2, Math.min(6, Math.floor((r.w - 4) / (baseW + 2))));
     const rows = Math.ceil(carts.length / this.cols);
+    // with 3 rows or more the hive is a loop: after the last row comes the first again, still forward
+    const loop = rows >= 3;
     const selRow = Math.floor(this.sel / this.cols);
-    this.depth += (selRow - this.depth) * Math.min(1, dt * 10);
-    if (Math.abs(selRow - this.depth) < 0.002) this.depth = selRow;
-    const moving = Math.abs(selRow - this.depth) > 0.002;
+    if (loop) {
+      let delta = selRow - (((this.vrow % rows) + rows) % rows);
+      if (delta > rows / 2) delta -= rows;
+      if (delta < -rows / 2) delta += rows;
+      this.vrow += delta;
+    } else this.vrow = selRow;
+    this.depth += (this.vrow - this.depth) * Math.min(1, dt * 10);
+    if (Math.abs(this.vrow - this.depth) < 0.002) this.depth = this.vrow;
+    const moving = Math.abs(this.vrow - this.depth) > 0.002;
     const age = now - this.bornAt;
-    ui.animate(focused || moving || age < 900 ? 16 : 120); // the floor glides continuously
+    // full speed only while gliding; idle, a slow tick is enough for the beam and the floor
+    ui.animate(moving || age < 900 ? 16 : focused ? 70 : 250);
 
-    // the sky and the floor: a vanishing point high in the middle, rails toward you
-    const vx = r.x + r.w / 2, vy = field.y + 1;
-    drawBackground(ui, { x: r.x, y: r.y, w: r.w, h: Math.max(1, Math.floor(field.h * 0.25)) }, { ...ui.theme, background: { ...ui.theme.background, effect: "stars", density: 0.5 } }, 0.6);
-    const floorTop = field.y + Math.floor(field.h * 0.22);
-    for (let y = floorTop; y < field.y + field.h; y++) {
-      const k = (y - vy) / (field.y + field.h - vy); // 0 far → 1 near
-      const col = mix(c.bg, c.accent, 0.08 + k * 0.22);
-      for (let i = -8; i <= 8; i++) {
-        const x = Math.round(vx + i * k * (r.w / 9));
-        if (x >= r.x && x < r.x + r.w) ui.text(x, y, k > 0.6 ? "╱╲│"[i < 0 ? 0 : i > 0 ? 1 : 2] : "·", { fg: col });
+    // the floor: a horizon glowing in the distance, rails and grid lines rolling toward you
+    const vx = r.x + r.w / 2;
+    const horizon = field.y + Math.floor(field.h * 0.2);
+    ui.hline(r.x, horizon, r.w, { fg: mix(c.bg, c.accent, 0.45) }, "─");
+    ui.hline(r.x + Math.floor(r.w * 0.3), horizon - 1, Math.floor(r.w * 0.4), { fg: mix(c.bg, c.accent, 0.18) }, "▁");
+    const bottom = field.y + field.h;
+    for (let y = horizon + 1; y < bottom; y++) {
+      const k = (y - horizon) / (bottom - horizon); // 0 far → 1 near
+      const col = mix(c.bg, c.accent, 0.06 + k * 0.2);
+      for (let i = -6; i <= 6; i++) {
+        const x = Math.round(vx + i * k * (r.w / 7));
+        if (x >= r.x && x < r.x + r.w) ui.text(x, y, k > 0.45 ? (i < 0 ? "╱" : i > 0 ? "╲" : "│") : "·", { fg: col });
       }
-      // horizontal grid lines rolling toward you, a third of a row at a time (▔ ─ ▁)
-      const phase = (y - floorTop + (now / 700) % 3) % 3;
-      if (phase < 1 && k > 0.15) ui.hline(r.x, y, r.w, { fg: mix(c.bg, c.accent, 0.05 + k * 0.1) }, "▔─▁"[Math.min(2, Math.floor(phase * 3))]);
+      // perspective: the lines bunch up near the horizon and spread toward you
+      const z = 1 / Math.max(0.04, k), roll = (now / 900) % 1;
+      if (Math.abs(((z + roll) % 1.6) - 0.8) < 0.8 * k * 0.5) ui.hline(r.x, y, r.w, { fg: mix(c.bg, c.accent, 0.04 + k * 0.12) }, k > 0.5 ? "─" : "╌");
     }
 
     // rows from the farthest to the nearest, so the near ones draw on top
     const order: { row: number; d: number }[] = [];
-    for (let row = 0; row < rows; row++) {
-      const d = row - this.depth; // 0 = in front
-      if (d < -0.6 || d > 3.6) continue;
-      order.push({ row, d });
+    const first = Math.floor(this.depth) - 1;
+    for (let v = loop ? first : 0; loop ? v <= first + 6 : v < rows; v++) {
+      const d = v - this.depth; // 0 = in front
+      if (d < -0.6 || d > 4.2) continue;
+      order.push({ row: ((v % rows) + rows) % rows, d });
     }
     order.sort((a, b) => b.d - a.d);
     for (const { row, d } of order) {
-      const s = Math.max(0.35, 1 - d * 0.2); // scale with depth
+      const s = Math.max(0.3, 1 - d * 0.24); // scale with depth
       const cw = Math.max(8, Math.round(baseW * s));
       const ch = Math.max(3, Math.round(5 * s));
       const gap = Math.max(1, Math.round(2 * s));
-      const y = Math.round(field.y + field.h - ch - 1 - d * (field.h * 0.24));
+      const y = Math.round(field.y + field.h - ch - 1 - d * (field.h * 0.19));
       const inRow = carts.slice(row * this.cols, row * this.cols + this.cols);
       const total = inRow.length * cw + (inRow.length - 1) * gap;
       let x = Math.round(vx - total / 2);
-      const fade = Math.min(0.8, Math.max(0, d * 0.28));
+      // far away, the cards sink into the dark fast: only the near rows are readable
+      const fade = Math.min(0.93, Math.max(0, d * 0.42));
       inRow.forEach((cart, k) => {
         const i = row * this.cols + k;
         const isSel = i === this.sel;
@@ -230,7 +244,7 @@ export class ModulesApp implements App {
       const shown = age < 600 ? decrypt(name, Math.max(0, age / 600), ui.now) : name;
       ui.text(r.x + 2, r.y + 1, r.w >= 14 ? `${cart.icon} ${shown}` : shown, { fg: sel ? c.fg : dim(cart.on ? c.fg : c.muted), bg, attrs: sel ? BOLD : 0 }, r.w - 3);
     }
-    if (r.h >= 4 && r.w >= 16) ui.text(r.x + 2, r.y + 2, cart.description, { fg: sel ? c.muted : dim(c.subtle), bg }, r.w - 4);
+    if (r.h >= 4 && r.w >= 16 && fade < 0.5) ui.text(r.x + 2, r.y + 2, cart.description, { fg: sel ? c.muted : dim(c.subtle), bg }, r.w - 4);
     // the scan beam over the chosen one
     if (sel) {
       // a soft beam: a bright row with a dimmer one on each side, gliding down

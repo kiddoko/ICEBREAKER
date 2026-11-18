@@ -50,7 +50,7 @@ help                                      # every command · man <cmd> for detai
 ## 4. Modules
 
 One feature = one module, each with its **command**, its **app** and its **HOME
-widget**: TODO, CALENDAR, MUSIC, LINGO… `Ctrl+K` → *Modules* lists them, and you
+widget**: TODO, CALENDAR, MUSIC, STATS… `Ctrl+K` → *Modules* lists them, and you
 can switch any of them off. More from the community: `plugin search`.
 
 ## 5. Staying offline: stealth mode

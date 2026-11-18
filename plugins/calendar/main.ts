@@ -1100,28 +1100,31 @@ export function activate(ib: IcebreakerAPI): void {
       const offset = (first.getDay() + 6) % 7;
       const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
       const weeks = Math.ceil((offset + days) / 7);
-      const cw = Math.max(3, Math.min(8, Math.floor((r.w - 2) / 7)));
-      const ch = Math.max(1, Math.min(3, Math.floor((r.h - 2) / weeks)));
-      const gx = r.x + Math.floor((r.w - cw * 7) / 2);
+      // the grid fills the widget: columns and week rows spread over the whole box
+      const colF = Math.max(3, (r.w - 1) / 7);
+      const cw = Math.max(3, Math.min(6, Math.floor(colF)));
+      const rowF = Math.max(1, (r.h - 2) / weeks);
+      const ch = Math.max(1, Math.floor(rowF));
+      const colX = (i: number) => r.x + Math.round(i * colF + (colF - cw) / 2);
       ui.textCenter(r, r.y, first.toLocaleDateString(undefined, { month: "long", year: "numeric" }).toUpperCase(), { fg: c.fg, attrs: BOLD });
       if (r.h < 3) return;
       for (let i = 0; i < 7; i++) {
         const n = new Date(2024, 0, 1 + i).toLocaleDateString(undefined, { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "").slice(0, cw - 1);
-        ui.text(gx + i * cw + cw - 1 - strWidth(n), r.y + 1, n, { fg: i >= 5 ? c.accentAlt : c.subtle });
+        ui.text(colX(i) + cw - 1 - strWidth(n), r.y + 1, n, { fg: i >= 5 ? c.accentAlt : c.subtle });
       }
       for (let d = 1; d <= days; d++) {
         const k = offset + d - 1;
-        const y = r.y + 2 + Math.floor(k / 7) * ch;
+        const y = r.y + 2 + Math.floor(Math.floor(k / 7) * rowF + (rowF - Math.min(ch, 2)) / 2);
         if (y >= r.y + r.h) break;
-        const x = gx + (k % 7) * cw;
+        const x = colX(k % 7);
         const date = new Date(now.getFullYear(), now.getMonth(), d);
         const evs = between(date, addDays(date, 1));
         const isToday = d === now.getDate();
         const label = String(d).padStart(cw - 1);
         ui.text(x, y, label, isToday ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: evs.length ? c.fg : c.muted, attrs: evs.length ? BOLD : 0 });
-        if (evs.length && ch >= 2) ui.text(x + cw - 2, y + 1, evs.length > 1 ? "••" : "•", { fg: colorOf(ui, evs[0].cal) });
+        if (evs.length && ch >= 2) ui.text(x + cw - 2 - (evs.length > 1 ? 1 : 0), y + 1, evs.length > 1 ? "••" : "•", { fg: colorOf(ui, evs[0].cal) });
         else if (evs.length && !isToday) ui.text(x - 1, y, "·", { fg: colorOf(ui, evs[0].cal) });
-        ui.hit({ x, y, w: cw, h: ch }, { cmd: `cal open ${ymd(date)}`, tip: `${dayTitle(date)}\n${evs.map((e) => `${when(e)} ${e.title}`).join("\n") || "nothing"}` });
+        ui.hit({ x, y, w: cw, h: Math.min(ch, 2) }, { cmd: `cal open ${ymd(date)}`, tip: `${dayTitle(date)}\n${evs.map((e) => `${when(e)} ${e.title}`).join("\n") || "nothing"}` });
       }
     },
   });

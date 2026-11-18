@@ -6,7 +6,7 @@ import type { UI } from "./ui";
 
 /**
  * A chat transcript + input box. Used by the LINK app (talk to the AI) and
- * by plugins such as LINGO. It only displays things; the owner decides what
+ * by plugins. It only displays things; the owner decides what
  * to do with submitted text (`onSubmit`).
  */
 

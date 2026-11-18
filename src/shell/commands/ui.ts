@@ -132,7 +132,7 @@ const launch: Command = {
   ],
   aliases: ["app"],
   summary: "open an app or module by name",
-  usage: "launch           list them\nlaunch <name>    e.g. launch sysmon, launch lingo",
+  usage: "launch           list them\nlaunch <name>    e.g. launch sysmon, launch todo",
   complete: () => [],
   run(ctx) {
     const d = ctx.deck;

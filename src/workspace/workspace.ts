@@ -621,7 +621,7 @@ export class Workspace {
     ui.hit({ x: rx, y: r.y, w: strWidth(ai) + 2, h: 1 }, d.ai.ready ? { cmd: "link", tip: "ctrl+space · or `chat` right here in the shell" } : { cmd: "settings", tip: `AI offline: ${d.ai.problem ?? ""}` });
 
     this.tabs.forEach((t, i) => {
-      const label = ` ${i + 1}:${t.title()}${t.dirty?.() ? " ●" : ""} `;
+      const label = ` ${i + 1}:${t.title().toLowerCase()}${t.dirty?.() ? " ●" : ""} `;
       const w = strWidth(label);
       if (x + w + 2 > nx) return;
       const rect = { x, y: r.y, w: w + 1, h: 1 };

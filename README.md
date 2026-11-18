@@ -18,7 +18,7 @@ scanlines — but works with the keyboard, the mouse, or a gamepad.
 - **Your real terminal, upgraded** — the shell panel runs your own zsh / bash / fish, or PowerShell on Windows (your profile, oh-my-posh and all), (ssh, git, vim, htop…) in the vault folder, with every ICEBREAKER command added (`todo add …`, `journal`, `theme set …`; `ib <cmd>` when a name clashes). Your ~/.zshrc is loaded, never modified. Prefer a vault-only sandbox? `term mode ibsh`. Clicks log their commands in a separate **history** tab.
 - **A real-ish shell** — pipes, redirections, globs, history, fish-style suggestions, 70+ commands working on your vault. `cat note.md | ask "summarize"` works.
 - **LINK** — chat with Claude, which can search, read and write your notes ("make me a note with a shopping list for a spinach pie"). With Claude Code it writes inside the vault only, never elsewhere (`config set ai.allowWrites false` to keep it read-only); with an API key it asks before each write. Or use a local open-source model through [Ollama](https://ollama.com).
-- **Plugins** — small JS modules with a documented API and declared permissions. LINGO, an AI language tutor, ships as an example.
+- **Plugins** — small JS modules with a documented API and declared permissions; the bundled modules (TODO, CALENDAR, STATS…) use the very same API.
 - **Themes** — TOML files, hot-swappable: colors, font, border style and symbols. Default: `nightshade` (violet, Catppuccin-flavoured). Also `amber`, `neon-ronin`, `phosphor`, `ghost`, `redline`, `graphite`.
 - **Modules** — one feature, one module, each with its own command, app and HOME widget. So far: **TODO** (`todo add "walk the dog" --urgent --due tomorrow +home`, or the app, or the widget), **CALENDAR** (a local calendar plus your Google calendars: `cal add "dentist" fri 14:30 --cal work`, the app, and an "upcoming" widget that shows more as it grows; Google setup in `man cal`), **STATS** (numbers over time — what your modules record, like a budget left or the commands you ran, and your own: `stats set weight 72.4 --unit kg`, `stats add pushups 20`; a graph per stat, a widget, and `ib.stats` for module makers), **REMINDERS** (`remind "call mom" fri 18:00`) and **MUSIC** (your own music folder played by the deck, a text-only mini iTunes with no cover art: `music play daft punk`; plus what's playing in Spotify / Music on macOS or any player on Linux).
 - **NEXUS** — walk your vault in pseudo-3D: files ride a carousel above a synthwave floor grid under glyph rain (`explore`, or MODULES → Nexus).
@@ -127,7 +127,6 @@ themes/          built-in themes (nightshade.toml is the annotated reference)
 - [ ] Vim keybindings in the editor
 - [ ] Native gamepad backend (gilrs) for Linux WebKitGTK builds without the Gamepad API
 - [ ] Encrypted journal option
-- [ ] Spaced-repetition review for LINGO vocabulary
 
 ## License
 

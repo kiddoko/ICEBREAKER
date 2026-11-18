@@ -169,7 +169,7 @@ Examples to copy from:
 - [TODO](../plugins/todo/main.ts): the reference module. A `todo` command
   (add / done / prio / due / rm / restore…), an app, a HOME widget, data in
   `ib.storage`. No permission needed.
-- [LINGO](../plugins/lingo/main.ts): app + command + AI session + storage + vault writes.
+- [STATS](../plugins/stats/main.ts): app + command + widget + pop-up + `ib.stats`.
 - [CALENDAR](../plugins/calendar/main.ts): data as Markdown files in the vault, an optional online service (Google) behind a mode, a settings page inside the app, a widget whose pop-up adds events.
 - [MUSIC](../plugins/music/main.ts): a native player behind a permission, a library app, a widget with a pop-up.
 
