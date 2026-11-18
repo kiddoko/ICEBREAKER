@@ -90,7 +90,8 @@ export interface Settings {
     language: "en" | "fr" | "ja";
   };
   editor: { autosave: boolean; tabSize: number };
-  plugins: { enabled: string[]; disabled: string[]; registry: string };
+  /** registry: the official index · sources: your own (URLs or user/repo of an index.json) */
+  plugins: { enabled: string[]; disabled: string[]; registry: string; sources: string[] };
   home: { widgets: WidgetPlacement[]; weatherCity: string; worldClocks: string[]; newsTopic: string };
 }
 
@@ -136,7 +137,7 @@ export const DEFAULT_SETTINGS: Settings = {
   voice: { enabled: false, engine: "auto", name: "", rate: 1, robot: 30, volume: 80, readAI: false, greet: true, language: "en" },
   editor: { autosave: true, tabSize: 2 },
   // the community index: a JSON list of plugins/themes (see docs/COMMUNITY.md)
-  plugins: { enabled: [], disabled: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json" },
+  plugins: { enabled: [], disabled: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json", sources: [] },
   // empty = the default layout (widgets/builtin.ts)
   home: { widgets: [], weatherCity: "Paris", worldClocks: ["America/New_York", "Europe/London", "Asia/Tokyo"], newsTopic: "" },
 };

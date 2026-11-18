@@ -59,6 +59,10 @@ export function installStealth(deck: Deck): void {
   const guard = <A extends unknown[], R>(what: string, f: ((...a: A) => Promise<R>) | undefined) =>
     f ? (...a: A): Promise<R> => (stealth.on ? Promise.reject(new StealthError(what)) : f(...a)) : undefined;
   if (p.newsRss) p.newsRss = guard("news", p.newsRss.bind(p));
+  if (p.netGet) {
+    const get = p.netGet.bind(p);
+    p.netGet = (url: string) => (stealth.on && !isLocalUrl(url) ? Promise.reject(new StealthError(new URL(url).hostname)) : get(url));
+  }
   if (p.google) {
     const g = p.google;
     g.connect = guard("Google", g.connect.bind(g))!;

@@ -18,6 +18,10 @@ import type { App, AppSpec } from "./types";
  *
  *   ←→ / wheel   turn            enter / ↑   open (folder: dive in · file: edit)
  *   ⌫ / ↓        back up         type        jump to a name
+ *   /            search the vault             +   new note here
+ *   F2           rename          delete      to the trash
+ *   :  (pad menu) every action: new folder, sort, copy the path…
+ * Every action is a shell command (touch, mkdir, mv, rm), echoed in the shell.
  */
 export class ExplorerApp implements App {
   readonly kind = "explorer";
@@ -34,6 +38,7 @@ export class ExplorerApp implements App {
   private typed = "";
   private typedAt = 0;
   private preview = new Map<string, string>();
+  private sortBy: "name" | "modified" | "size" = "name";
 
   constructor(
     private readonly deck: Deck,
@@ -47,13 +52,89 @@ export class ExplorerApp implements App {
   }
 
   status(): string {
-    return "←→ turn · enter dive / open · ⌫ back up · type a name to jump · explore <folder> in the shell";
+    return "←→ turn · enter open · ⌫ up · / search · + note · F2 rename · del trash · : actions";
   }
 
   private items(): VaultEntry[] {
     return this.deck.vault.entries
       .filter((e) => dirname(e.path) === this.dir)
-      .sort((a, b) => Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name));
+      .sort(
+        (a, b) =>
+          Number(b.isDir) - Number(a.isDir) ||
+          (this.sortBy === "modified" ? b.modified - a.modified : this.sortBy === "size" ? b.size - a.size : 0) ||
+          a.name.localeCompare(b.name),
+      );
+  }
+
+  // ── actions (each one a shell command) ──
+  private get current(): VaultEntry | undefined {
+    return this.items()[this.sel];
+  }
+  private here(name: string): string {
+    return this.dir ? `${this.dir}/${name}` : name;
+  }
+  private async newNote(): Promise<void> {
+    const name = await this.deck.prompt("New note here", { placeholder: "night city ideas" });
+    if (!name?.trim()) return;
+    const path = this.here(name.trim().endsWith(".md") ? name.trim() : `${name.trim()}.md`);
+    await this.deck.act(`touch ${q(path)}`);
+    await this.deck.act(`open ${q(path)}`);
+  }
+  private async newFolder(): Promise<void> {
+    const name = await this.deck.prompt("New folder here", { placeholder: "projects" });
+    if (!name?.trim()) return;
+    await this.deck.act(`mkdir ${q(this.here(name.trim()))}`);
+    this.go(this.dir, this.here(name.trim()));
+  }
+  private async rename(): Promise<void> {
+    const e = this.current;
+    if (!e) return;
+    const name = await this.deck.prompt(`Rename ${e.name}`, { initial: e.name });
+    if (!name?.trim() || name.trim() === e.name) return;
+    const to = this.here(name.trim());
+    await this.deck.act(`mv ${q(e.path)} ${q(to)}`);
+    this.go(this.dir, to);
+  }
+  private async trash(): Promise<void> {
+    const e = this.current;
+    if (!e) return;
+    if (!(await this.deck.confirm(`Move ${e.name} to the trash?`, "It goes to .trash in your vault — nothing is deleted for good."))) return;
+    await this.deck.act(`rm ${e.isDir ? "-r " : ""}${q(e.path)}`);
+  }
+  private async search(): Promise<void> {
+    const all = this.deck.vault.entries.filter((e) => !e.path.startsWith("."));
+    const i = await this.deck.choose("Find in the vault", all.map((e) => ({ label: `${e.isDir ? "▣" : "≡"} ${e.name}`, hint: dirname(e.path) || "/" })));
+    if (i === null) return;
+    const e = all[i];
+    this.go(dirname(e.path), e.path);
+  }
+  private cycleSort(): void {
+    const order = ["name", "modified", "size"] as const;
+    const cur = this.current?.path;
+    this.sortBy = order[(order.indexOf(this.sortBy) + 1) % order.length];
+    const items = this.items();
+    this.sel = Math.max(0, items.findIndex((e) => e.path === cur));
+    this.pos = this.sel;
+    this.deck.notify(`nexus: sorted by ${this.sortBy}`);
+  }
+  private async menu(): Promise<void> {
+    const e = this.current;
+    const actions: [string, string, () => unknown][] = [
+      ["New note here", "+", () => this.newNote()],
+      ["New folder here", "", () => this.newFolder()],
+      ["Search the vault", "/", () => this.search()],
+      [`Sort by… (now ${this.sortBy})`, "", () => this.cycleSort()],
+      ...(e
+        ? ([
+            [`Open ${e.name}`, "enter", () => this.open(e)],
+            [`Rename ${e.name}`, "F2", () => this.rename()],
+            [`Move ${e.name} to the trash`, "delete", () => this.trash()],
+            ["Copy its path", "", () => navigator.clipboard?.writeText(e.path).then(() => this.deck.notify(`copied ${e.path}`))],
+          ] as [string, string, () => unknown][])
+        : []),
+    ];
+    const i = await this.deck.choose("NEXUS", actions.map(([label, hint]) => ({ label, hint })));
+    if (i !== null) void actions[i][2]();
   }
 
   private go(dir: string, select?: string): void {
@@ -87,6 +168,9 @@ export class ExplorerApp implements App {
   }
 
   onText(t: string): boolean {
+    if (t === "/") return void this.search(), true;
+    if (t === "+") return void this.newNote(), true;
+    if (t === ":") return void this.menu(), true;
     if (!/^[\p{L}\p{N}._ -]$/u.test(t)) return false;
     if (t === "h" && !this.typed) return false; // h → HOME, unless typing a name
     const now = performance.now();
@@ -99,6 +183,8 @@ export class ExplorerApp implements App {
 
   onKey(k: KeyInput): boolean {
     if (k.combo === "backspace") return this.up();
+    if (k.combo === "f2") return void this.rename(), true;
+    if (k.combo === "delete") return void this.trash(), true;
     return false;
   }
 
@@ -109,6 +195,7 @@ export class ExplorerApp implements App {
       case "confirm": case "up": this.open(this.items()[this.sel]); return true;
       case "down": return this.up();
       case "back": return this.up(); // at the root, esc closes the tab as usual
+      case "menu": void this.menu(); return true;
       default: return false;
     }
   }
@@ -173,7 +260,27 @@ export class ExplorerApp implements App {
       bx = ui.text(bx, r.y, p, { fg: i === parts.length - 1 ? c.accent : c.muted, attrs: i === parts.length - 1 ? BOLD : 0 });
       ui.hit({ x: x0, y: r.y, w: bx - x0, h: 1 }, { onClick: () => this.go(path) });
     });
-    ui.textRight(r.x + r.w - 1, r.y, `${items.length} node${items.length === 1 ? "" : "s"} `, { fg: c.subtle });
+    // the toolbar: every action, one click away
+    let tx = r.x + r.w - 1;
+    const tools: [string, () => unknown, string][] = [
+      [" : ", () => this.menu(), "every action · : · pad menu"],
+      [` ⇅ ${this.sortBy} `, () => this.cycleSort(), "sort: name · modified · size"],
+      [" ✕ ", () => this.trash(), "to the trash · delete"],
+      [" ✎ ", () => this.rename(), "rename · F2"],
+      [" ⌕ ", () => this.search(), "search the vault · /"],
+      [" + folder ", () => this.newFolder(), "new folder here"],
+      [" + note ", () => this.newNote(), "new note here · +"],
+    ];
+    for (const [label, run, tip] of tools) {
+      const w = label.length;
+      tx -= w;
+      const rect = { x: tx, y: r.y, w, h: 1 };
+      const hot = ui.hovered(rect);
+      ui.text(tx, r.y, label, hot ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: c.fg, bg: c.highlight });
+      ui.hit(rect, { onClick: () => void run(), tip });
+      tx -= 1;
+    }
+    if (tx - 12 > bx) ui.textRight(tx - 1, r.y, `${items.length} node${items.length === 1 ? "" : "s"} `, { fg: c.subtle });
 
     if (!items.length) {
       ui.textCenter(r, horizon + 2, "empty sector", { fg: c.muted, attrs: BOLD });

@@ -62,6 +62,7 @@ pub fn run() {
             claude_code::claude_code_cancel,
             net::news_rss,
             net::open_url,
+            net::net_get,
             media::media_status,
             term::pty_spawn,
             term::pty_write,

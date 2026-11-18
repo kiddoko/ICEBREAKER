@@ -65,6 +65,8 @@ export interface Platform {
   /** The local Claude Code CLI (desktop only). Runs on the user's Claude plan instead of an API key. */
   /** Google News RSS (desktop only — feeds have no CORS). */
   newsRss?(query: string, lang: string, country: string, provider?: "google" | "bing"): Promise<string>;
+  /** GET a text file over https (or http on the local network): the STORE's indexes and downloads. */
+  netGet?(url: string): Promise<string>;
   /** Open an https link in the default browser (desktop only). */
   openUrl?(url: string): Promise<void>;
   claudeCode?: {

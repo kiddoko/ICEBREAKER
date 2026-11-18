@@ -39,6 +39,7 @@ import { Vault } from "./vault/vault";
 import { BootScreen, type BootLine } from "./workspace/boot";
 import { CellFx, Transitions } from "./fx/transition";
 import { DeckVoice, phrase } from "./core/voice";
+import { storeCommand, storeSpec } from "./apps/store";
 import { installStealth } from "./core/stealth";
 import { setLang, t } from "./core/i18n";
 import type { ChoiceOption } from "./plugins/api";
@@ -210,9 +211,9 @@ export class Deck implements InputSink {
   }
 
   private registerCore(): void {
-    for (const c of [...fileCommands, ...systemCommands, ...deckCommands]) this.commands.register({ ...c, source: "core" });
+    for (const c of [...fileCommands, ...systemCommands, ...deckCommands, storeCommand]) this.commands.register({ ...c, source: "core" });
     for (const w of BUILTIN_WIDGETS) this.widgets.register(w);
-    for (const a of [homeSpec, modulesSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec]) this.apps.register(a);
+    for (const a of [homeSpec, modulesSpec, storeSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec]) this.apps.register(a);
 
     const act = (id: string, title: string, run: () => void, hint?: string, group = "deck") => this.actions.register({ id, title, run, hint, group });
     act("journal.today", "Journal: today", () => void this.openJournal(new Date()), "ctrl+j", "journal");

@@ -23,6 +23,10 @@ export interface IndexEntry {
   /** "user/repo" or "user/repo/tree/<branch>/<folder>" or a .toml path for themes. */
   repo: string;
   kind: "plugin" | "theme";
+  /** which index it came from (filled in by fetchIndex) */
+  index?: string;
+  version?: string;
+  permissions?: string[];
 }
 
 /** "user/repo[/tree/<branch>/<path>]", a github.com URL or a raw URL → raw base URL (ends with "/"). */
@@ -38,7 +42,11 @@ export function rawBase(src: string): string {
   return s.endsWith("/") ? s : `${s}/`;
 }
 
+let deckRef: Deck | null = null;
+
 async function get(url: string): Promise<string> {
+  // desktop: through the native side (any https host, http on the local network)
+  if (deckRef?.platform.netGet) return deckRef.platform.netGet(url);
   let res: Response;
   try {
     res = await fetch(url, { cache: "no-store" });
@@ -49,11 +57,41 @@ async function get(url: string): Promise<string> {
   return res.text();
 }
 
+/** "user/repo" → its index.json on GitHub; URLs stay as they are. */
+export function indexUrl(src: string): string {
+  const s = src.trim();
+  if (/^https?:\/\//.test(s)) return s;
+  return `${rawBase(s)}index.json`;
+}
+
+/** Every index: the official one, then yours. Entries know which index they came from. */
+export function indexSources(deck: Deck): string[] {
+  const p = deck.settings.data.plugins;
+  return [p.registry, ...(p.sources ?? [])].filter(Boolean);
+}
+
+/** All entries from all indexes. Indexes that fail are reported in `errors`. */
+export async function fetchAll(deck: Deck): Promise<{ entries: IndexEntry[]; errors: { source: string; error: string }[] }> {
+  deckRef = deck;
+  const entries: IndexEntry[] = [];
+  const errors: { source: string; error: string }[] = [];
+  await Promise.all(
+    indexSources(deck).map(async (src) => {
+      try {
+        const data = JSON.parse(await get(indexUrl(src)));
+        for (const e of (Array.isArray(data) ? data : data.entries ?? []) as IndexEntry[]) if (e?.id && e.repo) entries.push({ ...e, index: src });
+      } catch (e) {
+        errors.push({ source: src, error: e instanceof Error ? e.message : String(e) });
+      }
+    }),
+  );
+  return { entries, errors };
+}
+
 export async function fetchIndex(deck: Deck): Promise<IndexEntry[]> {
-  const url = deck.settings.data.plugins.registry;
-  if (!url) throw new Error("no community index set (config set plugins.registry <url>)");
-  const data = JSON.parse(await get(url));
-  return (Array.isArray(data) ? data : data.entries ?? []) as IndexEntry[];
+  const { entries, errors } = await fetchAll(deck);
+  if (!entries.length && errors.length) throw new Error(errors.map((e) => `${e.source}: ${e.error}`).join("\n"));
+  return entries;
 }
 
 async function resolve(deck: Deck, src: string, kind: IndexEntry["kind"]): Promise<string> {
@@ -65,6 +103,7 @@ async function resolve(deck: Deck, src: string, kind: IndexEntry["kind"]): Promi
 
 /** Download a plugin into .icebreaker/plugins/<id>/. Returns its manifest. */
 export async function installPlugin(deck: Deck, src: string): Promise<{ id: string; name: string; permissions: string[]; source: string }> {
+  deckRef = deck;
   const repo = await resolve(deck, src, "plugin");
   const base = rawBase(repo);
   const manifest = JSON.parse(await get(`${base}plugin.json`));
@@ -84,6 +123,7 @@ export async function installPlugin(deck: Deck, src: string): Promise<{ id: stri
 
 /** Download a .toml theme into .icebreaker/themes/. Returns the file name. */
 export async function installTheme(deck: Deck, src: string): Promise<string> {
+  deckRef = deck;
   const repo = await resolve(deck, src, "theme");
   const url = /\.toml$/.test(repo) ? rawBase(repo).replace(/\/$/, "") : `${rawBase(repo)}theme.toml`;
   const toml = await get(url);

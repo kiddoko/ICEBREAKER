@@ -595,6 +595,23 @@ export class Workspace {
     const gearHot = ui.hovered(gearRect) || this.activeApp?.kind === "settings";
     ui.text(gx, r.y, gear, { fg: gearHot ? c.panel : c.muted, bg: gearHot ? c.accent : c.highlight });
     ui.hit(gearRect, { cmd: "settings", tip: "ctrl+, · or `config list` in the shell" });
+    // the places you go all the time, one click away
+    let nx = gx - 1;
+    const nav: [string, string, string, string][] = [
+      ["modules", `▦ ${t("modules")}`, "launch modules", "all apps and modules · m on HOME"],
+      ["store", `⇣ ${t("store")}`, "store", "modules and themes from GitHub · store in the shell"],
+      ["explorer", `⬡ ${t("nexus")}`, "launch explorer", "the vault in 3D · explore in the shell"],
+    ];
+    for (const [kind, label, cmd, tip] of nav) {
+      if (kind === "store" && !d.apps.get("store")) continue;
+      const lw = strWidth(label) + 2;
+      nx -= lw;
+      const rect = { x: nx, y: r.y, w: lw, h: 1 };
+      const on = ui.hovered(rect) || this.activeApp?.kind === kind;
+      ui.text(nx, r.y, ` ${label} `, { fg: on ? c.panel : c.muted, bg: on ? c.accent : c.highlight });
+      ui.hit(rect, { cmd, tip });
+      nx -= 1;
+    }
     ui.text(rx, r.y, right, { fg: c.muted, bg: c.panelAlt });
     ui.text(rx + 1, r.y, ai, { fg: d.ai.ready ? c.accent : c.error, bg: c.panelAlt });
     ui.hit({ x: rx, y: r.y, w: strWidth(ai) + 2, h: 1 }, d.ai.ready ? { cmd: "link", tip: "ctrl+space · or `chat` right here in the shell" } : { cmd: "settings", tip: `AI offline: ${d.ai.problem ?? ""}` });
@@ -602,7 +619,7 @@ export class Workspace {
     this.tabs.forEach((t, i) => {
       const label = ` ${i + 1}:${t.title()}${t.dirty?.() ? " ●" : ""} `;
       const w = strWidth(label);
-      if (x + w + 2 > gx - 1) return;
+      if (x + w + 2 > nx) return;
       const rect = { x, y: r.y, w: w + 1, h: 1 };
       const isActive = i === this.active;
       const hot = ui.hovered(rect);
