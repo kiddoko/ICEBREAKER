@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- TODO: recurring tasks — every day, several times a day (`--times 3`),
+  every other day, chosen weekdays (`--every mon,wed,sat`), every (other)
+  week, every month; for 10 / 100 times, a year, or forever (`--cycles`).
+  Done → it comes back on its next date. `todo repeat <n> …`, or r in the app.
 - HABITS module (takes CHECKBOXES' place): daily boxes that reset every day,
   several times a day (●●○○), chosen weekdays, streaks ▲, a 2-week strip, a
   widget and its pop-up, the numbers in STATS. `habit add "read" --days mon,wed`.

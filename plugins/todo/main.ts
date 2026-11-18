@@ -40,6 +40,109 @@ interface Task {
   done: boolean;
   created: string;
   doneAt: string | null;
+  /** a task that comes back: see Repeat */
+  repeat?: Repeat;
+}
+
+/**
+ * When a recurring task is done it comes back, due on the next date of its
+ * rule, until its cycles run out (or forever).
+ *   every N days · every N weeks (on chosen weekdays) · every N months
+ *   times: several times a day (it stays today until done that many times)
+ */
+interface Repeat {
+  unit: "day" | "week" | "month";
+  n: number;
+  /** weekly: on these weekdays (0 = sunday) */
+  days?: number[];
+  /** several times a day */
+  times?: number;
+  /** done so many times today (with `times`) */
+  todayCount?: number;
+  todayDate?: string;
+  /** cycles left (null = forever) */
+  left: number | null;
+  /** or until this date (YYYY-MM-DD) */
+  until?: string | null;
+  /** how many times it was done, all in all */
+  total?: number;
+  /** the week the rule started (every other week counts from it) */
+  anchor: string;
+}
+
+const WD = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+/** "day", "2d", "other-day", "week", "2w", "mon,wed,sat", "month", "3m"… → a rule, or an error */
+export function parseRepeat(raw: string): Omit<Repeat, "left" | "anchor"> | string {
+  const v = raw.toLowerCase().trim();
+  const named: Record<string, [Repeat["unit"], number]> = {
+    day: ["day", 1], daily: ["day", 1], jour: ["day", 1], "every-day": ["day", 1],
+    "other-day": ["day", 2], "every-other-day": ["day", 2],
+    week: ["week", 1], weekly: ["week", 1], semaine: ["week", 1], "other-week": ["week", 2], "every-other-week": ["week", 2],
+    month: ["month", 1], monthly: ["month", 1], mois: ["month", 1],
+  };
+  if (named[v]) return { unit: named[v][0], n: named[v][1] };
+  const m = /^(\d+)\s*(d|day|days|j|w|week|weeks|s|m|month|months)$/.exec(v);
+  if (m) {
+    const n = Math.max(1, Math.min(365, Number(m[1])));
+    const u = m[2][0] === "d" || m[2][0] === "j" ? "day" : m[2][0] === "w" || m[2] === "s" ? "week" : "month";
+    return { unit: u, n };
+  }
+  const days = v.split(/[,\s]+/).map((d) => WEEKDAYS[d] ?? WEEKDAYS[d.slice(0, 3)]).filter((d) => d !== undefined);
+  if (days.length && days.length === v.split(/[,\s]+/).length) return { unit: "week", n: 1, days: [...new Set(days)].sort() };
+  return `can't read the repeat "${raw}" — try day, 2d, week, 2w, mon,wed,sat, month`;
+}
+
+/** "10", "100", "1y", "6m", "forever" → cycles or an end date */
+function parseCycles(raw: string): { left: number | null; until: string | null } | string {
+  const v = raw.toLowerCase().trim();
+  if (["forever", "inf", "infinite", "∞", "toujours", "always"].includes(v)) return { left: null, until: null };
+  if (/^\d+$/.test(v)) return { left: Math.max(1, Number(v)), until: null };
+  const m = /^(\d+)\s*(y|year|years|an|ans|m|month|months|mois|w|week|weeks)$/.exec(v);
+  if (m) {
+    const d = new Date();
+    const n = Number(m[1]);
+    if (m[2][0] === "y" || m[2][0] === "a") d.setFullYear(d.getFullYear() + n);
+    else if (m[2][0] === "m") d.setMonth(d.getMonth() + n);
+    else d.setDate(d.getDate() + n * 7);
+    return { left: null, until: iso(d) };
+  }
+  return `can't read "${raw}" — a number of times (10, 100), a span (1y, 6m) or forever`;
+}
+
+function describeRepeat(r: Repeat): string {
+  const every = r.unit === "week" && r.days?.length
+    ? `${r.n === 2 ? "every other week on " : ""}${r.days.map((d) => WD[d]).join(" ")}`
+    : r.n === 1 ? `every ${r.unit}` : r.n === 2 ? `every other ${r.unit}` : `every ${r.n} ${r.unit}s`;
+  const times = r.times && r.times > 1 ? ` ×${r.times}` : "";
+  const end = r.left !== null ? ` · ${r.left} left` : r.until ? ` · until ${r.until}` : "";
+  return `↻ ${every}${times}${end}`;
+}
+
+/** The next due date after `from` (YYYY-MM-DD) for this rule. */
+function nextDate(r: Repeat, from: string): string {
+  const d = new Date(`${from}T12:00`);
+  if (r.unit === "day") d.setDate(d.getDate() + r.n);
+  else if (r.unit === "month") d.setMonth(d.getMonth() + r.n);
+  else if (!r.days?.length) d.setDate(d.getDate() + 7 * r.n);
+  else {
+    const anchor = new Date(`${r.anchor}T12:00`);
+    anchor.setDate(anchor.getDate() - ((anchor.getDay() + 6) % 7)); // that week's monday
+    for (let i = 1; i <= 7 * r.n + 7; i++) {
+      const c = new Date(d);
+      c.setDate(d.getDate() + i);
+      const week = Math.floor((c.getTime() - anchor.getTime()) / (7 * 86_400_000));
+      if (r.days.includes(c.getDay()) && week % r.n === 0) return iso(c);
+    }
+    d.setDate(d.getDate() + 7);
+  }
+  return iso(d);
+}
+
+/** The first due date: today if the rule allows it, else its next date. */
+function firstDate(r: Repeat): string {
+  const today = iso(new Date());
+  if (r.unit === "week" && r.days?.length && !r.days.includes(new Date().getDay())) return nextDate(r, today);
+  return today;
 }
 
 type Filter = "open" | "today" | "all" | "done";
@@ -109,6 +212,11 @@ function dueLabel(due: string | null): string {
 // ── parsing "walk the dog --urgent --due tomorrow +home" ──────────────────
 
 interface Parsed {
+  repeat?: Omit<Repeat, "left" | "anchor">;
+  repeatRaw?: string;
+  times?: number;
+  cycles?: { left: number | null; until: string | null };
+  cyclesRaw?: string;
   text: string;
   prio?: Prio;
   due?: string | null;
@@ -135,6 +243,27 @@ export function parseTask(tokens: string[]): Parsed {
         const d = v === undefined ? undefined : parseDue(v);
         if (d === undefined) out.error = `can't read the date "${v ?? ""}" — try today, tomorrow, fri, +3d, 2026-12-01, 24/12`;
         else (out.due = d), (out.dueRaw = v);
+        continue;
+      }
+      if (k === "every" || k === "repeat" || k === "r") {
+        v ??= tokens[++i];
+        const r = parseRepeat(v ?? "");
+        if (typeof r === "string") out.error = r;
+        else (out.repeat = r), (out.repeatRaw = v);
+        continue;
+      }
+      if (k === "times" || k === "x") {
+        v ??= tokens[++i];
+        const n = Number(v);
+        if (!Number.isInteger(n) || n < 1 || n > 50) out.error = `--times: a number of times a day (2, 3…), not "${v ?? ""}"`;
+        else out.times = n;
+        continue;
+      }
+      if (k === "cycles" || k === "count" || k === "during") {
+        v ??= tokens[++i];
+        const c = parseCycles(v ?? "");
+        if (typeof c === "string") out.error = c;
+        else (out.cycles = c), (out.cyclesRaw = v);
         continue;
       }
       if (k === "prio" || k === "p") {
@@ -173,6 +302,25 @@ function tokenize(s: string): string[] {
 // ── the module ─────────────────────────────────────────────────────────────
 
 export function activate(ib: IcebreakerAPI): void {
+  ib.lib.addTranslations("fr", {
+    "doesn't repeat": "ne se répète pas",
+    "every day": "tous les jours",
+    "several times a day": "plusieurs fois par jour",
+    "every other day": "un jour sur deux",
+    "on chosen weekdays": "certains jours de la semaine",
+    "every week": "toutes les semaines",
+    "every other week": "une semaine sur deux",
+    "every month": "tous les mois",
+    "Repeat “{task}”": "Répéter « {task} »",
+    "How many times a day?": "Combien de fois par jour ?",
+    "Which days?": "Quels jours ?",
+    "forever": "pour toujours",
+    "for a year": "pendant un an",
+    "for a month": "pendant un mois",
+    "a number of times…": "un nombre de fois…",
+    "For how long?": "Pendant combien de temps ?",
+    "How many times?": "Combien de fois ?",
+  });
   const { BOLD, DIM, STRIKE, mix, strWidth, q, fmt } = ib.lib;
 
   // ── store (only the `todo` command writes it) ──
@@ -195,6 +343,70 @@ export function activate(ib: IcebreakerAPI): void {
     ib.ui.redraw();
   };
 
+  /** r in the app: the repeat, picked from lists (the same words as `todo repeat`). */
+  async function repeatFlow(t: Task): Promise<void> {
+    const kinds: [string, string, string][] = [
+      [ib.lib.t("doesn't repeat"), "", "off"],
+      [ib.lib.t("every day"), "", "day"],
+      [ib.lib.t("several times a day"), "", "day+times"],
+      [ib.lib.t("every other day"), "", "2d"],
+      [ib.lib.t("on chosen weekdays"), "mon,wed,sat…", "days"],
+      [ib.lib.t("every week"), "", "week"],
+      [ib.lib.t("every other week"), "", "2w"],
+      [ib.lib.t("every month"), "", "month"],
+    ];
+    const k = await ib.ui.choose(ib.lib.t("Repeat “{task}”", { task: t.text }), kinds.map(([label, hint]) => ({ label, hint })));
+    if (k === null) return;
+    let rule = kinds[k][2];
+    if (rule === "off") return void run(`todo repeat ${t.id} off`);
+    let extra = "";
+    if (rule === "day+times") {
+      const n = await ib.ui.prompt(ib.lib.t("How many times a day?"), { initial: "3" });
+      if (!n?.trim()) return;
+      rule = "day";
+      extra = ` --times ${Number(n) || 2}`;
+    }
+    if (rule === "days") {
+      const d = await ib.ui.prompt(ib.lib.t("Which days?"), { placeholder: "mon,wed,sat" });
+      if (!d?.trim()) return;
+      rule = d.trim().replace(/\s+/g, "");
+    }
+    const spans: [string, string][] = [[ib.lib.t("forever"), "forever"], ["10×", "10"], ["100×", "100"], [ib.lib.t("for a year"), "1y"], [ib.lib.t("for a month"), "1m"], [ib.lib.t("a number of times…"), "ask"]];
+    const c = await ib.ui.choose(ib.lib.t("For how long?"), spans.map(([label]) => ({ label })));
+    if (c === null) return;
+    let cycles = spans[c][1];
+    if (cycles === "ask") {
+      const n = await ib.ui.prompt(ib.lib.t("How many times?"), { initial: "30" });
+      if (!n?.trim()) return;
+      cycles = n.trim();
+    }
+    run(`todo repeat ${t.id} ${q(rule)}${extra}${cycles !== "forever" ? ` --cycles ${cycles}` : ""}`);
+  }
+
+  /** Done once: a plain task is done; a recurring one comes back (again today, or on its next date) until its cycles run out. */
+  function complete(t: Task): "done" | "again" | "next" | "finished" {
+    const now = new Date().toISOString();
+    const r = t.repeat;
+    if (!r) return (t.done = true), (t.doneAt = now), "done";
+    r.total = (r.total ?? 0) + 1;
+    const today = iso(new Date());
+    if (r.times && r.times > 1) {
+      if (r.todayDate !== today) (r.todayDate = today), (r.todayCount = 0);
+      r.todayCount = (r.todayCount ?? 0) + 1;
+      if (r.todayCount < r.times) return "again";
+      r.todayCount = 0;
+    }
+    if (r.left !== null) {
+      r.left -= 1;
+      if (r.left <= 0) return (t.done = true), (t.doneAt = now), "finished";
+    }
+    const from = t.due && t.due > today ? t.due : today;
+    const next = nextDate(r, from);
+    if (r.until && next > r.until) return (t.done = true), (t.doneAt = now), "finished";
+    t.due = next;
+    return "next";
+  }
+
   // ── what other modules can do with tasks (ib.modules.call("todo", …)) ──
   ib.modules.expose("list", { doc: "list() → every task { id, text, prio, due, tags, done }", fn: async () => (await ready, tasks.map((t) => ({ ...t }))) });
   ib.modules.expose("add", {
@@ -214,8 +426,7 @@ export function activate(ib: IcebreakerAPI): void {
       await ready;
       const t = tasks.find((x) => x.id === Number(id));
       if (!t || t.done) return false;
-      t.done = true;
-      t.doneAt = new Date().toISOString();
+      complete(t);
       void ib.stats.add("done", 1, { label: "tasks done", kind: "counter" }).catch(() => {});
       await save();
       return true;
@@ -230,7 +441,7 @@ export function activate(ib: IcebreakerAPI): void {
 
   /** Short form for messages and the shell: "walk the dog (urgent, tomorrow)". */
   const describe = (t: Task) => {
-    const bits = [t.prio !== "moderate" ? t.prio : "", t.due ? dueLabel(t.due) : "", ...t.tags.map((g) => `+${g}`)].filter(Boolean);
+    const bits = [t.prio !== "moderate" ? t.prio : "", t.due ? dueLabel(t.due) : "", t.repeat ? describeRepeat(t.repeat) : "", ...t.tags.map((g) => `+${g}`)].filter(Boolean);
     return `${t.text}${bits.length ? ` (${bits.join(", ")})` : ""}`;
   };
 
@@ -242,7 +453,7 @@ export function activate(ib: IcebreakerAPI): void {
     const due = t.due ? (daysUntil(t.due) < 0 && !t.done ? fmt.red(dueLabel(t.due)) : daysUntil(t.due) === 0 ? fmt.yellow("today") : fmt.dim(dueLabel(t.due))) : "";
     const tags = t.tags.map((g) => fmt.magenta(`+${g}`)).join(" ");
     const text = t.done ? fmt.dim(t.text) : t.text;
-    return `${fmt.dim(String(t.id).padStart(3))} ${box} ${prioAnsi(t.prio, prioMark(t.prio))} ${text}${tags ? ` ${tags}` : ""}${due ? `  ${due}` : ""}\n`;
+    return `${fmt.dim(String(t.id).padStart(3))} ${box} ${prioAnsi(t.prio, prioMark(t.prio))} ${text}${tags ? ` ${tags}` : ""}${due ? `  ${due}` : ""}${t.repeat && !t.done ? `  ${fmt.cyan(describeRepeat(t.repeat))}` : ""}\n`;
   }
 
   function ids(ctx: ShellContext, args: string[]): Task[] | null {
@@ -261,6 +472,10 @@ export function activate(ib: IcebreakerAPI): void {
   const command: Command = {
     name: "todo",
     examples: [
+      ['todo add "pills" --every day --times 2 --cycles 30', "twice a day for 30 days"],
+      ['todo add "gym" --every mon,wed,sat', "three days a week, forever"],
+      ['todo add "plants" --every 2w --cycles 1y', "every other week for a year"],
+
       ["todo add \"promener le chien\" --urgent --due demain +maison", "urgent task, due tomorrow, tagged maison"],
       ["todo add \"rapport Q4\" --high --due fri +work", "high priority, due next Friday"],
       ["todo add \"appeler mamie\" --due +3d", "due in 3 days (moderate priority by default)"],
@@ -283,6 +498,10 @@ export function activate(ib: IcebreakerAPI): void {
       "     --urgent --high --moderate --low      priority (default: moderate)",
       "     --due today|tomorrow|fri|+3d|2w|2026-12-01|24/12",
       "     +tag                     tags: +home +work",
+      "     --every day|2d|week|2w|mon,wed,sat|month   it comes back when done",
+      "     --times 3                several times a day",
+      "     --cycles 10|100|1y|6m|forever             for how long (default: forever)",
+      "todo repeat <n> <rule | off> [--times N] [--cycles …]   (r in the app)",
       "todo done <n…>    todo undo <n…>",
       "todo edit <n> [new text] [options]",
       "todo prio <n> urgent|high|moderate|low",
@@ -307,10 +526,37 @@ export function activate(ib: IcebreakerAPI): void {
           if (p.error) return ctx.err(`todo: ${p.error}\n`), 1;
           if (!p.text) return ctx.err('usage: todo add "what to do" [--urgent] [--due tomorrow] [+tag]\n'), 1;
           const t: Task = { id: nextId++, text: p.text, prio: p.prio ?? "moderate", due: p.due ?? null, tags: p.tags, done: false, created: new Date().toISOString(), doneAt: null };
+          if (p.repeat || p.times) {
+            const rule = p.repeat ?? { unit: "day" as const, n: 1 };
+            t.repeat = { ...rule, times: p.times, left: p.cycles?.left ?? null, until: p.cycles?.until ?? null, anchor: iso(new Date()), total: 0 };
+            t.due ??= firstDate(t.repeat);
+          }
           tasks.push(t);
           void ib.stats.add("added", 1, { label: "tasks added", kind: "counter" }).catch(() => {});
           await save();
           ctx.out(`${fmt.green("+")} ${fmt.dim(`#${t.id}`)} ${describe(t)}\n`);
+          return 0;
+        }
+        case "repeat":
+        case "every": {
+          // todo repeat <id> <rule | off> [--times N] [--cycles 10|1y|forever]
+          const id = args.shift();
+          const t = tasks.find((x) => x.id === Number(id));
+          if (!t) return ctx.err(`todo: no task #${id ?? ""}\n`), 1;
+          const ruleRaw = args.shift();
+          if (!ruleRaw) return ctx.out(`${t.text}: ${t.repeat ? describeRepeat(t.repeat) : "doesn't repeat"}\n`), 0;
+          if (ruleRaw === "off" || ruleRaw === "none") {
+            delete t.repeat;
+            await save();
+            return ctx.out(`${t.text}: ${fmt.dim("doesn't repeat any more")}\n`), 0;
+          }
+          const p = parseTask(["x", "--every", ruleRaw, ...args]);
+          if (p.error || !p.repeat) return ctx.err(`todo: ${p.error ?? "usage: todo repeat <id> day|2d|week|2w|mon,wed|month [--times 3] [--cycles 10|1y|forever]"}\n`), 1;
+          t.repeat = { ...p.repeat, times: p.times, left: p.cycles?.left ?? null, until: p.cycles?.until ?? null, anchor: iso(new Date()), total: t.repeat?.total ?? 0 };
+          t.done = false;
+          t.due ??= firstDate(t.repeat);
+          await save();
+          ctx.out(`${fmt.cyan("↻")} ${t.text}  ${fmt.cyan(describeRepeat(t.repeat))}  ${fmt.dim(`next: ${t.due}`)}\n`);
           return 0;
         }
         case "done":
@@ -318,6 +564,11 @@ export function activate(ib: IcebreakerAPI): void {
           const list = ids(ctx, args);
           if (!list) return 1;
           for (const t of list) {
+            if (sub === "done" && t.repeat && !t.done) {
+              const r = complete(t);
+              ctx.out(`${fmt.green("☑")} ${t.text}${r === "again" ? fmt.dim(`  (${t.repeat.todayCount}/${t.repeat.times} today)`) : r === "next" ? fmt.dim(`  ↻ next: ${t.due}`) : fmt.dim("  ↻ the last one")}\n`);
+              continue;
+            }
             t.done = sub === "done";
             t.doneAt = t.done ? new Date().toISOString() : null;
             ctx.out(`${t.done ? fmt.green("☑") : "☐"} ${t.text}\n`);
@@ -435,7 +686,7 @@ export function activate(ib: IcebreakerAPI): void {
     status(): string {
       return this.typing
         ? "type · --urgent --high --low · --due tomorrow · +tag · enter add · esc stop"
-        : "a add · space done · 1-4 priority · d due · e edit · x remove · tab filter · u restore";
+        : "a add · space done · 1-4 priority · d due · r repeat · e edit · x remove · tab filter · u restore";
     }
 
     startTyping(): void {
@@ -456,7 +707,7 @@ export function activate(ib: IcebreakerAPI): void {
       if (p.error) return void (this.hint = p.error);
       if (!p.text) return void (this.typing = false);
       // the clean, quoted command that does it — so the shell shows how to type it
-      const flags = [p.prio && p.prio !== "moderate" ? `--${p.prio}` : "", p.due !== undefined && p.dueRaw ? `--due ${q(p.dueRaw)}` : "", ...p.tags.map((t) => `+${t}`)].filter(Boolean);
+      const flags = [p.prio && p.prio !== "moderate" ? `--${p.prio}` : "", p.due !== undefined && p.dueRaw ? `--due ${q(p.dueRaw)}` : "", p.repeatRaw ? `--every ${q(p.repeatRaw)}` : "", p.times ? `--times ${p.times}` : "", p.cyclesRaw ? `--cycles ${q(p.cyclesRaw)}` : "", ...p.tags.map((t) => `+${t}`)].filter(Boolean);
       run(`todo add ${q(p.text)}${flags.length ? ` ${flags.join(" ")}` : ""}`);
       this.input = "";
       this.hint = "";
@@ -489,6 +740,7 @@ export function activate(ib: IcebreakerAPI): void {
         case " ": if (cur) run(`todo ${cur.done ? "undo" : "done"} ${cur.id}`); return true;
         case "1": case "2": case "3": case "4": if (cur) run(`todo prio ${cur.id} ${PRIOS[Number(t) - 1]}`); return true;
         case "d": if (cur) void this.due(cur); return true;
+        case "r": if (cur) void repeatFlow(cur); return true;
         case "e": if (cur) void this.edit(cur); return true;
         case "x": if (cur) run(`todo rm ${cur.id}`); return true;
         case "u": run("todo restore"); return true;
