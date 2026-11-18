@@ -1,3 +1,4 @@
+import { drawScreensaver } from "../fx/screensaver";
 import { IbshApp, TerminalApp } from "../apps/terminal";
 import { t } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
@@ -6,7 +7,6 @@ import { strWidth } from "../core/unicode";
 import type { App } from "../apps/types";
 import type { Deck } from "../deck";
 import { drawBackground } from "../fx/backgrounds";
-import { Rain } from "../fx/rain";
 import { inside, q, type Hit, type UI } from "../ui/ui";
 import { ConfirmDialog, Osk, Palette, PromptDialog, Toasts, type Overlay, type ToastKind, ChooseDialog } from "./overlays";
 import type { ChoiceOption } from "../plugins/api";
@@ -828,7 +828,6 @@ export class Workspace {
 class Screensaver implements Overlay {
   modal = true;
   done = false;
-  private rain = new Rain(1.2);
   onKey(): boolean {
     return (this.done = true);
   }
@@ -839,8 +838,7 @@ class Screensaver implements Overlay {
     return (this.done = true);
   }
   render(ui: UI, screen: Rect): void {
-    ui.fill(screen, { bg: ui.c.bg });
-    this.rain.render(ui, screen);
+    drawScreensaver(ui, screen);
     ui.hit(screen, { onClick: () => (this.done = true), onWheel: () => {}, block: true });
   }
 }

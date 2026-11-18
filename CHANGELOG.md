@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Screensaver: a night city in ASCII — towers with flickering windows, neon
+  signs, rain, a searchlight, a drone, the time in big digits, a ticker.
+- Voice subtitles: while the voice speaks, its words type into a small sci-fi
+  box bottom-right (Settings → voice → subtitles).
+- The neural voice gets plain text (no dashes, fancy quotes or symbols) and,
+  if it still fails, the system voice takes over quietly (no toast).
+- Sharpness works on every webview (a soft halo where canvas blur is missing).
+- Settings: two big groups, GENERAL and MODULES; the effects are part of
+  APPEARANCE; the natural-voice row says "installed ✓" or downloads with the
+  progress in the shell.
+- ⤢ maximize: the shell becomes a big tab after the others (the page you were
+  on stays a tab) and the panel folds away; `term dock` puts it back.
+- zsh with powerlevel10k: no more "prompt_cr must be unset" error.
 - START HERE: the docs as notes in your vault — a README with the tour, one
   note per part (modules, ui, shell, keys, privacy) and `for developers/`
   (themes, the module API, tweaking). Written into every new vault; `starthere`

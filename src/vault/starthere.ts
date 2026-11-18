@@ -159,6 +159,10 @@ habit
 news
 \`\`\`
 
+## Bigger
+⤢ maximize turns the shell into a big tab after the others (the page you
+were on stays a tab); \`term dock\` puts a terminal back in the panel.
+
 ## Macros
 Buttons above your terminal that type a command: \`macro add deploy "git pull"\`.
 `,
