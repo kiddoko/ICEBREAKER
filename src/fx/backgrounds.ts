@@ -200,7 +200,7 @@ registerBackground({
   fps: 15,
   render(ui, r, p) {
     const gx = Math.max(3, Math.round(8 - p.density * 4)), gy = Math.max(2, Math.round(4 - p.density * 2));
-    const sweep = mod(p.t * 6, r.h + 12) - 6;
+    const sweep = mod(p.t * 2.5, r.h + 12) - 6;
     for (let y = 0; y < r.h; y++) {
       const d = Math.abs(y - sweep);
       const glow = d < 6 ? 1 - d / 6 : 0;
@@ -208,7 +208,7 @@ registerBackground({
         const onGrid = x % gx === 0 && y % gy === 0;
         if (!onGrid && glow < 0.85) continue;
         const ch = onGrid ? (glow > 0.3 ? "+" : "·") : "─";
-        if (!onGrid && (x + Math.floor(p.t * 20)) % 5 !== 0) continue;
+        if (!onGrid && (x + Math.floor(p.t * 6)) % 5 !== 0) continue;
         put(ui, r.x + x, r.y + y, ch, mix(mix(ui.c.bg, p.color, 0.7), p.color2, glow * 0.8));
       }
     }

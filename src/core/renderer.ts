@@ -35,6 +35,10 @@ export class Renderer {
   private stack = FONT_STACK;
   private lineHeight = 1.12;
   bloomEnabled = true;
+  /** the bloom is blurred in its canvas (true) or by CSS (false) */
+  private canvasBlur = false;
+  /** the bloom canvas is this many times smaller than the screen */
+  private static readonly BLOOM_DIV = 4;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -43,6 +47,13 @@ export class Renderer {
   ) {
     this.ctx = canvas.getContext("2d", { alpha: false })!;
     this.bloomCtx = bloom.getContext("2d")!;
+    // Blur inside the small bloom canvas when the webview can (cheap, once per
+    // painted frame) instead of a CSS filter the compositor redoes over the
+    // whole window on every frame. Older webviews keep the CSS blur.
+    this.bloomCtx.filter = "blur(1px)";
+    this.canvasBlur = this.bloomCtx.filter === "blur(1px)";
+    this.bloomCtx.filter = "none";
+    if (this.canvasBlur) bloom.classList.add("canvas-blur");
     this.setFontSize(fontSize);
   }
 
@@ -96,8 +107,8 @@ export class Renderer {
     const h = this.rows * this.cellH;
     this.canvas.width = w;
     this.canvas.height = h;
-    this.bloom.width = Math.ceil(w / 2);
-    this.bloom.height = Math.ceil(h / 2);
+    this.bloom.width = Math.ceil(w / Renderer.BLOOM_DIV);
+    this.bloom.height = Math.ceil(h / Renderer.BLOOM_DIV);
 
     const cssW = w / this.dpr;
     const cssH = h / this.dpr;
@@ -111,6 +122,12 @@ export class Renderer {
     }
     this.front = null;
     return { cols: this.cols, rows: this.rows };
+  }
+
+  /** Hidden for a while: give the glyph cache's memory back (it refills on the next frames). */
+  release(): void {
+    this.atlas.release();
+    this.front = null;
   }
 
   /** Forget what's on screen: the next draw repaints everything (theme change…). */
@@ -203,7 +220,14 @@ export class Renderer {
 
     if (painted && this.bloomEnabled) {
       // Bloom = blurred, downscaled copy of the screen added on top (CSS does the blur on the GPU).
-      this.bloomCtx.drawImage(this.canvas, 0, 0, this.bloom.width, this.bloom.height);
+      const b = this.bloomCtx;
+      if (this.canvasBlur) {
+        b.clearRect(0, 0, this.bloom.width, this.bloom.height);
+        // ≈ the old CSS blur(3px), in bloom pixels
+        b.filter = `blur(${((3 * this.dpr) / Renderer.BLOOM_DIV).toFixed(2)}px) saturate(1.4)`;
+      }
+      b.drawImage(this.canvas, 0, 0, this.bloom.width, this.bloom.height);
+      if (this.canvasBlur) b.filter = "none";
     }
     return painted;
   }

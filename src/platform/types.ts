@@ -126,6 +126,8 @@ export interface Platform {
   notify?(title: string, body: string): Promise<void>;
   /** Called (debounced) when files in the vault change outside the app. */
   onVaultChange?(cb: () => void): void;
+  /** The window got minimized (true) or restored (false). */
+  onMinimized?(cb: (minimized: boolean) => void): Promise<void>;
   /** Your system shell in a pseudo-terminal (desktop). */
   pty?: {
     /** Starts the shell; resolves with its name ("zsh"). */

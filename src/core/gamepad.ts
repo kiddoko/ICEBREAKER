@@ -40,14 +40,22 @@ export class GamepadInput {
     });
   }
 
-  private start(): void {
-    if (!this.timer) this.timer = setInterval(() => this.poll(), 16);
+  /** Polling only while the deck is visible and focused (a connected pad otherwise costs a wake-up every 16 ms). */
+  private active = true;
+  setActive(on: boolean): void {
+    this.active = on;
+    if (!on) this.stop(false);
+    else if (this.connected) this.start();
   }
 
-  private stop(): void {
+  private start(): void {
+    if (!this.timer && this.active) this.timer = setInterval(() => this.poll(), 16);
+  }
+
+  private stop(clear = true): void {
     clearInterval(this.timer);
     this.timer = undefined;
-    this.held.clear();
+    if (clear) this.held.clear();
   }
 
   private poll(): void {

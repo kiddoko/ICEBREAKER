@@ -480,9 +480,9 @@ function drawEffects(ui: UI, rect: Rect, inner: Rect, index: number, selected: b
   if (style === "scan") {
     // a soft line sweeps down the widget, over and over
     const span = inner.h + 4;
-    const yy = inner.y - 2 + Math.floor(((ui.now - selAt) / 70) % span);
+    const yy = inner.y - 2 + Math.floor(((ui.now - selAt) / 170) % span);
     for (let k = 0; k < 2; k++) if (yy - k >= inner.y && yy - k < inner.y + inner.h) ui.tint({ x: inner.x, y: yy - k, w: inner.w, h: 1 }, undefined, mix(c.accent, c.panel, k ? 0.92 : 0.84));
-    ui.animate(70);
+    ui.animate(170);
     return;
   }
   // lock-on pulse: a bright segment runs around the frame once

@@ -57,6 +57,13 @@ export function createTauriPlatform(): Platform {
       remove: (password) => invoke<void>("account_remove", { password }),
     },
     onVaultChange: (cb) => void listen("vault-fs", () => cb()),
+    onMinimized: async (cb) => {
+      let was = false;
+      await win.onResized(async () => {
+        const min = await win.isMinimized().catch(() => false);
+        if (min !== was) cb((was = min));
+      });
+    },
     pty: {
       spawn: (id, cols, rows, onData, modules) => {
         const ch = new Channel<string>();

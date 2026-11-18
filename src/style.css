@@ -39,6 +39,10 @@ body {
   mix-blend-mode: screen;
   opacity: var(--bloom);
 }
+/* the renderer blurs the bloom itself: no per-frame CSS filter for the compositor */
+#bloom.canvas-blur {
+  filter: none;
+}
 
 #scanlines {
   position: absolute;

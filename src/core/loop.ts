@@ -30,6 +30,31 @@ export class FrameLoop {
     public maxFps = 60,
   ) {}
 
+  /** Hidden or minimized: no frames at all (timers and reminders keep running). */
+  private paused = false;
+  /** Visible but not the window you're using: a low frame cap (animations crawl, input still instant). */
+  background = false;
+  /** Nobody touched anything for a while: same low cap as the background. */
+  idle = false;
+  /** fps cap while in the background */
+  static readonly BACKGROUND_FPS = 12;
+
+  setPaused(p: boolean): void {
+    if (this.paused === p) return;
+    this.paused = p;
+    if (p) {
+      cancelAnimationFrame(this.raf);
+      this.raf = 0;
+      clearTimeout(this.timer);
+      clearTimeout(this.watchdog);
+      this.timerAt = Infinity;
+    } else this.request(0);
+  }
+
+  get isPaused(): boolean {
+    return this.paused;
+  }
+
   /** A frame wanted by an animation, not before this time (vsync-aligned, see request). */
   private wantAt = 0;
 
@@ -40,6 +65,9 @@ export class FrameLoop {
    * and stutters, worst on 120 Hz screens. Longer waits use a timer (it sleeps).
    */
   request(delayMs = 0): void {
+    if (this.paused) return;
+    // in the background, animations slow down to the background cap
+    if ((this.background || this.idle) && delayMs > 1) delayMs = Math.max(delayMs, 1000 / FrameLoop.BACKGROUND_FPS);
     if (delayMs > 1 && delayMs < 50) {
       const at = performance.now() + delayMs;
       this.wantAt = this.raf ? Math.min(this.wantAt, at) : at;
@@ -73,6 +101,7 @@ export class FrameLoop {
   private tick = (now: number): void => {
     this.raf = 0;
     clearTimeout(this.watchdog);
+    if (this.paused) return;
     // an animation asked for a bit later: skip this vsync, catch the next one
     if (this.wantAt && now < this.wantAt - 4) {
       this.raf = requestAnimationFrame(this.tick);

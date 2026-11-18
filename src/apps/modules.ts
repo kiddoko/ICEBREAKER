@@ -248,7 +248,7 @@ export class ModulesApp implements App {
     // the scan beam over the chosen one
     if (sel) {
       // a soft beam: a bright row with a dimmer one on each side, gliding down
-      const span = Math.max(1, r.h - 2), pos = (ui.now / 70) % span;
+      const span = Math.max(1, r.h - 2), pos = (ui.now / 160) % span;
       for (let k = -1; k <= 1; k++) {
         const row = Math.floor(pos) + k;
         if (row < 0 || row >= span) continue;

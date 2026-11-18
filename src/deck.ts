@@ -111,10 +111,12 @@ export class Deck implements InputSink {
     this.input = new InputManager(this, this.renderer, el("deck"), el("keyboard-sink") as HTMLTextAreaElement);
     this.input.onActivity = () => {
       this.lastActivity = performance.now();
+      this.loop.idle = false;
       this.loop.request();
     };
     this.gamepad = new GamepadInput((a) => {
       this.lastActivity = performance.now();
+      this.loop.idle = false;
       this.action(a, "gamepad");
     });
     this.workspace = new Workspace(this);
@@ -215,7 +217,38 @@ export class Deck implements InputSink {
     this.starting = false;
     this.sound.play("boot");
     setInterval(() => this.checkIdle(), 15_000);
+    this.watchVisibility();
     this.loop.request();
+  }
+
+  /**
+   * Energy: hidden or minimized → no frames at all (and the glyph cache is
+   * freed after a minute); visible but in the background → animations crawl
+   * at 12 fps. Timers (reminders, music) keep running. Setting
+   * `appearance.backgroundFps` to false keeps full speed in the background.
+   */
+  private releaseTimer: ReturnType<typeof setTimeout> | undefined;
+  private watchVisibility(): void {
+    const update = () => {
+      const hidden = document.hidden;
+      this.loop.setPaused(hidden);
+      clearTimeout(this.releaseTimer);
+      if (hidden) this.releaseTimer = setTimeout(() => this.renderer.release(), 60_000);
+      this.gamepad.setActive?.(!hidden && document.hasFocus());
+    };
+    document.addEventListener("visibilitychange", update);
+    const focus = (on: boolean) => {
+      this.loop.background = !on && this.settings.data.appearance.backgroundSlow !== false;
+      this.gamepad.setActive?.(on && !document.hidden);
+      if (on) this.loop.request();
+    };
+    window.addEventListener("focus", () => focus(true));
+    window.addEventListener("blur", () => focus(false));
+    // some webviews don't report a minimized window as hidden: ask the window itself
+    void this.platform.onMinimized?.((min) => {
+      this.loop.setPaused(min || document.hidden);
+      if (min) this.releaseTimer = setTimeout(() => this.renderer.release(), 60_000);
+    });
   }
 
   private registerCore(): void {
@@ -653,6 +686,8 @@ export class Deck implements InputSink {
   }
 
   private checkIdle(): void {
+    // 90 s without a key or the mouse: ambient animations slow down (energy)
+    if (performance.now() - this.lastActivity > 90_000) this.loop.idle = true;
     const min = this.settings.data.fx.screensaverMinutes;
     if (min > 0 && performance.now() - this.lastActivity > min * 60_000 && !this.boot && !this.workspace.overlays.length) this.screensaver();
   }

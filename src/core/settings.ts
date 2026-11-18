@@ -40,7 +40,9 @@ export interface Settings {
     scale: number;
     startFullscreen: boolean;
     fontWeight: "thin" | "light" | "regular";
-    maxFps: number; showFps: boolean; lineNumbers: boolean };
+    maxFps: number; showFps: boolean; lineNumbers: boolean;
+    /** slow animations down (12 fps) while the window isn't the one you use */
+    backgroundSlow: boolean };
   /** levels: how strong each effect is, in % of what the theme sets (0–200) */
   fx: { bloom: boolean; scanlines: boolean; vignette: boolean; ambient: boolean; flicker: boolean; glitch: boolean; screensaverMinutes: number; levels: { bloom: number; scanlines: number; vignette: number } };
   boot: { mode: "full" | "fast" | "off" };
@@ -107,7 +109,7 @@ export const DEFAULT_SETTINGS: Settings = {
   user: { handle: "netrunner", locale: "", language: "en", gender: "", genderOther: "", location: { precision: "none", name: "", country: "", lat: null, lon: null } },
   setup: { done: false },
   vault: { path: "" },
-  appearance: { theme: "nightshade", tweaks: {}, fontSize: 13, scale: 100, startFullscreen: false, fontWeight: "thin", maxFps: 60, showFps: true, lineNumbers: true },
+  appearance: { theme: "nightshade", tweaks: {}, fontSize: 13, scale: 100, startFullscreen: false, fontWeight: "thin", maxFps: 60, showFps: true, lineNumbers: true, backgroundSlow: true },
   // Minimal by default: the animated background and short glitch transitions.
   // The heavy CRT stuff (bloom, scanlines, vignette, flicker) is one click away in the FX panel.
   fx: { bloom: false, scanlines: false, vignette: false, ambient: true, flicker: false, glitch: true, screensaverMinutes: 0, levels: { bloom: 100, scanlines: 100, vignette: 100 } },

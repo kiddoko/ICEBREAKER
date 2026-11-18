@@ -11,7 +11,7 @@ import { BOLD, DIM, ITALIC } from "./grid";
  */
 export class GlyphAtlas {
   private static readonly PAGE = 1024;
-  private static readonly MAX_PAGES = 6;
+  private static readonly MAX_PAGES = 4;
 
   private pages: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D }[] = [];
   private slots = new Map<string, number>();
@@ -33,6 +33,9 @@ export class GlyphAtlas {
 
   /** Stamp one glyph onto `dst` at pixel position (dx, dy). */
   draw(dst: CanvasRenderingContext2D, cp: number, fg: RGB, attrs: number, dx: number, dy: number, cells: number): void {
+    // colours rounded to 6 bits a channel: fades and gradients reuse glyphs
+    // instead of filling the cache with a thousand near-identical tints
+    if (fg >= 0) fg = (fg & 0xfcfcfc) as RGB;
     const key = `${cp}:${fg}:${attrs & (BOLD | ITALIC | DIM)}`;
     let slot = this.slots.get(key);
     if (slot === undefined) {
@@ -46,6 +49,14 @@ export class GlyphAtlas {
     const sy = Math.floor(local / this.perRow) * this.cellH;
     const w = this.cellW * cells;
     dst.drawImage(page.canvas, sx, sy, w, this.cellH, dx, dy, w, this.cellH);
+  }
+
+  /** Free every page (the deck is hidden for a while); glyphs come back on demand. */
+  release(): void {
+    for (const p of this.pages) p.canvas.width = p.canvas.height = 0;
+    this.pages = [];
+    this.slots.clear();
+    this.next = 0;
   }
 
   private allocate(): number {
