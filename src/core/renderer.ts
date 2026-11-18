@@ -129,7 +129,7 @@ export class Renderer {
   /** 0–100: CRT softness (glyphs a touch out of focus). Rebuilds the glyph cache. */
   private soft = 0;
   setSoftness(level: number): void {
-    const px = this.canvasBlur ? (Math.max(0, Math.min(100, level)) / 100) * 0.55 * this.dpr : 0;
+    const px = this.canvasBlur ? (Math.max(0, Math.min(100, level)) / 100) * 1.3 * this.dpr : 0;
     if (Math.abs(px - this.soft) < 0.001) return;
     this.soft = px;
     this.atlas.softness = px;

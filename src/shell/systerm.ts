@@ -28,6 +28,9 @@ export class SystemTerminal {
   readonly term: Terminal;
   readonly id = `pty${Math.random().toString(36).slice(2, 8)}`;
   shellName = "terminal";
+  /** the tab's name: icbrkr_trm, icbrkr_trm2… (term rename, right-click) */
+  name: string;
+  private static count = 0;
   private started = false;
   private exited = false;
   private error = "";
@@ -37,6 +40,8 @@ export class SystemTerminal {
   private lastInputAt = 0;
 
   constructor(private readonly deck: Deck) {
+    const n = ++SystemTerminal.count;
+    this.name = n === 1 ? "icbrkr_trm" : `icbrkr_trm${n}`;
     this.term = new Terminal({ cols: 80, rows: 24, scrollback: 5000, allowProposedApi: true });
   }
 

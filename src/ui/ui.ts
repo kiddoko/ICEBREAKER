@@ -14,6 +14,8 @@ export interface Hit {
   /** Called on mouse moves while the button is held after a click on this area. */
   onDrag?: (m: MouseInput) => void;
   onWheel?: (delta: number) => void;
+  /** Right click (rename, more…). */
+  onRight?: (m: MouseInput) => void;
   /**
    * The shell command this click runs. It's echoed in the shell, so clicking
    * around teaches the command line. Hovering shows it in a tooltip.

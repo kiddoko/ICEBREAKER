@@ -63,7 +63,7 @@ export class WidgetPicker implements Overlay {
     const c = ui.c;
     if (this.input.text !== this.lastQuery) {
       this.lastQuery = this.input.text;
-      const all = [...this.deck.widgets.list()].sort((a, b) => Number(this.placed(a.id)) - Number(this.placed(b.id)) || a.title.localeCompare(b.title));
+      const all = [...this.deck.widgets.list()].filter((w) => w.picker !== false).sort((a, b) => Number(this.placed(a.id)) - Number(this.placed(b.id)) || a.title.localeCompare(b.title));
       this.list.items = this.input.text ? fuzzyFilter(this.input.text, all, (w) => `${w.title} ${w.id} ${w.description ?? ""}`, 100) : all;
       this.list.select(0);
       this.list.scrollTop = 0;

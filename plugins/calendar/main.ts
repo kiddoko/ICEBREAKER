@@ -1095,6 +1095,8 @@ export function activate(ib: IcebreakerAPI): void {
   ib.widgets.register({
     id: "month",
     title: "calendar",
+    // the core "calendar" widget draws this one: offer only that one
+    picker: false,
     description: "this month: days with events marked (CALENDAR module)",
     size: { w: 4, h: 7 },
     min: { w: 2, h: 2 },
@@ -1109,12 +1111,12 @@ export function activate(ib: IcebreakerAPI): void {
       const offset = (first.getDay() + 6) % 7;
       const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
       const weeks = Math.ceil((offset + days) / 7);
-      // the grid fills the widget: columns and week rows spread over the whole box
-      const colF = Math.max(3, (r.w - 1) / 7);
-      const cw = Math.max(3, Math.min(6, Math.floor(colF)));
-      const rowF = Math.max(1, (r.h - 2) / weeks);
-      const ch = Math.max(1, Math.floor(rowF));
-      const colX = (i: number) => r.x + Math.round(i * colF + (colF - cw) / 2);
+      // an even grid, centred in the widget: same width for every column, same height for every week
+      const cw = Math.max(3, Math.min(6, Math.floor((r.w - 1) / 7)));
+      const ch = Math.max(1, Math.min(3, Math.floor((r.h - 2) / weeks)));
+      const gx = r.x + Math.floor((r.w - cw * 7) / 2);
+      const gy = r.y + 2 + Math.max(0, Math.floor((r.h - 2 - weeks * ch) / 2));
+      const colX = (i: number) => gx + i * cw;
       ui.textCenter(r, r.y, first.toLocaleDateString(undefined, { month: "long", year: "numeric" }).toUpperCase(), { fg: c.fg, attrs: BOLD });
       if (r.h < 3) return;
       for (let i = 0; i < 7; i++) {
@@ -1123,7 +1125,7 @@ export function activate(ib: IcebreakerAPI): void {
       }
       for (let d = 1; d <= days; d++) {
         const k = offset + d - 1;
-        const y = r.y + 2 + Math.floor(Math.floor(k / 7) * rowF + (rowF - Math.min(ch, 2)) / 2);
+        const y = gy + Math.floor(k / 7) * ch;
         if (y >= r.y + r.h) break;
         const x = colX(k % 7);
         const date = new Date(now.getFullYear(), now.getMonth(), d);

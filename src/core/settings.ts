@@ -21,6 +21,8 @@ export interface Settings {
     gender: "" | "man" | "woman" | "nonbinary" | "other";
     /** Their own word, with gender "other" (optional). */
     genderOther: string;
+    /** how the deck refers to you: "she/her", "they/them", "iel"… (free text) */
+    pronouns: string;
     /**
      * Where you are, as precisely as you choose (weather, local news). Nothing
      * leaves the machine except to open-meteo.com / Google News when a widget asks.
@@ -46,11 +48,14 @@ export interface Settings {
   /** levels: how strong each effect is, in % of what the theme sets (0–200) */
   fx: { bloom: boolean; scanlines: boolean; vignette: boolean; ambient: boolean; flicker: boolean; glitch: boolean; screensaverMinutes: number; levels: { bloom: number; scanlines: number; vignette: number;
     /** 0–100: red/blue fringes of an old tube (0 = off) */ chroma: number;
-    /** 0–100: glyphs a touch out of focus, like a CRT (0 = sharp) */ softness: number } };
+    /** 0–100: glyphs a touch out of focus, like a CRT (0 = sharp) — old name, read once into sharpness */ softness?: number;
+    /** 0–100: how sharp the glyphs are (100 = razor, lower = a CRT's soft focus) */ sharpness: number } };
   boot: { mode: "full" | "fast" | "off" };
   /** The shell panel: your system shell with ICEBREAKER's commands, or ibsh only. */
   shell: {
     mode: "system" | "ibsh";
+    /** the system terminal's prompt: ICEBREAKER's own (the same for everyone) or yours */
+    prompt: "icebreaker" | "mine";
     /** Buttons above the system terminal: a click types `cmd` + enter. {name} parts are asked for first. */
     macros: { label: string; cmd: string }[];
   };
@@ -60,6 +65,8 @@ export interface Settings {
   notifications: { mode: "both" | "sound" | "visual" | "none" };
   /** Your own shortcuts: key combo → shell command (`bind ctrl+shift+1 "open notes/ideas.md"`). */
   keys: Record<string, string>;
+  /** module settings values (ib.settings), per module id */
+  moduleSettings: Record<string, Record<string, unknown>>;
   /** pinned notes, folders, modules (`pin`): top of the tree and the pinned widget */
   favorites: { kind: "note" | "folder" | "module"; target: string; label: string }[];
   ai: {
@@ -118,20 +125,22 @@ export interface Secrets {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  user: { handle: "netrunner", locale: "", language: "en", gender: "", genderOther: "", location: { precision: "none", name: "", country: "", lat: null, lon: null } },
+  user: { handle: "netrunner", locale: "", language: "en", gender: "", genderOther: "", pronouns: "", location: { precision: "none", name: "", country: "", lat: null, lon: null } },
   setup: { done: false },
   vault: { path: "" },
   appearance: { theme: "nightshade", tweaks: {}, fontSize: 13, scale: 100, startFullscreen: false, fontWeight: "thin", maxFps: 60, showFps: true, lineNumbers: true, backgroundSlow: true },
   // Minimal by default: the animated background and short glitch transitions.
   // The heavy CRT stuff (bloom, scanlines, vignette, flicker) is one click away in the FX panel.
-  fx: { bloom: false, scanlines: false, vignette: false, ambient: true, flicker: false, glitch: true, screensaverMinutes: 0, levels: { bloom: 100, scanlines: 100, vignette: 100, chroma: 0, softness: 0 } },
+  fx: { bloom: false, scanlines: false, vignette: false, ambient: true, flicker: false, glitch: true, screensaverMinutes: 0, levels: { bloom: 100, scanlines: 100, vignette: 100, chroma: 0, sharpness: 100 } },
   boot: { mode: "full" },
   sound: { enabled: true, volume: 50 },
   notifications: { mode: "both" },
   keys: {},
   favorites: [],
+  moduleSettings: {},
   shell: {
     mode: "system",
+    prompt: "icebreaker",
     macros: [
       { label: "ls", cmd: "ls -la" },
       { label: "cd ..", cmd: "cd .." },

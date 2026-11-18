@@ -202,6 +202,20 @@ export interface IcebreakerAPI {
     installed(): { id: string; name: string; active: boolean }[];
   };
 
+  /**
+   * Your module's settings, shown in Settings → a section with your name
+   * (after the normal sections). Values are kept for you; read them with get,
+   * hear about changes with onChange. Shell: `modules set <id> <key> <value>`.
+   *
+   *   ib.settings.register([{ key: "before", label: "warn before (min)", type: "choice", options: ["0", "5", "15"], default: "15", help: "…" }]);
+   */
+  settings: {
+    register(specs: ModuleSettingSpec[]): void;
+    get<T = unknown>(key: string): T;
+    set(key: string, value: unknown): void;
+    onChange(fn: (key: string, value: unknown) => void): void;
+  };
+
   /** Small JSON key/value store private to this plugin (.icebreaker/plugin-data/<id>.json). */
   storage: {
     get<T>(key: string, fallback: T): Promise<T>;
@@ -227,6 +241,16 @@ export interface IcebreakerAPI {
    * `ui` in your app's render(ui, rect, focused) is a UI instance (see src/ui/ui.ts).
    */
   lib: typeof import("./lib");
+}
+
+export interface ModuleSettingSpec {
+  key: string;
+  label: string;
+  type: "toggle" | "choice" | "text" | "number";
+  options?: string[];
+  default?: unknown;
+  /** a sentence or two: what it does (shown under the settings list) */
+  help?: string;
 }
 
 export interface ChoiceOption {

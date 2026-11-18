@@ -30,6 +30,8 @@ export interface WidgetSpec {
    * another quote…). It gets a "open <module>" button when `open` is set.
    */
   popup?: WidgetPopupSpec;
+  /** false: not offered in the "add widget" list (another widget shows it, e.g. the core calendar draws CALENDAR's month). */
+  picker?: boolean;
   /** The command that opens the module this widget belongs to ("todo open", "cal open"). */
   open?: string;
 }

@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Settings: every setting has a real description (under the list, for the
+  row you're on or under the mouse); a section per module after the normal
+  ones (WEATHER, NEWS, FOCUS, CLOCKS, and modules' own via `ib.settings`,
+  `modules set <id> <key> <value>`); KEYS lists the shortcuts directly; no
+  ◂ ▸ on rows that are actions; pronouns; a clearer natural-voice row.
+- Softness is now SHARPNESS (100 = sharp, `fx sharpness 60`) and much more
+  visible. The setup's Full CRT preset puts the colour fringes at max.
+- The clock face is chosen from the clock widget (f in its pop-up), not Settings.
+- One calendar widget in the picker (the duplicate is gone); an even, centred
+  month grid.
+- Terminals are named icbrkr_trm, icbrkr_trm2…; rename with a right-click on
+  the tab or `term rename <name>`. A ▴/▾ shell button in the status bar brings
+  the folded shell back.
+- Fix: long hints no longer spill out of the command palette.
 - FOCUS app: a big ring that empties with the minutes, what you're on
   (`focus task …`), presets 25/5 · 50/10 · 90/20, today's sessions, and zen
   (z: the tree and the shell fold away). The pomodoro now rings even when its

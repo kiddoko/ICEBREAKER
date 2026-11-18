@@ -217,6 +217,8 @@ export class PluginHost {
     this.deck.actions.unregisterSource(id);
     this.deck.widgets.unregisterSource(id);
     this.deck.services.unregisterSource(id);
+    this.deck.moduleSettings.delete(id);
+    this.deck.moduleSettingListeners.delete(id);
   }
 
   /** Build the API object for one plugin, enforcing its declared permissions. */
@@ -351,6 +353,12 @@ export class PluginHost {
           onChange: (fn) => st.onChange((id) => readable(id) && fn(id)),
         };
       })(),
+      settings: {
+        register: (specs) => void deck.moduleSettings.set(m.id, specs),
+        get: <T,>(key: string) => deck.moduleSettingValue(m.id, key) as T,
+        set: (key, value) => deck.setModuleSetting(m.id, key, value),
+        onChange: (fn) => void deck.moduleSettingListeners.set(m.id, [...(deck.moduleSettingListeners.get(m.id) ?? []), fn]),
+      },
       modules: {
         expose: (name, spec) => deck.services.expose(m.id, name, spec),
         call: (module, name, ...args) => deck.services.call({ id: m.id, permissions: granted }, module, name, args) as Promise<never>,

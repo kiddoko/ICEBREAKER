@@ -229,9 +229,9 @@ const explore: Command = {
 const termCmd: Command = {
   name: "term",
   summary: "the shell panel: your terminals, ibsh, history; a terminal in the main window",
-  usage: "term            your system terminal (zsh, bash…)\nterm new        another terminal tab (+ on the panel)\nterm close [n]  close one (× on the panel)\nterm <n>        go to terminal n\nterm open       a terminal in the main window (a tab of its own)\nterm hide       fold the shell panel away (term show, ctrl+`)\nterm max        big shell, the page goes below (again: back)\nterm ibsh       ICEBREAKER's shell\nterm history    what clicks ran\nterm restart    a fresh system shell\nterm mode system|ibsh   which one the panel uses",
+  usage: "term            your system terminal (zsh, bash…)\nterm new        another terminal tab (+ on the panel)\nterm close [n]  close one (× on the panel)\nterm rename [n] <name>   rename one (right-click on its tab)\nterm <n>        go to terminal n\nterm open       a terminal in the main window (a tab of its own)\nterm hide       fold the shell panel away (term show, ctrl+`)\nterm max        big shell, the page goes below (again: back)\nterm ibsh       ICEBREAKER's shell\nterm history    what clicks ran\nterm restart    a fresh system shell\nterm mode system|ibsh   which one the panel uses",
   examples: [["term", "jump to your real terminal"], ["term new", "a second terminal"], ["term open", "a terminal as a big tab"], ["term hide", "fold the panel away"]],
-  complete: () => ["new", "close", "open", "hide", "show", "max", "ibsh", "history", "restart", "mode"],
+  complete: () => ["new", "close", "rename", "open", "hide", "show", "max", "ibsh", "history", "restart", "mode"],
   run(ctx) {
     const d = ctx.deck;
     const ws = d.workspace;
@@ -248,6 +248,16 @@ const termCmd: Command = {
     if (!d.platform.pty) return ctx.err("term: needs the desktop app\n"), 1;
     if (!ws.termAvailable && a !== "ibsh" && a !== "history") return ctx.err("term: the panel is in ibsh mode (term mode system)\n"), 1;
     if (a === "new") return ws.newTerminal(), 0;
+    if (a === "rename") {
+      // term rename <name> (the one shown) · term rename <n> <name>
+      const rest = ctx.args.slice(1);
+      const i = rest.length > 1 && /^\d+$/.test(rest[0]) ? Number(rest.shift()) - 1 : ws.termIndex;
+      const name = rest.join(" ").trim();
+      if (!ws.terms[i]) return ctx.err("term: no such terminal\n"), 1;
+      if (!name) return void ws.renameTerminal(i), 0;
+      ws.terms[i].name = name.slice(0, 24);
+      return ctx.out(`terminal ${i + 1}: ${ws.terms[i].name}\n`), 0;
+    }
     if (a === "close") return ws.closeTerminal(b ? Number(b) - 1 : undefined), 0;
     if (a === "restart") return ws.sysTerm?.restart(), ws.showShellTab("term"), 0;
     if (a && /^\d+$/.test(a)) {
@@ -338,6 +348,15 @@ export const uiCommands: Command[] = [
           ctx.out(`  ${fmt.cyan(s.name.padEnd(12))} ${s.doc}${s.needs ? fmt.yellow(`  [${s.needs}]`) : ""}\n`);
         }
         return 0;
+      }
+      if (sub === "set") {
+        // modules set <module> <key> <value>
+        const value = rest.join(" ");
+        if (!mod || !fn) return ctx.err("usage: modules set <module> <key> <value>\n"), 1;
+        const spec = d.moduleSettings.get(mod)?.find((x) => x.key === fn);
+        if (!spec) return ctx.err(`modules: ${mod} has no setting "${fn}"\n`), 1;
+        d.setModuleSetting(mod, fn, spec.type === "number" ? Number(value) : spec.type === "toggle" ? /^(on|true|1)$/.test(value) : value);
+        return ctx.out(`${mod}.${fn} = ${value}\n`), 0;
       }
       if (sub === "call") {
         if (!mod || !fn) return ctx.err("usage: modules call <module> <fn> [args…]\n"), 1;

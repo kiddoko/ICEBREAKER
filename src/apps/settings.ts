@@ -1,4 +1,7 @@
 import { t } from "../core/i18n";
+import { displayKeys, SHORTCUTS } from "../core/shortcuts";
+import { SETTINGS_HELP } from "./settings-help";
+import { focus } from "../widgets/focusstate";
 import { q } from "../ui/ui";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
@@ -16,6 +19,8 @@ interface Row {
   value: () => string;
   /** dir: +1 = next / confirm, -1 = previous */
   change?: (dir: 1 | -1) => void | Promise<void>;
+  /** a text value (opens an input box, no ◂ ▸) */
+  isText?: boolean;
   /** The shell command for one click (next value). */
   cmd?: () => string;
 }
@@ -75,6 +80,7 @@ export class SettingsApp implements App {
     const text = (key: string, label: string, section?: string, placeholder = ""): Row => ({
       section,
       key,
+      isText: true,
       label,
       cmd: () => `config set ${key} ${q(String(s.get(key) ?? ""))}`,
       value: () => String(s.get(key) || "—"),
@@ -89,7 +95,8 @@ export class SettingsApp implements App {
       cycle("user.language", "language", ["en", "fr"], undefined, (v) => (v === "fr" ? "Français" : "English")),
       text("user.handle", "handle"),
       cycle("user.gender", "gender (optional)", ["", "woman", "man", "nonbinary", "other"], undefined, (v) => v || "not specified"),
-      text("user.genderOther", "your word (with other)"),
+      text("user.genderOther", "your own word (when gender is other)"),
+      cycle("user.pronouns", "pronouns", ["", "she/her", "he/him", "they/them", "elle", "il", "iel"], undefined, (v) => v || "not specified"),
       text("user.locale", "date language", undefined, "fr-FR, en-US… (empty = system)"),
       { section: "APPEARANCE", label: "", value: () => "" },
       cycle("appearance.theme", "theme", d.themes.list().map((t) => t.name)),
@@ -101,8 +108,7 @@ export class SettingsApp implements App {
       toggle("appearance.showFps", "show fps"),
       toggle("appearance.lineNumbers", "line numbers"),
       toggle("appearance.backgroundSlow", "slow down in the background (energy)"),
-      cycle("home.clockStyle", "clock face", ["dots", "segment", "analog", "binary", "minimal"]),
-      toggle("home.clockSeconds", "clock seconds"),
+
       { section: "EFFECTS", label: "", value: () => "" },
       toggle("fx.bloom", "bloom glow"),
       toggle("fx.scanlines", "scanlines"),
@@ -114,7 +120,7 @@ export class SettingsApp implements App {
       cycle("fx.levels.scanlines", "scanlines strength", [25, 50, 75, 100, 125, 150, 200], undefined, (v) => `${v}%`),
       cycle("fx.levels.vignette", "vignette strength", [25, 50, 75, 100, 125, 150, 200], undefined, (v) => `${v}%`),
       cycle("fx.levels.chroma", "colour fringes (CRT)", [0, 15, 30, 50, 75, 100], undefined, (v) => (v ? `${v}%` : t("off"))),
-      cycle("fx.levels.softness", "softness (CRT focus)", [0, 20, 40, 60, 80, 100], undefined, (v) => (v ? `${v}%` : t("sharp"))),
+      cycle("fx.levels.sharpness", "sharpness", [100, 80, 60, 40, 20, 0], undefined, (v) => (v === 100 ? t("razor sharp") : `${v}%`)),
       cycle("fx.screensaverMinutes", "screensaver after", [0, 5, 10, 20, 30], undefined, (v) => (v ? `${v} min` : "never")),
       cycle("boot.mode", "boot sequence", ["full", "fast", "off"]),
       { section: "SOUND", label: "", value: () => "" },
@@ -135,8 +141,8 @@ export class SettingsApp implements App {
       cycle("voice.volume", "voice volume", [25, 50, 65, 80, 100], undefined, (v) => `${v}%`),
       cycle("voice.language", "voice language", ["en", "fr", "ja"], undefined, (v) => (v === "fr" ? "Français" : v === "ja" ? "日本語" : "English")),
       cycle("voice.engine", "engine", ["auto", "piper", "system"], undefined, (v) => (v === "auto" ? "auto (piper if installed)" : v)),
-      { label: "download the neural voice", value: () => (s.data.voice.language === "ja" ? "system voice" : "voice install"), change: () => void d.act("voice install") },
-      { label: "test", value: () => "voice test", change: () => void d.act("voice test") },
+      { label: "natural voice (neural, ~60 MB)", value: () => (s.data.voice.language === "ja" ? "system voice" : "download"), cmd: () => "voice install", change: () => void d.act("voice install") },
+      { label: "hear it", value: () => "test", cmd: () => "voice test", change: () => void d.act("voice test") },
       { section: "PRIVACY", label: "", value: () => "" },
       toggle("privacy.stealth", "stealth: 100 % local, no internet"),
       { section: "UPLINK (AI)", label: "", value: () => "" },
@@ -144,6 +150,7 @@ export class SettingsApp implements App {
       text("ai.claudeCodeModel", "claude code model", undefined, "sonnet, opus… (empty = default)"),
       toggle("ai.allowWrites", "AI can write notes (vault only)"),
       cycle("shell.mode", "shell panel", ["system", "ibsh"], undefined, (v) => (v === "system" ? "my terminal + ICEBREAKER" : "ibsh only")),
+      cycle("shell.prompt", "terminal prompt", ["icebreaker", "mine"], undefined, (v) => (v === "mine" ? "mine (my own theme)" : "ICEBREAKER's")),
       text("ai.model", "api model", undefined, "claude-opus-5-5"),
       cycle("ai.effort", "claude effort", ["low", "medium", "high", "xhigh", "max"]),
       {
@@ -155,8 +162,14 @@ export class SettingsApp implements App {
       text("ai.ollamaModel", "ollama model", undefined, "llama3.1"),
       toggle("ai.saveChats", "save chats to vault"),
       { section: "KEYS", label: "", value: () => "" },
-      { label: "every shortcut (searchable)", value: () => "ctrl+/", cmd: () => "shortcuts", change: () => void d.openApp("shortcuts") },
-      { label: "your own shortcuts", value: () => String(Object.keys(s.data.keys ?? {}).length), cmd: () => "bind", change: () => void d.openApp("shortcuts") },
+      { label: "+ bind a key to anything", value: () => "add", cmd: () => "bind", change: async () => {
+        const keys = await d.prompt("Which keys?", { placeholder: "ctrl+shift+1 · alt+t" });
+        if (!keys?.trim()) return;
+        const cmd = await d.prompt("Run what? (a shell command)", { placeholder: "open notes/ideas.md · launch todo" });
+        if (cmd?.trim()) void d.act(`bind ${keys.trim()} ${q(cmd.trim())}`);
+      } },
+      ...Object.entries(s.data.keys ?? {}).map(([k, cmd]): Row => ({ label: `★ ${cmd}`, value: () => displayKeys(k), cmd: () => `unbind ${k}`, change: () => void d.act(`unbind ${k}`) })),
+      ...SHORTCUTS.map((sc): Row => ({ label: `${t(sc.what)}  · ${t(sc.cat)}`, value: () => displayKeys(sc.keys), cmd: sc.cmd ? () => sc.cmd! : undefined, change: sc.cmd ? () => void d.act(sc.cmd!) : undefined })),
       { section: "MODULES", label: "", value: () => "" },
       { label: "modules on", value: () => `${d.plugins.active().length} / ${d.plugins.list().length}`, cmd: () => "modules", change: () => void d.openApp("modules") },
       { label: "store", value: () => "open", cmd: () => "store", change: () => void d.act("store") },
@@ -172,6 +185,8 @@ export class SettingsApp implements App {
           if (p) await d.mountVault(p);
         },
       },
+      // ── each module's own settings (only the modules that are on) ──
+      ...this.moduleRows(set, toggle, cycle, text),
       { section: "DANGER ZONE", label: "", value: () => "" },
       { label: "self-destruct the vault (asks 4 times)", value: () => "☢", cmd: () => "self-destruct", change: () => void d.act("self-destruct") },
     ];
@@ -202,6 +217,68 @@ export class SettingsApp implements App {
         .filter((row) => `${row.label} ${t(row.label)} ${row.key ?? ""} ${sec.name} ${t(sec.name)} ${row.value()}`.toLowerCase().includes(q))
         .map((row) => ({ row, from: sec.name })),
     );
+  }
+
+  /** A section per module: the built-in ones here, the others from ib.settings.register. */
+  private moduleRows(set: (k: string, v: unknown) => void, toggle: (k: string, l: string) => Row, cycle: <T>(k: string, l: string, o: T[], sec?: string, show?: (v: T) => string) => Row, text: (k: string, l: string, sec?: string, ph?: string) => Row): Row[] {
+    const d = this.deck;
+    const on = (id: string) => d.plugins.list().some((p) => p.manifest.id === id && p.active);
+    const out: Row[] = [];
+    const head = (name: string) => out.push({ section: `◇ ${name}`, label: "", value: () => "" });
+    if (on("weather")) {
+      head("WEATHER");
+      out.push(text("home.weatherCity", "weather city (when your location isn't set)", undefined, "Lausanne"));
+      out.push({ label: "saved places", value: () => String((d.settings.data.home.weatherPlaces ?? []).length), cmd: () => "weather places", change: () => void d.act("weather open") });
+    }
+    if (on("news")) {
+      head("NEWS");
+      out.push(text("home.newsTopic", "news topic (instead of your area)", undefined, "space, F1…"));
+      out.push({ label: "news interests", value: () => (d.settings.data.home.newsInterests ?? []).join(", ") || "—", cmd: () => "news interests", change: () => void d.act("news interests") });
+    }
+    if (on("focus")) {
+      head("FOCUS");
+      out.push({ label: "focus / break minutes", value: () => `${focus.work} / ${focus.rest}`, cmd: () => "focus set 25 5", change: (dir) => {
+        const p: [number, number][] = [[25, 5], [50, 10], [90, 20]];
+        const i = p.findIndex(([w]) => w === focus.work);
+        const [w, b] = p[(i + dir + p.length) % p.length];
+        void d.act(`focus set ${w} ${b}`);
+      } });
+    }
+    if (on("clocks")) {
+      head("CLOCKS");
+      out.push({ label: "world clocks", value: () => d.settings.data.home.worldClocks.map((z) => z.split("/").pop()).join(", "), cmd: () => "worldclock", change: () => void d.act("launch clocks") });
+    }
+    // modules from /plugins and the store: whatever they registered
+    for (const [id, rows] of d.moduleSettings) {
+      if (!on(id) || !rows.length) continue;
+      head(d.plugins.list().find((p) => p.manifest.id === id)?.manifest.name ?? id.toUpperCase());
+      for (const ms of rows) {
+        const k = `plugin.${id}.${ms.key}`;
+        out.push({
+          key: k,
+          label: ms.label,
+          isText: ms.type === "text",
+          value: () => {
+            const v = d.moduleSettingValue(id, ms.key);
+            return ms.type === "toggle" ? (v ? "on" : "off") : String(v ?? "—");
+          },
+          cmd: () => `modules set ${id} ${ms.key} ${q(String(d.moduleSettingValue(id, ms.key) ?? ""))}`,
+          change: async (dir) => {
+            const v = d.moduleSettingValue(id, ms.key);
+            if (ms.type === "toggle") return void d.setModuleSetting(id, ms.key, !v);
+            if (ms.type === "choice" && ms.options?.length) {
+              const i = ms.options.indexOf(String(v));
+              return void d.setModuleSetting(id, ms.key, ms.options[(i + dir + ms.options.length) % ms.options.length]);
+            }
+            const nv = await d.prompt(ms.label, { initial: String(v ?? "") });
+            if (nv !== null) d.setModuleSetting(id, ms.key, ms.type === "number" ? Number(nv) : nv);
+          },
+        });
+        if (ms.help) SETTINGS_HELP[k] = [ms.help, ms.help];
+      }
+    }
+    void set; void toggle; void cycle;
+    return out;
   }
 
   onText(ch: string): boolean {
@@ -243,8 +320,12 @@ export class SettingsApp implements App {
     return false;
   }
 
+  private builtFor = "";
   render(ui: UI, r: Rect, focused: boolean): void {
     const c = ui.c;
+    // your own shortcuts and the language change the rows: rebuild then
+    const sig = `${JSON.stringify(this.deck.settings.data.keys ?? {})}|${this.deck.settings.data.user.language}`;
+    if (sig !== this.builtFor) (this.builtFor = sig), (this.list.items = this.rows());
     const secs = this.sections();
     this.cat = Math.min(this.cat, secs.length - 1);
     // the search field
@@ -276,12 +357,13 @@ export class SettingsApp implements App {
     const rx = sx + catW + 3, rw = Math.min(r.w - (rx - r.x) - 2, 86);
     const rows = this.shown();
     this.sel = Math.min(this.sel, Math.max(0, rows.length - 1));
-    const room = r.y + r.h - top - 3;
+    const room = r.y + r.h - top - 7;
     if (this.sel < this.scroll) this.scroll = this.sel;
     if (this.sel >= this.scroll + room) this.scroll = this.sel - room + 1;
     this.scroll = Math.max(0, Math.min(this.scroll, Math.max(0, rows.length - room)));
     ui.hit({ x: rx, y: top, w: rw, h: room }, { onWheel: (d) => (this.scroll = Math.max(0, Math.min(Math.max(0, rows.length - room), this.scroll + d))) });
     if (!rows.length) ui.text(rx, top, t("nothing matches — esc clears the search"), { fg: c.muted });
+    let hoverRow: Row | undefined;
     rows.slice(this.scroll, this.scroll + room).forEach(({ row, from }, k) => {
       const i = this.scroll + k;
       const y = top + k;
@@ -296,16 +378,32 @@ export class SettingsApp implements App {
       const raw = row.value();
       const v = t(raw);
       const vx = rx + rw - 1;
-      const shownV = selected && row.change ? `◂ ${v} ▸` : v;
+      // ◂ ▸ only on values you step through; an action just says what it does
+      const shownV = selected && row.change && row.key && !row.isText ? `◂ ${v} ▸` : selected && row.change ? `${v} ›` : v;
       const color = raw === "on" ? c.success : raw === "off" ? c.subtle : from === "DANGER ZONE" ? c.error : c.accent;
       ui.textRight(vx, y, shownV, { fg: color, attrs: selected ? BOLD : 0, ...st });
-      ui.hit(line, { onClick: () => ((this.sel = i), (this.pane = "rows")), onDouble: () => void row.change?.(1), tip: row.cmd?.() });
+      if (ui.hovered(line)) hoverRow = row;
+      ui.hit(line, { onClick: () => ((this.sel = i), (this.pane = "rows")), onDouble: () => void row.change?.(1) });
       const cmd = row.cmd?.();
       if (row.change) ui.hit({ x: vx - shownV.length, y, w: shownV.length, h: 1 }, cmd ? { cmd, tip: "←→ / enter change it too" } : { onClick: () => void row.change?.(1) });
     });
 
-    // the command that does the same, so the shell is never far
-    const cur = rows[this.sel]?.row;
+    // what it does (the row under the mouse, else the selected one), and the command that does the same
+    const cur = hoverRow ?? rows[this.sel]?.row;
+    const help = cur ? SETTINGS_HELP[cur.key ?? cur.label] : undefined;
+    const fr = this.deck.settings.data.user.language === "fr";
+    if (help || cur) {
+      ui.hline(rx, r.y + r.h - 6, rw, { fg: c.faint }, "┄");
+      const words = (help ? help[fr ? 1 : 0] : t(cur!.label)).split(" ");
+      const lines: string[] = [];
+      let line = "";
+      for (const w of words) {
+        if ((line + " " + w).length > rw - 2 && line) (lines.push(line), (line = w));
+        else line = line ? `${line} ${w}` : w;
+      }
+      lines.push(line);
+      lines.slice(0, 3).forEach((l, i) => ui.text(rx, r.y + r.h - 5 + i, l, { fg: c.fg }, rw));
+    }
     const cmd = cur?.cmd?.() ?? (cur?.key ? `config get ${cur.key}` : "");
     if (cmd) ui.text(rx, r.y + r.h - 2, `› ${cmd}`, { fg: c.subtle }, rw);
   }

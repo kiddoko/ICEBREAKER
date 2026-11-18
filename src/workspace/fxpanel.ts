@@ -14,7 +14,7 @@ interface Row {
   key?: FxKey;
   preset?: Preset;
   /** a strength that steps 0 → … → 100 → 0 */
-  level?: "chroma" | "softness";
+  level?: "chroma" | "sharpness";
 }
 const LEVEL_STEPS = [0, 20, 40, 60, 100];
 
@@ -46,7 +46,7 @@ export class FxPanel implements Overlay {
       { label: "vignette", hint: "dark corners", key: "vignette" },
       { label: "flicker", hint: "unstable tube", key: "flicker" },
       { label: "fringes", hint: "colour split", level: "chroma" },
-      { label: "softness", hint: "CRT focus", level: "softness" },
+      { label: "sharpness", hint: "CRT focus", level: "sharpness" },
       { label: "▸ minimal", hint: "default", preset: "minimal" },
       { label: "▸ max", hint: "everything on", preset: "max" },
       { label: "▸ potato", hint: "all off, 30fps", preset: "potato" },
@@ -57,8 +57,9 @@ export class FxPanel implements Overlay {
   private activate(row: Row): void {
     const s = this.deck.settings;
     if (row.level) {
-      const cur = s.data.fx.levels[row.level] ?? 0;
-      const next = LEVEL_STEPS.find((v) => v > cur) ?? 0;
+      const steps = row.level === "sharpness" ? [100, 75, 50, 25, 0] : LEVEL_STEPS;
+      const cur = s.data.fx.levels[row.level] ?? (row.level === "sharpness" ? 100 : 0);
+      const next = steps[(steps.indexOf(cur) + 1) % steps.length] ?? steps[0];
       void this.deck.act(`fx ${row.level} ${next}`);
       return;
     }
@@ -102,9 +103,10 @@ export class FxPanel implements Overlay {
         ui.text(rr.x + 1, rr.y, on ? "■" : "□", { fg: on ? c.accent : c.subtle, attrs: BOLD });
         ui.text(rr.x + 3, rr.y, row.label, { fg: selected || on ? c.fg : c.muted });
       } else if (row.level) {
-        const v = this.deck.settings.data.fx.levels[row.level] ?? 0;
-        ui.text(rr.x + 1, rr.y, v ? "■" : "□", { fg: v ? c.accent : c.subtle, attrs: BOLD });
-        ui.text(rr.x + 3, rr.y, `${row.label} ${v ? `${v}%` : ""}`, { fg: selected || v ? c.fg : c.muted });
+        const v = this.deck.settings.data.fx.levels[row.level] ?? (row.level === "sharpness" ? 100 : 0);
+        const on = row.level === "sharpness" ? v < 100 : v > 0;
+        ui.text(rr.x + 1, rr.y, on ? "■" : "□", { fg: on ? c.accent : c.subtle, attrs: BOLD });
+        ui.text(rr.x + 3, rr.y, `${row.label} ${v}%`, { fg: selected || on ? c.fg : c.muted });
       } else {
         ui.text(rr.x + 1, rr.y, row.label, { fg: selected ? c.accentAlt : c.muted, attrs: BOLD });
       }
@@ -120,6 +122,8 @@ export function applyFxPreset(deck: Deck, preset: Preset): void {
   const on = FX_PRESETS[preset];
   for (const key of FX_PRESETS.max) deck.settings.set(`fx.${key}`, on.includes(key));
   deck.settings.set("appearance.maxFps", preset === "potato" ? 30 : 60);
-  if (preset === "potato") for (const k of ["chroma", "softness"]) deck.settings.set(`fx.levels.${k}`, 0);
+  // full CRT: the colour fringes at max; potato: everything flat and sharp
+  if (preset === "max") deck.settings.set("fx.levels.chroma", 100);
+  if (preset === "potato") deck.settings.set("fx.levels.chroma", 0), deck.settings.set("fx.levels.sharpness", 100);
   deck.applyFx();
 }

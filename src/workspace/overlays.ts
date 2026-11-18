@@ -1,7 +1,7 @@
 import { BOLD, DIM, type Rect } from "../core/grid";
 import type { Action, ActionSource, KeyInput } from "../core/input";
 import { fuzzyFilter } from "../core/fuzzy";
-import { strWidth } from "../core/unicode";
+import { strWidth, truncate } from "../core/unicode";
 import type { PaletteAction } from "../apps/types";
 import type { ChoiceOption } from "../plugins/api";
 import { hex } from "../core/color";
@@ -96,8 +96,10 @@ export class Palette implements Overlay {
     const listRect = { x: inner.x, y: inner.y + 2, w: inner.w, h: inner.h - 2 };
     this.list.render(ui, listRect, true, (a, row, selected) => {
       const gx = ui.text(row.x + 1, row.y, a.group ? `${a.group} ` : "", { fg: selected ? c.accentAlt : c.subtle });
-      ui.text(gx, row.y, a.title, { fg: selected ? c.fg : c.muted, attrs: selected ? BOLD : 0 }, row.w - (gx - row.x) - 12);
-      if (a.hint) ui.textRight(row.x + row.w - 2, row.y, a.hint, { fg: c.faint });
+      // the hint keeps to the right third and never leaves the box
+      const hintW = a.hint ? Math.min(strWidth(a.hint), Math.floor(row.w / 3)) : 0;
+      const tx = ui.text(gx, row.y, a.title, { fg: selected ? c.fg : c.muted, attrs: selected ? BOLD : 0 }, row.w - (gx - row.x) - hintW - 3);
+      if (a.hint && row.x + row.w - 2 - hintW > tx) ui.textRight(row.x + row.w - 2, row.y, truncate(a.hint, hintW), { fg: c.faint });
     });
     if (this.list.items.length === 0) ui.textCenter(listRect, listRect.y + 1, "no match", { fg: c.subtle });
   }

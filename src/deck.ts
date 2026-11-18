@@ -1,3 +1,4 @@
+import type { ModuleSettingSpec } from "./plugins/api";
 import { focusSpec } from "./apps/focus";
 import { clocksSpec } from "./apps/clocks";
 import { weatherCommand, weatherSpec } from "./apps/weather";
@@ -76,6 +77,19 @@ export class Deck implements InputSink {
   readonly ai: AIManager;
   /** numbers kept over time by modules (ib.stats), shown by STATS */
   readonly stats: StatsStore;
+  /** settings modules declare (ib.settings.register) — shown under MODULES in Settings */
+  readonly moduleSettings = new Map<string, ModuleSettingSpec[]>();
+  moduleSettingValue(id: string, key: string): unknown {
+    const v = this.settings.data.moduleSettings?.[id]?.[key];
+    return v !== undefined ? v : this.moduleSettings.get(id)?.find((m) => m.key === key)?.default;
+  }
+  setModuleSetting(id: string, key: string, value: unknown): void {
+    const all = { ...(this.settings.data.moduleSettings ?? {}) };
+    all[id] = { ...(all[id] ?? {}), [key]: value };
+    this.settings.set("moduleSettings", all);
+    for (const fn of this.moduleSettingListeners.get(id) ?? []) fn(key, value);
+  }
+  readonly moduleSettingListeners = new Map<string, ((key: string, value: unknown) => void)[]>();
   /** what modules expose to each other (ib.modules) */
   readonly services = new ServiceRegistry();
   readonly plugins: PluginHost;
@@ -587,7 +601,8 @@ export class Deck implements InputSink {
     root.setProperty("--paper", String(t.fx.paper));
     this.renderer.bloomEnabled = fx.bloom;
     this.renderer.setChroma(lv.chroma ?? 0, css(t.c.bg));
-    this.renderer.setSoftness(lv.softness ?? 0);
+    const sharp = fx.levels.sharpness ?? 100 - (fx.levels.softness ?? 0);
+    this.renderer.setSoftness(100 - sharp);
     this.loop.maxFps = this.settings.data.appearance.maxFps;
     this.requestFrame();
   }

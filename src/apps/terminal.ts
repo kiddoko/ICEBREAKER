@@ -22,7 +22,7 @@ export class TerminalApp implements App {
     this.term = new SystemTerminal(deck);
   }
   title(): string {
-    return this.term.shellName;
+    return this.term.name;
   }
   status(): string {
     return "ctrl = Control · ⌘ shortcuts stay the deck's · ⌘W closes the tab (and its shell)";

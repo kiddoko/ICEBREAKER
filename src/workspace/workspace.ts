@@ -64,6 +64,14 @@ export class Workspace {
     this.showShellTab("term");
   }
 
+  /** Ask for a new name for terminal i (right-click on its tab, or `term rename`). */
+  async renameTerminal(i = this.termIndex): Promise<void> {
+    const tm = this.terms[i];
+    if (!tm) return;
+    const v = await this.deck.prompt("Terminal name", { initial: tm.name });
+    if (v?.trim()) void this.deck.act(`term rename ${i + 1} ${q(v.trim())}`);
+  }
+
   /** Close terminal i (default: the one shown); its shell is killed. */
   closeTerminal(i = this.termIndex): void {
     const t = this.terms[i];
@@ -452,6 +460,10 @@ export class Workspace {
             if (r && inside(r, m.x, m.y)) this.focus = pane;
           }
         }
+        if (m.button === 2) {
+          pick((x) => !!x.onRight)?.onRight?.(m);
+          break;
+        }
         const h = pick((x) => !!(x.onClick || x.onDrag || x.cmd));
         if (h?.onClick || h?.cmd) this.deck.sound.play("move");
         this.dragging = h ?? null;
@@ -523,7 +535,7 @@ export class Workspace {
       // tabs on the top border: your shell · ibsh · history
       if (this.termAvailable && !this.terms.length) this.terms.push(new SystemTerminal(d));
       const tabs: [ShellTab, string, number][] = [
-        ...(this.termAvailable ? this.terms.map((tm, i) => ["term", `${tm.shellName}${this.terms.length > 1 ? ` ${i + 1}` : ""}`, i] as [ShellTab, string, number]) : []),
+        ...(this.termAvailable ? this.terms.map((tm, i) => ["term", tm.name, i] as [ShellTab, string, number]) : []),
         ["ibsh", "ibsh", -1],
         ["history", d.shell.unseen ? `${t("history")} •${d.shell.unseen}` : t("history"), -1],
       ];
@@ -534,7 +546,7 @@ export class Workspace {
         const rect = { x: tx, y: r.y, w: strWidth(text), h: 1 };
         const style = on ? (shellFocused ? { fg: c.titleFocus, bg: c.panel, attrs: BOLD } : { fg: c.fg, bg: c.panel, attrs: BOLD }) : { fg: ui.hovered(rect) ? c.accent : c.title, bg: c.panel };
         ui.text(tx, r.y, text, style);
-        ui.hit(rect, { onClick: () => (ti >= 0 && (this.termIndex = ti), this.showShellTab(id)), tip: id === "term" ? "your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)" : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash" : "what clicks ran, with their output" });
+        ui.hit(rect, { onClick: () => (ti >= 0 && (this.termIndex = ti), this.showShellTab(id)), onRight: ti >= 0 ? () => void this.renameTerminal(ti) : undefined, tip: id === "term" ? `right-click: rename · term rename <name>\n${this.terms[ti]?.shellName ?? ""}: your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)` : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash" : "what clicks ran, with their output" });
         tx += rect.w + 1;
         // + a new terminal, after the last one · × close the one shown (when there are several)
         if (id === "term" && ti === this.terms.length - 1) {
@@ -735,6 +747,7 @@ export class Workspace {
     if (d.settings.data.privacy.stealth) parts.push({ text: `◉ ${t("stealth")}`, fg: c.success, cmd: "stealth", tip: t("100 % local: no internet · stealth off") });
     if (d.voice.speaking) parts.push({ text: `◖ ${t("voice")}`, fg: c.accentAlt, cmd: "voice stop", tip: t("speaking · click to stop") });
     if (d.gamepad.connected) parts.push({ text: "◈ pad", fg: c.success });
+    parts.push(this.shellVisible ? { text: "▾ shell", fg: c.muted, cmd: "term hide", tip: "fold the shell away · ctrl+`" } : { text: "▴ shell", fg: c.accent, cmd: "term show", tip: "bring the shell back · ctrl+`" });
     parts.push({ text: "⌨", fg: this.overlays.some((o) => o instanceof Osk) ? c.accent : c.muted, cmd: "osk", tip: "on-screen keyboard · pad: X" });
     parts.push({ text: "✦ fx", fg: c.accentAlt, cmd: "view fx", tip: "bloom, scanlines… · `fx` in the shell" });
     if (d.settings.data.appearance.showFps) parts.push({ text: `${d.loop.fps}fps ${d.loop.frameMs.toFixed(1)}ms`, fg: c.subtle });

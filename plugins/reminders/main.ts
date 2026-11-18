@@ -129,6 +129,10 @@ export function activate(ib: IcebreakerAPI): void {
   if (timer) clearInterval(timer);
   timer = setInterval(check, 10_000);
 
+  ib.settings.register([
+    { key: "before", label: "early warning, by default (minutes)", type: "choice", options: ["0", "5", "10", "15", "30", "60"], default: "15", help: "How long before the time a reminder warns you first (then it rings again on time). 0 = only on time. `--before` on a reminder overrides it." },
+  ]);
+
   ib.commands.register({
     name: "remind",
     aliases: ["reminder", "reminders"],
@@ -187,7 +191,8 @@ export function activate(ib: IcebreakerAPI): void {
         if (!day && due.getTime() < Date.now()) due = new Date(due.getTime() + 86400000); // a time already past today → tomorrow
       }
       const b = typeof flags.before === "string" ? /^(\d+)(m|min|h)?$/.exec(flags.before) : null;
-      const before = b ? Number(b[1]) * (b[2] === "h" ? 60 : 1) : inMin !== null && inMin <= 15 ? 0 : 15;
+      const dflt = Number(ib.settings.get("before") ?? 15);
+      const before = b ? Number(b[1]) * (b[2] === "h" ? 60 : 1) : inMin !== null && inMin <= dflt ? 0 : dflt;
       const r: Reminder = { id: next++, title: title.join(" "), due: due.toISOString(), before, done: false, warned: false, fired: false };
       list.push(r);
       await save();
