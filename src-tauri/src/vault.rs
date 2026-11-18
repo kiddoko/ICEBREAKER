@@ -10,13 +10,53 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 type CmdResult<T> = Result<T, String>;
 
 #[derive(Default)]
 pub struct VaultState {
     root: Mutex<Option<PathBuf>>,
+    /// Watches the vault folder for changes made outside the app (terminal, Obsidian, Finder…).
+    watcher: Mutex<Option<notify::RecommendedWatcher>>,
+}
+
+/// Tell the UI when files change on disk (debounced), so the tree, search and
+/// widgets follow what you do in the terminal or another app.
+fn watch(app: &AppHandle, state: &State<VaultState>, dir: &Path) {
+    use notify::{EventKind, RecursiveMode, Watcher};
+    let (tx, rx) = std::sync::mpsc::channel::<()>();
+    let root = dir.to_path_buf();
+    let w = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
+        let Ok(ev) = res else { return };
+        if matches!(ev.kind, EventKind::Access(_)) {
+            return;
+        }
+        // ICEBREAKER's own bookkeeping doesn't change what you see
+        let ours = |p: &PathBuf| {
+            p.strip_prefix(&root).ok().and_then(|r| r.components().next()).map(|c| SKIPPED_DIRS.contains(&c.as_os_str().to_string_lossy().as_ref())).unwrap_or(false)
+        };
+        if !ev.paths.is_empty() && ev.paths.iter().all(ours) {
+            return;
+        }
+        let _ = tx.send(());
+    });
+    let Ok(mut w) = w else { return };
+    if w.watch(dir, RecursiveMode::Recursive).is_err() {
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        // one event once things settle for 250 ms (a `git checkout` is one refresh, not a thousand)
+        while rx.recv().is_ok() {
+            while rx.recv_timeout(std::time::Duration::from_millis(250)).is_ok() {}
+            let _ = app.emit("vault-fs", ());
+        }
+    });
+    // replacing the old watcher drops it, which ends its thread
+    if let Ok(mut slot) = state.watcher.lock() {
+        *slot = Some(w);
+    }
 }
 
 #[derive(Serialize)]
@@ -120,6 +160,7 @@ pub fn vault_mount(app: AppHandle, state: State<VaultState>, path: String) -> Cm
     fs::create_dir_all(&dir).map_err(|e| format!("cannot create vault at {path}: {e}"))?;
     let dir = dir.canonicalize().map(strip_verbatim).unwrap_or(dir);
     *state.root.lock().map_err(|e| e.to_string())? = Some(dir.clone());
+    watch(&app, &state, &dir);
     Ok(dir.to_string_lossy().into_owned())
 }
 

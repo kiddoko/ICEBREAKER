@@ -50,6 +50,7 @@ export function createTauriPlatform(): Platform {
       change: (password, newUser, newPassword) => invoke<void>("account_change", { password, newUser, newPassword }),
       remove: (password) => invoke<void>("account_remove", { password }),
     },
+    onVaultChange: (cb) => void listen("vault-fs", () => cb()),
     pty: {
       spawn: (id, cols, rows, onData) => {
         const ch = new Channel<string>();

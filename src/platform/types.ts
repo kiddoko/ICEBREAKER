@@ -93,6 +93,8 @@ export interface Platform {
     /** toggle · play · pause · next · prev · vol+ · vol- · vol:<0-100> */
     control(action: string): Promise<void>;
   };
+  /** Called (debounced) when files in the vault change outside the app. */
+  onVaultChange?(cb: () => void): void;
   /** Your system shell in a pseudo-terminal (desktop). */
   pty?: {
     /** Starts the shell; resolves with its name ("zsh"). */

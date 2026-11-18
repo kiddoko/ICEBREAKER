@@ -132,6 +132,8 @@ export class Deck implements InputSink {
     this.registerCore();
     await this.plugins.init();
     this.platform.bridge?.onRun((req) => void this.runBridged(req));
+    // files changed in the terminal, Obsidian, Finder…: refresh the tree, search, widgets
+    this.platform.onVaultChange?.(() => void this.vault.rescan().then(() => this.requestFrame()));
 
     this.shell.motd();
     this.openApp("home");
