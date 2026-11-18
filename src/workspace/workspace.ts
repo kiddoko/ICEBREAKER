@@ -618,14 +618,19 @@ export class Workspace {
       ["store", `⇣ ${t("store")}`, "store", "modules and themes from GitHub · store in the shell"],
       ["explorer", `⬡ ${t("nexus")}`, "launch explorer", "the vault in 3D · explore in the shell"],
     ];
-    for (const [kind, label, cmd, tip] of nav) {
+    // a narrow window: the buttons shrink to their icon so the tabs keep their room
+    const tabsW = this.tabs.reduce((n, tb, i) => n + strWidth(` ${i + 1}:${tb.title().toLowerCase()} `) + 1, 0) + 4;
+    const navW = nav.filter(([k]) => d.apps.get(k)).reduce((n, [, label]) => n + strWidth(label) + 3, 0);
+    const compact = x + tabsW > gx - navW;
+    for (const [kind, full, cmd, tip] of nav) {
       if (!d.apps.get(kind)) continue; // its module is off or removed
+      const label = compact ? full.split(" ")[0] : full;
       const lw = strWidth(label) + 2;
       nx -= lw;
       const rect = { x: nx, y: r.y, w: lw, h: 1 };
       const on = ui.hovered(rect) || this.activeApp?.kind === kind;
       ui.text(nx, r.y, ` ${label} `, { fg: on ? c.panel : c.muted, bg: on ? c.accent : c.highlight });
-      ui.hit(rect, { cmd, tip });
+      ui.hit(rect, { cmd, tip: compact ? `${full.slice(2)} · ${tip}` : tip });
       nx -= 1;
     }
     ui.text(rx, r.y, right, { fg: c.muted, bg: c.panelAlt });

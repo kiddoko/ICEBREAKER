@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Settings redesigned: categories on the left, their settings on the right,
+  a search over every setting (just type), and under the list the shell
+  command that does the same (`config set …`). New: KEYS, MODULES, DANGER ZONE,
+  clock face, energy. The top bar's buttons shrink to icons in a narrow window.
 - UPLINK chatbox widget: a running conversation with your AI right on HOME;
   enter opens it bigger to type, ctrl+l starts a new one, ctrl+s reads the
   answer aloud. (`home add chat`)
