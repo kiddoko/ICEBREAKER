@@ -29,6 +29,9 @@ async function scanTasks(deck: Deck): Promise<void> {
   tasks = found;
 }
 
+/** open checkboxes found in the notes (the widget and its pop-up) */
+export const openTasks = () => tasks;
+
 const tasksWidget: WidgetSpec = {
   id: "tasks",
   title: "checkboxes",
@@ -142,6 +145,15 @@ const moonWidget: WidgetSpec = {
 /* ─────────── matrix rain (pure eye candy) ─────────── */
 
 const rains = new Map<string, Rain>();
+/** the matrix widget's look, shared with its pop-up and the `matrix` command */
+export const matrixLook = { speed: 1, set: "katakana" };
+export const MATRIX_SETS: Record<string, string[] | null> = {
+  katakana: null,
+  binary: [..."01"],
+  hex: [..."0123456789ABCDEF"],
+  blocks: [..."░▒▓█▖▗▘▝"],
+  runes: [..."ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗᛚᛜᛞᛟ"],
+};
 const matrixWidget: WidgetSpec = {
   id: "matrix",
   title: "matrix",
@@ -151,7 +163,10 @@ const matrixWidget: WidgetSpec = {
   render(ui, r) {
     const key = `${r.w}x${r.h}`;
     if (!rains.has(key)) rains.set(key, new Rain(0.8));
-    rains.get(key)!.render(ui, r);
+    const rain = rains.get(key)!;
+    rain.speed = matrixLook.speed;
+    rain.chars = MATRIX_SETS[matrixLook.set] ?? null;
+    rain.render(ui, r);
   },
 };
 
@@ -398,15 +413,18 @@ const streakWidget: WidgetSpec = {
 
 const aiWidget: WidgetSpec = {
   id: "ai",
-  title: "neural link",
-  description: "the AI you're wired to, and whether it's up",
+  title: "uplink",
+  description: "your AI uplink: its state, a quick question",
   size: { w: 3, h: 6 },
   min: { w: 2, h: 2 },
   render(ui, r, { deck }) {
     const c = ui.c;
     const ok = deck.ai.ready;
     const label = deck.ai.provider.label;
-    const col = ok ? c.accent : c.error;
+    // four moods: idle (a slow orbit) · thinking (fast, two signals) · speaking (a voice wave) · offline
+    const thinking = deck.ai.busy > 0;
+    const speaking = deck.voice.speaking;
+    const col = !ok ? c.error : thinking ? c.accentAlt : speaking ? c.info : c.accent;
     // a dotted orbit around a core; a signal runs the orbit, the core breathes
     // ring + a blank line + the label lines, centered in the card; the ring grows with it
     const lines = ok ? 2 : 3;
@@ -415,16 +433,22 @@ const aiWidget: WidgetSpec = {
     const cols = Math.min(r.w, cellsFor(ui, rows));
     const box = { x: r.x + Math.floor((r.w - cols) / 2), y: top, w: cols, h: rows };
     const R = rows / 2 - 0.2, ox = (cols * ui.cellAspect) / 2, oy = rows / 2;
-    const head = (ui.now / 1600) % 1; // fraction of a turn
-    const breath = (Math.sin(ui.now / 700) + 1) / 2;
+    const head = (ui.now / (thinking ? 500 : 1600)) % 1; // fraction of a turn
+    const breath = (Math.sin(ui.now / (thinking ? 160 : 700)) + 1) / 2;
     dots(ui, box, [c.faint, mix(col, c.bg, 0.55), col, mix(col, 0xffffff, 0.45)], (x, y) => {
       const dx = x - ox, dy = y - oy, d = Math.hypot(dx, dy);
+      if (speaking && Math.abs(dx) < R * 0.75 && d < R * 0.85) {
+        // a voice waveform across the core
+        const amp = (Math.sin(dx * 3.1 + ui.now / 90) * 0.5 + Math.sin(dx * 7.3 - ui.now / 60) * 0.3) * R * 0.45 * (0.6 + breath * 0.4);
+        return Math.abs(dy - amp) < 0.09 ? 4 : Math.abs(dy) < 0.04 ? 1 : 0;
+      }
       if (d < R * (0.22 + breath * 0.08)) return ok ? 3 : 2; // core
       if (Math.abs(d - R) < 0.07) {
         if (!ok) return 1;
         const a = ((Math.atan2(dy, dx) / (Math.PI * 2) + 1.25) % 1); // 0 at the top, clockwise
         const lag = (head - a + 1) % 1;
-        return lag < 0.03 ? 4 : lag < 0.25 ? 3 : 1;
+        const lag2 = (head + 0.5 - a + 1) % 1; // thinking: a second signal
+        return lag < 0.03 || (thinking && lag2 < 0.03) ? 4 : lag < 0.25 || (thinking && lag2 < 0.25) ? 3 : 1;
       }
       // a faint inner ring, counter-rotating
       if (Math.abs(d - R * 0.6) < 0.05) {
@@ -435,11 +459,13 @@ const aiWidget: WidgetSpec = {
     });
     const y = top + rows + 1;
     if (y < r.y + r.h) ui.textCenter(r, y, label, { fg: c.fg, attrs: BOLD });
-    if (y + 1 < r.y + r.h) ui.textCenter(r, y + 1, ok ? "● link up" : "○ offline", { fg: ok ? c.success : c.error });
-    if (!ok && y + 2 < r.y + r.h) ui.textCenter(r, y + 2, "enter: settings", { fg: c.faint });
-    ui.animate(ok ? 50 : 1000);
+    const state = !ok ? "○ offline" : thinking ? "◌ processing" : speaking ? "◖ speaking" : "● uplink up";
+    if (y + 1 < r.y + r.h) ui.textCenter(r, y + 1, state, { fg: !ok ? c.error : thinking ? c.accentAlt : speaking ? c.info : c.success });
+    if (!ok && y + 2 < r.y + r.h) ui.textCenter(r, y + 2, deck.settings.data.privacy.stealth ? "stealth: local model only" : "enter: settings", { fg: c.faint });
+    ui.animate(ok ? (thinking || speaking ? 33 : 50) : 1000);
   },
   activate: ({ deck }) => void deck.openApp(deck.ai.ready ? "link" : "settings"),
 };
 
+export { aiWidget };
 export const EXTRA_WIDGETS: WidgetSpec[] = [aiWidget, newsWidget, tasksWidget, focusWidget, moonWidget, matrixWidget, worldWidget, quoteWidget, streakWidget];

@@ -357,10 +357,14 @@ const weatherWidget: WidgetSpec = {
 const calendar: WidgetSpec = {
   id: "calendar",
   title: "calendar",
-  description: "this month, journal days lit, click a day",
+  description: "this month (with your events when the CALENDAR module is on)",
   size: { w: 4, h: 7 },
   min: { w: 2, h: 2 },
-  render(ui, r, { deck }) {
+  render(ui, r, ctx) {
+    // the CALENDAR module draws it with your events; without it, the journal month
+    const month = ctx.deck.widgets.get("calendar.month");
+    if (month) return month.render(ui, r, ctx);
+    const { deck } = ctx;
     const c = ui.c;
     const locale = deck.settings.data.user.locale || undefined;
     const now = new Date();

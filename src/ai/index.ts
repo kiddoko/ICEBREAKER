@@ -20,6 +20,8 @@ export class AIManager {
   claudeCodePath: string | null = null;
   /** Called when the AI changed files in the vault (the deck rescans). */
   onVaultWrite?: () => void;
+  /** how many answers are being written right now (the uplink widget animates) */
+  busy = 0;
 
   constructor(private readonly settings: SettingsStore) {
     settings.onChange((path) => {

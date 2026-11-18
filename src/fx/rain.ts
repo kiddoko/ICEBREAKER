@@ -20,6 +20,10 @@ export class Rain {
   private drops: Drop[] = [];
   private last = 0;
 
+  /** speed multiplier and the characters it rains (the matrix widget's pop-up changes them) */
+  speed = 1;
+  chars: string[] | null = null;
+
   constructor(private density = 1) {}
 
   render(ui: UI, r: Rect): void {
@@ -29,13 +33,14 @@ export class Rain {
     const head = mix(ui.c.fg, 0xffffff, 0.5);
 
     this.drops.forEach((d, x) => {
-      d.y += d.speed * dt;
+      d.y += d.speed * dt * this.speed;
       if (d.y - d.len > r.h) Object.assign(d, this.newDrop(r.h, false));
       const tick = Math.floor(ui.now / 90);
       for (let k = 0; k < d.len; k++) {
         const y = Math.floor(d.y) - k;
         if (y < 0 || y >= r.h) continue;
-        const ch = CHARS[(d.seed + y * 7 + (k < 3 ? tick : Math.floor(tick / 4))) % CHARS.length];
+        const set = this.chars ?? CHARS;
+        const ch = set[(d.seed + y * 7 + (k < 3 ? tick : Math.floor(tick / 4))) % set.length];
         const fade = 1 - k / d.len;
         const color = k === 0 ? head : mix(ui.c.bg, k < 3 ? ui.c.accentAlt : ui.c.accent, fade);
         ui.grid.set(r.x + x, r.y + y, ch.codePointAt(0)!, color, NONE, k === 0 ? BOLD : 0);

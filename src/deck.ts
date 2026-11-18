@@ -182,7 +182,7 @@ export class Deck implements InputSink {
       this.ai.claudeCodePath = (await this.platform.claudeCode?.detect().catch(() => null)) ?? null;
     }, () => {
       const p = this.ai.problem;
-      return p ? { text: `Neural link offline: ${p}`, status: "WARN" } : { text: `Neural link: ${this.ai.provider.label}${this.ai.claudeCodePath ? ` (${this.ai.claudeCodePath})` : ""}`, status: "OK" };
+      return p ? { text: `Uplink offline: ${p}`, status: "WARN" } : { text: `Uplink: ${this.ai.provider.label}${this.ai.claudeCodePath ? ` (${this.ai.claudeCodePath})` : ""}`, status: "OK" };
     });
 
     await step(() => this.registerCore(), () => ({ text: `Shell ibsh: ${this.commands.names().length} commands · ${this.apps.list().length} apps · ${this.widgets.list().length} widgets`, status: "OK" }));

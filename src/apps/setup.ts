@@ -112,7 +112,7 @@ export class SetupApp implements App {
         skip: () => this.a.precision === "none" || this.a.mode === "stealth",
       },
       {
-        id: "ai", title: "NEURAL LINK", question: "Which AI should LINK and plugins use?",
+        id: "ai", title: "UPLINK", question: "Which AI should your uplink (LINK) and the modules use?",
         options: () => [
           ...(this.a.mode === "stealth"
             ? []
@@ -166,7 +166,7 @@ export class SetupApp implements App {
         options: () => [
           { value: "essentials", label: "Essentials", hint: "clock, weather, calendar, system, notes" },
           { value: "productivity", label: "Productivity", hint: "tasks, focus timer, streak, news" },
-          { value: "gadget", label: "Gadget", hint: "neural link, moon, world clock, quotes" },
+          { value: "gadget", label: "Gadget", hint: "uplink, moon, world clock, quotes" },
         ],
       },
       {

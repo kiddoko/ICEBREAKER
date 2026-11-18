@@ -17,7 +17,7 @@ import type { Command } from "../shell/types";
 import { q, type UI } from "../ui/ui";
 import { basename } from "../vault/paths";
 import { currentWeather, isoDay, sky, streakOf } from "./builtin";
-import { focus } from "./extra";
+import { focus, MATRIX_SETS, matrixLook, openTasks } from "./extra";
 import type { PopupContext, WidgetPopupSpec, WidgetSpec } from "./types";
 
 /** A one-line text field for pop-ups (typed text arrives through onText). */
@@ -315,6 +315,344 @@ async function askTopic(deck: Deck): Promise<void> {
   if (v !== null) void deck.act(v.trim() ? `news topic ${v.trim()}` : "news topic -");
 }
 
+/* ─────────── clock: a timer and a stopwatch ─────────── */
+
+const clockState = { timerEnd: 0, timerTotal: 0, swStart: 0, swAcc: 0 };
+const dur = (ms: number) => {
+  const s = Math.max(0, Math.round(ms / 1000));
+  const h = Math.floor(s / 3600);
+  return `${h ? `${h}:` : ""}${pad2(Math.floor((s % 3600) / 60))}:${pad2(s % 60)}`;
+};
+const swNow = () => clockState.swAcc + (clockState.swStart ? Date.now() - clockState.swStart : 0);
+let timerWatch: ReturnType<typeof setInterval> | null = null;
+
+const clockPopup: WidgetPopupSpec = {
+  title: "clock",
+  size: { w: 54, h: 12 },
+  hint: "t timer · space stopwatch · r reset",
+  render(ui, r) {
+    const c = ui.c;
+    ui.animate(200);
+    const now = new Date();
+    const start = new Date(now.getFullYear(), 0, 0);
+    const doy = Math.floor((now.getTime() - start.getTime()) / 86400000);
+    ui.textCenter(r, r.y, now.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" }), { fg: c.accent, attrs: BOLD });
+    ui.textCenter(r, r.y + 1, now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" }), { fg: c.fg });
+    ui.textCenter(r, r.y + 2, `day ${doy} · ${Intl.DateTimeFormat().resolvedOptions().timeZone}`, { fg: c.subtle });
+    // timer
+    const left = clockState.timerEnd ? clockState.timerEnd - Date.now() : 0;
+    ui.text(r.x + 3, r.y + 5, "TIMER", { fg: c.subtle, attrs: BOLD });
+    ui.text(r.x + 13, r.y + 5, clockState.timerEnd ? dur(left) : "--:--", { fg: clockState.timerEnd ? c.fg : c.faint, attrs: BOLD });
+    if (clockState.timerEnd) ui.bar(r.x + 24, r.y + 5, r.w - 28, 1 - left / clockState.timerTotal, c.accent, c.faint);
+    let x = r.x + 3;
+    for (const [label, cmd] of [["1 min", "timer 1m"], ["5 min", "timer 5m"], ["25 min", "timer 25m"], ["stop", "timer stop"]]) x += ui.button(x, r.y + 6, label, () => {}, { cmd }) + 2;
+    // stopwatch
+    ui.text(r.x + 3, r.y + 8, "STOPWATCH", { fg: c.subtle, attrs: BOLD });
+    ui.text(r.x + 15, r.y + 8, dur(swNow()), { fg: clockState.swStart ? c.accent : c.fg, attrs: BOLD });
+    x = r.x + 3;
+    x += ui.button(x, r.y + 9, clockState.swStart ? "❚❚ stop" : "▶ start", () => {}, { cmd: "stopwatch toggle", tip: "space" }) + 2;
+    ui.button(x, r.y + 9, "↺ reset", () => {}, { cmd: "stopwatch reset", tip: "r" });
+  },
+  onText: (t, { deck }) => {
+    if (t === " ") return void deck.act("stopwatch toggle"), true;
+    if (t === "r") return void deck.act("stopwatch reset"), true;
+    if (t === "t") {
+      void deck.prompt("Timer", { placeholder: "5m, 90s, 1h30" }).then((v) => {
+        if (v?.trim()) void deck.act(`timer ${v.trim()}`);
+      });
+      return true;
+    }
+    return false;
+  },
+};
+
+export const timerCommand: Command = {
+  name: "timer",
+  summary: "a countdown (the clock's pop-up shows it): timer 5m · timer stop",
+  usage: "timer               time left\ntimer <5m | 90s | 1h30 | 25>\ntimer stop",
+  run(ctx) {
+    const [a] = ctx.args;
+    if (!a) return ctx.out(clockState.timerEnd ? `${dur(clockState.timerEnd - Date.now())} left\n` : "no timer\n"), 0;
+    if (a === "stop") {
+      clockState.timerEnd = 0;
+      return ctx.out("timer stopped\n"), 0;
+    }
+    const m = /^(?:(\d+)h)?(?:(\d+)m?)?(?:(\d+)s)?$/.exec(a);
+    const ms = m ? ((Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0)) * 60 + Number(m[3] ?? 0)) * 1000 : 0;
+    if (!ms) return ctx.err("usage: timer 5m | 90s | 1h30 | 25 (minutes)\n"), 1;
+    clockState.timerEnd = Date.now() + ms;
+    clockState.timerTotal = ms;
+    const deck = ctx.deck;
+    if (timerWatch) clearInterval(timerWatch);
+    timerWatch = setInterval(() => {
+      if (!clockState.timerEnd || Date.now() < clockState.timerEnd) return;
+      clockState.timerEnd = 0;
+      clearInterval(timerWatch!);
+      deck.sound.play("notify");
+      deck.notify("⏰ timer done", "success");
+      if (deck.settings.data.voice.enabled) deck.voice.say(deck.settings.data.voice.language === "fr" ? "Minuteur terminé." : "Timer done.");
+    }, 500);
+    ctx.out(`timer: ${dur(ms)}\n`);
+    return 0;
+  },
+};
+
+export const stopwatchCommand: Command = {
+  name: "stopwatch",
+  summary: "a stopwatch (the clock's pop-up shows it): start · stop · toggle · reset",
+  run(ctx) {
+    const [a = "toggle"] = ctx.args;
+    const running = !!clockState.swStart;
+    if (a === "reset") Object.assign(clockState, { swStart: 0, swAcc: 0 });
+    else if ((a === "start" || a === "toggle") && !running) clockState.swStart = Date.now();
+    else if ((a === "stop" || a === "toggle") && running) {
+      clockState.swAcc += Date.now() - clockState.swStart;
+      clockState.swStart = 0;
+    }
+    ctx.out(`${dur(swNow())}${clockState.swStart ? " ▶" : ""}\n`);
+    ctx.deck.requestFrame();
+  },
+};
+
+/* ─────────── system: the vitals, bigger ─────────── */
+
+let sysStats: import("../platform/types").SystemStats | null = null;
+let sysAt = 0;
+const systemPopup: WidgetPopupSpec = {
+  title: "system",
+  size: { w: 60, h: 11 },
+  render(ui, r, { deck }) {
+    const c = ui.c;
+    if (Date.now() - sysAt > 1500) {
+      sysAt = Date.now();
+      void deck.platform.system.stats().then((s) => ((sysStats = s), deck.requestFrame())).catch(() => {});
+    }
+    ui.animate(1000);
+    const s = sysStats;
+    if (!s) return void ui.text(r.x + 2, r.y + 1, `${ui.spinner()} reading…`, { fg: c.muted });
+    const gb = (b: number) => (b / 1024 ** 3).toFixed(1);
+    const row = (y: number, label: string, ratio: number, text: string) => {
+      ui.text(r.x + 2, y, label, { fg: c.subtle });
+      ui.bar(r.x + 10, y, r.w - 30, ratio, ratio > 0.85 ? c.error : ratio > 0.6 ? c.warning : c.accent, c.faint);
+      ui.textRight(r.x + r.w - 2, y, text, { fg: c.fg });
+    };
+    ui.text(r.x + 2, r.y, `${s.host} · ${s.os} · ${s.arch}`, { fg: c.fg, attrs: BOLD }, r.w - 4);
+    ui.text(r.x + 2, r.y + 1, `${s.cpuBrand} · ${s.cores.length} cores`, { fg: c.muted }, r.w - 4);
+    row(r.y + 3, "cpu", s.cpu / 100, `${Math.round(s.cpu)}%`);
+    row(r.y + 4, "memory", s.memUsed / s.memTotal, `${gb(s.memUsed)} / ${gb(s.memTotal)} GB`);
+    if (s.swapTotal) row(r.y + 5, "swap", s.swapUsed / s.swapTotal, `${gb(s.swapUsed)} / ${gb(s.swapTotal)} GB`);
+    // one tiny bar per core
+    const cw = Math.max(1, Math.floor((r.w - 12) / Math.max(1, s.cores.length)));
+    s.cores.forEach((v, i) => ui.text(r.x + 10 + i * cw, r.y + 7, " ▁▂▃▄▅▆▇█"[Math.min(8, Math.round((v / 100) * 8))], { fg: v > 85 ? c.error : c.accent }));
+    ui.text(r.x + 2, r.y + 7, "cores", { fg: c.subtle });
+    ui.text(r.x + 2, r.y + 9, `${s.processes} processes · up ${Math.floor(s.uptime / 86400)}d ${Math.floor((s.uptime % 86400) / 3600)}h`, { fg: c.muted });
+  },
+};
+
+/* ─────────── modules: launch anything ─────────── */
+
+const launchField = new Field();
+let launchSel = 0;
+const launchList = (deck: Deck) => {
+  const apps = deck.apps.list().filter((a) => a.launcher);
+  return launchField.text ? fuzzyFilter(launchField.text, apps, (a) => `${a.title} ${a.kind} ${a.description ?? ""}`, 40) : apps;
+};
+const modulesPopup: WidgetPopupSpec = {
+  title: "modules",
+  size: { w: 60, h: 14 },
+  hint: "type to filter · ↑↓ · enter launches",
+  render(ui, r, { deck }) {
+    const c = ui.c;
+    launchField.render(ui, r.x + 1, r.y, r.w - 2, "launch…");
+    const list = launchList(deck);
+    launchSel = Math.max(0, Math.min(launchSel, list.length - 1));
+    list.slice(0, r.h - 2).forEach((a, i) => {
+      const y = r.y + 2 + i;
+      const row = { x: r.x, y, w: r.w, h: 1 };
+      const sel = i === launchSel;
+      if (sel) ui.fill(row, { bg: mix(c.accent, c.bg, 0.78) });
+      const st = sel ? { bg: mix(c.accent, c.bg, 0.78) } : {};
+      ui.text(r.x + 2, y, a.icon ?? "◇", { fg: c.accent, ...st });
+      ui.text(r.x + 5, y, a.title, { fg: c.fg, attrs: sel ? BOLD : 0, ...st });
+      ui.text(r.x + 20, y, a.description ?? "", { fg: c.faint, ...st }, r.w - 22);
+      ui.hit(row, { cmd: `launch ${a.kind}`, tip: `launch ${a.kind}` });
+    });
+  },
+  onText: (t) => (launchField.onText(t), (launchSel = 0), true),
+  onKey: (k, { deck, close }) => {
+    if (launchField.onKey(k)) return true;
+    if (k.combo !== "enter") return false;
+    const a = launchList(deck)[launchSel];
+    if (a) {
+      close();
+      launchField.text = "";
+      void deck.act(`launch ${a.kind}`);
+    }
+    return true;
+  },
+  onAction: (a) => {
+    if (a === "up") return (launchSel = Math.max(0, launchSel - 1)), true;
+    if (a === "down") return (launchSel += 1), true;
+    return false;
+  },
+};
+
+/* ─────────── matrix: its look ─────────── */
+
+const matrixPopup: WidgetPopupSpec = {
+  title: "matrix",
+  size: { w: 50, h: 8 },
+  hint: "←→ speed · ↑↓ characters",
+  render(ui, r) {
+    const c = ui.c;
+    ui.text(r.x + 2, r.y + 1, "speed", { fg: c.subtle });
+    ui.text(r.x + 14, r.y + 1, `${matrixLook.speed.toFixed(1)}×`, { fg: c.fg, attrs: BOLD });
+    ui.text(r.x + 2, r.y + 3, "characters", { fg: c.subtle });
+    let x = r.x + 14;
+    for (const name of Object.keys(MATRIX_SETS)) x += ui.button(x, r.y + 3, name, () => {}, { cmd: `matrix glyphs ${name}`, selected: matrixLook.set === name }) + 1;
+    let y = r.y + 5;
+    ui.button(r.x + 14, y, "slower", () => {}, { cmd: `matrix speed ${Math.max(0.2, matrixLook.speed - 0.2).toFixed(1)}` });
+    ui.button(r.x + 24, y, "faster", () => {}, { cmd: `matrix speed ${Math.min(4, matrixLook.speed + 0.2).toFixed(1)}` });
+    y++;
+  },
+  onAction: (a, { deck }) => {
+    const sets = Object.keys(MATRIX_SETS);
+    const i = sets.indexOf(matrixLook.set);
+    if (a === "left") return void deck.act(`matrix speed ${Math.max(0.2, matrixLook.speed - 0.2).toFixed(1)}`), true;
+    if (a === "right") return void deck.act(`matrix speed ${Math.min(4, matrixLook.speed + 0.2).toFixed(1)}`), true;
+    if (a === "up" || a === "down") return void deck.act(`matrix glyphs ${sets[(i + (a === "down" ? 1 : sets.length - 1)) % sets.length]}`), true;
+    return false;
+  },
+};
+
+export const matrixCommand: Command = {
+  name: "matrix",
+  summary: "the matrix widget's rain: speed and characters",
+  usage: `matrix speed <0.2-4>\nmatrix glyphs ${Object.keys(MATRIX_SETS).join(" | ")}`,
+  run(ctx) {
+    const [a, b] = ctx.args;
+    if (a === "speed" && Number(b) >= 0.2 && Number(b) <= 4) matrixLook.speed = Number(b);
+    else if (a === "glyphs" && b && b in MATRIX_SETS) matrixLook.set = b;
+    else if (a) return ctx.err(`usage: matrix speed <0.2-4> | matrix glyphs ${Object.keys(MATRIX_SETS).join(" | ")}\n`), 1;
+    ctx.out(`matrix: ${matrixLook.set}, ${matrixLook.speed.toFixed(1)}×\n`);
+    ctx.deck.requestFrame();
+    return 0;
+  },
+};
+
+/* ─────────── checkboxes: every open one, open its note ─────────── */
+
+let taskSel = 0;
+const tasksPopup: WidgetPopupSpec = {
+  title: "checkboxes",
+  size: { w: 70, h: 15 },
+  hint: "↑↓ · enter opens the note",
+  render(ui, r) {
+    const c = ui.c;
+    const list = openTasks();
+    taskSel = Math.max(0, Math.min(taskSel, list.length - 1));
+    if (!list.length) ui.text(r.x + 2, r.y + 1, "no open - [ ] in your notes", { fg: c.muted });
+    list.slice(0, r.h).forEach((t, i) => {
+      const y = r.y + i;
+      const row = { x: r.x, y, w: r.w, h: 1 };
+      const sel = i === taskSel;
+      if (sel) ui.fill(row, { bg: mix(c.accent, c.bg, 0.8) });
+      const st = sel ? { bg: mix(c.accent, c.bg, 0.8) } : {};
+      ui.text(r.x + 2, y, ui.theme.glyphs.todo, { fg: c.subtle, ...st });
+      ui.text(r.x + 5, y, t.text, { fg: c.fg, attrs: sel ? BOLD : 0, ...st }, r.w - 24);
+      ui.textRight(r.x + r.w - 2, y, basename(t.path, ".md").slice(0, 16), { fg: c.faint, ...st });
+      ui.hit(row, { cmd: `open ${q(t.path)}`, tip: t.path });
+    });
+  },
+  onKey: (k, { deck, close }) => {
+    if (k.combo !== "enter") return false;
+    const t = openTasks()[taskSel];
+    if (t) {
+      close();
+      void deck.act(`open ${q(t.path)}`);
+    }
+    return true;
+  },
+  onAction: (a) => {
+    if (a === "up") return (taskSel = Math.max(0, taskSel - 1)), true;
+    if (a === "down") return (taskSel += 1), true;
+    return false;
+  },
+};
+
+/* ─────────── uplink: a quick question ─────────── */
+
+const askField = new Field();
+const asked = { q: "", a: "", busy: false, error: "" };
+const aiPopup: WidgetPopupSpec = {
+  title: "uplink",
+  size: { w: 72, h: 16 },
+  hint: "type + enter: ask · ctrl+s: say it",
+  render(ui, r, { deck }) {
+    const c = ui.c;
+    const ok = deck.ai.ready;
+    ui.text(r.x + 2, r.y, `${ok ? "●" : "○"} ${deck.ai.provider.label}`, { fg: ok ? c.success : c.error, attrs: BOLD });
+    if (!ok) ui.text(r.x + 2, r.y + 1, deck.ai.problem ?? "", { fg: c.muted }, r.w - 4);
+    askField.render(ui, r.x + 1, r.y + 2, r.w - 2, ok ? "ask anything — your vault is in reach" : "uplink offline");
+    if (asked.busy) ui.animate(80);
+    const body = asked.error ? asked.error : asked.a || (asked.busy ? `${ui.spinner()} processing…` : asked.q ? "" : "a quick question here; the full conversation lives in LINK");
+    // word-wrap the answer
+    const lines: string[] = [];
+    for (const para of body.split("\n")) {
+      let line = "";
+      for (const w of para.split(" ")) {
+        if (strWidth(line + " " + w) > r.w - 6 && line) {
+          lines.push(line);
+          line = w;
+        } else line = line ? `${line} ${w}` : w;
+      }
+      lines.push(line);
+    }
+    lines.slice(-(r.h - 6)).forEach((l, i) => ui.text(r.x + 3, r.y + 4 + i, l, { fg: asked.error ? c.error : asked.a ? c.fg : c.faint }));
+    if (asked.a) ui.button(r.x + 2, r.y + r.h - 1, "◖ say it", () => {}, { cmd: `voice say ${q(asked.a.slice(0, 1500))}`, tip: "ctrl+s" });
+  },
+  onText: (t) => (askField.onText(t), true),
+  onKey: (k, { deck }) => {
+    if (askField.onKey(k)) return true;
+    if (k.combo === "ctrl+s" && asked.a) return void deck.act(`voice say ${q(asked.a.slice(0, 1500))}`), true;
+    if (k.combo !== "enter" || !askField.text.trim() || asked.busy) return k.combo === "enter";
+    const question = askField.text.trim();
+    askField.text = "";
+    Object.assign(asked, { q: question, a: "", busy: true, error: "" });
+    deck.ai.busy++;
+    void deck.ai
+      .ask(question, { onText: (d) => ((asked.a += d), deck.requestFrame()) })
+      .then((full) => {
+        asked.a = full || asked.a;
+        const v = deck.settings.data.voice;
+        if (v.enabled && v.readAI) deck.voice.say(asked.a);
+      })
+      .catch((e) => (asked.error = e instanceof Error ? e.message : String(e)))
+      .finally(() => {
+        asked.busy = false;
+        deck.ai.busy = Math.max(0, deck.ai.busy - 1);
+        deck.requestFrame();
+      });
+    return true;
+  },
+};
+
+/* ─────────── calendar: the CALENDAR module's month ─────────── */
+
+/** The core calendar widget hands over to the CALENDAR module when it's on. */
+const calendarPopup: WidgetPopupSpec = {
+  title: "calendar",
+  size: { w: 72, h: 15 },
+  render: (ui, r, ctx) => {
+    const p = ctx.deck.widgets.get("calendar.month")?.popup;
+    if (p) return p.render(ui, r, ctx);
+    ui.text(r.x + 2, r.y + 1, "the CALENDAR module is off — modules → calendar", { fg: ui.c.muted });
+  },
+  onText: (t, ctx) => ctx.deck.widgets.get("calendar.month")?.popup?.onText?.(t, ctx) ?? false,
+  onKey: (k, ctx) => ctx.deck.widgets.get("calendar.month")?.popup?.onKey?.(k, ctx) ?? false,
+  onAction: (a, ctx) => ctx.deck.widgets.get("calendar.month")?.popup?.onAction?.(a, ctx) ?? false,
+};
+
 /* ─────────── wiring ─────────── */
 
 const POPUPS: Record<string, { popup?: WidgetPopupSpec; open?: string }> = {
@@ -324,10 +662,13 @@ const POPUPS: Record<string, { popup?: WidgetPopupSpec; open?: string }> = {
   streak: { popup: streakPopup, open: "journal" },
   weather: { popup: weatherPopup },
   news: { popup: newsPopup },
-  calendar: { open: "cal open" },
-  system: { open: "launch sysmon" },
-  modules: { open: "launch modules" },
-  ai: { open: "launch link" },
+  calendar: { popup: calendarPopup, open: "cal open" },
+  system: { popup: systemPopup, open: "launch sysmon" },
+  modules: { popup: modulesPopup, open: "launch modules" },
+  ai: { popup: aiPopup, open: "launch link" },
+  clock: { popup: clockPopup },
+  matrix: { popup: matrixPopup },
+  tasks: { popup: tasksPopup },
 };
 
 /** Give the built-in widgets their pop-ups and modules. */
@@ -335,4 +676,4 @@ export function withPopups(specs: WidgetSpec[]): WidgetSpec[] {
   return specs.map((s) => (POPUPS[s.id] ? { ...s, ...POPUPS[s.id] } : s));
 }
 
-export const popupCommands: Command[] = [focusCommand, moonCommand];
+export const popupCommands: Command[] = [focusCommand, moonCommand, timerCommand, stopwatchCommand, matrixCommand];

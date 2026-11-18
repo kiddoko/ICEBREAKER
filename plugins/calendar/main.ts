@@ -838,8 +838,9 @@ export function activate(ib: IcebreakerAPI): void {
           if (bg !== -1) ui.fill(cell, { bg });
           const st = bg !== -1 ? { bg } : {};
           const num = String(d.getDate()).padStart(2, " ");
-          if (isToday) ui.text(cell.x, cell.y, `▐${num}▌`.slice(0, cw), { fg: c.accent, attrs: BOLD });
-          else ui.text(cell.x + 1, cell.y, num, { fg: other ? c.faint : isSel ? c.fg : i >= 5 ? c.accentAlt : c.muted, attrs: isSel ? BOLD : 0, ...st });
+          // the day number; today's is a solid accent tag
+          if (isToday) ui.text(cell.x, cell.y, ` ${num.trim()} `, { fg: c.panel, bg: c.accent, attrs: BOLD });
+          else ui.text(cell.x + 1, cell.y, num.trim(), { fg: other ? c.faint : isSel ? c.fg : i >= 5 ? c.accentAlt : c.muted, attrs: isSel ? BOLD : 0, ...st });
           if (isSel) selCell = cell;
           const evs = between(d, addDays(d, 1));
           if (ch >= 2 && cw >= 6) {
@@ -855,8 +856,8 @@ export function activate(ib: IcebreakerAPI): void {
                 ui.fill({ x: cell.x, y: ey, w: cell.w, h: 1 }, { bg: tb });
                 ui.text(cell.x + 1, ey, e.title, { fg: other ? c.muted : c.fg, bg: tb }, cell.w - 1);
               } else {
-                ui.text(cell.x, ey, "▍", { fg: col, ...st });
-                const tx = cw >= 14 ? ui.text(cell.x + 1, ey, hm(dayOf(e.start)), { fg: c.subtle, ...st }) + 1 : cell.x + 1;
+                // the hour in the calendar's colour, then the title — aligned with the day number
+                const tx = cw >= 14 ? ui.text(cell.x + 1, ey, hm(dayOf(e.start)), { fg: mix(col, c.bg, 0.15), ...st }) + 1 : (ui.text(cell.x + 1, ey, "•", { fg: col, ...st }), cell.x + 3);
                 ui.text(tx, ey, e.title, { fg: other ? c.muted : c.fg, ...st }, cell.x + cell.w - tx);
               }
             });
@@ -874,7 +875,8 @@ export function activate(ib: IcebreakerAPI): void {
       // the selected day gets a neon frame
       if (selCell) {
         const s0 = selCell as Rect;
-        const hl = { fg: focused ? c.accent : c.subtle, attrs: BOLD };
+        // the frame shares the cell's tint, so frame and fill read as one block
+        const hl = { fg: focused ? c.accent : c.subtle, bg: mix(c.accent, c.bg, focused ? 0.82 : 0.9), attrs: BOLD };
         ui.text(s0.x - 1, s0.y - 1, "┏", hl);
         ui.hline(s0.x, s0.y - 1, s0.w, hl, "━");
         ui.text(s0.x + s0.w, s0.y - 1, "┓", hl);
@@ -1026,6 +1028,136 @@ export function activate(ib: IcebreakerAPI): void {
   });
   ib.palette.register({ id: "calendar.add", title: "Calendar: add an event", group: "calendar", run: () => void addFlow(startOfDay(new Date())) });
   ib.palette.register({ id: "calendar.open", title: "Calendar", group: "calendar", run: () => run("cal open") });
+
+  // ── the agenda pop-up, shared by the month and week widgets ──────────────
+  let popDay = startOfDay(new Date());
+  const agendaPopup = {
+    title: "calendar",
+    size: { w: 72, h: 15 },
+    hint: "←→↑↓ day · [ ] month · a add · enter: open the day",
+    render(ui: UI, r: Rect) {
+      const c = ui.c;
+      const first = new Date(popDay.getFullYear(), popDay.getMonth(), 1);
+      const offset = (first.getDay() + 6) % 7;
+      const today = ymd(new Date());
+      ui.text(r.x + 2, r.y, first.toLocaleDateString(undefined, { month: "long", year: "numeric" }).toUpperCase(), { fg: c.accent, attrs: BOLD });
+      for (let i = 0; i < 7; i++) ui.text(r.x + 2 + i * 4, r.y + 2, new Date(2024, 0, 1 + i).toLocaleDateString(undefined, { weekday: "narrow" }).toUpperCase(), { fg: i >= 5 ? c.accentAlt : c.subtle });
+      for (let k = 0; k < 42; k++) {
+        const d = addDays(first, k - offset);
+        if (d.getMonth() !== first.getMonth()) continue;
+        const x = r.x + 2 + (k % 7) * 4, y = r.y + 3 + Math.floor(k / 7);
+        const key = ymd(d);
+        const sel = key === ymd(popDay);
+        const evs = between(d, addDays(d, 1));
+        const style = sel ? { fg: c.panel, bg: c.accent, attrs: BOLD } : key === today ? { fg: c.accent, attrs: BOLD } : { fg: evs.length ? c.fg : c.muted };
+        ui.text(x, y, String(d.getDate()).padStart(2), style);
+        if (evs.length) ui.text(x + 2, y, "•", { fg: colorOf(ui, evs[0].cal) });
+        ui.hit({ x, y, w: 3, h: 1 }, { onClick: () => (popDay = d), onDouble: () => run(`cal open ${key}`), tip: evs.map((e) => `${when(e)} ${e.title}`).join("\n") || "nothing" });
+      }
+      // the chosen day
+      const ax = r.x + 32, aw = r.w - 34;
+      ui.vline(ax - 2, r.y, r.h - 1, { fg: c.faint });
+      ui.text(ax, r.y, dayTitle(popDay).toUpperCase(), { fg: c.fg, attrs: BOLD }, aw);
+      const evs = between(popDay, addDays(popDay, 1));
+      if (!evs.length) ui.text(ax, r.y + 2, "nothing · a adds", { fg: c.faint });
+      evs.slice(0, r.h - 4).forEach((e, i) => {
+        ui.text(ax, r.y + 2 + i, "●", { fg: colorOf(ui, e.cal) });
+        ui.text(ax + 2, r.y + 2 + i, when(e).padEnd(11), { fg: c.subtle });
+        ui.text(ax + 14, r.y + 2 + i, e.title, { fg: c.fg }, aw - 14);
+      });
+      ui.button(ax, r.y + r.h - 1, "+ add", () => void addFlow(popDay), { tip: "a" });
+    },
+    onText: (t: string, { close }: { close(): void }) => {
+      if (t === "a" || t === "+") return close(), void addFlow(popDay), true;
+      if (t === "[") return (popDay = new Date(popDay.getFullYear(), popDay.getMonth() - 1, 1)), true;
+      if (t === "]") return (popDay = new Date(popDay.getFullYear(), popDay.getMonth() + 1, 1)), true;
+      if (t === "t") return (popDay = startOfDay(new Date())), true;
+      return false;
+    },
+    onKey: (k: KeyInput, { close }: { close(): void }) => (k.combo === "enter" ? (close(), run(`cal open ${ymd(popDay)}`), true) : false),
+    onAction: (a: Action) => {
+      const move: Record<string, number> = { left: -1, right: 1, up: -7, down: 7 };
+      if (a in move) return (popDay = addDays(popDay, move[a])), true;
+      return false;
+    },
+  };
+
+  // ── HOME widget: this month, days with events marked ────────────────────
+  ib.widgets.register({
+    id: "month",
+    title: "calendar",
+    description: "this month: days with events marked (CALENDAR module)",
+    size: { w: 4, h: 7 },
+    min: { w: 2, h: 2 },
+    open: "cal open",
+    popup: agendaPopup,
+    render(ui, r) {
+      const c = ui.c;
+      if (!loaded) return;
+      refreshLocal();
+      const now = new Date();
+      const first = new Date(now.getFullYear(), now.getMonth(), 1);
+      const offset = (first.getDay() + 6) % 7;
+      const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const weeks = Math.ceil((offset + days) / 7);
+      const cw = Math.max(3, Math.min(8, Math.floor((r.w - 2) / 7)));
+      const ch = Math.max(1, Math.min(3, Math.floor((r.h - 2) / weeks)));
+      const gx = r.x + Math.floor((r.w - cw * 7) / 2);
+      ui.textCenter(r, r.y, first.toLocaleDateString(undefined, { month: "long", year: "numeric" }).toUpperCase(), { fg: c.fg, attrs: BOLD });
+      if (r.h < 3) return;
+      for (let i = 0; i < 7; i++) {
+        const n = new Date(2024, 0, 1 + i).toLocaleDateString(undefined, { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "").slice(0, cw - 1);
+        ui.text(gx + i * cw + cw - 1 - strWidth(n), r.y + 1, n, { fg: i >= 5 ? c.accentAlt : c.subtle });
+      }
+      for (let d = 1; d <= days; d++) {
+        const k = offset + d - 1;
+        const y = r.y + 2 + Math.floor(k / 7) * ch;
+        if (y >= r.y + r.h) break;
+        const x = gx + (k % 7) * cw;
+        const date = new Date(now.getFullYear(), now.getMonth(), d);
+        const evs = between(date, addDays(date, 1));
+        const isToday = d === now.getDate();
+        const label = String(d).padStart(cw - 1);
+        ui.text(x, y, label, isToday ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: evs.length ? c.fg : c.muted, attrs: evs.length ? BOLD : 0 });
+        if (evs.length && ch >= 2) ui.text(x + cw - 2, y + 1, evs.length > 1 ? "••" : "•", { fg: colorOf(ui, evs[0].cal) });
+        else if (evs.length && !isToday) ui.text(x - 1, y, "·", { fg: colorOf(ui, evs[0].cal) });
+        ui.hit({ x, y, w: cw, h: ch }, { cmd: `cal open ${ymd(date)}`, tip: `${dayTitle(date)}\n${evs.map((e) => `${when(e)} ${e.title}`).join("\n") || "nothing"}` });
+      }
+    },
+  });
+
+  // ── HOME widget: this week, day by day ───────────────────────────────────
+  ib.widgets.register({
+    id: "week",
+    title: "this week",
+    description: "the 7 days of this week with their events (CALENDAR module)",
+    size: { w: 8, h: 4 },
+    min: { w: 4, h: 2 },
+    open: "cal open",
+    popup: agendaPopup,
+    render(ui, r) {
+      const c = ui.c;
+      if (!loaded) return;
+      refreshLocal();
+      const today = startOfDay(new Date());
+      const monday = addDays(today, -((today.getDay() + 6) % 7));
+      const cw = Math.floor(r.w / 7);
+      for (let i = 0; i < 7; i++) {
+        const d = addDays(monday, i);
+        const x = r.x + i * cw;
+        const isToday = ymd(d) === ymd(today);
+        const head = `${d.toLocaleDateString(undefined, { weekday: "short" }).replace(".", "")} ${d.getDate()}`;
+        ui.text(x + 1, r.y, head.slice(0, cw - 1), isToday ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: i >= 5 ? c.accentAlt : c.subtle, attrs: BOLD });
+        if (i > 0) ui.vline(x, r.y, r.h, { fg: c.faint });
+        between(d, addDays(d, 1)).slice(0, r.h - 1).forEach((e, k) => {
+          const y = r.y + 1 + k;
+          ui.text(x + 1, y, "▪", { fg: colorOf(ui, e.cal) });
+          ui.text(x + 2, y, e.allDay ? e.title : `${hm(dayOf(e.start))} ${e.title}`, { fg: d < today ? c.muted : c.fg }, cw - 2);
+        });
+        ui.hit({ x, y: r.y, w: cw, h: r.h }, { cmd: `cal open ${ymd(d)}`, tip: dayTitle(d) });
+      }
+    },
+  });
 
   // ── HOME widget: what's coming, as much as fits ──────────────────────────
   let nextSel = 0;

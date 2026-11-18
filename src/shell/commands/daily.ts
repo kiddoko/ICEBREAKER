@@ -178,7 +178,7 @@ export const chat: Command = {
       return 1;
     }
     const session = deck.ai.session({ system: ASK_SYSTEM_PROMPT });
-    ctx.out(fmt.dim(`neural link · ${deck.ai.provider.label} · esc or "exit" to leave\n`));
+    ctx.out(fmt.dim(`uplink · ${deck.ai.provider.label} · esc or "exit" to leave\n`));
     let msg = ctx.args.join(" ").trim();
     for (;;) {
       if (!msg) {

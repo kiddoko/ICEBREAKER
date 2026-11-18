@@ -48,7 +48,7 @@ export class LinkApp implements App {
   private greet(): void {
     const problem = this.deck.ai.problem;
     if (problem) {
-      this.chat.push("error", `No neural link: ${problem}.`);
+      this.chat.push("error", `Uplink down: ${problem}.`);
       this.chat.push("info", this.deck.settings.data.ai.provider === "anthropic"
         ? "Get a key at console.anthropic.com, then run `config key` in the shell (or Ctrl+K → “Set API key”).\nPrefer local & offline? Install Ollama and run `config set ai.provider ollama`."
         : "Start Ollama (ollama serve) and pull a model (ollama pull llama3.1).");
@@ -91,6 +91,7 @@ export class LinkApp implements App {
     }
 
     this.chat.busy = true;
+    this.deck.ai.busy++;
     this.chat.busyLabel = "jacked in";
     this.abort = new AbortController();
     let answer: ChatEntry | null = null;
@@ -133,6 +134,7 @@ export class LinkApp implements App {
       this.chat.push(msg === "aborted" ? "info" : "error", msg === "aborted" ? "— aborted —" : msg);
     } finally {
       this.chat.busy = false;
+      this.deck.ai.busy = Math.max(0, this.deck.ai.busy - 1);
       this.abort = null;
       const final = this.chat.entries.filter((e) => e.role === "assistant").pop();
       if (final) this.transcript.push(`## ◆ ${this.deck.ai.provider.label}\n\n${final.text}\n`);
