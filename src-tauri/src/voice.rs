@@ -156,8 +156,16 @@ pub async fn voice_speak(app: AppHandle, text: String, engine: String, voice: St
                 .ok()
                 .and_then(|rd| rd.flatten().map(|e| e.path()).find(|p| p.extension().is_some_and(|x| x == "onnx")))
                 .ok_or(format!("no voice \"{voice}\" — voice install"))?;
+            // the engine's libraries sit next to it (lib/, and bin/ on Windows)
+            let root = bin.parent().and_then(|p| p.parent()).map(|p| p.to_path_buf()).unwrap_or_default();
+            let mut command = Command::new(&bin);
+            #[cfg(windows)]
+            command.env("PATH", format!("{};{};{}", root.join("bin").display(), root.join("lib").display(), std::env::var("PATH").unwrap_or_default()));
+            #[cfg(target_os = "linux")]
+            command.env("LD_LIBRARY_PATH", format!("{}:{}", root.join("lib").display(), std::env::var("LD_LIBRARY_PATH").unwrap_or_default()));
+            let _ = &root;
             let out = quiet(
-                Command::new(&bin)
+                command
                     .arg(format!("--vits-model={}", onnx.display()))
                     .arg(format!("--vits-tokens={}", m.join("tokens.txt").display()))
                     .arg(format!("--vits-data-dir={}", m.join("espeak-ng-data").display()))
@@ -262,13 +270,17 @@ pub async fn voice_install(app: AppHandle, lang: String) -> Result<String, Strin
         }
         if !has_engine {
             const V: &str = "v2.0.1";
+            // the same engine and voices everywhere (Windows: the static-CRT build, no VC++ runtime needed)
             let asset = match (std::env::consts::OS, std::env::consts::ARCH) {
-                ("macos", "aarch64") => "osx-arm64",
-                ("macos", _) => "osx-x64",
-                ("linux", "x86_64") => "linux-x64",
+                ("macos", "aarch64") => "osx-arm64-shared",
+                ("macos", _) => "osx-x64-shared",
+                ("linux", "x86_64") => "linux-x64-shared",
+                ("linux", "aarch64") => "linux-aarch64-shared-cpu",
+                ("windows", "x86_64") => "win-x64-shared-MT-Release",
+                ("windows", "aarch64") => "win-arm64-shared-MT-Release",
                 (os, arch) => return Err(format!("no neural voice build for {os}/{arch} yet — the system voice works: voice engine system")),
             };
-            let name = format!("sherpa-onnx-{V}-{asset}-shared");
+            let name = format!("sherpa-onnx-{V}-{asset}");
             let archive = d.join(format!("{name}.tar.bz2"));
             get(&format!("https://github.com/k2-fsa/sherpa-onnx/releases/download/{V}/{name}.tar.bz2"), &archive)?;
             untar(&archive, &d)?;
