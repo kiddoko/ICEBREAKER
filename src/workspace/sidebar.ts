@@ -152,7 +152,7 @@ export class Sidebar {
       {
         label: t("other…"),
         run: async () => {
-          const g = await this.deck.prompt(t("One character: an emoji, a symbol (★ ♥ ⚡ λ…)"), { initial: cur ?? "" });
+          const g = await this.deck.prompt(t("One character: an emoji, a symbol (★ ♥ ⚡ λ…)"), { initial: cur ?? "", suggestions: ICON_CHOICES });
           if (g?.trim()) void this.deck.act(`icon ${abs} ${q([...g.trim()][0])}`);
         },
       },

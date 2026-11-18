@@ -4,7 +4,7 @@ import { fuzzyFilter } from "../core/fuzzy";
 import { strWidth, truncate } from "../core/unicode";
 import type { PaletteAction } from "../apps/types";
 import type { ChoiceOption } from "../plugins/api";
-import { hex } from "../core/color";
+import { hex, mix } from "../core/color";
 import { TextEditor } from "../ui/editor";
 import { ListView } from "../ui/list";
 import type { UI } from "../ui/ui";
@@ -167,15 +167,44 @@ export class PromptDialog implements Overlay {
   modal = true;
   done = false;
   private editor: TextEditor;
+  private readonly suggestions: string[];
+  /** the ▾ list is open; `pick` = the highlighted suggestion */
+  private open = false;
+  private pick = -1;
 
   constructor(
     private readonly title: string,
-    opts: { initial?: string; placeholder?: string; mask?: boolean },
+    opts: { initial?: string; placeholder?: string; mask?: boolean; suggestions?: string[] },
     private readonly resolve: (value: string | null) => void,
   ) {
+    this.suggestions = opts.suggestions ?? [];
     this.editor = new TextEditor(opts.initial ?? "", { singleLine: true, placeholder: opts.placeholder, mask: opts.mask });
     this.editor.setText(opts.initial ?? "", true);
-    this.editor.onSubmit = (v) => this.finish(v);
+    this.editor.onSubmit = (v) => (this.open && this.pick >= 0 ? this.accept(this.matches()[this.pick]) : this.finish(v));
+  }
+
+  /** what fits what's typed: starts-with first, then contains (all of them when empty or the list is open) */
+  private matches(): string[] {
+    const q = this.editor.text.trim().toLowerCase();
+    if (!q) return this.suggestions.slice(0, 50);
+    const starts = this.suggestions.filter((s) => s.toLowerCase().startsWith(q) && s.toLowerCase() !== q);
+    const has = this.suggestions.filter((s) => !s.toLowerCase().startsWith(q) && s.toLowerCase().includes(q));
+    return [...starts, ...has].slice(0, 50);
+  }
+
+  /** the grey completion after the cursor: Tab takes it */
+  private ghost(): string {
+    const q = this.editor.text;
+    if (!q || this.editor.cursor.col < q.length) return "";
+    const m = this.suggestions.find((s) => s.toLowerCase().startsWith(q.toLowerCase()) && s.length > q.length);
+    return m ? m.slice(q.length) : "";
+  }
+
+  private accept(s: string | undefined): void {
+    if (s === undefined) return;
+    this.editor.setText(s, true);
+    this.open = false;
+    this.pick = -1;
   }
 
   private finish(v: string | null): void {
@@ -185,13 +214,25 @@ export class PromptDialog implements Overlay {
   }
 
   onKey(k: KeyInput): boolean {
-    if (k.key === "esc") this.finish(null);
-    else this.editor.onKey(k);
+    const n = this.suggestions.length ? this.matches().length : 0;
+    if (k.key === "esc") {
+      if (this.open) this.open = false;
+      else this.finish(null);
+    } else if (k.combo === "tab" && n) {
+      const g = this.ghost();
+      if (this.open && this.pick >= 0) this.accept(this.matches()[this.pick]);
+      else if (g) this.editor.setText(this.editor.text + g, true);
+      else ((this.open = true), (this.pick = 0));
+    } else if ((k.key === "down" || k.key === "up") && n) {
+      if (!this.open) ((this.open = true), (this.pick = 0));
+      else this.pick = (this.pick + (k.key === "down" ? 1 : -1) + n) % n;
+    } else this.editor.onKey(k);
     return true;
   }
 
   onText(t: string): boolean {
     this.editor.onText(t);
+    if (this.suggestions.length) this.pick = this.open ? 0 : -1;
     return true;
   }
 
@@ -205,14 +246,36 @@ export class PromptDialog implements Overlay {
   render(ui: UI, screen: Rect): void {
     const c = ui.c;
     backdrop(ui, screen);
-    const box = centered(screen, 64, 6);
+    const sugg = this.suggestions.length > 0;
+    const list = sugg && this.open ? this.matches() : [];
+    const shown = Math.min(8, list.length);
+    const box = centered(screen, 64, 6 + (shown ? shown + 1 : 0));
     const inner = ui.box(box, { title: "INPUT", focused: true, bg: c.panelAlt });
     ui.text(inner.x + 1, inner.y, this.title, { fg: c.fg, attrs: BOLD }, inner.w - 2);
-    ui.fill({ x: inner.x + 1, y: inner.y + 2, w: inner.w - 2, h: 1 }, { bg: c.highlight });
-    this.editor.render(ui, { x: inner.x + 2, y: inner.y + 2, w: inner.w - 4, h: 1 }, true);
+    const fw = inner.w - 2 - (sugg ? 3 : 0);
+    ui.fill({ x: inner.x + 1, y: inner.y + 2, w: fw, h: 1 }, { bg: c.highlight });
+    this.editor.render(ui, { x: inner.x + 2, y: inner.y + 2, w: fw - 2, h: 1 }, true);
+    if (sugg) {
+      // what Tab would complete, in grey after what you typed
+      const g = this.ghost();
+      const gx = inner.x + 2 + strWidth(this.editor.text);
+      if (g && gx < inner.x + fw) ui.text(gx, inner.y + 2, g, { fg: c.faint, bg: c.highlight }, inner.x + fw - gx);
+      // ▾ opens the list of suggestions
+      const ar = { x: inner.x + 1 + fw + 1, y: inner.y + 2, w: 1, h: 1 };
+      ui.text(ar.x, ar.y, this.open ? "▴" : "▾", { fg: ui.hovered(ar) || this.open ? c.accent : c.muted, attrs: BOLD });
+      ui.hit({ x: ar.x - 1, y: ar.y, w: 3, h: 1 }, { onClick: () => ((this.open = !this.open), (this.pick = this.open ? 0 : -1)), tip: "↓ · tab completes" });
+      list.slice(0, shown).forEach((s, i) => {
+        const row = { x: inner.x + 1, y: inner.y + 3 + i, w: fw, h: 1 };
+        const on = i === this.pick;
+        if (on || ui.hovered(row)) ui.fill(row, { bg: on ? mixBg(c) : c.highlight });
+        ui.text(row.x + 1, row.y, s, { fg: on ? c.fg : c.muted, attrs: on ? BOLD : 0 }, row.w - 2);
+        ui.hit(row, { onClick: () => this.accept(s) });
+      });
+    }
+    const by = inner.y + 3 + (shown ? shown + 1 : 0);
     let x = inner.x + inner.w - 20;
-    x += ui.button(x, inner.y + 3, "ok ⏎", () => this.finish(this.editor.text)) + 2;
-    ui.button(x, inner.y + 3, "cancel", () => this.finish(null), { accent: c.subtle });
+    x += ui.button(x, by, "ok ⏎", () => this.finish(this.editor.text)) + 2;
+    ui.button(x, by, "cancel", () => this.finish(null), { accent: c.subtle });
   }
 }
 
@@ -409,4 +472,9 @@ export class Osk implements Overlay {
     });
     ui.text(inner.x + 1, inner.y + inner.h - 1, "typing into the focused pane", { fg: c.subtle, attrs: DIM });
   }
+}
+
+/** the highlighted line of a list inside a dialog */
+function mixBg(c: UI["c"]): number {
+  return mix(c.panelAlt, c.accent, 0.25);
 }

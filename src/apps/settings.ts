@@ -107,7 +107,7 @@ export class SettingsApp implements App {
         change: (dir) => set(key, step(s.get(key) as number, dir < 0 ? -1 : 1)),
       };
     };
-    const text = (key: string, label: string, section?: string, placeholder = ""): Row => ({
+    const text = (key: string, label: string, section?: string, placeholder = "", suggestions?: () => string[]): Row => ({
       section,
       key,
       isText: true,
@@ -115,7 +115,7 @@ export class SettingsApp implements App {
       cmd: () => `config set ${key} ${q(String(s.get(key) ?? ""))}`,
       value: () => String(s.get(key) || "—"),
       change: async () => {
-        const v = await d.prompt(label, { initial: String(s.get(key) ?? ""), placeholder });
+        const v = await d.prompt(t(label), { initial: String(s.get(key) ?? ""), placeholder, suggestions: suggestions?.() });
         if (v !== null) set(key, v);
       },
     });
@@ -138,11 +138,11 @@ export class SettingsApp implements App {
           const i = await d.choose(t("pronouns"), [...opts.map((o) => ({ label: o || t("not specified") })), { label: t("my own…") }], { selected: Math.max(0, opts.indexOf(cur)) });
           if (i === null) return;
           if (i < opts.length) return set("user.pronouns", opts[i]);
-          const v = await d.prompt(t("Your pronouns"), { initial: opts.includes(cur) ? "" : cur, placeholder: "xe/xem" });
+          const v = await d.prompt(t("Your pronouns"), { initial: opts.includes(cur) ? "" : cur, placeholder: "xe/xem", suggestions: ["xe/xem", "ze/hir", "ae/aer", "fae/faer", "any", "ille", "ul", "al"] });
           if (v !== null) set("user.pronouns", v.trim());
         },
       },
-      text("user.locale", "date language", undefined, "fr-FR, en-US… (empty = system)"),
+      text("user.locale", "date language", undefined, "fr-FR, en-US… (empty = system)", () => ["fr-FR", "fr-CH", "fr-BE", "fr-CA", "en-US", "en-GB", "de-CH", "de-DE", "it-CH", "it-IT", "es-ES", "pt-BR", "ja-JP", "nb-NO"]),
       { section: "APPEARANCE", label: "", value: () => "" },
       cycle("appearance.theme", "theme", d.themes.list().map((t) => t.name)),
       cycle("appearance.scale", "interface scale", [25, 50, 75, 80, 90, 100, 110, 125, 150, 175, 200], undefined, (v) => `${v}%`),
@@ -279,14 +279,14 @@ export class SettingsApp implements App {
   }
 
   /** A section per module: the built-in ones here, the others from ib.settings.register. */
-  private moduleRows(set: (k: string, v: unknown) => void, toggle: (k: string, l: string) => Row, cycle: <T>(k: string, l: string, o: T[], sec?: string, show?: (v: T) => string) => Row, text: (k: string, l: string, sec?: string, ph?: string) => Row): Row[] {
+  private moduleRows(set: (k: string, v: unknown) => void, toggle: (k: string, l: string) => Row, cycle: <T>(k: string, l: string, o: T[], sec?: string, show?: (v: T) => string) => Row, text: (k: string, l: string, sec?: string, ph?: string, sug?: () => string[]) => Row): Row[] {
     const d = this.deck;
     const on = (id: string) => d.plugins.list().some((p) => p.manifest.id === id && p.active);
     const out: Row[] = [];
     const head = (name: string) => out.push({ section: `◇ ${name}`, label: "", value: () => "" });
     if (on("weather")) {
       head("WEATHER");
-      out.push(text("home.weatherCity", "weather city (when your location isn't set)", undefined, "Lausanne"));
+      out.push(text("home.weatherCity", "weather city (when your location isn't set)", undefined, "Lausanne", () => [...((d.settings.data.home.weatherPlaces ?? []) as { name: string }[]).map((p) => p.name), "Lausanne", "Genève", "Zürich", "Paris", "London", "New York", "Tokyo", "Oslo", "Berlin", "Montréal"]));
       out.push({ label: "saved places", value: () => String((d.settings.data.home.weatherPlaces ?? []).length), cmd: () => "weather places", change: () => void d.act("weather open") });
     }
     if (on("news")) {

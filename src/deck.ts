@@ -494,7 +494,7 @@ export class Deck implements InputSink {
     return p;
   }
 
-  prompt(title: string, opts: { initial?: string; placeholder?: string; mask?: boolean } = {}): Promise<string | null> {
+  prompt(title: string, opts: { initial?: string; placeholder?: string; mask?: boolean; suggestions?: string[] } = {}): Promise<string | null> {
     const p = this.workspace.prompt(title, opts);
     this.requestFrame();
     return p;

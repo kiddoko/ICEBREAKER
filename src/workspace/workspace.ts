@@ -368,7 +368,7 @@ export class Workspace {
     return new Promise((resolve) => this.push(new ChooseDialog(title, options, selected, resolve)));
   }
 
-  prompt(title: string, opts: { initial?: string; placeholder?: string; mask?: boolean } = {}): Promise<string | null> {
+  prompt(title: string, opts: { initial?: string; placeholder?: string; mask?: boolean; suggestions?: string[] } = {}): Promise<string | null> {
     return new Promise((resolve) => this.push(new PromptDialog(title, opts, resolve)));
   }
 
