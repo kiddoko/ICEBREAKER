@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- FOCUS app: a big ring that empties with the minutes, what you're on
+  (`focus task …`), presets 25/5 · 50/10 · 90/20, today's sessions, and zen
+  (z: the tree and the shell fold away). The pomodoro now rings even when its
+  widget isn't on screen.
 - CLOCKS app: the time in your clock face, several named timers at once
   (`timer 4m tea`, `timer stop 2`), a stopwatch with laps (`stopwatch lap`),
   the world with day/night. Timers ring through notifications.

@@ -20,7 +20,7 @@ import type { Command } from "../shell/types";
 import { q } from "../ui/ui";
 import { basename } from "../vault/paths";
 import { currentWeather, isoDay, sky, streakOf } from "./builtin";
-import { focus, MATRIX_SETS, matrixLook, openTasks } from "./extra";
+import { focus, MATRIX_SETS, matrixLook, openTasks, tickFocus } from "./extra";
 import type { PopupContext, WidgetPopupSpec, WidgetSpec } from "./types";
 import { Field } from "./field";
 import { chatPopup } from "./chatbox";
@@ -77,9 +77,9 @@ export const focusCommand: Command = {
   name: t("focus"),
   aliases: ["pomodoro"],
   summary: "the focus timer (pomodoro): start, pause, reset, durations",
-  usage: "focus                  where it's at\nfocus start | pause | toggle | reset | skip\nfocus set <focus min> [break min]",
+  usage: "focus                  where it's at\nfocus start | pause | toggle | reset | skip\nfocus set <focus min> [break min]\nfocus task <what>      what you're working on\nfocus open             the FOCUS app",
   examples: [["focus start", "go"], ["focus set 50 10", "50 minutes of focus, 10 of break"]],
-  complete: () => ["start", "pause", "toggle", "reset", "skip", "set"],
+  complete: () => ["start", "pause", "toggle", "reset", "skip", "set", "task", "open"],
   run(ctx) {
     const [a, b, c] = ctx.args;
     const now = Date.now();
@@ -89,8 +89,10 @@ export const focusCommand: Command = {
     }
     switch (a) {
       case undefined: break;
+      case "task": focus.task = ctx.args.slice(1).join(" "); break;
       case "start": focus.running = true; focus.last = now; break;
       case "pause": focus.running = false; break;
+      case "open": return void ctx.deck.openApp("focus"), 0;
       case "toggle": focus.running = !focus.running; focus.last = now; break;
       case "reset": focus.running = false; focus.phase = "focus"; focus.left = focus.work * 60_000; break;
       case "skip":
@@ -108,7 +110,8 @@ export const focusCommand: Command = {
       }
       default: return ctx.err("focus start | pause | toggle | reset | skip | set <min> [min]\n"), 1;
     }
-    ctx.out(`${focus.running ? fmt.green("▶") : fmt.yellow("❚❚")} ${focus.phase} ${mmss(focus.left)} ${fmt.dim(`· ${focus.work}/${focus.rest} min`)}\n`);
+    tickFocus(ctx.deck);
+    ctx.out(`${focus.running ? fmt.green("▶") : fmt.yellow("❚❚")} ${focus.phase} ${mmss(focus.left)} ${fmt.dim(`· ${focus.work}/${focus.rest} min`)}${focus.task ? ` · ${focus.task}` : ""}\n`);
     ctx.deck.requestFrame();
     return 0;
   },
@@ -694,7 +697,7 @@ const calendarPopup: WidgetPopupSpec = {
 /* ─────────── wiring ─────────── */
 
 const POPUPS: Record<string, { popup?: WidgetPopupSpec; open?: string }> = {
-  focus: { popup: focusPopup },
+  focus: { popup: focusPopup, open: "focus open" },
   moon: { popup: moonPopup },
   recent: { popup: recentPopup },
   streak: { popup: streakPopup, open: "journal" },

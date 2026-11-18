@@ -63,8 +63,8 @@ export const tasksWidget: WidgetSpec = {
 
 /* ─────────── focus: a 25/5 pomodoro ─────────── */
 
-/** the pomodoro, shared by the widget, its pop-up and the `focus` command */
-export const focus = { phase: "focus" as "focus" | "break", left: 25 * 60_000, running: false, last: 0, flashUntil: 0, work: 25, rest: 5 };
+export { focus, tickFocus } from "./focusstate";
+import { focus, tickFocus } from "./focusstate";
 
 const focusWidget: WidgetSpec = {
   id: "focus",
@@ -74,22 +74,8 @@ const focusWidget: WidgetSpec = {
   min: { w: 2, h: 2 },
   render(ui, r, { deck }) {
     const c = ui.c;
-    const now = Date.now();
-    if (focus.running) {
-      focus.left -= now - focus.last;
-      focus.last = now;
-      if (focus.left <= 0) {
-        if (focus.phase === "focus") {
-          void deck.stats.add("focus.sessions", 1, "focus", { label: "focus sessions", kind: "counter" }).catch(() => {});
-          void deck.stats.add("focus.minutes", focus.work, "focus", { label: "minutes of focus", kind: "counter", unit: "min" }).catch(() => {});
-        }
-        focus.phase = focus.phase === "focus" ? "break" : "focus";
-        focus.left = (focus.phase === "focus" ? focus.work : focus.rest) * 60_000;
-        focus.flashUntil = ui.now + 3000;
-        deck.notify(focus.phase === "break" ? "focus done — take 5" : "break over — jack back in", "success");
-      }
-      ui.animate(250);
-    }
+    tickFocus(deck);
+    if (focus.running) ui.animate(250);
     const total = (focus.phase === "focus" ? focus.work : focus.rest) * 60_000;
     const secs = Math.ceil(focus.left / 1000);
     const t = `${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(secs % 60).padStart(2, "0")}`;

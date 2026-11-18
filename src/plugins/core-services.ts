@@ -7,7 +7,7 @@
 import type { Deck } from "../deck";
 import { appendLog, ensureEntry } from "../vault/journal";
 import { currentWeather } from "../widgets/builtin";
-import { focus } from "../widgets/extra";
+import { focus } from "../widgets/focusstate";
 import { currentHeadlines } from "../widgets/news";
 import type { ServiceSpec } from "./services";
 

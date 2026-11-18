@@ -41,7 +41,7 @@ export const CORE_PACKAGES: CorePackage[] = [
   { id: "news", name: "NEWS", icon: "≡", description: "headlines for your area or a topic, with summaries", commands: ["news"], widgets: ["news"] },
   { id: "weather", name: "WEATHER", icon: "☂", description: "now, the next 24 h and the week (open-meteo.com)", commands: ["weather"], apps: ["weather"], widgets: ["weather"] },
   { id: "clocks", name: "CLOCKS", icon: "◷", description: "the clock, world clocks, a timer and a stopwatch", commands: ["timer", "stopwatch", "worldclock", "clock"], apps: ["clocks"], widgets: ["clock", "worldclock"] },
-  { id: "focus", name: "FOCUS", icon: "◎", description: "a pomodoro timer", commands: ["focus"], widgets: ["focus"] },
+  { id: "focus", name: "FOCUS", icon: "◎", description: "a pomodoro timer", commands: ["focus"], apps: ["focus"], widgets: ["focus"] },
   { id: "moon", name: "MOON", icon: "◑", description: "tonight's moon and the next phases", commands: ["moon"], widgets: ["moon"], launcher: false },
   { id: "matrix", name: "MATRIX", icon: "ﾑ", description: "digital rain on HOME: does nothing, looks great", commands: ["matrix"], widgets: ["matrix"], launcher: false },
   { id: "quotes", name: "QUOTES", icon: "❝", description: "a line to think about, every hour", commands: ["quote"], widgets: ["quote"], launcher: false },
