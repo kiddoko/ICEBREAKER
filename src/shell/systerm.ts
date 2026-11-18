@@ -6,8 +6,6 @@ import type { Deck } from "../deck";
 import type { UI } from "../ui/ui";
 
 const EXIT_MARK = "\x1b]ib-exit\x07";
-/** ⌘ shortcuts kept by the deck / macOS while the terminal has the keyboard. */
-const KEEP_CMD = ["c", "v", "k", "q", "h", "m", "z"];
 
 /** xterm's 256 colors: 16 from the theme, a 6×6×6 cube, 24 greys. */
 function color256(n: number, ansi: RGB[]): RGB {
@@ -101,9 +99,7 @@ export class SystemTerminal {
 
   /** Which keys belong to the terminal (the rest stay app shortcuts). */
   wants(k: KeyInput): boolean {
-    // macOS: ⌘+letter works as Control+letter in the terminal (⌘X quits nano),
-    // except the few that belong to the deck and the system
-    if (k.rawMeta) return /^[a-z]$/i.test(k.key) && !KEEP_CMD.includes(k.key.toLowerCase());
+    if (k.rawMeta) return false; // ⌘ shortcuts stay the deck's; the terminal uses the real Control key
     if (k.combo === "ctrl+tab" || k.combo === "ctrl+shift+tab" || k.key === "f11" || k.key === "f12") return false;
     if (k.rawCtrl && k.code === "Backquote") return false; // ctrl+` toggles the panel
     return true;
@@ -125,7 +121,7 @@ export class SystemTerminal {
     // option/alt + arrows: word jumps, like most terminals
     if (k.alt && (k.key === "left" || k.key === "right")) return this.write(k.key === "left" ? "\x1bb" : "\x1bf"), true;
     if (map[k.key] && !k.rawCtrl) return this.write(map[k.key]), true;
-    if (k.rawCtrl || k.ctrl || k.rawMeta) {
+    if (k.rawCtrl || (k.ctrl && !k.rawMeta)) {
       const key = k.key.toLowerCase();
       if (/^[a-z]$/.test(key)) return this.write(String.fromCharCode(key.charCodeAt(0) - 96)), true;
       const special: Record<string, string> = { "[": "\x1b", "\\": "\x1c", "]": "\x1d", " ": "\x00", space: "\x00", "/": "\x1f" };

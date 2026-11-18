@@ -324,6 +324,8 @@ export class HomeApp implements App {
     this.areaH = area.h;
     const contentH = this.layout.filter((p) => ((p.page ?? 0) === this.page)).reduce((m, p) => Math.max(m, (p.y + p.h) * ROW), 0);
     const maxScroll = Math.max(0, contentH - area.h);
+    // a HOME that fits: as much room above as below (the last row has no gap under it)
+    if (!this.editing && contentH - 1 < area.h) this.origin.y = area.y + Math.floor((area.h - (contentH - 1)) / 2);
     if (this.reveal) {
       const p = this.layout[this.selected];
       if (p) {

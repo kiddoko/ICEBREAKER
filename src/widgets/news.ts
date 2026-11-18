@@ -27,6 +27,8 @@ const state = {
   loaded: false,
   error: null as string | null,
   loading: false,
+  /** The local feed was thin: national news were added. */
+  widened: false,
 };
 const seenAt = new Map<string, number>();
 let hover = { i: -1, since: 0 };
@@ -75,9 +77,15 @@ export async function loadNews(deck: Deck): Promise<void> {
   try {
     const rss = deck.platform.newsRss;
     if (!rss) throw new Error("news needs the desktop app");
-    let items: Headline[] = [];
-    if (q) items = await rss(q, langOf(deck), countryOf(deck), "bing").then(parse).catch(() => []);
-    if (!items.length) items = parse(await rss(q, langOf(deck), countryOf(deck), "google"));
+    // only recent news; a quiet village gets its wider area added (then the national news)
+    const fresh = (l: Headline[]) => l.filter((h) => !h.at || Date.now() - h.at < 21 * 86400_000);
+    const add = (base: Headline[], more: Headline[]) => [...base, ...more.filter((m) => !base.some((b) => b.title === m.title))].slice(0, 30);
+    const get = (query: string, p: "bing" | "google") => rss(query, langOf(deck), countryOf(deck), p).then(parse).catch(() => [] as Headline[]);
+    let items: Headline[] = q ? fresh(await get(q, "bing")) : [];
+    if (q && items.length < 5) items = add(items, fresh(await get(q, "google")));
+    state.widened = items.length < 5;
+    if (items.length < 5) items = add(items, fresh(await get("", "google")));
+    if (!items.length) throw new Error("no recent news");
     Object.assign(state, { items, at: Date.now(), key, loaded: true, error: null });
   } catch (e) {
     state.error = e instanceof Error ? e.message : String(e);
@@ -120,7 +128,7 @@ export const newsWidget: WidgetSpec = {
     if (stale(deck) && !state.loading && !state.error) void loadNews(deck);
     if (!state.loaded) return void ui.text(r.x + 1, r.y, state.error ? `⚠ ${state.error}` : `${ui.spinner()} pulling the feed…`, { fg: state.error ? c.error : c.muted }, r.w - 2);
     const q = query(deck);
-    ui.text(r.x + 1, r.y, q ? `◉ ${q}` : `◉ top stories · ${countryOf(deck)}`, { fg: c.accentAlt, attrs: BOLD }, r.w - 2);
+    ui.text(r.x + 1, r.y, q ? `◉ ${q}${state.widened ? ` + ${countryOf(deck)}` : ""}` : `◉ top stories · ${countryOf(deck)}`, { fg: c.accentAlt, attrs: BOLD }, r.w - 2);
     let hovered = -1;
     state.items.slice(0, Math.max(0, r.h - 1)).forEach((h, i) => {
       const y = r.y + 1 + i;

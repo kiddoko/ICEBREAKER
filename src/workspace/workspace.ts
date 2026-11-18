@@ -437,18 +437,19 @@ export class Workspace {
     const top = { x: body.x, y: body.y, w: body.w, h: body.h - shellH };
     const max = this.shellVisible && this.shellMax;
     const stripH = Math.max(6, Math.round(body.h * 0.3));
-    const sideW = this.sidebarVisible && !max ? Math.max(20, Math.min(34, Math.round(W * 0.18))) : 0;
+    const sideW = this.sidebarVisible ? Math.max(20, Math.min(34, Math.round(W * 0.18))) : 0;
+    const right = { x: body.x + (sideW ? sideW + 1 : 0), w: body.w - (sideW ? sideW + 1 : 0) };
 
     this.rects = {};
-    if (this.sidebarVisible && !max) {
-      const r = { x: top.x, y: top.y, w: sideW, h: top.h };
+    if (this.sidebarVisible) {
+      const r = { x: top.x, y: top.y, w: sideW, h: max ? body.h : top.h };
       this.rects.sidebar = r;
       const inner = ui.box(r, { title: "VAULT", focused: this.focus === "sidebar", info: `${d.vault.markdown().length}` });
       this.sidebar.render(ui, inner, this.focus === "sidebar");
     }
 
     // maximized shell: the page goes to the strip at the bottom
-    const mainR = max ? { x: body.x, y: body.y + body.h - stripH, w: body.w, h: stripH } : { x: top.x + (sideW ? sideW + 1 : 0), y: top.y, w: top.w - (sideW ? sideW + 1 : 0), h: top.h };
+    const mainR = max ? { x: right.x, y: body.y + body.h - stripH, w: right.w, h: stripH } : { x: top.x + (sideW ? sideW + 1 : 0), y: top.y, w: top.w - (sideW ? sideW + 1 : 0), h: top.h };
     this.rects.main = mainR;
     const app = this.activeApp;
     const mainFocused = this.focus === "main" && !this.topModal;
@@ -456,7 +457,7 @@ export class Workspace {
     if (app) ui.clip(inner, () => app.render(ui, inner, mainFocused));
 
     if (this.shellVisible) {
-      const r = max ? { x: body.x, y: body.y, w: body.w, h: body.h - stripH } : { x: body.x, y: top.y + top.h, w: body.w, h: shellH };
+      const r = max ? { x: right.x, y: body.y, w: right.w, h: body.h - stripH } : { x: body.x, y: top.y + top.h, w: body.w, h: shellH };
       this.rects.shell = r;
       const shellFocused = this.focus === "shell" && !this.topModal;
       const c = ui.c;
@@ -480,14 +481,15 @@ export class Workspace {
         tx += rect.w + 1;
       }
       // ⤢ maximize / ⤡ restore
-      const mx = { x: tx, y: r.y, w: 3, h: 1 };
-      ui.text(tx, r.y, max ? " ⤡ " : " ⤢ ", { fg: ui.hovered(mx) ? c.accent : c.subtle, bg: c.panel });
+      const mlabel = max ? " ⤡ restore " : " ⤢ maximize ";
+      const mx = { x: tx + 1, y: r.y, w: strWidth(mlabel), h: 1 };
+      ui.text(mx.x, r.y, mlabel, ui.hovered(mx) ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: c.muted, bg: c.highlight });
       ui.hit(mx, { cmd: "term max", tip: max ? "back to normal" : "make the shell big (the page moves below)" });
-      tx += 4;
+      tx += mx.w + 2;
       // macro bar above the system terminal
       let termR = si;
-      if (this.shellTab === "term" && this.termAvailable && si.h > 4) {
-        termR = { ...si, y: si.y + 1, h: si.h - 1 };
+      if (this.shellTab === "term" && this.termAvailable && si.h > 5) {
+        termR = { ...si, y: si.y + 2, h: si.h - 2 };
         let bx = si.x;
         this.deck.settings.data.shell.macros.forEach((m, i) => {
           const label = ` ${m.label} `;
@@ -620,7 +622,7 @@ export class Workspace {
     let x = ui.text(r.x, r.y, ` ${pane.toUpperCase()} `, { fg: c.panel, bg: c.accent, attrs: BOLD });
     x = ui.text(x, r.y, "", { fg: c.accent, bg: c.statusBg });
     const status = this.focus === "shell" && this.shellTab === "term" && this.termAvailable
-      ? `${this.sysTerm?.shellName ?? "terminal"} · ⌘ or ctrl + letter = Control (nano: ⌘X quits) · ⌘C ⌘V copy/paste · ⌘K palette · F12 tabs`
+      ? `${this.sysTerm?.shellName ?? "terminal"} · ctrl = Control (nano: ctrl+X quits) · ⌘C ⌘V copy/paste · ⌘K palette · F12 tabs`
       : this.focus === "shell" ? d.shell.status() : this.focus === "sidebar" ? "enter open · n new note · r rescan" : (this.activeApp?.status?.() ?? "");
 
     // right side
