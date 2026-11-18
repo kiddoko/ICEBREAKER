@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- File tree: an icon per file type (∿ Python, ʝ JS/TS, ❯ scripts, λ code, ⚙ config,
+  ▣ images, ♪ audio, ▶ video, ▤ PDF, ▥ tables…).
+- MODULES hive: card descriptions wrap instead of being cut.
+- The docs folders: START HERE/ and FOR DEVELOPERS/ side by side at the vault root.
 - Screensaver: a night city in ASCII — towers with flickering windows, neon
   signs, rain, a searchlight, a drone, the time in big digits, a ticker.
 - Voice subtitles: while the voice speaks, its words type into a small sci-fi

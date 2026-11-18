@@ -162,7 +162,7 @@ export class Sidebar {
       } else {
         const md = entry.name.endsWith(".md");
         x = ui.text(x, row.y, depth > 0 ? "─" : "", guide);
-        x = ui.text(x, row.y, md ? " " : "◦", { fg: c.subtle });
+        x = ui.text(x, row.y, md ? " " : fileIcon(entry.name), { fg: c.accentAlt });
         ui.text(x, row.y, md ? entry.name.replace(/\.md$/, "") : entry.name, {
           fg: isOpen ? c.accentAlt : selected ? c.fg : c.muted,
           attrs: isOpen ? BOLD : 0,
@@ -173,3 +173,12 @@ export class Sidebar {
     if (this.list.items.length === 0) ui.text(list.x + 2, list.y + 1, "empty vault", { fg: c.subtle });
   }
 }
+
+/** A glyph per file type (notes need none): code, scripts, data, media… */
+const ICONS: [RegExp, string][] = [
+  [/\.py$/i, "∿"], [/\.(js|mjs|cjs|ts|tsx|jsx)$/i, "ʝ"], [/\.(sh|zsh|bash|fish|ibsh|ps1|bat)$/i, "❯"], [/\.(rs|go|c|cpp|h|java|kt|swift|rb|lua)$/i, "λ"],
+  [/\.(json|toml|ya?ml|ini|conf|cfg)$/i, "⚙"], [/\.(csv|tsv|xlsx?)$/i, "▥"], [/\.(html?|css|svg)$/i, "◇"], [/\.(txt|log)$/i, "≡"],
+  [/\.(png|jpe?g|gif|webp|heic|bmp)$/i, "▣"], [/\.pdf$/i, "▤"], [/\.(mp3|wav|flac|m4a|ogg|aiff?)$/i, "♪"], [/\.(mp4|mov|mkv|webm)$/i, "▶"],
+  [/\.(zip|tar|gz|7z|rar)$/i, "▦"], [/\.(canvas|base)$/i, "◫"],
+];
+export const fileIcon = (name: string) => ICONS.find(([re]) => re.test(name))?.[1] ?? "◦";

@@ -210,7 +210,7 @@ On a Mac, ⌘ plays the role of Ctrl.
   confirmations and a countdown. Copies elsewhere are not touched.
 `,
 
-  "for developers/README.md": `# For developers
+  "../FOR DEVELOPERS/README.md": `# For developers
 
 ICEBREAKER is open source (MIT). The interface is TypeScript drawn on a
 character grid; the native side is Rust (Tauri).
@@ -225,7 +225,7 @@ src-tauri/      the native side (Rust)       docs/      the full docs
 \`\`\`
 `,
 
-  "for developers/themes.md": `# Themes
+  "../FOR DEVELOPERS/themes.md": `# Themes
 
 A theme is one TOML file in \`.icebreaker/themes/\`. \`theme new mytheme\` copies
 the current one for you; THEME STUDIO edits it live.
@@ -254,7 +254,7 @@ scanlines = 0.1
 Full reference: \`docs/THEMES.md\` in the repository.
 `,
 
-  "for developers/modules-api.md": `# Writing a module
+  "../FOR DEVELOPERS/modules-api.md": `# Writing a module
 
 A module is a folder in \`.icebreaker/plugins/<id>/\` with \`plugin.json\` and
 \`main.js\`. \`plugin new <id>\` writes a ready-to-edit one.
@@ -280,7 +280,7 @@ Everything is typed and commented in \`src/plugins/api.ts\`; a walkthrough in
 \`docs/PLUGINS.md\`. Share it through the STORE (a GitHub repo).
 `,
 
-  "for developers/tweaking.md": `# Tweaking the deck
+  "../FOR DEVELOPERS/tweaking.md": `# Tweaking the deck
 
 - **Every setting** has a command: \`config list\`, \`config set fx.bloom true\`.
 - Settings live in the system's config folder (\`config path\`); the API key in
@@ -296,9 +296,10 @@ Everything is typed and commented in \`src/plugins/api.ts\`; a walkthrough in
 /** Write START HERE into the vault (keeps notes you already have unless `force`). */
 export async function writeStartHere(vault: Vault, force = false): Promise<number> {
   let n = 0;
-  await vault.mkdir(`${DIR}/for developers`).catch(() => {});
+  await vault.mkdir(`${DIR}`).catch(() => {});
+  await vault.mkdir("FOR DEVELOPERS").catch(() => {});
   for (const [name, body] of Object.entries(START_HERE)) {
-    const path = `${DIR}/${name}`;
+    const path = name.startsWith("../") ? name.slice(3) : `${DIR}/${name}`;
     if (!force && (await vault.exists(path))) continue;
     await vault.write(path, body);
     n++;

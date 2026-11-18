@@ -245,7 +245,18 @@ export class ModulesApp implements App {
       const shown = age < 600 ? decrypt(name, Math.max(0, age / 600), ui.now) : name;
       ui.text(r.x + 2, r.y + 1, r.w >= 14 ? `${cart.icon} ${shown}` : shown, { fg: sel ? c.fg : dim(cart.on ? c.fg : c.muted), bg, attrs: sel ? BOLD : 0 }, r.w - 3);
     }
-    if (r.h >= 4 && r.w >= 16 && fade < 0.5) ui.text(r.x + 2, r.y + 2, cart.description, { fg: sel ? c.muted : dim(c.subtle), bg }, r.w - 4);
+    if (r.h >= 4 && r.w >= 16 && fade < 0.5) {
+      // the description on as many lines as the card has (the bar below shows it all)
+      const room = r.w - 4, lines: string[] = [];
+      let line = "";
+      for (const w of cart.description.split(" ")) {
+        if ((line + " " + w).length > room && line) (lines.push(line), (line = w));
+        else line = line ? `${line} ${w}` : w;
+      }
+      lines.push(line);
+      const max = Math.max(1, r.h - 3);
+      lines.slice(0, max).forEach((l, i) => ui.text(r.x + 2, r.y + 2 + i, i === max - 1 && lines.length > max ? `${l.slice(0, room - 1)}…` : l, { fg: sel ? c.muted : dim(c.subtle), bg }, room));
+    }
     // the scan beam over the chosen one
     if (sel) {
       // a soft beam: a bright row with a dimmer one on each side, gliding down
