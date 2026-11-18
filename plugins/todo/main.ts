@@ -668,6 +668,6 @@ export function activate(ib: IcebreakerAPI): void {
       });
       if (fits < open.length) ui.text(r.x + 1, r.y + r.h - 1, `+${open.length - fits} more · enter opens the list`, { fg: c.faint }, r.w - 2);
     },
-    activate: () => run("todo open"),
+    open: "todo open",
   });
 }

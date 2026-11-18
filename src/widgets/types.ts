@@ -1,4 +1,5 @@
 import type { Rect } from "../core/grid";
+import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import type { UI } from "../ui/ui";
 
@@ -22,8 +23,31 @@ export interface WidgetSpec {
   /** Smallest size that still makes sense. */
   min?: { w: number; h: number };
   render(ui: UI, rect: Rect, ctx: WidgetContext): void;
-  /** Enter pressed while the widget is selected (outside edit mode). */
+  /** Enter pressed while the widget is selected (outside edit mode), when it has no pop-up. */
   activate?(ctx: WidgetContext): void;
+  /**
+   * Enter / double-click opens this pop-up: more of the widget (add a city,
+   * another quote…). It gets a "open <module>" button when `open` is set.
+   */
+  popup?: WidgetPopupSpec;
+  /** The command that opens the module this widget belongs to ("todo open", "cal open"). */
+  open?: string;
+}
+
+export interface WidgetPopupSpec {
+  title?: string;
+  /** inside size in cells (default 60 × 14) */
+  size?: { w: number; h: number };
+  /** keys shown in the footer, e.g. "a add · x remove" */
+  hint?: string;
+  render(ui: UI, rect: Rect, ctx: PopupContext): void;
+  onKey?(k: KeyInput, ctx: PopupContext): boolean;
+  onText?(t: string, ctx: PopupContext): boolean;
+  onAction?(a: Action, ctx: PopupContext): boolean;
+}
+
+export interface PopupContext extends WidgetContext {
+  close(): void;
 }
 
 export interface WidgetContext {

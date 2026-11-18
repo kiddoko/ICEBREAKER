@@ -750,6 +750,7 @@ export function activate(ib: IcebreakerAPI): void {
       } else if (!shown() && lib.length) run("music open");
       else run("music toggle");
     },
+    open: "music open",
   });
 }
 

@@ -9,6 +9,8 @@ import { cellsFor, dots, fitMatrix, matrixSize, matrixText } from "../ui/dots";
 import { isoDay, streakOf } from "./builtin";
 import { newsWidget } from "./news";
 import type { WidgetSpec } from "./types";
+import type { Command } from "../shell/types";
+import { fmt } from "../core/ansi";
 
 /* Extra cards shipped with the deck: not all on the default HOME, all one `a` away. */
 
@@ -187,6 +189,91 @@ const worldWidget: WidgetSpec = {
     });
     ui.animate(1000);
   },
+  popup: {
+    title: "world clock",
+    size: { w: 56, h: 14 },
+    hint: "a add · x remove · ↑↓",
+    render(ui, r, { deck }) {
+      const c = ui.c;
+      const list = deck.settings.data.home.worldClocks;
+      worldSel = Math.max(0, Math.min(worldSel, list.length - 1));
+      if (!list.length) ui.text(r.x + 1, r.y + 1, "no clocks — a adds one", { fg: c.muted });
+      list.slice(0, r.h - 2).forEach((tz, i) => {
+        const y = r.y + 1 + i;
+        const row = { x: r.x, y, w: r.w, h: 1 };
+        const sel = i === worldSel;
+        if (sel) ui.fill(row, { bg: c.highlight });
+        let time = "--:--";
+        try {
+          time = new Intl.DateTimeFormat("en-GB", { timeZone: tz, weekday: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date());
+        } catch {}
+        ui.text(r.x + 1, y, tz.split("/").pop()!.replace(/_/g, " "), { fg: sel ? c.fg : c.muted, ...(sel ? { bg: c.highlight } : {}) });
+        ui.text(r.x + 18, y, tz, { fg: c.faint, ...(sel ? { bg: c.highlight } : {}) }, r.w - 36);
+        ui.textRight(r.x + r.w - 5, y, time.toLowerCase(), { fg: c.accent, ...(sel ? { bg: c.highlight } : {}) });
+        ui.text(r.x + r.w - 3, y, "✕", { fg: ui.hovered({ x: r.x + r.w - 3, y, w: 1, h: 1 }) ? c.error : c.faint, ...(sel ? { bg: c.highlight } : {}) });
+        ui.hit({ x: r.x + r.w - 3, y, w: 1, h: 1 }, { cmd: `worldclock rm ${tz}`, tip: "x · remove" });
+        ui.hit({ x: r.x, y, w: r.w - 4, h: 1 }, { onClick: () => (worldSel = i) });
+      });
+      ui.button(r.x + 1, r.y + r.h - 1, "+ add a city", () => void addClock(deck), { tip: "a · worldclock add <Area/City>" });
+      ui.animate(1000);
+    },
+    onText: (t, { deck }) => {
+      if (t === "a" || t === "+") return void addClock(deck), true;
+      if (t === "x") return removeClock(deck), true;
+      return false;
+    },
+    onKey: (k, { deck }) => (k.combo === "delete" || k.combo === "backspace" ? (removeClock(deck), true) : false),
+    onAction: (a, { deck }) => {
+      const n = deck.settings.data.home.worldClocks.length;
+      if (a === "up") return (worldSel = Math.max(0, worldSel - 1)), true;
+      if (a === "down") return (worldSel = Math.min(n - 1, worldSel + 1)), true;
+      return false;
+    },
+  },
+};
+
+let worldSel = 0;
+function removeClock(deck: Deck): void {
+  const tz = deck.settings.data.home.worldClocks[worldSel];
+  if (tz) void deck.act(`worldclock rm ${tz}`);
+}
+async function addClock(deck: Deck): Promise<void> {
+  const zones = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf?.("timeZone") ?? [];
+  const i = await deck.choose("Add a city (type to search)", zones.map((z) => ({ label: z.split("/").pop()!.replace(/_/g, " "), hint: z })));
+  if (i !== null) void deck.act(`worldclock add ${zones[i]}`);
+}
+
+/** `worldclock` — the world clock widget's cities. */
+export const worldclockCommand: Command = {
+  name: "worldclock",
+  aliases: ["clocks"],
+  summary: "the cities of the world clock widget",
+  usage: "worldclock               list them\nworldclock add <Area/City>\nworldclock rm <Area/City>",
+  examples: [["worldclock add Asia/Tokyo", "add Tokyo"], ["worldclock rm Europe/London", "remove London"]],
+  complete: () => ["add", "rm"],
+  run(ctx) {
+    const [sub, tz] = ctx.args;
+    const list = [...ctx.deck.settings.data.home.worldClocks];
+    if (!sub) {
+      for (const z of list) ctx.out(`${z}\n`);
+      return 0;
+    }
+    if (!tz) return ctx.err("usage: worldclock add|rm <Area/City>\n"), 1;
+    if (sub === "add") {
+      try {
+        new Intl.DateTimeFormat("en", { timeZone: tz });
+      } catch {
+        return ctx.err(`worldclock: unknown time zone "${tz}" (like Europe/Paris)\n`), 1;
+      }
+      if (!list.includes(tz)) list.push(tz);
+    } else if (sub === "rm" || sub === "remove") {
+      if (!list.includes(tz)) return ctx.err(`worldclock: "${tz}" isn't there\n`), 1;
+      list.splice(list.indexOf(tz), 1);
+    } else return ctx.err("usage: worldclock add|rm <Area/City>\n"), 1;
+    ctx.deck.settings.set("home.worldClocks", list);
+    ctx.out(`${list.length} clocks\n`);
+    return 0;
+  },
 };
 
 /* ─────────── quote of the hour ─────────── */
@@ -236,8 +323,46 @@ const quoteWidget: WidgetSpec = {
     lines.slice(0, r.h - 1).forEach((l, i) => ui.textCenter(r, top + i, p < 1 ? decrypt(l, p, ui.now) : l, { fg: c.fg }));
     ui.textCenter(r, Math.min(r.y + r.h - 1, top + lines.length), `— ${who}`, { fg: c.subtle });
   },
-  activate: () => {
-    quoteIdx = -1;
+  popup: {
+    title: "quote",
+    size: { w: 64, h: 9 },
+    hint: "space / r: another one",
+    render(ui, r) {
+      const c = ui.c;
+      if (popupQuote < 0) popupQuote = Math.floor(Date.now() / 3_600_000) % QUOTES.length;
+      const [text, who] = QUOTES[popupQuote];
+      const lines: string[] = [];
+      let line = "";
+      for (const w of text.split(" ")) {
+        if ((line + " " + w).trim().length > r.w - 8) {
+          lines.push(line);
+          line = w;
+        } else line = (line + " " + w).trim();
+      }
+      lines.push(line);
+      const top = r.y + Math.max(1, Math.floor((r.h - lines.length - 3) / 2));
+      lines.forEach((l, i) => ui.textCenter(r, top + i, l, { fg: c.fg, attrs: BOLD }));
+      ui.textCenter(r, top + lines.length + 1, `— ${who}`, { fg: c.subtle });
+      const label = " ⟳ another one ";
+      const bx = r.x + Math.floor((r.w - label.length) / 2);
+      ui.button(bx, r.y + r.h - 1, label.trim(), () => void 0, { cmd: "quote", tip: "space · or: quote" });
+    },
+    onText: (t, { deck }) => (t === " " || t === "r" ? (void deck.act("quote"), true) : false),
+  },
+};
+
+let popupQuote = -1;
+
+/** `quote` — a random one (and the quote pop-up shows it). */
+export const quoteCommand: Command = {
+  name: "quote",
+  summary: "a random quote (the quote widget's pop-up shows it too)",
+  run(ctx) {
+    let i = popupQuote;
+    while (QUOTES.length > 1 && i === popupQuote) i = Math.floor(Math.random() * QUOTES.length);
+    popupQuote = i;
+    ctx.out(`${QUOTES[i][0]} ${fmt.dim(`— ${QUOTES[i][1]}`)}\n`);
+    ctx.deck.requestFrame();
   },
 };
 

@@ -113,7 +113,7 @@ function until(d: Date): string {
 let syncTimer: ReturnType<typeof setInterval> | null = null;
 
 export function activate(ib: IcebreakerAPI): void {
-  const { BOLD, DIM, hex, mix, strWidth, q, fmt, parseFlags } = ib.lib;
+  const { BOLD, hex, mix, strWidth, q, fmt, parseFlags } = ib.lib;
   const run = (line: string) => void ib.shell.run(line);
 
   // ── store ────────────────────────────────────────────────────────────────
@@ -293,7 +293,7 @@ export function activate(ib: IcebreakerAPI): void {
       const list = await ib.google.calendar<{ items: any[] }>("GET", "users/me/calendarList", { query: { minAccessRole: "reader" } });
       const cals: Cal[] = (list.items ?? []).map((c) => ({
         id: `g:${c.id}`,
-        name: c.summaryOverride || c.summary || c.id,
+        name: c.summaryOverride || (c.primary && (!c.summary || c.summary === c.id) ? "google" : c.summary) || c.id,
         color: c.backgroundColor || "",
         writable: c.accessRole === "owner" || c.accessRole === "writer",
         primary: !!c.primary,
@@ -817,11 +817,24 @@ export function activate(ib: IcebreakerAPI): void {
           ui.text(cell.x + 1, cell.y, String(d.getDate()), { fg: isToday ? c.accent : isSel ? c.fg : c.muted, attrs: isToday || isSel ? BOLD : 0, ...(bg !== -1 ? { bg } : {}) });
           const evs = between(d, addDays(d, 1));
           if (ch >= 2 && cw >= 6) {
-            // titles inside the cell when there's room
-            evs.slice(0, ch - 1).forEach((e, k) => {
-              ui.text(cell.x + 1, cell.y + 1 + k, "▎", { fg: colorOf(ui, e.cal), ...(bg !== -1 ? { bg } : {}) });
-              ui.text(cell.x + 2, cell.y + 1 + k, e.title, { fg: c.fg, attrs: DIM, ...(bg !== -1 ? { bg } : {}) }, cell.w - 2);
+            // the events inside the cell: all-day ones as a tinted bar, timed ones with their hour
+            const room = ch - 1;
+            const shown = evs.length > room ? room - 1 : room;
+            evs.slice(0, shown).forEach((e, k) => {
+              const ey = cell.y + 1 + k;
+              const col = colorOf(ui, e.cal);
+              if (e.allDay) {
+                const tb = mix(col, c.bg, 0.72);
+                ui.fill({ x: cell.x, y: ey, w: cell.w, h: 1 }, { bg: tb });
+                ui.text(cell.x + 1, ey, e.title, { fg: c.fg, bg: tb }, cell.w - 1);
+              } else {
+                const st = bg !== -1 ? { bg } : {};
+                ui.text(cell.x, ey, "▎", { fg: col, ...st });
+                const tx = cw >= 13 ? ui.text(cell.x + 1, ey, hm(dayOf(e.start)), { fg: c.subtle, ...st }) + 1 : cell.x + 1;
+                ui.text(tx, ey, e.title, { fg: c.fg, ...st }, cell.x + cell.w - tx);
+              }
             });
+            if (evs.length > shown) ui.text(cell.x + 1, cell.y + 1 + shown, `+${evs.length - shown} more`, { fg: c.subtle, ...(bg !== -1 ? { bg } : {}) }, cell.w - 1);
           } else {
             evs.slice(0, Math.max(0, cw - 4)).forEach((e, k) => ui.text(cell.x + 3 + k, cell.y, "•", { fg: colorOf(ui, e.cal), ...(bg !== -1 ? { bg } : {}) }));
           }
@@ -854,7 +867,29 @@ export function activate(ib: IcebreakerAPI): void {
         y++;
         if (e.where && y < r.y + r.h - 1) ui.text(ax + 14, y++, e.where, { fg: c.faint }, aw - 14);
       });
-      if (y < r.y + r.h - 2) ui.text(ax, r.y + r.h - 1, "arrows · enter · a add · x remove · [ ] months · t today · c calendars", { fg: c.faint }, aw);
+      // then the next days, as long as there's room
+      const bottom = r.y + r.h - 2;
+      if (y + 3 < bottom) {
+        y++;
+        ui.text(ax, y++, "COMING UP", { fg: c.subtle, attrs: BOLD });
+        let last = "";
+        for (const e of between(addDays(this.day, 1), addDays(this.day, 60))) {
+          const s = dayOf(e.start);
+          const key = ymd(s);
+          if (y + (key !== last ? 2 : 1) > bottom) break;
+          if (key !== last) {
+            last = key;
+            ui.text(ax, y++, dayTitle(s), { fg: c.muted }, aw);
+          }
+          const row = { x: ax, y, w: aw, h: 1 };
+          ui.text(ax, y, "●", { fg: colorOf(ui, e.cal) });
+          ui.text(ax + 2, y, when(e).padEnd(11), { fg: c.subtle });
+          ui.text(ax + 14, y, e.title, { fg: ui.hovered(row) ? c.accent : c.fg }, aw - 14);
+          ui.hit(row, { onClick: () => this.goto(s), tip: `${dayTitle(s)}\nclick: go to that day` });
+          y++;
+        }
+      }
+      ui.text(ax, r.y + r.h - 1, "arrows · enter · a add · x remove · [ ] months · t today · c calendars", { fg: c.faint }, aw);
     }
   }
 
@@ -924,7 +959,7 @@ export function activate(ib: IcebreakerAPI): void {
         y++;
       }
     },
-    activate: () => run("cal open"),
+    open: "cal open",
   });
 }
 

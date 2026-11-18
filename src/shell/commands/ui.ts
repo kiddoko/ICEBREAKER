@@ -1,3 +1,5 @@
+import { quoteCommand, worldclockCommand } from "../../widgets/extra";
+import { WidgetPopup } from "../../workspace/widgetpopup";
 import { fmt } from "../../core/ansi";
 import { HomeApp } from "../../apps/home";
 import { DEFAULT_SETTINGS } from "../../core/settings";
@@ -76,14 +78,17 @@ const homeCmd: Command = {
 const widget: Command = {
   name: "widget",
   summary: "use a HOME widget (what enter does on it)",
-  usage: "widget <id>     e.g. widget focus (start/pause), widget weather (refresh)",
+  usage: "widget <id>        its pop-up, or its action (what enter does on it)\nwidget <id> open   the module it belongs to\nwidget <id> do     its action, even when it has a pop-up",
   complete: () => [],
   run(ctx) {
-    const id = ctx.args[0];
+    const [id, what] = ctx.args;
     const spec = id ? ctx.deck.widgets.get(id) : undefined;
-    if (!spec) return ctx.err("usage: widget <id>   (home widgets lists them)\n"), 1;
-    if (!spec.activate) return ctx.out(fmt.dim(`${id} has no action\n`)), 0;
-    spec.activate({ deck: ctx.deck, focused: true });
+    if (!spec) return ctx.err("usage: widget <id> [open | do]   (home widgets lists them)\n"), 1;
+    if (what === "open") return spec.open ? ctx.deck.act(spec.open) : (ctx.out(fmt.dim(`${id} belongs to no module\n`)), 0);
+    if (spec.popup && what !== "do") return void ctx.deck.workspace.push(new WidgetPopup(ctx.deck, spec));
+    if (spec.activate) return void spec.activate({ deck: ctx.deck, focused: true });
+    if (spec.open) return ctx.deck.act(spec.open);
+    ctx.out(fmt.dim(`${id} has no action\n`));
   },
 };
 
@@ -281,6 +286,8 @@ const macro: Command = {
 };
 
 export const uiCommands: Command[] = [
+  worldclockCommand,
+  quoteCommand,
   explore,
   macro,
   termCmd,

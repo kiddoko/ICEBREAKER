@@ -300,7 +300,7 @@ export class HomeApp implements App {
       case "confirm": {
         const p = this.layout[this.selected];
         const spec = p && this.deck.widgets.get(p.id);
-        spec?.activate?.({ deck: this.deck, focused: true });
+        if (spec && (spec.popup || spec.activate || spec.open)) void this.deck.act(`widget ${p.id}`);
         return true;
       }
       default: return false;
@@ -390,8 +390,8 @@ export class HomeApp implements App {
           const ww = this.want?.i === i ? this.want.w : p.w;
           this.moveAbs(i, Math.max(0, Math.min(COLS - ww, nx)), Math.max(0, ny));
         },
-        onDouble: () => !this.editing && spec.activate && void this.deck.act(`widget ${p.id}`),
-        tip: this.editing ? "drag to move · shift+arrows resize · x remove" : spec.activate ? `${spec.description ?? spec.title}\ndouble-click / enter → widget ${p.id}` : spec.description,
+        onDouble: () => !this.editing && (spec.popup || spec.activate || spec.open) && void this.deck.act(`widget ${p.id}`),
+        tip: this.editing ? "drag to move · shift+arrows resize · x remove" : spec.popup || spec.activate || spec.open ? `${spec.description ?? spec.title}\ndouble-click / enter → widget ${p.id}` : spec.description,
       };
       // normally the widget's own buttons sit on top of its frame; while editing,
       // the frame covers everything, so a click only selects (and drags)
