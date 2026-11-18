@@ -11,6 +11,9 @@
 - HOME edit mode can't be missed: a pulsing band across the top with the keys and
   a ✓ done button. Widgets grow in any direction: shift+arrow pushes that side
   out, alt+shift+arrow brings it back. FOCUS has a compact 2×2 look.
+- Add a widget: grouped by module, each group folds (→ ←, enter, a click); a
+  search still shows every match. START HERE is written with your keyboard's
+  keys (Ctrl+, Shift+, Alt+ on Windows and Linux; ⌘ ⇧ ⌥ on a Mac).
 - WEATHER: your own city is the first saved place from the start. HABITS: tick
   from the HOME widget (click; right-click unticks). The Welcome note opens
   right after the setup.

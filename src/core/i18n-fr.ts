@@ -672,6 +672,7 @@ export const FR: Record<string, string> = {
   "remove…": "retirer…",
   "clear the screen": "effacer l'écran",
   "bigger: e, shift+arrows": "plus grand : e, maj+flèches",
+  "click: open / fold · → ←": "clic : ouvrir / replier · → ←",
   "EDIT MODE": "MODE ÉDITION",
   "drag to move · shift+arrows grow · alt+shift+arrows shrink · a add · x remove": "glisser pour déplacer · maj+flèches agrandit · alt+maj+flèches rétrécit · a ajouter · x retirer",
   "EDIT · arrows move · shift+arrows grow · alt+shift+arrows shrink · a add · x remove · r reset · esc done": "ÉDITION · flèches déplacer · maj+flèches agrandir · alt+maj+flèches rétrécir · a ajouter · x retirer · r réinitialiser · échap fini",

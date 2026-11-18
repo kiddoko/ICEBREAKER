@@ -5,6 +5,7 @@
  */
 import type { Command } from "../shell/types";
 import type { Vault } from "./vault";
+import { IS_MAC } from "../core/input";
 
 const DIR = "START HERE";
 
@@ -303,6 +304,24 @@ Everything is typed and commented in \`src/plugins/api.ts\`; a walkthrough in
 `,
 };
 
+/**
+ * The notes are written with Mac keys (⌘ ⇧ ⌥). On Windows and Linux they're
+ * rewritten the way that keyboard says it: Ctrl+, Shift+, Alt+.
+ */
+export function forThisOS(text: string): string {
+  if (IS_MAC) return text;
+  return text
+    .replace(/On a Mac, ⌘ plays the role of Ctrl\.?/g, "On a Mac these are ⌘ shortcuts; here, Ctrl.")
+    .replace(/⌘⇧⌥/g, "Ctrl+Shift+Alt+")
+    .replace(/⌘⇧/g, "Ctrl+Shift+")
+    .replace(/⌘⌥/g, "Ctrl+Alt+")
+    .replace(/⌘/g, "Ctrl+")
+    .replace(/⇧/g, "Shift+")
+    .replace(/⌥/g, "Alt+")
+    .replace(/Ctrl\+ /g, "Ctrl ")
+    .replace(/(Ctrl|Shift|Alt)\+\+/g, "$1+");
+}
+
 /** Write START HERE into the vault (keeps notes you already have unless `force`). */
 export async function writeStartHere(vault: Vault, force = false): Promise<number> {
   let n = 0;
@@ -311,7 +330,7 @@ export async function writeStartHere(vault: Vault, force = false): Promise<numbe
   for (const [name, body] of Object.entries(START_HERE)) {
     const path = name.startsWith("../") ? name.slice(3) : `${DIR}/${name}`;
     if (!force && (await vault.exists(path))) continue;
-    await vault.write(path, body);
+    await vault.write(path, forThisOS(body));
     n++;
   }
   return n;
