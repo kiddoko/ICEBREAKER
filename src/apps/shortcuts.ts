@@ -123,35 +123,67 @@ class ShortcutsApp implements App {
     const keyed = this.keyRows();
     this.sel = Math.min(this.sel, Math.max(0, keyed.length - 1));
     const selShortcut = keyed[this.sel];
-    // keep the selection visible
-    const selIndex = rows.findIndex((row) => row.kind === "key" && row.s === selShortcut);
     const room = r.y + r.h - y - 1;
-    if (selIndex - this.scroll >= room) this.scroll = selIndex - room + 1;
-    if (selIndex >= 0 && selIndex < this.scroll + 1) this.scroll = Math.max(0, selIndex - 1);
-    ui.hit({ x: r.x, y, w: r.w, h: room }, { onWheel: (d) => (this.scroll = Math.max(0, Math.min(rows.length - room, this.scroll + d))) });
-    const keyW = Math.min(30, Math.floor(w * 0.36));
-    for (const row of rows.slice(this.scroll, this.scroll + room)) {
-      if (row.kind === "head") {
-        ui.text(x, y, `${t(row.cat).toUpperCase()} `, { fg: c.title, attrs: BOLD });
-        ui.hline(x + t(row.cat).length + 2, y, w - t(row.cat).length - 2, { fg: c.faint }, "─");
-        if (row.cat === "yours" && !userShortcuts(this.deck).length) {
-          y++;
-          ui.text(x + 2, y, t("none yet — F2 binds a key to open a note, a folder, a module…"), { fg: c.muted }, w - 2);
-        }
-      } else {
-        const s = row.s;
-        const sel = s === selShortcut;
-        const line = { x, y, w, h: 1 };
-        const bg = sel && focused ? mix(c.accent, c.bg, 0.8) : ui.hovered(line) ? c.highlight : undefined;
-        if (bg) ui.fill(line, { bg });
-        const st = bg ? { bg } : {};
-        ui.textRight(x + keyW, y, displayKeys(s.keys), { fg: c.accent, attrs: BOLD, ...st });
-        ui.text(x + keyW + 3, y, s.cat === "yours" ? s.what : t(s.what), { fg: s.cmd ? c.fg : c.subtle, ...st }, w - keyW - 4);
-        ui.hit(line, { onClick: () => (this.sel = keyed.indexOf(s)), onDouble: () => s.cmd && void this.deck.act(s.cmd), tip: s.cmd ? `${s.cmd}${s.cat === "yours" ? `\nunbind ${s.keys}` : ""}` : undefined });
-      }
-      y++;
+
+    // a cheat sheet: the categories flow into columns (as many as fit, 2-4),
+    // a category stays in one column; the whole board scrolls if it's taller than the page
+    const area = { x: r.x + 2, w: r.w - 4 };
+    const ncols = Math.max(1, Math.min(4, Math.floor(area.w / 44)));
+    const colW = Math.floor((area.w - (ncols - 1) * 3) / ncols);
+    type Line = Row | { kind: "none" };
+    const blocks: Line[][] = [];
+    for (const row of rows) {
+      if (row.kind === "head") blocks.push([row, ...(row.cat === "yours" && !userShortcuts(this.deck).length ? [{ kind: "none" } as Line] : [])]);
+      else blocks[blocks.length - 1]?.push(row);
     }
+    const total = blocks.reduce((n, b) => n + b.length + 1, 0);
+    const target = Math.max(room, Math.ceil(total / ncols));
+    const cols: Line[][] = Array.from({ length: ncols }, () => []);
+    let ci = 0;
+    for (const b of blocks) {
+      if (ci < ncols - 1 && cols[ci].length && cols[ci].length + b.length > target) ci++;
+      if (cols[ci].length) cols[ci].push({ kind: "none", gap: true } as unknown as Line);
+      cols[ci].push(...b);
+    }
+    const boardH = Math.max(0, ...cols.map((c2) => c2.length));
+    // keep the selection visible
+    const selLine = cols.map((col) => col.findIndex((l) => l.kind === "key" && l.s === selShortcut)).find((i) => i >= 0) ?? -1;
+    if (selLine >= 0 && selLine - this.scroll >= room) this.scroll = selLine - room + 1;
+    if (selLine >= 0 && selLine < this.scroll + 1) this.scroll = Math.max(0, selLine - 1);
+    this.scroll = Math.max(0, Math.min(Math.max(0, boardH - room), this.scroll));
+    ui.hit({ x: r.x, y, w: r.w, h: room }, { onWheel: (d) => (this.scroll = Math.max(0, Math.min(Math.max(0, boardH - room), this.scroll + d))) });
+    const keyW = Math.min(20, Math.floor(colW * 0.42));
+    cols.forEach((col, k) => {
+      const cx = area.x + k * (colW + 3);
+      if (k) ui.vline(cx - 2, y, room, { fg: c.faint }, "┊");
+      col.slice(this.scroll, this.scroll + room).forEach((line, j) => {
+        const ly = y + j;
+        if (line.kind === "head") {
+          const name = t(line.cat).toUpperCase();
+          ui.text(cx, ly, name, { fg: c.title, attrs: BOLD });
+          ui.hline(cx + strWidth(name) + 1, ly, colW - strWidth(name) - 1, { fg: c.faint }, "─");
+        } else if (line.kind === "none") {
+          if (!(line as { gap?: boolean }).gap) ui.text(cx + 1, ly, t("none yet — F2 binds a key"), { fg: c.muted }, colW - 1);
+        } else {
+          const s2 = line.s;
+          const sel = s2 === selShortcut;
+          const box = { x: cx, y: ly, w: colW, h: 1 };
+          const bg = sel && focused ? mix(c.accent, c.bg, 0.8) : ui.hovered(box) ? c.highlight : undefined;
+          if (bg) ui.fill(box, { bg });
+          const st = bg ? { bg } : {};
+          ui.textRight(cx + keyW, ly, truncateKeys(displayKeys(s2.keys), keyW), { fg: c.accent, attrs: BOLD, ...st });
+          ui.text(cx + keyW + 2, ly, s2.cat === "yours" ? s2.what : t(s2.what), { fg: s2.cmd ? c.fg : c.subtle, ...st }, colW - keyW - 2);
+          ui.hit(box, { onClick: () => (this.sel = keyed.indexOf(s2)), onDouble: () => s2.cmd && void this.deck.act(s2.cmd), tip: `${displayKeys(s2.keys)} — ${s2.cat === "yours" ? s2.what : t(s2.what)}${s2.cmd ? `\n${s2.cmd}` : ""}${s2.cat === "yours" ? `\nunbind ${s2.keys}` : ""}` });
+        }
+      });
+    });
+    if (boardH > room) ui.textRight(r.x + r.w - 1, r.y + r.h - 1, ` ${this.scroll + room < boardH ? "↓" : "↑"} ${t("wheel")} `, { fg: c.panel, bg: c.accent });
   }
+}
+
+/** keys too long for their column keep their end (the key itself) */
+function truncateKeys(k: string, w: number): string {
+  return strWidth(k) <= w ? k : `…${k.slice(k.length - w + 1)}`;
 }
 
 export const shortcutsSpec: AppSpec = {

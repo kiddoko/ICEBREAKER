@@ -11,6 +11,8 @@
 - HOME edit mode can't be missed: a pulsing band across the top with the keys and
   a ✓ done button. Widgets grow in any direction: shift+arrow pushes that side
   out, alt+shift+arrow brings it back. FOCUS has a compact 2×2 look.
+- SHORTCUTS (⌘/) is a cheat sheet in columns (2-4 depending on the width), still
+  searchable; Settings → KEYS opens it.
 - Input boxes can suggest: a ▾ list (↓ or a click), the rest of the best match in
   grey, Tab completes it. Used for the date language, the weather city, custom
   pronouns, custom icons; modules get it with `ib.ui.prompt(title, { suggestions })`.

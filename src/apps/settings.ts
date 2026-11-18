@@ -220,6 +220,7 @@ export class SettingsApp implements App {
       text("ai.ollamaModel", "ollama model", undefined, "llama3.1"),
       toggle("ai.saveChats", "save chats to vault"),
       { section: "KEYS", label: "", value: () => "" },
+      { label: "every shortcut on one page, in columns (searchable)", value: () => "open", cmd: () => "shortcuts", change: () => void d.openApp("shortcuts") },
       { label: "+ bind a key to anything", value: () => "add", cmd: () => "bind", change: async () => {
         const keys = await d.prompt("Which keys?", { placeholder: "ctrl+shift+1 · alt+t" });
         if (!keys?.trim()) return;
