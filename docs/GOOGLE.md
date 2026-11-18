@@ -57,15 +57,19 @@ Usually a few days to a few weeks. Have ready:
 **Pages:** home page and privacy policy on a domain you own, which must also
 be verified in Google Search Console and listed as an authorized domain.
 
-## 4. The two web pages
+## 4. The web pages
 
-`site/index.html` and `site/privacy.html` are ready to host. GitHub Pages is
-the simplest, but it's free only for public repositories, and this one is
-private. Options:
+They live in `site/` (home, privacy policy, terms of use) and are published by
+the public repository **kiddoko/kiddoko.github.io** (GitHub Pages) — copy the
+files there after changing them:
 
-- a separate public repository `kiddoko.github.io` with those two files →
-  `https://kiddoko.github.io/` and `https://kiddoko.github.io/privacy.html`
-  (verify that domain in Search Console with its HTML-file method);
-- or make this repository public and serve `site/` (needs a Pages workflow,
-  since Pages serves only `/` or `/docs` from a branch);
-- or any domain you own.
+| consent screen field | value |
+|---|---|
+| Home page | `https://kiddoko.github.io/` |
+| Privacy policy | `https://kiddoko.github.io/privacy.html` |
+| Terms of use | `https://kiddoko.github.io/terms.html` |
+| Authorized domain | `kiddoko.github.io` |
+
+Domain ownership: Google Search Console → add the URL-prefix property
+`https://kiddoko.github.io/` → *HTML file* method → put the `google….html` file
+it gives you at the root of kiddoko.github.io.
