@@ -5,7 +5,7 @@ import type { App } from "../apps/types";
 import type { Deck } from "../deck";
 import { drawBackground } from "../fx/backgrounds";
 import { Rain } from "../fx/rain";
-import { inside, type Hit, type UI } from "../ui/ui";
+import { inside, q, type Hit, type UI } from "../ui/ui";
 import { ConfirmDialog, Osk, Palette, PromptDialog, Toasts, type Overlay, type ToastKind } from "./overlays";
 import { FxPanel } from "./fxpanel";
 import { Sidebar } from "./sidebar";
@@ -47,6 +47,41 @@ export class Workspace {
   shellTab: ShellTab = "ibsh";
   private shellTabChosen = false;
   sysTerm: SystemTerminal | null = null;
+  /** The shell takes the big area; the active page moves to the strip below. */
+  shellMax = false;
+
+  toggleShellMax(on = !this.shellMax): void {
+    this.shellMax = on;
+    if (on) this.showShellTab(this.shellTab);
+  }
+
+  /** Type a macro into the system terminal (asking for its {blanks} first). */
+  async runMacro(m: { label: string; cmd: string }): Promise<void> {
+    let cmd = m.cmd;
+    for (const hole of [...new Set(cmd.match(/\{[^}]+\}/g) ?? [])]) {
+      const v = await this.deck.prompt(`${m.label}: ${hole.slice(1, -1)}`, { placeholder: hole.slice(1, -1) });
+      if (v === null) return;
+      cmd = cmd.split(hole).join(q(v.trim() || "."));
+    }
+    this.showShellTab("term");
+    if (!this.terminal.alive) return this.deck.notify("the terminal isn't running", "error");
+    this.terminal.write(`${cmd}\r`);
+  }
+
+  private async editMacro(i: number): Promise<void> {
+    const list = [...this.deck.settings.data.shell.macros];
+    const cur = list[i];
+    const label = await this.deck.prompt(i < 0 ? "New macro — button label" : "Label (empty = delete this macro)", { initial: cur?.label ?? "", placeholder: "deploy" });
+    if (label === null) return;
+    if (!label.trim()) {
+      if (cur) void this.deck.act(`macro rm ${q(cur.label)}`);
+      return;
+    }
+    const cmd = await this.deck.prompt(`Command for "${label.trim()}" — {name} asks for a value`, { initial: cur?.cmd ?? "", placeholder: "git pull && npm run build" });
+    if (!cmd?.trim()) return;
+    if (cur && cur.label !== label.trim()) await this.deck.act(`macro rm ${q(cur.label)}`);
+    void this.deck.act(`macro add ${q(label.trim())} ${q(cmd.trim())}`);
+  }
 
   /** The system terminal is on (desktop + setting shell.mode = system). */
   get termAvailable(): boolean {
@@ -400,17 +435,20 @@ export class Workspace {
     let shellH = 0;
     if (this.shellVisible) shellH = Math.max(5, Math.min(body.h - 8, Math.round(body.h * this.shellRatio)));
     const top = { x: body.x, y: body.y, w: body.w, h: body.h - shellH };
-    const sideW = this.sidebarVisible ? Math.max(20, Math.min(34, Math.round(W * 0.18))) : 0;
+    const max = this.shellVisible && this.shellMax;
+    const stripH = Math.max(6, Math.round(body.h * 0.3));
+    const sideW = this.sidebarVisible && !max ? Math.max(20, Math.min(34, Math.round(W * 0.18))) : 0;
 
     this.rects = {};
-    if (this.sidebarVisible) {
+    if (this.sidebarVisible && !max) {
       const r = { x: top.x, y: top.y, w: sideW, h: top.h };
       this.rects.sidebar = r;
       const inner = ui.box(r, { title: "VAULT", focused: this.focus === "sidebar", info: `${d.vault.markdown().length}` });
       this.sidebar.render(ui, inner, this.focus === "sidebar");
     }
 
-    const mainR = { x: top.x + (sideW ? sideW + 1 : 0), y: top.y, w: top.w - (sideW ? sideW + 1 : 0), h: top.h };
+    // maximized shell: the page goes to the strip at the bottom
+    const mainR = max ? { x: body.x, y: body.y + body.h - stripH, w: body.w, h: stripH } : { x: top.x + (sideW ? sideW + 1 : 0), y: top.y, w: top.w - (sideW ? sideW + 1 : 0), h: top.h };
     this.rects.main = mainR;
     const app = this.activeApp;
     const mainFocused = this.focus === "main" && !this.topModal;
@@ -418,7 +456,7 @@ export class Workspace {
     if (app) ui.clip(inner, () => app.render(ui, inner, mainFocused));
 
     if (this.shellVisible) {
-      const r = { x: body.x, y: top.y + top.h, w: body.w, h: shellH };
+      const r = max ? { x: body.x, y: body.y, w: body.w, h: body.h - stripH } : { x: body.x, y: top.y + top.h, w: body.w, h: shellH };
       this.rects.shell = r;
       const shellFocused = this.focus === "shell" && !this.topModal;
       const c = ui.c;
@@ -441,13 +479,36 @@ export class Workspace {
         ui.hit(rect, { onClick: () => this.showShellTab(id), tip: id === "term" ? "your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)" : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash" : "what clicks ran, with their output" });
         tx += rect.w + 1;
       }
+      // ⤢ maximize / ⤡ restore
+      const mx = { x: tx, y: r.y, w: 3, h: 1 };
+      ui.text(tx, r.y, max ? " ⤡ " : " ⤢ ", { fg: ui.hovered(mx) ? c.accent : c.subtle, bg: c.panel });
+      ui.hit(mx, { cmd: "term max", tip: max ? "back to normal" : "make the shell big (the page moves below)" });
+      tx += 4;
+      // macro bar above the system terminal
+      let termR = si;
+      if (this.shellTab === "term" && this.termAvailable && si.h > 4) {
+        termR = { ...si, y: si.y + 1, h: si.h - 1 };
+        let bx = si.x;
+        this.deck.settings.data.shell.macros.forEach((m, i) => {
+          const label = ` ${m.label} `;
+          const rect = { x: bx, y: si.y, w: strWidth(label), h: 1 };
+          if (bx + rect.w > si.x + si.w - 4) return;
+          const hot = ui.hovered(rect);
+          ui.text(bx, si.y, label, hot ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: c.fg, bg: c.highlight });
+          ui.hit(rect, { onClick: (mi) => void (mi.shift ? this.editMacro(i) : this.runMacro(m)), tip: `${m.cmd}\nshift+click: edit · macro rm ${m.label}` });
+          bx += rect.w + 1;
+        });
+        const plus = { x: bx, y: si.y, w: 3, h: 1 };
+        ui.text(bx, si.y, " + ", { fg: ui.hovered(plus) ? c.accent : c.subtle, bg: c.highlight, attrs: BOLD });
+        ui.hit(plus, { onClick: () => void this.editMacro(-1), tip: "new macro · or: macro add <label> <command>" });
+      }
       ui.clip(si, () => {
-        if (this.shellTab === "term") this.terminal.render(ui, si, shellFocused);
+        if (this.shellTab === "term") this.terminal.render(ui, termR, shellFocused);
         else if (this.shellTab === "history") d.shell.renderHistory(ui, si);
         else d.shell.render(ui, si, shellFocused);
       });
       // drag the top border to resize
-      const handle = { x: tx + 2, y: r.y, w: Math.max(0, r.x + r.w - 30 - tx), h: 1 };
+      const handle = { x: tx + 2, y: r.y, w: max ? 0 : Math.max(0, r.x + r.w - 30 - tx), h: 1 };
       ui.hit(handle, {
         onClick: () => {},
         onDrag: (m) => {

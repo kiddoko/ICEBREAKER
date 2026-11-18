@@ -1,5 +1,8 @@
 import { fmt } from "../../core/ansi";
 import { HomeApp } from "../../apps/home";
+import { DEFAULT_SETTINGS } from "../../core/settings";
+
+const DEFAULT_MACROS = () => DEFAULT_SETTINGS.shell.macros.map((m) => ({ ...m }));
 import type { Command, ShellContext } from "../types";
 
 /*
@@ -220,7 +223,7 @@ const explore: Command = {
 const termCmd: Command = {
   name: "term",
   summary: "the shell panel's tabs: your terminal, ibsh, history",
-  usage: "term            your system terminal (zsh, bash…)\nterm ibsh       ICEBREAKER's shell\nterm history    what clicks ran\nterm restart    a fresh system shell\nterm mode system|ibsh   which one the panel uses",
+  usage: "term            your system terminal (zsh, bash…)\nterm max        big shell, the page goes below (again: back)\nterm ibsh       ICEBREAKER's shell\nterm history    what clicks ran\nterm restart    a fresh system shell\nterm mode system|ibsh   which one the panel uses",
   examples: [["term", "jump to your real terminal"], ["term history", "see what your clicks ran"], ["term mode ibsh", "vault-only shell, rm goes to .trash"]],
   complete: () => ["ibsh", "history", "restart", "mode"],
   run(ctx) {
@@ -232,13 +235,54 @@ const termCmd: Command = {
       return 0;
     }
     if (a === "restart") return ws.sysTerm?.restart(), ws.showShellTab("term"), 0;
+    if (a === "max") return ws.toggleShellMax(), 0;
     if (!a && !ws.termAvailable) return ctx.err(ctx.deck.platform.pty ? "term: the panel is in ibsh mode (term mode system)\n" : "term: needs the desktop app\n"), 1;
     ws.showShellTab(a === "ibsh" ? "ibsh" : a === "history" ? "history" : "term");
   },
 };
 
+const macro: Command = {
+  name: "macro",
+  summary: "the buttons above your terminal: list, add, remove",
+  usage: "macro                      list\nmacro add <label> <command>   {name} in the command is asked for on click\nmacro rm <label>\nmacro reset                the default buttons",
+  examples: [
+    ['macro add deploy "git pull && npm run build"', "a deploy button"],
+    ['macro add ssh-box "ssh {user}@my-server"', "asks who you are, then connects"],
+    ["macro rm clear", ""],
+  ],
+  complete: () => ["add", "rm", "reset"],
+  run(ctx) {
+    const s = ctx.deck.settings;
+    const list = [...s.data.shell.macros];
+    const [a, label, ...rest] = ctx.args;
+    if (!a) {
+      for (const m of list) ctx.out(`${fmt.bold(m.label.padEnd(12))} ${fmt.dim(m.cmd)}\n`);
+      return 0;
+    }
+    if (a === "reset") return s.set("shell.macros", []), s.set("shell.macros", DEFAULT_MACROS()), ctx.out("default macros back\n"), 0;
+    if (a === "add") {
+      const cmd = rest.join(" ").trim();
+      if (!label || !cmd) return ctx.err("usage: macro add <label> <command>\n"), 1;
+      const i = list.findIndex((m) => m.label === label);
+      if (i >= 0) list[i] = { label, cmd };
+      else list.push({ label, cmd });
+      s.set("shell.macros", list);
+      return 0;
+    }
+    if (a === "rm") {
+      const next = list.filter((m) => m.label !== label);
+      if (next.length === list.length) return ctx.err(`macro: no "${label ?? ""}"\n`), 1;
+      s.set("shell.macros", next);
+      return 0;
+    }
+    ctx.err("usage: macro [add <label> <command> | rm <label> | reset]\n");
+    return 1;
+  },
+};
+
 export const uiCommands: Command[] = [
   explore,
+  macro,
   termCmd,
   homeCmd,
   widget,

@@ -38,7 +38,11 @@ export interface Settings {
   fx: { bloom: boolean; scanlines: boolean; vignette: boolean; ambient: boolean; flicker: boolean; glitch: boolean; screensaverMinutes: number };
   boot: { mode: "full" | "fast" | "off" };
   /** The shell panel: your system shell with ICEBREAKER's commands, or ibsh only. */
-  shell: { mode: "system" | "ibsh" };
+  shell: {
+    mode: "system" | "ibsh";
+    /** Buttons above the system terminal: a click types `cmd` + enter. {name} parts are asked for first. */
+    macros: { label: string; cmd: string }[];
+  };
   /** UI sounds (core/sound.ts). Volume 0–100. */
   sound: { enabled: boolean; volume: number };
   ai: {
@@ -73,7 +77,19 @@ export const DEFAULT_SETTINGS: Settings = {
   fx: { bloom: false, scanlines: false, vignette: false, ambient: true, flicker: false, glitch: true, screensaverMinutes: 0 },
   boot: { mode: "full" },
   sound: { enabled: true, volume: 50 },
-  shell: { mode: "system" },
+  shell: {
+    mode: "system",
+    macros: [
+      { label: "ls", cmd: "ls -la" },
+      { label: "cd ..", cmd: "cd .." },
+      { label: "mkdir", cmd: "mkdir -p {folder}" },
+      { label: "touch", cmd: "touch {file}" },
+      { label: "find", cmd: "grep -ril {text} ." },
+      { label: "git status", cmd: "git status -sb" },
+      { label: "todo", cmd: "todo" },
+      { label: "clear", cmd: "clear" },
+    ],
+  },
   ai: {
     provider: "claude-code",
     claudeCodeModel: "",

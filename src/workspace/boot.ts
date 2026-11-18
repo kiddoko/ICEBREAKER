@@ -48,11 +48,8 @@ export class BootScreen {
   }
 
   render(ui: UI): void {
-    const t = this.elapsed;
-    if (t >= this.end) {
-      this.done = true;
-      return;
-    }
+    // "PRESS ANY KEY TO JACK IN" waits for a key: it never moves on by itself
+    const t = Math.min(this.elapsed, this.end - 1);
     ui.animate(16);
     const c = ui.c;
     const screen = { x: 0, y: 0, w: ui.cols, h: ui.rows };
@@ -108,6 +105,6 @@ export class BootScreen {
       ui.text(lx, y, l.text, { fg: l.status ? c.fg : c.muted }, ui.cols - lx - 2);
     }
     if (n < this.lines.length || Math.floor(ui.now / 300) % 2) ui.text(x, y, "█", { fg: c.accent });
-    ui.textRight(ui.cols - 2, ui.rows - 1, "any key to skip", { fg: c.faint });
+    if (this.elapsed < this.logoEnd) ui.textRight(ui.cols - 2, ui.rows - 1, "any key to skip", { fg: c.faint });
   }
 }
