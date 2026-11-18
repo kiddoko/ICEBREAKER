@@ -16,6 +16,7 @@ mod net;
 mod term;
 mod system;
 mod vault;
+mod voice;
 
 pub fn run() {
     let builder = tauri::Builder::default();
@@ -78,6 +79,10 @@ pub fn run() {
             audio::audio_load,
             audio::audio_control,
             audio::audio_status,
+            voice::voice_info,
+            voice::voice_list,
+            voice::voice_speak,
+            voice::voice_install,
             account::account_status,
             account::account_create,
             account::account_verify,

@@ -112,6 +112,14 @@ export interface Platform {
     /** Offline copy of Google data, kept outside the vault. No argument = read. */
     cache(content?: string): Promise<string | null>;
   };
+  /** Local text-to-speech (desktop, see voice.rs): WAV bytes to play through the robot filter. */
+  voice?: {
+    info(): Promise<{ system: string | null; piper: boolean; piper_voices: string[] }>;
+    list(engine: "piper" | "system"): Promise<{ id: string; lang: string }[]>;
+    speak(text: string, engine: "piper" | "system", voice: string, rate: number): Promise<ArrayBuffer>;
+    /** downloads piper + a voice ("fr", "en"…); resolves with the voice id */
+    install(lang: string): Promise<string>;
+  };
   /** Called (debounced) when files in the vault change outside the app. */
   onVaultChange?(cb: () => void): void;
   /** Your system shell in a pseudo-terminal (desktop). */

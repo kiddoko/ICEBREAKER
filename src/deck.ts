@@ -38,6 +38,8 @@ import { basename, join, slugify } from "./vault/paths";
 import { Vault } from "./vault/vault";
 import { BootScreen, type BootLine } from "./workspace/boot";
 import { CellFx, Transitions } from "./fx/transition";
+import { DeckVoice } from "./core/voice";
+import { installStealth } from "./core/stealth";
 import type { ChoiceOption } from "./plugins/api";
 import { LockScreen } from "./workspace/lock";
 import { applyFxPreset } from "./workspace/fxpanel";
@@ -68,6 +70,7 @@ export class Deck implements InputSink {
   readonly input: InputManager;
   readonly gamepad: GamepadInput;
   readonly sound = new Sound();
+  readonly voice: DeckVoice;
 
   private readonly ui = new UI();
   private grid = new Grid(1, 1);
@@ -108,6 +111,7 @@ export class Deck implements InputSink {
       this.action(a, "gamepad");
     });
     this.workspace = new Workspace(this);
+    this.voice = new DeckVoice(this);
     this.shell = new ShellApp(this);
 
     this.vault.events.on("changed", () => this.requestFrame());
@@ -123,6 +127,7 @@ export class Deck implements InputSink {
   async start(): Promise<void> {
     const s = this.settings.data;
     const t0 = performance.now();
+    installStealth(this); // before anything goes online
     // look and feel first, so the boot screen is already in your theme and font
     this.refreshTheme(true);
     this.applyFx();
@@ -185,6 +190,8 @@ export class Deck implements InputSink {
     this.platform.bridge?.onRun((req) => void this.runBridged(req));
     // files changed in the terminal, Obsidian, Finder…: refresh the tree, search, widgets
     await step(() => this.platform.onVaultChange?.(() => void this.vault.rescan().then(() => this.requestFrame())), () => this.platform.onVaultChange ? { text: "Watching the vault for outside changes", status: "OK" } : null);
+    if (s.privacy.stealth) boot?.log({ text: "Stealth mode: no internet — this machine and the local network only", status: "OK" });
+    if (s.voice.enabled && this.voice.available) boot?.log({ text: `Voice module online (${s.voice.engine})`, status: "OK" });
     const pads = (navigator.getGamepads?.() ?? []).filter(Boolean).length;
     boot?.log({ text: `Input: keyboard · mouse${pads ? ` · ${pads} gamepad${pads > 1 ? "s" : ""}` : " · gamepad (none plugged in)"}`, status: "OK" });
 
@@ -262,6 +269,7 @@ export class Deck implements InputSink {
       this.boot = null;
       ui.begin(this.grid, this.theme, now, this.input.mouseCell);
       this.glitch(450);
+      if (!this.lock) this.greet();
     }
     if (!this.boot && this.lock) this.lock.render(ui);
     else if (!this.boot) this.workspace.render(ui);
@@ -288,6 +296,7 @@ export class Deck implements InputSink {
     this.lock = new LockScreen(this, this.account, () => {
       this.lock = null;
       this.glitch(400);
+      this.greet();
       this.notify(`welcome back, ${this.settings.data.user.handle}`, "success");
     });
     this.requestFrame();
@@ -556,6 +565,17 @@ export class Deck implements InputSink {
     const rb = this.platform.vault.readBytes;
     if (!rb) return 0;
     return this.sound.loadCustom(async (p) => ((await this.vault.exists(p).catch(() => false)) ? rb(p) : null));
+  }
+
+  /** "Welcome, netrunner": once per start, when the desktop appears (voice.greet). */
+  private greeted = false;
+  greet(): void {
+    const v = this.settings.data.voice;
+    if (this.greeted || !v.enabled || !v.greet || !this.voice.available) return;
+    this.greeted = true;
+    const h = this.settings.data.user.handle || "netrunner";
+    const fr = (this.settings.data.user.locale || navigator.language).startsWith("fr");
+    this.voice.say(fr ? `Bienvenue, ${h}. Liaison établie.` : `Welcome, ${h}. Link established.`);
   }
 
   /** The big moments (boot, unlock, theme change): the theme's page transition, glitch by default. */

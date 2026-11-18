@@ -75,6 +75,12 @@ export function createTauriPlatform(): Platform {
       control: (action) => invoke<void>("audio_control", { action }),
       status: () => invoke<PlayerStatus>("audio_status"),
     },
+    voice: {
+      info: () => invoke("voice_info"),
+      list: (engine) => invoke("voice_list", { engine }),
+      speak: (text, engine, voice, rate) => invoke<ArrayBuffer>("voice_speak", { text, engine, voice, rate }),
+      install: (lang) => invoke<string>("voice_install", { lang }),
+    },
     google: {
       status: () => invoke<{ configured: boolean; custom: boolean; connected: boolean }>("google_status"),
       setup: (clientId, clientSecret) => invoke<void>("google_setup", { clientId, clientSecret }),

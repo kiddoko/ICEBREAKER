@@ -1,3 +1,4 @@
+import { stealthCommand, voiceCommand } from "./voice";
 import { fmt } from "../../core/ansi";
 import { padEnd } from "../../core/unicode";
 import { ASK_SYSTEM_PROMPT } from "../../ai/prompts";
@@ -548,7 +549,7 @@ const today: Command = {
   },
 };
 
-export const deckCommands: Command[] = [...devCommands, ...uiCommands, newsCommand, daily, chat, account, lock, sound, open, journal, note, checkboxes, ask, link, sysmon, theme, fx, config, vaultCmd, plugin, today];
+export const deckCommands: Command[] = [...devCommands, ...uiCommands, voiceCommand, stealthCommand, newsCommand, daily, chat, account, lock, sound, open, journal, note, checkboxes, ask, link, sysmon, theme, fx, config, vaultCmd, plugin, today];
 
 /** A theme's current value for "section.key", for display. */
 export function knobValue(t: Theme, key: string): string {

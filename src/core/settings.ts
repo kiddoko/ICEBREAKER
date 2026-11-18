@@ -15,6 +15,10 @@ export interface Settings {
   user: {
     handle: string;
     locale: string;
+    /** Only if they want to say (setup): man · woman · nonbinary · other · "" (not said, neutral). */
+    gender: "" | "man" | "woman" | "nonbinary" | "other";
+    /** Their own word, with gender "other" (optional). */
+    genderOther: string;
     /**
      * Where you are, as precisely as you choose (weather, local news). Nothing
      * leaves the machine except to open-meteo.com / Google News when a widget asks.
@@ -58,6 +62,29 @@ export interface Settings {
     saveChats: boolean;
   };
   journal: { folder: string };
+  /**
+   * Stealth: 100 % local. No internet at all — no cloud AI, weather, news,
+   * Google, module installs. Only this machine and your local network
+   * (a local model with Ollama, a vault on your own server).
+   */
+  privacy: { stealth: boolean };
+  /** The deck's voice (core/voice.ts): local text-to-speech through a robot filter. */
+  voice: {
+    enabled: boolean;
+    /** auto (piper if installed, else the system voice) · piper · system */
+    engine: "auto" | "piper" | "system";
+    /** voice name for the engine ("" = its default) */
+    name: string;
+    /** 0.5–2 */
+    rate: number;
+    /** 0–100: how robotic (ring modulation, bit crush, chorus) */
+    robot: number;
+    volume: number;
+    /** read LINK's answers aloud */
+    readAI: boolean;
+    /** "Welcome, netrunner" when the deck starts */
+    greet: boolean;
+  };
   editor: { autosave: boolean; tabSize: number };
   plugins: { enabled: string[]; disabled: string[]; registry: string };
   home: { widgets: WidgetPlacement[]; weatherCity: string; worldClocks: string[]; newsTopic: string };
@@ -68,7 +95,7 @@ export interface Secrets {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  user: { handle: "netrunner", locale: "", location: { precision: "none", name: "", country: "", lat: null, lon: null } },
+  user: { handle: "netrunner", locale: "", gender: "", genderOther: "", location: { precision: "none", name: "", country: "", lat: null, lon: null } },
   setup: { done: false },
   vault: { path: "" },
   appearance: { theme: "nightshade", tweaks: {}, fontSize: 13, scale: 100, startFullscreen: false, fontWeight: "thin", maxFps: 60, showFps: true, lineNumbers: true },
@@ -101,6 +128,8 @@ export const DEFAULT_SETTINGS: Settings = {
     saveChats: true,
   },
   journal: { folder: "journal" },
+  privacy: { stealth: false },
+  voice: { enabled: false, engine: "auto", name: "", rate: 1, robot: 55, volume: 80, readAI: false, greet: true },
   editor: { autosave: true, tabSize: 2 },
   // the community index: a JSON list of plugins/themes (see docs/COMMUNITY.md)
   plugins: { enabled: [], disabled: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json" },

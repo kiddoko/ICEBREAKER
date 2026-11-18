@@ -4,7 +4,7 @@ import type { Action, KeyInput } from "../core/input";
 import { geocode, type Place } from "../core/location";
 import type { Deck } from "../deck";
 import { decrypt } from "../fx/glitch";
-import type { UI } from "../ui/ui";
+import { q, type UI } from "../ui/ui";
 import { LAYOUT_PRESETS } from "../widgets/builtin";
 import { applyFxPreset } from "../workspace/fxpanel";
 import type { App, AppSpec } from "./types";
@@ -44,8 +44,28 @@ export class SetupApp implements App {
     const s = deck.settings.data;
     this.a = { handle: s.user.handle, locale: s.user.locale, precision: s.user.location.precision };
     this.steps = [
-      { id: "intro", title: "JACK IN", question: "A few questions to set up your deck. Takes a minute, all optional.", options: () => [{ value: "go", label: "Let's go" }, { value: "skip", label: "Skip — use the defaults" }] },
+      { id: "intro", title: "JACK IN", question: "A few questions to set up your deck. Takes a minute, every one can be skipped — and everything can be changed later.", options: () => [{ value: "go", label: "Let's go" }, { value: "skip", label: "Skip — use the defaults" }] },
+      {
+        id: "mode", title: "CONNECTION",
+        question: "The deck offers tools — it never requires them. You can keep everything in your vault, use no account and no AI, and stay off the internet entirely.",
+        options: () => [
+          { value: "connected", label: "Connected", hint: "I pick each online feature (AI, weather, Google…)" },
+          { value: "stealth", label: "Stealth", hint: "100 % local — no internet, only this machine and my network" },
+        ],
+      },
       { id: "handle", title: "HANDLE", question: "What should the deck call you?", text: { placeholder: "netrunner" } },
+      {
+        id: "gender", title: "PROFILE",
+        question: "Your gender, if you want to say — it only lives in your settings, to address you right later. Skip it and the deck stays neutral.",
+        options: () => [
+          { value: "", label: "Not specified", hint: "neutral" },
+          { value: "woman", label: "Woman" },
+          { value: "man", label: "Man" },
+          { value: "nonbinary", label: "Non-binary" },
+          { value: "other", label: "Other", hint: "you can say which next" },
+        ],
+      },
+      { id: "gender-other", title: "PROFILE", question: "Your word for it (optional, enter to skip):", text: { placeholder: "" }, skip: () => this.a.gender !== "other" },
       {
         id: "lock", title: "ACCESS",
         question: "Lock the deck with a login? The password is hashed (Argon2id) and never stored. It locks the app — your notes stay plain Markdown files on disk.",
@@ -67,8 +87,18 @@ export class SetupApp implements App {
         ],
         skip: () => !deck.platform.pty,
       },
+      {
+        id: "vault", title: "VAULT",
+        question: `Your notes, journal and calendar live in one folder of plain files: ${deck.vault.root}. It can be any folder — a drive, a synced folder, or your own server mounted as a network drive, so everything stays on hardware you own.`,
+        options: () => [
+          { value: "keep", label: "Keep this folder" },
+          { value: "other", label: "Another folder", hint: "a full path: /Volumes/nas/vault, /Users/you/Sync/notes…" },
+        ],
+      },
+      { id: "vault-path", title: "VAULT", question: "Folder path (created if missing):", text: { placeholder: "/Volumes/nas/icebreaker" }, skip: () => this.a.vault !== "other" },
       { id: "locale", title: "LANGUAGE", question: "Dates, calendar and news language.", options: () => [{ value: "fr-FR", label: "Français" }, { value: "en-US", label: "English (US)" }, { value: "en-GB", label: "English (UK)" }, { value: "", label: "Same as the system" }] },
       {
+        skip: () => this.a.mode === "stealth",
         id: "precision", title: "LOCATION", question: "Weather and local news need to know roughly where you are. Share only what you want — it stays on this machine.",
         options: () => [
           { value: "none", label: "Nothing", hint: "no weather, world news only" },
@@ -79,15 +109,19 @@ export class SetupApp implements App {
       },
       {
         id: "place", title: "WHERE", question: "", text: { placeholder: "Paris" },
-        skip: () => this.a.precision === "none",
+        skip: () => this.a.precision === "none" || this.a.mode === "stealth",
       },
       {
         id: "ai", title: "NEURAL LINK", question: "Which AI should LINK and plugins use?",
         options: () => [
-          { value: "claude-code", label: "Claude Code", hint: deck.ai.claudeCodePath ? "found — uses your Claude plan, no API tokens" : "not found — install it and run `claude` once" },
-          { value: "anthropic", label: "Anthropic API key", hint: "pay per token" },
-          { value: "ollama", label: "Ollama", hint: "local models, fully offline" },
-          { value: "keep", label: "No AI for now", hint: "everything else works without it, offline" },
+          ...(this.a.mode === "stealth"
+            ? []
+            : [
+                { value: "claude-code", label: "Claude Code", hint: deck.ai.claudeCodePath ? "found — uses your Claude plan, no API tokens" : "not found — install it and run `claude` once" },
+                { value: "anthropic", label: "Anthropic API key", hint: "pay per token" },
+              ]),
+          { value: "ollama", label: "Ollama", hint: "a local model, on this machine or a box on your network" },
+          { value: "keep", label: "No AI", hint: "everything else works without it" },
         ],
       },
       {
@@ -95,10 +129,37 @@ export class SetupApp implements App {
         question: "Your agenda. It can live entirely in your vault (plain Markdown, offline, no account), or also show your Google calendars.",
         options: () => [
           { value: "local", label: "In my vault only", hint: "nothing leaves this computer" },
-          ...(deck.platform.google ? [{ value: "google", label: "Connect Google Calendar", hint: "your browser opens Google's page" }] : []),
+          ...(deck.platform.google && this.a.mode !== "stealth" ? [{ value: "google", label: "Connect Google Calendar", hint: "your browser opens Google's page" }] : []),
           { value: "later", label: "Decide later", hint: "local works; cal google connect any time" },
         ],
         skip: () => !deck.commands.get("cal"),
+      },
+      {
+        id: "voice", title: "VOICE",
+        question: "Give the deck a voice? Synthesized on this computer, through a robot filter: clearly a machine, still smooth. It can greet you and read LINK's answers.",
+        options: () => [
+          { value: "read", label: "Yes — greet me and read the AI's answers" },
+          { value: "greet", label: "Yes — just the greeting" },
+          { value: "off", label: "No voice", hint: "voice on, any time" },
+        ],
+        skip: () => !deck.platform.voice,
+      },
+      {
+        id: "voice-engine", title: "VOICE",
+        question: "Which voice? Piper is an open-source neural voice (light, natural, made robotic by the filter); it's a one-time download of about 85 MB. The system voice needs nothing.",
+        options: () => [
+          { value: "piper", label: "Download piper", hint: "better — open source, runs offline after" },
+          { value: "system", label: "The system voice", hint: "no download" },
+        ],
+        skip: () => !deck.platform.voice || this.a.voice === "off" || !this.a.voice || this.a.mode === "stealth",
+      },
+      {
+        id: "theme", title: "LOOK",
+        question: "A theme to start with (theme set <name> or theme studio any time).",
+        options: () =>
+          ["nightshade", "e-ink", "neon-district", "abyss", "phosphor", "redline"]
+            .filter((n) => deck.themes.get(n))
+            .map((n) => ({ value: n, label: n, hint: deck.themes.get(n)!.description })),
       },
       {
         id: "home", title: "HOME", question: "Pick a starting dashboard. Press e on HOME to rearrange, a to add widgets.",
@@ -251,6 +312,20 @@ export class SetupApp implements App {
       // modules are configured through their commands, like everything else
       if (this.a.calendar === "local") void this.deck.act("cal mode local");
       if (this.a.calendar === "google") void this.deck.act("cal mode google");
+      set("user.gender", this.a.gender ?? "");
+      set("user.genderOther", this.a.gender === "other" ? (this.a["gender-other"] ?? "") : "");
+      void this.deck.act(`stealth ${this.a.mode === "stealth" ? "on" : "off"}`);
+      if (this.a.theme) void this.deck.act(`theme set ${this.a.theme}`);
+      if (this.a.voice && this.a.voice !== "off") {
+        void (async () => {
+          await this.deck.act("voice on");
+          await this.deck.act(`voice read ${this.a.voice === "read" ? "on" : "off"}`);
+          await this.deck.act("voice greet on");
+          if (this.a["voice-engine"] === "piper") await this.deck.act(`voice install ${(this.a.locale || "en").slice(0, 2).toLowerCase()}`);
+          await this.deck.act("voice test");
+        })();
+      } else if (this.a.voice === "off") void this.deck.act("voice off");
+      if (this.a.vault === "other" && this.a["vault-path"]) void this.deck.act(`vault mount ${q(this.a["vault-path"])}`);
     }
     set("setup.done", true);
     const ws = this.deck.workspace;

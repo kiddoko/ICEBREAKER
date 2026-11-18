@@ -78,6 +78,7 @@ export class LinkApp implements App {
 
   private async handle(text: string): Promise<void> {
     if (text.startsWith("/")) return this.slash(text);
+    this.deck.voice.stop(); // a new question interrupts the reading
     this.chat.push("user", text);
     this.transcript.push(`## ❯ ${this.deck.settings.data.user.handle}\n\n${text}\n`);
 
@@ -135,6 +136,8 @@ export class LinkApp implements App {
       this.abort = null;
       const final = this.chat.entries.filter((e) => e.role === "assistant").pop();
       if (final) this.transcript.push(`## ◆ ${this.deck.ai.provider.label}\n\n${final.text}\n`);
+      const v = this.deck.settings.data.voice;
+      if (final && answer && v.enabled && v.readAI) this.deck.voice.say(final.text);
       void this.persist();
       redraw();
     }

@@ -1,3 +1,4 @@
+import { isLocalUrl, stealth } from "../core/stealth";
 import type { SettingsStore } from "../core/settings";
 import { AnthropicProvider } from "./anthropic";
 import { ClaudeCodeProvider } from "./claudecode";
@@ -45,17 +46,26 @@ export class AIManager {
   }
 
   get ready(): boolean {
-    return this.provider.readiness().ok;
+    return this.readiness().ok;
   }
 
   /** Human-readable reason when not ready. */
   get problem(): string | null {
-    const r = this.provider.readiness();
+    const r = this.readiness();
     return r.ok ? null : r.reason;
   }
 
+  /** Stealth mode: only a local model (Ollama on this machine or the local network). */
+  private readiness(): { ok: true } | { ok: false; reason: string } {
+    if (stealth.on && this.provider.id !== "ollama")
+      return { ok: false, reason: "stealth mode: cloud AI is off — use a local model (config set ai.provider ollama)" };
+    if (stealth.on && !isLocalUrl(this.settings.data.ai.ollamaHost))
+      return { ok: false, reason: "stealth mode: the Ollama host must be on this machine or your local network" };
+    return this.provider.readiness();
+  }
+
   session(opts: SessionOptions): ChatSession {
-    const r = this.provider.readiness();
+    const r = this.readiness();
     if (!r.ok) throw new Error(r.reason);
     return this.provider.createSession(opts);
   }

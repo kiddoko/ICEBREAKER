@@ -635,6 +635,8 @@ export class Workspace {
 
     // right side
     const parts: { text: string; fg: number; cmd?: string; tip?: string }[] = [];
+    if (d.settings.data.privacy.stealth) parts.push({ text: "◉ stealth", fg: c.success, cmd: "stealth", tip: "100 % local: no internet · stealth off" });
+    if (d.voice.speaking) parts.push({ text: "◖ voice", fg: c.accentAlt, cmd: "voice stop", tip: "speaking · click to stop" });
     if (d.gamepad.connected) parts.push({ text: "◈ pad", fg: c.success });
     parts.push({ text: "⌨", fg: this.overlays.some((o) => o instanceof Osk) ? c.accent : c.muted, cmd: "osk", tip: "on-screen keyboard · pad: X" });
     parts.push({ text: "✦ fx", fg: c.accentAlt, cmd: "view fx", tip: "bloom, scanlines… · `fx` in the shell" });
