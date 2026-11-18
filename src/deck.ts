@@ -502,6 +502,8 @@ export class Deck implements InputSink {
     document.getElementById("scanlines")!.style.display = fx.scanlines ? "block" : "none";
     document.getElementById("vignette")!.style.display = fx.vignette ? "block" : "none";
     document.getElementById("deck")!.classList.toggle("flicker", fx.flicker && t.fx.flicker);
+    document.getElementById("deck")!.classList.toggle("monochrome", t.fx.monochrome);
+    root.setProperty("--paper", String(t.fx.paper));
     this.renderer.bloomEnabled = fx.bloom;
     this.loop.maxFps = this.settings.data.appearance.maxFps;
     this.requestFrame();
@@ -574,7 +576,7 @@ export class Deck implements InputSink {
     if (this.greeted || !v.enabled || !v.greet || !this.voice.available) return;
     this.greeted = true;
     const h = this.settings.data.user.handle || "netrunner";
-    const fr = (this.settings.data.user.locale || navigator.language).startsWith("fr");
+    const fr = v.language === "fr";
     this.voice.say(fr ? `Bienvenue, ${h}. Liaison établie.` : `Welcome, ${h}. Link established.`);
   }
 

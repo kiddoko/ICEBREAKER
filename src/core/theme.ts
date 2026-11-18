@@ -101,7 +101,11 @@ export interface Theme {
   ansi: RGB[];
   /** Two or more colors used for logos and big headings. */
   gradient: RGB[];
-  fx: { bloom: number; scanlines: number; vignette: number; flicker: boolean };
+  /**
+   * flicker: false = this theme never flickers · monochrome: everything drawn in
+   * greys (even colourful shell output) · paper: 0–1, a matte paper texture over the screen
+   */
+  fx: { bloom: number; scanlines: number; vignette: number; flicker: boolean; monochrome: boolean; paper: number };
   /** How HOME widgets are framed: round · single · heavy · double · dashed · corners · line. */
   widgetFrame: string;
   /** Optional replacement for the boot logo. */
@@ -188,6 +192,8 @@ export function parseTheme(source: string, base: Theme | null, origin: Theme["so
       vignette: num("vignette", base?.fx.vignette ?? 0.5),
       // false: this theme never flickers, whatever the user's CRT setting (e-ink…)
       flicker: typeof fxRaw.flicker === "boolean" ? fxRaw.flicker : base?.fx.flicker ?? true,
+      monochrome: typeof fxRaw.monochrome === "boolean" ? fxRaw.monochrome : base?.fx.monochrome ?? false,
+      paper: num("paper", base?.fx.paper ?? 0),
     },
     widgetFrame: typeof meta.widget_frame === "string" ? String(meta.widget_frame) : base?.widgetFrame ?? "round",
     logo: typeof (doc.ascii as Table | undefined)?.logo === "string" ? String((doc.ascii as Table).logo) : base?.logo,

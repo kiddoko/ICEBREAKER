@@ -34,15 +34,20 @@ export class DeckVoice {
   async resolve(): Promise<{ engine: "piper" | "system"; voice: string }> {
     const v = this.deck.settings.data.voice;
     const info = await this.deck.platform.voice!.info();
-    const lang = (this.deck.settings.data.user.locale || navigator.language || "en").slice(0, 2).toLowerCase();
-    const piperVoice = info.piper_voices.includes(v.name) ? v.name : info.piper_voices.find((x) => x.startsWith(lang)) ?? info.piper_voices[0];
+    const lang = v.language;
+    // a neural voice in the voice's language (vits-piper-fr_FR-siwis-medium…)
+    const piperVoice = info.piper_voices.find((x) => x === v.name && x.includes(`-${lang}_`)) ?? info.piper_voices.find((x) => x.includes(`-${lang}_`));
     if (v.engine === "piper" || (v.engine === "auto" && info.piper && piperVoice)) {
-      if (!info.piper || !piperVoice) throw new Error("piper isn't installed — voice install");
+      if (!info.piper || !piperVoice) throw new Error(`no neural ${lang === "fr" ? "French" : "English"} voice — voice install ${lang}`);
       return { engine: "piper", voice: piperVoice };
     }
-    if (!info.system) throw new Error("no voice on this system — voice install (piper)");
-    return { engine: "system", voice: info.piper_voices.includes(v.name) ? "" : v.name };
+    if (!info.system) throw new Error("no voice on this system — voice install");
+    if (v.name && !info.piper_voices.includes(v.name)) return { engine: "system", voice: v.name };
+    // the system's first voice in that language
+    this.systemVoice[lang] ??= (await this.deck.platform.voice!.list("system").catch(() => [])).find((x) => x.lang.toLowerCase().replace("-", "_").startsWith(`${lang}_`))?.id ?? "";
+    return { engine: "system", voice: this.systemVoice[lang] };
   }
+  private systemVoice: Record<string, string> = {};
 
   /** Say something (queued after what's being said). */
   say(text: string): void {

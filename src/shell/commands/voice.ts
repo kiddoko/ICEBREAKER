@@ -18,16 +18,17 @@ export const voiceCommand: Command = {
     "voice volume <0-100>",
     "voice engine auto | piper | system",
     "voice list · voice use <name>",
-    "voice install [fr | en | en-gb | de | es]   download piper (open source) + a voice",
+    "voice language en | fr   what it speaks",
+    "voice install [en | fr]  download the open-source neural voice (once)",
   ].join("\n"),
   examples: [
-    ["voice install fr", "piper and a French voice (~85 MB, once)"],
+    ["voice install fr", "the neural engine and a French voice (~85 MB, once)"],
     ["voice on", "then: voice say bonjour"],
     ["voice read on", "LINK reads its answers"],
     ["voice robot 80", "more machine"],
   ],
-  man: "Everything is synthesized on this computer: piper (github.com/rhasspy/piper, MIT, neural, light) once installed, else the system voice (macOS say, espeak-ng on Linux, Windows SAPI). The sound then goes through a ring modulator, a bit crusher and a chorus: clearly a machine, still smooth. Nothing is sent anywhere.",
-  complete: () => ["on", "off", "say", "stop", "read", "greet", "robot", "rate", "volume", "engine", "list", "use", "install", "test"],
+  man: "Everything is synthesized on this computer: open-source neural voices (piper voices run by sherpa-onnx) once installed, else the system voice (macOS say, espeak-ng on Linux, Windows SAPI). The sound then goes through a ring modulator, a bit crusher and a chorus: clearly a machine, still smooth. Nothing is sent anywhere.",
+  complete: () => ["on", "off", "say", "stop", "read", "greet", "robot", "rate", "volume", "language", "engine", "list", "use", "install", "test"],
   async run(ctx) {
     const { deck } = ctx;
     const v = deck.settings.data.voice;
@@ -40,13 +41,14 @@ export const voiceCommand: Command = {
           const info = await deck.platform.voice!.info();
           ctx.out(`${v.enabled ? fmt.green("● on") : fmt.dim("○ off")} · engine ${v.engine} · robot ${v.robot} · rate ${v.rate} · volume ${v.volume}\n`);
           ctx.out(`read LINK: ${v.readAI ? "yes" : "no"} · greeting: ${v.greet ? "yes" : "no"}${v.name ? ` · voice ${v.name}` : ""}\n`);
-          ctx.out(fmt.dim(`piper: ${info.piper ? `installed (${info.piper_voices.join(", ") || "no voice"})` : "not installed — voice install"} · system: ${info.system ?? "none"}\n`));
+          ctx.out(`language: ${v.language}\n`);
+          ctx.out(fmt.dim(`neural voices: ${info.piper ? info.piper_voices.join(", ") || "none" : "not installed — voice install"} · system: ${info.system ?? "none"}\n`));
           return 0;
         }
         case "on": case "off": deck.settings.set("voice.enabled", a === "on"); if (a === "off") deck.voice.stop(); ctx.out(`voice ${a}\n`); return 0;
         case "say": case "test":
           if (!v.enabled) deck.settings.set("voice.enabled", true);
-          deck.voice.say(a === "test" ? (deck.settings.data.user.locale.startsWith("fr") ? `Liaison établie. Bonjour, ${deck.settings.data.user.handle}.` : `Link established. Hello, ${deck.settings.data.user.handle}.`) : rest || ctx.stdin);
+          deck.voice.say(a === "test" ? (v.language === "fr" ? `Liaison établie. Bonjour, ${deck.settings.data.user.handle}.` : `Link established. Hello, ${deck.settings.data.user.handle}.`) : rest || ctx.stdin);
           return 0;
         case "stop": deck.voice.stop(); return 0;
         case "read": deck.settings.set("voice.readAI", onOff(b, v.readAI)); ctx.out(`read LINK's answers: ${deck.settings.data.voice.readAI ? "on" : "off"}\n`); return 0;
@@ -71,11 +73,19 @@ export const voiceCommand: Command = {
           return 0;
         }
         case "use": deck.settings.set("voice.name", rest); ctx.out(`voice: ${rest || "default"}\n`); return 0;
+        case "language": case "lang":
+          if (b !== "en" && b !== "fr") return ctx.err("usage: voice language en | fr\n"), 1;
+          deck.settings.set("voice.language", b);
+          deck.settings.set("voice.name", "");
+          ctx.out(`the voice speaks ${b === "fr" ? "French" : "English"}${(await deck.platform.voice!.info()).piper_voices.some((x) => x.includes(`-${b}_`)) ? "" : ` · neural voice: voice install ${b}`}\n`);
+          return 0;
         case "install": {
-          const lang = b ?? (deck.settings.data.user.locale.slice(0, 2) || "en");
-          ctx.out(fmt.dim(`downloading piper and the "${lang}" voice (once, up to ~85 MB)…\n`));
+          const lang = b ?? v.language;
+          if (lang !== "en" && lang !== "fr") return ctx.err("voice install en | fr\n"), 1;
+          ctx.out(fmt.dim(`downloading the neural engine and the "${lang}" voice (once, ~85 MB)…\n`));
           const name = await deck.platform.voice!.install(lang);
           deck.settings.set("voice.engine", "auto");
+          deck.settings.set("voice.language", lang);
           deck.settings.set("voice.name", name);
           ctx.out(`${fmt.green("✓")} ${name} · try: voice test\n`);
           return 0;

@@ -1,4 +1,4 @@
-# E-INK — a matte e-paper screen. Black ink, grey shades, paper white. No CRT:
+# E-INK — a matte e-paper screen. Dark ink on warm, dim cream paper (easy on the eyes). No CRT:
 # no glow, no scanlines, no flicker. Pages refresh with a black/white flash
 # and what you type settles in like ink. Sounds are dry paper taps.
 
@@ -10,13 +10,13 @@ border = "single"
 widget_frame = "line"     # widgets get a rule on top, no box
 
 [palette]
-paper    = "#e9e7e0"
-paper2   = "#dfddd5"
-rule     = "#cac7bd"
-grey3    = "#a19e95"
-grey2    = "#75726b"
-grey1    = "#4a4843"
-ink      = "#1b1a18"
+paper    = "#d9d3c3"
+paper2   = "#cfc9b8"
+rule     = "#bdb7a6"
+grey3    = "#99937f"
+grey2    = "#6f6a5c"
+grey1    = "#4a463d"
+ink      = "#262420"
 
 [ui]
 bg = "paper"
@@ -83,6 +83,8 @@ bloom = 0
 scanlines = 0
 vignette = 0
 flicker = false           # never, whatever the CRT setting
+monochrome = true         # everything in greys, even a colourful zsh
+paper = 0.55              # the matte film of an e-paper screen
 gradient = ["ink", "grey1"]
 
 [font]

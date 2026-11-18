@@ -31,7 +31,7 @@ title_focus = "#39ff14"
 | `[ui]`     | backgrounds, text, accent, borders, cursor, status colors…            |
 | `[syntax]` | Markdown highlighting in the editor and chat                          |
 | `[ansi]`   | the 16 terminal colors used by shell output (`colors` shows them)     |
-| `[fx]`     | `bloom`, `scanlines`, `vignette` strengths (0–1), `flicker = false` (this theme never flickers), `gradient` for logos |
+| `[fx]`     | `bloom`, `scanlines`, `vignette` strengths (0–1), `flicker = false` (this theme never flickers), `monochrome = true` (everything in greys, shell output included), `paper` (0–1, a matte paper texture over the screen), `gradient` for logos |
 | `[font]`   | `family`, `scale` (size correction), `weights = [normal, bold]`        |
 | `[glyphs]` | `mark` (◆), `bullet` (›), `spinner` frames, `todo` / `done` boxes       |
 | `[background]` | `effect` (fog · snow · rain · stars · embers · scan · grain · circuit · sonar · none), `density`, `speed`, `color`, `color2`, `glyphs` |

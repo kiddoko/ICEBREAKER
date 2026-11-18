@@ -84,6 +84,8 @@ export interface Settings {
     readAI: boolean;
     /** "Welcome, netrunner" when the deck starts */
     greet: boolean;
+    /** the language it speaks: en · fr */
+    language: "en" | "fr";
   };
   editor: { autosave: boolean; tabSize: number };
   plugins: { enabled: string[]; disabled: string[]; registry: string };
@@ -129,7 +131,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   journal: { folder: "journal" },
   privacy: { stealth: false },
-  voice: { enabled: false, engine: "auto", name: "", rate: 1, robot: 55, volume: 80, readAI: false, greet: true },
+  voice: { enabled: false, engine: "auto", name: "", rate: 1, robot: 55, volume: 80, readAI: false, greet: true, language: "en" },
   editor: { autosave: true, tabSize: 2 },
   // the community index: a JSON list of plugins/themes (see docs/COMMUNITY.md)
   plugins: { enabled: [], disabled: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json" },

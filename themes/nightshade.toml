@@ -107,7 +107,8 @@ bright_white   = "text"
 
 # Post-effect strengths (0–1), used when the user turns them on
 # (status bar "✦ fx" button, or `fx bloom on`). They're off by default.
-# flicker = false would keep this theme still even with the CRT flicker on.
+# flicker = false keeps this theme still even with the CRT flicker on;
+# monochrome = true draws everything in greys; paper = 0–1 lays a matte paper texture on top.
 [fx]
 bloom     = 0.3
 scanlines = 0.10
