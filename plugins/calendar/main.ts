@@ -51,6 +51,12 @@ const dayOf = (s: string) => new Date(s.length === 10 ? `${s}T00:00` : s);
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 const hm = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+/** ISO 8601 week number */
+const isoWeek = (d: Date) => {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+  return Math.ceil(((t.getTime() - Date.UTC(t.getUTCFullYear(), 0, 1)) / DAY + 1) / 7);
+};
 
 const WEEKDAYS: Record<string, number> = {
   sun: 0, sunday: 0, dim: 0, dimanche: 0, mon: 1, monday: 1, lun: 1, lundi: 1, tue: 2, tuesday: 2, mar: 2, mardi: 2,
@@ -258,10 +264,12 @@ export function activate(ib: IcebreakerAPI): void {
   };
   const visible = () => [...local, ...google.events].filter((e) => !hidden.includes(e.cal) && calOf(e.cal));
   /** Events that touch [from, to), sorted. */
-  const between = (from: Date, to: Date) =>
-    visible()
-      .filter((e) => dayOf(e.start) < to && dayOf(e.end) > from)
-      .sort((a, b) => Number(b.allDay) - Number(a.allDay) || dayOf(a.start).getTime() - dayOf(b.start).getTime());
+  /** by day, then all-day events first, then by time */
+  const byStart = (a: Ev, b: Ev) =>
+    ymd(dayOf(a.start)).localeCompare(ymd(dayOf(b.start))) || Number(b.allDay) - Number(a.allDay) || dayOf(a.start).getTime() - dayOf(b.start).getTime();
+  const between = (from: Date, to: Date) => visible().filter((e) => dayOf(e.start) < to && dayOf(e.end) > from).sort(byStart);
+  /** events starting on or after `from`, for `days` days */
+  const upcomingAfter = (from: Date, days: number) => visible().filter((e) => dayOf(e.start) >= from && dayOf(e.start) < addDays(from, days)).sort(byStart);
   const upcoming = (n: number) =>
     visible()
       .filter((e) => dayOf(e.end).getTime() > Date.now())
@@ -691,6 +699,8 @@ export function activate(ib: IcebreakerAPI): void {
     private day = startOfDay(new Date());
     /** -1: the month grid has the keys; ≥0: an event of the day is selected */
     private sel = -1;
+    view: "month" | "settings" = "month";
+    private setSel = 0;
 
     title() {
       return "Calendar";
@@ -708,11 +718,19 @@ export function activate(ib: IcebreakerAPI): void {
     }
 
     onText(t: string): boolean {
+      if (this.view === "settings") {
+        const cal = calendars()[this.setSel];
+        if (!cal) return false;
+        if (t === " ") return run(`cal ${hidden.includes(cal.id) ? "show" : "hide"} ${q(cal.name)}`), true;
+        if (t === "d") return run(`cal default ${q(cal.name)}`), true;
+        if (t === "c") return (this.view = "month"), true;
+        return false;
+      }
       switch (t) {
         case "a": case "n": case "+": void addFlow(this.day); return true;
         case "t": this.goto(new Date()); return true;
         case "s": run("cal sync"); return true;
-        case "c": void this.pickCalendars(); return true;
+        case "c": this.view = "settings"; return true;
         case "[": case "<": this.goto(new Date(this.day.getFullYear(), this.day.getMonth() - 1, Math.min(this.day.getDate(), 28))); return true;
         case "]": case ">": this.goto(new Date(this.day.getFullYear(), this.day.getMonth() + 1, Math.min(this.day.getDate(), 28))); return true;
         case "x": this.remove(); return true;
@@ -720,6 +738,10 @@ export function activate(ib: IcebreakerAPI): void {
       }
     }
     onKey(k: KeyInput): boolean {
+      if (this.view === "settings") {
+        if (k.combo === "esc") return (this.view = "month"), true;
+        return false;
+      }
       if (k.combo === "delete" || k.combo === "backspace") return this.remove(), true;
       if (k.combo === "esc" && this.sel >= 0) return (this.sel = -1), true;
       if (k.combo === "pageup") return this.onText("["), true;
@@ -727,6 +749,15 @@ export function activate(ib: IcebreakerAPI): void {
       return false;
     }
     onAction(a: Action): boolean {
+      if (this.view === "settings") {
+        const n = calendars().length;
+        if (a === "up") this.setSel = Math.max(0, this.setSel - 1);
+        else if (a === "down") this.setSel = Math.min(n - 1, this.setSel + 1);
+        else if (a === "confirm") this.onText(" ");
+        else if (a === "back") this.view = "month";
+        else return false;
+        return true;
+      }
       const n = this.events.length;
       if (this.sel >= 0) {
         if (a === "up") this.sel = this.sel === 0 ? -1 : this.sel - 1;
@@ -748,148 +779,240 @@ export function activate(ib: IcebreakerAPI): void {
         if (ok) run(`cal rm ${ref(e)}`);
       });
     }
-    private async pickCalendars(): Promise<void> {
-      const all = calendars();
-      const i = await ib.ui.choose(
-        "Show / hide a calendar",
-        all.map((c) => ({ label: c.name, hint: hidden.includes(c.id) ? "hidden" : "shown", color: c.color || undefined })),
-      );
-      if (i !== null) run(`cal ${hidden.includes(all[i].id) ? "show" : "hide"} ${q(all[i].name)}`);
-    }
 
     render(ui: UI, r: Rect, focused: boolean): void {
       const c = ui.c;
       if (!loaded) return void ui.text(r.x + 1, r.y, `${ui.spinner()} loading…`, { fg: c.muted });
       refreshLocal();
       if (syncing) ui.animate(100);
+      this.header(ui, r);
+      if (this.view === "settings") return this.renderSettings(ui, { x: r.x, y: r.y + 2, w: r.w, h: r.h - 2 }, focused);
       const today = startOfDay(new Date());
       const first = new Date(this.day.getFullYear(), this.day.getMonth(), 1);
       const offset = (first.getDay() + 6) % 7;
       const weeks = Math.ceil((offset + new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()) / 7);
 
-      // ── layout: month on the left, the day on the right (stacked when narrow)
-      const wide = r.w >= 70;
-      const gridW = wide ? Math.min(r.w - 34, Math.max(36, Math.floor(r.w * 0.58))) : r.w - 2;
-      const cw = Math.max(4, Math.floor(gridW / 7));
-      const headH = 2;
-      const gridH = wide ? r.h - headH - 2 : Math.min(r.h - headH - 8, weeks * 3 + 1);
-      const ch = Math.max(1, Math.floor((gridH - 1) / weeks));
-      const gx = r.x + 1;
-      const gy = r.y + headH;
+      // ── layout: the month grid on the left, the agenda on the right (stacked when narrow)
+      const wide = r.w >= 78;
+      const gutter = r.w >= 60 ? 4 : 0; // week numbers
+      const gridW = wide ? Math.min(r.w - 36, Math.max(43, Math.floor(r.w * 0.62))) : r.w - 2;
+      const cw = Math.max(3, Math.floor((gridW - gutter - 1) / 7) - 1); // inside a cell
+      const gx = r.x + 1 + gutter; // left grid line
+      const gy = r.y + 2; // weekday names
+      const gridH = wide ? r.h - 4 : Math.min(r.h - 12, weeks * 4 + 1);
+      const ch = Math.max(1, Math.floor((gridH - 1) / weeks) - 1); // inside a cell
+      const X = (i: number) => gx + i * (cw + 1);
+      const Y = (w: number) => gy + 1 + w * (ch + 1);
+      const line = { fg: mix(c.border, c.accent, 0.25) };
 
-      // header: ‹ month › · today · + add · sync
-      let hx = gx;
-      const btn = (label: string, cmd: () => void, tip: string, accent = false) => {
-        const rect = { x: hx, y: r.y, w: strWidth(label), h: 1 };
-        const hot = ui.hovered(rect);
-        ui.text(hx, r.y, label, hot ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: accent ? c.accent : c.fg, bg: c.highlight });
-        ui.hit(rect, { onClick: cmd, tip });
-        hx += rect.w + 1;
-      };
-      btn(" ‹ ", () => this.onText("["), "previous month · [");
-      const month = first.toLocaleDateString(undefined, { month: "long", year: "numeric" }).toUpperCase();
-      hx = ui.text(hx + 1, r.y, month, { fg: c.fg, attrs: BOLD }) + 2;
-      btn(" › ", () => this.onText("]"), "next month · ]");
-      btn(" today ", () => this.goto(new Date()), "t");
-      btn(" + add ", () => void addFlow(this.day), "a · or: cal add \"title\" <day> <time>", true);
-      btn(" calendars ", () => void this.pickCalendars(), "c · show / hide calendars");
-      if (connected) btn(syncing ? ` ${ui.spinner()} sync ` : " ⟳ sync ", () => run("cal sync"), "s · cal sync");
-      else if (ib.google.available() && mode !== "local") btn(" + google ", () => run("cal google connect"), "connect your Google calendars · or stay local: cal mode local");
-      // (the sync state is in the status bar; errors show here too, when they fit)
-      if (syncError && r.x + r.w - 1 - strWidth(syncError) > hx + 1) ui.textRight(r.x + r.w - 1, r.y, syncError, { fg: c.error });
-
-      // weekday names
+      // weekday names, cyber caps
       for (let i = 0; i < 7; i++) {
-        const n = new Date(2024, 0, 1 + i).toLocaleDateString(undefined, { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "");
-        ui.text(gx + i * cw + 1, gy, n.slice(0, cw - 1), { fg: i >= 5 ? c.accentAlt : c.subtle });
+        const n = new Date(2024, 0, 1 + i).toLocaleDateString(undefined, { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "").toUpperCase();
+        ui.text(X(i) + 1, gy, n.slice(0, cw), { fg: i >= 5 ? c.accentAlt : c.subtle, attrs: BOLD });
       }
-      // days
+      // the grid lines
+      for (let w = 0; w <= weeks; w++) {
+        const y = Y(w);
+        for (let i = 0; i <= 7; i++) {
+          const x = X(i);
+          const left = i === 0, right = i === 7, top = w === 0, bot = w === weeks;
+          const ch0 = top ? (left ? "┌" : right ? "┐" : "┬") : bot ? (left ? "└" : right ? "┘" : "┴") : left ? "├" : right ? "┤" : "┼";
+          ui.text(x, y, ch0, line);
+          if (i < 7) ui.hline(x + 1, y, cw, line);
+          if (w < weeks) ui.vline(x, y + 1, ch, line);
+        }
+      }
+      // cells
+      let selCell: Rect | null = null;
       for (let w = 0; w < weeks; w++) {
+        const monday = addDays(first, w * 7 - offset);
+        if (gutter) ui.text(r.x + 1, Y(w) + 1, `W${String(isoWeek(monday)).padStart(2, "0")}`, { fg: c.faint });
         for (let i = 0; i < 7; i++) {
-          const d = addDays(first, w * 7 + i - offset);
-          if (d.getMonth() !== first.getMonth()) continue;
-          const cell = { x: gx + i * cw, y: gy + 1 + w * ch, w: cw - 1, h: ch };
+          const d = addDays(monday, i);
+          const other = d.getMonth() !== first.getMonth();
+          const cell = { x: X(i) + 1, y: Y(w) + 1, w: cw, h: ch };
           const isSel = ymd(d) === ymd(this.day);
           const isToday = ymd(d) === ymd(today);
           const hot = ui.hovered(cell);
-          const bg = isSel ? mix(c.accent, c.bg, focused ? 0.7 : 0.82) : hot ? c.highlight : ch > 1 ? c.panelAlt : -1;
+          const bg = isSel ? mix(c.accent, c.bg, focused ? 0.82 : 0.9) : hot ? c.highlight : -1;
           if (bg !== -1) ui.fill(cell, { bg });
-          ui.text(cell.x + 1, cell.y, String(d.getDate()), { fg: isToday ? c.accent : isSel ? c.fg : c.muted, attrs: isToday || isSel ? BOLD : 0, ...(bg !== -1 ? { bg } : {}) });
+          const st = bg !== -1 ? { bg } : {};
+          const num = String(d.getDate()).padStart(2, " ");
+          if (isToday) ui.text(cell.x, cell.y, `▐${num}▌`.slice(0, cw), { fg: c.accent, attrs: BOLD });
+          else ui.text(cell.x + 1, cell.y, num, { fg: other ? c.faint : isSel ? c.fg : i >= 5 ? c.accentAlt : c.muted, attrs: isSel ? BOLD : 0, ...st });
+          if (isSel) selCell = cell;
           const evs = between(d, addDays(d, 1));
           if (ch >= 2 && cw >= 6) {
-            // the events inside the cell: all-day ones as a tinted bar, timed ones with their hour
+            // inside the cell: all-day events as a tinted bar, timed ones with their hour
             const room = ch - 1;
-            const shown = evs.length > room ? room - 1 : room;
+            // too many: the last line says how many more (but always show at least one)
+            const shown = evs.length > room ? Math.max(1, room - 1) : room;
             evs.slice(0, shown).forEach((e, k) => {
               const ey = cell.y + 1 + k;
               const col = colorOf(ui, e.cal);
               if (e.allDay) {
-                const tb = mix(col, c.bg, 0.72);
+                const tb = mix(col, c.bg, other ? 0.85 : 0.7);
                 ui.fill({ x: cell.x, y: ey, w: cell.w, h: 1 }, { bg: tb });
-                ui.text(cell.x + 1, ey, e.title, { fg: c.fg, bg: tb }, cell.w - 1);
+                ui.text(cell.x + 1, ey, e.title, { fg: other ? c.muted : c.fg, bg: tb }, cell.w - 1);
               } else {
-                const st = bg !== -1 ? { bg } : {};
-                ui.text(cell.x, ey, "▎", { fg: col, ...st });
-                const tx = cw >= 13 ? ui.text(cell.x + 1, ey, hm(dayOf(e.start)), { fg: c.subtle, ...st }) + 1 : cell.x + 1;
-                ui.text(tx, ey, e.title, { fg: c.fg, ...st }, cell.x + cell.w - tx);
+                ui.text(cell.x, ey, "▍", { fg: col, ...st });
+                const tx = cw >= 14 ? ui.text(cell.x + 1, ey, hm(dayOf(e.start)), { fg: c.subtle, ...st }) + 1 : cell.x + 1;
+                ui.text(tx, ey, e.title, { fg: other ? c.muted : c.fg, ...st }, cell.x + cell.w - tx);
               }
             });
-            if (evs.length > shown) ui.text(cell.x + 1, cell.y + 1 + shown, `+${evs.length - shown} more`, { fg: c.subtle, ...(bg !== -1 ? { bg } : {}) }, cell.w - 1);
+            if (evs.length > shown) {
+              const more = `+${evs.length - shown}`;
+              if (shown < room) ui.text(cell.x + 1, cell.y + 1 + shown, more, { fg: c.accentAlt, ...st }, cell.w - 1);
+              else ui.textRight(cell.x + cell.w, cell.y, more, { fg: c.accentAlt, attrs: BOLD, ...st }); // next to the day number
+            }
           } else {
-            evs.slice(0, Math.max(0, cw - 4)).forEach((e, k) => ui.text(cell.x + 3 + k, cell.y, "•", { fg: colorOf(ui, e.cal), ...(bg !== -1 ? { bg } : {}) }));
+            evs.slice(0, Math.max(0, cw - 3)).forEach((e, k) => ui.text(cell.x + 3 + k, cell.y, "•", { fg: colorOf(ui, e.cal), ...st }));
           }
-          ui.hit(cell, { onClick: () => this.goto(d), onDouble: () => void addFlow(d), tip: `${evs.length ? evs.map((e) => `${when(e)} ${e.title}`).join("\n") : "nothing"}\ndouble-click: add` });
+          ui.hit(cell, { onClick: () => this.goto(d), onDouble: () => void addFlow(d), tip: `${dayTitle(d)}\n${evs.length ? evs.map((e) => `${when(e)} ${e.title}`).join("\n") : "nothing"}\ndouble-click: add` });
         }
       }
+      // the selected day gets a neon frame
+      if (selCell) {
+        const s0 = selCell as Rect;
+        const hl = { fg: focused ? c.accent : c.subtle, attrs: BOLD };
+        ui.text(s0.x - 1, s0.y - 1, "┏", hl);
+        ui.hline(s0.x, s0.y - 1, s0.w, hl, "━");
+        ui.text(s0.x + s0.w, s0.y - 1, "┓", hl);
+        ui.vline(s0.x - 1, s0.y, s0.h, hl, "┃");
+        ui.vline(s0.x + s0.w, s0.y, s0.h, hl, "┃");
+        ui.text(s0.x - 1, s0.y + s0.h, "┗", hl);
+        ui.hline(s0.x, s0.y + s0.h, s0.w, hl, "━");
+        ui.text(s0.x + s0.w, s0.y + s0.h, "┛", hl);
+      }
 
-      // ── the selected day
-      const ax = wide ? gx + cw * 7 + 2 : gx;
-      const ay = wide ? gy : gy + 1 + weeks * ch + 1;
+      // ── the agenda: the selected day, then what's coming
+      const ax = wide ? X(7) + 3 : r.x + 1;
+      const ay = wide ? gy : Y(weeks) + 2;
       const aw = wide ? r.x + r.w - ax - 1 : r.w - 2;
-      if (wide) ui.vline(ax - 2, gy, r.h - headH, { fg: c.border });
-      ui.text(ax, ay, dayTitle(this.day), { fg: ymd(this.day) === ymd(today) ? c.accent : c.fg, attrs: BOLD }, aw);
+      const bottom = r.y + r.h - 2;
+      const dayHead = (y: number, label: string, hot: boolean) => {
+        ui.text(ax, y, label.toUpperCase(), { fg: hot ? c.accent : c.fg, attrs: BOLD }, aw);
+        ui.hline(ax + Math.min(aw - 1, strWidth(label) + 1), y, Math.max(0, aw - strWidth(label) - 1), { fg: c.faint });
+      };
+      dayHead(ay, dayTitle(this.day), ymd(this.day) === ymd(today));
       const evs = this.events;
-      if (!evs.length) ui.text(ax, ay + 2, "nothing · a / enter adds", { fg: c.faint }, aw);
-      let y = ay + 2;
+      if (!evs.length) ui.text(ax, ay + 1, "nothing · a / enter adds", { fg: c.faint }, aw);
+      let y = ay + 1;
       evs.forEach((e, k) => {
-        if (y >= r.y + r.h - 1) return;
+        if (y > bottom) return;
         const row = { x: ax, y, w: aw, h: 1 };
         const isSel = k === this.sel;
         const rbg = isSel ? mix(c.accent, c.bg, 0.75) : ui.hovered(row) ? c.highlight : -1;
         if (rbg !== -1) ui.fill(row, { bg: rbg });
         const st = rbg !== -1 ? { bg: rbg } : {};
-        ui.text(ax, y, "●", { fg: colorOf(ui, e.cal), ...st });
+        ui.text(ax, y, "▍", { fg: colorOf(ui, e.cal), ...st });
         ui.text(ax + 2, y, when(e).padEnd(11), { fg: c.subtle, ...st });
         const cal = calOf(e.cal)?.name ?? "";
-        const rx = cal && aw > 40 ? ui.textRight(ax + aw, y, cal, { fg: c.faint, ...st }) : ax + aw;
+        const rx = cal && aw > 44 ? ui.textRight(ax + aw, y, cal, { fg: c.faint, ...st }) : ax + aw;
         ui.text(ax + 14, y, e.title, { fg: c.fg, attrs: isSel ? BOLD : 0, ...st }, rx - ax - 15);
         ui.hit(row, { onClick: () => (this.sel = k), tip: `${e.title}${e.where ? `\n${e.where}` : ""}\nx / delete: remove · cal rm ${ref(e)}` });
         y++;
-        if (e.where && y < r.y + r.h - 1) ui.text(ax + 14, y++, e.where, { fg: c.faint }, aw - 14);
+        if (e.where && y <= bottom) ui.text(ax + 14, y++, `@ ${e.where}`, { fg: c.faint }, aw - 14);
       });
-      // then the next days, as long as there's room
-      const bottom = r.y + r.h - 2;
       if (y + 3 < bottom) {
         y++;
-        ui.text(ax, y++, "COMING UP", { fg: c.subtle, attrs: BOLD });
         let last = "";
-        for (const e of between(addDays(this.day, 1), addDays(this.day, 60))) {
+        for (const e of upcomingAfter(addDays(this.day, 1), 60)) {
           const s = dayOf(e.start);
           const key = ymd(s);
           if (y + (key !== last ? 2 : 1) > bottom) break;
           if (key !== last) {
             last = key;
-            ui.text(ax, y++, dayTitle(s), { fg: c.muted }, aw);
+            if (y > ay + 2) y++;
+            dayHead(y++, dayTitle(s), false);
           }
           const row = { x: ax, y, w: aw, h: 1 };
-          ui.text(ax, y, "●", { fg: colorOf(ui, e.cal) });
+          ui.text(ax, y, "▍", { fg: colorOf(ui, e.cal) });
           ui.text(ax + 2, y, when(e).padEnd(11), { fg: c.subtle });
-          ui.text(ax + 14, y, e.title, { fg: ui.hovered(row) ? c.accent : c.fg }, aw - 14);
+          ui.text(ax + 14, y, e.title, { fg: ui.hovered(row) ? c.accent : c.muted }, aw - 14);
           ui.hit(row, { onClick: () => this.goto(s), tip: `${dayTitle(s)}\nclick: go to that day` });
           y++;
         }
       }
-      ui.text(ax, r.y + r.h - 1, "arrows · enter · a add · x remove · [ ] months · t today · c calendars", { fg: c.faint }, aw);
+      ui.text(ax, r.y + r.h - 1, "arrows · enter · a add · x remove · [ ] months · t today · c settings", { fg: c.faint }, aw);
+    }
+
+    private header(ui: UI, r: Rect): void {
+      const c = ui.c;
+      let hx = r.x + 1;
+      const btn = (label: string, cmd: () => void, tip: string, on = false) => {
+        const rect = { x: hx, y: r.y, w: strWidth(label), h: 1 };
+        const hot = ui.hovered(rect);
+        ui.text(hx, r.y, label, hot || on ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: c.fg, bg: c.highlight });
+        ui.hit(rect, { onClick: cmd, tip });
+        hx += rect.w + 1;
+      };
+      if (this.view === "month") {
+        btn(" ‹ ", () => this.onText("["), "previous month · [");
+        const month = new Date(this.day.getFullYear(), this.day.getMonth(), 1).toLocaleDateString(undefined, { month: "long", year: "numeric" }).toUpperCase();
+        hx = ui.gradientText(hx + 1, r.y, month, ui.theme.gradient) + 2;
+        btn(" › ", () => this.onText("]"), "next month · ]");
+        btn(" today ", () => this.goto(new Date()), "t");
+        btn(" + add ", () => void addFlow(this.day), "a · or: cal add \"title\" <day> <time>");
+        if (connected) btn(syncing ? ` ${ui.spinner()} sync ` : " ⟳ sync ", () => run("cal sync"), "s · cal sync");
+      } else btn(" ‹ back ", () => (this.view = "month"), "esc");
+      btn(" ⚙ settings ", () => (this.view = this.view === "settings" ? "month" : "settings"), "c · calendars, Google, local files", this.view === "settings");
+      if (syncError && r.x + r.w - 1 - strWidth(syncError) > hx + 1) ui.textRight(r.x + r.w - 1, r.y, syncError, { fg: c.error });
+    }
+
+    /** The settings page: which calendars show, the default one, Google, the local files. */
+    private renderSettings(ui: UI, r: Rect, focused: boolean): void {
+      const c = ui.c;
+      const w = Math.min(r.w - 4, 90);
+      const x = r.x + Math.max(2, Math.floor((r.w - w) / 2));
+      let y = r.y;
+      const section = (title: string) => {
+        ui.text(x, y, title, { fg: c.accent, attrs: BOLD });
+        ui.hline(x + strWidth(title) + 1, y, w - strWidth(title) - 1, { fg: c.faint });
+        y += 2;
+      };
+      // where the calendar lives
+      section("WHERE");
+      const modeBtn = (m: "local" | "google", label: string, hint: string) => {
+        const on = mode === m || (m === "local" && mode === "ask" && !connected);
+        const rect = { x, y, w, h: 1 };
+        ui.text(x, y, on ? "◉" : "○", { fg: on ? c.accent : c.subtle });
+        ui.text(x + 2, y, label, { fg: ui.hovered(rect) ? c.accent : c.fg, attrs: on ? BOLD : 0 });
+        ui.text(x + 30, y, hint, { fg: c.faint }, w - 30);
+        ui.hit(rect, { cmd: `cal mode ${m}`, tip: `cal mode ${m}` });
+        y++;
+      };
+      modeBtn("local", "In my vault only", "plain Markdown in calendar/ · offline, no account");
+      if (ib.google.available()) modeBtn("google", "Vault + Google Calendar", connected ? `connected · ${status()}` : "signs in in your browser");
+      y++;
+      // the calendars
+      section("CALENDARS");
+      const all = calendars();
+      this.setSel = Math.max(0, Math.min(this.setSel, all.length - 1));
+      all.forEach((cal, i) => {
+        if (y >= r.y + r.h - 3) return;
+        const row = { x, y, w, h: 1 };
+        const sel = i === this.setSel && focused;
+        if (sel || ui.hovered(row)) ui.fill(row, { bg: sel ? mix(c.accent, c.bg, 0.8) : c.highlight });
+        const st = sel || ui.hovered(row) ? { bg: sel ? mix(c.accent, c.bg, 0.8) : c.highlight } : {};
+        const shown = !hidden.includes(cal.id);
+        ui.text(x, y, shown ? "[■]" : "[ ]", { fg: shown ? c.accent : c.subtle, ...st });
+        ui.hit({ x, y, w: 3, h: 1 }, { cmd: `cal ${shown ? "hide" : "show"} ${q(cal.name)}`, tip: "space · show / hide" });
+        ui.text(x + 4, y, "●", { fg: colorOf(ui, cal.id), ...st });
+        ui.text(x + 6, y, cal.name, { fg: shown ? c.fg : c.muted, attrs: sel ? BOLD : 0, ...st }, w - 34);
+        const tags = [cal.id === defaultCal ? "default" : "", cal.id === "local" ? "vault" : "google", cal.writable ? "" : "read-only"].filter(Boolean).join(" · ");
+        ui.textRight(x + w, y, tags, { fg: cal.id === defaultCal ? c.success : c.faint, ...st });
+        ui.hit({ x: x + 4, y, w: w - 4, h: 1 }, { onClick: () => (this.setSel = i), onDouble: () => run(`cal ${shown ? "hide" : "show"} ${q(cal.name)}`), tip: "space: show / hide · d: make it the default" });
+        y++;
+      });
+      y++;
+      if (connected && y < r.y + r.h - 2) {
+        ui.button(x, y, "⟳ sync now", () => run("cal sync"), { cmd: "cal sync" });
+        ui.button(x + 16, y, "disconnect Google", () => run("cal google disconnect"), { cmd: "cal google disconnect", accent: c.error });
+        y += 2;
+      }
+      if (y < r.y + r.h - 1) ui.text(x, y, `local calendar: ${"calendar/"}YYYY-MM.md in your vault — one event per line, edit it anywhere`, { fg: c.faint }, w);
+      ui.text(x, r.y + r.h - 1, "↑↓ choose · space show/hide · d default · esc back", { fg: c.faint }, w);
     }
   }
 
@@ -905,6 +1028,7 @@ export function activate(ib: IcebreakerAPI): void {
   ib.palette.register({ id: "calendar.open", title: "Calendar", group: "calendar", run: () => run("cal open") });
 
   // ── HOME widget: what's coming, as much as fits ──────────────────────────
+  let nextSel = 0;
   ib.widgets.register({
     id: "next",
     title: "upcoming",
@@ -960,6 +1084,55 @@ export function activate(ib: IcebreakerAPI): void {
       }
     },
     open: "cal open",
+    popup: {
+      title: "upcoming",
+      size: { w: 64, h: 16 },
+      hint: "a add · ↑↓ · enter: that day",
+      render(ui, r) {
+        const c = ui.c;
+        const evs = upcoming(40);
+        nextSel = Math.max(0, Math.min(nextSel, evs.length - 1));
+        let y = r.y;
+        let last = "";
+        let i = 0;
+        for (const e of evs) {
+          const s = dayOf(e.start);
+          const key = ymd(s);
+          if (y + (key !== last ? 2 : 1) > r.y + r.h - 1) break;
+          if (key !== last) {
+            last = key;
+            ui.text(r.x + 2, y++, dayTitle(s).toUpperCase(), { fg: c.subtle, attrs: BOLD }, r.w - 4);
+          }
+          const row = { x: r.x, y, w: r.w, h: 1 };
+          const sel = i === nextSel;
+          if (sel) ui.fill(row, { bg: mix(c.accent, c.bg, 0.8) });
+          const st = sel ? { bg: mix(c.accent, c.bg, 0.8) } : {};
+          ui.text(r.x + 2, y, "▍", { fg: colorOf(ui, e.cal), ...st });
+          ui.text(r.x + 4, y, when(e).padEnd(11), { fg: c.subtle, ...st });
+          ui.text(r.x + 16, y, e.title, { fg: c.fg, attrs: sel ? BOLD : 0, ...st }, r.w - 30);
+          ui.textRight(r.x + r.w - 2, y, e.allDay ? "" : until(s), { fg: c.faint, ...st });
+          ui.hit(row, { cmd: `cal open ${key}`, tip: "go to that day" });
+          y++;
+          i++;
+        }
+        if (!evs.length) ui.text(r.x + 2, r.y + 1, "nothing coming up · a adds an event", { fg: c.muted });
+        ui.button(r.x + 2, r.y + r.h - 1, "+ add an event", () => void addFlow(startOfDay(new Date())), { tip: "a" });
+      },
+      onText: (t, { close }) => (t === "a" || t === "+" ? (close(), void addFlow(startOfDay(new Date())), true) : false),
+      onKey: (k, { close }) => {
+        if (k.combo !== "enter") return false;
+        const e = upcoming(40)[nextSel];
+        if (!e) return false;
+        close();
+        run(`cal open ${ymd(dayOf(e.start))}`);
+        return true;
+      },
+      onAction: (a) => {
+        if (a === "up") return (nextSel = Math.max(0, nextSel - 1)), true;
+        if (a === "down") return (nextSel += 1), true;
+        return false;
+      },
+    },
   });
 }
 

@@ -9,6 +9,7 @@ import { dots, fitMatrix, matrixSize, matrixText } from "../ui/dots";
 import type { UI } from "../ui/ui";
 import { basename, dirname } from "../vault/paths";
 import { EXTRA_WIDGETS } from "./extra";
+import { withPopups } from "./popups";
 import type { WidgetPlacement, WidgetSpec } from "./types";
 
 /* ═══════════════════════ big pixel digits ═══════════════════════
@@ -148,6 +149,8 @@ interface Weather {
 }
 
 let weather: Weather | null = null;
+/** the last forecast (the weather pop-up and `weather` read it) */
+export const currentWeather = () => weather;
 let weatherError: string | null = null;
 let weatherLoading = false;
 
@@ -536,7 +539,7 @@ const modules: WidgetSpec = {
   activate: ({ deck }) => void deck.openApp("modules"),
 };
 
-export const BUILTIN_WIDGETS: WidgetSpec[] = [clock, weatherWidget, calendar, system, recent, modules, ...EXTRA_WIDGETS];
+export const BUILTIN_WIDGETS: WidgetSpec[] = withPopups([clock, weatherWidget, calendar, system, recent, modules, ...EXTRA_WIDGETS]);
 
 /** Home layouts offered by the setup questionnaire. The first one is the default. */
 export const LAYOUT_PRESETS: Record<"essentials" | "productivity" | "gadget", WidgetPlacement[]> = {

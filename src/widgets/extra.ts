@@ -57,12 +57,13 @@ const tasksWidget: WidgetSpec = {
 
 /* ─────────── focus: a 25/5 pomodoro ─────────── */
 
-const focus = { phase: "focus" as "focus" | "break", left: 25 * 60_000, running: false, last: 0, flashUntil: 0 };
+/** the pomodoro, shared by the widget, its pop-up and the `focus` command */
+export const focus = { phase: "focus" as "focus" | "break", left: 25 * 60_000, running: false, last: 0, flashUntil: 0, work: 25, rest: 5 };
 
 const focusWidget: WidgetSpec = {
   id: "focus",
   title: "focus",
-  description: "25/5 pomodoro — enter starts/pauses",
+  description: "a pomodoro — enter: start, pause, durations",
   size: { w: 4, h: 4 },
   min: { w: 2, h: 2 },
   render(ui, r, { deck }) {
@@ -73,13 +74,13 @@ const focusWidget: WidgetSpec = {
       focus.last = now;
       if (focus.left <= 0) {
         focus.phase = focus.phase === "focus" ? "break" : "focus";
-        focus.left = (focus.phase === "focus" ? 25 : 5) * 60_000;
+        focus.left = (focus.phase === "focus" ? focus.work : focus.rest) * 60_000;
         focus.flashUntil = ui.now + 3000;
         deck.notify(focus.phase === "break" ? "focus done — take 5" : "break over — jack back in", "success");
       }
       ui.animate(250);
     }
-    const total = (focus.phase === "focus" ? 25 : 5) * 60_000;
+    const total = (focus.phase === "focus" ? focus.work : focus.rest) * 60_000;
     const secs = Math.ceil(focus.left / 1000);
     const t = `${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(secs % 60).padStart(2, "0")}`;
     const flash = ui.now < focus.flashUntil && Math.floor(ui.now / 200) % 2 === 0;
@@ -95,10 +96,6 @@ const focusWidget: WidgetSpec = {
       ui.bar(x, y + d.h, d.w, 1 - focus.left / total, col, c.faint);
       ui.textCenter(r, y + d.h + 1, label, { fg: focus.running ? col : c.subtle });
     } else ui.textCenter(r, r.y, `${label} ${t}`, { fg: col, attrs: BOLD });
-  },
-  activate: () => {
-    focus.running = !focus.running;
-    focus.last = Date.now();
   },
 };
 

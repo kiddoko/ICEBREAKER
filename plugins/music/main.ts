@@ -751,6 +751,54 @@ export function activate(ib: IcebreakerAPI): void {
       else run("music toggle");
     },
     open: "music open",
+    popup: {
+      title: "music",
+      size: { w: 64, h: 14 },
+      hint: "space ▶❚❚ · n p · + - volume · s shuffle · r repeat",
+      render(ui, r) {
+        const c = ui.c;
+        const s = shown();
+        if (s?.playing) ui.animate(250);
+        if (!s) {
+          ui.text(r.x + 2, r.y + 1, lib.length ? `nothing playing · ${lib.length} tracks in ${folder}` : "nothing playing · music folder <path> to add yours", { fg: c.muted }, r.w - 4);
+        } else {
+          ui.text(r.x + 2, r.y, s.player.toUpperCase(), { fg: c.accentAlt, attrs: BOLD });
+          ui.text(r.x + 2, r.y + 1, s.title || "—", { fg: c.fg, attrs: BOLD }, r.w - 4);
+          ui.text(r.x + 2, r.y + 2, [s.artist, s.album].filter(Boolean).join(" · "), { fg: c.muted }, r.w - 4);
+          if (s.duration) {
+            const pos = position();
+            ui.text(r.x + 2, r.y + 4, clock(pos), { fg: c.subtle });
+            ui.bar(r.x + 8, r.y + 4, r.w - 18, pos / s.duration);
+            ui.textRight(r.x + r.w - 2, r.y + 4, clock(s.duration), { fg: c.subtle });
+          }
+        }
+        let x = r.x + 2;
+        const ctl = (label: string, cmd: string, on = false) => (x += ui.button(x, r.y + 6, label, () => {}, { cmd, selected: on }) + 2);
+        ctl("|◀◀", "music prev");
+        ctl(s?.playing ? "❚❚" : "▶", "music toggle");
+        ctl("▶▶|", "music next");
+        if (localActive() || qi >= 0) {
+          ctl("shuffle", "music shuffle", shuffle);
+          ctl(`repeat ${repeat}`, "music repeat", repeat !== "off");
+        }
+        ctl("−", "music vol -");
+        ctl("+", "music vol +");
+        if (queue.length && qi >= 0) {
+          ui.text(r.x + 2, r.y + 8, "NEXT", { fg: c.subtle, attrs: BOLD });
+          queue.slice(qi + 1, qi + 1 + (r.h - 9)).forEach((p, k) => {
+            const t = byPath.get(p);
+            ui.text(r.x + 2, r.y + 9 + k, `${t?.title ?? p}`, { fg: c.muted }, r.w - 24);
+            ui.textRight(r.x + r.w - 2, r.y + 9 + k, t?.artist ?? "", { fg: c.faint });
+          });
+        }
+      },
+      onText: (t) => {
+        const map: Record<string, string> = { " ": "music toggle", n: "music next", p: "music prev", "+": "music vol +", "=": "music vol +", "-": "music vol -", s: "music shuffle", r: "music repeat" };
+        if (!map[t]) return false;
+        run(map[t]);
+        return true;
+      },
+    },
   });
 }
 

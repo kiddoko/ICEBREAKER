@@ -1,3 +1,4 @@
+import { popupCommands } from "../../widgets/popups";
 import { quoteCommand, worldclockCommand } from "../../widgets/extra";
 import { WidgetPopup } from "../../workspace/widgetpopup";
 import { fmt } from "../../core/ansi";
@@ -288,6 +289,7 @@ const macro: Command = {
 export const uiCommands: Command[] = [
   worldclockCommand,
   quoteCommand,
+  ...popupCommands,
   explore,
   macro,
   termCmd,

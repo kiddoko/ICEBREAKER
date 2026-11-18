@@ -33,13 +33,13 @@ export class WidgetPopup implements Overlay {
   onKey(k: KeyInput): boolean {
     if (this.spec.popup?.onKey?.(k, this.ctx)) return true;
     if (k.key === "esc") this.done = true;
-    else if (k.combo === "enter" || k.combo === "o") this.open();
+    else if (k.combo === "enter") this.open();
     return true;
   }
 
   onText(t: string): boolean {
     if (this.spec.popup?.onText?.(t, this.ctx)) return true;
-    if (t === "o") this.open();
+    if (t === "o") this.open(); // (pop-ups that take typing never let "o" through)
     return true;
   }
 
@@ -69,7 +69,8 @@ export class WidgetPopup implements Overlay {
     x -= 13;
     ui.button(x, fy, "close  esc", () => (this.done = true), { accent: c.subtle });
     if (this.spec.open) {
-      const label = `open ${this.spec.open.split(" ")[0]}  ⏎`;
+      const words = this.spec.open.split(" ");
+      const label = `open ${words[0] === "launch" ? words[1] : words[0]}  ⏎`;
       ui.button(x - label.length - 4, fy, label, () => this.open(), { tip: this.spec.open });
     }
     if (p.hint) ui.text(inner.x + 1, fy, p.hint, { fg: c.faint, attrs: 0 }, Math.max(0, x - inner.x - 30));

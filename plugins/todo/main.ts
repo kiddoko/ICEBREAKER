@@ -626,7 +626,9 @@ export function activate(ib: IcebreakerAPI): void {
 
   ib.palette.register({ id: "todo.add", title: "Todo: add a task", group: "todo", run: () => run("todo open --add") });
 
-  // ── the HOME widget ──
+  // ── the HOME widget (and its pop-up: quick add) ──
+  let quick = "";
+  let quickSel = 0;
 
   ib.widgets.register({
     id: "list",
@@ -669,5 +671,54 @@ export function activate(ib: IcebreakerAPI): void {
       if (fits < open.length) ui.text(r.x + 1, r.y + r.h - 1, `+${open.length - fits} more · enter opens the list`, { fg: c.faint }, r.w - 2);
     },
     open: "todo open",
+    popup: {
+      title: "todo",
+      size: { w: 64, h: 14 },
+      hint: "type + enter: add · ↑↓ · space: done",
+      render(ui, r) {
+        const c = ui.c;
+        ui.fill({ x: r.x + 1, y: r.y, w: r.w - 2, h: 1 }, { bg: c.highlight });
+        ui.text(r.x + 2, r.y, "+", { fg: c.accent, bg: c.highlight, attrs: BOLD });
+        ui.text(r.x + 4, r.y, quick || "walk the dog --urgent --due tomorrow +home", { fg: quick ? c.fg : c.faint, bg: c.highlight }, r.w - 6);
+        ui.cursor(r.x + 4 + Math.min(strWidth(quick), r.w - 7), r.y);
+        const open = pick("open");
+        quickSel = Math.max(0, Math.min(quickSel, open.length - 1));
+        open.slice(0, r.h - 2).forEach((t, i) => {
+          const y = r.y + 2 + i;
+          const row = { x: r.x, y, w: r.w, h: 1 };
+          const sel = i === quickSel && !quick;
+          if (sel) ui.fill(row, { bg: mix(c.accent, c.bg, 0.8) });
+          const st = sel ? { bg: mix(c.accent, c.bg, 0.8) } : {};
+          ui.text(r.x + 2, y, ui.theme.glyphs.todo, { fg: c.subtle, ...st });
+          ui.text(r.x + 5, y, t.text, { fg: c.fg, attrs: sel ? BOLD : 0, ...st }, r.w - 20);
+          if (t.due) ui.textRight(r.x + r.w - 2, y, dueLabel(t.due), { fg: daysUntil(t.due) < 0 ? c.error : c.subtle, ...st });
+          ui.hit(row, { cmd: `todo done ${t.id}`, tip: "click: done" });
+        });
+        if (!open.length) ui.text(r.x + 2, r.y + 2, "nothing to do. suspicious.", { fg: c.muted });
+      },
+      onText: (t) => {
+        if (t === " " && !quick) {
+          const cur = pick("open")[quickSel];
+          if (cur) run(`todo done ${cur.id}`);
+          return true;
+        }
+        quick += t.replace(/[\r\n]/g, "");
+        return true;
+      },
+      onKey: (k) => {
+        if (k.combo === "backspace") return (quick = quick.slice(0, -1)), true;
+        if (k.combo === "enter" && quick.trim()) {
+          run(`todo add ${quick.trim()}`); // same syntax as typing it in the shell
+          quick = "";
+          return true;
+        }
+        return false;
+      },
+      onAction: (a) => {
+        if (a === "up") return (quickSel = Math.max(0, quickSel - 1)), true;
+        if (a === "down") return (quickSel += 1), true;
+        return false;
+      },
+    },
   });
 }
