@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- START HERE: the docs as notes in your vault — a README with the tour, one
+  note per part (modules, ui, shell, keys, privacy) and `for developers/`
+  (themes, the module API, tweaking). Written into every new vault; `starthere`
+  adds them to an existing one.
 - Terminals get ICEBREAKER's own prompt (◆ ~/path ❯, the same for everyone,
   zsh / bash / fish / PowerShell); Settings → terminal prompt → mine keeps
   your own theme (oh-my-zsh, starship, oh-my-posh…).

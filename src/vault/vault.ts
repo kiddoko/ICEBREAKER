@@ -1,3 +1,4 @@
+import { writeStartHere } from "./starthere";
 import { Emitter } from "../core/events";
 import { WELCOME_NOTE } from "../platform/demo-vault";
 import type { VaultBackend, VaultEntry } from "../platform/types";
@@ -36,6 +37,9 @@ export class Vault {
     if (this.entries.length === 0) {
       // Brand-new vault: leave a note explaining where you are.
       await this.write("Welcome.md", WELCOME_NOTE);
+      // the docs, as notes: START HERE/
+      await writeStartHere(this).catch(() => {});
+      await this.rescan();
     }
   }
 
