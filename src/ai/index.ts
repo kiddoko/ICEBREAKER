@@ -58,7 +58,12 @@ export class AIManager {
   }
 
   /** Stealth mode: only a local model (Ollama on this machine or the local network). */
+  /** Set by the deck: why AI is off at the module level (UPLINK switched off), or null. */
+  gate: () => string | null = () => null;
+
   private readiness(): { ok: true } | { ok: false; reason: string } {
+    const gated = this.gate();
+    if (gated) return { ok: false, reason: gated };
     if (stealth.on && this.provider.id !== "ollama")
       return { ok: false, reason: "stealth mode: cloud AI is off — use a local model (config set ai.provider ollama)" };
     if (stealth.on && !isLocalUrl(this.settings.data.ai.ollamaHost))

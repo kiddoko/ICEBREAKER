@@ -111,8 +111,16 @@ export class ModulesApp implements App {
     switch (a) {
       case "left": this.sel = (this.sel - 1 + n) % n; return true;
       case "right": this.sel = (this.sel + 1) % n; return true;
-      case "up": this.sel = Math.min(n - 1, this.sel + this.cols); return true; // deeper into the hive
-      case "down": this.sel = Math.max(0, this.sel - this.cols); return true;
+      // deeper into the hive / back toward you — and round again at the ends
+      case "up": this.sel = this.sel + this.cols < n ? this.sel + this.cols : this.sel % this.cols; return true;
+      case "down": {
+        if (this.sel - this.cols >= 0) this.sel -= this.cols;
+        else {
+          const lastRow = Math.floor((n - 1) / this.cols) * this.cols;
+          this.sel = Math.min(n - 1, lastRow + this.sel);
+        }
+        return true;
+      }
       case "confirm": this.run(this.carts()[this.sel]); return true;
       case "menu": return this.onText(" ");
       default: return false;
@@ -139,7 +147,7 @@ export class ModulesApp implements App {
     if (Math.abs(selRow - this.depth) < 0.002) this.depth = selRow;
     const moving = Math.abs(selRow - this.depth) > 0.002;
     const age = now - this.bornAt;
-    ui.animate(moving || age < 900 ? 16 : 60);
+    ui.animate(focused || moving || age < 900 ? 16 : 120); // the floor glides continuously
 
     // the sky and the floor: a vanishing point high in the middle, rails toward you
     const vx = r.x + r.w / 2, vy = field.y + 1;
@@ -152,9 +160,9 @@ export class ModulesApp implements App {
         const x = Math.round(vx + i * k * (r.w / 9));
         if (x >= r.x && x < r.x + r.w) ui.text(x, y, k > 0.6 ? "╱╲│"[i < 0 ? 0 : i > 0 ? 1 : 2] : "·", { fg: col });
       }
-      // horizontal grid lines rolling toward you
-      const phase = (y - floorTop + (now / 600) % 3) % 3;
-      if (phase < 1 && k > 0.15) ui.hline(r.x, y, r.w, { fg: mix(c.bg, c.accent, 0.05 + k * 0.1) }, "─");
+      // horizontal grid lines rolling toward you, a third of a row at a time (▔ ─ ▁)
+      const phase = (y - floorTop + (now / 700) % 3) % 3;
+      if (phase < 1 && k > 0.15) ui.hline(r.x, y, r.w, { fg: mix(c.bg, c.accent, 0.05 + k * 0.1) }, "▔─▁"[Math.min(2, Math.floor(phase * 3))]);
     }
 
     // rows from the farthest to the nearest, so the near ones draw on top
@@ -225,9 +233,13 @@ export class ModulesApp implements App {
     if (r.h >= 4 && r.w >= 16) ui.text(r.x + 2, r.y + 2, cart.description, { fg: sel ? c.muted : dim(c.subtle), bg }, r.w - 4);
     // the scan beam over the chosen one
     if (sel) {
-      const sy = r.y + 1 + (Math.floor(ui.now / 90) % Math.max(1, r.h - 2));
-      ui.tint({ x: r.x + 1, y: sy, w: r.w - 2, h: 1 }, -1, mix(bg, c.accent, 0.25));
-      ui.animate(90);
+      // a soft beam: a bright row with a dimmer one on each side, gliding down
+      const span = Math.max(1, r.h - 2), pos = (ui.now / 70) % span;
+      for (let k = -1; k <= 1; k++) {
+        const row = Math.floor(pos) + k;
+        if (row < 0 || row >= span) continue;
+        ui.tint({ x: r.x + 1, y: r.y + 1 + row, w: r.w - 2, h: 1 }, -1, mix(bg, c.accent, k === 0 ? 0.28 : 0.12));
+      }
     }
     if (strWidth(cart.icon) && r.h < 3) ui.text(r.x + 1, r.y + Math.floor(r.h / 2), cart.icon, { fg: c.accent, bg });
   }

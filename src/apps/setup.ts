@@ -6,6 +6,7 @@ import { geocode, type Place } from "../core/location";
 import type { Deck } from "../deck";
 import { decrypt } from "../fx/glitch";
 import { q, type UI } from "../ui/ui";
+import { strWidth, truncate } from "../core/unicode";
 import { LAYOUT_PRESETS } from "../widgets/builtin";
 import { applyFxPreset } from "../workspace/fxpanel";
 import type { App, AppSpec } from "./types";
@@ -169,9 +170,7 @@ export class SetupApp implements App {
         id: "theme", title: "LOOK",
         question: "A theme to start with (theme set <name> or theme studio any time).",
         options: () =>
-          ["nightshade", "e-ink", "neon-district", "abyss", "phosphor", "redline"]
-            .filter((n) => deck.themes.get(n))
-            .map((n) => ({ value: n, label: n, hint: deck.themes.get(n)!.description })),
+          deck.themes.list().map((th) => ({ value: th.name, label: th.name, hint: `${th.font.family} · ${th.description}` })),
       },
       {
         id: "home", title: "HOME", question: "Pick a starting dashboard. Press e on HOME to rearrange, a to add widgets.",
@@ -215,6 +214,13 @@ export class SetupApp implements App {
     return this.cur.options?.() ?? [];
   }
 
+  /** On the theme step, the deck wears the theme under the cursor. */
+  private preview(): void {
+    if (this.cur.id !== "theme") return;
+    const o = this.options()[this.sel];
+    if (o && this.deck.theme.name !== o.value) this.deck.setTheme(o.value);
+  }
+
   private go(dir: 1 | -1): void {
     let i = this.step + dir;
     while (this.steps[i]?.skip?.()) i += dir;
@@ -226,7 +232,8 @@ export class SetupApp implements App {
     const st = this.cur;
     this.input = "";
     const opts = this.options();
-    this.sel = Math.max(0, opts.findIndex((o) => o.value === this.a[st.id]));
+    this.sel = Math.max(0, opts.findIndex((o) => o.value === (this.a[st.id] ?? (st.id === "theme" ? this.deck.theme.name : undefined))));
+    this.preview();
   }
 
   private async next(): Promise<void> {
@@ -388,8 +395,8 @@ export class SetupApp implements App {
   onAction(a: Action): boolean {
     const n = this.options().length;
     switch (a) {
-      case "up": this.sel = (this.sel - 1 + Math.max(1, n)) % Math.max(1, n); return true;
-      case "down": this.sel = (this.sel + 1) % Math.max(1, n); return true;
+      case "up": this.sel = (this.sel - 1 + Math.max(1, n)) % Math.max(1, n); this.preview(); return true;
+      case "down": this.sel = (this.sel + 1) % Math.max(1, n); this.preview(); return true;
       case "confirm": void this.next(); return true;
       case "back":
         if (this.places.length) this.places = [];
@@ -435,7 +442,20 @@ export class SetupApp implements App {
         ui.text(x + 1, y, sel ? "▶" : String(i + 1), { fg: sel ? c.accent : c.subtle, attrs: Math.floor(ui.now / 500) % 2 ? BOLD : 0 });
         const label = st.id === "theme" || st.id === "language" || st.id === "voice-lang" ? o.label : t(o.label);
         ui.text(x + 3, y, label, { fg: sel || hot ? c.accent : c.fg, bg: sel ? mix(c.accent, c.bg, 0.82) : undefined, attrs: sel ? BOLD : 0 });
-        if (o.hint) ui.textRight(x + w - 1, y, st.id === "theme" ? o.hint : t(o.hint), { fg: c.subtle, bg: sel ? mix(c.accent, c.bg, 0.82) : undefined });
+        const lx = x + 3 + strWidth(label) + 2;
+        let hx = x + w - 1;
+        if (st.id === "theme") {
+          // its palette, as swatches
+          const th = this.deck.themes.get(o.value);
+          if (th) {
+            hx -= 13;
+            [th.c.bg, th.c.panel, th.c.fg, th.c.accent, th.c.accentAlt, th.c.success].forEach((col, k) => ui.text(hx + 1 + k * 2, y, "██", { fg: col }));
+          }
+        }
+        if (o.hint && hx - lx > 6) {
+          const hint = st.id === "theme" ? o.hint : t(o.hint);
+          ui.textRight(hx - 1, y, truncate(hint, hx - lx - 1), { fg: c.subtle, bg: sel ? mix(c.accent, c.bg, 0.82) : undefined });
+        }
         ui.hit(row, { onClick: () => { this.sel = i; void this.next(); } });
         y++;
       });

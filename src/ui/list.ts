@@ -52,8 +52,9 @@ export class ListView<T> {
   /** Navigation shared by keyboard and gamepad. Returns true if handled. */
   onAction(a: Action): boolean {
     switch (a) {
-      case "up": this.select(this.selected - 1); return true;
-      case "down": this.select(this.selected + 1); return true;
+      // round at the ends: the last row is one step above the first
+      case "up": this.select(this.selected === 0 ? this.items.length - 1 : this.selected - 1); return true;
+      case "down": this.select(this.selected >= this.items.length - 1 ? 0 : this.selected + 1); return true;
       case "page-up": this.select(this.selected - this.viewH + 1); return true;
       case "page-down": this.select(this.selected + this.viewH - 1); return true;
       case "home": this.select(0); return true;

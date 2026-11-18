@@ -191,6 +191,8 @@ export class Deck implements InputSink {
 
     await step(() => this.registerCore(), () => ({ text: `Shell ibsh: ${this.commands.names().length} commands · ${this.apps.list().length} apps · ${this.widgets.list().length} widgets`, status: "OK" }));
     detachCorePackages(this); // core features become modules (plugins/core-packages.ts)
+    // no AI at all while the UPLINK module is off (modules can't reach it either)
+    this.ai.gate = () => (this.plugins.list().some((p) => p.manifest.id === "uplink" && p.active) ? null : "the UPLINK module is off (MODULES → UPLINK)");
     await step(() => this.plugins.init(), () => ({ text: `Plugins: ${this.plugins.active().map((p) => p.manifest.id).join(", ") || "none"}`, status: this.plugins.list().some((p) => p.error) ? "WARN" : "OK" }));
     this.platform.bridge?.onRun((req) => void this.runBridged(req));
     // files changed in the terminal, Obsidian, Finder…: refresh the tree, search, widgets
@@ -500,9 +502,11 @@ export class Deck implements InputSink {
     const t = this.theme;
     const root = document.documentElement.style;
     root.setProperty("--deck-bg", css(t.c.bg));
-    root.setProperty("--bloom", String(fx.bloom ? t.fx.bloom : 0));
-    root.setProperty("--scanlines", String(fx.scanlines ? t.fx.scanlines : 0));
-    root.setProperty("--vignette", String(fx.vignette ? t.fx.vignette : 0));
+    const lv = fx.levels ?? { bloom: 100, scanlines: 100, vignette: 100 };
+    root.setProperty("--bloom", String(fx.bloom ? (t.fx.bloom * lv.bloom) / 100 : 0));
+    root.setProperty("--scanlines", String(fx.scanlines ? (t.fx.scanlines * lv.scanlines) / 100 : 0));
+    root.setProperty("--vignette", String(fx.vignette ? (t.fx.vignette * lv.vignette) / 100 : 0));
+    document.getElementById("deck")!.classList.toggle("crt", fx.scanlines && t.fx.scanlines * lv.scanlines > 0);
     document.getElementById("bloom")!.style.display = fx.bloom ? "block" : "none";
     document.getElementById("scanlines")!.style.display = fx.scanlines ? "block" : "none";
     document.getElementById("vignette")!.style.display = fx.vignette ? "block" : "none";
@@ -523,7 +527,7 @@ export class Deck implements InputSink {
     else if (key === "appearance.fontWeight" || key === "appearance.fontSize" || key === "appearance.scale") void this.applyFont();
     else if (key === "journal.folder") this.vault.journalFolder = s.journal.folder;
     else if (key === "user.handle") this.shell.exec.env.USER = s.user.handle;
-    else if (key.startsWith("fx.") || key === "appearance.maxFps") this.applyFx();
+    else if (key.startsWith("fx") || key === "appearance.maxFps") this.applyFx();
     else if (key.startsWith("sound.")) {
       this.sound.enabled = s.sound.enabled;
       this.sound.volume = s.sound.volume / 100;
