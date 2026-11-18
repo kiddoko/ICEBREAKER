@@ -198,6 +198,8 @@ class WeatherApp implements App {
       if (!p) throw new Error(t("no place yet — s searches one"));
       lastPlace = p;
       this.f = await forecastFor(p);
+      // your own city is a favourite from the start (★, first of the ←→ places)
+      if (!place && !this.wantFor && !this.places().length) this.deck.settings.set("home.weatherPlaces", [p]);
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
     } finally {

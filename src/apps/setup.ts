@@ -370,6 +370,12 @@ export class SetupApp implements App {
     if (i >= 0) ws.tabs.splice(i, 1);
     ws.active = Math.max(0, Math.min(ws.active, ws.tabs.length - 1));
     this.deck.openApp("home");
+    // then the Welcome note opens on top (HOME stays the first tab): where to start
+    // (a moment later, so a vault mounted just now is there)
+    if (!skipped)
+      setTimeout(() => {
+        void this.deck.vault.exists("Welcome.md").then((ok) => (ok ? this.deck.openFile("Welcome.md") : undefined));
+      }, 1200);
     this.deck.notify(skipped ? t("setup skipped — ctrl+k → Setup to run it later") : t("welcome, {handle}", { handle: this.a.handle || "netrunner" }), "success");
   }
 

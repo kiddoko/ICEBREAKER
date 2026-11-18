@@ -265,7 +265,18 @@ export function activate(ib: IcebreakerAPI): void {
       ui.animate(60_000);
       const list = today();
       if (!list.length) return void ui.text(r.x + 1, r.y, habits.length ? t("nothing due today") : t("no habits yet"), { fg: ui.c.muted }, r.w - 2);
-      list.slice(0, r.h).forEach((h, i) => drawRow(ui, r.x, r.y + i, r.w, h));
+      list.slice(0, r.h).forEach((h, i) => {
+        drawRow(ui, r.x, r.y + i, r.w, h);
+        // tick it right here, no pop-up needed (right-click: untick)
+        ui.hit({ x: r.x, y: r.y + i, w: r.w, h: 1 }, {
+          cmd: `habit check ${h.id}`,
+          tip: t("click: tick · right-click: untick"),
+          menu: () => [
+            { label: t("tick"), cmd: `habit check ${h.id}` },
+            { label: t("untick"), cmd: `habit uncheck ${h.id}` },
+          ],
+        });
+      });
     },
     popup: {
       title: "habits",
@@ -303,6 +314,9 @@ export function activate(ib: IcebreakerAPI): void {
 
   ib.lib.addTranslations("fr", {
     "every day": "tous les jours",
+    "click: tick · right-click: untick": "clic : cocher · clic droit : décocher",
+    tick: "cocher",
+    untick: "décocher",
     "A new habit": "Une nouvelle habitude",
     "read 20 pages · drink water · stretch": "lire 20 pages · boire de l'eau · s'étirer",
     "How many times a day?": "Combien de fois par jour ?",

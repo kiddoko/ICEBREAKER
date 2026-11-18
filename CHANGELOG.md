@@ -11,6 +11,9 @@
 - HOME edit mode can't be missed: a pulsing band across the top with the keys and
   a ✓ done button. Widgets grow in any direction: shift+arrow pushes that side
   out, alt+shift+arrow brings it back. FOCUS has a compact 2×2 look.
+- WEATHER: your own city is the first saved place from the start. HABITS: tick
+  from the HOME widget (click; right-click unticks). The Welcome note opens
+  right after the setup.
 - HOME rows stretch to fill the page (each theme's font size used to leave it
   half empty or overflowing); a widget too small to draw anything shows its name.
 - Windows: PowerShell no longer stays blank (the terminal now answers ConPTY's
