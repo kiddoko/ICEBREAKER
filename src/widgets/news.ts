@@ -181,6 +181,9 @@ export const newsWidget: WidgetSpec = {
       const src = r.w >= 50 ? h.source.slice(0, 14) : "";
       const room = r.w - 5 - (src ? strWidth(src) + 1 : 0);
       ui.text(r.x + 1, y, ui.theme.glyphs.bullet, { fg: c.accent });
+      // an interest's headline wears its tag, dimly
+      const tagW = h.tag && r.w >= 34 ? strWidth(h.tag) + 3 : 0;
+      if (tagW) ui.text(r.x + 3, y, `[${h.tag}]`, { fg: c.subtle });
       let shown = p < 1 ? decrypt(h.title, p, ui.now) : h.title;
       // hovered ~1 s and too long: scroll it like a ticker
       if (hot && hover.i === i && strWidth(h.title) > room) {
@@ -192,7 +195,7 @@ export const newsWidget: WidgetSpec = {
           ui.animate(110);
         } else ui.animate(Math.max(16, -t));
       }
-      ui.text(r.x + 3, y, shown, { fg: hot ? c.accent : i === 0 ? c.fg : c.muted }, room);
+      ui.text(r.x + 3 + tagW, y, shown, { fg: hot ? c.accent : i === 0 ? c.fg : c.muted }, room - tagW);
       if (src) ui.textRight(r.x + r.w - 1, y, src, { fg: c.faint, attrs: DIM });
       ui.hit(row, { cmd: `news ${i + 1}`, tip: "summary, then open it in your browser" });
     });

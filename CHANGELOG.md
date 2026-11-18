@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- NEWS interests: categories (tech, AI, science, space, politics, world,
+  business, people, culture, art, music, cinema, gaming, sports, health,
+  environment, security) and your own words, woven in with your area's news,
+  each headline tagged. `news add tech`, `news add "formula 1"`, or i in the
+  news pop-up.
 - Pinned: notes, folders and modules at the top of the file tree, in a
   "pinned" HOME widget, and on a key if you want (`pin notes/ideas.md`,
   `pin projects`, `pin todo --key ctrl+shift+t`; p in the tree or the hive).
