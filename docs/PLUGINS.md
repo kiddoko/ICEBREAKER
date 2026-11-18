@@ -125,6 +125,7 @@ The full surface is typed and commented in
 - `ib.shell.run(line)` → run a command, echoed in the shell (what your clicks should do).
 - `ib.ui.notify / confirm / prompt / choose` → talk to the user (`choose` = pick one option from a filtered list).
 - `ib.media.player` → play local audio files (permission `media`); `ib.google.*` → the user's Google Calendar (permission `google-calendar`; keep Google data in `ib.google.cache`, never in the vault).
+- `ib.lib.t("English text")` → the user's language (English or French); add your own French with `ib.lib.addTranslations("fr", { "Add": "Ajouter" })`.
 - `ib.lib` → the same building blocks the core uses: `TextEditor`, `ListView`,
   `ChatView`, `bigText`, `fmt` (ANSI colors), color helpers, attribute flags.
 

@@ -5,7 +5,8 @@ A ten-minute tour of the deck. Everything here also works with a gamepad.
 ## 1. The first launch
 
 ICEBREAKER plays its boot sequence (each line is a real start-up step, with its
-duration), then asks a few questions: your handle, an optional login, your
+duration), then asks a few questions: the deck's language (English or French),
+connected or stealth, your handle, an optional gender, an optional login, your
 terminal, language, location (only as precise as you want), AI, calendar, HOME
 layout, effects and sounds. **Every question has a "no" or "later" answer.**
 Run it again any time: `Ctrl+K` → *Setup*.
@@ -64,13 +65,14 @@ point the deck at it (`vault mount /Volumes/nas/vault`). See [PRIVACY.md](PRIVAC
 ## 6. A voice
 
 ```bash
-voice install fr      # piper (open source) + a French voice, once (~85 MB)
+voice install fr      # the open-source neural voice in French, once (~85 MB) — or en
 voice on              # then: voice test
 voice read on         # LINK reads its answers aloud
 voice robot 80        # more machine (0 = clean, 100 = full robot)
 ```
 
-Without the download, the system voice works too (macOS `say`, `espeak-ng` on
+No command line needed: the setup and **Settings → VOICE** do the same (download,
+language, robot filter, reading LINK's answers). Without the download, the system voice works too (macOS `say`, `espeak-ng` on
 Linux, Windows' own). Everything is synthesized on your computer.
 
 ## 7. Widgets and themes

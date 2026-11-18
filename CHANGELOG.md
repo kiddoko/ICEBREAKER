@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- English or French: setup asks the deck's language and the voice's; Settings too.
+- The AI is your UPLINK (no more "neural link"); its widget shows idle,
+  processing, speaking and offline, and its pop-up takes a quick question.
+- Every widget has a pop-up: clock (timer, stopwatch), system, modules,
+  matrix, checkboxes, uplink, calendar. New commands timer, stopwatch, matrix.
+- CALENDAR widgets month and this week, linked to the module.
+- Neural voices now run on sherpa-onnx (piper's macOS builds were broken).
+- e-ink: dim cream paper, paper texture, everything monochrome.
+
 - Voice: local text-to-speech (piper or the system voice) through a robot
   filter; greets you, can read LINK's answers. `voice`.
 - Stealth mode: 100 % local, no internet; AI only through a local model. `stealth`.

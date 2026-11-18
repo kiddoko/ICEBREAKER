@@ -24,7 +24,7 @@ names:
 | News widget | Google News / Bing News RSS | your search terms, language, country |
 | Google Calendar (optional) | googleapis.com | see below |
 | Installing modules / themes | GitHub | the name of what you install |
-| `voice install` (once) | GitHub (piper) and Hugging Face (the voice file) | nothing but the download request |
+| `voice install` (once) | GitHub (the sherpa-onnx engine and a piper voice) | nothing but the download request |
 
 The voice itself is synthesized on your computer: what it reads never leaves it.
 
