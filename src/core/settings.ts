@@ -15,6 +15,8 @@ export interface Settings {
   user: {
     handle: string;
     locale: string;
+    /** The language of the deck: en · fr (dates follow `locale`). */
+    language: "en" | "fr";
     /** Only if they want to say (setup): man · woman · nonbinary · other · "" (not said, neutral). */
     gender: "" | "man" | "woman" | "nonbinary" | "other";
     /** Their own word, with gender "other" (optional). */
@@ -97,7 +99,7 @@ export interface Secrets {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  user: { handle: "netrunner", locale: "", gender: "", genderOther: "", location: { precision: "none", name: "", country: "", lat: null, lon: null } },
+  user: { handle: "netrunner", locale: "", language: "en", gender: "", genderOther: "", location: { precision: "none", name: "", country: "", lat: null, lon: null } },
   setup: { done: false },
   vault: { path: "" },
   appearance: { theme: "nightshade", tweaks: {}, fontSize: 13, scale: 100, startFullscreen: false, fontWeight: "thin", maxFps: 60, showFps: true, lineNumbers: true },

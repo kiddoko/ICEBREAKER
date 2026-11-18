@@ -40,6 +40,7 @@ import { BootScreen, type BootLine } from "./workspace/boot";
 import { CellFx, Transitions } from "./fx/transition";
 import { DeckVoice } from "./core/voice";
 import { installStealth } from "./core/stealth";
+import { setLang, t } from "./core/i18n";
 import type { ChoiceOption } from "./plugins/api";
 import { LockScreen } from "./workspace/lock";
 import { applyFxPreset } from "./workspace/fxpanel";
@@ -128,6 +129,7 @@ export class Deck implements InputSink {
     const s = this.settings.data;
     const t0 = performance.now();
     installStealth(this); // before anything goes online
+    setLang(s.user.language);
     // look and feel first, so the boot screen is already in your theme and font
     this.refreshTheme(true);
     this.applyFx();
@@ -512,6 +514,7 @@ export class Deck implements InputSink {
   /** React to a setting changed from the shell or the settings screen. */
   applySettings(key: string): void {
     const s = this.settings.data;
+    if (key === "user.language") setLang(s.user.language);
     if (key === "appearance.theme") this.setTheme(s.appearance.theme);
     else if (key === "appearance.tweaks") this.refreshTheme();
     else if (key === "appearance.fontWeight" || key === "appearance.fontSize" || key === "appearance.scale") void this.applyFont();

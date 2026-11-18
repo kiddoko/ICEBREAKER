@@ -1,3 +1,4 @@
+import { t } from "../core/i18n";
 import { q } from "../ui/ui";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action } from "../core/input";
@@ -36,7 +37,7 @@ export class SettingsApp implements App {
   }
 
   status(): string {
-    return "↑↓ select · ←→ / enter change · everything is also in `config list`";
+    return t("↑↓ select · ←→ / enter change · everything is also in `config list`");
   }
 
   private rows(): Row[] {
@@ -77,6 +78,12 @@ export class SettingsApp implements App {
     });
 
     return [
+      { section: "YOU", label: "", value: () => "" },
+      cycle("user.language", "language", ["en", "fr"], undefined, (v) => (v === "fr" ? "Français" : "English")),
+      text("user.handle", "handle"),
+      cycle("user.gender", "gender (optional)", ["", "woman", "man", "nonbinary", "other"], undefined, (v) => v || "not specified"),
+      text("user.genderOther", "your word (with other)"),
+      text("user.locale", "date language", undefined, "fr-FR, en-US… (empty = system)"),
       { section: "APPEARANCE", label: "", value: () => "" },
       cycle("appearance.theme", "theme", d.themes.list().map((t) => t.name)),
       cycle("appearance.scale", "interface scale", [25, 50, 75, 80, 90, 100, 110, 125, 150, 175, 200], undefined, (v) => `${v}%`),
@@ -110,8 +117,9 @@ export class SettingsApp implements App {
       cycle("voice.robot", "robot filter", [0, 25, 40, 55, 70, 85, 100], undefined, (v) => `${v}%`),
       cycle("voice.rate", "speed", [0.8, 0.9, 1, 1.1, 1.25, 1.5]),
       cycle("voice.volume", "voice volume", [25, 50, 65, 80, 100], undefined, (v) => `${v}%`),
+      cycle("voice.language", "voice language", ["en", "fr"], undefined, (v) => (v === "fr" ? "Français" : "English")),
       cycle("voice.engine", "engine", ["auto", "piper", "system"], undefined, (v) => (v === "auto" ? "auto (piper if installed)" : v)),
-      { label: "download piper + a voice", value: () => "voice install", change: () => void d.act("voice install") },
+      { label: "download the neural voice", value: () => "voice install", change: () => void d.act("voice install") },
       { label: "test", value: () => "voice test", change: () => void d.act("voice test") },
       { section: "PRIVACY", label: "", value: () => "" },
       toggle("privacy.stealth", "stealth: 100 % local, no internet"),
@@ -130,11 +138,7 @@ export class SettingsApp implements App {
       text("ai.ollamaHost", "ollama host", undefined, "http://localhost:11434"),
       text("ai.ollamaModel", "ollama model", undefined, "llama3.1"),
       toggle("ai.saveChats", "save chats to vault"),
-      { section: "YOU", label: "", value: () => "" },
-      text("user.handle", "handle"),
-      cycle("user.gender", "gender (optional)", ["", "woman", "man", "nonbinary", "other"], undefined, (v) => v || "not specified"),
-      text("user.genderOther", "your word (with other)"),
-      text("user.locale", "date language", undefined, "fr-FR, en-US… (empty = system)"),
+      { section: "VAULT", label: "", value: () => "" },
       text("journal.folder", "journal folder"),
       toggle("editor.autosave", "autosave notes"),
       {
@@ -168,16 +172,18 @@ export class SettingsApp implements App {
     const area = { x: r.x + 2, y: r.y + 1, w: Math.min(r.w - 4, 80), h: r.h - 1 };
     this.list.render(ui, area, focused, (row, rect, selected) => {
       if (!row.label) {
-        ui.text(rect.x, rect.y, `── ${row.section} `, { fg: c.accent, attrs: BOLD });
-        ui.hline(rect.x + (row.section?.length ?? 0) + 4, rect.y, rect.w - (row.section?.length ?? 0) - 5, { fg: c.faint });
+        const sec = t(row.section ?? "");
+        ui.text(rect.x, rect.y, `── ${sec} `, { fg: c.accent, attrs: BOLD });
+        ui.hline(rect.x + sec.length + 4, rect.y, rect.w - sec.length - 5, { fg: c.faint });
         return;
       }
-      ui.text(rect.x + 2, rect.y, row.label, { fg: selected ? c.fg : c.muted });
-      const v = row.value();
+      ui.text(rect.x + 2, rect.y, t(row.label), { fg: selected ? c.fg : c.muted });
+      const raw = row.value();
+      const v = t(raw);
       const vx = rect.x + rect.w - 2;
       if (row.change) {
         const label = selected ? `◂ ${v} ▸` : v;
-        const color = v === "on" ? c.success : v === "off" ? c.subtle : c.accent;
+        const color = raw === "on" ? c.success : raw === "off" ? c.subtle : c.accent;
         ui.textRight(vx, rect.y, label, { fg: color, attrs: selected ? BOLD : 0 });
         const cmd = row.cmd?.();
         ui.hit({ x: vx - label.length, y: rect.y, w: label.length, h: 1 }, cmd ? { cmd, tip: "←→ / enter change it too" } : { onClick: () => void row.change?.(1) });

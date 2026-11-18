@@ -1,3 +1,4 @@
+import { t } from "../core/i18n";
 import { q } from "../ui/ui";
 import { mix } from "../core/color";
 import { BOLD } from "../core/grid";
@@ -209,7 +210,7 @@ const worldWidget: WidgetSpec = {
       const c = ui.c;
       const list = deck.settings.data.home.worldClocks;
       worldSel = Math.max(0, Math.min(worldSel, list.length - 1));
-      if (!list.length) ui.text(r.x + 1, r.y + 1, "no clocks — a adds one", { fg: c.muted });
+      if (!list.length) ui.text(r.x + 1, r.y + 1, t("no clocks — a adds one"), { fg: c.muted });
       list.slice(0, r.h - 2).forEach((tz, i) => {
         const y = r.y + 1 + i;
         const row = { x: r.x, y, w: r.w, h: 1 };
@@ -226,7 +227,7 @@ const worldWidget: WidgetSpec = {
         ui.hit({ x: r.x + r.w - 3, y, w: 1, h: 1 }, { cmd: `worldclock rm ${tz}`, tip: "x · remove" });
         ui.hit({ x: r.x, y, w: r.w - 4, h: 1 }, { onClick: () => (worldSel = i) });
       });
-      ui.button(r.x + 1, r.y + r.h - 1, "+ add a city", () => void addClock(deck), { tip: "a · worldclock add <Area/City>" });
+      ui.button(r.x + 1, r.y + r.h - 1, t("+ add a city"), () => void addClock(deck), { tip: "a · worldclock add <Area/City>" });
       ui.animate(1000);
     },
     onText: (t, { deck }) => {

@@ -1,3 +1,4 @@
+import { t } from "../core/i18n";
 import { mix } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
@@ -49,8 +50,8 @@ export class HomeApp implements App {
 
   status(): string {
     return this.editing
-      ? "EDIT · arrows move · shift+arrows resize · a add · x remove · r reset · esc done"
-      : "←↑↓→ select · enter open · [ ] pages · e edit layout · m modules · ctrl+k everything else";
+      ? t("EDIT · arrows move · shift+arrows resize · a add · x remove · r reset · esc done")
+      : t("←↑↓→ select · enter open · [ ] pages · e edit layout · m modules · ctrl+k everything else");
   }
 
   private get layout(): WidgetPlacement[] {
@@ -361,7 +362,7 @@ export class HomeApp implements App {
     }
 
     if (!this.placed().length) {
-      ui.textCenter(r, r.y + Math.floor(r.h / 2), "empty deck — press e then a to add a widget", { fg: c.muted });
+      ui.textCenter(r, r.y + Math.floor(r.h / 2), t("empty deck — press e then a to add a widget"), { fg: c.muted });
     }
     this.selected = Math.min(this.selected, Math.max(0, this.layout.length - 1));
 
@@ -372,7 +373,7 @@ export class HomeApp implements App {
       if (rect.y >= area.y + area.h || rect.y + rect.h <= area.y || rect.h < 2) continue;
       const sel = focused && i === this.selected;
       const inner = ui.box(rect, {
-        title: spec.title.toUpperCase(),
+        title: t(spec.title).toUpperCase(),
         info: this.editing && sel ? `${p.w}×${p.h}` : undefined,
         focused: sel,
         border: this.editing && sel ? "heavy" : ui.theme.widgetFrame,

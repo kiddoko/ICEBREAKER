@@ -119,7 +119,7 @@ function until(d: Date): string {
 let syncTimer: ReturnType<typeof setInterval> | null = null;
 
 export function activate(ib: IcebreakerAPI): void {
-  const { BOLD, hex, mix, strWidth, q, fmt, parseFlags } = ib.lib;
+  const { BOLD, hex, mix, strWidth, q, fmt, parseFlags, t } = ib.lib;
   const run = (line: string) => void ib.shell.run(line);
 
   // ── store ────────────────────────────────────────────────────────────────
@@ -346,11 +346,11 @@ export function activate(ib: IcebreakerAPI): void {
     const n = parseInt(c.slice(1), 16);
     return `\x1b[38;2;${(n >> 16) & 255};${(n >> 8) & 255};${n & 255}m${s}\x1b[39m`;
   };
-  const when = (e: Ev) => (e.allDay ? "all day" : `${hm(dayOf(e.start))}–${hm(dayOf(e.end))}`);
+  const when = (e: Ev) => (e.allDay ? t("all day") : `${hm(dayOf(e.start))}–${hm(dayOf(e.end))}`);
   const dayTitle = (d: Date) => {
     const n = Math.round((startOfDay(d).getTime() - startOfDay(new Date()).getTime()) / DAY);
     const label = d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
-    return n === 0 ? `today · ${label}` : n === 1 ? `tomorrow · ${label}` : label;
+    return n === 0 ? `${t("today")} · ${label}` : n === 1 ? `${t("tomorrow")} · ${label}` : label;
   };
   const printDays = (ctx: ShellContext, from: Date, days: number, emptyToo: boolean) => {
     let any = false;
@@ -365,7 +365,7 @@ export function activate(ib: IcebreakerAPI): void {
     }
     if (!any) ctx.out(fmt.dim("nothing planned\n"));
   };
-  const status = () => (mode === "local" && !connected ? `calendar in your vault (${DIR}/)` : connected ? (syncing ? "google: syncing…" : syncError ? `google: ${syncError}` : google.at ? `google: synced ${new Date(google.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}` : "google: connected") : "google: not connected (cal google connect)");
+  const status = () => (mode === "local" && !connected ? t("calendar in your vault ({dir}/)", { dir: DIR }) : connected ? (syncing ? t("google: syncing…") : syncError ? `google: ${syncError}` : google.at ? t("google: synced {time}", { time: new Date(google.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) }) : t("google: connected")) : t("google: not connected (cal google connect)"));
 
   // ── add / remove ─────────────────────────────────────────────────────────
   async function addEvent(cal: Cal, title: string, start: Date, allDay: boolean, minutes: number, where?: string): Promise<Ev> {
@@ -450,7 +450,7 @@ export function activate(ib: IcebreakerAPI): void {
       "  4. cal google setup   (paste the client ID and secret) · cal google setup --default goes back",
       "  5. cal google connect",
     ].join("\n"),
-    complete: () => ["today", "tomorrow", "week", "next", "month", "add", "rm", "open", "calendars", "default", "show", "hide", "sync", "google"],
+    complete: () => ["today", "tomorrow", "week", "next", "month", "add", "rm", "open", "calendars", t("default"), "show", "hide", "sync", "google"],
     async run(ctx) {
       await ready;
       await loadLocal(); // pick up edits made outside
@@ -671,17 +671,17 @@ export function activate(ib: IcebreakerAPI): void {
 
   /** Ask title / day / time / calendar, then run the `cal add` it adds up to. */
   async function addFlow(day: Date): Promise<void> {
-    const title = await ib.ui.prompt("New event", { placeholder: "dentist" });
+    const title = await ib.ui.prompt("New event", { placeholder: t("dentist") });
     if (!title?.trim()) return;
-    const when = await ib.ui.prompt(`When? (${day.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })})`, {
-      placeholder: "14:30 · 9:30-10:15 · empty = all day · or another day: fri 18h",
+    const when = await ib.ui.prompt(t("When? ({day})", { day: day.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) }), {
+      placeholder: t("14:30 · 9:30-10:15 · empty = all day · or another day: fri 18h"),
     });
     if (when === null) return;
     const writable = calendars().filter((c) => c.writable);
     let cal = calOf(defaultCal) ?? LOCAL;
     if (writable.length > 1) {
       const i = await ib.ui.choose(
-        "Which calendar?",
+        t("Which calendar?"),
         writable.map((c) => ({ label: c.name, hint: c.id === defaultCal ? "default" : c.primary ? "primary" : "", color: c.color || undefined })),
         { selected: Math.max(0, writable.findIndex((c) => c.id === defaultCal)) },
       );
@@ -898,7 +898,7 @@ export function activate(ib: IcebreakerAPI): void {
       };
       dayHead(ay, dayTitle(this.day), ymd(this.day) === ymd(today));
       const evs = this.events;
-      if (!evs.length) ui.text(ax, ay + 1, "nothing · a / enter adds", { fg: c.faint }, aw);
+      if (!evs.length) ui.text(ax, ay + 1, t("nothing · a / enter adds"), { fg: c.faint }, aw);
       let y = ay + 1;
       evs.forEach((e, k) => {
         if (y > bottom) return;
@@ -936,7 +936,7 @@ export function activate(ib: IcebreakerAPI): void {
           y++;
         }
       }
-      ui.text(ax, r.y + r.h - 1, "arrows · enter · a add · x remove · [ ] months · t today · c settings", { fg: c.faint }, aw);
+      ui.text(ax, r.y + r.h - 1, t("arrows · enter · a add · x remove · [ ] months · t today · c settings"), { fg: c.faint }, aw);
     }
 
     private header(ui: UI, r: Rect): void {
@@ -954,11 +954,11 @@ export function activate(ib: IcebreakerAPI): void {
         const month = new Date(this.day.getFullYear(), this.day.getMonth(), 1).toLocaleDateString(undefined, { month: "long", year: "numeric" }).toUpperCase();
         hx = ui.gradientText(hx + 1, r.y, month, ui.theme.gradient) + 2;
         btn(" › ", () => this.onText("]"), "next month · ]");
-        btn(" today ", () => this.goto(new Date()), "t");
-        btn(" + add ", () => void addFlow(this.day), "a · or: cal add \"title\" <day> <time>");
-        if (connected) btn(syncing ? ` ${ui.spinner()} sync ` : " ⟳ sync ", () => run("cal sync"), "s · cal sync");
-      } else btn(" ‹ back ", () => (this.view = "month"), "esc");
-      btn(" ⚙ settings ", () => (this.view = this.view === "settings" ? "month" : "settings"), "c · calendars, Google, local files", this.view === "settings");
+        btn(t(" today "), () => this.goto(new Date()), "t");
+        btn(t(" + add "), () => void addFlow(this.day), "a · or: cal add \"title\" <day> <time>");
+        if (connected) btn(syncing ? ` ${ui.spinner()} sync ` : t(" ⟳ sync "), () => run("cal sync"), "s · cal sync");
+      } else btn(t(" ‹ back "), () => (this.view = "month"), "esc");
+      btn(t(" ⚙ settings "), () => (this.view = this.view === "settings" ? "month" : "settings"), "c · calendars, Google, local files", this.view === "settings");
       if (syncError && r.x + r.w - 1 - strWidth(syncError) > hx + 1) ui.textRight(r.x + r.w - 1, r.y, syncError, { fg: c.error });
     }
 
@@ -984,8 +984,8 @@ export function activate(ib: IcebreakerAPI): void {
         ui.hit(rect, { cmd: `cal mode ${m}`, tip: `cal mode ${m}` });
         y++;
       };
-      modeBtn("local", "In my vault only", "plain Markdown in calendar/ · offline, no account");
-      if (ib.google.available()) modeBtn("google", "Vault + Google Calendar", connected ? `connected · ${status()}` : "signs in in your browser");
+      modeBtn("local", t("In my vault only"), t("plain Markdown in calendar/ · offline, no account"));
+      if (ib.google.available()) modeBtn("google", t("Vault + Google Calendar"), connected ? `connected · ${status()}` : t("signs in in your browser"));
       y++;
       // the calendars
       section("CALENDARS");
@@ -1009,12 +1009,12 @@ export function activate(ib: IcebreakerAPI): void {
       });
       y++;
       if (connected && y < r.y + r.h - 2) {
-        ui.button(x, y, "⟳ sync now", () => run("cal sync"), { cmd: "cal sync" });
-        ui.button(x + 16, y, "disconnect Google", () => run("cal google disconnect"), { cmd: "cal google disconnect", accent: c.error });
+        ui.button(x, y, t("⟳ sync now"), () => run("cal sync"), { cmd: "cal sync" });
+        ui.button(x + 16, y, t("disconnect Google"), () => run("cal google disconnect"), { cmd: "cal google disconnect", accent: c.error });
         y += 2;
       }
-      if (y < r.y + r.h - 1) ui.text(x, y, `local calendar: ${"calendar/"}YYYY-MM.md in your vault — one event per line, edit it anywhere`, { fg: c.faint }, w);
-      ui.text(x, r.y + r.h - 1, "↑↓ choose · space show/hide · d default · esc back", { fg: c.faint }, w);
+      if (y < r.y + r.h - 1) ui.text(x, y, t("local calendar: calendar/YYYY-MM.md in your vault — one event per line, edit it anywhere"), { fg: c.faint }, w);
+      ui.text(x, r.y + r.h - 1, t("↑↓ choose · space show/hide · d default · esc back"), { fg: c.faint }, w);
     }
   }
 
@@ -1059,13 +1059,13 @@ export function activate(ib: IcebreakerAPI): void {
       ui.vline(ax - 2, r.y, r.h - 1, { fg: c.faint });
       ui.text(ax, r.y, dayTitle(popDay).toUpperCase(), { fg: c.fg, attrs: BOLD }, aw);
       const evs = between(popDay, addDays(popDay, 1));
-      if (!evs.length) ui.text(ax, r.y + 2, "nothing · a adds", { fg: c.faint });
+      if (!evs.length) ui.text(ax, r.y + 2, t("nothing · a adds"), { fg: c.faint });
       evs.slice(0, r.h - 4).forEach((e, i) => {
         ui.text(ax, r.y + 2 + i, "●", { fg: colorOf(ui, e.cal) });
         ui.text(ax + 2, r.y + 2 + i, when(e).padEnd(11), { fg: c.subtle });
         ui.text(ax + 14, r.y + 2 + i, e.title, { fg: c.fg }, aw - 14);
       });
-      ui.button(ax, r.y + r.h - 1, "+ add", () => void addFlow(popDay), { tip: "a" });
+      ui.button(ax, r.y + r.h - 1, t("+ add"), () => void addFlow(popDay), { tip: "a" });
     },
     onText: (t: string, { close }: { close(): void }) => {
       if (t === "a" || t === "+") return close(), void addFlow(popDay), true;
@@ -1174,7 +1174,7 @@ export function activate(ib: IcebreakerAPI): void {
       ui.animate(30_000); // "in 12 min" moves on
       const evs = upcoming(r.h * 2);
       if (!evs.length) {
-        ui.text(r.x + 1, r.y, "nothing coming up", { fg: c.muted }, r.w - 2);
+        ui.text(r.x + 1, r.y, t("nothing coming up"), { fg: c.muted }, r.w - 2);
         if (r.h > 1) ui.hit({ x: r.x, y: r.y, w: r.w, h: 1 }, { cmd: "cal open", tip: "the CALENDAR app" });
         return;
       }
@@ -1247,8 +1247,8 @@ export function activate(ib: IcebreakerAPI): void {
           y++;
           i++;
         }
-        if (!evs.length) ui.text(r.x + 2, r.y + 1, "nothing coming up · a adds an event", { fg: c.muted });
-        ui.button(r.x + 2, r.y + r.h - 1, "+ add an event", () => void addFlow(startOfDay(new Date())), { tip: "a" });
+        if (!evs.length) ui.text(r.x + 2, r.y + 1, t("nothing coming up · a adds an event"), { fg: c.muted });
+        ui.button(r.x + 2, r.y + r.h - 1, t("+ add an event"), () => void addFlow(startOfDay(new Date())), { tip: "a" });
       },
       onText: (t, { close }) => (t === "a" || t === "+" ? (close(), void addFlow(startOfDay(new Date())), true) : false),
       onKey: (k, { close }) => {

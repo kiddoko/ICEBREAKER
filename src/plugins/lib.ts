@@ -13,3 +13,4 @@ export { gradient, hex, mix } from "../core/color";
 export { BOLD, DIM, ITALIC, UNDERLINE, STRIKE } from "../core/grid";
 export { strWidth, truncate, padEnd } from "../core/unicode";
 export { fuzzyFilter } from "../core/fuzzy";
+export { t, lang, addTranslations } from "../core/i18n";

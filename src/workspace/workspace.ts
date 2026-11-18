@@ -1,3 +1,4 @@
+import { t } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC, type Action, type ActionSource, type KeyInput, type MouseInput } from "../core/input";
 import { strWidth } from "../core/unicode";
@@ -460,7 +461,7 @@ export class Workspace {
     this.rects.main = mainR;
     const app = this.activeApp;
     const mainFocused = this.focus === "main" && !this.topModal;
-    const inner = ui.box(mainR, { title: app ? app.title().toUpperCase() : "", focused: mainFocused, info: app?.kind === "note" ? app.key.slice(5) : app && app.kind !== app.title().toLowerCase() ? app.kind : undefined });
+    const inner = ui.box(mainR, { title: app ? t(app.title()).toUpperCase() : "", focused: mainFocused, info: app?.kind === "note" ? app.key.slice(5) : app && app.kind !== app.title().toLowerCase() ? app.kind : undefined });
     if (app) ui.clip(inner, () => app.render(ui, inner, mainFocused));
 
     if (this.shellVisible) {
@@ -470,12 +471,12 @@ export class Workspace {
       const c = ui.c;
       if (!this.shellTabChosen && this.termAvailable) this.shellTab = "term";
       if (this.shellTab === "term" && !this.termAvailable) this.shellTab = "ibsh";
-      const si = ui.box(r, { focused: shellFocused, info: "F12 tabs · ctrl+` toggle" });
+      const si = ui.box(r, { focused: shellFocused, info: t("F12 tabs · ctrl+` toggle") });
       // tabs on the top border: your shell · ibsh · history
       const tabs: [ShellTab, string][] = [
         ...(this.termAvailable ? ([["term", this.sysTerm?.shellName ?? "terminal"]] as [ShellTab, string][]) : []),
         ["ibsh", "ibsh"],
-        ["history", d.shell.unseen ? `history •${d.shell.unseen}` : "history"],
+        ["history", d.shell.unseen ? `${t("history")} •${d.shell.unseen}` : t("history")],
       ];
       let tx = r.x + 2;
       for (const [id, label] of tabs) {
@@ -488,7 +489,7 @@ export class Workspace {
         tx += rect.w + 1;
       }
       // ⤢ maximize / ⤡ restore: drawn like the tabs next to it
-      const mlabel = max ? " ⤡ restore " : " ⤢ maximize ";
+      const mlabel = max ? ` ⤡ ${t("restore")} ` : ` ⤢ ${t("maximize")} `;
       const mx = { x: tx, y: r.y, w: strWidth(mlabel), h: 1 };
       ui.text(mx.x, r.y, mlabel, { fg: ui.hovered(mx) ? c.accent : c.title, bg: c.panel });
       ui.hit(mx, { cmd: "term max", tip: max ? "back to normal" : "make the shell big (the page moves below)" });
@@ -584,9 +585,9 @@ export class Workspace {
     const time = now.toLocaleTimeString(d.settings.data.user.locale || undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const date = now.toLocaleDateString(d.settings.data.user.locale || undefined, { weekday: "short", day: "numeric", month: "short" });
     ui.animate(1000 - now.getMilliseconds());
-    const ai = d.ai.ready ? `${ui.theme.glyphs.mark} ${d.ai.provider.label}` : "○ offline";
+    const ai = d.ai.ready ? `${ui.theme.glyphs.mark} ${d.ai.provider.label}` : `○ ${t("offline")}`;
     // settings stay one click away whatever is open
-    const gear = " ⚙ settings ";
+    const gear = ` ⚙ ${t("settings")} `;
     const right = ` ${ai}  │  ${date}  ${time} `;
     const rx = r.x + r.w - strWidth(right);
     const gx = rx - strWidth(gear) - 1;
@@ -635,14 +636,14 @@ export class Workspace {
 
     // right side
     const parts: { text: string; fg: number; cmd?: string; tip?: string }[] = [];
-    if (d.settings.data.privacy.stealth) parts.push({ text: "◉ stealth", fg: c.success, cmd: "stealth", tip: "100 % local: no internet · stealth off" });
-    if (d.voice.speaking) parts.push({ text: "◖ voice", fg: c.accentAlt, cmd: "voice stop", tip: "speaking · click to stop" });
+    if (d.settings.data.privacy.stealth) parts.push({ text: `◉ ${t("stealth")}`, fg: c.success, cmd: "stealth", tip: t("100 % local: no internet · stealth off") });
+    if (d.voice.speaking) parts.push({ text: `◖ ${t("voice")}`, fg: c.accentAlt, cmd: "voice stop", tip: t("speaking · click to stop") });
     if (d.gamepad.connected) parts.push({ text: "◈ pad", fg: c.success });
     parts.push({ text: "⌨", fg: this.overlays.some((o) => o instanceof Osk) ? c.accent : c.muted, cmd: "osk", tip: "on-screen keyboard · pad: X" });
     parts.push({ text: "✦ fx", fg: c.accentAlt, cmd: "view fx", tip: "bloom, scanlines… · `fx` in the shell" });
     if (d.settings.data.appearance.showFps) parts.push({ text: `${d.loop.fps}fps ${d.loop.frameMs.toFixed(1)}ms`, fg: c.subtle });
-    parts.push({ text: "^K palette", fg: c.muted, cmd: "palette" });
-    parts.push({ text: "F1 help", fg: c.muted, cmd: "manual" });
+    parts.push({ text: `^K ${t("palette")}`, fg: c.muted, cmd: "palette" });
+    parts.push({ text: `F1 ${t("help")}`, fg: c.muted, cmd: "manual" });
     const rightW = parts.reduce((s, p) => s + strWidth(p.text) + 3, 0);
     let rx = r.x + r.w - rightW;
     ui.text(x + 1, r.y, status, { fg: c.statusFg, bg: c.statusBg }, Math.max(0, rx - x - 3));

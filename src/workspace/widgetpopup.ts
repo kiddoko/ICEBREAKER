@@ -1,3 +1,4 @@
+import { t } from "../core/i18n";
 import type { Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
@@ -59,7 +60,7 @@ export class WidgetPopup implements Overlay {
     const h = Math.min(screen.h - 2, (p.size?.h ?? 14) + 3);
     const box = { x: screen.x + Math.floor((screen.w - w) / 2), y: screen.y + Math.floor((screen.h - h) / 3), w, h };
     ui.hit(box, { onClick: () => {} });
-    const inner = ui.box(box, { title: (p.title ?? this.spec.title).toUpperCase(), focused: true, bg: c.panelAlt });
+    const inner = ui.box(box, { title: t(p.title ?? this.spec.title).toUpperCase(), focused: true, bg: c.panelAlt });
     const body = { x: inner.x, y: inner.y, w: inner.w, h: inner.h - 2 };
     ui.clip(body, () => p.render(ui, body, this.ctx));
     // footer: open the module · close
@@ -67,12 +68,14 @@ export class WidgetPopup implements Overlay {
     ui.hline(inner.x, fy - 1, inner.w, { fg: c.border });
     let x = inner.x + inner.w;
     x -= 13;
-    ui.button(x, fy, "close  esc", () => (this.done = true), { accent: c.subtle });
+    const close = t("close  esc");
+    x = inner.x + inner.w - close.length - 4;
+    ui.button(x, fy, close, () => (this.done = true), { accent: c.subtle });
     if (this.spec.open) {
       const words = this.spec.open.split(" ");
-      const label = `open ${words[0] === "launch" ? words[1] : words[0]}  ⏎`;
+      const label = `${t("open")} ${words[0] === "launch" ? words[1] : words[0]}  ⏎`;
       ui.button(x - label.length - 4, fy, label, () => this.open(), { tip: this.spec.open });
     }
-    if (p.hint) ui.text(inner.x + 1, fy, p.hint, { fg: c.faint, attrs: 0 }, Math.max(0, x - inner.x - 30));
+    if (p.hint) ui.text(inner.x + 1, fy, t(p.hint), { fg: c.faint, attrs: 0 }, Math.max(0, x - inner.x - 30));
   }
 }

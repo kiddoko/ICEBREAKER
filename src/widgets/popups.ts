@@ -1,3 +1,4 @@
+import { t } from "../core/i18n";
 /**
  * Pop-ups of the built-in widgets (enter / double-click on HOME, or
  * `widget <id>`): the widget, bigger and usable. Every button runs a command.
@@ -49,7 +50,7 @@ const mmss = (ms: number) => {
 /* ─────────── focus: start / pause / reset, durations ─────────── */
 
 const focusPopup: WidgetPopupSpec = {
-  title: "focus",
+  title: t("focus"),
   size: { w: 50, h: 9 },
   hint: "space start/pause · r reset · ←→ focus · ↑↓ break",
   render(ui, r, { deck }) {
@@ -60,9 +61,9 @@ const focusPopup: WidgetPopupSpec = {
     ui.textCenter(r, r.y + 1, `${focus.phase.toUpperCase()} · ${mmss(focus.left)}`, { fg: col, attrs: BOLD });
     ui.bar(r.x + 4, r.y + 2, r.w - 8, 1 - focus.left / total, col, c.faint);
     let x = r.x + Math.floor((r.w - 36) / 2);
-    x += ui.button(x, r.y + 4, focus.running ? "❚❚ pause" : "▶ start", () => {}, { cmd: "focus toggle", tip: "space" }) + 2;
-    x += ui.button(x, r.y + 4, "↺ reset", () => {}, { cmd: "focus reset", tip: "r" }) + 2;
-    ui.button(x, r.y + 4, "⏭ skip", () => {}, { cmd: "focus skip", tip: "s · next phase" });
+    x += ui.button(x, r.y + 4, focus.running ? "❚❚ pause" : t("▶ start"), () => {}, { cmd: "focus toggle", tip: "space" }) + 2;
+    x += ui.button(x, r.y + 4, t("↺ reset"), () => {}, { cmd: "focus reset", tip: "r" }) + 2;
+    ui.button(x, r.y + 4, t("⏭ skip"), () => {}, { cmd: "focus skip", tip: "s · next phase" });
     const dur = (y: number, label: string, v: number, key: "work" | "rest") => {
       ui.text(r.x + 6, y, label, { fg: c.muted });
       const step = key === "work" ? 5 : 1;
@@ -70,8 +71,8 @@ const focusPopup: WidgetPopupSpec = {
       ui.text(r.x + 25, y, `${v} min`, { fg: c.fg, attrs: BOLD });
       ui.button(r.x + 33, y, "+", () => {}, { cmd: `focus set ${key === "work" ? v + step : focus.work} ${key === "rest" ? v + step : focus.rest}` });
     };
-    dur(r.y + 6, "focus", focus.work, "work");
-    dur(r.y + 7, "break", focus.rest, "rest");
+    dur(r.y + 6, t("focus"), focus.work, "work");
+    dur(r.y + 7, t("break"), focus.rest, "rest");
     void deck;
   },
   onText: (t, { deck }) => {
@@ -89,7 +90,7 @@ const focusPopup: WidgetPopupSpec = {
 };
 
 export const focusCommand: Command = {
-  name: "focus",
+  name: t("focus"),
   aliases: ["pomodoro"],
   summary: "the focus timer (pomodoro): start, pause, reset, durations",
   usage: "focus                  where it's at\nfocus start | pause | toggle | reset | skip\nfocus set <focus min> [break min]",
@@ -184,7 +185,7 @@ const recentPopup: WidgetPopupSpec = {
   hint: "type to search · ↑↓ · enter opens",
   render(ui, r, { deck }) {
     const c = ui.c;
-    recentField.render(ui, r.x + 1, r.y, r.w - 2, "search your notes");
+    recentField.render(ui, r.x + 1, r.y, r.w - 2, t("search your notes"));
     const list = recentList(deck);
     recentSel = Math.max(0, Math.min(recentSel, list.length - 1));
     list.slice(0, r.h - 2).forEach((n, i) => {
@@ -198,7 +199,7 @@ const recentPopup: WidgetPopupSpec = {
       ui.textRight(r.x + r.w - 2, y, n.path.split("/").slice(0, -1).join("/") || "/", { fg: c.faint, ...st });
       ui.hit(row, { cmd: `open ${q(n.path)}`, tip: n.path });
     });
-    if (!list.length) ui.text(r.x + 2, r.y + 2, "no match", { fg: c.faint });
+    if (!list.length) ui.text(r.x + 2, r.y + 2, t("no match"), { fg: c.faint });
   },
   onText: (t) => (recentField.onText(t), (recentSel = 0), true),
   onKey: (k, ctx) => {
@@ -241,17 +242,17 @@ const streakPopup: WidgetPopupSpec = {
     const now = new Date();
     const ym = isoDay(now).slice(0, 7);
     const stats: [string, string][] = [
-      ["current streak", `${streakOf(days)} days`],
-      ["longest streak", `${best} days`],
-      ["this month", `${sorted.filter((d) => d.startsWith(ym)).length} entries`],
-      ["all time", `${sorted.length} entries`],
-      ["first entry", sorted[0] ?? "—"],
+      [t("current streak"), `${streakOf(days)} days`],
+      [t("longest streak"), `${best} days`],
+      [t("this month"), `${sorted.filter((d) => d.startsWith(ym)).length} entries`],
+      [t("all time"), `${sorted.length} entries`],
+      [t("first entry"), sorted[0] ?? "—"],
     ];
     stats.forEach(([k, v], i) => {
       ui.text(r.x + 3, r.y + 1 + i, k, { fg: c.muted });
       ui.textRight(r.x + r.w - 3, r.y + 1 + i, v, { fg: c.fg, attrs: BOLD });
     });
-    ui.button(r.x + 3, r.y + r.h - 1, "today's journal", () => {}, { cmd: "journal", tip: "journal" });
+    ui.button(r.x + 3, r.y + r.h - 1, t("today's journal"), () => {}, { cmd: "journal", tip: "journal" });
   },
 };
 
@@ -301,12 +302,12 @@ const newsPopup: WidgetPopupSpec = {
   render(ui, r, { deck }) {
     const c = ui.c;
     const topic = deck.settings.data.home.newsTopic;
-    ui.text(r.x + 2, r.y + 1, "following:", { fg: c.muted });
-    ui.text(r.x + 14, r.y + 1, topic || "your area (top stories)", { fg: c.fg, attrs: BOLD }, r.w - 16);
+    ui.text(r.x + 2, r.y + 1, t("following:"), { fg: c.muted });
+    ui.text(r.x + 14, r.y + 1, topic || t("your area (top stories)"), { fg: c.fg, attrs: BOLD }, r.w - 16);
     let x = r.x + 2;
-    x += ui.button(x, r.y + 3, "change topic", () => void askTopic(deck), { tip: "t · news topic <words>" }) + 2;
-    x += ui.button(x, r.y + 3, "my area", () => {}, { cmd: "news topic -", tip: "-" }) + 2;
-    ui.button(x, r.y + 3, "refresh", () => {}, { cmd: "news refresh" });
+    x += ui.button(x, r.y + 3, t("change topic"), () => void askTopic(deck), { tip: "t · news topic <words>" }) + 2;
+    x += ui.button(x, r.y + 3, t("my area"), () => {}, { cmd: "news topic -", tip: "-" }) + 2;
+    ui.button(x, r.y + 3, t("refresh"), () => {}, { cmd: "news refresh" });
   },
   onText: (t, { deck }) => (t === "t" ? (void askTopic(deck), true) : t === "-" ? (void deck.act("news topic -"), true) : false),
 };
@@ -338,20 +339,20 @@ const clockPopup: WidgetPopupSpec = {
     const doy = Math.floor((now.getTime() - start.getTime()) / 86400000);
     ui.textCenter(r, r.y, now.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" }), { fg: c.accent, attrs: BOLD });
     ui.textCenter(r, r.y + 1, now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" }), { fg: c.fg });
-    ui.textCenter(r, r.y + 2, `day ${doy} · ${Intl.DateTimeFormat().resolvedOptions().timeZone}`, { fg: c.subtle });
+    ui.textCenter(r, r.y + 2, `${t("day {n}", { n: doy })} · ${Intl.DateTimeFormat().resolvedOptions().timeZone}`, { fg: c.subtle });
     // timer
     const left = clockState.timerEnd ? clockState.timerEnd - Date.now() : 0;
-    ui.text(r.x + 3, r.y + 5, "TIMER", { fg: c.subtle, attrs: BOLD });
+    ui.text(r.x + 3, r.y + 5, t("TIMER"), { fg: c.subtle, attrs: BOLD });
     ui.text(r.x + 13, r.y + 5, clockState.timerEnd ? dur(left) : "--:--", { fg: clockState.timerEnd ? c.fg : c.faint, attrs: BOLD });
     if (clockState.timerEnd) ui.bar(r.x + 24, r.y + 5, r.w - 28, 1 - left / clockState.timerTotal, c.accent, c.faint);
     let x = r.x + 3;
-    for (const [label, cmd] of [["1 min", "timer 1m"], ["5 min", "timer 5m"], ["25 min", "timer 25m"], ["stop", "timer stop"]]) x += ui.button(x, r.y + 6, label, () => {}, { cmd }) + 2;
+    for (const [label, cmd] of [[t("1 min"), "timer 1m"], [t("5 min"), "timer 5m"], [t("25 min"), "timer 25m"], [t("stop"), "timer stop"]]) x += ui.button(x, r.y + 6, label, () => {}, { cmd }) + 2;
     // stopwatch
-    ui.text(r.x + 3, r.y + 8, "STOPWATCH", { fg: c.subtle, attrs: BOLD });
+    ui.text(r.x + 3, r.y + 8, t("STOPWATCH"), { fg: c.subtle, attrs: BOLD });
     ui.text(r.x + 15, r.y + 8, dur(swNow()), { fg: clockState.swStart ? c.accent : c.fg, attrs: BOLD });
     x = r.x + 3;
-    x += ui.button(x, r.y + 9, clockState.swStart ? "❚❚ stop" : "▶ start", () => {}, { cmd: "stopwatch toggle", tip: "space" }) + 2;
-    ui.button(x, r.y + 9, "↺ reset", () => {}, { cmd: "stopwatch reset", tip: "r" });
+    x += ui.button(x, r.y + 9, clockState.swStart ? "❚❚ stop" : t("▶ start"), () => {}, { cmd: "stopwatch toggle", tip: "space" }) + 2;
+    ui.button(x, r.y + 9, t("↺ reset"), () => {}, { cmd: "stopwatch reset", tip: "r" });
   },
   onText: (t, { deck }) => {
     if (t === " ") return void deck.act("stopwatch toggle"), true;
@@ -373,7 +374,7 @@ export const timerCommand: Command = {
   run(ctx) {
     const [a] = ctx.args;
     if (!a) return ctx.out(clockState.timerEnd ? `${dur(clockState.timerEnd - Date.now())} left\n` : "no timer\n"), 0;
-    if (a === "stop") {
+    if (a === t("stop")) {
       clockState.timerEnd = 0;
       return ctx.out("timer stopped\n"), 0;
     }
@@ -438,13 +439,13 @@ const systemPopup: WidgetPopupSpec = {
     };
     ui.text(r.x + 2, r.y, `${s.host} · ${s.os} · ${s.arch}`, { fg: c.fg, attrs: BOLD }, r.w - 4);
     ui.text(r.x + 2, r.y + 1, `${s.cpuBrand} · ${s.cores.length} cores`, { fg: c.muted }, r.w - 4);
-    row(r.y + 3, "cpu", s.cpu / 100, `${Math.round(s.cpu)}%`);
-    row(r.y + 4, "memory", s.memUsed / s.memTotal, `${gb(s.memUsed)} / ${gb(s.memTotal)} GB`);
-    if (s.swapTotal) row(r.y + 5, "swap", s.swapUsed / s.swapTotal, `${gb(s.swapUsed)} / ${gb(s.swapTotal)} GB`);
+    row(r.y + 3, t("cpu"), s.cpu / 100, `${Math.round(s.cpu)}%`);
+    row(r.y + 4, t("memory"), s.memUsed / s.memTotal, `${gb(s.memUsed)} / ${gb(s.memTotal)} GB`);
+    if (s.swapTotal) row(r.y + 5, t("swap"), s.swapUsed / s.swapTotal, `${gb(s.swapUsed)} / ${gb(s.swapTotal)} GB`);
     // one tiny bar per core
     const cw = Math.max(1, Math.floor((r.w - 12) / Math.max(1, s.cores.length)));
     s.cores.forEach((v, i) => ui.text(r.x + 10 + i * cw, r.y + 7, " ▁▂▃▄▅▆▇█"[Math.min(8, Math.round((v / 100) * 8))], { fg: v > 85 ? c.error : c.accent }));
-    ui.text(r.x + 2, r.y + 7, "cores", { fg: c.subtle });
+    ui.text(r.x + 2, r.y + 7, t("cores"), { fg: c.subtle });
     ui.text(r.x + 2, r.y + 9, `${s.processes} processes · up ${Math.floor(s.uptime / 86400)}d ${Math.floor((s.uptime % 86400) / 3600)}h`, { fg: c.muted });
   },
 };
@@ -463,7 +464,7 @@ const modulesPopup: WidgetPopupSpec = {
   hint: "type to filter · ↑↓ · enter launches",
   render(ui, r, { deck }) {
     const c = ui.c;
-    launchField.render(ui, r.x + 1, r.y, r.w - 2, "launch…");
+    launchField.render(ui, r.x + 1, r.y, r.w - 2, t("launch…"));
     const list = launchList(deck);
     launchSel = Math.max(0, Math.min(launchSel, list.length - 1));
     list.slice(0, r.h - 2).forEach((a, i) => {
@@ -505,14 +506,14 @@ const matrixPopup: WidgetPopupSpec = {
   hint: "←→ speed · ↑↓ characters",
   render(ui, r) {
     const c = ui.c;
-    ui.text(r.x + 2, r.y + 1, "speed", { fg: c.subtle });
+    ui.text(r.x + 2, r.y + 1, t("speed"), { fg: c.subtle });
     ui.text(r.x + 14, r.y + 1, `${matrixLook.speed.toFixed(1)}×`, { fg: c.fg, attrs: BOLD });
-    ui.text(r.x + 2, r.y + 3, "characters", { fg: c.subtle });
+    ui.text(r.x + 2, r.y + 3, t("characters"), { fg: c.subtle });
     let x = r.x + 14;
     for (const name of Object.keys(MATRIX_SETS)) x += ui.button(x, r.y + 3, name, () => {}, { cmd: `matrix glyphs ${name}`, selected: matrixLook.set === name }) + 1;
     let y = r.y + 5;
-    ui.button(r.x + 14, y, "slower", () => {}, { cmd: `matrix speed ${Math.max(0.2, matrixLook.speed - 0.2).toFixed(1)}` });
-    ui.button(r.x + 24, y, "faster", () => {}, { cmd: `matrix speed ${Math.min(4, matrixLook.speed + 0.2).toFixed(1)}` });
+    ui.button(r.x + 14, y, t("slower"), () => {}, { cmd: `matrix speed ${Math.max(0.2, matrixLook.speed - 0.2).toFixed(1)}` });
+    ui.button(r.x + 24, y, t("faster"), () => {}, { cmd: `matrix speed ${Math.min(4, matrixLook.speed + 0.2).toFixed(1)}` });
     y++;
   },
   onAction: (a, { deck }) => {
@@ -551,7 +552,7 @@ const tasksPopup: WidgetPopupSpec = {
     const c = ui.c;
     const list = openTasks();
     taskSel = Math.max(0, Math.min(taskSel, list.length - 1));
-    if (!list.length) ui.text(r.x + 2, r.y + 1, "no open - [ ] in your notes", { fg: c.muted });
+    if (!list.length) ui.text(r.x + 2, r.y + 1, t("no open - [ ] in your notes"), { fg: c.muted });
     list.slice(0, r.h).forEach((t, i) => {
       const y = r.y + i;
       const row = { x: r.x, y, w: r.w, h: 1 };
@@ -593,9 +594,9 @@ const aiPopup: WidgetPopupSpec = {
     const ok = deck.ai.ready;
     ui.text(r.x + 2, r.y, `${ok ? "●" : "○"} ${deck.ai.provider.label}`, { fg: ok ? c.success : c.error, attrs: BOLD });
     if (!ok) ui.text(r.x + 2, r.y + 1, deck.ai.problem ?? "", { fg: c.muted }, r.w - 4);
-    askField.render(ui, r.x + 1, r.y + 2, r.w - 2, ok ? "ask anything — your vault is in reach" : "uplink offline");
+    askField.render(ui, r.x + 1, r.y + 2, r.w - 2, ok ? t("ask anything — your vault is in reach") : t("uplink offline"));
     if (asked.busy) ui.animate(80);
-    const body = asked.error ? asked.error : asked.a || (asked.busy ? `${ui.spinner()} processing…` : asked.q ? "" : "a quick question here; the full conversation lives in LINK");
+    const body = asked.error ? asked.error : asked.a || (asked.busy ? `${ui.spinner()} ${t("processing…")}` : asked.q ? "" : t("a quick question here; the full conversation lives in LINK"));
     // word-wrap the answer
     const lines: string[] = [];
     for (const para of body.split("\n")) {
@@ -609,7 +610,7 @@ const aiPopup: WidgetPopupSpec = {
       lines.push(line);
     }
     lines.slice(-(r.h - 6)).forEach((l, i) => ui.text(r.x + 3, r.y + 4 + i, l, { fg: asked.error ? c.error : asked.a ? c.fg : c.faint }));
-    if (asked.a) ui.button(r.x + 2, r.y + r.h - 1, "◖ say it", () => {}, { cmd: `voice say ${q(asked.a.slice(0, 1500))}`, tip: "ctrl+s" });
+    if (asked.a) ui.button(r.x + 2, r.y + r.h - 1, t("◖ say it"), () => {}, { cmd: `voice say ${q(asked.a.slice(0, 1500))}`, tip: "ctrl+s" });
   },
   onText: (t) => (askField.onText(t), true),
   onKey: (k, { deck }) => {

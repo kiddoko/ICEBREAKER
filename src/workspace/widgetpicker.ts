@@ -1,3 +1,4 @@
+import { t } from "../core/i18n";
 import { fuzzyFilter } from "../core/fuzzy";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
@@ -71,7 +72,7 @@ export class WidgetPicker implements Overlay {
     ui.hit(screen, { onClick: () => (this.done = true), onWheel: () => {} });
     const W = Math.min(screen.w - 4, 110), H = Math.min(screen.h - 4, 30);
     const box = { x: Math.floor((screen.w - W) / 2), y: Math.max(1, Math.floor((screen.h - H) / 2)), w: W, h: H };
-    const inner = ui.box(box, { title: "ADD A WIDGET", focused: true, bg: c.panelAlt, info: `${this.list.items.length} · enter adds · esc` });
+    const inner = ui.box(box, { title: t("ADD A WIDGET"), focused: true, bg: c.panelAlt, info: `${this.list.items.length} · ${t("enter adds · esc")}` });
     ui.hit(box, { onClick: () => {} });
     ui.text(inner.x + 1, inner.y, "❯", { fg: c.accent, attrs: BOLD });
     this.input.render(ui, { x: inner.x + 3, y: inner.y, w: inner.w - 4, h: 1 }, true);
@@ -84,9 +85,9 @@ export class WidgetPicker implements Overlay {
       const on = this.placed(w.id);
       const mod = w.id.includes(".") ? w.id.split(".")[0] : "";
       let x = ui.text(row.x + 1, row.y, on ? "●" : selected ? "▸" : "○", { fg: on ? c.success : selected ? c.accent : c.subtle });
-      x = ui.text(x + 1, row.y, w.title.toUpperCase(), { fg: selected ? c.fg : c.muted, attrs: BOLD });
+      x = ui.text(x + 1, row.y, t(w.title).toUpperCase(), { fg: selected ? c.fg : c.muted, attrs: BOLD });
       if (mod) x = ui.text(x + 1, row.y, `· ${mod}`, { fg: c.accentAlt });
-      ui.text(x + 2, row.y, w.description ?? "", { fg: selected ? c.muted : c.faint }, Math.max(0, row.x + row.w - x - 4 - (on ? 9 : 0)));
+      ui.text(x + 2, row.y, t(w.description ?? ""), { fg: selected ? c.muted : c.faint }, Math.max(0, row.x + row.w - x - 4 - (on ? 9 : 0)));
       if (on) ui.textRight(row.x + row.w - 1, row.y, "on HOME", { fg: c.success });
     });
 
@@ -95,7 +96,7 @@ export class WidgetPicker implements Overlay {
     if (!w || listW === inner.w) return;
     const pr = { x: inner.x + listW + 2, y: inner.y + 2, w: inner.w - listW - 3, h: inner.h - 3 };
     ui.text(pr.x, pr.y, `${w.id}`, { fg: c.accent, attrs: BOLD });
-    ui.text(pr.x, pr.y + 1, w.description ?? "", { fg: c.fg }, pr.w);
+    ui.text(pr.x, pr.y + 1, t(w.description ?? ""), { fg: c.fg }, pr.w);
     ui.text(pr.x, pr.y + 2, `size ${w.size.w}×${w.size.h} (min ${w.min?.w ?? 1}×${w.min?.h ?? 1}) · e then shift+arrows to resize`, { fg: c.subtle }, pr.w);
     const colW = Math.max(4, (ui.cols - 26) / 12);
     const pw = Math.min(pr.w, Math.round(w.size.w * colW)), ph = Math.min(pr.h - 3, w.size.h * 2 - 1);
