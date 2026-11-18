@@ -295,13 +295,15 @@ export class ExplorerApp implements App {
     }
 
     // ── the carousel, drawn back to front ──
-    // a ring: few things spread round the whole disc, many follow each other (0.62 rad apart)
-    const step = Math.max(0.62, (Math.PI * 2) / items.length);
+    // the front of the ring: 5 lockers once there are 5 things or more, 3 for 3-4, 1 below
+    const half = items.length >= 5 ? 2 : items.length >= 3 ? 1 : 0;
+    const step = half === 2 ? 0.62 : 0.9;
     const radius = Math.min(r.w * 0.42, 60);
     const visible: { e: VaultEntry; i: number; z: number; x: number }[] = [];
     for (let i = 0; i < items.length; i++) {
-      const a = ringDelta(i - this.pos, items.length) * step;
-      if (Math.abs(a) > Math.PI * 0.62) continue;
+      const off = ringDelta(i - this.pos, items.length);
+      if (Math.abs(off) > half + 0.5) continue; // (+0.5: the next one slides in while the ring turns)
+      const a = off * step;
       visible.push({ e: items[i], i, z: Math.cos(a), x: cx + Math.sin(a) * radius });
     }
     visible.sort((a, b) => a.z - b.z);

@@ -13,6 +13,7 @@
   for abyss; warp (stars rushing past) for ghost and nightshade; the neon city
   for neon-district, neon-ronin and redline; the paper sleep screen for e-ink.
 
+- NEXUS shows 5 lockers of the ring once there are 5 things or more, 3 for 3-4, 1 below.
 - NEXUS is an endless ring: past the last thing comes the first, the disc keeps
   turning the same way (no jump back); a few things spread round the whole disc.
 
