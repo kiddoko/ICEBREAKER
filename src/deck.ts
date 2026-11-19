@@ -493,6 +493,13 @@ export class Deck implements InputSink {
   notify(text: string, kind: ToastKind = "info"): void {
     this.sound.play(kind === "error" ? "error" : kind === "success" ? "success" : "notify");
     if (kind === "error") this.errors.add(text);
+    // the deck isn't in front (minimized, hidden, another app on top): a real system
+    // notification too, so you see it anyway (notifications: off / sound only skip it)
+    const mode = this.settings.data.notifications?.mode ?? "both";
+    if ((mode === "both" || mode === "visual") && (document.hidden || !document.hasFocus())) {
+      const title = kind === "error" ? "ICEBREAKER · error" : kind === "warning" ? "ICEBREAKER · warning" : "ICEBREAKER";
+      void this.platform.notify?.(title, text).catch(() => {});
+    }
     this.workspace.notify(text, kind);
     this.requestFrame();
   }
