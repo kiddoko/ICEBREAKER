@@ -4,6 +4,26 @@ The CALENDAR module signs in to Google with ICEBREAKER's own OAuth client, so
 users only run `cal google connect` and click "Allow". This page is for the
 maintainer: how the client gets into builds, and how to get it verified.
 
+## 0. For users: connecting Google Calendar (Mac, Windows, Linux)
+
+Settings → **◇ CALENDAR** → *Google account* (or `cal google connect` in the
+shell). Your browser opens Google's consent page; you allow; the browser sends
+you back to the deck on `127.0.0.1` and your calendars appear. It's the same on
+every OS. Notes:
+
+- **Windows**: if the firewall asks whether ICEBREAKER may use the network,
+  allow it (private networks are enough): that's the browser coming back to the
+  app on your own machine.
+- **"this build has no ICEBREAKER client"**: the build you run was made without
+  ICEBREAKER's Google client (the Windows/Linux installers come from GitHub
+  Actions, which only has it once the repository secrets below are set). Until
+  then use your own client: Settings → ◇ CALENDAR → *your own Google client*
+  (`cal google setup`): console.cloud.google.com → new project → enable *Google
+  Calendar API* → Credentials → OAuth client ID → **Desktop app** → paste the ID
+  and the secret, then connect.
+- Stay 100 % local if you prefer: the calendar lives in `calendar/` in your
+  vault as plain Markdown, no account needed.
+
 ## 1. Put the client in your local builds
 
 1. Google Cloud console → **Google Auth Platform → Clients** → ICEBREAKER

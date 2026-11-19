@@ -121,6 +121,16 @@ let syncTimer: ReturnType<typeof setInterval> | null = null;
 export function activate(ib: IcebreakerAPI): void {
   const { BOLD, hex, mix, strWidth, q, fmt, parseFlags, t } = ib.lib;
   const run = (line: string) => void ib.shell.run(line);
+  // the first day of the week (Settings → ◇ CALENDAR): monday, or sunday
+  const ws = () => (ib.settings.get<string>("weekStart") === "sunday" ? 0 : 1);
+  /** a day's column in the week, 0 = the first day */
+  const dow = (d: Date) => (d.getDay() - ws() + 7) % 7;
+  /** a date that falls on column i (for the weekday names) */
+  const colDay = (i: number) => new Date(2024, 0, ws() + i);
+  /** column i is a saturday or a sunday */
+  const wkd = (i: number) => [0, 6].includes((i + ws()) % 7);
+  /** `cal settings`: the app opens on its settings */
+  let openSettings = false;
 
   // ── store ────────────────────────────────────────────────────────────────
   const LOCAL: Cal = { id: "local", name: "local", color: "", writable: true };
@@ -412,6 +422,51 @@ export function activate(ib: IcebreakerAPI): void {
   }
 
   // ── the `cal` command ────────────────────────────────────────────────────
+  // ── Settings → ◇ CALENDAR (each row is also a command) ─────────────────────
+  ib.settings.register([
+    { key: "weekStart", label: "first day of the week", type: "choice", options: ["monday", "sunday"], default: "monday", help: "Where the week starts in the month grid, the week view and `cal month`." },
+    {
+      key: "where",
+      label: "where your calendar lives",
+      type: "action",
+      value: () => (connected ? t("vault + Google") : t("vault only")),
+      cmd: "cal settings",
+      help: "Your events are plain Markdown in calendar/ inside the vault (offline, no account). Google Calendar is optional: it signs in in your browser, the token stays in the app's config folder, never in the vault.",
+    },
+    ...(ib.google.available()
+      ? [
+          {
+            key: "google",
+            label: "Google account",
+            type: "action" as const,
+            value: () => (connected ? t("connected") : t("not connected")),
+            cmd: () => (connected ? "cal google disconnect" : "cal google connect"),
+            run: async () => {
+              if (connected && !(await ib.ui.confirm(t("Disconnect Google Calendar?"), t("Its cached events leave the deck; your vault calendar stays.")))) return;
+              run(connected ? "cal google disconnect" : "cal google connect");
+            },
+            help: "Connect: your browser opens Google's consent page, you allow, done (Mac, Windows, Linux alike). On Windows, if the firewall asks about ICEBREAKER, allow it: Google sends you back to the app on 127.0.0.1. A build without ICEBREAKER's Google client needs your own: see the next rows and docs/GOOGLE.md.",
+          },
+          { key: "sync", label: "sync with Google now", type: "action" as const, value: () => (syncing ? t("syncing…") : google.at ? new Date(google.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "—"), cmd: "cal sync", help: "Fetch your Google calendars now (it also syncs by itself every few minutes while connected)." },
+          { key: "googleClient", label: "your own Google client (advanced)", type: "action" as const, cmd: "cal google setup", help: "Use your own OAuth client from console.cloud.google.com (Desktop app type) instead of ICEBREAKER's: needed on builds without one. `cal google setup --default` goes back." },
+        ]
+      : []),
+    {
+      key: "defaultCal",
+      label: "new events go to",
+      type: "action",
+      value: () => calOf(defaultCal)?.name ?? "local",
+      cmd: () => `cal default ${q(calOf(defaultCal)?.name ?? "local")}`,
+      run: async () => {
+        const all = calendars().filter((c) => c.writable);
+        const i = await ib.ui.choose(t("New events go to"), all.map((c) => ({ label: c.name, hint: c.id === "local" ? "vault" : "google", color: c.color || undefined })), { selected: Math.max(0, all.findIndex((c) => c.id === defaultCal)) });
+        if (i !== null) run(`cal default ${q(all[i].name)}`);
+      },
+      help: "Where `cal add` and the + button put a new event: the vault, or one of your Google calendars.",
+    },
+    { key: "more", label: "calendars shown, colours, files…", type: "action", cmd: "cal settings", help: "The CALENDAR app's own settings page (show / hide each calendar, the default one, Google)." },
+  ]);
+
   ib.commands.register({
     name: "cal",
     aliases: ["calendar", "agenda"],
@@ -424,6 +479,7 @@ export function activate(ib: IcebreakerAPI): void {
       'cal add "title" <day> [14:30[-16:00]] [--for 1h] [--cal name] [--where place]',
       "cal rm <ref>             remove an event ([ref] is shown next to it)",
       "cal open [day]           the CALENDAR app",
+      "cal settings             its settings: calendars, Google, local files",
       "cal calendars            your calendars",
       "cal default <name>       where `cal add` puts things",
       "cal show | hide <name>   show or hide a calendar",
@@ -459,7 +515,7 @@ export function activate(ib: IcebreakerAPI): void {
       "  4. cal google setup   (paste the client ID and secret) · cal google setup --default goes back",
       "  5. cal google connect",
     ].join("\n"),
-    complete: () => ["today", "tomorrow", "week", "next", "month", "add", "rm", "open", "calendars", t("default"), "show", "hide", "sync", "google"],
+    complete: () => ["today", "tomorrow", "week", "next", "month", "add", "rm", "open", "settings", "calendars", t("default"), "show", "hide", "sync", "google"],
     async run(ctx) {
       await ready;
       await loadLocal(); // pick up edits made outside
@@ -489,19 +545,24 @@ export function activate(ib: IcebreakerAPI): void {
             if (!d) return ctx.err(`cal: can't read the day "${rest[0]}"\n`), 1;
             const first = new Date(d.getFullYear(), d.getMonth(), 1);
             ctx.out(`${fmt.bold(first.toLocaleDateString(undefined, { month: "long", year: "numeric" }))}\n`);
-            ctx.out(fmt.dim(" mo  tu  we  th  fr  sa  su\n"));
-            let line = "    ".repeat((first.getDay() + 6) % 7);
+            ctx.out(fmt.dim(ws() ? " mo  tu  we  th  fr  sa  su\n" : " su  mo  tu  we  th  fr  sa\n"));
+            let line = "    ".repeat(dow(first));
             for (let day = first; day.getMonth() === first.getMonth(); day = addDays(day, 1)) {
               const n = between(day, addDays(day, 1)).length;
               const num = String(day.getDate()).padStart(3);
               const cell = ymd(day) === ymd(today) ? fmt.bold(fmt.magenta(num)) : n ? fmt.cyan(num) : fmt.dim(num);
               line += cell + (n ? fmt.yellow("•") : " ");
-              if (day.getDay() === 0) {
+              if (dow(day) === 6) {
                 ctx.out(line + "\n");
                 line = "";
               }
             }
             if (line) ctx.out(line + "\n");
+            return 0;
+          }
+          case "settings": case "setup": {
+            openSettings = true;
+            ib.apps.open("calendar");
             return 0;
           }
           case "open": {
@@ -795,10 +856,11 @@ export function activate(ib: IcebreakerAPI): void {
       refreshLocal();
       if (syncing) ui.animate(100);
       this.header(ui, r);
+      if (openSettings) (openSettings = false), (this.view = "settings");
       if (this.view === "settings") return this.renderSettings(ui, { x: r.x, y: r.y + 2, w: r.w, h: r.h - 2 }, focused);
       const today = startOfDay(new Date());
       const first = new Date(this.day.getFullYear(), this.day.getMonth(), 1);
-      const offset = (first.getDay() + 6) % 7;
+      const offset = dow(first);
       const weeks = Math.ceil((offset + new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()) / 7);
 
       // ── layout: the month grid on the left, the agenda on the right (stacked when narrow)
@@ -816,8 +878,8 @@ export function activate(ib: IcebreakerAPI): void {
 
       // weekday names, cyber caps
       for (let i = 0; i < 7; i++) {
-        const n = new Date(2024, 0, 1 + i).toLocaleDateString(undefined, { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "").toUpperCase();
-        ui.text(X(i) + 1, gy, n.slice(0, cw), { fg: i >= 5 ? c.accentAlt : c.subtle, attrs: BOLD });
+        const n = colDay(i).toLocaleDateString(undefined, { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "").toUpperCase();
+        ui.text(X(i) + 1, gy, n.slice(0, cw), { fg: wkd(i) ? c.accentAlt : c.subtle, attrs: BOLD });
       }
       // the grid lines
       for (let w = 0; w <= weeks; w++) {
@@ -835,7 +897,7 @@ export function activate(ib: IcebreakerAPI): void {
       let selCell: Rect | null = null;
       for (let w = 0; w < weeks; w++) {
         const monday = addDays(first, w * 7 - offset);
-        if (gutter) ui.text(r.x + 1, Y(w) + 1, `W${String(isoWeek(monday)).padStart(2, "0")}`, { fg: c.faint });
+        if (gutter) ui.text(r.x + 1, Y(w) + 1, `W${String(isoWeek(addDays(monday, 1 - ws()))).padStart(2, "0")}`, { fg: c.faint });
         for (let i = 0; i < 7; i++) {
           const d = addDays(monday, i);
           const other = d.getMonth() !== first.getMonth();
@@ -849,7 +911,7 @@ export function activate(ib: IcebreakerAPI): void {
           const num = String(d.getDate()).padStart(2, " ");
           // the day number; today's is a solid accent tag
           if (isToday) ui.text(cell.x, cell.y, ` ${num.trim()} `, { fg: c.panel, bg: c.accent, attrs: BOLD });
-          else ui.text(cell.x + 1, cell.y, num.trim(), { fg: other ? c.faint : isSel ? c.fg : i >= 5 ? c.accentAlt : c.muted, attrs: isSel ? BOLD : 0, ...st });
+          else ui.text(cell.x + 1, cell.y, num.trim(), { fg: other ? c.faint : isSel ? c.fg : wkd(i) ? c.accentAlt : c.muted, attrs: isSel ? BOLD : 0, ...st });
           if (isSel) selCell = cell;
           const evs = between(d, addDays(d, 1));
           if (ch >= 2 && cw >= 6) {
@@ -1047,10 +1109,10 @@ export function activate(ib: IcebreakerAPI): void {
     render(ui: UI, r: Rect) {
       const c = ui.c;
       const first = new Date(popDay.getFullYear(), popDay.getMonth(), 1);
-      const offset = (first.getDay() + 6) % 7;
+      const offset = dow(first);
       const today = ymd(new Date());
       ui.text(r.x + 2, r.y, first.toLocaleDateString(undefined, { month: "long", year: "numeric" }).toUpperCase(), { fg: c.accent, attrs: BOLD });
-      for (let i = 0; i < 7; i++) ui.text(r.x + 2 + i * 4, r.y + 2, new Date(2024, 0, 1 + i).toLocaleDateString(undefined, { weekday: "narrow" }).toUpperCase(), { fg: i >= 5 ? c.accentAlt : c.subtle });
+      for (let i = 0; i < 7; i++) ui.text(r.x + 2 + i * 4, r.y + 2, colDay(i).toLocaleDateString(undefined, { weekday: "narrow" }).toUpperCase(), { fg: wkd(i) ? c.accentAlt : c.subtle });
       for (let k = 0; k < 42; k++) {
         const d = addDays(first, k - offset);
         if (d.getMonth() !== first.getMonth()) continue;
@@ -1108,7 +1170,7 @@ export function activate(ib: IcebreakerAPI): void {
       refreshLocal();
       const now = new Date();
       const first = new Date(now.getFullYear(), now.getMonth(), 1);
-      const offset = (first.getDay() + 6) % 7;
+      const offset = dow(first);
       const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
       const weeks = Math.ceil((offset + days) / 7);
       // an even grid, centred in the widget: same width for every column, same height for every week
@@ -1120,8 +1182,8 @@ export function activate(ib: IcebreakerAPI): void {
       ui.textCenter(r, r.y, first.toLocaleDateString(undefined, { month: "long", year: "numeric" }).toUpperCase(), { fg: c.fg, attrs: BOLD });
       if (r.h < 3) return;
       for (let i = 0; i < 7; i++) {
-        const n = new Date(2024, 0, 1 + i).toLocaleDateString(undefined, { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "").slice(0, cw - 1);
-        ui.text(colX(i) + cw - 1 - strWidth(n), r.y + 1, n, { fg: i >= 5 ? c.accentAlt : c.subtle });
+        const n = colDay(i).toLocaleDateString(undefined, { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "").slice(0, cw - 1);
+        ui.text(colX(i) + cw - 1 - strWidth(n), r.y + 1, n, { fg: wkd(i) ? c.accentAlt : c.subtle });
       }
       for (let d = 1; d <= days; d++) {
         const k = offset + d - 1;
@@ -1154,14 +1216,14 @@ export function activate(ib: IcebreakerAPI): void {
       if (!loaded) return;
       refreshLocal();
       const today = startOfDay(new Date());
-      const monday = addDays(today, -((today.getDay() + 6) % 7));
+      const monday = addDays(today, -dow(today));
       const cw = Math.floor(r.w / 7);
       for (let i = 0; i < 7; i++) {
         const d = addDays(monday, i);
         const x = r.x + i * cw;
         const isToday = ymd(d) === ymd(today);
         const head = `${d.toLocaleDateString(undefined, { weekday: "short" }).replace(".", "")} ${d.getDate()}`;
-        ui.text(x + 1, r.y, head.slice(0, cw - 1), isToday ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: i >= 5 ? c.accentAlt : c.subtle, attrs: BOLD });
+        ui.text(x + 1, r.y, head.slice(0, cw - 1), isToday ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: wkd(i) ? c.accentAlt : c.subtle, attrs: BOLD });
         if (i > 0) ui.vline(x, r.y, r.h, { fg: c.faint });
         between(d, addDays(d, 1)).slice(0, r.h - 1).forEach((e, k) => {
           const y = r.y + 1 + k;

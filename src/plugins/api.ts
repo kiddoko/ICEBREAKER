@@ -246,9 +246,16 @@ export interface IcebreakerAPI {
 export interface ModuleSettingSpec {
   key: string;
   label: string;
-  type: "toggle" | "choice" | "text" | "number";
+  /** action: a row that does something when chosen (enter / click) — `cmd` or `run` */
+  type: "toggle" | "choice" | "text" | "number" | "action";
   options?: string[];
   default?: unknown;
+  /** action: the shell command it runs (shown next to the row, like every setting) */
+  cmd?: string | (() => string);
+  /** action: run this instead of `cmd` (a picker, a confirmation…) */
+  run?: () => void | Promise<void>;
+  /** action: what the row shows on the right (a status: "connected", a name…) */
+  value?: () => string;
   /** a sentence or two: what it does (shown under the settings list) */
   help?: string;
 }

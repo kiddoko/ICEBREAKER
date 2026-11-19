@@ -317,6 +317,21 @@ export class SettingsApp implements App {
       head(d.plugins.list().find((p) => p.manifest.id === id)?.manifest.name ?? id.toUpperCase());
       for (const ms of rows) {
         const k = `plugin.${id}.${ms.key}`;
+        if (ms.type === "action") {
+          const cmdOf = () => (typeof ms.cmd === "function" ? ms.cmd() : ms.cmd ?? "");
+          out.push({
+            key: k,
+            label: ms.label,
+            value: () => ms.value?.() ?? "▸",
+            cmd: cmdOf,
+            change: async () => {
+              if (ms.run) await ms.run();
+              else if (cmdOf()) await d.act(cmdOf());
+            },
+          });
+          if (ms.help) SETTINGS_HELP[k] = [ms.help, ms.help];
+          continue;
+        }
         out.push({
           key: k,
           label: ms.label,
