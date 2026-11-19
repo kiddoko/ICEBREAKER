@@ -1,5 +1,5 @@
 import { GlyphAtlas } from "./atlas";
-import { css } from "./color";
+import { css, NONE } from "./color";
 import { BOLD, Grid, ITALIC, STRIKE, UNDERLINE } from "./grid";
 import { fontStack } from "./fonts";
 import { charWidth } from "./unicode";
@@ -161,6 +161,45 @@ export class Renderer {
     this.sizeChroma();
     this.front = null;
   }
+  /**
+   * GLOW: what's bright gives light, not the whole screen. A tiny canvas with
+   * one pixel per cell holds what each cell emits (a bright glyph's colour, or a
+   * lit background: buttons, the selected tab…); CSS scales it up blurred and
+   * screens it over the picture. One pixel per changed cell: nearly free.
+   */
+  glow = 0;
+  private glowEl: HTMLCanvasElement | null = null;
+  private glowCtx: CanvasRenderingContext2D | null = null;
+  private glowBg = 0;
+  setGlow(level: number, bg: number): void {
+    this.glow = Math.max(0, Math.min(200, level));
+    this.glowBg = bg;
+    if (!this.glowEl && this.glow > 0) {
+      const el = document.createElement("canvas");
+      el.id = "glow";
+      this.canvas.after(el);
+      this.glowEl = el;
+      this.glowCtx = el.getContext("2d");
+    }
+    if (this.glowEl) {
+      this.glowEl.style.display = this.glow > 0 ? "block" : "none";
+      // past 100 %: a wider, brighter halo
+      const k = this.glow / 100;
+      this.glowEl.style.opacity = String(Math.min(1, 0.35 + k * 0.45));
+      this.glowEl.style.filter = `blur(${((0.3 + k * 0.25) * (this.cellH || 16)) / (this.dpr || 1)}px) saturate(1.6) brightness(${1 + Math.max(0, k - 1) * 0.8})`;
+    }
+    this.front = null;
+  }
+  private sizeGlow(cols: number, rows: number): void {
+    const el = this.glowEl;
+    if (!el || this.glow <= 0) return;
+    if (el.width !== cols || el.height !== rows) (el.width = cols), (el.height = rows);
+    el.style.width = this.canvas.style.width;
+    el.style.height = this.canvas.style.height;
+    el.style.left = this.canvas.style.left;
+    el.style.top = this.canvas.style.top;
+  }
+
   private sizeChroma(): void {
     const el = this.chromaEl, tmp = this.chromaTmp;
     if (!el || !tmp) return;
@@ -263,6 +302,11 @@ export class Renderer {
     const dirty = this.dirty;
     let painted = false;
 
+    const gctx = this.glow > 0 ? this.glowCtx : null;
+    if (gctx) {
+      this.sizeGlow(g.cols, g.rows);
+      if (full) gctx.clearRect(0, 0, g.cols, g.rows);
+    }
     for (let y = 0; y < g.rows; y++) {
       const base = y * g.cols;
       let rowDirty = false;
@@ -310,6 +354,20 @@ export class Renderer {
         if (cp === 0) continue;
         const attrs = g.attr[i];
         if (cp > 32) this.atlas.draw(ctx, cp, g.fg[i], attrs, x * cw, y * ch, charWidth(cp) === 2 ? 2 : 1);
+        if (gctx) {
+          // what this cell gives off: its glyph if it's bright, else a lit background
+          // neon gives light, plain text doesn't: bright AND saturated colours emit
+          const fgE = cp > 32 ? emission(g.fg[i]) : 0, bgE = g.bg[i] === this.glowBg || g.bg[i] === NONE ? 0 : emission(g.bg[i]);
+          const src = fgE >= bgE ? g.fg[i] : g.bg[i];
+          const e = Math.max(fgE, bgE);
+          gctx.clearRect(x, y, 1, 1);
+          if (e > 0) {
+            gctx.globalAlpha = Math.min(1, e * 2.6);
+            gctx.fillStyle = css(src);
+            gctx.fillRect(x, y, 1, 1);
+            gctx.globalAlpha = 1;
+          }
+        }
         if (attrs & (UNDERLINE | STRIKE)) {
           ctx.fillStyle = css(g.fg[i]);
           const t = Math.max(1, Math.round(ch / 16));
@@ -338,4 +396,17 @@ export class Renderer {
     if (painted && this.chroma > 0) this.chromaFrame();
     return painted;
   }
+}
+
+/** perceived brightness 0..1 of an RGB packed as 0xRRGGBB */
+function lum(c: number): number {
+  return (((c >> 16) & 255) * 0.299 + ((c >> 8) & 255) * 0.587 + (c & 255) * 0.114) / 255;
+}
+
+/** how much light a colour gives off: bright and saturated (neon) = a lot, greys and whites = none */
+function emission(c: number): number {
+  const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+  const sat = mx ? (mx - mn) / mx : 0;
+  return Math.max(0, lum(c) * (0.2 + sat) - 0.32);
 }

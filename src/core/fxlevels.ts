@@ -5,7 +5,7 @@ import type { Deck } from "../deck";
  * For bloom / scanlines / vignette the on/off switch and the strength are one
  * setting now: setting a strength turns it on, 0 turns it off.
  */
-export const FX_LEVELS = ["bloom", "scanlines", "vignette", "chroma", "sharpness"] as const;
+export const FX_LEVELS = ["bloom", "scanlines", "vignette", "chroma", "sharpness", "glow"] as const;
 export type FxLevel = (typeof FX_LEVELS)[number];
 const SWITCHED = ["bloom", "scanlines", "vignette"] as const;
 
@@ -13,7 +13,7 @@ export const fxMax = (e: FxLevel): number => (e === "sharpness" ? 100 : 200);
 
 export function getFx(deck: Deck, e: FxLevel): number {
   const fx = deck.settings.data.fx;
-  const lv = fx.levels[e] ?? (e === "sharpness" ? 100 : e === "chroma" ? 0 : 100);
+  const lv = fx.levels[e] ?? (e === "sharpness" ? 100 : e === "chroma" || e === "glow" ? 0 : 100);
   if ((SWITCHED as readonly string[]).includes(e) && !fx[e as (typeof SWITCHED)[number]]) return 0;
   return lv;
 }

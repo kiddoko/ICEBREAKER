@@ -44,6 +44,7 @@ export class FxPanel implements Overlay {
       { label: "scanlines", hint: "CRT lines", level: "scanlines" },
       { label: "vignette", hint: "dark corners", level: "vignette" },
       { label: "RGB split", hint: "colour fringes", level: "chroma" },
+      { label: "glow", hint: "bright things shine", level: "glow" },
       { label: "sharpness", hint: "CRT focus", level: "sharpness" },
       { label: "background", hint: "the theme's animation", key: "ambient" },
       { label: "glitch", hint: "transitions", key: "glitch" },

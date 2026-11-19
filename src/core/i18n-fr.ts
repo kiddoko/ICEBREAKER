@@ -676,6 +676,7 @@ export const FR: Record<string, string> = {
   "click: open / fold · → ←": "clic : ouvrir / replier · → ←",
   "none yet — F2 binds a key": "aucun pour l'instant — F2 en assigne un",
   wheel: "molette",
+  "glow (bright things give off light)": "lueur (ce qui est clair émet de la lumière)",
   "the trash: see it, put things back · trash": "la corbeille : la voir, remettre les choses · trash",
   "the trash…": "la corbeille…",
   "RGB split (colour fringes)": "séparation RVB (franges de couleur)",

@@ -641,6 +641,7 @@ export class Deck implements InputSink {
     root.setProperty("--paper", String(t.fx.paper));
     this.renderer.bloomEnabled = fx.bloom;
     this.renderer.setChroma(lv.chroma ?? 0, css(t.c.bg));
+    this.renderer.setGlow(lv.glow ?? 0, t.c.bg);
     const sharp = fx.levels.sharpness ?? 100 - (fx.levels.softness ?? 0);
     // a gentler curve: 80 % is a light CRT softness, 0 % still readable
     this.renderer.setSoftness((100 - sharp) * 0.6);

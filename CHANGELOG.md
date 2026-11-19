@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Real sliders everywhere (settings, the ✦ fx panel): drag or click on the track
+  (1 % steps), the wheel and ←→ step by 5. One setting per effect: 0 = off, up to
+  200 % (bloom, scanlines, vignette, RGB split, glow; sharpness 0-100). `fx glow 120`.
+- RGB split (colour fringes) is a real chromatic aberration now, much stronger.
+- Glow: bright, saturated things (accents, titles, lit buttons, neon) give off
+  their own light; plain text stays crisp. Not a global bloom.
+- Trash: ⌫ above the tree and `trash` show what's in .trash and put things back
+  where they lived (`trash restore 3`).
+- Every notification also reaches the system's notification centre when the deck
+  isn't in front (Mac, Windows, Linux), following the notifications setting.
+- Gestures: the mouse's back / forward buttons and a two-finger sideways swipe
+  switch tabs (one per swipe); a pinch or ctrl+wheel zooms the interface.
+- NEXUS: the wheel turns the ring anywhere on the page, a dive animation when you
+  enter a folder, a quieter background.
+- Top bar: when the tabs don't fit they scroll around the one shown (‹ ›); the
+  logo and the right side shrink in a narrow window.
+
 - Fixed: your own shortcuts (`bind`), module settings and theme tweaks were lost at
   every restart (settings records were dropped when loading). Now kept.
 - The deck reopens as you left it: the tabs (and which one was shown), and the

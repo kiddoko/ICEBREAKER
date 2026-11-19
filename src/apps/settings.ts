@@ -169,6 +169,7 @@ export class SettingsApp implements App {
       fxSlide("scanlines", "scanlines"),
       fxSlide("vignette", "vignette"),
       fxSlide("chroma", "RGB split (colour fringes)"),
+      fxSlide("glow", "glow (bright things give off light)"),
       fxSlide("sharpness", "sharpness", (v) => (v === 100 ? t("razor sharp") : `${v}%`)),
       cycle("fx.screensaverMinutes", "screensaver after", [0, 5, 10, 20, 30], undefined, (v) => (v ? `${v} min` : "never")),
       cycle("boot.mode", "boot sequence", ["full", "fast", "off"]),

@@ -198,6 +198,9 @@ On a Mac, ⌘ plays the role of Ctrl.
 |---|---|
 | click | does it — and shows the command in the shell |
 | double-click | open (one click is enough in the tree) |
+| back / forward buttons | the tab before / after |
+| two-finger swipe ← → (trackpad) | the tab after / before |
+| pinch · ctrl+wheel | interface bigger / smaller |
 | right-click | a menu for what's under it: notes, folders, tabs, widgets, cards, the shell, the editor (copy, paste…) |
 | hover | the command and the shortcut |
 
