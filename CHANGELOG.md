@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.0 — 2026-11-19
+
 - MODULES is a ring of floppy disks, like NEXUS: an endless ring (5 in front),
   each module a disk with its metal shutter, label and status light; ←→ ↑↓ and the
   wheel turn it.
