@@ -810,4 +810,5 @@ export const FR: Record<string, string> = {
   "hide the macros · macro show brings them back": "cacher les macros · macro show les ramène",
   "right-click: shortcut, edit, remove": "clic droit : raccourci, modifier, retirer",
   "run": "lancer",
+  "wheel over the tree shows each file": "la molette sur l'arbo montre chaque fichier",
 };

@@ -233,6 +233,34 @@ export class Workspace {
   }
 
   /** Show an app; if one with the same key is open, switch to it instead. */
+  /** the tab the tree's wheel preview made (the next file replaces it) */
+  private previewTab: App | null = null;
+
+  /**
+   * Show a note at once, in place (the tree's wheel): no transition, focus stays
+   * where it is. A preview tab is reused while it's untouched; a note already
+   * open is just brought forward.
+   */
+  previewNote(path: string): void {
+    const key = `note:${path}`;
+    const existing = this.tabs.findIndex((t) => t.key === key);
+    if (existing >= 0) return void (this.active = existing);
+    const spec = this.deck.apps.get("note");
+    if (!spec) return;
+    const app = spec.create(this.deck, path);
+    if (this.page) this.dropPage();
+    const at = this.previewTab ? this.tabs.indexOf(this.previewTab) : -1;
+    if (at >= 0 && !this.previewTab?.dirty?.()) {
+      void this.tabs[at].close?.();
+      this.tabs[at] = app;
+      this.active = at;
+    } else {
+      this.tabs.splice(this.active + 1, 0, app);
+      this.active = Math.min(this.tabs.length - 1, this.active + 1);
+    }
+    this.previewTab = app;
+  }
+
   open(app: App): App {
     if (Workspace.PAGES.has(app.kind)) {
       const cur = this.page;
@@ -253,6 +281,7 @@ export class Workspace {
     if (existing >= 0) {
       void app.close?.();
       this.active = existing;
+      if (this.tabs[existing] === this.previewTab) this.previewTab = null; // opened on purpose: it stays
     } else {
       this.tabs.splice(this.active + 1, 0, app);
       this.active = Math.min(this.tabs.length - 1, this.active + 1);

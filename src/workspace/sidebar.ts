@@ -9,6 +9,7 @@ import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import type { VaultEntry } from "../platform/types";
 import { ListView } from "../ui/list";
+import { WheelSpin } from "../ui/wheelspin";
 import type { UI } from "../ui/ui";
 import { basename, dirname, join } from "../vault/paths";
 import { ICON_CHOICES, TAG_NAMES, tagRGB, type TagColor } from "../vault/marks";
@@ -32,6 +33,8 @@ export class Sidebar {
   private open = new Set<string>(["journal", "notes"]);
   private version = 0;
   private lastList: Rect | null = null;
+  /** wheel / trackpad steps (a few trackpad lines per file) */
+  private spin = new WheelSpin(3);
   /** colour view: only what has this tag (tag view <colour>) */
   filter: TagColor | null = null;
   private builtKey = "";
@@ -56,6 +59,19 @@ export class Sidebar {
     };
     this.list.onDrop = (row, target) => void this.moveInto(row.entry, destOf(target));
     this.list.dropEndLabel = ` ↳ ${t("to the vault's root")} `;
+    // the wheel walks the tree file by file and shows each one at once (Settings → VAULT)
+    this.list.wheel = (lines) => {
+      if (!deck.settings.data.editor.treeWheel || this.list.items.length === 0) return false;
+      const steps = this.spin.wheel(lines);
+      if (!steps) return true;
+      const n = this.list.items.length;
+      this.list.select(Math.max(0, Math.min(n - 1, this.list.selected + steps)));
+      deck.sound.play("tick");
+      const row = this.list.current;
+      if (row && !row.entry.isDir) deck.workspace.previewNote(row.entry.path);
+      deck.requestFrame();
+      return true;
+    };
     // the folders you had open last time
     const saved = deck.settings.data.session?.tree;
     if (saved) this.open = new Set(saved);

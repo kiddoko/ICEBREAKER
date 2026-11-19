@@ -122,7 +122,8 @@ export interface Settings {
     /** the language it speaks: en · fr · ja (Japanese, whatever the UI language) */
     language: "en" | "fr" | "ja";
   };
-  editor: { autosave: boolean; tabSize: number };
+  /** treeWheel: the wheel over the tree walks file by file and shows each one at once (else it scrolls) */
+  editor: { autosave: boolean; tabSize: number; treeWheel: boolean };
   /** registry: the official index · sources: your own (URLs or user/repo of an index.json) */
   /** removed: built-in modules the user uninstalled (the STORE reinstalls them) */
   plugins: { enabled: string[]; disabled: string[]; removed: string[]; registry: string; sources: string[] };
@@ -184,7 +185,7 @@ export const DEFAULT_SETTINGS: Settings = {
   journal: { folder: "journal" },
   privacy: { stealth: false },
   voice: { subtitles: true, enabled: false, engine: "auto", name: "", rate: 1.1, robot: 100, volume: 50, readAI: false, greet: true, language: "en" },
-  editor: { autosave: true, tabSize: 2 },
+  editor: { autosave: true, tabSize: 2, treeWheel: true },
   // the community index: a JSON list of plugins/themes (see docs/COMMUNITY.md)
   plugins: { enabled: [], disabled: [], removed: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json", sources: [] },
   // empty = the default layout (widgets/builtin.ts)

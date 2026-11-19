@@ -250,6 +250,7 @@ export class SettingsApp implements App {
       { section: "VAULT", label: "", value: () => "" },
       text("journal.folder", "journal folder"),
       toggle("editor.autosave", "autosave notes"),
+      toggle("editor.treeWheel", "wheel over the tree shows each file"),
       {
         label: "vault folder",
         value: () => d.vault.root,
