@@ -5,6 +5,10 @@
 export { ChatView } from "../ui/chatview";
 export { TextEditor } from "../ui/editor";
 export { ListView } from "../ui/list";
+/** the search + colours bar every list of things uses (MODULES, NEXUS, the file browser) */
+export { FilterBar } from "../ui/filterbar";
+/** the wheel / trackpad feel of a ring of things (MODULES, NEXUS) */
+export { WheelSpin, ring } from "../ui/wheelspin";
 export { bigText, ICE_ART } from "../ui/bigtext";
 export { inset, split, q } from "../ui/ui";
 export { parseFlags } from "../shell/parser";

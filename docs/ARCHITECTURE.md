@@ -36,8 +36,8 @@ src-tauri/src/     the native side, one file per area (see §8)
 | Folder | Files worth knowing |
 |---|---|
 | `core/` | `grid.ts` cells · `renderer.ts` paints them · `loop.ts` frames on demand · `input.ts` keys/mouse/gestures · `gamepad.ts` pad + the RB action wheel · `settings.ts` **every setting and its default** · `theme.ts` TOML themes · `shortcuts.ts` the shortcut table (some keys are bound right there: `global`) · `sound.ts` synthesized UI sounds, packs · `voice.ts` · `errors.ts` error codes · `i18n.ts` + `i18n-fr.ts` · `avatar.ts` profile icons · `time.ts` `ago()` · `fxlevels.ts` effect strengths · `stealth.ts` the offline guard |
-| `ui/` | `ui.ts` the `UI` class (text, box, fill, button, **hit**) · `list.ts` `ListView` (selection, scroll, drag & drop, wheel hook) · `editor.ts` text editing · `slider.ts` sliders + `askNumber` · `wheelspin.ts` the wheel/trackpad feel of rings (`WheelSpin`, `ring()`) · `tagbar.ts` the 8 colour squares · `markdown.ts`, `chatview.ts`, `bigtext.ts`, `dots.ts` |
-| `workspace/` | `workspace.ts` layout + routing + top/status bars + shell panel · `sidebar.ts` the tree · `sidepanel.ts` the right panel · `overlays.ts` palette, prompt, choose, confirm, toasts, on-screen keyboard · `contextmenu.ts` right-click menus · `keycapture.ts` "press the keys" dialog · `actionwheel.ts` the action wheel · `avatarpicker.ts` · `widgetpicker.ts`, `widgetpopup.ts` · `fxpanel.ts` · `filepicker.ts` · `lock.ts` login · `boot.ts` · `favorites.ts` pins |
+| `ui/` | `ui.ts` the `UI` class (text, box, fill, button, **hit**) · `list.ts` `ListView` (selection, scroll, drag & drop, wheel hook) · `editor.ts` text editing · `slider.ts` sliders + `askNumber` · `wheelspin.ts` the wheel/trackpad feel of rings (`WheelSpin`: a critically damped spring, `ring()`) · `filterbar.ts` **the** search + colours bar (`FilterBar`) every list of things uses · `markdown.ts`, `chatview.ts`, `bigtext.ts`, `dots.ts` |
+| `workspace/` | `workspace.ts` layout + routing + top/status bars + shell panel · `sidebar.ts` the tree · `sidepanel.ts` the right panel · `overlays.ts` palette, prompt, choose, confirm, toasts, on-screen keyboard · `contextmenu.ts` right-click menus · `keycapture.ts` "press the keys" dialog · `actionwheel.ts` the action wheel · `avatarpicker.ts` · `widgetpicker.ts`, `widgetpopup.ts` · `fxpanel.ts` · `filebrowser.ts` **the** little file browser (a vault folder, or picking a file on the computer) · `lock.ts` login · `boot.ts` · `favorites.ts` pins |
 | `apps/` | `types.ts` the `App` interface · `home.ts` the widget grid · `note.ts` editor · `settings.ts` (+ `settings-help.ts` one sentence per setting) · `modules.ts` the shard ring · `explorer.ts` NEXUS · `trash.ts` · `shortcuts.ts` · `store.ts` · `setup.ts` · `terminal.ts` · weather / clocks / focus / journal / sysmon / studio / link / help |
 | `widgets/` | `types.ts` `WidgetSpec` · `builtin.ts` core widgets · `extra.ts` more · `links.ts` 1×1 shortcut squares · `popups.ts` widget pop-ups · shared state in dependency-free files (`clockstate.ts`, `focusstate.ts`) |
 | `shell/` | `shell.ts` ibsh · `parser.ts` (pipes, `;` `&&` `\|\|`, quotes) · `exec.ts` · `commands/*.ts` every command, by area · `systerm.ts` your real shell in a PTY · `terminal.ts` the terminal emulator |
@@ -218,7 +218,17 @@ no rebuild needed.
 
 ---
 
-## 7. Traps worth knowing
+## 7. One thing, one piece of code
+
+Before writing something, look for the piece that already does it, and give it
+an option instead of a copy: one `FileBrowser` (vault folders, picking a file on
+the computer), one `FilterBar` (search + colours for MODULES, NEXUS, the file
+browser…), one `WheelSpin` (every ring), one `slider`, one `KeyCapture` (every
+"press the keys" moment), one TRASH page, one SHORTCUTS page, `deck.speak` for
+everything the voice says, `deck.use()` to call any part. Modules get the same
+pieces through `ib.lib` (`FilterBar`, `WheelSpin`, `ListView`…).
+
+## 8. Traps worth knowing
 
 - `settings.set()` throws on keys missing from `DEFAULT_SETTINGS` (see §5).
 - Modal overlays get raw keys, not Actions (see §4).
@@ -234,11 +244,11 @@ no rebuild needed.
 
 ---
 
-## 8. The native side (`src-tauri/src`)
+## 9. The native side (`src-tauri/src`)
 
 | File | What |
 |---|---|
-| `lib.rs` | the Tauri builder: plugins, every command registered |
+| `lib.rs` | the Tauri builder: plugins, every command registered; on macOS lifts WebKit's 60 fps preference (ProMotion) |
 | `vault.rs` | the vault: list, read, write, rename, trash, import; the path guard |
 | `term.rs` | the PTY (your shell) and the bridge that lets it run deck commands; shell hooks for zsh, bash, fish, PowerShell |
 | `files.rs` | read-only access to the computer for the deck's file picker |
@@ -254,7 +264,7 @@ no rebuild needed.
 
 ---
 
-## 9. AI
+## 10. AI
 
 `ai/types.ts` defines a provider-neutral `ChatSession`. `ai/anthropic.ts` uses the
 official Anthropic SDK (streaming, tool use, prompt caching); `ai/claudecode.ts`
@@ -264,7 +274,7 @@ drives the Claude Code CLI; `ai/ollama.ts` talks to a local Ollama.
 
 ---
 
-## 10. Checking your work, releasing
+## 11. Checking your work, releasing
 
 ```bash
 npm run check          # types (also covers plugins/)

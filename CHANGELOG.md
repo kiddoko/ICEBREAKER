@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 0.3.1 — 2026-11-19
+
+- MODULES and NEXUS glide: the ring moves on a spring (no jump when you spam the
+  keys or the wheel) and the cards grow and shrink continuously with depth.
+- macOS ProMotion: WebKit's 60 fps cap is lifted — with vertical sync the deck
+  follows the screen (120 Hz at full speed, less in Low Power mode).
+- One filter bar for MODULES, NEXUS and the file browser: type to search ("/"),
+  tick several colours at once. The tree filters several colours too
+  (`tag view red blue`, `tag view +red`).
+- The tree: the wheel scrolls, shift + wheel walks file by file.
+- Settings scroll with the wheel.
+- Less of the same thing: one file browser (folder shortcuts and picking a file on
+  the computer), one filter bar, one trash page, one shortcuts page.
+
 ## 0.3.0 — 2026-11-19
 
 - MODULES and NEXUS share one wheel feel: a trackpad steps every few lines (no

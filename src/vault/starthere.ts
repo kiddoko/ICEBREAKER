@@ -80,7 +80,8 @@ reinstalled** (MODULES → space / x, or the STORE) — the built-in ones too.
 
 Give a module a **colour** (right-click a module → colour, or \`modules tag todo cyan\`):
 its label turns that colour, and the squares top right show one colour at a
-time (\`modules view cyan\`). NEXUS follows the tree's colour (\`tag view red\`).
+time — several at once (\`modules view cyan pink\`); **/** searches. NEXUS has the
+same bar. The tree's colour squares tick several colours too (\`tag view red blue\`).
 
 | Module | What it does | Try |
 |---|---|---|
@@ -142,10 +143,9 @@ duplicate, pin, copy the path or a [[link]], a **colour** (red, orange, yellow,
 green, cyan, blue, purple, pink — like Ableton), an **icon**, the trash.
 In the shell: \`tag notes/ideas.md red\`, \`tag view red\`, \`icon projects ⚡\`.
 Tags and icons live in your vault (.icebreaker/tags.json, icons.json).
-**The wheel over the tree** walks file by file (a little click each time) and
+**Shift + wheel over the tree** walks file by file (a little click each time) and
 shows each file at once in a preview tab that the next one replaces — open one
-for real (click, enter) and it stays. Settings → VAULT turns it into a plain
-scroll.
+for real (click, enter) and it stays. The plain wheel scrolls the tree.
 **Drag & drop**: drag a note or a folder onto another folder to move it there
 (below the last row = the vault's root; \`mv\` does the same). Drag files from
 the Finder / Explorer onto a folder of the tree: they're **copied** into it

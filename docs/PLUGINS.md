@@ -181,7 +181,7 @@ The full surface is typed and commented in
 - `ib.ai` is the UPLINK module's AI: when the user switches UPLINK off, there's no AI for anyone.
 - `ib.media.player` → play local audio files (permission `media`); `ib.google.*` → the user's Google Calendar (permission `google-calendar`; keep Google data in `ib.google.cache`, never in the vault).
 - `ib.lib.t("English text")` → the user's language (English or French); add your own French with `ib.lib.addTranslations("fr", { "Add": "Ajouter" })`.
-- `ib.lib` → the same building blocks the core uses: `TextEditor`, `ListView`,
+- `ib.lib` → the same building blocks the core uses: `TextEditor`, `ListView`, `FilterBar` (search + colours: `matches(text, tag)`, `onText/onKey/render`), `WheelSpin` (a ring's feel),
   `ChatView`, `bigText`, `fmt` (ANSI colors), color helpers, attribute flags.
 
 Inside `render(ui, rect, focused)` you get the full drawing toolkit
