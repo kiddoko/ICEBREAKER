@@ -56,9 +56,9 @@ export async function trashMenu(deck: Deck): Promise<void> {
 export const trashCommand: Command = {
   name: "trash",
   summary: "what's in the vault's trash, and put things back (⌫ above the tree)",
-  usage: "trash                      the list (and the menu in the deck)\ntrash restore <n|name>     back where it was\ntrash restore <n> <path>   somewhere else\ntrash open                 the menu",
+  usage: "trash                      the list\ntrash restore <n|name>     back where it was\ntrash restore <n> <path>   somewhere else\ntrash open                 the TRASH page (⌫ above the tree)\ntrash menu                 a quick pick list instead",
   man: "rm, Delete in the tree and right-click → trash move things to <vault>/.trash — nothing is deleted for good.\nThe deck remembers where each thing lived (.icebreaker/trash.json), so restore puts it back.\nTo empty the trash for real, delete the .trash folder in your file manager.",
-  complete: () => ["restore", "open"],
+  complete: () => ["restore", "open", "menu"],
   async run(ctx) {
     const d = ctx.deck;
     const [sub, which, to] = ctx.args;
@@ -69,7 +69,8 @@ export const trashCommand: Command = {
       ctx.out(fmt.dim("trash restore <n> puts one back\n"));
       return 0;
     }
-    if (sub === "open" || sub === "menu") return void trashMenu(d), 0;
+    if (sub === "open" || sub === "page") return void d.openApp("trash"), 0;
+    if (sub === "menu") return void trashMenu(d), 0;
     if (sub === "restore") {
       if (!which) return ctx.err("usage: trash restore <n|name> [path]\n"), 1;
       const it = /^\d+$/.test(which) ? items[Number(which) - 1] : items.find((x) => x.path === which || x.name === which);

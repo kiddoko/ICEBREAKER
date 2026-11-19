@@ -8,6 +8,7 @@ import { terminalSpec } from "./apps/terminal";
 import { scriptCommand, scriptsMenu } from "./shell/commands/scripts";
 import { ServiceRegistry } from "./plugins/services";
 import { shortcutCommands, shortcutsSpec } from "./apps/shortcuts";
+import { trashSpec } from "./apps/trash";
 import { StatsStore } from "./core/stats";
 import { AIManager } from "./ai";
 import { helpSpec } from "./apps/help";
@@ -309,7 +310,7 @@ export class Deck implements InputSink {
   private registerCore(): void {
     for (const c of [...fileCommands, ...systemCommands, ...deckCommands, storeCommand, ...shortcutCommands, scriptCommand, pinCommand, unpinCommand, tagCommand, iconCommand, trashCommand, weatherCommand, startHereCommand]) this.commands.register({ ...c, source: "core" });
     for (const w of [...BUILTIN_WIDGETS, pinnedWidget]) this.widgets.register(w);
-    for (const a of [homeSpec, modulesSpec, storeSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec, shortcutsSpec, terminalSpec, weatherSpec, clocksSpec, focusSpec]) this.apps.register(a);
+    for (const a of [homeSpec, modulesSpec, storeSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec, shortcutsSpec, terminalSpec, weatherSpec, clocksSpec, focusSpec, trashSpec]) this.apps.register(a);
 
     const act = (id: string, title: string, run: () => void, hint?: string, group = "deck") => this.actions.register({ id, title, run, hint, group });
     act("journal.today", "Journal: today", () => void this.openJournal(new Date()), "ctrl+j", "journal");

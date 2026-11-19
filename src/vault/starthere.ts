@@ -186,7 +186,9 @@ were on stays a tab); \`term dock\` puts a terminal back in the panel.
 ## The trash
 \`rm\`, Delete in the tree and right-click → trash move things to .trash (never
 deleted for good). \`trash\` lists it, \`trash restore 2\` puts one back where it
-lived; ⌫ above the tree does the same with the mouse.
+lived. ⌫ above the tree (or \`trash open\`) opens the TRASH page: everything in
+it, newest first, with where it lived — enter puts it back, r somewhere else,
+o opens it to read.
 
 ## Macros
 Buttons above your terminal that type a command: \`macro add deploy "git pull"\`.

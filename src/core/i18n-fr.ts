@@ -759,4 +759,18 @@ export const FR: Record<string, string> = {
   "new events go to": "les nouveaux événements vont dans",
   "New events go to": "Les nouveaux événements vont dans",
   "calendars shown, colours, files…": "calendriers affichés, couleurs, fichiers…",
+  // ── TRASH page (19 nov.)
+  "TRASH": "CORBEILLE",
+  "1 thing": "1 élément",
+  "{n} things": "{n} éléments",
+  "empty": "vide",
+  "deleted in the deck · stays in the vault's .trash until you empty it yourself": "supprimé dans le deck · reste dans le .trash du vault jusqu'à ce que tu le vides toi-même",
+  "nothing in the trash": "rien dans la corbeille",
+  "rm, Delete in the tree or right-click → trash put things here": "rm, Suppr dans l'arbo ou clic droit → corbeille mettent les choses ici",
+  "restore to…": "restaurer ailleurs…",
+  "open it (read only)": "l'ouvrir (lecture seule)",
+  "esc closes · trash in the shell lists it too": "échap ferme · trash dans le shell la liste aussi",
+  "↑↓ choose · enter restore · r restore to… · o open · esc close": "↑↓ choisir · entrée restaurer · r ailleurs… · o ouvrir · échap fermer",
+  "enter: put it back": "entrée : la remettre",
+  "Restore to (a path in the vault)": "Restaurer vers (un chemin dans le vault)",
 };

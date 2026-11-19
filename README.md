@@ -38,7 +38,7 @@ scanlines — but works with the keyboard, the mouse, or a gamepad.
 - **Sounds** — UI blips synthesized on the fly; drop your own `move.wav`, `open.wav`, `confirm.wav`, `back.wav`, `success.wav`, `error.wav`, `notify.wav`, `boot.wav`, `unlock.wav`, `denied.wav` (or .ogg / .mp3) in `.icebreaker/sounds/` to replace them.
 - **Right-click everywhere** — a menu for the thing under the mouse (notes, folders, tabs, widgets, modules, the shell, the editor); the menu key or Shift+F10 on the keyboard.
 - **Colour tags and icons** — Ableton-style colours (small squares on the right of the tree, written out in grey themes) and a custom icon per file or folder; a click on a colour shows only that colour (`tag`, `icon`).
-- **Trash you can browse** — ⌫ above the tree or `trash`: see what's in `.trash`, put things back where they lived. Nothing is ever hard-deleted from inside the deck.
+- **Trash you can browse** — ⌫ above the tree or `trash open`: a TRASH page with what's in `.trash` and where each thing lived; put things back in one key. Nothing is ever hard-deleted from inside the deck.
 - **Errors with codes** — an errors tab in the shell blinks red when something goes wrong, with a code (E102…) and what to do; [docs/ERRORS.md](docs/ERRORS.md) explains each one.
 - **Effects** — one real slider per effect, 0 = off up to 200 %: bloom, scanlines, vignette, RGB split, glow (bright things give off light), sharpness. Each theme has its own screensaver (a neon city, an 80s mainframe, sonar, warp, an e-reader's sleep screen).
 - **Gestures** — mouse back / forward and a two-finger sideways swipe switch tabs; pinch zooms the interface.

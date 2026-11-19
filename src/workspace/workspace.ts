@@ -193,7 +193,7 @@ export class Workspace {
    * they show in the main area without a tab of their own, and go away when you
    * go anywhere else. One at a time, kept last in `tabs`.
    */
-  static readonly PAGES = new Set(["modules", "store", "explorer", "settings"]);
+  static readonly PAGES = new Set(["modules", "store", "explorer", "settings", "trash"]);
   /** the tab to come back to when the page closes */
   private pageReturn = 0;
 
