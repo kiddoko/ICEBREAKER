@@ -676,6 +676,7 @@ export const FR: Record<string, string> = {
   "click: open / fold · → ←": "clic : ouvrir / replier · → ←",
   "none yet — F2 binds a key": "aucun pour l'instant — F2 en assigne un",
   wheel: "molette",
+  "more tabs": "plus d'onglets",
   "errors": "erreurs",
   "errors clear empties this list · errors <code> explains one": "errors clear vide la liste · errors <code> en explique un",
   "a file couldn't be read": "un fichier n'a pas pu être lu",

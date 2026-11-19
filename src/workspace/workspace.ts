@@ -3,7 +3,7 @@ import { IbshApp, TerminalApp } from "../apps/terminal";
 import { t } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC, type Action, type ActionSource, type KeyInput, type MouseInput } from "../core/input";
-import { strWidth } from "../core/unicode";
+import { strWidth, truncate } from "../core/unicode";
 import type { App } from "../apps/types";
 import type { Deck } from "../deck";
 import { drawBackground } from "../fx/backgrounds";
@@ -958,7 +958,8 @@ export class Workspace {
     const d = this.deck;
     ui.fill(r, { bg: c.panelAlt });
     let x = ui.text(r.x, r.y, " ", { bg: c.panelAlt });
-    x = ui.gradientText(x, r.y, `${ui.theme.glyphs.mark} ICEBREAKER`, ui.theme.gradient, BOLD, (ui.now / 8000) % 1);
+    // a narrow window (or a big interface scale): the logo keeps just its mark
+    x = ui.gradientText(x, r.y, r.w < 90 ? ui.theme.glyphs.mark : `${ui.theme.glyphs.mark} ICEBREAKER`, ui.theme.gradient, BOLD, (ui.now / 8000) % 1);
     x += 2;
 
     // right side first, so tabs know how much room they have
@@ -966,10 +967,12 @@ export class Workspace {
     const time = now.toLocaleTimeString(d.settings.data.user.locale || undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const date = now.toLocaleDateString(d.settings.data.user.locale || undefined, { weekday: "short", day: "numeric", month: "short" });
     ui.animate(1000 - now.getMilliseconds());
-    const ai = d.ai.ready ? `${ui.theme.glyphs.mark} ${d.ai.provider.label}` : `○ ${t("offline")}`;
+    // narrow (small window, big interface scale): the right side shrinks so the tabs keep room
+    const narrow = r.w < 110;
+    const ai = d.ai.ready ? (narrow ? ui.theme.glyphs.mark : `${ui.theme.glyphs.mark} ${d.ai.provider.label}`) : narrow ? "○" : `○ ${t("offline")}`;
     // settings stay one click away whatever is open
-    const gear = ` ⚙ ${t("settings")} `;
-    const right = ` ${ai}  │  ${date}  ${time} `;
+    const gear = narrow ? " ⚙ " : ` ⚙ ${t("settings")} `;
+    const right = narrow ? ` ${ai} ${time.slice(0, 5)} ` : ` ${ai}  │  ${date}  ${time} `;
     const rx = r.x + r.w - strWidth(right);
     const gx = rx - strWidth(gear) - 1;
     const gearRect = { x: gx, y: r.y, w: strWidth(gear), h: 1 };
@@ -1003,10 +1006,34 @@ export class Workspace {
     ui.hit({ x: rx, y: r.y, w: strWidth(ai) + 2, h: 1 }, d.ai.ready ? { cmd: "link", tip: "ctrl+space · or `chat` right here in the shell" } : { cmd: "settings", tip: `AI offline: ${d.ai.problem ?? ""}` });
 
     // the button-pages (NEXUS, STORE…) have no tab: their button lights up instead
-    this.tabs.slice(0, this.tabCount).forEach((t, i) => {
-      const label = ` ${i + 1}:${t.title().toLowerCase()}${t.dirty?.() ? " ●" : ""} `;
+    // Not enough room for every tab: the row scrolls around the one shown (‹ › go further),
+    // and the shown one is always there, its name cut if it must be.
+    const n = this.tabCount;
+    const labelOf = (i: number) => ` ${i + 1}:${this.tabs[i].title().toLowerCase()}${this.tabs[i].dirty?.() ? " ●" : ""} `;
+    const widthOf = (i: number) => strWidth(labelOf(i)) + 2;
+    const avail = nx - x - 2;
+    let from = 0, to = n; // [from, to)
+    const total = Array.from({ length: n }, (_, i) => widthOf(i)).reduce((a, b) => a + b, 0);
+    const act = Math.min(this.active, n - 1);
+    if (total > avail && n > 0 && act >= 0) {
+      const room = avail - 4; // ‹ and ›
+      from = act;
+      to = act + 1;
+      let used = widthOf(act);
+      while (from > 0 && used + widthOf(from - 1) <= room) used += widthOf(--from);
+      while (to < n && used + widthOf(to) <= room) used += widthOf(to++);
+      if (from > 0) {
+        ui.text(x, r.y, "‹", { fg: c.accent, bg: c.panelAlt, attrs: BOLD });
+        ui.hit({ x, y: r.y, w: 1, h: 1 }, { onClick: () => this.switchTab(from - 1), tip: t("more tabs") });
+      }
+      x += 2;
+    }
+    this.tabs.slice(0, n).forEach((_tab, i) => {
+      if (i < from || i >= to) return;
+      let label = labelOf(i);
+      if (i === act && x + strWidth(label) + 4 > nx) label = ` ${truncate(label.trim(), Math.max(3, nx - x - 6))} `;
       const w = strWidth(label);
-      if (x + w + 2 > nx) return;
+      if (i !== act && x + w + 2 > nx) return;
       const rect = { x, y: r.y, w: w + 1, h: 1 };
       const isActive = i === this.active;
       const hot = ui.hovered(rect);
@@ -1021,6 +1048,11 @@ export class Workspace {
       ui.hit({ x: closeX, y: r.y, w: 1, h: 1 }, { cmd: `tab close ${i + 1}`, tip: "ctrl+w · shift+esc closes it" });
       x += 2;
     });
+    if (to < n && x + 1 < nx) {
+      ui.text(x, r.y, "›", { fg: c.accent, bg: c.panelAlt, attrs: BOLD });
+      ui.hit({ x, y: r.y, w: 1, h: 1 }, { onClick: () => this.switchTab(to), tip: t("more tabs") });
+      x += 2;
+    }
     if (x + 3 < gx) {
       ui.text(x, r.y, "+", { fg: c.subtle, bg: c.panelAlt, attrs: BOLD });
       ui.hit({ x, y: r.y, w: 1, h: 1 }, { cmd: "palette", tip: "ctrl+k: open anything" });
