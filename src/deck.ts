@@ -149,7 +149,7 @@ export class Deck implements InputSink {
       if (g === "back" || g === "forward") {
         if (ws.topModal) return;
         this.sound.play("move");
-        ws.switchTab(ws.active + (g === "forward" ? 1 : -1));
+        ws.switchTab(ws.active + (g === "forward" ? 1 : -1), true);
       } else this.zoom(g === "zoom-in" ? 1 : -1);
       this.requestFrame();
     };
@@ -789,11 +789,12 @@ export class Deck implements InputSink {
   }
 
   /** A page or tab change: themes with an eink / wipe / fade transition play it (glitch stays for big moments). */
-  pageTurn(big = false): void {
+  pageTurn(big = false, quick = false): void {
     const page = this.theme.anim.page;
     if (!this.settings.data.fx.glitch || page === "none" || (page === "glitch" && !big)) return;
-    // short: a touch of motion, never a wait
-    this.transitions.run(page, page === "eink" ? 200 : page === "wipe" ? 120 : 100);
+    // short: a touch of motion, never a wait (a swipe: shorter still, it follows the fingers)
+    const ms = page === "eink" ? 200 : page === "wipe" ? 120 : 100;
+    this.transitions.run(page, quick ? Math.round(ms * 0.6) : ms);
     this.requestFrame();
   }
 

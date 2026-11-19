@@ -4,6 +4,7 @@ import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import { drawBackground } from "../fx/backgrounds";
 import { dots } from "../ui/dots";
+import { WheelSpin } from "../ui/wheelspin";
 import { decrypt } from "../fx/glitch";
 import type { VaultEntry } from "../platform/types";
 import { q, type UI } from "../ui/ui";
@@ -28,8 +29,8 @@ export class ExplorerApp implements App {
   readonly key = "explorer";
   private dir: string;
   private sel = 0;
-  /** Animated carousel position (eases toward `sel`). */
-  private pos = 0;
+  /** The carousel: wheel / trackpad steps and the eased position (`spin.pos`). */
+  private spin = new WheelSpin();
   private lastT = 0;
   /** Floor scroll, pushed by turning and diving. */
   private travel = 0;
@@ -116,7 +117,7 @@ export class ExplorerApp implements App {
     this.sortBy = order[(order.indexOf(this.sortBy) + 1) % order.length];
     const items = this.items();
     this.sel = Math.max(0, items.findIndex((e) => e.path === cur));
-    this.pos = this.sel;
+    this.spin.pos = this.sel;
     this.deck.notify(`nexus: sorted by ${this.sortBy}`);
   }
   private async actionMenu(): Promise<void> {
@@ -143,7 +144,7 @@ export class ExplorerApp implements App {
     this.dir = dir;
     const items = this.items();
     this.sel = Math.max(0, select ? items.findIndex((e) => e.path === select) : 0);
-    this.pos = this.sel + (select ? 0 : 3); // swing in
+    this.spin.pos = this.sel + (select ? 0 : 3); // swing in
     this.warpUntil = performance.now() + 450;
     this.diveAt = performance.now();
     this.shownAt = 0;
@@ -211,16 +212,14 @@ export class ExplorerApp implements App {
     const items = this.items();
     this.sel = Math.min(this.sel, Math.max(0, items.length - 1));
     // ease the carousel; the floor moves with it
-    const before = this.pos;
+    const before = this.spin.pos;
     // a disc that never ends: pos keeps turning the short way round (past the last
     // comes the first, still forward), it's never reset
     const nItems = Math.max(1, items.length);
-    const gap = ringDelta(this.sel - this.pos, nItems);
-    this.pos += gap * Math.min(1, dt * 9);
-    if (Math.abs(ringDelta(this.sel - this.pos, nItems)) < 0.001) this.pos += ringDelta(this.sel - this.pos, nItems);
+    const left = this.spin.ease(this.sel, nItems, dt);
     const warp = Math.max(0, (this.warpUntil - now) / 450);
-    this.travel += (this.pos - before) * 0.8 + dt * (0.15 + warp * 6);
-    ui.animate(Math.abs(ringDelta(this.sel - this.pos, Math.max(1, items.length))) > 0.001 || warp > 0 ? 16 : 60);
+    this.travel += (this.spin.pos - before) * 0.8 + dt * (0.15 + warp * 6);
+    ui.animate(left > 0.001 || warp > 0 ? 16 : 60);
 
     ui.fill(r, { bg: c.bg });
     // a tall page (shell hidden): the scene keeps its size and sits in the middle
@@ -305,14 +304,14 @@ export class ExplorerApp implements App {
     const radius = Math.min(r.w * 0.42, 60);
     const visible: { e: VaultEntry; i: number; z: number; x: number }[] = [];
     for (let i = 0; i < items.length; i++) {
-      const off = ringDelta(i - this.pos, items.length);
+      const off = ringDelta(i - this.spin.pos, items.length);
       if (Math.abs(off) > half + 0.5) continue; // (+0.5: the next one slides in while the ring turns)
       const a = off * step;
       visible.push({ e: items[i], i, z: Math.cos(a), x: cx + Math.sin(a) * radius });
     }
     visible.sort((a, b) => a.z - b.z);
     // the wheel turns the ring wherever the mouse is
-    ui.hit(r, { onWheel: (dir) => this.turn(dir > 0 ? 1 : -1) });
+    ui.hit(r, { onWheel: (lines) => { const s = this.spin.wheel(lines); if (s) this.turn(s); } });
     // diving into a folder: the lockers come out of the vanishing point, frames rush past
     const dv = Math.min(1, (performance.now() - this.diveAt) / 300);
     if (dv < 1) {

@@ -280,13 +280,14 @@ export class Workspace {
     this.visited = [...this.visited.filter((k) => k !== key), key].slice(-30);
   }
 
-  switchTab(i: number): void {
+  /** `quick`: a swipe or a mouse side button (an even shorter transition). */
+  switchTab(i: number, quick = false): void {
     // leaving a button-page closes it (it's not a tab)
     if (this.page && i !== this.tabs.length - 1) this.dropPage();
     const n = this.tabCount || this.tabs.length;
     if (n === 0) return;
     const next = ((i % n) + n) % n;
-    if (next !== this.active) this.deck.pageTurn();
+    if (next !== this.active) this.deck.pageTurn(false, quick);
     this.active = next;
     this.focus = "main";
   }

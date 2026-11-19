@@ -13,7 +13,9 @@ import type { UI } from "../ui/ui";
 export class LockScreen {
   private user: string;
   private pass = "";
-  private field: "user" | "pass";
+  private field: "user" | "pass" | "remember";
+  /** fill in the account name next time (off by default: nothing is shown before you type it) */
+  private remember: boolean;
   private busy = false;
   private fails = 0;
   private error = "";
@@ -25,13 +27,18 @@ export class LockScreen {
     account: string,
     private readonly onUnlock: () => void,
   ) {
-    this.user = account;
-    this.field = account ? "pass" : "user";
+    this.remember = deck.settings.data.user.rememberAccount === true;
+    this.user = this.remember ? account : "";
+    this.field = this.user ? "pass" : "user";
   }
 
   onText(t: string): void {
     if (this.busy) return;
     const clean = t.replace(/[\r\n]+/g, "");
+    if (this.field === "remember") {
+      if (clean === " ") this.toggleRemember();
+      return;
+    }
     if (this.field === "user") this.user += clean;
     else this.pass += clean;
     this.error = "";
@@ -46,22 +53,34 @@ export class LockScreen {
         else void this.submit();
         return;
       case "tab":
-      case "shift+tab":
-      case "up":
-      case "down":
-        this.field = this.field === "user" ? "pass" : "user";
+      case "down": {
+        const order = ["user", "pass", "remember"] as const;
+        this.field = order[(order.indexOf(this.field) + 1) % 3];
         this.deck.sound.play("move");
         return;
+      }
+      case "shift+tab":
+      case "up": {
+        const order = ["user", "pass", "remember"] as const;
+        this.field = order[(order.indexOf(this.field) + 2) % 3];
+        this.deck.sound.play("move");
+        return;
+      }
       case "backspace":
         if (this.field === "user") this.user = this.user.slice(0, -1);
-        else this.pass = this.pass.slice(0, -1);
+        else if (this.field === "pass") this.pass = this.pass.slice(0, -1);
         return;
       case "ctrl+u":
       case "esc":
         if (this.field === "pass") this.pass = "";
-        else this.user = "";
+        else if (this.field === "user") this.user = "";
         return;
     }
+  }
+
+  private toggleRemember(): void {
+    this.remember = !this.remember;
+    this.deck.sound.play("move");
   }
 
   private async submit(): Promise<void> {
@@ -80,6 +99,8 @@ export class LockScreen {
     this.pass = ""; // never keep it around
     this.busy = false;
     if (ok) {
+      // the choice sticks only once the login worked
+      if (this.remember !== (this.deck.settings.data.user.rememberAccount === true)) this.deck.settings.set("user.rememberAccount", this.remember);
       this.deck.sound.play("unlock");
       this.onUnlock();
     } else {
@@ -117,6 +138,14 @@ export class LockScreen {
     this.input(ui, { x, y, w, h: 1 }, "account", this.user, false, this.field === "user", () => (this.field = "user"));
     y += 2;
     this.input(ui, { x, y, w, h: 1 }, "password", this.pass, true, this.field === "pass", () => (this.field = "pass"));
+    y += 2;
+    {
+      const on = this.field === "remember";
+      const label = `${this.remember ? "[■]" : "[ ]"} remember me`;
+      ui.text(x + 10, y, label, { fg: on ? c.accent : this.remember ? c.fg : c.subtle, attrs: on ? BOLD : 0 });
+      if (on) ui.text(x + 10 + label.length + 2, y, "space", { fg: c.faint });
+      ui.hit({ x: x + 10, y, w: label.length, h: 1 }, { onClick: () => ((this.field = "remember"), this.toggleRemember()), tip: "fill in the account name next time" });
+    }
     y += 2;
 
     if (this.busy) ui.textCenter({ x: 0, y, w: W, h: 1 }, y, `${ui.spinner()} verifying…`, { fg: c.accent });

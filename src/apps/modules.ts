@@ -6,6 +6,7 @@ import { strWidth } from "../core/unicode";
 import type { Deck } from "../deck";
 import { decrypt } from "../fx/glitch";
 import type { MenuEntry, UI } from "../ui/ui";
+import { ring, WheelSpin } from "../ui/wheelspin";
 import type { App, AppSpec } from "./types";
 
 /** One floppy on the ring: a module, or one of the deck's own doors. */
@@ -36,7 +37,9 @@ export class ModulesApp implements App {
   readonly kind = "modules";
   readonly key = "modules";
   private sel = 0;
-  /** where the ring is, eased toward sel (never reset: it keeps turning the short way) */
+  /** where the ring is (`spin.pos`), eased toward sel; the wheel / trackpad steps */
+  private spin = new WheelSpin();
+  /** spin.pos, read by the floor and the ring this frame */
   private depth = 0;
   private lastT = 0;
   private bornAt = performance.now();
@@ -149,16 +152,22 @@ export class ModulesApp implements App {
 
     // ── a ring of floppies, like NEXUS: never ends, 5 in front (3 for 3-4 modules) ──
     const panelH = 5;
-    const field = { x: r.x, y: r.y + 1, w: r.w, h: r.h - panelH - 1 };
+    // a tall page (shell hidden): the scene keeps its size and sits in the middle, the bar under it
+    const sceneH = Math.min(r.h - panelH - 1, 30);
+    const top = r.y + Math.max(0, Math.floor((r.h - panelH - 1 - sceneH) / 2));
+    const field = { x: r.x, y: top + 1, w: r.w, h: sceneH };
     const n = carts.length;
     // ease the ring the short way round (pos never resets: past the last comes the first)
-    const gap = ring(this.sel - this.depth, n);
-    this.depth += gap * Math.min(1, dt * 9);
-    if (Math.abs(ring(this.sel - this.depth, n)) < 0.002) this.depth += ring(this.sel - this.depth, n);
-    const moving = Math.abs(ring(this.sel - this.depth, n)) > 0.002;
+    const moving = this.spin.ease(this.sel, n, dt) > 0.002;
+    this.depth = this.spin.pos;
     const age = now - this.bornAt;
     ui.animate(moving || age < 900 ? 16 : focused ? 120 : 400);
-    ui.hit(field, { onWheel: (dw) => (this.sel = (((this.sel + Math.sign(dw)) % n) + n) % n) });
+    ui.hit(r, {
+      onWheel: (lines) => {
+        const s = this.spin.wheel(lines);
+        if (s) (this.sel = (((this.sel + s) % n) + n) % n), this.deck.sound.play("move");
+      },
+    });
 
     // the floor: a quiet perspective grid rolling toward you as the ring turns
     const horizon = field.y + Math.max(2, Math.floor(field.h * 0.22));
@@ -202,7 +211,7 @@ export class ModulesApp implements App {
 
     // the bar: what it is, what you can do
     const cur = carts[this.sel];
-    const py = r.y + r.h - panelH;
+    const py = field.y + field.h;
     ui.fill({ x: r.x, y: py, w: r.w, h: panelH }, { bg: c.panelAlt });
     ui.hline(r.x, py, r.w, { fg: mix(c.accent, c.bg, 0.4) }, "━");
     if (!cur) return;
@@ -283,10 +292,3 @@ export const modulesSpec: AppSpec = {
   icon: "▦",
   create: (deck) => new ModulesApp(deck),
 };
-
-/** The shortest way round a ring of n: a signed distance in (-n/2, n/2]. */
-function ring(d: number, n: number): number {
-  if (n <= 0) return 0;
-  const m = ((d % n) + n) % n;
-  return m > n / 2 ? m - n : m;
-}
