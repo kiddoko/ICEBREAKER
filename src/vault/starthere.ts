@@ -231,7 +231,12 @@ the row hides the macros, ⌗ macros on the panel brings them back
 
   "keys.md": `# Keys, mouse, gamepad
 
-**Every shortcut, searchable: ⌘/ (Ctrl+/).** Bind your own: \`bind ctrl+shift+1 "open notes/ideas.md"\`.
+**Every shortcut, searchable: ⌘/ (Ctrl+/).** The letter says what it does
+(H home, M modules, E explore, U uplink, T tree, P panel, S shell, K macros,
+F effects, A actions, L lock). **Change any of them**: on that page select it,
+F2, press the new keys (it tells you what they'd replace); Del puts the default
+back; ↺ defaults resets them all (asks first). Shell: \`keys list\`,
+\`keys set panel ctrl+shift+b\`, \`keys reset all\`. Your own: \`bind ctrl+shift+1 "open notes/ideas.md"\`.
 On a Mac, ⌘ plays the role of Ctrl.
 
 | Everywhere | |
@@ -239,13 +244,20 @@ On a Mac, ⌘ plays the role of Ctrl.
 | ⌘K | palette |
 | ⌘/ | shortcuts |
 | ⌘, | settings |
-| ⌘⇧H · ⌘⇧M | HOME · MODULES |
+| ⌘⇧H · ⌘⇧M · ⌘⇧E | HOME · MODULES · NEXUS (explore) |
+| ⌘⇧U | UPLINK, the AI chat |
+| ⌘⇧T · ⌘⇧P · ⌘⇧S | the tree · the side panel · the shell |
+| ⌘⇧K · ⌘⇧F · ⌘⇧A | macros · effects · the action wheel |
 | ⌘N · ⌘⇧N | new note · new folder |
 | ⌘J | today's journal |
-| ⌘⇧L | lock |
+| ⌘⇧L | lock (log out) |
+| ⌘⇧⌫ | the trash |
 | ⇧Esc · ⌘W | close the tab |
 | 1…9 | go to that tab (when not typing) |
 | Tab · ⇧Tab | next thing · next part of the screen |
+
+Every setting can go back to its default: **↺** next to one you changed, or the
+button at the bottom of each category in Settings (\`config reset <key>\`).
 
 | Mouse | |
 |---|---|

@@ -67,6 +67,12 @@
   move by eighths of a cell. Smaller tabs before they gather in ▾ +N.
 - Shortcut squares are square tiles with their kind on a coloured band; a folder
   square opens a little browser under it (back / forward, new note / folder, trash, NEXUS).
+- Keys: the letter says what it does (⌘⇧E explore, ⌘⇧U uplink, ⌘⇧T tree, ⌘⇧P panel,
+  ⌘⇧S shell, ⌘⇧K macros, ⌘⇧F effects, ⌘⇧A action wheel); every deck shortcut can be
+  changed (SHORTCUTS → F2, Settings → KEYS, `keys set`) and put back to its default,
+  one by one or all at once (asks first).
+- Settings: ↺ next to every setting you changed, and a button per category to put
+  everything back (asks first); `config reset <key>`.
 - For developers: docs/ARCHITECTURE.md is a full map of the code now; small cleanups
   (one `ago()`, one `ring()`, the side panel in its own file).
 

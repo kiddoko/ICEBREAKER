@@ -32,7 +32,7 @@ scanlines — but works with the keyboard, the mouse, or a gamepad.
 - **STORE** — modules and themes from the community index on GitHub, or from your own server / NAS: browse, install, enable, update, remove (top bar → ⇣ store, or `store`).
 - **Modules with their own app** — WEATHER (any place, the sky as an ASCII animation, the next 24 h, the week: `weather Tokyo`), CLOCKS (several named timers, a stopwatch with laps, the world: `timer 4m tea`), FOCUS (a pomodoro ring, what you're on, zen mode: `focus open`), NEWS with your interests (`news add tech`).
 - **Modules talk to each other** — `ib.modules`: every module can expose functions and call the others' (`modules api` lists them, `modules call todo add "walk the dog"` calls one).
-- **Keys** — `ctrl+/` (⌘/ on a Mac) shows every shortcut, searchable; `bind` your own; `pin` notes, folders and modules to the top of the tree, a HOME widget or a key. Tab moves between the things on a screen, Shift+Tab between the parts of the screen.
+- **Keys** — `ctrl+/` (⌘/ on a Mac) shows every shortcut, searchable; the letter says what it does (H home, E explore, T tree, P panel, S shell…); change any of them (F2 there, or `keys set`) and put defaults back one by one or all; `bind` your own; `pin` notes, folders and modules to the top of the tree, a HOME widget or a key. Tab moves between the things on a screen, Shift+Tab between the parts of the screen.
 - **Docs in your vault** — START HERE/ (the tour, modules, interface, shell, keys, the AI as a work assistant, privacy) and FOR DEVELOPERS/ (themes, the module API, tweaking), written into every new vault; `starthere` adds them to yours.
 - **Shell** — your real terminal(s) in tabs, one in the main window too (`term open`), saved scripts one click away (≡ scripts).
 - **Widgets that open up** — enter, double-click or the pad's A on a HOME widget opens its pop-up (add a city to the world clock, quick-add a task, the week's weather, the next moon phases…) with a button to its full module.
@@ -100,7 +100,10 @@ To talk to Claude: get an API key at [console.anthropic.com](https://console.ant
 |---|---|---|
 | command palette | `Ctrl+K` | Y |
 | today's journal / new note | `Ctrl+J` / `Ctrl+N` | — |
-| AI link | `Ctrl+Space` | — |
+| AI link (UPLINK) | `Ctrl+Shift+U` · `Ctrl+Space` | — |
+| tree · side panel · shell | `Ctrl+Shift+T` · `Ctrl+Shift+P` · ``Ctrl+` `` / `Ctrl+Shift+S` | — |
+| HOME · MODULES · NEXUS | `Ctrl+Shift+H` · `Ctrl+Shift+M` · `Ctrl+Shift+E` | Start (HOME) |
+| macros · effects · action wheel | `Ctrl+Shift+K` · `Ctrl+Shift+F` · `Ctrl+Shift+A` | hold RB (wheel) |
 | shell | ``Ctrl+` `` (key under Esc) | Select (switch pane) |
 | move between panes | `Alt+←↑↓→` | Select |
 | tabs | `Alt+1…9`, `Ctrl+Tab`, `Ctrl+W` | LB / RB (tap) |
@@ -109,7 +112,7 @@ To talk to Claude: get an API key at [console.anthropic.com](https://console.ant
 | interface scale (25–200 %) / fullscreen | `Ctrl+=` `Ctrl+-` `Ctrl+0` / `F11` | — |
 | back to HOME | `h` (when not typing) | Start |
 
-Every click runs the matching shell command, echoed in the shell: the mouse teaches you the command line (hover anything to see its command and shortcut). `Esc` closes the page you're on and goes back to the previous one. The mouse works everywhere: tabs, tree, tiles, calendar, buttons, drag-to-select, drag the shell border to resize.
+Every setting can go back to its default: ↺ next to it, or a button per category (`config reset <key>`). Every click runs the matching shell command, echoed in the shell: the mouse teaches you the command line (hover anything to see its command and shortcut). `Esc` closes the page you're on and goes back to the previous one. The mouse works everywhere: tabs, tree, tiles, calendar, buttons, drag-to-select, drag the shell border to resize.
 
 ## Reading the code
 

@@ -201,7 +201,10 @@ makes one click run `activate` (the 1×1 squares).
 and `deck.workspace.push(new MyOverlay(…))`. Set `done = true` to close.
 
 **A shortcut** — a line in `core/shortcuts.ts` (it shows on the SHORTCUTS page).
-With `cmd` and `global: true`, the key works everywhere with no other code.
+With an `id`, `cmd` and `global: true`, the key works everywhere with no other
+code, and the user can change it (`settings.keyOverrides[id]`, `keys set`, F2 on
+the SHORTCUTS page). Without a `cmd`, add its function to `Workspace.keyActions`.
+Pick the letter that says what it does.
 
 **A setting** — its default in `DEFAULT_SETTINGS`, a row in `apps/settings.ts`
 (`toggle`, `cycle`, `slide`, `text`, or a custom row), one sentence in
