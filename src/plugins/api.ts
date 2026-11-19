@@ -35,9 +35,10 @@ import type { WidgetSpec } from "../widgets/types";
 import type { BackgroundSpec } from "../fx/backgrounds";
 import type { LocalTrack, MediaStatus, PlayerStatus } from "../platform/types";
 import type { Stat, StatMeta, StatPoint } from "../core/stats";
-import type { ServiceInfo, ServiceSpec } from "./services";
+import type { ModuleProxy, ServiceInfo, ServiceSpec } from "./services";
 
-export type Permission = "vault:read" | "vault:write" | "ai" | "media" | "google-calendar" | "stats:read";
+/** "terminal": type commands in the user's real shell (terminal.run / write) */
+export type Permission = "vault:read" | "vault:write" | "ai" | "media" | "google-calendar" | "stats:read" | "terminal";
 
 export interface PluginManifest {
   id: string;
@@ -193,6 +194,19 @@ export interface IcebreakerAPI {
    *   await ib.modules.call("journal", "append", "ran 5 km");   // needs vault:write
    *   ib.modules.list()  // every exposed function, with its doc
    */
+  /**
+   * Call another module — or a part of the deck itself — like an object:
+   *
+   *   await ib.use("todo").add("walk the dog");
+   *   await ib.use("tree").reveal("notes/ideas.md");
+   *   const c = await ib.use("theme").colors();
+   *
+   * The deck's own parts: tree · terminal · shell · theme · home · panel · tabs ·
+   * notes · sound · deck (notify, say, setting). `modules api` (in the shell)
+   * lists every function of every module with one line of doc.
+   */
+  use<T = ModuleProxy>(module: string): T;
+
   modules: {
     expose(name: string, spec: ServiceSpec | ServiceSpec["fn"]): void;
     call<T = unknown>(module: string, name: string, ...args: unknown[]): Promise<T>;

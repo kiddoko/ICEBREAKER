@@ -360,6 +360,7 @@ export class PluginHost {
         set: (key, value) => deck.setModuleSetting(m.id, key, value),
         onChange: (fn) => void deck.moduleSettingListeners.set(m.id, [...(deck.moduleSettingListeners.get(m.id) ?? []), fn]),
       },
+      use: (module) => deck.services.proxy({ id: m.id, permissions: granted }, module),
       modules: {
         expose: (name, spec) => deck.services.expose(m.id, name, spec),
         call: (module, name, ...args) => deck.services.call({ id: m.id, permissions: granted }, module, name, args) as Promise<never>,

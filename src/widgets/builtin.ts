@@ -1,4 +1,5 @@
 import { t } from "../core/i18n";
+import { focus } from "./focusstate";
 import { ago } from "../core/time";
 import { q } from "../ui/ui";
 import { mix, type RGB } from "../core/color";
@@ -481,40 +482,112 @@ const recent: WidgetSpec = {
 };
 
 
-/* ═══════════════════════ modules ═══════════════════════ */
+/* ═══════════════════════ pulse ═══════════════════════ */
+
+/**
+ * PULSE — what's happening across the modules, one line each, live: the next
+ * event, today's tasks, the next reminder, what's playing, the focus timer, the
+ * weather, the habits left, errors. A click opens the module. (It replaces the
+ * old launcher: launching is the shortcut squares' job now.)
+ *
+ * The lines come from the modules' own functions (`deck.use("calendar").today()`…),
+ * fetched every 20 s in the background: drawing never waits for them. A module
+ * that's off simply has no line.
+ */
+interface PulseLine {
+  icon: string;
+  name: string;
+  text: string;
+  cmd: string;
+  /** something that wants you: drawn brighter */
+  hot?: boolean;
+}
+let pulse: PulseLine[] = [];
+let pulseAt = 0;
+
+async function refreshPulse(deck: Deck): Promise<void> {
+  pulseAt = Date.now();
+  const lines: PulseLine[] = [];
+  const has = (m: string, fn: string) => deck.services.has(m, fn);
+  const time = (d: Date) => d.toLocaleTimeString(deck.settings.data.user.locale || undefined, { hour: "2-digit", minute: "2-digit" });
+  const tryLine = async (f: () => Promise<PulseLine | null>) => {
+    try {
+      const l = await f();
+      if (l) lines.push(l);
+    } catch {
+      /* a module that fails just has no line */
+    }
+  };
+  await tryLine(async () => {
+    if (!has("calendar", "today")) return null;
+    const now = Date.now();
+    const evs = (await deck.use("calendar").today()) as { title: string; start: string; allDay?: boolean }[];
+    const next = evs.filter((e) => e.allDay || new Date(e.start).getTime() > now).sort((a, b) => a.start.localeCompare(b.start))[0];
+    const soon = next && !next.allDay && new Date(next.start).getTime() - now < 3_600_000;
+    return { icon: "▦", name: t("agenda"), text: next ? `${next.allDay ? t("today") : time(new Date(next.start))} ${next.title}` : t("nothing left today"), cmd: "cal open", hot: !!soon };
+  });
+  await tryLine(async () => {
+    if (!has("todo", "list")) return null;
+    const today = new Date().toISOString().slice(0, 10);
+    const tasks = (await deck.use("todo").list()) as { done: boolean; due?: string }[];
+    const open = tasks.filter((x) => !x.done);
+    const due = open.filter((x) => x.due && x.due.slice(0, 10) <= today).length;
+    return { icon: "☑", name: "todo", text: due ? t("{n} due today", { n: due }) : t("{n} open", { n: open.length }), cmd: "launch todo", hot: due > 0 };
+  });
+  await tryLine(async () => {
+    if (!has("reminders", "list")) return null;
+    const list = ((await deck.use("reminders").list()) as { title: string; due: string }[]).sort((a, b) => a.due.localeCompare(b.due));
+    return list[0] ? { icon: "⏰", name: t("reminder"), text: `${time(new Date(list[0].due))} ${list[0].title}`, cmd: "remind open" } : null;
+  });
+  await tryLine(async () => {
+    if (!has("habits", "list")) return null;
+    const hs = (await deck.use("habits").list()) as { done: boolean }[];
+    const left = hs.filter((h) => !h.done).length;
+    return hs.length ? { icon: "▲", name: "habits", text: left ? t("{n} left today", { n: left }) : t("all done ✓"), cmd: "launch habits" } : null;
+  });
+  await tryLine(async () => {
+    if (!has("music", "status")) return null;
+    const m = (await deck.use("music").status()) as { title?: string; artist?: string; playing?: boolean } | null;
+    return m?.title ? { icon: "♪", name: "music", text: `${m.playing ? "▶" : "❚❚"} ${m.title}${m.artist ? ` · ${m.artist}` : ""}`, cmd: "launch music" } : null;
+  });
+  pulse = lines;
+  deck.requestFrame();
+}
 
 const modules: WidgetSpec = {
   id: "modules",
-  title: "modules",
-  description: "launch apps and plugins",
+  title: "pulse",
+  description: "what's happening across your modules: next event, tasks, reminders, music, focus, weather, errors",
   size: { w: 6, h: 4 },
-  min: { w: 2, h: 2 },
+  min: { w: 3, h: 2 },
   render(ui, r, { deck }) {
     const c = ui.c;
-    const items = [
-      ...deck.apps.list().filter((s) => s.launcher).map((s) => ({ icon: s.icon ?? "◇", title: s.title, desc: s.description ?? "", cmd: `launch ${s.kind}` })),
-      { icon: "▦", title: "All modules", desc: "everything installed", cmd: "modules" },
-    ];
-    const tall = r.h >= 5; // title + description per tile
-    const tileH = tall ? 3 : 1;
-    const tileW = Math.max(16, Math.min(32, Math.floor(r.w / Math.max(1, Math.floor(r.w / 24)))));
-    const perRow = Math.max(1, Math.floor(r.w / tileW));
-    items.forEach((it, i) => {
-      const x = r.x + (i % perRow) * tileW;
-      const y = r.y + Math.floor(i / perRow) * tileH;
-      if (y + (tall ? 2 : 1) > r.y + r.h) return;
-      const rect = { x, y, w: tileW - 1, h: tall ? 2 : 1 };
-      const hot = ui.hovered(rect);
-      ui.text(x, y, hot ? "▌" : " ", { fg: c.accent });
-      ui.text(x + 1, y, `${it.icon} ${tall ? it.title.toUpperCase() : it.title.toLowerCase()}`, { fg: hot ? c.accent : c.fg, attrs: tall ? BOLD : 0 }, tileW - 2);
-      if (tall) {
-        ui.text(x, y + 1, hot ? "▌" : " ", { fg: c.accent });
-        ui.text(x + 1, y + 1, it.desc, { fg: c.subtle }, tileW - 2);
-      }
-      ui.hit(rect, { cmd: it.cmd });
+    if (Date.now() - pulseAt > 20_000) void refreshPulse(deck);
+    ui.animate(1000);
+    // the lines that need no waiting: focus, weather, errors
+    const lines: PulseLine[] = [...pulse];
+    if (focus.running) lines.unshift({ icon: "◎", name: "focus", text: `${focus.phase === "break" ? t("break") : t("focus")} · ${Math.ceil(focus.left / 60000)} min`, cmd: "launch focus", hot: true });
+    const w = currentWeather();
+    if (w) lines.push({ icon: "☁", name: t("weather"), text: `${Math.round(w.temp)}° · ${t(SKY_WORDS[sky(w.code)])}`, cmd: "weather open" });
+    if (deck.errors.unseen) lines.unshift({ icon: "⚠", name: t("errors"), text: t("{n} new", { n: deck.errors.unseen }), cmd: "errors", hot: true });
+    if (!lines.length) {
+      ui.textCenter(r, r.y + Math.floor(r.h / 2), t("all quiet"), { fg: c.subtle });
+      return;
+    }
+    const nameW = Math.min(10, Math.max(...lines.map((l) => strWidth(l.name))) + 1);
+    lines.slice(0, r.h).forEach((l, i) => {
+      const y = r.y + i;
+      const row = { x: r.x, y, w: r.w, h: 1 };
+      const hotRow = ui.hovered(row);
+      if (hotRow) ui.fill(row, { bg: c.highlight });
+      const st = hotRow ? { bg: c.highlight } : {};
+      ui.text(r.x, y, l.icon, { fg: l.hot ? c.warning : c.accent, ...st });
+      ui.text(r.x + 2, y, l.name, { fg: c.subtle, ...st }, nameW);
+      ui.text(r.x + 3 + nameW, y, l.text, { fg: l.hot ? c.fg : c.muted, attrs: l.hot ? BOLD : 0, ...st }, r.w - nameW - 3);
+      ui.hit(row, { cmd: l.cmd, tip: `${l.name}: ${l.text}` });
     });
   },
-  activate: ({ deck }) => void deck.openApp("modules"),
+  activate: ({ deck }) => void refreshPulse(deck),
 };
 
 export const BUILTIN_WIDGETS: WidgetSpec[] = withPopups([clock, weatherWidget, calendar, system, recent, modules, ...EXTRA_WIDGETS]);

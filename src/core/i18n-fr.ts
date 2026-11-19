@@ -911,4 +911,16 @@ export const FR: Record<string, string> = {
   "say CPU / memory overload": "dire les surcharges processeur / mémoire",
   "say what modules announce": "dire ce que les modules annoncent",
   "a add a widget · right-click: move, remove · ⌘⇧B hide": "a ajouter un widget · clic droit : déplacer, retirer · ⌘⇧B cacher",
+  // ── PULSE widget
+  "pulse": "pulse",
+  "what's happening across your modules: next event, tasks, reminders, music, focus, weather, errors": "ce qui se passe dans tes modules : prochain événement, tâches, rappels, musique, focus, météo, erreurs",
+  "agenda": "agenda",
+  "nothing left today": "plus rien aujourd'hui",
+  "{n} due today": "{n} pour aujourd'hui",
+  "{n} open": "{n} en cours",
+  "reminder": "rappel",
+  "{n} left today": "encore {n} aujourd'hui",
+  "all done ✓": "tout est fait ✓",
+  "{n} new": "{n} nouvelles",
+  "all quiet": "tout est calme",
 };

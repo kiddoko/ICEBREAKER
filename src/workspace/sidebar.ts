@@ -97,6 +97,11 @@ export class Sidebar {
     if (saved) this.open = new Set(saved);
   }
 
+  /** The path selected in the tree (null: nothing). */
+  selectedPath(): string | null {
+    return this.list.current?.entry.path ?? null;
+  }
+
   /** Show one colour only (null: everything). */
   setFilter(c: TagColor | null): void {
     this.filter = c;

@@ -232,7 +232,8 @@ export class ListView<T> {
       if (y < r.y + r.h) ui.text(r.x + 1, y, this.dropEndLabel, { fg: ui.c.panel, bg: ui.c.accent });
     }
     // the ghost: what's being dragged, following the pointer (dimmed where it can't land)
-    if (dg && this.dragLabel) {
+    // (where a gap shows where it lands, the gap says it: no ghost on top)
+    if (dg && this.dragLabel && this.gapY < 0) {
       const item = this.items[dg.idx];
       if (item !== undefined) {
         const text = ` ${this.dragLabel(item)} `;

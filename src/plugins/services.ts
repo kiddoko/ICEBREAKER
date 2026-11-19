@@ -22,6 +22,9 @@ export interface ServiceSpec {
   needs?: Permission;
 }
 
+/** What `use(module)` gives back: any function name, called with any arguments, as a Promise. */
+export type ModuleProxy = Record<string, (...args: any[]) => Promise<any>>; // eslint-disable-line @typescript-eslint/no-explicit-any
+
 export interface ServiceInfo {
   module: string;
   name: string;
@@ -63,6 +66,17 @@ export class ServiceRegistry {
   }
 
   /** Call module.name(...args) on behalf of `caller` (its permissions are checked). */
+  /**
+   * A module's functions as an object: `use("tree").reveal("notes/a.md")` is
+   * `call(caller, "tree", "reveal", ["notes/a.md"])`. Every function returns a
+   * Promise (the module may be async, or switched off meanwhile).
+   */
+  proxy<T = ModuleProxy>(caller: { id: string; permissions: ReadonlySet<Permission> | "all" }, module: string): T {
+    return new Proxy({}, {
+      get: (_t, name) => (typeof name === "string" && name !== "then" ? (...args: unknown[]) => this.call(caller, module, name, args) : undefined),
+    }) as T;
+  }
+
   async call(caller: { id: string; permissions: ReadonlySet<Permission> | "all" }, module: string, name: string, args: unknown[]): Promise<unknown> {
     const m = this.byModule.get(module);
     if (!m) throw new Error(`module "${module}" isn't on, or exposes nothing (modules api)`);

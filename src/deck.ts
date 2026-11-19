@@ -9,6 +9,8 @@ import { scriptCommand, scriptsMenu } from "./shell/commands/scripts";
 import { ServiceRegistry } from "./plugins/services";
 import { shortcutCommands, shortcutsSpec } from "./apps/shortcuts";
 import { trashSpec } from "./apps/trash";
+import { frameServices } from "./plugins/frame-services";
+import type { ModuleProxy } from "./plugins/services";
 import { syncLinkWidgets } from "./widgets/links";
 import { StatsStore } from "./core/stats";
 import { AIManager } from "./ai";
@@ -336,6 +338,8 @@ export class Deck implements InputSink {
   private registerCore(): void {
     for (const c of [...fileCommands, ...systemCommands, ...deckCommands, storeCommand, ...shortcutCommands, scriptCommand, pinCommand, unpinCommand, tagCommand, iconCommand, trashCommand, weatherCommand, startHereCommand]) this.commands.register({ ...c, source: "core" });
     for (const w of [...BUILTIN_WIDGETS, pinnedWidget]) this.widgets.register(w);
+    // the frame's own parts, callable like modules: deck.use("tree").reveal(…), ib.use("terminal")…
+    for (const [id, fns] of Object.entries(frameServices(this))) this.services.exposeAll(id, fns);
     syncLinkWidgets(this); // the 1×1 shortcut squares
     for (const a of [homeSpec, modulesSpec, storeSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec, shortcutsSpec, terminalSpec, weatherSpec, clocksSpec, focusSpec, trashSpec]) this.apps.register(a);
 
@@ -856,6 +860,15 @@ export class Deck implements InputSink {
     if (page !== "glitch") return this.pageTurn(true);
     this.glitchUntil = performance.now() + ms;
     this.requestFrame();
+  }
+
+  /**
+   * Any module — or a part of the deck (tree, terminal, shell, theme, home,
+   * panel, tabs, notes, sound, deck) — as an object: `deck.use("todo").add("x")`.
+   * The deck's own code has every permission. See plugins/frame-services.ts.
+   */
+  use<T = ModuleProxy>(module: string): T {
+    return this.services.proxy<T>({ id: "core", permissions: "all" }, module);
   }
 
   /** The sound pack of a theme: the one chosen for it in Settings, else the theme's own. */
