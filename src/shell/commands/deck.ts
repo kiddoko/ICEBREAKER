@@ -1,3 +1,5 @@
+import { contextCommand } from "../../ai/context";
+import { parseDay } from "../../core/dates";
 import { redoCommand, tourCommand, undoCommand } from "./undo";
 import { auditReport } from "../../plugins/audit";
 import { DEFAULT_SETTINGS } from "../../core/settings";
@@ -23,25 +25,6 @@ import { devCommands } from "./dev"; // DEV ONLY
 import { newsCommand } from "../../widgets/news";
 
 /** Commands specific to ICEBREAKER: notes, journal, AI, themes, plugins, settings. */
-
-function parseDay(arg: string | undefined): Date | null {
-  const d = new Date();
-  if (!arg || arg === "today") return d;
-  if (arg === "yesterday") {
-    d.setDate(d.getDate() - 1);
-    return d;
-  }
-  if (arg === "tomorrow") {
-    d.setDate(d.getDate() + 1);
-    return d;
-  }
-  if (/^-\d+$/.test(arg)) {
-    d.setDate(d.getDate() + Number(arg));
-    return d;
-  }
-  const m = arg.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
-}
 
 const open: Command = {
   name: "open",
@@ -102,7 +85,7 @@ Custom template: create .icebreaker/templates/journal.md ({{date}} {{title}} {{w
       for (const d of dates) ctx.out(`${ctx.isTTY ? fmt.magenta(d) : d}  ${new Date(d + "T12:00").toLocaleDateString(locale || undefined, { weekday: "long" })}\n`);
       return;
     }
-    const day = parseDay(sub);
+    const day = sub ? parseDay(sub) : new Date();
     if (!day) {
       ctx.err(`journal: can't understand date "${sub}" (use YYYY-MM-DD, yesterday, -3…)\n`);
       return 1;
@@ -597,7 +580,7 @@ const today: Command = {
   },
 };
 
-export const deckCommands: Command[] = [undoCommand, redoCommand, tourCommand, ...devCommands, ...uiCommands, voiceCommand, stealthCommand, newsCommand, daily, chat, account, selfDestruct, lock, sound, mute, errorsCommand, logCommand, debugCommand, open, journal, note, checkboxes, ask, link, sysmon, theme, fx, config, vaultCmd, plugin, today];
+export const deckCommands: Command[] = [undoCommand, redoCommand, tourCommand, contextCommand, ...devCommands, ...uiCommands, voiceCommand, stealthCommand, newsCommand, daily, chat, account, selfDestruct, lock, sound, mute, errorsCommand, logCommand, debugCommand, open, journal, note, checkboxes, ask, link, sysmon, theme, fx, config, vaultCmd, plugin, today];
 
 /** A theme's current value for "section.key", for display. */
 export function knobValue(t: Theme, key: string): string {

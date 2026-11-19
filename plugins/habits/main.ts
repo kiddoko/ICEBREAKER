@@ -15,6 +15,9 @@ import type { Rect } from "../../src/core/grid";
 import type { Action, KeyInput } from "../../src/core/input";
 import type { IcebreakerAPI } from "../../src/plugins/api";
 import type { UI } from "../../src/ui/ui";
+import type * as Dates from "../../src/core/dates";
+/** the deck's one date reader (ib.lib.dates), set when the module starts */
+let D!: typeof Dates;
 
 interface Habit {
   id: number;
@@ -28,8 +31,7 @@ interface Habit {
 /** "YYYY-MM-DD" → habit id → times done */
 type Log = Record<string, Record<number, number>>;
 
-const pad = (n: number) => String(n).padStart(2, "0");
-const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const ymd = (d: Date) => D.ymd(d);
 const back = (n: number) => {
   const d = new Date();
   d.setDate(d.getDate() - n);
@@ -38,6 +40,7 @@ const back = (n: number) => {
 const DAY_NAMES: Record<string, number> = { sun: 0, dim: 0, mon: 1, lun: 1, tue: 2, mar: 2, wed: 3, mer: 3, thu: 4, jeu: 4, fri: 5, ven: 5, sat: 6, sam: 6 };
 
 export function activate(ib: IcebreakerAPI): void {
+  D = ib.lib.dates;
   const { BOLD, mix, fmt, parseFlags, t, q } = ib.lib;
   const run = (line: string) => void ib.shell.run(line);
   let habits: Habit[] = [];

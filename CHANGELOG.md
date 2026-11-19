@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+- **The voice follows UPLINK's answer as it's written**: each finished sentence is
+  said at once (`voice.stream`), the first piece kept short so it starts right away;
+  Japanese full stops (。！？) now cut sentences (a Japanese text went to the
+  synthesizer in one block). In Japanese, UPLINK starts its answer with a hidden
+  `<say>` line of spoken Japanese, read immediately — no second call to translate
+  (the old translation stays as a fallback). Sentences arriving while one plays are played.
+- The context page sent to UPLINK is shorter (4000 characters at most).
+
+- **MODULES rebuilt on NEXUS's scene** (the same ring, sky, floor, WheelSpin):
+  shards in each module's colour with pins, a cut corner, a status light, facts;
+  they power up one after the other; the data panel under the ring.
+- **Notes**: a toolbar (save, save as, new, previous / next in the folder, undo,
+  redo); a red dot on the tab while unsaved; Save in the tab's right-click menu.
+- **UPLINK**: who wrote what (a header line per message, your messages on a tinted
+  band); a context page (`.icebreaker/context.md`, `context`) read before every
+  conversation — profile, vault folders, recent notes, pins, tags, modules, built
+  without AI; how to talk + what it learned, editable. Japanese reading translated
+  in small pieces, three at a time (the voice starts at once); a click on the VOICE
+  box stops it.
+- Settings: Effects preset cycles the presets (‹ ›) instead of opening the fx panel;
+  shortcut rows draw every combination as keys, aligned.
+- Shortcut squares too low for a real square become a readable chip.
+- The store's repository (icebreaker-modules) is public.
+- The shell's typewriter counts visible characters only (colour codes no longer slow it).
+
+- **Pins and shortcut squares are one list** (settings.favorites): a pin can be
+  a note, folder, module, page, macro or command; it shows in the tree, the pinned
+  widget, and on HOME as a square (`link.<pin id>`). Old squares (home.links)
+  become pins once. Unpinning removes its squares.
+- **One date reader for every module**: `core/dates.ts` (`ib.lib.dates`:
+  parseDay, parseTime, ymd…) used by calendar, reminders, todo, habits and the
+  journal command — "demain 9h" means the same everywhere.
+- MODULES: every card the same size while the ring turns; only the one coming
+  to the centre grows.
+- `docs/ENCRYPTION.md`: the plan for vault encryption and the module sandbox (not built).
+
 ## 0.4.0 — 2026-11-19
 
 - **Accounts**: each one is its own deck (settings, theme, sounds, vault, Google),

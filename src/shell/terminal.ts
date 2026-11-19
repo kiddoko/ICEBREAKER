@@ -26,15 +26,16 @@ export class TerminalBuffer {
   typing = true;
 
   write(text: string, override?: { fg?: number; attrs?: number }): void {
-    this.written += [...text.replace(/\r\n/g, "\n")].filter((c) => c !== "\r").length;
     const parts = text.replace(/\r\n/g, "\n").split(/(\n|\r)/);
     for (const part of parts) {
-      if (part === "\n") this.lines.push([]);
+      if (part === "\n") (this.lines.push([]), this.written++);
       else if (part === "\r") this.lines[this.lines.length - 1] = [];
       else if (part) {
         const runs = parseAnsi(part, this.st);
         if (override) for (const r of runs) Object.assign(r, override);
         this.lines[this.lines.length - 1].push(...runs);
+        // what shows, not the colour codes: those aren't typed out
+        for (const r of runs) this.written += [...r.text].length;
       }
     }
     if (this.lines.length > TerminalBuffer.MAX_LINES) this.lines.splice(0, this.lines.length - TerminalBuffer.MAX_LINES);

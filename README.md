@@ -48,7 +48,7 @@ scanlines — but works with the keyboard, the mouse, or a gamepad.
 - **The same widget several times** — two clocks, two news feeds…: each copy has its own settings. Clocks have tiny → huge versions of every style; news widgets show the categories you choose, or one featured story with its summary.
 - **Conversations in tabs** — UPLINK keeps several chats open at once (Ctrl+T).
 - **Profile icon** — a pixel-art face or a glyph in your colour (`avatar`), on the login screen and in `whoami`.
-- **Shortcut squares** — square HOME tiles that open anything in one click, their kind written on them (module, folder, file, page, macro, command). A folder square opens a little browser right under it: go in and out (‹ ›), make a note or a folder, trash something. `home link new`, or right-click → square on HOME.
+- **Pins and shortcut squares, one list** — pin a note, a folder, a module, a page, a macro or a command: it shows at the top of the tree, in the pinned widget, and as a square on HOME if you like. Squares: their kind written on them (module, folder, file, page, macro, command). A folder square opens a little browser right under it: go in and out (‹ ›), make a note or a folder, trash something. `home link new`, or right-click → square on HOME.
 - **Browse with the wheel** — shift + wheel over the tree walks file by file and shows each one at once (a preview tab the next file replaces); the plain wheel scrolls.
 - **Find things fast** — MODULES, NEXUS and the file browser share one bar: type to search, tick several colours at once; the tree filters several colours too.
 - **Drag & drop in the tree** — move notes and folders by dragging them onto a folder; drop files from the Finder / Explorer to copy them into the vault (never overwrites).

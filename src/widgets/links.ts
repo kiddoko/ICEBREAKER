@@ -8,6 +8,7 @@ import { t } from "../core/i18n";
 import type { Deck } from "../deck";
 import { q } from "../ui/ui";
 import type { WidgetSpec } from "./types";
+import { favCommand, favIcon, favorites, pinId, unplaceSquares, type Favorite } from "../workspace/favorites";
 
 /**
  * Shortcut widgets: 1×1 on HOME (never bigger, never smaller), each one opens
@@ -61,12 +62,51 @@ const SQUARE = { w: 1, h: 2 };
 /** The entry of the widget picker: choosing it asks what to link (it's never placed itself). */
 export const NEW_LINK = "link.new";
 
-export const links = (deck: Deck): HomeLink[] => deck.settings.data.home.links ?? [];
+/** Every pin can be a square on HOME: the squares are the pins (workspace/favorites.ts). */
+export const links = (deck: Deck): HomeLink[] => favorites(deck).map((f) => ({ id: pinId(f), label: f.label, icon: favIcon(f), cmd: favCommand(deck, f) }));
+
+/** What a command opens, as a pin: open "x" → a note, explore "x" → a folder, launch x → a module… */
+export function pinFor(label: string, cmd: string, icon?: string, id?: string): Favorite {
+  const c = cmd.trim();
+  const arg = c.replace(/^\S+\s+/, "").replace(/^"(.*)"$/, "$1").replace(/^\//, "");
+  const kind: Favorite["kind"] = /^open\s/.test(c) ? "note" : /^explore\s/.test(c) ? "folder" : /^launch\s/.test(c) || / open$/.test(c) ? "module" : /^macro run\s/.test(c) ? "macro" : /^(home|nexus|modules|store|settings|shortcuts|trash open|journal)$/.test(c) ? "page" : "command";
+  const target = kind === "note" || kind === "folder" ? arg : kind === "module" ? (/^launch\s/.test(c) ? arg : c.replace(/ open$/, "")) : c;
+  return { kind, target, label, ...(icon ? { icon: [...icon][0] } : {}), ...(id ? { id } : {}), cmd: c };
+}
+
+/** Squares made before 0.4.1 lived in their own list (home.links): they become pins, once. */
+function migrateSquares(deck: Deck): void {
+  const old = deck.settings.data.home.links ?? [];
+  if (!old.length) return;
+  const pins = [...favorites(deck)];
+  for (const l of old) {
+    const same = pins.find((f) => favCommand(deck, f) === l.cmd.trim());
+    if (same) Object.assign(same, { id: l.id, icon: l.icon });
+    else pins.push(pinFor(l.label, l.cmd, l.icon, l.id));
+  }
+  // the old list emptied first: setting the pins calls back here (Deck: favorites changed)
+  deck.history.quiet(() => {
+    deck.settings.set("home.links", []);
+    deck.settings.set("favorites", pins);
+  });
+}
 
 const unregister = new Map<string, () => void>();
 
 /** One widget per link (and the "new" entry of the picker). Call after any change. */
+let syncing = false;
 export function syncLinkWidgets(deck: Deck): void {
+  if (syncing) return;
+  syncing = true;
+  try {
+    syncSquares(deck);
+  } finally {
+    syncing = false;
+  }
+}
+
+function syncSquares(deck: Deck): void {
+  migrateSquares(deck);
   const want = new Set(links(deck).map((l) => `link.${l.id}`));
   for (const [id, off] of unregister) if (!want.has(id)) (off(), unregister.delete(id));
   if (!deck.widgets.get(NEW_LINK))
@@ -110,7 +150,9 @@ function linkSpec(l: HomeLink): WidgetSpec {
       const c = ui.c;
       // truly square on screen: cells are taller than wide (ui.cellAspect = width / height),
       // so the tile is as many columns as it is rows ÷ the aspect, centred in its slot
-      const r = squareIn(slot, ui.cellAspect);
+      // too low for a real square (rows that don't stretch): a chip as wide as its slot, so
+      // the name stays readable — a 4-cell square would cut it to one letter
+      const r = slot.h >= 4 ? squareIn(slot, ui.cellAspect) : slot;
       drawnAt.set(l.id, r);
       const hot = ui.hovered(r);
       const col = KIND[kind].color(c);
@@ -137,24 +179,30 @@ function linkSpec(l: HomeLink): WidgetSpec {
   };
 }
 
-/** Add a link and put its widget on HOME. */
+/** A square for this command: the pin that runs it (made if there's none). Place it with `home add link.<id>`. */
 export function addLink(deck: Deck, label: string, cmd: string, icon: string): HomeLink {
-  const all = links(deck);
-  const base = label.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "") || "link";
-  let id = base;
-  for (let n = 2; all.some((l) => l.id === id); n++) id = `${base}-${n}`;
-  const l = { id, label, icon: [...(icon || "◆")][0], cmd };
-  deck.settings.set("home.links", [...all, l]);
+  const pins = favorites(deck);
+  let pin = pins.find((f) => favCommand(deck, f) === cmd.trim());
+  if (!pin) {
+    const base = label.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "") || "pin";
+    let id = base;
+    for (let n = 2; pins.some((f) => pinId(f) === id); n++) id = `${base}-${n}`;
+    pin = pinFor(label, cmd, icon || "◆", id);
+    deck.settings.set("favorites", [...pins, pin]);
+  }
   syncLinkWidgets(deck);
-  return l;
+  return { id: pinId(pin), label: pin.label, icon: favIcon(pin), cmd: favCommand(deck, pin) };
 }
 
+/** Unpin (its squares go with it). */
 export function removeLink(deck: Deck, label: string): boolean {
-  const all = links(deck);
-  const l = all.find((x) => x.label === label || x.id === label);
-  if (!l) return false;
-  void deck.act(`home rm link.${l.id}`);
-  deck.settings.set("home.links", all.filter((x) => x !== l));
+  const pins = favorites(deck);
+  const gone = pins.filter((f) => f.label === label || pinId(f) === label);
+  if (!gone.length) return false;
+  deck.history.group(`unpin ${label}`, () => {
+    deck.settings.set("favorites", pins.filter((f) => !gone.includes(f)));
+    unplaceSquares(deck, gone);
+  });
   syncLinkWidgets(deck);
   return true;
 }

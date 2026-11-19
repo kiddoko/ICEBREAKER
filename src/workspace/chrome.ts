@@ -258,7 +258,7 @@ export function renderTabs(ws: Workspace, ui: UI, r: Rect): void {
     if (act >= fit) shown[fit - 1] = act;
   }
   const hidden = Array.from({ length: n }, (_, i) => i).filter((i) => !shown.includes(i));
-  const nameOf = (i: number) => `${i + 1}:${ws.tabs[i].title().toLowerCase()}${ws.tabs[i].dirty?.() ? " ●" : ""}`;
+  const nameOf = (i: number) => `${i + 1}:${ws.tabs[i].title().toLowerCase()}`;
   let x = r.x;
   for (const i of shown) {
     const rect = { x, y: r.y, w: tabW, h: 1 };
@@ -267,7 +267,10 @@ export function renderTabs(ws: Workspace, ui: UI, r: Rect): void {
     const style = isActive ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: hot ? c.fg : c.muted, bg: hot ? c.highlight : mix(c.panelAlt, c.fg, 0.05) };
     // " 3:name…   × " — the × keeps a space on each side, away from the edge
     ui.fill(rect, { bg: style.bg });
-    ui.text(x + 1, r.y, truncate(nameOf(i), tabW - 5), style);
+    // not saved yet: a red dot before the name (it goes once saved — ⌘S, the toolbar, right-click)
+    const unsaved = !!ws.tabs[i].dirty?.();
+    if (unsaved) ui.text(x + 1, r.y, "●", { fg: c.error, bg: style.bg, attrs: BOLD });
+    ui.text(x + (unsaved ? 3 : 1), r.y, truncate(nameOf(i), tabW - (unsaved ? 7 : 5)), style);
     const closeX = x + tabW - 3;
     const closeHot = ui.hovered({ x: closeX, y: r.y, w: 2, h: 1 });
     ui.text(closeX, r.y, isActive || hot ? "×" : " ", { fg: closeHot ? c.error : isActive ? c.panel : c.subtle, bg: style.bg, attrs: closeHot ? BOLD : 0 });
@@ -312,13 +315,15 @@ export function renderSubtitles(ws: Workspace, ui: UI, W: number, H: number): vo
   const h = shown.length + 2;
   const r = { x: W - w - 2, y: H - h - 2, w, h };
   ui.box(r, { title: "VOICE", focused: true, bg: c.panelAlt });
+  // a click on it: stop talking
+  ui.hit(r, { onClick: () => ws.deck.voice.stop(), tip: t("click: stop reading"), block: true });
   // a little orbit spinning, the AI thinking out loud
-  const t = ui.now / 120;
+  const spin = ui.now / 120;
   const orbit = ["◜", "◝", "◞", "◟"];
-  ui.text(r.x + 2, r.y + 1, orbit[Math.floor(t) % 4], { fg: c.accent, attrs: BOLD, bg: c.panelAlt });
-  ui.text(r.x + 3, r.y + 1, orbit[Math.floor(t + 2) % 4], { fg: c.accentAlt, bg: c.panelAlt });
+  ui.text(r.x + 2, r.y + 1, orbit[Math.floor(spin) % 4], { fg: c.accent, attrs: BOLD, bg: c.panelAlt });
+  ui.text(r.x + 3, r.y + 1, orbit[Math.floor(spin + 2) % 4], { fg: c.accentAlt, bg: c.panelAlt });
   const wave = "▁▂▃▅▃▂";
-  ui.text(r.x + 2, r.y + 2, [...Array(3)].map((_, i) => wave[Math.floor(t + i * 2) % wave.length]).join(""), { fg: c.accent, bg: c.panelAlt });
+  ui.text(r.x + 2, r.y + 2, [...Array(3)].map((_, i) => wave[Math.floor(spin + i * 2) % wave.length]).join(""), { fg: c.accent, bg: c.panelAlt });
   // the words type in
   const typed = Math.floor((ui.now - sub.at) / 28);
   let left = typed;

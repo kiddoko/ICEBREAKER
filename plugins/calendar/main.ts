@@ -22,6 +22,9 @@ import type { Action, KeyInput } from "../../src/core/input";
 import type { IcebreakerAPI } from "../../src/plugins/api";
 import type { ShellContext } from "../../src/shell/types";
 import type { UI } from "../../src/ui/ui";
+import type * as Dates from "../../src/core/dates";
+/** the deck's one date reader (ib.lib.dates), set when the module starts */
+let D!: typeof Dates;
 
 interface Cal {
   /** "local" or "g:<google calendar id>" */
@@ -45,11 +48,15 @@ interface Ev {
 }
 
 const DAY = 86_400_000;
-const pad = (n: number) => String(n).padStart(2, "0");
-const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+/** today, tomorrow, fri, +3d, 2w, 2026-12-01, 24/12 → a day (local midnight), or null — ib.lib.dates */
+export const parseDay = (raw: string, from?: Date): Date | null => D.parseDay(raw, from);
+/** "18:00", "9h", "7pm" → minutes after midnight, or null — ib.lib.dates */
+export const parseTime = (raw: string): number | null => D.parseTime(raw);
+const pad = (n: number) => D.pad2(n);
+const ymd = (d: Date) => D.ymd(d);
 const dayOf = (s: string) => new Date(s.length === 10 ? `${s}T00:00` : s);
-const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const startOfDay = (d: Date) => D.startOfDay(d);
+const addDays = (d: Date, n: number) => D.addDays(d, n);
 const hm = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 /** ISO 8601 week number */
 const isoWeek = (d: Date) => {
@@ -58,47 +65,6 @@ const isoWeek = (d: Date) => {
   return Math.ceil(((t.getTime() - Date.UTC(t.getUTCFullYear(), 0, 1)) / DAY + 1) / 7);
 };
 
-const WEEKDAYS: Record<string, number> = {
-  sun: 0, sunday: 0, dim: 0, dimanche: 0, mon: 1, monday: 1, lun: 1, lundi: 1, tue: 2, tuesday: 2, mar: 2, mardi: 2,
-  wed: 3, wednesday: 3, mer: 3, mercredi: 3, thu: 4, thursday: 4, jeu: 4, jeudi: 4, fri: 5, friday: 5, ven: 5, vendredi: 5,
-  sat: 6, saturday: 6, sam: 6, samedi: 6,
-};
-
-/** today, tomorrow, fri, +3d, 2w, 2026-12-01, 24/12 → a day (local midnight), or null. */
-export function parseDay(raw: string, from = new Date()): Date | null {
-  const s = raw.trim().toLowerCase();
-  const today = startOfDay(from);
-  if (["today", "tod", "auj", "aujourd'hui", "aujourdhui", "now"].includes(s)) return today;
-  if (["tomorrow", "tmr", "tom", "demain"].includes(s)) return addDays(today, 1);
-  if (["yesterday", "hier"].includes(s)) return addDays(today, -1);
-  let m = /^([+-])(\d{1,3})(d|j)?$/.exec(s);
-  if (m) return addDays(today, Number(m[2]) * (m[1] === "-" ? -1 : 1));
-  m = /^\+?(\d{1,2})(w|s)$/.exec(s);
-  if (m) return addDays(today, Number(m[1]) * 7);
-  if (s in WEEKDAYS) return addDays(today, (WEEKDAYS[s] - today.getDay() + 7) % 7 || 7);
-  m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s);
-  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  m = /^(\d{1,2})[/.](\d{1,2})(?:[/.](\d{2,4}))?$/.exec(s);
-  if (m) {
-    let y = m[3] ? Number(m[3]) : today.getFullYear();
-    if (y < 100) y += 2000;
-    const d = new Date(y, Number(m[2]) - 1, Number(m[1]));
-    if (!m[3] && d < today) d.setFullYear(y + 1);
-    return d;
-  }
-  return null;
-}
-
-/** 14:30, 14h30, 14h, 9am, 2pm → minutes after midnight, or null. */
-export function parseTime(raw: string): number | null {
-  const m = /^(\d{1,2})(?:[:h](\d{2})?)?\s*(am|pm)?$/i.exec(raw.trim());
-  if (!m || (!m[2] && !m[3] && !/[:h]/i.test(raw))) return null;
-  let h = Number(m[1]);
-  const min = Number(m[2] ?? 0);
-  if (m[3]?.toLowerCase() === "pm" && h < 12) h += 12;
-  if (m[3]?.toLowerCase() === "am" && h === 12) h = 0;
-  return h < 24 && min < 60 ? h * 60 + min : null;
-}
 
 /** 45m, 1h, 1h30, 90 → minutes, or null. */
 function parseDuration(raw: string): number | null {
@@ -121,6 +87,7 @@ let syncTimer: ReturnType<typeof setInterval> | null = null;
 let sayTimer: ReturnType<typeof setInterval> | undefined;
 
 export function activate(ib: IcebreakerAPI): void {
+  D = ib.lib.dates;
   const { BOLD, hex, mix, strWidth, q, fmt, parseFlags, t } = ib.lib;
   const run = (line: string) => void ib.shell.run(line);
   // the first day of the week (Settings → ◇ CALENDAR): monday, or sunday

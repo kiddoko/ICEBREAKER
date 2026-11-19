@@ -365,11 +365,30 @@ export class SettingsApp implements App {
       const hov = !!edit && ui.hovered(r);
       const bg = on ? mix(c.accent, c.bg, 0.6) : hov ? mix(c.accent, c.bg, 0.8) : o.st.bg;
       if (bg !== undefined && bg !== o.st.bg) ui.fill(r, { bg });
-      ui.textRight(xEnd + 1, y, truncate(text, w), { fg: on ? c.fg : fg, attrs: edit ? BOLD : 0, ...(bg !== undefined ? { bg } : {}) });
+      // a key is drawn as a key (the menu's letter), the "+" placeholder isn't
+      ui.textRight(xEnd + 1, y, truncate(text, w), { fg: on ? c.fg : fg, attrs: edit ? BOLD : 0, key: !!text.trim() && text !== "+", ...(bg !== undefined ? { bg } : {}) });
       if (edit) ui.hit(r, { onClick: () => (o.pick(), edit()), tip });
     };
     const combo = k.combo();
-    cell(o.vx - 4, 16, combo ? displayKeys(combo) : t("off"), o.selected && this.keyCell === 0, k.editCombo, t("click (or enter): press the new keys"), k.editCombo ? (combo ? c.accent : c.subtle) : c.subtle);
+    // the keys: every combination drawn as a key of its own, right-aligned in one column
+    // ("⌘⇧T  ⌘B"), the same on every row — never left to guess which text is a key
+    const xEnd = o.vx - 4, w = 18;
+    const on = o.selected && this.keyCell === 0;
+    const r = { x: xEnd - w + 1, y, w, h: 1 };
+    const hov = !!k.editCombo && ui.hovered(r);
+    if (on || hov) ui.fill(r, { bg: on ? mix(c.accent, c.bg, 0.6) : mix(c.accent, c.bg, 0.8) });
+    if (combo) {
+      const parts = displayKeys(combo).split(" · ").filter(Boolean);
+      let x = xEnd + 1;
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const part = truncate(parts[i], w);
+        x -= strWidth(part);
+        if (x < r.x) break;
+        ui.text(x, y, part, { fg: c.fg, attrs: BOLD, key: true });
+        x -= 1;
+      }
+    } else ui.textRight(xEnd + 1, y, t("off"), { fg: c.subtle, raw: true, ...o.st });
+    if (k.editCombo) ui.hit(r, { onClick: () => (o.pick(), k.editCombo!()), tip: t("click (or enter): press the new keys") });
     if (k.menuKey) {
       const lead = k.menuKey();
       cell(o.vx, 3, lead || (o.hot ? "+" : ""), o.selected && this.keyCell === 1, k.editMenuKey, t("its key on THE MENU (⌘K, this key, enter) · click to change"), lead ? c.accent : c.faint);

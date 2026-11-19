@@ -1,3 +1,5 @@
+import { IS_MAC } from "../core/input";
+import { strWidth } from "../core/unicode";
 import { editMenu } from "../workspace/menus";
 import type { Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
@@ -169,11 +171,59 @@ export class NoteApp implements App {
     return true;
   }
 
+  /** Save under another name: the copy opens, this note stays as it was saved. */
+  private async saveAs(): Promise<void> {
+    const to = await this.deck.prompt(t("Save as"), { initial: this.path, placeholder: "notes/new name.md" });
+    if (!to?.trim() || to.trim() === this.path) return;
+    const path = to.trim().endsWith(".md") || /\.[a-z0-9]+$/i.test(to.trim()) ? to.trim() : `${to.trim()}.md`;
+    if (await this.deck.vault.exists(path)) return void this.deck.notify(t("{path} already exists", { path }), "error");
+    await this.deck.vault.write(path, this.editor.text);
+    this.deck.vault.recordCreated(path);
+    await this.deck.openFile(path);
+  }
+
+  /** The note before / after this one in its folder (by name). */
+  private sibling(dir: 1 | -1): void {
+    const folder = dirname(this.path);
+    const notes = this.deck.vault.markdown().map((e) => e.path).filter((p) => dirname(p) === folder).sort((a, b) => a.localeCompare(b));
+    const i = notes.indexOf(this.path);
+    if (notes.length < 2 || i < 0) return;
+    void this.deck.openFile(notes[(i + dir + notes.length) % notes.length]);
+  }
+
+  /** The toolbar above the note: the basic tools, always in view. */
+  private toolbar(ui: UI, r: Rect): void {
+    const c = ui.c;
+    ui.fill({ x: r.x, y: r.y, w: r.w, h: 1 }, { bg: c.panelAlt });
+    let x = r.x + 1;
+    const dirty = this.dirty();
+    const tool = (label: string, run: () => void, tip: string, o: { accent?: number; off?: boolean } = {}) => {
+      if (x + strWidth(label) + 2 > r.x + r.w) return;
+      if (o.off) {
+        x = ui.text(x, r.y, ` ${label} `, { fg: c.faint, bg: c.panelAlt, raw: true }) + 1;
+        return;
+      }
+      x += ui.button(x, r.y, label, run, { tip, accent: o.accent }) + 1;
+    };
+    const mod = IS_MAC ? "⌘" : "ctrl+";
+    tool(dirty ? `● ${t("Save")}` : `✓ ${t("Saved")}`, () => void this.save().then(() => this.deck.notify(`saved ${this.path}`, "success")), `${mod}S`, { accent: dirty ? c.error : undefined, off: !dirty });
+    tool(t("Save as…"), () => void this.saveAs(), t("a copy under another name"));
+    tool(`+ ${t("New")}`, () => void this.deck.newNote(dirname(this.path) || "notes"), `${mod}N`);
+    x += 1;
+    tool("◂", () => this.sibling(-1), t("the note before, in this folder"));
+    tool("▸", () => this.sibling(1), t("the note after, in this folder"));
+    x += 1;
+    tool("↶", () => this.editor.undo(), `${t("Undo")} · ${mod}Z`);
+    tool("↷", () => this.editor.redo(), `${t("Redo")} · ${IS_MAC ? "⇧⌘Z" : "ctrl+shift+Z"}`);
+  }
+
   render(ui: UI, r: Rect, focused: boolean): void {
     if (this.error && !this.loaded) {
       ui.textCenter(r, r.y + 2, `✖ ${this.error}`, { fg: ui.c.error });
       return;
     }
+    this.toolbar(ui, r);
+    r = { ...r, y: r.y + 1, h: r.h - 1 };
     this.editor.render(ui, { x: r.x + 1, y: r.y, w: r.w - 1, h: r.h }, focused);
     // ctrl+click follows links
     ui.hit(r, {

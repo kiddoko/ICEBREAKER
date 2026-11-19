@@ -116,7 +116,8 @@ export interface Settings {
   /** what was open when you quit, to come back to it: the tree's open folders, the tabs */
   session?: { tree?: string[]; tabs?: string[]; active?: number };
   /** pinned notes, folders, modules (`pin`): top of the tree and the pinned widget */
-  favorites: { kind: "note" | "folder" | "module"; target: string; label: string }[];
+  /** pins (workspace/favorites.ts): notes, folders, modules, pages, macros, commands — also HOME's squares */
+  favorites: { kind: "note" | "folder" | "module" | "page" | "macro" | "command"; target: string; label: string; id?: string; icon?: string; cmd?: string }[];
   ai: {
     provider: "claude-code" | "anthropic" | "ollama";
     /** Model for the Claude Code provider: "sonnet", "opus"… (empty = the CLI default). */

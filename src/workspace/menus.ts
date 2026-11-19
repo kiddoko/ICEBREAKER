@@ -101,8 +101,10 @@ export function tabMenu(ws: Workspace, i: number): MenuEntry[] {
   ];
   if (note) {
     const pinned = (ws.deck.settings.data.favorites ?? []).some((f) => f.target === note);
+    const doc = app as { save?: () => Promise<void>; dirty?: () => boolean };
     items.push(
       "-",
+      { label: t("Save"), run: () => void doc.save?.().then(() => ws.deck.notify(`saved ${note}`, "success")), hint: IS_MAC ? "⌘S" : "ctrl+S", disabled: !doc.dirty?.() },
       { label: t("Reveal in tree"), run: () => { if (!ws.sidebarVisible) ws.toggleSidebar(); ws.sidebar.reveal(note); ws.focus = "sidebar"; } },
       { label: pinned ? t("Unpin") : t("Pin"), cmd: `${pinned ? "unpin" : "pin"} ${q("/" + note)}` },
       { label: t("Copy path"), run: () => (copyToClipboard(note), ws.notify(t("path copied"))) },

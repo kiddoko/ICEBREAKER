@@ -19,19 +19,38 @@ import type { WidgetSpec } from "../widgets/types";
 import { mix } from "../core/color";
 import { BOLD } from "../core/grid";
 
+/**
+ * One list for everything you keep one click away — pins. A pin is a note, a
+ * folder, a module, a page, a macro or any command; it shows at the top of the
+ * tree, in the "pinned" widget, and "Add to HOME" puts it on HOME as a square
+ * (widgets/links.ts: each pin can be a square, `link.<id>`). Unpinning takes its
+ * squares off too. (Before 0.4.1 squares had their own list: home.links, moved here.)
+ */
+export type PinKind = "note" | "folder" | "module" | "page" | "macro" | "command";
+
 export interface Favorite {
-  kind: "note" | "folder" | "module";
-  /** vault path, or module/app id */
+  kind: PinKind;
+  /** vault path, module/app id, or the command itself */
   target: string;
   label: string;
+  /** its square's name on HOME (link.<id>) — made from the label when missing */
+  id?: string;
+  icon?: string;
+  /** what it runs, when it isn't the usual for its kind */
+  cmd?: string;
 }
 
-export const favIcon = (f: Favorite) => (f.kind === "note" ? "✎" : f.kind === "folder" ? "▸" : "▦");
+export const favIcon = (f: Favorite) => f.icon ?? (f.kind === "note" ? "✎" : f.kind === "folder" ? "▸" : f.kind === "module" ? "▦" : f.kind === "macro" ? "⚡" : f.kind === "page" ? "◇" : "❯");
+
+/** A pin's id: the one it was given, else one made from its kind and target (stable). */
+export const pinId = (f: Favorite): string => f.id ?? `${f.kind}-${f.target}`.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
 
 /** The command a favorite runs. */
 export function favCommand(deck: Deck, f: Favorite): string {
+  if (f.cmd) return f.cmd;
   if (f.kind === "note") return `open ${q(f.target)}`;
   if (f.kind === "folder") return `explore ${q(f.target)}`;
+  if (f.kind === "macro" || f.kind === "page" || f.kind === "command") return f.target;
   // a module: its app if it has one, else its own `open`
   const app = deck.apps.list().find((a) => a.kind === f.target || deck.apps.sourceOf(a.kind) === f.target);
   return app ? `launch ${app.kind}` : `${f.target} open`;
@@ -103,17 +122,28 @@ export const unpinCommand: Command = {
     const list = favorites(d);
     const next = list.filter((x) => !(f ? x.kind === f.kind && x.target === f.target : x.label === raw || x.target === raw));
     if (next.length === list.length) return ctx.err(`unpin: "${raw}" isn't pinned (pin ls)\n`), 1;
-    d.settings.set("favorites", next);
+    // one ⌘Z brings the pin and its squares back
+    d.history.group(`unpin ${raw}`, () => {
+      d.settings.set("favorites", next);
+      unplaceSquares(d, list.filter((x) => !next.includes(x)));
+    });
     ctx.out(`${fmt.dim("☆")} ${raw}\n`);
     return 0;
   },
 };
 
+/** A pin gone: its squares leave HOME too. */
+export function unplaceSquares(deck: Deck, gone: Favorite[]): void {
+  const ids = new Set(gone.map((f) => `link.${pinId(f)}`));
+  const placed = deck.settings.data.home.widgets;
+  if (placed.some((p) => ids.has(p.id))) deck.settings.set("home.widgets", placed.filter((p) => !ids.has(p.id)));
+}
+
 /** The pinned things as tiles on HOME. */
 export const pinnedWidget: WidgetSpec = {
   id: "pinned",
   title: "pinned",
-  description: "your pinned notes, folders and modules — pin <thing> adds one",
+  description: "your pins: notes, folders, modules, pages, macros, commands — pin <thing> adds one",
   size: { w: 4, h: 3 },
   min: { w: 2, h: 1 },
   render(ui, r, { deck }) {

@@ -237,7 +237,7 @@ export class Sidebar {
     return [
       e.isDir
         ? { label: this.open.has(p) ? t("Fold") : t("Unfold"), run: () => this.activate(row), hint: "enter" }
-        : { label: t("Open"), tip: t("its pop-up: bigger, with its settings"), cmd: `open ${q(p)}`, hint: "enter" },
+        : { label: t("Open"), cmd: `open ${q(p)}`, hint: "enter" },
       "-",
       { label: t("New note"), tip: t("a new note in this folder"), run: () => d.newNote(here || "notes"), hint: "n" },
       { label: t("New folder"), tip: t("a new folder inside this one"), run: () => d.newFolder(here) },
@@ -431,7 +431,7 @@ export class Sidebar {
           cmd: favCommand(this.deck, f),
           tip: `${favCommand(this.deck, f)}\nunpin ${f.target}`,
           menu: () => [
-            { label: t("Open"), tip: t("its pop-up: bigger, with its settings"), cmd: favCommand(this.deck, f) },
+            { label: t("Open"), cmd: favCommand(this.deck, f) },
             ...(f.kind !== "module" ? [{ label: t("Reveal in tree"), run: () => this.reveal(f.target) }] : []),
             { label: t("Unpin"), cmd: `unpin ${q(f.target)}` },
           ],

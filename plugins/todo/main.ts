@@ -19,6 +19,9 @@ import type { Action, KeyInput } from "../../src/core/input";
 import type { IcebreakerAPI } from "../../src/plugins/api";
 import type { Command, ShellContext } from "../../src/shell/types";
 import type { UI } from "../../src/ui/ui";
+import type * as Dates from "../../src/core/dates";
+/** the deck's one date reader (ib.lib.dates), set when the module starts */
+let D!: typeof Dates;
 
 type Prio = "urgent" | "high" | "moderate" | "low";
 const PRIOS: Prio[] = ["urgent", "high", "moderate", "low"];
@@ -87,7 +90,7 @@ export function parseRepeat(raw: string): Omit<Repeat, "left" | "anchor"> | stri
     const u = m[2][0] === "d" || m[2][0] === "j" ? "day" : m[2][0] === "w" || m[2] === "s" ? "week" : "month";
     return { unit: u, n };
   }
-  const days = v.split(/[,\s]+/).map((d) => WEEKDAYS[d] ?? WEEKDAYS[d.slice(0, 3)]).filter((d) => d !== undefined);
+  const days = v.split(/[,\s]+/).map((d) => D.WEEKDAYS[d] ?? D.WEEKDAYS[d.slice(0, 3)]).filter((d) => d !== undefined);
   if (days.length && days.length === v.split(/[,\s]+/).length) return { unit: "week", n: 1, days: [...new Set(days)].sort() };
   return `can't read the repeat "${raw}" — try day, 2d, week, 2w, mon,wed,sat, month`;
 }
@@ -150,45 +153,24 @@ const FILTERS: Filter[] = ["open", "today", "all", "done"];
 
 // ── dates ──────────────────────────────────────────────────────────────────
 
-const pad = (n: number) => String(n).padStart(2, "0");
-const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const iso = (d: Date) => D.ymd(d);
 const inDays = (n: number) => {
   const d = new Date();
   d.setHours(12, 0, 0, 0);
   d.setDate(d.getDate() + n);
   return iso(d);
 };
-const WEEKDAYS: Record<string, number> = {
-  sun: 0, sunday: 0, dim: 0, dimanche: 0, mon: 1, monday: 1, lun: 1, lundi: 1, tue: 2, tuesday: 2, mar: 2, mardi: 2,
-  wed: 3, wednesday: 3, mer: 3, mercredi: 3, thu: 4, thursday: 4, jeu: 4, jeudi: 4, fri: 5, friday: 5, ven: 5, vendredi: 5,
-  sat: 6, saturday: 6, sam: 6, samedi: 6,
-};
 
 /** "tomorrow", "fri", "+3d", "2w", "2026-12-01", "24/12" → YYYY-MM-DD; "-" → null; unreadable → undefined. */
 export function parseDue(raw: string): string | null | undefined {
   const s = raw.trim().toLowerCase();
   if (["-", "none", "no", "clear", "aucune", "aucun"].includes(s)) return null;
-  if (["today", "tod", "now", "auj", "aujourd'hui", "aujourdhui", "ce-soir", "tonight"].includes(s)) return inDays(0);
-  if (["tomorrow", "tmr", "tom", "demain"].includes(s)) return inDays(1);
-  if (["week", "next-week", "semaine"].includes(s)) return inDays(7);
-  let m = /^\+?(\d{1,3})(d|j)?$/.exec(s);
-  if (m) return inDays(Number(m[1]));
-  m = /^\+?(\d{1,2})(w|s)$/.exec(s);
-  if (m) return inDays(Number(m[1]) * 7);
-  if (s in WEEKDAYS) return inDays((WEEKDAYS[s] - new Date().getDay() + 7) % 7 || 7);
-  m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s);
-  if (m) return iso(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12));
-  m = /^(\d{1,2})[/.](\d{1,2})(?:[/.](\d{2,4}))?$/.exec(s);
-  if (m) {
-    const now = new Date();
-    let y = m[3] ? Number(m[3]) : now.getFullYear();
-    if (y < 100) y += 2000;
-    const d = new Date(y, Number(m[2]) - 1, Number(m[1]), 12);
-    // "24/12" in January means next December's… no: the next 24/12 to come
-    if (!m[3] && iso(d) < inDays(0)) d.setFullYear(y + 1);
-    return iso(d);
-  }
-  return undefined;
+  // a bare number is days from now here ("3" = in 3 days)
+  const n = /^\+?(\d{1,3})(d|j)?$/.exec(s);
+  if (n) return inDays(Number(n[1]));
+  // the rest: the deck's one date reader (ib.lib.dates)
+  const d = D.parseDay(s);
+  return d ? iso(d) : undefined;
 }
 
 function daysUntil(due: string): number {
@@ -302,6 +284,7 @@ function tokenize(s: string): string[] {
 // ── the module ─────────────────────────────────────────────────────────────
 
 export function activate(ib: IcebreakerAPI): void {
+  D = ib.lib.dates;
   // its settings (Settings → ◇ TODO)
   ib.settings.register([
     { key: "view", label: "opens on", type: "choice", options: ["open", "today", "all", "done"], default: "open", help: "What the TODO page shows when it opens: the open tasks, today's, all of them, or the done ones." },

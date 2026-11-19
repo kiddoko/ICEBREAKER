@@ -40,3 +40,16 @@ describe("shortcut squares", () => {
     expect(r).toEqual({ x: 0, y: 1, w: 8, h: 4 });
   });
 });
+
+import { pinFor } from "../src/widgets/links";
+describe("pins and squares are one list", () => {
+  it("knows what a square's command opens", () => {
+    expect(pinFor("ideas", 'open "notes/ideas.md"')).toMatchObject({ kind: "note", target: "notes/ideas.md" });
+    expect(pinFor("proj", 'explore "/projects"')).toMatchObject({ kind: "folder", target: "projects" });
+    expect(pinFor("todo", "launch todo")).toMatchObject({ kind: "module", target: "todo" });
+    expect(pinFor("cal", "cal open")).toMatchObject({ kind: "module", target: "cal" });
+    expect(pinFor("deploy", 'macro run "deploy"')).toMatchObject({ kind: "macro" });
+    expect(pinFor("nexus", "nexus")).toMatchObject({ kind: "page" });
+    expect(pinFor("x", "echo hi")).toMatchObject({ kind: "command", target: "echo hi" });
+  });
+});

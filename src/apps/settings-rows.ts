@@ -1,3 +1,4 @@
+import { applyFxPreset, currentFxPreset, FX_PRESET_NAMES } from "../workspace/fxpanel";
 /**
  * THE DECK'S SETTINGS, declared as rows — the same rows modules get from
  * ib.settings.register. Settings (apps/settings.ts) only draws them; the
@@ -158,8 +159,15 @@ export function coreSettingRows(deck: Deck): Row[] {
     toggle("fx.glitch", "Glitch effects"),
     {
       label: "Effects preset",
-      value: () => "open",
-      change: () => d.workspace.fxPanel(),
+      kind: "choice",
+      // ‹ › goes through the presets (none · light · medium · heavy · party); the sliders below follow
+      value: () => currentFxPreset(d),
+      cmd: () => `fx ${currentFxPreset(d) === "custom" ? "light" : currentFxPreset(d)}`,
+      change: (dir) => {
+        const cur = currentFxPreset(d);
+        const i = cur === "custom" ? (dir > 0 ? -1 : 0) : FX_PRESET_NAMES.indexOf(cur);
+        applyFxPreset(d, FX_PRESET_NAMES[(i + dir + FX_PRESET_NAMES.length) % FX_PRESET_NAMES.length]);
+      },
     },
     // one slider per effect: 0 = off
     fxSlide("bloom", "Bloom"),

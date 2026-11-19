@@ -78,14 +78,52 @@ export class DeckVoice {
   async speak(answer: string): Promise<void> {
     if (this.deck.settings.data.voice.language !== "ja") return this.say(answer);
     if (!this.deck.ai.ready) return;
-    try {
-      const ja = await this.deck.ai.ask(`Translate this into natural spoken Japanese, for a voice to read aloud. Reply with the Japanese text only, no romaji, no notes:\n\n${speakable(answer).slice(0, 3000)}`, {
-        system: "You are a translator. Output only Japanese.",
-      });
-      this.say(ja, "ja");
-    } catch {
-      /* no translation, no reading */
+    // Translating the whole answer before saying anything made the voice start long after
+    // the text. Now: small pieces (a few sentences), translated three at a time, each one
+    // read as soon as it's there and its turn has come. Stop (or a new answer) drops the rest.
+    const gen = this.gen;
+    const pieces = chunks(sentences(speakable(answer).slice(0, 2400)), 220);
+    const translate = (p: string) =>
+      this.deck.ai
+        .ask(`Translate into natural spoken Japanese for a voice to read aloud. Japanese text only, no romaji, no notes:\n\n${p}`, { system: "You are a translator. Output only Japanese." })
+        .catch(() => "");
+    // at most three translations ahead of the piece being read
+    const running: Promise<string>[] = [];
+    const fill = (i: number) => {
+      while (running.length < pieces.length && running.length < i + 3) running.push(translate(pieces[running.length]));
+    };
+    for (let i = 0; i < pieces.length; i++) {
+      fill(i);
+      const ja = await running[i];
+      if (this.gen !== gen) return; // stopped, or another answer came
+      if (ja.trim()) this.say(ja, "ja");
     }
+  }
+
+  /**
+   * Speak a text while it's still being written (an AI answer streaming in): give it
+   * the whole text so far each time (`feed`); every finished sentence is said at
+   * once, the rest waits for its full stop — or for `end`. Stop drops it.
+   */
+  stream(lang?: string): { feed: (full: string) => void; end: (full: string) => void } {
+    const gen = this.gen;
+    let used = 0;
+    const said = (full: string, last: boolean) => {
+      if (this.gen !== gen) return;
+      const rest = full.slice(used);
+      let cut = 0;
+      if (last) cut = rest.length;
+      else {
+        // up to the last full stop seen; the very first piece may stop at a comma (start sooner)
+        for (const m of rest.matchAll(/[.!?…。！？\n]["»”)」』]?(\s|$)/g)) cut = m.index! + m[0].length;
+        if (!cut && used === 0) for (const m of rest.matchAll(/[,、，;:]\s/g)) if (m.index! >= 20) (cut = m.index! + m[0].length);
+      }
+      if (!cut) return;
+      const piece = rest.slice(0, cut);
+      used += cut;
+      if (piece.trim()) this.say(piece, lang);
+    };
+    return { feed: (full) => said(full, false), end: (full) => said(full, true) };
   }
 
   /** what the voice is saying right now (the subtitles pop-up shows it) */
@@ -133,6 +171,8 @@ export class DeckVoice {
         this.subtitle = { text, at: performance.now() };
         this.deck.requestFrame();
         await this.play(bytes);
+        // sentences that arrived while it played (an answer still streaming in): on we go
+        if (!next && this.queue.length) next = start(this.queue.shift()!);
       }
       this.subtitle = null;
     } catch (e) {
@@ -255,19 +295,26 @@ export function speakable(md: string): string {
 }
 
 /** Sentences of at most ~240 characters (synthesized one by one). */
+/**
+ * Text → the pieces the voice says one after the other. The FIRST piece is kept short
+ * (one sentence) so the voice starts at once; the next ones gather a few sentences
+ * (fewer calls to the synthesizer, which prepares the next while one plays).
+ * Japanese and Chinese full stops (。！？) count, so a Japanese text is cut too.
+ */
 function sentences(text: string): string[] {
-  const parts = text.match(/[^.!?…]+[.!?…]+["»”)]?\s*|[^.!?…]+$/g) ?? [text];
+  const parts = text.match(/[^.!?…。！？\n]+[.!?…。！？\n]+["»”)」』]?\s*|[^.!?…。！？\n]+$/g) ?? [text];
   const out: string[] = [];
   let cur = "";
   for (const p of parts) {
-    if ((cur + p).length > 240 && cur) {
+    const limit = out.length === 0 ? 24 : 180; // the first one: a sentence, the rest: a few
+    if (cur && (cur + p).length > limit) {
       out.push(cur.trim());
       cur = "";
     }
     cur += p;
   }
   if (cur.trim()) out.push(cur.trim());
-  return out;
+  return out.filter(Boolean);
 }
 
 /** Pleasant system voices first (female where there is one), never the novelty ones. */
@@ -308,4 +355,16 @@ export function neuralText(s: string): string {
     .replace(/[^\p{L}\p{N}\s.,;:!?'"()%&+\-/]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** Sentences gathered into pieces of about `size` characters (never splitting one). */
+function chunks(list: string[], size: number): string[] {
+  const out: string[] = [];
+  let cur = "";
+  for (const s of list) {
+    if (cur && cur.length + s.length + 1 > size) (out.push(cur), (cur = s));
+    else cur = cur ? `${cur} ${s}` : s;
+  }
+  if (cur) out.push(cur);
+  return out;
 }

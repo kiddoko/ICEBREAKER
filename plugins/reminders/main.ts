@@ -16,6 +16,9 @@ import type { Rect } from "../../src/core/grid";
 import type { Action, KeyInput } from "../../src/core/input";
 import type { IcebreakerAPI } from "../../src/plugins/api";
 import type { UI } from "../../src/ui/ui";
+import type * as Dates from "../../src/core/dates";
+/** the deck's one date reader (ib.lib.dates), set when the module starts */
+let D!: typeof Dates;
 
 interface Reminder {
   id: number;
@@ -29,8 +32,14 @@ interface Reminder {
   fired: boolean;
 }
 
-const pad = (n: number) => String(n).padStart(2, "0");
-const DAYS: Record<string, number> = { sun: 0, sunday: 0, dim: 0, dimanche: 0, mon: 1, monday: 1, lun: 1, lundi: 1, tue: 2, tuesday: 2, mar: 2, mardi: 2, wed: 3, wednesday: 3, mer: 3, mercredi: 3, thu: 4, thursday: 4, jeu: 4, jeudi: 4, fri: 5, friday: 5, ven: 5, vendredi: 5, sat: 6, saturday: 6, sam: 6, samedi: 6 };
+const pad = (n: number) => D.pad2(n);
+/** a day the way people write it — ib.lib.dates */
+const parseDay = (s: string): Date | null => D.parseDay(s);
+/** a time of day as [hours, minutes] — ib.lib.dates */
+const parseTime = (s: string): [number, number] | null => {
+  const m = D.parseTime(s);
+  return m === null ? null : [Math.floor(m / 60), m % 60];
+};
 
 /** "+10m", "+2h", "in 1h30" as minutes from now, or null */
 function parseIn(s: string): number | null {
@@ -38,30 +47,10 @@ function parseIn(s: string): number | null {
   if (!m || (!m[1] && !m[2]) || !s.trim().startsWith("+")) return null;
   return Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0);
 }
-function parseDay(s: string): Date | null {
-  const v = s.toLowerCase(), now = new Date();
-  const day = (d: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + d);
-  if (["today", "auj", "aujourd'hui"].includes(v)) return day(0);
-  if (["tomorrow", "demain"].includes(v)) return day(1);
-  if (v in DAYS) return day((DAYS[v] - now.getDay() + 7) % 7 || 7);
-  let m = /^\+(\d+)d$/.exec(v);
-  if (m) return day(Number(m[1]));
-  m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(v);
-  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  m = /^(\d{1,2})[/.](\d{1,2})(?:[/.](\d{2,4}))?$/.exec(v);
-  if (m) return new Date(m[3] ? (Number(m[3]) < 100 ? 2000 + Number(m[3]) : Number(m[3])) : now.getFullYear(), Number(m[2]) - 1, Number(m[1]));
-  return null;
-}
-function parseTime(s: string): [number, number] | null {
-  const m = /^(\d{1,2})(?:[:h](\d{2})?)?$/i.exec(s.trim());
-  if (!m || !/[:h]/i.test(s)) return null;
-  const h = Number(m[1]), mi = Number(m[2] ?? 0);
-  return h < 24 && mi < 60 ? [h, mi] : null;
-}
-
 let timer: ReturnType<typeof setInterval> | null = null;
 
 export function activate(ib: IcebreakerAPI): void {
+  D = ib.lib.dates;
   const { BOLD, mix, strWidth, q, fmt, parseFlags, t } = ib.lib;
   const run = (line: string) => void ib.shell.run(line);
   let list: Reminder[] = [];

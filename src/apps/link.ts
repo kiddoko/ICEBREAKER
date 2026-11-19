@@ -1,6 +1,7 @@
 import type { ChatSession } from "../ai/types";
 import { linkSystemPrompt } from "../ai/prompts";
 import { vaultTools } from "../ai/tools";
+import { refreshContext } from "../ai/context";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
@@ -34,6 +35,8 @@ export class LinkApp implements App {
   readonly key = "link";
   /** the conversation tabs (ctrl+T a new one, ctrl+[ ctrl+] to move, ctrl+shift+W or /close) */
   private convs: Conversation[] = [];
+  /** UPLINK's context page, read before the first message */
+  private context: string | undefined;
   private cur = 0;
 
   constructor(
@@ -54,6 +57,7 @@ export class LinkApp implements App {
     c.chat.onSubmit = (text) => void this.handle(text, c);
     c.chat.onCancel = () => c.abort?.abort();
     c.chat.assistantName = this.deck.ai.provider.label;
+    c.chat.userName = this.deck.settings.data.user.handle || "you";
     this.convs.push(c);
     this.cur = this.convs.length - 1;
     this.greet(c);
@@ -113,6 +117,8 @@ export class LinkApp implements App {
           today: `${isoDate(new Date())} (${new Date().toLocaleDateString("en", { weekday: "long" })})`,
           toolsEnabled,
           writes: this.deck.settings.data.ai.allowWrites,
+          context: this.context,
+          spokenJapanese: this.readsAloud() && this.deck.settings.data.voice.language === "ja",
         }),
         tools: toolsEnabled ? vaultTools(this.deck.vault, (t, d) => this.deck.confirm(t, d)) : [],
       });
@@ -127,6 +133,8 @@ export class LinkApp implements App {
     if (!c.name) c.name = text.replace(/\s+/g, " ").trim().slice(0, 24);
     c.transcript.push(`## ❯ ${this.deck.settings.data.user.handle}\n\n${text}\n`);
 
+    // the context page (ai/context.ts), rebuilt once per UPLINK: who you are, how to talk, your vault
+    if (this.context === undefined) this.context = await refreshContext(this.deck).catch(() => "");
     let session: ChatSession;
     try {
       session = this.ensureSession(c);
@@ -136,6 +144,12 @@ export class LinkApp implements App {
     }
 
     const chat = c.chat;
+    // the voice follows the answer while it's written: each finished sentence is said
+    // at once (core/voice.ts stream). In Japanese, the answer starts with a hidden
+    // <say>…</say> line of spoken Japanese — read straight away, no second call.
+    const ja = this.deck.settings.data.voice.language === "ja";
+    const speech = this.readsAloud() ? this.deck.voice.stream(ja ? "ja" : undefined) : null;
+    let raw = "", shown = 0, saidSome = false;
     chat.busy = true;
     this.deck.ai.busy++;
     chat.busyLabel = "jacked in";
@@ -150,7 +164,16 @@ export class LinkApp implements App {
         {
           onText: (d) => {
             answer ??= chat.push("assistant", "");
-            chat.append(answer, d);
+            raw += d;
+            const { visible, said } = splitSay(raw);
+            if (visible.length > shown) chat.append(answer, visible.slice(shown));
+            shown = visible.length;
+            if (speech) {
+              if (ja) {
+                if (said) (speech.feed(said.text), (saidSome = true));
+                if (said?.closed) speech.end(said.text);
+              } else speech.feed(visible);
+            }
             redraw();
           },
           onThinking: (d) => {
@@ -160,6 +183,10 @@ export class LinkApp implements App {
             redraw();
           },
           onToolCall: (name, input) => {
+            // text after a tool call is a new block (what was said so far stays said)
+            if (speech && !ja && raw) speech.end(splitSay(raw).visible);
+            raw = "";
+            shown = 0;
             const arg = String(input.path ?? input.query ?? input.folder ?? "");
             chat.push("tool", `${name}${arg ? ` ${arg}` : ""}`);
             chat.busyLabel = name.replace("_", " ");
@@ -184,12 +211,24 @@ export class LinkApp implements App {
       c.abort = null;
       const final = chat.entries.filter((e) => e.role === "assistant").pop();
       if (final) c.transcript.push(`## ◆ ${this.deck.ai.provider.label}\n\n${final.text}\n`);
-      const v = this.deck.settings.data.voice;
-      // read aloud only the conversation in front
-      if (final && answer && v.enabled && v.readAI && c === this.c) void this.deck.voice.speak(final.text);
+      // the end of the answer: what's left is said; in Japanese, no <say> line came → translate
+      if (speech && raw) {
+        if (!ja) speech.end(splitSay(raw).visible);
+        else if (!saidSome && final) void this.deck.voice.speak(final.text);
+        else {
+          const said = splitSay(raw).said;
+          if (said) speech.end(said.text);
+        }
+      }
       void this.persist(c);
       redraw();
     }
+  }
+
+  /** UPLINK's answers are read aloud (Settings → VOICE). */
+  private readsAloud(): boolean {
+    const v = this.deck.settings.data.voice;
+    return v.enabled && v.readAI;
   }
 
   private slash(cmd: string, c: Conversation = this.c): void {
@@ -319,3 +358,22 @@ export const linkSpec: AppSpec = {
   launcher: true,
   create: (deck, args) => new LinkApp(deck, (args as { prompt?: string } | undefined)?.prompt),
 };
+
+/**
+ * An answer as it streams: what's shown (without the <say>…</say> line, and without a
+ * tag still being typed) and the spoken line so far (closed once </say> came).
+ */
+export function splitSay(raw: string): { visible: string; said: { text: string; closed: boolean } | null } {
+  const i = raw.indexOf("<say>");
+  if (i < 0) {
+    // hide a tag being written ("<", "<sa"…) until we know what it is
+    const tail = raw.match(/<s?a?y?$/);
+    return { visible: tail ? raw.slice(0, tail.index) : raw, said: null };
+  }
+  const j = raw.indexOf("</say>", i);
+  const text = raw.slice(i + 5, j < 0 ? undefined : j);
+  const after = j < 0 ? "" : raw.slice(j + 6).replace(/^\s+/, "");
+  // a closing tag being written: not shown as speech yet
+  const cleanText = j < 0 ? text.replace(/<\/?s?a?y?$/, "") : text;
+  return { visible: raw.slice(0, i) + after, said: { text: cleanText, closed: j >= 0 } };
+}

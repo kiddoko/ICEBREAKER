@@ -3,6 +3,8 @@ import type { Action, KeyInput } from "../core/input";
 import { TextEditor, wrapLine } from "./editor";
 import { highlightLine, initialMdState } from "./markdown";
 import { typed } from "./typewriter";
+import { mix } from "../core/color";
+import { strWidth } from "../core/unicode";
 import type { UI } from "./ui";
 
 /** each chat line's name for the typewriter */
@@ -32,6 +34,8 @@ interface Row {
   text: string;
   styles: (Style | undefined)[];
   base: Style;
+  /** the whole line's background (your messages sit on a tinted band) */
+  bg?: number;
 }
 
 export class ChatView {
@@ -44,6 +48,8 @@ export class ChatView {
   onCancel?: () => void;
   /** Name shown before assistant messages. */
   assistantName = "ai";
+  /** how your messages are signed (the handle) */
+  userName = "you";
 
   private scrollFromBottom = 0;
   private version = 0;
@@ -127,11 +133,13 @@ export class ChatView {
       const row = rows[start + i];
       if (!row) break;
       const y = logRect.y + i;
-      const x = ui.text(logRect.x, y, row.prefix, row.base);
+      if (row.bg !== undefined) ui.fill({ x: logRect.x, y, w: logRect.w, h: 1 }, { bg: row.bg });
+      const x = ui.text(logRect.x, y, row.prefix, row.bg !== undefined ? { ...row.base, bg: row.bg } : row.base);
       let cx = x;
       [...row.text].forEach((ch, k) => {
         const st = row.styles[k];
-        cx = ui.text(cx, y, ch, st ? { ...row.base, ...st } : row.base);
+        const base = row.bg !== undefined ? { ...row.base, bg: row.bg } : row.base;
+        cx = ui.text(cx, y, ch, st ? { ...base, ...st } : base);
       });
     }
     if (rows.length === 0) {
@@ -164,8 +172,17 @@ export class ChatView {
     if (this.cache.version === this.version && this.cache.width === width && this.cache.typing === typing) return this.cache.rows;
     const t = ui.theme;
     const rows: Row[] = [];
+    const c = ui.c;
     for (const e of this.entries) {
       const { prefix, base } = this.styleFor(e.role, ui);
+      // who's talking, on a line of its own: you (on a tinted band) · UPLINK (its model)
+      const talk = e.role === "user" || e.role === "assistant";
+      const band = e.role === "user" ? mix(c.panel, c.accent, 0.12) : undefined;
+      if (talk) {
+        const who = e.role === "user" ? `❯ ${this.userName}` : `◆ UPLINK · ${this.assistantName}`;
+        const head = `${who} ${"─".repeat(Math.max(0, width - strWidth(who) - 2))}`;
+        rows.push({ prefix: "", text: head, styles: [], base: { fg: e.role === "user" ? c.accent : c.accentAlt, attrs: BOLD }, bg: band });
+      }
       const textW = Math.max(4, width - 2);
       let md = initialMdState();
       const limit = shown.get(e);
@@ -183,7 +200,7 @@ export class ChatView {
             i += line.codePointAt(i)! > 0xffff ? 2 : 1;
           }
           const first = li === 0 && seg.start === 0;
-          rows.push({ prefix: first ? prefix : "  ", text, styles, base });
+          rows.push({ prefix: talk ? "  " : first ? prefix : "  ", text, styles, base: talk && e.role === "user" ? { fg: c.fg } : base, bg: band });
         }
       });
       rows.push({ prefix: "", text: "", styles: [], base });

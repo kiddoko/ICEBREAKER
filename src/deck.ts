@@ -387,7 +387,11 @@ export class Deck implements InputSink {
       slowAt = performance.now();
       this.debug(`slow frame: ${ms.toFixed(0)} ms (${this.workspace.activeApp?.kind ?? "?"})`);
     };
-    this.settings.onChange((path) => this.log.debugOn && this.debug(`setting changed: ${path}`));
+    this.settings.onChange((path) => {
+      if (this.log.debugOn) this.debug(`setting changed: ${path}`);
+      // pins changed (pin, unpin, ⌘Z…): HOME's squares follow
+      if (path === "favorites") syncLinkWidgets(this);
+    });
     this.errors.onAdd = (e) => {
       this.log.add("error", `${e.code}  ${t(e.title)}`, { detail: e.detail, code: e.code });
       this.requestFrame();

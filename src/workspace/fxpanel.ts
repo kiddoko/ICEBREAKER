@@ -138,6 +138,18 @@ export class FxPanel implements Overlay {
   }
 }
 
+/** The preset the effects match right now, or "custom" when they were tuned by hand. */
+export function currentFxPreset(deck: Deck): Preset | "custom" {
+  const fx = deck.settings.data.fx;
+  for (const name of FX_PRESET_NAMES) {
+    const p = FX_PRESETS[name];
+    const switches = (["ambient", "glitch", "flicker"] as const).every((k) => !!fx[k] === p.on.includes(k));
+    const levels = (Object.entries(p.levels) as [FxLevel, number][]).every(([lv, v]) => getFx(deck, lv) === v);
+    if (switches && levels) return name;
+  }
+  return "custom";
+}
+
 export function applyFxPreset(deck: Deck, name: Preset | string): void {
   const preset = (FX_PRESETS[name as Preset] ? name : FX_PRESET_ALIASES[name] ?? "light") as Preset;
   const p = FX_PRESETS[preset];

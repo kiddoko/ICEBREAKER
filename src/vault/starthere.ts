@@ -117,8 +117,8 @@ shows what it asks for and what its code does that a module shouldn't need
 
 ## HOME
 Widgets on a 12-column grid, several pages (\`[\` \`]\`).
-**Shortcut squares**: e then a → *Shortcut*, or right-click a note / folder →
-*square on HOME*, or \`home link new\`. A square opens anything in one click — a
+**Shortcut squares** are your **pins** on HOME: e then a → *Shortcut*, or
+right-click a note / folder → *Add to HOME*, or \`home link new\`. A square opens anything in one click — a
 module, a note, a folder, a page, a macro, any command — and says which on its
 coloured band. A **folder** square opens a little browser under it: enter goes
 in, ← back, → forward, n a note, d a folder, del to the trash.
@@ -169,8 +169,10 @@ were on come back as you left them next time.
 
 ## Tabs, pins, settings
 - Tabs on top: 1…9 (when not typing) or ⌘1…9; ⌘W or ⇧Esc closes one and shows the tab before it. NEXUS, STORE, MODULES and settings open without a tab (Esc closes them).
-- **Pins**: notes, folders, modules at the top of the tree and in the *pinned*
-  widget — \`pin projects --key ctrl+shift+p\`.
+- **Pins**: one list for everything you keep one click away — notes, folders,
+  modules, pages, macros, commands. They show at the top of the tree and in the
+  *pinned* widget, and *Add to HOME* also puts one on HOME as a square. Unpin it:
+  its square goes too. \`pin projects --key ctrl+shift+p\`.
 - **Settings** (⌘,): categories left, settings right, type to search. A setting
   shows its value on the right; its controls (‹ ›, ✎, ›) appear on the line you're
   on. A changed one has a **▎** on its left: **del** puts it back to default, and
@@ -243,6 +245,18 @@ were on come back as you left them next time.
   UPLINK's answers, the shell's output — with a little blip, like an old RPG,
   never more than a second behind. Settings → APPEARANCE → *Text speed* (50 by
   default; 100 = at once, one blip).
+- **Notes**: a toolbar on top — save (● red when not saved: the tab has a red dot
+  too, ⌘S or right-click on the tab saves), save as, a new note, the note before /
+  after in the folder, undo, redo.
+- **UPLINK**: each message says who wrote it — you on a tinted band, UPLINK with its
+  model. Before each conversation it reads its **context page** (\`context\` opens
+  it): who you are, how it should talk to you, how your vault is organised — built
+  by the deck, no AI — plus what you add, and what it learns. A click on the VOICE
+  box (bottom right) stops the reading. The voice reads an answer while it's
+  being written, sentence by sentence; in Japanese, UPLINK starts with a short
+  spoken version, read at once.
+- **MODULES** is NEXUS's scene with modules on it: each one a shard in its colour,
+  with its state; they power up one after the other when the page opens.
 - **Smooth text**: every letter that appears fades in — what you type, the
   terminal, the chat (Settings → APPEARANCE → *Smooth text*).
 - **Settings** have short, usual names (Zoom, Font size, V-Sync, Reduce motion,

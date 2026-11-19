@@ -3,7 +3,7 @@
  * They're built once per conversation (stable text = cheaper prompt caching).
  */
 
-export function linkSystemPrompt(o: { providerId: string; handle: string; journalFolder: string; today: string; toolsEnabled: boolean; writes?: boolean }): string {
+export function linkSystemPrompt(o: { providerId: string; handle: string; journalFolder: string; today: string; toolsEnabled: boolean; writes?: boolean; context?: string; spokenJapanese?: boolean }): string {
   const identity =
     o.providerId === "anthropic" || o.providerId === "claude-code"
       ? "You are Claude, made by Anthropic, running as the built-in assistant of ICEBREAKER"
@@ -16,7 +16,7 @@ ${
   o.providerId === "claude-code"
     ? `Your working directory is the vault. Use your Read, Glob and Grep tools to find and read notes before summarizing or quoting them, and never invent their content. ${
         o.writes !== false
-          ? `When the user asks for a note (a list, a summary, a plan…), create it with your Write tool as a Markdown file in the vault — in "notes/" unless they say otherwise, with a short lowercase-dashed file name and a "# Title" first line — or update an existing note with Edit. Say which file you wrote. Only write when asked; never touch .icebreaker/ or anything outside the vault.`
+          ? `When the user asks for a note (a list, a summary, a plan…), create it with your Write tool as a Markdown file in the vault — in "notes/" unless they say otherwise, with a short lowercase-dashed file name and a "# Title" first line — or update an existing note with Edit. Say which file you wrote. Only write when asked; never touch .icebreaker/ or anything outside the vault — except one thing: when the user tells you something lasting about themselves or how they want you to behave, add one short line under "## Things UPLINK learned" in .icebreaker/context.md (with Edit), and say so.`
           : `You can't modify files in this session: when the user wants a note written, give them the full text to paste.`
       }`
     : o.toolsEnabled
@@ -24,7 +24,22 @@ ${
     : `You can't access the vault in this session; if the user asks about their notes, tell them to paste the content or use a provider with tool support.`
 }
 
-Style: concise and direct. Markdown is welcome (short headings, lists, code blocks) — it is rendered in a monospace terminal, so avoid tables wider than 80 columns. Reply in the user's language. A light cyberpunk flavor is fine, but clarity always wins.`;
+${
+  o.spokenJapanese
+    ? `Your replies are read aloud in Japanese. START every reply with one line <say>…</say>: one to three short sentences of natural spoken Japanese giving the gist of your answer (no romaji, no markdown). It is hidden from the screen and spoken at once. Then write your full answer as usual, in the user's language.
+
+`
+    : ""
+}Style: concise and direct. Markdown is welcome (short headings, lists, code blocks) — it is rendered in a monospace terminal, so avoid tables wider than 80 columns. Reply in the user's language. A light cyberpunk flavor is fine, but clarity always wins.${
+  o.context
+    ? `
+
+Below is the user's context page (.icebreaker/context.md), kept by ICEBREAKER and by the user. Follow its "How to talk to me" section over the style above when they differ; use the rest to know who they are and how their vault is organised — never quote it back unless asked.
+<context>
+${o.context.slice(0, 4000)}
+</context>`
+    : ""
+}`;
 }
 
 export const ASK_SYSTEM_PROMPT = `You are a command-line assistant inside ICEBREAKER's shell, invoked as \`ask\`.
