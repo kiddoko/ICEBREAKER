@@ -322,16 +322,53 @@ todo add "pack the books" --every sat --cycles 3
   "../FOR DEVELOPERS/README.md": `# For developers
 
 ICEBREAKER is open source (MIT). The interface is TypeScript drawn on a
-character grid; the native side is Rust (Tauri).
+character grid (no web framework: every frame, things draw themselves with
+\`ui.text\`, \`ui.box\`, \`ui.hit\`…); the native side is Rust (Tauri).
 
-- [[themes]] — make the deck look like anything
-- [[modules-api]] — write a module: commands, apps, widgets, settings
+- [[themes]] — make the deck look like anything (no code)
+- [[modules-api]] — write a module: commands, apps, widgets, settings (JavaScript)
 - [[tweaking]] — settings by hand, files, the source
+- [[architecture]] — how the deck itself is built, where to find what
 
 \`\`\`
 src/            the deck (TypeScript)        plugins/   bundled modules
 src-tauri/      the native side (Rust)       docs/      the full docs
 \`\`\`
+
+Three rules the whole deck follows: **one feature = one module**, **every
+click is a shell command** (so it can be typed, bound to a key, put on the action
+wheel or in a macro), and **everything works offline, without an account, without AI**.
+`,
+  "../FOR DEVELOPERS/architecture.md": `# How the deck is built
+
+The full map is \`docs/ARCHITECTURE.md\` in the repository. In short:
+
+| Folder | What's there |
+|---|---|
+| \`src/deck.ts\` | the object everything hangs off; start-up; \`deck.act("command")\` |
+| \`src/core/\` | the engine: grid, renderer, input, gamepad, settings, themes, sounds, voice, shortcuts |
+| \`src/ui/\` | drawing pieces: \`UI\`, lists, editor, sliders, the ring wheel |
+| \`src/workspace/\` | the screen: panes, tabs, the tree, the side panel, dialogs, menus |
+| \`src/apps/\` | what opens in a tab or a page: HOME, notes, settings, MODULES, NEXUS… |
+| \`src/widgets/\` | HOME widgets |
+| \`src/shell/\` | ibsh, every command (\`commands/*.ts\`), your real terminal |
+| \`src/vault/\` | the notes folder, tags, the journal |
+| \`src/plugins/\` | the module system and the \`ib.*\` API |
+| \`src-tauri/src/\` | Rust: files, terminal, voice, Google, system stats |
+
+**One frame**: an input changes some state → the deck draws everything again
+into a grid of cells → only the cells that changed are repainted. Nothing moves =
+nothing is drawn (0 % CPU).
+
+**Clicks**: while drawing, \`ui.hit(rect, { onClick, cmd, menu, tip })\` marks
+an area; the last one drawn under the pointer wins. A \`cmd\` area runs that
+shell command and shows it in the shell — the mouse teaches the command line.
+
+**Traps**: a new setting needs its default in \`core/settings.ts\` (setting an
+unknown key fails); dialogs get raw keys, not "up/confirm" actions.
+
+Try things live: \`npm run dev\` opens the deck in a browser with a demo vault,
+and \`window.deck\` is there in the console (\`await deck.act("panel show")\`).
 `,
 
   "../FOR DEVELOPERS/themes.md": `# Themes
@@ -389,6 +426,10 @@ export function activate(ib) {
 | \`ai\` · \`media\` · \`google\` · \`storage\` | the rest |
 
 Right-click menus: give a clickable area a \`menu\`: \`ui.hit(rect, { cmd, menu: () => [{ label: "done", cmd: "todo done 3" }] })\`.
+Settings rows: \`ib.settings.register([{ key, label, type: "toggle" | "choice" | "text" | "number" | "action", … }])\`
+— an \`action\` row runs a \`cmd\` (or \`run()\`) and shows a \`value()\` ("connected"…).
+Widgets: \`size\`, \`min\`, \`max\` (a 1×1 square: \`max: { w: 1, h: 1 }\`), \`popup\` or
+\`activate\` for Enter, \`clickActivates\` for one-click widgets.
 Errors you report with \`ib.ui.notify(text, "error")\` land in the error log with a code (docs/ERRORS.md).
 
 Everything is typed and commented in \`src/plugins/api.ts\`; a walkthrough in

@@ -34,7 +34,19 @@ npm run check      # type-check
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-Start reading at `src/deck.ts`, then [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Start reading at `src/deck.ts`, then [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md):
+the map of the code, how a frame is drawn, how input travels, how to add a
+command / app / widget / setting / shortcut / translation, and the traps.
+
+## Code style
+
+- A file does one thing; its top comment says what and why (the commands it
+  answers to, if any). Functions get a one-line `/** … */` when the name isn't enough.
+- Comments explain *why* and what the user sees, not what the next line does.
+- No copy-paste helpers: look in `core/` and `ui/` first (`ago()`, `ring()`,
+  `inside()`, `ListView`, `slider`, `WheelSpin`…).
+- UI text in `t("…")` with its French line in `core/i18n-fr.ts`.
+- A new setting = its default in `DEFAULT_SETTINGS` (`settings.set` refuses unknown keys).
 
 ## Pull requests
 
