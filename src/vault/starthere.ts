@@ -60,6 +60,7 @@ the keyboard, the mouse or a gamepad.
 - [[shell]] — ibsh, your real terminal, scripts, macros
 - [[keys]] — the keyboard, the mouse, the gamepad
 - [[privacy]] — what stays here, what goes out, stealth, self-destruct
+- [[ai]] — the AI as a work assistant: write, sort, plan (optional, can be local)
 - \`for developers/\` — themes, modules, tweaking the deck
 
 > Everything here is a normal note: change it, move it, delete it.
@@ -111,18 +112,20 @@ Widgets on a 12-column grid, several pages (\`[\` \`]\`).
 | e | edit: arrows move, shift+arrows resize, **a** add, **x** remove |
 | m | MODULES |
 
-Widgets rise to the top on their own; holes close up.
+Widgets rise to the top on their own; holes close up, and the rows stretch to
+fill the page. Drag a widget in edit mode: a ghost follows the mouse, the spot it
+will land on shows dashed, it moves when you let go.
 
 ## The tree (left)
 \`\`\`
 VAULT              8
- + note   + dir
- ●●●●●●●●            ← colour tags: click one to see only that colour
+ + note   + dir    ⌫   ← ⌫: the trash (see it, put things back)
+ ■■■■■■■■            ← colour tags: click one to see only that colour
  ★ ✎ ideas          ← pinned (p pins the selected thing)
  ▾ journal/      2
  ├─ 2026-11-17
  └─ 2026-11-18
- ▸⚡ projects/        ← a custom icon, tagged cyan
+ ▸⚡ projects/  ■ 3   ← a custom icon, tagged cyan (the square, on the right)
 \`\`\`
 
 **Right-click anything** (or the menu key, shift+F10): open, rename (F2),
@@ -130,6 +133,8 @@ duplicate, pin, copy the path or a [[link]], a **colour** (red, orange, yellow,
 green, cyan, blue, purple, pink — like Ableton), an **icon**, the trash.
 In the shell: \`tag notes/ideas.md red\`, \`tag view red\`, \`icon projects ⚡\`.
 Tags and icons live in your vault (.icebreaker/tags.json, icons.json).
+One click opens a note or folds a folder. The tree, your tabs and the page you
+were on come back as you left them next time.
 
 ## Tabs, pins, settings
 - Tabs on top: 1…9 (when not typing) or ⌘1…9; ⌘W or ⇧Esc closes one and shows the tab before it. NEXUS, STORE, MODULES and settings open without a tab (Esc closes them).
@@ -137,7 +142,11 @@ Tags and icons live in your vault (.icebreaker/tags.json, icons.json).
   widget — \`pin projects --key ctrl+shift+p\`.
 - **Settings** (⌘,): categories left, settings right, type to search; each
   setting says what it does, and shows the shell command that does the same.
-- **✦ fx** (status bar): bloom, scanlines, vignette, colour fringes, sharpness.
+- **✦ fx** (status bar): a slider per effect — bloom, scanlines, vignette, RGB
+  split, glow (bright things give off light), sharpness. 0 = off, up to 200 %.
+- Status bar, right: **♪** mutes everything · **☾** the screensaver (each theme
+  has its own: a neon city, an 80s mainframe, sonar, warp, an e-reader).
+- Too many tabs for the bar: they scroll around the one shown (‹ ›).
 `,
 
   "shell.md": `# The shell
@@ -149,6 +158,7 @@ Two shells live in the panel at the bottom (▾ hides it, ⌘\` brings it back):
 | **icbrkr_trm** | your real shell (zsh, bash, PowerShell…) **plus** every ICEBREAKER command. + opens another, right-click renames it |
 | **ibsh** | ICEBREAKER's own shell: it only sees the vault, \`rm\` goes to .trash |
 | **history** | what your clicks ran, with their output |
+| **errors** | appears when something goes wrong: blinks red, a code (E102…) and what to do — \`errors E102\` |
 
 \`\`\`
 ◆ ~/notes ❯ todo add "ship it" --urgent --due fri
@@ -171,6 +181,11 @@ news
 ## Bigger
 ⤢ maximize turns the shell into a big tab after the others (the page you
 were on stays a tab); \`term dock\` puts a terminal back in the panel.
+
+## The trash
+\`rm\`, Delete in the tree and right-click → trash move things to .trash (never
+deleted for good). \`trash\` lists it, \`trash restore 2\` puts one back where it
+lived; ⌫ above the tree does the same with the mouse.
 
 ## Macros
 Buttons above your terminal that type a command: \`macro add deploy "git pull"\`.
@@ -212,6 +227,49 @@ On a Mac, ⌘ plays the role of Ctrl.
 | LB · RB | tabs |
 `,
 
+  "ai.md": `# The AI, as a work assistant
+
+Optional. ICEBREAKER works fully without it; with it, it's a colleague who has
+read your notes when you ask it to. Choose one in ⚙ UPLINK (AI): Claude Code
+(your Claude plan), an API key, or **Ollama** (a model on this machine, nothing
+leaves it). Stealth mode switches it off entirely.
+
+## Where it is
+| | |
+|---|---|
+| **LINK** (⌘Space) | a chat, as long as you like |
+| the **chat** widget | a quick question from HOME |
+| \`ask\` in the shell | one question, and you can pipe anything into it |
+
+## Write
+\`\`\`
+ask "a polite email declining the meeting on friday" > notes/reply.md
+cat notes/draft.md | ask "shorter, keep my tone" > notes/draft-v2.md
+\`\`\`
+
+## Sort and sum up
+\`\`\`
+cat notes/inbox/*.md | ask "group these by topic, one line each"
+journal ls | ask "what did I keep postponing this month?"
+grep -r "TODO" notes | ask "which of these are really urgent?"
+\`\`\`
+
+## Plan, then make it real
+Ask for a plan, then turn the lines you keep into tasks yourself — you stay the
+one who decides:
+\`\`\`
+ask "break 'move flat' into steps of an hour or less"
+todo add "call the movers" --due fri
+todo add "pack the books" --every sat --cycles 3
+\`\`\`
+
+## Good habits
+- Give it the text (\`cat … |\`): it only sees what you send.
+- Ask for a format: "a table", "bullets", "one line each".
+- Keep what's useful in a note (\`> notes/x.md\`): the answer becomes yours.
+- Voice: ⚙ VOICE → read LINK's answers aloud.
+`,
+
   "privacy.md": `# Privacy
 
 - Your notes are **plain Markdown files** in this folder. No account, no cloud.
@@ -220,6 +278,8 @@ On a Mac, ⌘ plays the role of Ctrl.
   Calendar if you connect it, GitHub when you install from the STORE.
 - **Stealth** (⚙ PRIVACY, or \`stealth\`): nothing leaves the machine. At all.
 - **Lock** (⌘⇧L): the deck asks for your password.
+- **Notifications**: when the deck isn't in front, its notifications also go to
+  your system's notification centre (⚙ SOUND → notifications: off / sound / screen).
 - **self-destruct**: deletes everything in the vault for good, after four
   confirmations and a countdown. Copies elsewhere are not touched.
 `,
@@ -256,6 +316,9 @@ effect = "rain"     # rain · stars · snow · scan · grain …
 [fx]
 bloom = 0.4         # glow
 scanlines = 0.1
+
+[anim]
+screensaver = "city"  # city · paper · terminal · sonar · warp
 \`\`\`
 
 | Command | |
@@ -287,8 +350,11 @@ export function activate(ib) {
 | \`stats\` | numbers over time, shown by STATS |
 | \`modules\` | call other modules (\`todo.add\`, \`journal.append\`…), expose yours |
 | \`settings\` | your settings, shown in ⚙ under your name |
-| \`ui\` | notify, alert, confirm, prompt, choose |
+| \`ui\` | notify, alert, confirm, prompt (with \`suggestions\`: ▾ and Tab), choose |
 | \`ai\` · \`media\` · \`google\` · \`storage\` | the rest |
+
+Right-click menus: give a clickable area a \`menu\`: \`ui.hit(rect, { cmd, menu: () => [{ label: "done", cmd: "todo done 3" }] })\`.
+Errors you report with \`ib.ui.notify(text, "error")\` land in the error log with a code (docs/ERRORS.md).
 
 Everything is typed and commented in \`src/plugins/api.ts\`; a walkthrough in
 \`docs/PLUGINS.md\`. Share it through the STORE (a GitHub repo).
@@ -296,7 +362,8 @@ Everything is typed and commented in \`src/plugins/api.ts\`; a walkthrough in
 
   "../FOR DEVELOPERS/tweaking.md": `# Tweaking the deck
 
-- **Every setting** has a command: \`config list\`, \`config set fx.bloom true\`.
+- **Every setting** has a command: \`config list\`, \`config set fx.bloom true\`;
+  effects take one number: \`fx glow 60\`, \`fx chroma 120\` (0 = off, up to 200).
 - Settings live in the system's config folder (\`config path\`); the API key in
   a separate secrets file.
 - Your files: \`.icebreaker/themes\`, \`.icebreaker/plugins\`, \`.icebreaker/scripts\`,

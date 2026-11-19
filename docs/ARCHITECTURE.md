@@ -29,7 +29,25 @@ Deck.frame(now)
 - **FrameLoop** (`core/loop.ts`) — renders on demand. Idle = 0 frames.
   Typing, scrolling, animations run at the fps cap (60 by default).
 - **Post-effects** — bloom, scanlines, vignette, flicker are CSS layers over the
-  canvas (`style.css`), driven by the theme's `[fx]` values. GPU-composited, nearly free.
+  canvas (`style.css`), driven by the theme's `[fx]` values and one number per
+  effect (`core/fxlevels.ts`: 0 = off, up to 200 %). Each is a composited layer of
+  its own. The RGB split (`#chroma`) and bloom measure / throttle themselves (macOS
+  WebKit does their compositing on the CPU); the glow (`#glow`) is a canvas with
+  one pixel per cell — what each cell emits (bright, saturated colours only) —
+  scaled up blurred and screened over the picture.
+
+### Where things live (the newer parts)
+
+| File | What |
+|---|---|
+| `workspace/contextmenu.ts` | right-click menus: `ui.hit(rect, { menu })`, `App.menu()` |
+| `ui/slider.ts` | the real slider (drag, click, wheel, ←→) |
+| `core/errors.ts` | the error log and its codes (E101…), see `docs/ERRORS.md` |
+| `vault/marks.ts` | colour tags and custom icons (`.icebreaker/tags.json`, `icons.json`) |
+| `shell/commands/trash.ts` | the trash browser; `Vault.trashLog / restore` remember origins |
+| `fx/screensaver.ts` | one screensaver per theme (`[anim] screensaver`) |
+| `core/input.ts` → `onGesture` | mouse side buttons, trackpad swipe, pinch |
+| `settings.session` | tabs and open folders restored at start (`Workspace.restoreSession`) |
 
 ## Input
 
