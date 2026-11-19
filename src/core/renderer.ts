@@ -156,7 +156,7 @@ export class Renderer {
     if (this.chromaEl) {
       this.chromaEl.style.display = this.chroma > 0 ? "block" : "none";
       // a real RGB split: strong and saturated as it goes up (200 % = a badly misconverged tube)
-      this.chromaEl.style.opacity = String(Math.min(0.95, 0.35 + (this.chroma / 200) * 0.6));
+      this.chromaEl.style.opacity = String(Math.min(0.95, 0.5 + Math.sqrt(this.chroma / 200) * 0.45));
     }
     this.sizeChroma();
     this.front = null;
@@ -185,7 +185,8 @@ export class Renderer {
       this.glowEl.style.display = this.glow > 0 ? "block" : "none";
       // past 100 %: a wider, brighter halo
       const k = this.glow / 100;
-      this.glowEl.style.opacity = String(Math.min(1, 0.35 + k * 0.45));
+      // gentle: proportional to the level (8 % is a hint, 100 % a clear halo, 200 % a lot)
+      this.glowEl.style.opacity = String(Math.min(1, k * 0.55));
       this.glowEl.style.filter = `blur(${((0.3 + k * 0.25) * (this.cellH || 16)) / (this.dpr || 1)}px) saturate(1.6) brightness(${1 + Math.max(0, k - 1) * 0.8})`;
     }
     this.front = null;
@@ -244,7 +245,8 @@ export class Renderer {
     const el = this.chromaEl, ctx = this.chromaCtx, tmp = this.chromaTmp;
     if (!el || !ctx || !tmp || !el.width) return;
     const w = el.width, h = el.height;
-    const o = 0.5 + (this.chroma / 100) * 1.7; // half-res px: up to ~4 (≈ 8 screen px) at 200 %
+    // a curve that bites early: 20 % already reads as a split, 200 % is a wreck
+    const o = 0.6 + Math.sqrt(this.chroma / 200) * 4.4; // half-res px
     const t = tmp.getContext("2d")!;
     t.globalCompositeOperation = "source-over";
     t.clearRect(0, 0, w, h);
@@ -362,7 +364,7 @@ export class Renderer {
           const e = Math.max(fgE, bgE);
           gctx.clearRect(x, y, 1, 1);
           if (e > 0) {
-            gctx.globalAlpha = Math.min(1, e * 2.6);
+            gctx.globalAlpha = Math.min(1, e * 1.8);
             gctx.fillStyle = css(src);
             gctx.fillRect(x, y, 1, 1);
             gctx.globalAlpha = 1;

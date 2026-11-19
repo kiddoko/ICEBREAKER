@@ -118,6 +118,8 @@ export class InputManager {
   private swipePx = 0;
   private swipeAt = 0;
   private swipeFired = false;
+  private swipeLast = 0;
+  private swipeFiredAt = 0;
   private pinch = 0;
   private buttons = 0;
   private composing = false;
@@ -260,11 +262,17 @@ export class InputManager {
         }
         // a two-finger swipe sideways: one tab per swipe (left → next, right → previous)
         if (Math.abs(e.deltaX) > Math.abs(e.deltaY) * 1.5) {
-          if (t0 - this.swipeAt > 300) (this.swipePx = 0), (this.swipeFired = false);
+          const a = Math.abs(e.deltaX);
+          // a new swipe: a pause, a change of direction, or deltas growing again while
+          // macOS's momentum (shrinking deltas) is still coming in
+          const fresh = t0 - this.swipeAt > 220 || Math.sign(e.deltaX) !== Math.sign(this.swipePx) || (this.swipeFired && a > this.swipeLast * 1.6 && a > 6 && t0 - this.swipeFiredAt > 250);
+          if (fresh) (this.swipePx = 0), (this.swipeFired = false);
           this.swipeAt = t0;
+          this.swipeLast = a;
           this.swipePx += e.deltaX;
-          if (!this.swipeFired && Math.abs(this.swipePx) > 140) {
+          if (!this.swipeFired && Math.abs(this.swipePx) > 120) {
             this.swipeFired = true;
+            this.swipeFiredAt = t0;
             this.onGesture(this.swipePx > 0 ? "forward" : "back");
           }
           return;

@@ -751,7 +751,7 @@ export class Deck implements InputSink {
   pageTurn(big = false): void {
     const page = this.theme.anim.page;
     if (!this.settings.data.fx.glitch || page === "none" || (page === "glitch" && !big)) return;
-    this.transitions.run(page, page === "eink" ? 420 : page === "wipe" ? 260 : 220);
+    this.transitions.run(page, page === "eink" ? 320 : page === "wipe" ? 180 : 140);
     this.requestFrame();
   }
 

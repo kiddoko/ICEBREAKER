@@ -13,6 +13,8 @@
 html,
 body {
   margin: 0;
+  /* a sideways trackpad swipe must not bounce the whole page (black edges) */
+  overscroll-behavior: none;
   height: 100%;
   overflow: hidden;
   background: var(--deck-bg);
@@ -56,13 +58,28 @@ body {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  /* soft lines (a 3 px pitch: no shimmer when the page scrolls) */
   background: repeating-linear-gradient(
     to bottom,
-    rgba(0, 0, 0, calc(var(--scanlines) * 1.8)) 0px,
-    rgba(0, 0, 0, calc(var(--scanlines) * 1.8)) 1px,
-    transparent 1px,
-    transparent 2px
+    rgba(0, 0, 0, calc(var(--scanlines) * 1.3)) 0px,
+    rgba(0, 0, 0, calc(var(--scanlines) * 0.6)) 1px,
+    transparent 2px,
+    transparent 3px
   );
+}
+/* and the slow roll of an old tube: one faint band drifting down every 9 s */
+#scanlines::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 18%;
+  top: -18%;
+  background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, calc(var(--scanlines) * 0.18)), transparent);
+  animation: roll 9s linear infinite;
+}
+@keyframes roll {
+  to { transform: translateY(650%); }
 }
 
 /* with scanlines on: the glass of a CRT — rounded corners and a darker rim */

@@ -375,8 +375,11 @@ export class Sidebar {
         const md = entry.name.endsWith(".md");
         x = ui.text(x, row.y, depth > 0 ? "─" : "", guide);
         // the icon, then a space: a glyph never touches the name
+        // the icon slot is always 2 columns (icon or not): every name starts at the same place
         const icon = custom ?? (md ? "" : fileIcon(entry.name));
-        x = icon ? ui.text(ui.text(x, row.y, icon, { fg: c.accentAlt }), row.y, " ") : ui.text(x, row.y, " ");
+        const slot = x;
+        if (icon) ui.text(x + 1, row.y, [...icon][0], { fg: c.accentAlt });
+        x = slot + 3;
         const word = tag ? (mono ? t(tag) : "■") : "";
         ui.text(x, row.y, md ? entry.name.replace(/\.md$/, "") : entry.name, {
           fg: isOpen ? c.accentAlt : selected ? c.fg : c.muted,

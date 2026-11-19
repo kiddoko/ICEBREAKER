@@ -43,19 +43,21 @@ export class Transitions {
       return true;
     }
     if (this.kind === "wipe") {
+      // a bright line rolls down over the new page (already there: never a dark screen)
       const edge = Math.floor(p * (g.rows + 2));
-      for (let y = Math.max(0, edge); y < g.rows; y++) {
+      if (edge < g.rows) {
+        const row = edge * g.cols;
+        for (let x = 0; x < g.cols; x++) g.fg[row + x] = mix(g.fg[row + x] === NONE ? ink : g.fg[row + x], theme.c.accent, 0.8);
+      }
+      for (let y = Math.max(0, edge + 1); y < g.rows; y++) {
         const row = y * g.cols;
-        for (let x = 0; x < g.cols; x++) {
-          g.ch[row + x] = y === edge ? 0x2580 : 32; // ▀ the scan line
-          g.fg[row + x] = theme.c.accent;
-          g.bg[row + x] = bg;
-        }
+        for (let x = 0; x < g.cols; x++) g.fg[row + x] = mix(g.fg[row + x] === NONE ? ink : g.fg[row + x], bg, 0.3);
       }
       return true;
     }
     if (this.kind === "fade") {
-      const k = 1 - p;
+      // from 40 % dimmed, not from black
+      const k = (1 - p) * 0.4;
       for (let i = 0; i < n; i++) {
         g.fg[i] = mix(g.fg[i] === NONE ? ink : g.fg[i], bg, k);
         if (g.bg[i] !== NONE) g.bg[i] = mix(g.bg[i], bg, k);
