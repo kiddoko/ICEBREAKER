@@ -5,9 +5,10 @@
  * - A mouse notch (or the first event of a swipe) turns exactly one step.
  * - A trackpad sends dozens of tiny events: they add up, a step every few lines,
  *   and the ring follows the fingers in between (the pending fraction is shown).
- * - The ring eases toward where it's going with an exponential curve: it slows
- *   down little by little instead of stopping dead, and never runs more than a
- *   few steps ahead of what's on screen (so it stops soon after the fingers do).
+ * - The ring moves like a critically damped spring: it speeds up smoothly, slows
+ *   down little by little, never overshoots and never jumps — press a key ten
+ *   times fast and it glides through the ten, faster, instead of teleporting.
+ *   Integrated in small fixed steps, so it looks the same at 30, 60 or 120 fps.
  *
  * `pos` is where the ring is drawn; it is never reset (past the last comes the
  * first), compare it with `ring()`.
@@ -17,6 +18,8 @@ export class WheelSpin {
   pos = 0;
   /** the pending part of a step, in (-0.5, 0.5]: the ring leans toward the next one */
   private acc = 0;
+  /** how fast the ring turns right now (steps per second) */
+  private vel = 0;
   private at = 0;
 
   constructor(
@@ -44,6 +47,7 @@ export class WheelSpin {
   jump(sel: number): void {
     this.pos = sel;
     this.acc = 0;
+    this.vel = 0;
   }
 
   /**
@@ -56,14 +60,22 @@ export class WheelSpin {
     // fingers off: the pending fraction fades, the ring settles on the chosen one
     if (idle) this.acc *= Math.exp(-dt * 14);
     if (Math.abs(this.acc) < 0.002) this.acc = 0;
-    let gap = ring(sel + this.acc - this.pos, n);
-    // never more than 3 steps behind: it stops soon after the fingers do
-    if (Math.abs(gap) > 3) (this.pos += gap - Math.sign(gap) * 3), (gap = Math.sign(gap) * 3);
-    this.pos += gap * (1 - Math.exp(-dt * this.rate));
+    // a critically damped spring toward the target, in steps of 1/240 s
+    const w = this.rate * 1.7;
+    for (let left = Math.min(dt, 0.1); left > 0; left -= 1 / 240) {
+      const h = Math.min(left, 1 / 240);
+      const gap = ring(sel + this.acc - this.pos, n);
+      this.vel += (w * w * gap - 2 * w * this.vel) * h;
+      this.pos += this.vel * h;
+    }
     const left = Math.abs(ring(sel + this.acc - this.pos, n));
-    if (left < 0.001 && !this.acc) this.pos += ring(sel - this.pos, n);
-    return left;
+    if (left < 0.001 && Math.abs(this.vel) < 0.02 && !this.acc) {
+      this.pos += ring(sel - this.pos, n);
+      this.vel = 0;
+    }
+    return left + Math.abs(this.vel) * 0.01;
   }
+
 }
 
 /** The shortest way round a ring of n: a signed distance in (-n/2, n/2]. */

@@ -12,7 +12,7 @@ function dot(c: TagColor, ch = "●"): string {
 export const tagCommand: Command = {
   name: "tag",
   summary: "colour tags on files and folders (red, orange, yellow, green, cyan, blue, purple, pink)",
-  usage: "tag                        every tag, by colour\ntag <path> <colour>        tag it\ntag rm <path>              untag it\ntag ls <colour>            everything of that colour\ntag view <colour> | off    the tree shows only that colour",
+  usage: "tag                        every tag, by colour\ntag <path> <colour>        tag it\ntag rm <path>              untag it\ntag ls <colour>            everything of that colour\ntag view <colour…> | off  the tree shows those colours (+red adds / takes out one)",
   man: "Colours: " + TAG_NAMES.join(", ") + ".\nThe colour shows on the icon in the tree (VAULT). Click a dot above the tree to see one colour only.\nStored in the vault, in .icebreaker/tags.json: they travel with it. Renames carry them; the trash drops them.\nRight-click on a file or folder → colour does the same.",
   examples: [
     ["tag notes/ideas.md red", "a red note"],
@@ -41,10 +41,20 @@ export const tagCommand: Command = {
       return 0;
     }
     if (a === "view") {
-      if (!b || b === "off") return d.workspace.sidebar.setFilter(null), ctx.out(fmt.dim("the tree shows everything\n")), 0;
-      if (!isTagColor(b)) return ctx.err(`tag view: "${b}" isn't a colour (${TAG_NAMES.join(", ")})\n`), 1;
-      d.workspace.sidebar.setFilter(b);
-      ctx.out(`${dot(b)} the tree shows ${b} only — tag view off\n`);
+      // tag view red blue (those) · tag view +red (add / take out one) · tag view off
+      const sb = d.workspace.sidebar;
+      const words = ctx.args.slice(1);
+      if (!words.length || words[0] === "off") return sb.setFilter([]), ctx.out(fmt.dim("the tree shows everything\n")), 0;
+      const bad = words.find((w) => !isTagColor(w.replace(/^\+/, "")));
+      if (bad) return ctx.err(`tag view: "${bad}" isn't a colour (${TAG_NAMES.join(", ")})\n`), 1;
+      const next = new Set(words.some((w) => w.startsWith("+")) ? sb.colours : []);
+      for (const w of words) {
+        const c = w.replace(/^\+/, "") as TagColor;
+        if (w.startsWith("+") && next.has(c)) next.delete(c);
+        else next.add(c);
+      }
+      sb.setFilter([...next]);
+      ctx.out(next.size ? `the tree shows ${[...next].join(", ")} — tag view off\n` : fmt.dim("the tree shows everything\n"));
       return 0;
     }
     if (a === "rm") {

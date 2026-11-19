@@ -439,7 +439,7 @@ export const uiCommands: Command[] = [
   {
     name: "modules",
     summary: "all apps and plugins (key on HOME: m); what they expose to each other",
-    usage: "modules                         the MODULES ring\nmodules tag <module> <colour>   give it a colour (red, orange, yellow, green, cyan, blue, purple, pink) · modules tag <module> rm\nmodules view <colour> | off     MODULES shows only that colour\nmodules api [module]            functions modules expose to each other (ib.modules)\nmodules call <module> <fn> [args…]   call one (args: text, numbers or JSON)",
+    usage: "modules                         the MODULES ring\nmodules tag <module> <colour>   give it a colour (red, orange, yellow, green, cyan, blue, purple, pink) · modules tag <module> rm\nmodules view <colour…> | off   MODULES shows those colours (or: / to search, the squares)\nmodules api [module]            functions modules expose to each other (ib.modules)\nmodules call <module> <fn> [args…]   call one (args: text, numbers or JSON)",
     examples: [
       ["modules api", "every function a module can call"],
       ['modules call todo add "walk the dog"', "add a task through the TODO module's API"],
@@ -461,11 +461,12 @@ export const uiCommands: Command[] = [
         return ctx.out(`${mod}: ${tags[mod] ?? "no colour"}\n`), 0;
       }
       if (sub === "view") {
-        const app = (d.workspace.findTab("modules") ?? d.openApp("modules")) as { filter?: unknown } | null;
-        if (!app) return 1;
-        if (!mod || mod === "off" || mod === "all") app.filter = null;
-        else if (isTagColor(mod)) app.filter = mod;
-        else return ctx.err(`usage: modules view <colour> | off   (${TAG_NAMES.join(", ")})\n`), 1;
+        const app = (d.workspace.findTab("modules") ?? d.openApp("modules")) as { filter?: { colours: Set<string>; clear(): void } } | null;
+        if (!app?.filter) return 1;
+        const cs = [mod, fn, ...rest].filter(Boolean) as string[];
+        if (!cs.length || cs[0] === "off" || cs[0] === "all") app.filter.clear();
+        else if (cs.every(isTagColor)) app.filter.colours = new Set(cs);
+        else return ctx.err(`usage: modules view <colour…> | off   (${TAG_NAMES.join(", ")})\n`), 1;
         d.requestFrame();
         return 0;
       }

@@ -804,7 +804,7 @@ export class Workspace {
         break;
       case "wheel":
         this.tipHidden = true;
-        pick((x) => !!x.onWheel)?.onWheel?.(m.delta);
+        pick((x) => !!x.onWheel)?.onWheel?.(m.delta, m);
         break;
     }
   }

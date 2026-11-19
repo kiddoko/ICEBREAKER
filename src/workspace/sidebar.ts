@@ -37,8 +37,8 @@ export class Sidebar {
   private lastList: Rect | null = null;
   /** wheel / trackpad steps (a few trackpad lines per file) */
   private spin = new WheelSpin(3);
-  /** colour view: only what has this tag (tag view <colour>) */
-  filter: TagColor | null = null;
+  /** colour view: only what wears one of these colours (tag view <colour…>), several at once */
+  readonly colours = new Set<TagColor>();
   private builtKey = "";
 
   constructor(private readonly deck: Deck) {
@@ -79,8 +79,9 @@ export class Sidebar {
     this.list.dragLabel = (row) => `${row.entry.isDir ? "▸" : "≡"} ${row.entry.name}`;
     this.list.dropEndLabel = ` ↳ ${t("to the vault's root")} `;
     // the wheel walks the tree file by file and shows each one at once (Settings → VAULT)
-    this.list.wheel = (lines) => {
-      if (!deck.settings.data.editor.treeWheel || this.list.items.length === 0) return false;
+    // the wheel scrolls the tree; shift + wheel walks it file by file and shows each one
+    this.list.wheel = (lines, m) => {
+      if (!m.shift || !deck.settings.data.editor.treeWheel || this.list.items.length === 0) return false;
       const steps = this.spin.wheel(lines);
       if (!steps) return true;
       // past the last row comes the first again (and the other way)
@@ -102,9 +103,10 @@ export class Sidebar {
     return this.list.current?.entry.path ?? null;
   }
 
-  /** Show one colour only (null: everything). */
-  setFilter(c: TagColor | null): void {
-    this.filter = c;
+  /** Show only these colours (none: everything). */
+  setFilter(cs: TagColor[]): void {
+    this.colours.clear();
+    for (const c of cs) this.colours.add(c);
     this.version++;
     this.list.select(0);
     this.list.scrollTop = 0;
@@ -113,8 +115,8 @@ export class Sidebar {
   private rebuild(): void {
     const all = this.deck.vault.entries;
     const rows: Row[] = [];
-    if (this.filter) {
-      const paths = this.deck.marks.tagged(this.filter);
+    if (this.colours.size) {
+      const paths = [...this.colours].flatMap((c) => this.deck.marks.tagged(c)).sort();
       paths.forEach((p, i) => {
         const entry = this.deck.vault.find(p) ?? (this.deck.vault.isDir(p) ? { path: p, name: basename(p), isDir: true, size: 0, modified: 0 } as VaultEntry : undefined);
         if (entry) rows.push({ entry, depth: 0, last: i === paths.length - 1, rails: [], flat: true });
@@ -363,7 +365,7 @@ export class Sidebar {
   }
 
   render(ui: UI, r: Rect, focused: boolean): void {
-    const key = `${this.version}:${this.filter ? this.deck.marks.version : 0}`;
+    const key = `${this.version}:${this.colours.size ? this.deck.marks.version : 0}`;
     if (this.builtKey !== key) {
       this.builtKey = key;
       this.rebuild();
@@ -396,24 +398,24 @@ export class Sidebar {
           ty++;
           dx = r.x + 1;
         }
-        const on = this.filter === tc;
+        const on = this.colours.has(tc);
         const rect = { x: dx, y: ty, w: w + 1, h: 1 };
         const hot = ui.hovered(rect);
         ui.text(dx, ty, label, { fg: on ? c.panel : counts[tc] || hot ? c.fg : c.faint, bg: on ? c.accent : hot ? c.highlight : undefined, attrs: counts[tc] || on ? BOLD : 0 });
-        ui.hit(rect, { cmd: on ? "tag view off" : `tag view ${tc}`, tip: `${t(tc)} · ${counts[tc]}\n${on ? t("click: show everything") : t("click: show only this colour")}` });
+        ui.hit(rect, { cmd: `tag view +${tc}`, tip: `${t(tc)} · ${counts[tc]}\n${on ? t("click: take this colour out") : t("click: add this colour")}` });
         dx += w + 1;
       }
     } else for (const tc of TAG_NAMES) {
       if (dx + 2 > r.x + r.w) break;
-      const on = this.filter === tc;
+      const on = this.colours.has(tc);
       const n = counts[tc];
       const rect = { x: dx, y: r.y + 1, w: 2, h: 1 };
       const hot = ui.hovered(rect);
       ui.text(dx, r.y + 1, on ? "▣" : n ? "■" : "□", { fg: n || on || hot ? tagRGB(tc) : mix(tagRGB(tc), c.bg, 0.45), bg: on || hot ? c.highlight : undefined });
-      ui.hit(rect, { cmd: on ? "tag view off" : `tag view ${tc}`, tip: `${t(tc)} · ${n}\n${on ? t("click: show everything") : t("click: show only this colour")}` });
+      ui.hit(rect, { cmd: `tag view +${tc}`, tip: `${t(tc)} · ${n}\n${on ? t("click: take this colour out") : t("click: add this colour")}` });
       dx += 2;
     }
-    if (this.filter && dx + 4 <= r.x + r.w) {
+    if (this.colours.size && dx + 4 <= r.x + r.w) {
       const xr = { x: dx, y: r.y + tagRows, w: 3, h: 1 };
       ui.text(dx, r.y + tagRows, " × ", { fg: ui.hovered(xr) ? c.error : c.subtle });
       ui.hit(xr, { cmd: "tag view off", tip: t("show everything") });
@@ -503,7 +505,7 @@ export class Sidebar {
         if (isOpen) ui.text(row.x, row.y, "▌", { fg: c.accentAlt });
       }
     });
-    if (this.list.items.length === 0) ui.text(list.x + 2, list.y + 1, this.filter ? t("nothing {colour} yet", { colour: t(this.filter) }) : "empty vault", { fg: c.subtle }, list.w - 3);
+    if (this.list.items.length === 0) ui.text(list.x + 2, list.y + 1, this.colours.size ? t("nothing {colour} yet", { colour: [...this.colours].map((x) => t(x)).join(" · ") }) : "empty vault", { fg: c.subtle }, list.w - 3);
   }
 }
 

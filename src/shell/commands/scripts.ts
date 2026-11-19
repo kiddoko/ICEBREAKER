@@ -10,7 +10,7 @@
 import { fmt } from "../../core/ansi";
 import type { Deck } from "../../deck";
 import type { Command } from "../types";
-import { pickFile } from "../../workspace/filepicker";
+import { pickFile } from "../../workspace/filebrowser";
 import { q } from "../../ui/ui";
 
 /** Scripts that aren't ibsh run in your system terminal with their interpreter. */

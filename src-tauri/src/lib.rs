@@ -40,6 +40,8 @@ pub fn run() {
         .manage(audio::AudioState::default())
         .setup(|app| {
             term::start_bridge(app.handle());
+            #[cfg(target_os = "macos")]
+            promotion::unlock(app);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -144,4 +146,38 @@ fn mac_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<tauri
         &[&PredefinedMenuItem::minimize(app, None)?, &PredefinedMenuItem::maximize(app, None)?],
     )?;
     Menu::with_items(app, &[&app_menu, &edit_menu, &view_menu, &window_menu])
+}
+
+/// ProMotion (adaptive refresh, up to 120 Hz on recent Macs): WebKit holds page
+/// animations near 60 fps unless told otherwise. We turn that preference off so
+/// the deck follows the screen's real rate — 120 when the Mac runs at full speed,
+/// less in Low Power mode (macOS lowers the screen's rate itself). A private
+/// WebKit setting: we ask first whether this WebKit knows it, and skip if not.
+#[cfg(target_os = "macos")]
+mod promotion {
+    use objc2::runtime::{AnyObject, Bool};
+    use objc2::{msg_send, sel};
+    use tauri::Manager;
+
+    pub fn unlock(app: &tauri::App) {
+        let Some(win) = app.get_webview_window("main") else { return };
+        let _ = win.with_webview(|wv| unsafe {
+            let wk = wv.inner() as *mut AnyObject;
+            if wk.is_null() {
+                return;
+            }
+            let config: *mut AnyObject = msg_send![&*wk, configuration];
+            if config.is_null() {
+                return;
+            }
+            let prefs: *mut AnyObject = msg_send![&*config, preferences];
+            if prefs.is_null() {
+                return;
+            }
+            let knows: Bool = msg_send![&*prefs, respondsToSelector: sel!(_setPreferPageRenderingUpdatesNear60FPSEnabled:)];
+            if knows.as_bool() {
+                let _: () = msg_send![&*prefs, _setPreferPageRenderingUpdatesNear60FPSEnabled: Bool::NO];
+            }
+        });
+    }
 }

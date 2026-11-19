@@ -262,8 +262,10 @@ export class InputManager {
           }
           return;
         }
+        // shift+wheel: browsers turn it into a sideways scroll — it's still the wheel (with shift)
+        const shifted = e.shiftKey && Math.abs(e.deltaX) > Math.abs(e.deltaY);
         // a two-finger swipe sideways: one tab per swipe (left → next, right → previous)
-        if (Math.abs(e.deltaX) > Math.abs(e.deltaY) * 1.5) {
+        if (!shifted && Math.abs(e.deltaX) > Math.abs(e.deltaY) * 1.5) {
           const a = Math.abs(e.deltaX);
           // a new swipe: a pause, a change of direction, or deltas growing again while
           // macOS's momentum (shrinking deltas) is still coming in
@@ -283,7 +285,8 @@ export class InputManager {
         // Trackpads send many tiny events: add up the pixels and report whole lines
         // (one line = one cell). A lone notch of a slow mouse wheel still moves one line.
         const cellH = this.renderer.cellH || 16;
-        const px = e.deltaMode === 1 ? e.deltaY * cellH : e.deltaMode === 2 ? e.deltaY * cellH * 20 : e.deltaY;
+        const dy = shifted ? e.deltaX : e.deltaY;
+        const px = e.deltaMode === 1 ? dy * cellH : e.deltaMode === 2 ? dy * cellH * 20 : dy;
         const now = performance.now();
         const lone = now - this.wheelAt > 250;
         this.wheelAt = now;

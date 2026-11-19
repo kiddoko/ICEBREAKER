@@ -39,3 +39,7 @@ lto = true
 opt-level = "s"
 panic = "abort"
 strip = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# ProMotion: lift WebKit's 60 fps preference (lib.rs, mod promotion)
+objc2 = "0.6"

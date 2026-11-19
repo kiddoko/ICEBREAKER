@@ -1,7 +1,6 @@
 import { ago } from "../../core/time";
 import { fmt } from "../../core/ansi";
 import type { Deck } from "../../deck";
-import { q } from "../../ui/ui";
 import type { Command } from "../types";
 
 /**
@@ -35,27 +34,12 @@ export async function trashItems(deck: Deck): Promise<TrashItem[]> {
 }
 
 
-/** The trash as a list: pick something, then restore it (or open it). */
-export async function trashMenu(deck: Deck): Promise<void> {
-  const items = await trashItems(deck);
-  if (!items.length) return deck.notify("the trash is empty");
-  const i = await deck.choose(`Trash · ${items.length}`, items.map((it) => ({ label: `${it.isDir ? "▸ " : ""}${it.name}`, hint: `${it.from ? `from /${it.from} · ` : ""}${ago(it.at.getTime(), true)} ago` })));
-  if (i === null) return;
-  const it = items[i];
-  const a = await deck.choose(it.name, [{ label: `restore${it.from ? ` → /${it.from}` : ""}` }, { label: "restore somewhere else…" }, ...(it.isDir ? [] : [{ label: "open it (read only)" }])]);
-  if (a === 0) void deck.act(`trash restore ${q(it.path)}`);
-  else if (a === 1) {
-    const to = await deck.prompt("Restore to (a path in the vault)", { initial: it.from || it.name });
-    if (to?.trim()) void deck.act(`trash restore ${q(it.path)} ${q(to.trim())}`);
-  } else if (a === 2) void deck.openFile(it.path);
-}
-
 export const trashCommand: Command = {
   name: "trash",
   summary: "what's in the vault's trash, and put things back (⌫ above the tree)",
-  usage: "trash                      the list\ntrash restore <n|name>     back where it was\ntrash restore <n> <path>   somewhere else\ntrash open                 the TRASH page (⌫ above the tree)\ntrash menu                 a quick pick list instead",
+  usage: "trash                      the list\ntrash restore <n|name>     back where it was\ntrash restore <n> <path>   somewhere else\ntrash open                 the TRASH page (⌫ above the tree, ⌘⇧⌫)",
   man: "rm, Delete in the tree and right-click → trash move things to <vault>/.trash — nothing is deleted for good.\nThe deck remembers where each thing lived (.icebreaker/trash.json), so restore puts it back.\nTo empty the trash for real, delete the .trash folder in your file manager.",
-  complete: () => ["restore", "open", "menu"],
+  complete: () => ["restore", "open"],
   async run(ctx) {
     const d = ctx.deck;
     const [sub, which, to] = ctx.args;
@@ -66,8 +50,7 @@ export const trashCommand: Command = {
       ctx.out(fmt.dim("trash restore <n> puts one back\n"));
       return 0;
     }
-    if (sub === "open" || sub === "page") return void d.openApp("trash"), 0;
-    if (sub === "menu") return void trashMenu(d), 0;
+    if (sub === "open" || sub === "page" || sub === "menu") return void d.openApp("trash"), 0;
     if (sub === "restore") {
       if (!which) return ctx.err("usage: trash restore <n|name> [path]\n"), 1;
       const it = /^\d+$/.test(which) ? items[Number(which) - 1] : items.find((x) => x.path === which || x.name === which);

@@ -29,7 +29,7 @@ export function frameServices(deck: Deck): Record<string, Record<string, Service
   return {
     tree: {
       reveal: { doc: "reveal(path) → opens its folders and selects it in the tree", fn: (path: string) => ws().sidebar.reveal(String(path)) },
-      filter: { doc: 'filter(colour | null) → the tree (and NEXUS) show only that colour ("red"…), null = everything', fn: (c: string | null) => ws().sidebar.setFilter(c && isTagColor(c) ? c : null) },
+      filter: { doc: 'filter(["red", "blue"]) → the tree shows only those colours; [] = everything', fn: (cs: string[] | string | null) => ws().sidebar.setFilter((Array.isArray(cs) ? cs : cs ? [cs] : []).filter(isTagColor)) },
       selected: { doc: "selected() → the path selected in the tree (or null)", fn: () => ws().sidebar.selectedPath() },
       toggle: { doc: "toggle() → shows / hides the tree", fn: () => ws().toggleSidebar() },
     },

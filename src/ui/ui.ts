@@ -37,7 +37,8 @@ export interface Hit {
   onDrag?: (m: MouseInput) => void;
   /** The button is released after a click on this area (end of a drag). */
   onUp?: (m: MouseInput) => void;
-  onWheel?: (delta: number) => void;
+  /** the wheel over it: lines (positive = down), and the mouse event (shift held…) */
+  onWheel?: (delta: number, m: MouseInput) => void;
   /** Right click: a custom handler. Most places give a `menu` instead. */
   onRight?: (m: MouseInput) => void;
   /**

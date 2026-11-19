@@ -1,5 +1,5 @@
 import { mix } from "../core/color";
-import type { Action } from "../core/input";
+import type { Action, MouseInput } from "../core/input";
 import { BOLD, type Rect } from "../core/grid";
 import type { MenuEntry, UI } from "./ui";
 
@@ -37,7 +37,7 @@ export class ListView<T> {
    */
   onDrop?: (item: T, target: T | undefined) => void;
   /** the wheel over the list: return true to take it (else it scrolls) */
-  wheel?: (lines: number) => boolean;
+  wheel?: (lines: number, m: MouseInput) => boolean;
   /** a row lit as a drop target by something outside the list (files from the Finder) */
   hoverDrop: number | null = null;
   private lastRect: Rect = { x: 0, y: 0, w: 0, h: 0 };
@@ -248,6 +248,6 @@ export class ListView<T> {
       const thumbY = r.y + Math.round((this.scrollTop / (this.items.length - this.viewH)) * (this.viewH - thumbH));
       ui.vline(r.x + r.w - 1, thumbY, thumbH, { fg: focused ? ui.c.accent : ui.c.subtle }, "▐");
     }
-    ui.hit(r, { onWheel: (d) => void (this.wheel?.(d) || (this.scrollTop = Math.max(0, this.scrollTop + d))) });
+    ui.hit(r, { onWheel: (d, m) => void (this.wheel?.(d, m) || (this.scrollTop = Math.max(0, this.scrollTop + d))) });
   }
 }

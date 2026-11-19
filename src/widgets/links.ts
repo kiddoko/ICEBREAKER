@@ -1,6 +1,6 @@
 import { mix } from "../core/color";
 import type { Rect } from "../core/grid";
-import { FolderPopup } from "../workspace/folderpopup";
+import { FileBrowser } from "../workspace/filebrowser";
 import type { UI } from "../ui/ui";
 import { strWidth, truncate } from "../core/unicode";
 import { BOLD } from "../core/grid";
@@ -103,7 +103,7 @@ function linkSpec(l: HomeLink): WidgetSpec {
     frameless: true,
     // a folder opens its little browser under the square; the rest run their command
     activate: ({ deck }) => {
-      if (kind === "folder") deck.workspace.push(new FolderPopup(deck, folderOf(l), drawnAt.get(l.id) ?? { x: 10, y: 5, w: 10, h: 3 }));
+      if (kind === "folder") deck.workspace.push(new FileBrowser(deck, { source: "vault", start: folderOf(l), title: `▣ ${l.label}`, anchor: drawnAt.get(l.id) }));
       else void deck.act(l.cmd);
     },
     render(ui, r, { focused }) {

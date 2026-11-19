@@ -6,7 +6,7 @@ import type { Deck } from "../deck";
 import { decrypt } from "../fx/glitch";
 import type { MenuEntry, UI } from "../ui/ui";
 import { ring, WheelSpin } from "../ui/wheelspin";
-import { drawTagBar } from "../ui/tagbar";
+import { FilterBar } from "../ui/filterbar";
 import { addToWheel } from "../workspace/actionwheel";
 import { isTagColor, TAG_NAMES, tagRGB, type TagColor } from "../vault/marks";
 import type { App, AppSpec } from "./types";
@@ -46,8 +46,8 @@ export class ModulesApp implements App {
   /** spin.pos, read by the floor and the ring this frame */
   private depth = 0;
   private lastT = 0;
-  /** only the modules of this colour (modules view <colour>) */
-  filter: TagColor | null = null;
+  /** search + colours (the same bar as NEXUS): / types, squares tick colours (modules view <colour…>) */
+  readonly filter = new FilterBar();
   /** a shard going into its socket (enter): it launches once it's in */
   private inserting: { at: number; id: string } | null = null;
   private bornAt = performance.now();
@@ -93,7 +93,7 @@ export class ModulesApp implements App {
       if (tg && isTagColor(tg)) m.tag = tg;
     }
     const all = [...doors, ...mods];
-    return this.filter ? all.filter((c) => c.tag === this.filter) : all;
+    return this.filter.active ? all.filter((c) => this.filter.matches(`${c.name} ${c.id} ${c.description}`, c.tag)) : all;
   }
 
   /** how many modules wear each colour (the squares at the top) */
@@ -140,7 +140,7 @@ export class ModulesApp implements App {
             ...TAG_NAMES.map((tc) => ({ label: t(tc), color: tagRGB(tc), hint: c.tag === tc ? "✓" : "", cmd: `modules tag ${c.id} ${tc}` })),
             "-" as const,
             { label: t("no colour"), cmd: `modules tag ${c.id} rm`, disabled: !c.tag },
-            { label: t("see this colour only"), cmd: `modules view ${c.tag}`, disabled: !c.tag },
+            { label: t("see this colour"), cmd: `modules view ${c.tag}`, disabled: !c.tag },
           ],
         },
         "-",
@@ -158,6 +158,7 @@ export class ModulesApp implements App {
   }
 
   onText(s: string): boolean {
+    if (this.filter.onText(s)) return (this.sel = 0), true;
     const c = this.carts()[this.sel];
     if (s === " " && c?.module) return void this.deck.act(`plugin ${c.on ? "disable" : "enable"} ${c.id}`), true;
     if (s === "x" && c?.module) {
@@ -171,6 +172,7 @@ export class ModulesApp implements App {
     return false;
   }
   onKey(k: KeyInput): boolean {
+    if (this.filter.onKey(k)) return (this.sel = 0), true;
     if (k.combo === "delete") return this.onText("x");
     return false;
   }
@@ -203,11 +205,11 @@ export class ModulesApp implements App {
     const field = { x: r.x, y: top + 1, w: r.w, h: sceneH };
     const n = carts.length;
     // the colour squares, top right: only one colour's modules (modules view <colour>)
-    const tagBar = () => drawTagBar(ui, r.x + r.w - 1, top, this.filter, this.tagCounts(), (tc) => `modules view ${tc ?? "off"}`);
+    const tagBar = () => this.filter.render(ui, { x: r.x + 2, y: top, w: r.w - 3, h: 1 }, this.tagCounts());
     if (!n) {
       tagBar();
-      ui.textCenter(field, field.y + Math.floor(field.h / 2), t("no module of this colour"), { fg: c.muted });
-      ui.textCenter(field, field.y + Math.floor(field.h / 2) + 1, t("right-click a module → colour · × shows them all"), { fg: c.faint });
+      ui.textCenter(field, field.y + Math.floor(field.h / 2), t("nothing matches"), { fg: c.muted });
+      ui.textCenter(field, field.y + Math.floor(field.h / 2) + 1, t("esc clears the search · × shows everything"), { fg: c.faint });
       return;
     }
     // ease the ring the short way round (pos never resets: past the last comes the first)
@@ -252,9 +254,11 @@ export class ModulesApp implements App {
     const roomy = bottom - horizon >= 16;
     for (const v of shown) {
       const near = (v.z + 1) / 2;
-      const big = near > 0.93, mid = near > 0.7;
-      const w = big ? (roomy ? 30 : 26) : mid ? 20 : 14;
-      const h = big ? (roomy ? 14 : 12) : mid ? 9 : 7;
+      // sizes follow the depth continuously (no jump from one size to the next)
+      const big = near > 0.93;
+      const k = near * near;
+      const w = Math.round(14 + ((roomy ? 30 : 26) - 14) * k);
+      const h = Math.round(7 + ((roomy ? 14 : 12) - 7) * k);
       const y = Math.round(horizon + 1 + near * near * Math.max(0, bottom - horizon - h - 1)) - (big ? 1 : 0);
       const rect = { x: Math.round(v.x - w / 2), y, w, h };
       if (rect.x + rect.w < r.x || rect.x >= r.x + r.w) continue;
@@ -287,7 +291,6 @@ export class ModulesApp implements App {
     }
 
     tagBar();
-    if (this.filter) ui.text(r.x + 2, top, `${t("only")} ■ ${t(this.filter)} · ${n}`, { fg: tagRGB(this.filter) });
 
     // the bar: what it is, what you can do
     const cur = carts[this.sel];

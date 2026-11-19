@@ -2,8 +2,7 @@ import { avatarGlyph, avatarOf } from "../core/avatar";
 import { AvatarPicker } from "../workspace/avatarpicker";
 import { SOUND_PACKS } from "../core/sound";
 import { t } from "../core/i18n";
-import { DECK_KEYS, displayKeys, keysOf, SHORTCUTS } from "../core/shortcuts";
-import { rebind } from "./shortcuts";
+import { displayKeys } from "../core/shortcuts";
 import { DEFAULT_SETTINGS } from "../core/settings";
 import { SETTINGS_HELP } from "./settings-help";
 import { focus } from "../widgets/focusstate";
@@ -277,9 +276,8 @@ export class SettingsApp implements App {
         if (cmd?.trim()) void d.act(`bind ${keys.trim()} ${q(cmd.trim())}`);
       } },
       ...Object.entries(s.data.keys ?? {}).map(([k, cmd]): Row => ({ label: `★ ${cmd}`, value: () => displayKeys(k), cmd: () => `unbind ${k}`, change: () => void d.act(`unbind ${k}`) })),
-      // the deck's shortcuts: a click changes the keys, ↺ puts the default back
-      ...DECK_KEYS.map((sc): Row => ({ key: `keys.${sc.id}`, label: `${t(sc.what)}  · ${t(sc.cat)}`, value: () => displayKeys(keysOf(sc, s.data.keyOverrides)) || t("(off)"), cmd: () => `keys set ${sc.id} …`, change: () => rebind(d, sc) })),
-      ...SHORTCUTS.filter((sc) => !sc.id).map((sc): Row => ({ label: `${t(sc.what)}  · ${t(sc.cat)}`, value: () => displayKeys(sc.keys), cmd: sc.cmd ? () => sc.cmd! : undefined, change: sc.cmd ? () => void d.act(sc.cmd!) : undefined })),
+      // (every shortcut, with F2 to change it and Del for its default, lives on the SHORTCUTS page: one place)
+      { label: "change a deck shortcut / back to the defaults", value: () => `${Object.keys(s.data.keyOverrides ?? {}).length} ${t("changed")}`, cmd: () => "keys list", change: () => void d.openApp("shortcuts") },
       { section: "OVERVIEW", label: "", value: () => "" },
       { label: "modules on", value: () => `${d.plugins.active().length} / ${d.plugins.list().length}`, cmd: () => "modules", change: () => void d.openApp("modules") },
       { label: "store", value: () => "open", cmd: () => "store", change: () => void d.act("store") },
@@ -287,7 +285,7 @@ export class SettingsApp implements App {
       { section: "VAULT", label: "", value: () => "" },
       text("journal.folder", "journal folder"),
       toggle("editor.autosave", "autosave notes"),
-      toggle("editor.treeWheel", "wheel over the tree shows each file"),
+      toggle("editor.treeWheel", "shift + wheel over the tree shows each file"),
       {
         label: "vault folder",
         value: () => d.vault.root,
@@ -318,6 +316,8 @@ export class SettingsApp implements App {
   private pane: "cats" | "rows" = "cats";
   private query = "";
   private scroll = 0;
+  /** the selection the view last followed */
+  private shownSel = -1;
 
   /** what the right side shows: the category, or the search results across all of them */
   private shown(): { row: Row; from: string }[] {
@@ -340,7 +340,7 @@ export class SettingsApp implements App {
 
   // ── back to default ──────────────────────────────────────────────────────
 
-  /** A setting's default value (module settings: what the module registered; shortcuts: the table). */
+  /** A setting's default value (module settings: what the module registered). */
   private defaultOf(key: string): unknown {
     if (key.startsWith("plugin.")) {
       const [, id, k] = key.split(".");
@@ -353,7 +353,6 @@ export class SettingsApp implements App {
   private isDefault(key: string | undefined): boolean {
     if (!key) return true;
     const d = this.deck;
-    if (key.startsWith("keys.")) return !(key.slice(5) in (d.settings.data.keyOverrides ?? {}));
     if (key.startsWith("plugin.")) {
       const [, id, k] = key.split(".");
       return JSON.stringify(d.moduleSettingValue(id, k) ?? null) === JSON.stringify(this.defaultOf(key) ?? null);
@@ -365,7 +364,6 @@ export class SettingsApp implements App {
   /** Put one setting back to its default (no question: the caller asked). */
   private resetKey(key: string): void {
     const d = this.deck;
-    if (key.startsWith("keys.")) return void d.act(`keys reset ${key.slice(5)}`);
     if (key.startsWith("plugin.")) {
       const [, id, k] = key.split(".");
       return d.setModuleSetting(id, k, this.defaultOf(key));
@@ -554,8 +552,13 @@ export class SettingsApp implements App {
     // a big interface scale leaves few lines: the help box at the bottom goes first, the settings stay
     const helpH = r.h - (top - r.y) >= 16 ? 7 : 1;
     const room = Math.max(1, r.y + r.h - top - helpH);
-    if (this.sel < this.scroll) this.scroll = this.sel;
-    if (this.sel >= this.scroll + room) this.scroll = this.sel - room + 1;
+    // keep the selected row in view only when the selection moves (else the wheel
+    // could never scroll away from it)
+    if (this.sel !== this.shownSel) {
+      if (this.sel < this.scroll) this.scroll = this.sel;
+      if (this.sel >= this.scroll + room) this.scroll = this.sel - room + 1;
+      this.shownSel = this.sel;
+    }
     this.scroll = Math.max(0, Math.min(this.scroll, Math.max(0, rows.length - room)));
     ui.hit({ x: rx, y: top, w: rw, h: room }, { onWheel: (d) => (this.scroll = Math.max(0, Math.min(Math.max(0, rows.length - room), this.scroll + d))) });
     if (!rows.length) ui.text(rx, top, t("nothing matches — esc clears the search"), { fg: c.muted });

@@ -1,11 +1,12 @@
 import { mix, type RGB } from "../core/color";
+import { t as tr } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import { drawBackground } from "../fx/backgrounds";
 import { dots } from "../ui/dots";
 import { ring, WheelSpin } from "../ui/wheelspin";
-import { drawTagBar } from "../ui/tagbar";
+import { FilterBar } from "../ui/filterbar";
 import { tagRGB, type TagColor } from "../vault/marks";
 import { decrypt } from "../fx/glitch";
 import type { VaultEntry } from "../platform/types";
@@ -57,15 +58,18 @@ export class ExplorerApp implements App {
   }
 
   status(): string {
-    return "←→ turn · enter open · ⌫ up · / search · + note · F2 rename · del trash · : actions";
+    return "←→ turn · enter open · ⌫ up · / filter · + note · F2 rename · del trash · : actions";
   }
 
+  /** search + colours (the same bar as MODULES): / types, squares tick colours */
+  readonly filter = new FilterBar();
+
   private items(): VaultEntry[] {
-    // a colour shown (tag view red, the squares top right): what has it, and the folders that hold some
-    const tag = this.deck.workspace.sidebar.filter;
+    // colours ticked: what wears one, and the folders that hold some; a search: the names
+    const bar = this.filter;
     const marks = this.deck.marks;
-    const tagged = tag ? marks.tagged(tag) : [];
-    const keep = (e: VaultEntry) => !tag || marks.tagOf(e.path) === tag || (e.isDir && tagged.some((p) => p.startsWith(`${e.path}/`)));
+    const tagged = bar.colours.size ? [...bar.colours].flatMap((c) => marks.tagged(c)) : [];
+    const keep = (e: VaultEntry) => !bar.active || bar.matches(e.name, marks.tagOf(e.path) ?? null) || (e.isDir && !bar.query && tagged.some((p) => p.startsWith(`${e.path}/`)));
     return this.deck.vault.entries
       .filter((e) => dirname(e.path) === this.dir && keep(e))
       .sort(
@@ -179,7 +183,7 @@ export class ExplorerApp implements App {
   }
 
   onText(t: string): boolean {
-    if (t === "/") return void this.search(), true;
+    if (this.filter.onText(t)) return (this.sel = 0), true;
     if (t === "+") return void this.newNote(), true;
     if (t === ":") return void this.actionMenu(), true;
     if (!/^[\p{L}\p{N}._ -]$/u.test(t)) return false;
@@ -193,6 +197,7 @@ export class ExplorerApp implements App {
   }
 
   onKey(k: KeyInput): boolean {
+    if (this.filter.onKey(k)) return (this.sel = 0), true;
     if (k.combo === "backspace") return this.up();
     if (k.combo === "f2") return void this.rename(), true;
     if (k.combo === "delete") return void this.trash(), true;
@@ -300,10 +305,10 @@ export class ExplorerApp implements App {
     if (tx - 12 > bx) ui.textRight(tx - 1, r.y, `${items.length} node${items.length === 1 ? "" : "s"} `, { fg: c.subtle });
 
     if (!items.length) {
-      const tag = this.deck.workspace.sidebar.filter;
-      ui.textCenter(r, horizon + 2, tag ? `nothing ${tag} here` : "empty sector", { fg: c.muted, attrs: BOLD });
-      ui.textCenter(r, horizon + 3, tag ? "tag view off shows everything · ⌫ to back up" : "⌫ to back up", { fg: c.faint });
-      if (tag) drawTagBar(ui, r.x + r.w - 1, r.y + 1, tag, {}, (tc) => `tag view ${tc ?? "off"}`);
+      const on = this.filter.active;
+      ui.textCenter(r, horizon + 2, on ? tr("nothing matches") : "empty sector", { fg: c.muted, attrs: BOLD });
+      ui.textCenter(r, horizon + 3, on ? tr("esc clears the search · × shows everything") : "⌫ to back up", { fg: c.faint });
+      if (on) this.filter.render(ui, { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: 1 });
       return;
     }
 
@@ -342,10 +347,10 @@ export class ExplorerApp implements App {
     }
     for (const v of visible) this.drawNode(ui, r, v, horizon, floorBottom, focused);
 
-    // the colour squares, top right (the same filter as the tree: tag view <colour>)
+    // the filter bar (the same as MODULES'): search + colours
     const counts: Partial<Record<TagColor, number>> = {};
     for (const tc of Object.values(this.deck.marks.tags)) counts[tc] = (counts[tc] ?? 0) + 1;
-    drawTagBar(ui, r.x + r.w - 1, r.y + 1, this.deck.workspace.sidebar.filter, counts, (tc) => `tag view ${tc ?? "off"}`);
+    this.filter.render(ui, { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: 1 }, counts);
 
     // ── data panel: the one in front ──
     if (previewH) this.drawData(ui, { x: r.x + 1, y: floorBottom + 1, w: r.w - 2, h: previewH }, items[this.sel]);
@@ -355,9 +360,11 @@ export class ExplorerApp implements App {
     const c = ui.c;
     const front = v.i === this.sel;
     const near = (v.z + 1) / 2; // 0 back → 1 front
-    const big = near > 0.93, mid = near > 0.7;
-    const w = big ? 26 : mid ? 18 : 12;
-    const h = big ? 7 : mid ? 5 : 3;
+    // sizes follow the depth continuously (no jump from one size to the next)
+    const big = near > 0.93;
+    const k = near * near;
+    const w = Math.round(12 + 14 * k);
+    const h = Math.round(3 + 4 * k);
     const baseY = Math.round(horizon + 1 + near * near * (floor - horizon - h - 1));
     const x = Math.round(v.x - w / 2);
     const fade = (col: RGB) => mix(c.bg, col, 0.25 + near * 0.75);
