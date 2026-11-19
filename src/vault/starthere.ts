@@ -251,7 +251,12 @@ On a Mac, ⌘ plays the role of Ctrl.
 | D-pad / stick | move |
 | A · B | confirm · back |
 | Y · X | palette · on-screen keyboard |
-| LB · RB | tabs |
+| LB · RB | tabs (a tap) |
+| hold RB | the **action wheel**: point a stick at a slot, let go to run it; LB turns the page |
+
+The wheel holds anything (8 slots a page, as many pages as you like): right-click
+a note, a folder, a module or a macro → *add to the wheel*, or
+\`wheel add todo "launch todo" ☑\`. Without a gamepad: \`wheel\`, then click.
 `,
 
   "ai.md": `# The AI, as a work assistant

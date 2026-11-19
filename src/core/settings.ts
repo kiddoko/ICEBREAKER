@@ -76,6 +76,8 @@ export interface Settings {
   keys: Record<string, string>;
   /** module settings values (ib.settings), per module id */
   moduleSettings: Record<string, Record<string, unknown>>;
+  /** the gamepad's action wheel (hold RB): pages of 8 slots, each a shell command */
+  gamepad: { wheel: { label: string; icon: string; cmd: string }[][] };
   /** MODULES: a colour per module (red, orange…), to sort and filter the ring */
   moduleTags: Record<string, string>;
   /** your effects, per theme: switching theme brings back what you had set on it */
@@ -160,6 +162,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fxByTheme: {},
   moduleSettings: {},
   moduleTags: {},
+  gamepad: { wheel: [] },
   shell: {
     mode: "system",
     prompt: "icebreaker",

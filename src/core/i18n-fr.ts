@@ -835,4 +835,11 @@ export const FR: Record<string, string> = {
   "PROFILE ICON": "ICÔNE DE PROFIL",
   "enter keep · tab colours · esc": "entrée garder · tab couleurs · échap",
   "keep it": "la garder",
+  // ── action wheel (19 nov.)
+  "add to the wheel": "ajouter à la roue",
+  "ACTIONS": "ACTIONS",
+  "LB page · let go of RB": "LB page · lâche RB",
+  "tab page · enter · esc": "tab page · entrée · échap",
+  "an empty slot: click to give it a command · wheel add": "une case vide : clique pour lui donner une commande · wheel add",
+  "This slot runs… (a shell command)": "Cette case lance… (une commande du shell)",
 };

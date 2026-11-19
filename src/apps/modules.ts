@@ -8,6 +8,7 @@ import { decrypt } from "../fx/glitch";
 import type { MenuEntry, UI } from "../ui/ui";
 import { ring, WheelSpin } from "../ui/wheelspin";
 import { drawTagBar } from "../ui/tagbar";
+import { addToWheel } from "../workspace/actionwheel";
 import { isTagColor, TAG_NAMES, tagRGB, type TagColor } from "../vault/marks";
 import type { App, AppSpec } from "./types";
 
@@ -133,6 +134,7 @@ export class ModulesApp implements App {
       if (c.on) items.push({ label: t("switch off"), cmd: `plugin disable ${c.id}`, hint: "space" });
       items.push(
         { label: t("pin"), cmd: `pin ${c.id}`, hint: "p" },
+        ...(c.launch ? [{ label: t("add to the wheel"), run: () => void addToWheel(this.deck, { label: c.name, cmd: c.launch!, icon: c.icon }) }] : []),
         {
           label: t("colour"),
           sub: () => [

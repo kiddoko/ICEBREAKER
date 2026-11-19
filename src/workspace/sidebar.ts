@@ -10,6 +10,7 @@ import type { Deck } from "../deck";
 import type { VaultEntry } from "../platform/types";
 import { ListView } from "../ui/list";
 import { addLink } from "../widgets/links";
+import { addToWheel } from "./actionwheel";
 import { WheelSpin } from "../ui/wheelspin";
 import type { UI } from "../ui/ui";
 import { basename, dirname, join } from "../vault/paths";
@@ -225,6 +226,7 @@ export class Sidebar {
           void d.act(`home add link.${l.id}`);
         },
       },
+      { label: t("add to the wheel"), run: () => void addToWheel(d, { label: e.isDir ? e.name : e.name.replace(/\.md$/i, ""), cmd: e.isDir ? `explore ${q(p)}` : `open ${q(p)}`, icon: d.marks.iconOf(p) ?? (e.isDir ? "▣" : "≡") }) },
       { label: t("colour"), sub: () => this.colourMenu(p) },
       { label: t("icon"), sub: () => this.iconMenu(p) },
       { label: t("copy path"), run: () => (copyToClipboard(p), d.notify(t("path copied"))) },

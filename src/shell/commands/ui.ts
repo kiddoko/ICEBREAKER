@@ -1,3 +1,4 @@
+import { ActionWheel, addToWheel, setWheelSlot, wheelPages } from "../../workspace/actionwheel";
 import { addLink, links, newLinkFlow, NEW_LINK, removeLink } from "../../widgets/links";
 import { isTagColor, TAG_NAMES } from "../../vault/marks";
 import { popupCommands } from "../../widgets/popups";
@@ -342,7 +343,46 @@ const macro: Command = {
   },
 };
 
+const wheelCmd: Command = {
+  name: "wheel",
+  summary: "the action wheel: 8 slots a page (hold RB on the gamepad; here: click one)",
+  usage: 'wheel                          open it (mouse / keyboard)\nwheel ls                       every slot, page by page\nwheel add <label> "<cmd>" [icon]   in the first free slot\nwheel rm <label>\nwheel reset                    the default slots',
+  examples: [
+    ['wheel add todo "launch todo" ☑', "TODO one flick away"],
+    ['wheel add ls "macro run ls"', "a macro on the wheel"],
+  ],
+  complete: () => ["ls", "add", "rm", "reset"],
+  run(ctx) {
+    const d = ctx.deck;
+    const [a, label, cmd, icon] = ctx.args;
+    if (!a) return void d.workspace.push(new ActionWheel(d)), 0;
+    if (a === "ls") {
+      wheelPages(d).forEach((p, i) => {
+        ctx.out(fmt.bold(`page ${i + 1}\n`));
+        p.forEach((s, j) => ctx.out(`  ${j + 1}. ${s.icon} ${s.label.padEnd(14)} ${fmt.dim(s.cmd)}\n`));
+      });
+      return 0;
+    }
+    if (a === "add") {
+      if (!label || !cmd) return ctx.err('usage: wheel add <label> "<command>" [icon]\n'), 1;
+      const at = addToWheel(d, { label, cmd, icon: icon ? [...icon][0] : "◆" });
+      return ctx.out(`page ${at.page + 1}, slot ${at.index + 1}\n`), 0;
+    }
+    if (a === "rm") {
+      const pages = wheelPages(d);
+      for (let pi = 0; pi < pages.length; pi++) {
+        const i = pages[pi].findIndex((s) => s.label === label);
+        if (i >= 0) return setWheelSlot(d, pi, i, null), 0;
+      }
+      return ctx.err(`wheel: no slot "${label ?? ""}" (wheel ls)\n`), 1;
+    }
+    if (a === "reset") return d.settings.set("gamepad", { ...d.settings.data.gamepad, wheel: [] }), 0;
+    return ctx.err("usage: wheel [ls | add | rm | reset]\n"), 1;
+  },
+};
+
 export const uiCommands: Command[] = [
+  wheelCmd,
   worldclockCommand,
   quoteCommand,
   ...popupCommands,

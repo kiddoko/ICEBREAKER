@@ -98,7 +98,8 @@ To talk to Claude: get an API key at [console.anthropic.com](https://console.ant
 | AI link | `Ctrl+Space` | — |
 | shell | ``Ctrl+` `` (key under Esc) | Select (switch pane) |
 | move between panes | `Alt+←↑↓→` | Select |
-| tabs | `Alt+1…9`, `Ctrl+Tab`, `Ctrl+W` | LB / RB |
+| tabs | `Alt+1…9`, `Ctrl+Tab`, `Ctrl+W` | LB / RB (tap) |
+| action wheel: 8 slots a page, any command | `wheel` (click a slot) | hold RB, point a stick, let go (LB: next page) |
 | on-screen keyboard | status bar `⌨` | X |
 | interface scale (25–200 %) / fullscreen | `Ctrl+=` `Ctrl+-` `Ctrl+0` / `F11` | — |
 | back to HOME | `h` (when not typing) | Start |

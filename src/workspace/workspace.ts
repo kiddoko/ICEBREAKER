@@ -1,5 +1,6 @@
 import { mix } from "../core/color";
 import { KeyCapture } from "./keycapture";
+import { addToWheel } from "./actionwheel";
 import { drawScreensaver } from "../fx/screensaver";
 import { IbshApp, TerminalApp } from "../apps/terminal";
 import { t } from "../core/i18n";
@@ -137,6 +138,7 @@ export class Workspace {
     return [
       { label: t("run"), run: () => void this.runMacro(m), hint: m.cmd },
       { label: t("shortcut…"), run: () => this.push(new KeyCapture(this.deck, t("A key for the macro “{name}”", { name: m.label }), [`macro run ${q(m.label)}`])) },
+      { label: t("add to the wheel"), run: () => void addToWheel(this.deck, { label: m.label, cmd: `macro run ${q(m.label)}`, icon: "⌗" }) },
       { label: t("edit…"), run: () => void this.editMacro(i), hint: "shift+click" },
       "-",
       { label: t("hide the macros"), cmd: "macro hide" },

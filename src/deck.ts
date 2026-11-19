@@ -62,6 +62,7 @@ import { installStealth } from "./core/stealth";
 import { setLang, t } from "./core/i18n";
 import type { ChoiceOption } from "./plugins/api";
 import { LockScreen } from "./workspace/lock";
+import { ActionWheel } from "./workspace/actionwheel";
 import { applyFxPreset } from "./workspace/fxpanel";
 import type { ToastKind } from "./workspace/overlays";
 import { Workspace } from "./workspace/workspace";
@@ -165,6 +166,20 @@ export class Deck implements InputSink {
       this.loop.idle = false;
       this.action(a, "gamepad");
     });
+    // hold RB: the action wheel
+    this.gamepad.onWheel = (e) => {
+      this.lastActivity = performance.now();
+      const open = this.workspace.overlays.find((o): o is ActionWheel => o instanceof ActionWheel && !o.done);
+      if (e.type === "open") {
+        if (!open && !this.locked) this.workspace.push(new ActionWheel(this, true));
+      } else if (open) {
+        if (e.type === "aim") open.aim(e.angle, e.mag);
+        else if (e.type === "page") open.turnPage(1);
+        else if (e.type === "release") open.release();
+        else open.done = true;
+      }
+      this.requestFrame();
+    };
     this.workspace = new Workspace(this);
     this.voice = new DeckVoice(this);
     this.shell = new ShellApp(this);

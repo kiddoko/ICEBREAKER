@@ -6,16 +6,23 @@ import type { Action } from "./input";
  *
  *   A confirm    B back       X on-screen keyboard   Y command palette
  *   LB/RB tabs   LT/RT page   Start menu             Select switch pane
+ *   hold RB      the action wheel: a stick points, LB turns the page, let go runs it
  *   D-pad / left stick: move      right stick: scroll
  *
  * Polling only runs while a pad is connected.
  */
 const BUTTON_ACTIONS: Record<number, Action> = {
   0: "confirm", 1: "back", 2: "osk", 3: "palette",
-  4: "tab-prev", 5: "tab-next", 6: "page-up", 7: "page-down",
+  4: "tab-prev", 6: "page-up", 7: "page-down",
   8: "focus-next", 9: "menu",
   12: "up", 13: "down", 14: "left", 15: "right",
 };
+
+/** RB (button 5): a tap = next tab, held = the action wheel */
+const RB = 5, LB = 4, B = 1;
+const HOLD_MS = 260;
+
+export type WheelEvent = { type: "open" } | { type: "aim"; angle: number; mag: number } | { type: "page" } | { type: "release" } | { type: "cancel" };
 
 const REPEATABLE = new Set<Action>(["up", "down", "left", "right", "page-up", "page-down", "scroll-up", "scroll-down"]);
 const FIRST_REPEAT_MS = 380;
@@ -27,6 +34,12 @@ export class GamepadInput {
   private timer: ReturnType<typeof setInterval> | undefined;
   /** action → time it was first pressed / last repeated */
   private held = new Map<Action, { since: number; last: number }>();
+  /** the action wheel (hold RB) */
+  onWheel?: (e: WheelEvent) => void;
+  private rbSince = 0;
+  private wheelOpen = false;
+  private lbWas = false;
+  private bWas = false;
 
   constructor(private readonly emit: (a: Action) => void) {
     window.addEventListener("gamepadconnected", (e) => {
@@ -60,6 +73,47 @@ export class GamepadInput {
 
   private poll(): void {
     const pressed = new Set<Action>();
+    const now0 = performance.now();
+    let rb = false, lb = false, b = false;
+    let stick = { x: 0, y: 0 };
+    for (const pad of navigator.getGamepads()) {
+      if (!pad) continue;
+      const btn = (i: number) => !!pad.buttons[i] && (pad.buttons[i].pressed || pad.buttons[i].value > 0.5);
+      rb ||= btn(RB);
+      lb ||= btn(LB);
+      b ||= btn(B);
+      const [lx = 0, ly = 0, rx = 0, ry = 0] = pad.axes;
+      // whichever stick is pushed further aims the wheel
+      if (Math.hypot(rx, ry) > Math.hypot(stick.x, stick.y)) stick = { x: rx, y: ry };
+      if (Math.hypot(lx, ly) > Math.hypot(stick.x, stick.y)) stick = { x: lx, y: ly };
+    }
+    // ── RB: tap = next tab, hold = the wheel ──
+    if (rb && !this.rbSince) this.rbSince = now0;
+    if (rb && !this.wheelOpen && now0 - this.rbSince > HOLD_MS && this.onWheel) {
+      this.wheelOpen = true;
+      this.onWheel({ type: "open" });
+    }
+    if (this.wheelOpen) {
+      if (lb && !this.lbWas) this.onWheel?.({ type: "page" });
+      if (b && !this.bWas) {
+        this.wheelOpen = false;
+        this.onWheel?.({ type: "cancel" });
+      } else if (!rb) {
+        this.wheelOpen = false;
+        this.onWheel?.({ type: "release" });
+      } else this.onWheel?.({ type: "aim", angle: Math.atan2(stick.x, -stick.y), mag: Math.hypot(stick.x, stick.y) });
+      this.lbWas = lb;
+      this.bWas = b;
+      if (!rb) this.rbSince = 0;
+      this.held.clear();
+      return; // the wheel takes the pad while it's open
+    }
+    if (!rb && this.rbSince) {
+      if (now0 - this.rbSince <= HOLD_MS || !this.onWheel) this.emit("tab-next");
+      this.rbSince = 0;
+    }
+    this.lbWas = lb;
+    this.bWas = b;
     for (const pad of navigator.getGamepads()) {
       if (!pad) continue;
       pad.buttons.forEach((b, i) => {
