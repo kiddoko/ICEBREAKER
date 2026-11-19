@@ -24,6 +24,12 @@ export class FrameLoop {
    * @param render draws one frame and returns how many ms until it wants the
    *               next one (Infinity = nothing to animate).
    * @param maxFps frame cap (0 = uncapped, follows the display refresh rate).
+   *
+   * Settings → APPEARANCE: with vsync on, maxFps = 0 (one frame per screen
+   * refresh, never more). With vsync off, the cap is the user's number; `timed`
+   * then paces frames with timers instead of the screen (a cap above the
+   * screen's rate draws more frames than it shows: allowed, not useful), and a
+   * cap of 0 means `frozen`: animations stop, the deck redraws only on input.
    */
   constructor(
     private readonly render: (now: number) => number,
@@ -38,12 +44,28 @@ export class FrameLoop {
   idle = false;
   /** fps cap while in the background */
   static readonly BACKGROUND_FPS = 12;
+  /** vsync off: frames paced by timers at maxFps, not by the screen */
+  timed = false;
+  /** fps set to 0: no animations at all, frames only for input */
+  frozen = false;
+  /** reduce motion: animations at 30 fps at most */
+  slow = false;
+
+  /** New pacing from the settings (vsync, fps cap, reduce motion): drops what was planned, starts again. */
+  configure(o: { maxFps: number; timed: boolean; frozen: boolean; slow: boolean }): void {
+    cancelAnimationFrame(this.raf);
+    clearTimeout(this.raf);
+    this.raf = 0;
+    Object.assign(this, o);
+    this.request(0);
+  }
 
   setPaused(p: boolean): void {
     if (this.paused === p) return;
     this.paused = p;
     if (p) {
       cancelAnimationFrame(this.raf);
+      clearTimeout(this.raf);
       this.raf = 0;
       clearTimeout(this.timer);
       clearTimeout(this.watchdog);
@@ -66,13 +88,27 @@ export class FrameLoop {
    */
   request(delayMs = 0): void {
     if (this.paused) return;
+    // fps 0: animations ask for frames with a delay; they're dropped (input asks with 0)
+    if (this.frozen && delayMs > 1) return;
+    if (this.slow && delayMs > 1) delayMs = Math.max(delayMs, 1000 / 30);
     // in the background, animations slow down to the background cap
     if ((this.background || this.idle) && delayMs > 1) delayMs = Math.max(delayMs, 1000 / FrameLoop.BACKGROUND_FPS);
+    // "16 ms" means "the next frame": at 120 Hz (or your cap) that's sooner — so
+    // every animation runs as smoothly as the screen / the cap allows, not at 60
+    if (delayMs > 1 && delayMs <= 17) delayMs = 0;
     if (delayMs > 1 && delayMs < 50) {
       const at = performance.now() + delayMs;
       this.wantAt = this.raf ? Math.min(this.wantAt, at) : at;
       delayMs = 0;
     } else if (delayMs <= 1) this.wantAt = 0;
+    if (delayMs <= 1 && this.timed) {
+      // vsync off: the next frame when the cap allows it, on a timer
+      if (!this.raf) {
+        const wait = Math.max(0, (this.maxFps > 0 ? 1000 / this.maxFps : 0) - (performance.now() - this.last), this.wantAt ? this.wantAt - performance.now() : 0);
+        this.raf = setTimeout(() => this.tick(performance.now()), wait) as unknown as number;
+      }
+      return;
+    }
     if (delayMs <= 1) {
       if (!this.raf) {
         this.raf = requestAnimationFrame(this.tick);
@@ -98,19 +134,24 @@ export class FrameLoop {
     }, delayMs);
   }
 
+  /** Try again later: on the next screen refresh (vsync), or after `ms` (timer mode). */
+  private again(ms: number): number {
+    return this.timed ? (setTimeout(() => this.tick(performance.now()), Math.max(0, ms)) as unknown as number) : requestAnimationFrame(this.tick);
+  }
+
   private tick = (now: number): void => {
     this.raf = 0;
     clearTimeout(this.watchdog);
     if (this.paused) return;
     // an animation asked for a bit later: skip this vsync, catch the next one
     if (this.wantAt && now < this.wantAt - 4) {
-      this.raf = requestAnimationFrame(this.tick);
+      this.raf = this.again(this.wantAt - now);
       return;
     }
     this.wantAt = 0;
     const minGap = this.maxFps > 0 ? 1000 / this.maxFps : 0;
     if (now - this.last < minGap - 1.5) {
-      this.raf = requestAnimationFrame(this.tick); // too early for the cap: wait a vsync
+      this.raf = this.again(minGap - (now - this.last)); // too early for the cap: wait (a vsync, or the timer)
       return;
     }
     this.last = now;

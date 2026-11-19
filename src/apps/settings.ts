@@ -31,6 +31,8 @@ interface Row {
   steps?: boolean;
   /** The shell command for one click (next value). */
   cmd?: () => string;
+  /** greyed and locked (e.g. the fps cap while vsync is on) */
+  disabled?: () => boolean;
   /** a real slider instead of a value (drag / click / wheel; ←→ by 5) */
   slider?: { min: number; max: number; get: () => number; set: (v: number) => void; zeroIsOff?: boolean; show?: (v: number) => string };
 }
@@ -164,7 +166,15 @@ export class SettingsApp implements App {
       cycle("appearance.fontSize", "text size at 100%", [10, 11, 12, 13, 14, 15, 16, 18, 20], undefined, (v) => `${v}px`),
       cycle("appearance.fontWeight", "font weight", ["thin", "light", "regular"]),
       toggle("appearance.startFullscreen", "start fullscreen"),
-      cycle("appearance.maxFps", "fps cap", [30, 60, 120, 0], undefined, (v) => (v ? `${v}` : "unlimited")),
+      // the pace of frames: vsync (the screen's rate) or your own cap, greyed while vsync is on
+      toggle("appearance.vsync", "vertical sync (the screen's refresh rate)"),
+      (() => {
+        const row = slide("appearance.maxFps", "frames per second", 0, 240, () => num("appearance.maxFps"), (v) => set("appearance.maxFps", v), { show: (v) => (v === 0 ? t("only when you act") : `${v} fps`) });
+        const vsync = () => s.data.appearance.vsync !== false;
+        return { ...row, disabled: vsync, change: (dir: 1 | -1) => (vsync() ? d.notify(t("vertical sync is on: it follows your screen")) : row.change?.(dir)) };
+      })(),
+      slide("appearance.brightness", "brightness", 50, 150, () => num("appearance.brightness") || 100, (v) => set("appearance.brightness", v)),
+      toggle("appearance.reduceMotion", "reduce animations (slower machines)"),
       toggle("appearance.showFps", "show fps"),
       toggle("appearance.lineNumbers", "line numbers"),
       toggle("appearance.backgroundSlow", "slow down in the background (energy)"),
@@ -507,6 +517,7 @@ export class SettingsApp implements App {
         if (ui.hovered(line)) hoverRow = row;
         ui.hit(line, { onClick: () => ((this.sel = i), (this.pane = "rows")) });
         const sl = row.slider;
+        const off = row.disabled?.() ?? false;
         slider(ui, { x: rx + rw - sw - 1, y, w: sw, h: 1 }, sl.get(), sl.min, sl.max, (v) => {
           this.sel = i;
           this.pane = "rows";
@@ -514,6 +525,7 @@ export class SettingsApp implements App {
         }, {
           zeroIsOff: sl.zeroIsOff,
           show: sl.show,
+          disabled: off,
           tip: `${row.cmd?.() ?? ""}\n${t("drag, click, wheel · ←→ by 5 · double-click the number to type it")}`,
           onEdit: () => void askNumber(this.deck, t(row.label), sl.get(), sl.min, sl.max, sl.zeroIsOff).then((v) => v !== null && sl.set(v)),
         });

@@ -853,7 +853,8 @@ export class Workspace {
     this.saveSession();
     const W = ui.cols;
     const H = ui.rows;
-    if (d.settings.data.fx.ambient) drawBackground(ui, { x: 0, y: 0, w: W, h: H }, ui.theme, 0.7);
+    // the animated background (not with reduce motion: it's the costliest thing that never stops)
+    if (d.settings.data.fx.ambient && !d.settings.data.appearance.reduceMotion) drawBackground(ui, { x: 0, y: 0, w: W, h: H }, ui.theme, 0.7);
 
     this.renderTopBar(ui, { x: 0, y: 0, w: W, h: 1 });
 
@@ -1133,7 +1134,7 @@ export class Workspace {
   private renderTabs(ui: UI, r: Rect): void {
     const c = ui.c;
     const n = this.tabCount;
-    const MAXW = 26, MINW = 12;
+    const MAXW = 18, MINW = 8;
     const plusW = 3; // "+" (open anything) at the end
     const avail = r.w - plusW;
     let tabW = n ? Math.max(MINW, Math.min(MAXW, Math.floor(avail / n) - 1)) : MAXW;

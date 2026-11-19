@@ -702,7 +702,9 @@ export class Deck implements InputSink {
     const bloomNow = fx.bloom ? (t.fx.bloom * lv.bloom) / 100 : 0;
     const boost = Math.min(1.35, 1 + Math.max(0, t.fx.bloom - bloomNow) * 0.6);
     const screenEl = document.getElementById("screen");
-    if (screenEl) screenEl.style.filter = boost > 1.005 ? `brightness(${boost.toFixed(3)})` : "";
+    // and the user's brightness (Settings → APPEARANCE), on top
+    const light = boost * ((this.settings.data.appearance.brightness ?? 100) / 100);
+    if (screenEl) screenEl.style.filter = Math.abs(light - 1) > 0.005 ? `brightness(${light.toFixed(3)})` : "";
     root.setProperty("--scanlines", String(fx.scanlines ? (t.fx.scanlines * lv.scanlines) / 100 : 0));
     root.setProperty("--vignette", String(fx.vignette ? (t.fx.vignette * lv.vignette) / 100 : 0));
     document.getElementById("deck")!.classList.toggle("crt", fx.scanlines && t.fx.scanlines * lv.scanlines > 0);
@@ -718,7 +720,9 @@ export class Deck implements InputSink {
     const sharp = fx.levels.sharpness ?? 100 - (fx.levels.softness ?? 0);
     // a gentler curve: 80 % is a light CRT softness, 0 % still readable
     this.renderer.setSoftness((100 - sharp) * 0.6);
-    this.loop.maxFps = this.settings.data.appearance.maxFps;
+    // the pace of frames: the screen's (vsync), or the user's cap; 0 = no animations
+    const a = this.settings.data.appearance;
+    this.loop.configure({ maxFps: a.vsync ? 0 : Math.max(0, Math.min(240, a.maxFps)), timed: !a.vsync, frozen: !a.vsync && a.maxFps === 0, slow: !!a.reduceMotion });
     this.requestFrame();
   }
 
@@ -731,7 +735,7 @@ export class Deck implements InputSink {
     else if (key === "appearance.fontWeight" || key === "appearance.fontSize" || key === "appearance.scale") void this.applyFont();
     else if (key === "journal.folder") this.vault.journalFolder = s.journal.folder;
     else if (key === "user.handle") this.shell.exec.env.USER = s.user.handle;
-    else if (key.startsWith("fx") || key === "appearance.maxFps") this.applyFx();
+    else if (key.startsWith("fx") || ["appearance.maxFps", "appearance.vsync", "appearance.brightness", "appearance.reduceMotion"].includes(key)) this.applyFx();
     else if (key.startsWith("sound.")) {
       this.sound.enabled = s.sound.enabled && !s.sound.muted;
       this.sound.volume = s.sound.volume / 100;
@@ -854,7 +858,7 @@ export class Deck implements InputSink {
 
   /** The big moments (boot, unlock, theme change): the theme's page transition, glitch by default. */
   glitch(ms: number): void {
-    if (!this.settings.data.fx.glitch) return;
+    if (!this.settings.data.fx.glitch || this.settings.data.appearance.reduceMotion) return;
     const page = this.theme.anim.page;
     if (page === "none") return;
     if (page !== "glitch") return this.pageTurn(true);
@@ -888,7 +892,7 @@ export class Deck implements InputSink {
   /** A page or tab change: themes with an eink / wipe / fade transition play it (glitch stays for big moments). */
   pageTurn(big = false, quick = false): void {
     const page = this.theme.anim.page;
-    if (!this.settings.data.fx.glitch || page === "none" || (page === "glitch" && !big)) return;
+    if (!this.settings.data.fx.glitch || this.settings.data.appearance.reduceMotion || page === "none" || (page === "glitch" && !big)) return;
     // short: a touch of motion, never a wait (a swipe: shorter still, it follows the fingers)
     const ms = page === "eink" ? 200 : page === "wipe" ? 120 : 100;
     this.transitions.run(page, quick ? Math.round(ms * 0.6) : ms);

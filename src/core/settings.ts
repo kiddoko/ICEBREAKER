@@ -46,7 +46,15 @@ export interface Settings {
     scale: number;
     startFullscreen: boolean;
     fontWeight: "thin" | "light" | "regular";
-    maxFps: number; showFps: boolean; lineNumbers: boolean;
+    /** the frame-rate cap when vsync is off: 0–240 (0 = no animations: the deck only redraws when you act) */
+    maxFps: number;
+    /** follow the screen's refresh rate (vertical sync); the fps cap is ignored then */
+    vsync: boolean;
+    /** 50–150 %: the whole picture lighter or darker (on top of the theme) */
+    brightness: number;
+    /** fewer, shorter animations: no page transitions or glitches, still backgrounds, animations at 30 fps at most */
+    reduceMotion: boolean;
+    showFps: boolean; lineNumbers: boolean;
     /** slow animations down (12 fps) while the window isn't the one you use */
     backgroundSlow: boolean };
   /** levels: how strong each effect is, in % of what the theme sets (0–200) */
@@ -158,7 +166,7 @@ export const DEFAULT_SETTINGS: Settings = {
   user: { handle: "netrunner", locale: "", language: "en", gender: "", genderOther: "", pronouns: "", rememberAccount: false, avatar: { id: "visor", color: "accent" }, location: { precision: "none", name: "", country: "", lat: null, lon: null } },
   setup: { done: false },
   vault: { path: "" },
-  appearance: { theme: "nightshade", tweaks: {}, fontSize: 13, scale: 100, startFullscreen: false, fontWeight: "thin", maxFps: 60, showFps: true, lineNumbers: true, backgroundSlow: true },
+  appearance: { theme: "nightshade", tweaks: {}, fontSize: 13, scale: 100, startFullscreen: false, fontWeight: "thin", maxFps: 60, vsync: true, brightness: 100, reduceMotion: false, showFps: true, lineNumbers: true, backgroundSlow: true },
   // Minimal by default: the animated background and short glitch transitions.
   // The heavy CRT stuff (bloom, scanlines, vignette, flicker) is one click away in the FX panel.
   fx: { bloom: false, scanlines: false, vignette: false, ambient: true, flicker: false, glitch: true, screensaverMinutes: 0, levels: { bloom: 100, scanlines: 100, vignette: 100, chroma: 0, sharpness: 80, glow: 0 } },

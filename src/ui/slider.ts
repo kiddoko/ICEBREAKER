@@ -12,6 +12,8 @@ export interface SliderOptions {
   tip?: string;
   /** double-click on the number: type a value (the caller asks for it) */
   onEdit?: () => void;
+  /** greyed out, doesn't move (another setting decides) */
+  disabled?: boolean;
 }
 
 /**
@@ -51,11 +53,23 @@ export function slider(ui: UI, r: Rect, value: number, min: number, max: number,
   const tw = Math.max(4, r.w - textW - 1);
   const track = { x: r.x, y: r.y, w: tw, h: 1 };
   const k = max > min ? (Math.max(min, Math.min(max, value)) - min) / (max - min) : 0;
-  const filled = Math.round(k * (tw - 1));
+  // the cheat: the filled part ends with a partial block, so it moves by eighths of a cell
+  const exact = k * (tw - 1);
+  const filled = Math.floor(exact);
+  const eighth = Math.round((exact - filled) * 8);
   const hot = ui.hovered(track);
+  if (o.disabled) {
+    // greyed: the track and the number, no handle to grab
+    ui.text(r.x, r.y, "┄".repeat(tw), { fg: c.faint });
+    ui.textRight(r.x + r.w, r.y, text, { fg: c.faint });
+    ui.hit(track, { onClick: () => {}, tip: o.tip ?? "locked" });
+    return;
+  }
   const on = !(o.zeroIsOff && value === 0);
   ui.text(r.x, r.y, "━".repeat(filled), { fg: on ? c.accent : c.subtle });
-  ui.text(r.x + filled, r.y, "╸", { fg: hot ? c.fg : on ? c.accent : c.subtle, attrs: BOLD });
+  // the handle: a block whose width says where in its cell the value is
+  const handle = eighth > 0 ? " ▏▎▍▌▋▊▉█"[eighth] : "╸";
+  ui.text(r.x + filled, r.y, handle, { fg: hot ? c.fg : on ? c.accent : c.subtle, attrs: BOLD });
   if (filled + 1 < tw) ui.text(r.x + filled + 1, r.y, "─".repeat(tw - filled - 1), { fg: c.faint });
   ui.textRight(r.x + r.w, r.y, text, { fg: on ? c.accent : c.subtle, attrs: BOLD });
   // where the pointer is along the track, to the pixel: 0 at the left edge, 1 at the right
