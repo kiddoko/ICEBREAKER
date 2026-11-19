@@ -127,7 +127,8 @@ export interface Settings {
   /** registry: the official index · sources: your own (URLs or user/repo of an index.json) */
   /** removed: built-in modules the user uninstalled (the STORE reinstalls them) */
   plugins: { enabled: string[]; disabled: string[]; removed: string[]; registry: string; sources: string[] };
-  home: { widgets: WidgetPlacement[]; weatherCity: string; worldClocks: string[]; newsTopic: string;
+  /** links: the 1×1 shortcut widgets (widgets/links.ts) */
+  home: { widgets: WidgetPlacement[]; links: { id: string; label: string; icon: string; cmd: string }[]; weatherCity: string; worldClocks: string[]; newsTopic: string;
     /** news interests: categories (tech, politics…) and free words, mixed with your area's news */
     newsInterests: string[];
     /** saved places of the WEATHER app */
@@ -189,7 +190,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // the community index: a JSON list of plugins/themes (see docs/COMMUNITY.md)
   plugins: { enabled: [], disabled: [], removed: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json", sources: [] },
   // empty = the default layout (widgets/builtin.ts)
-  home: { widgets: [], weatherCity: "Paris", worldClocks: ["America/New_York", "Europe/London", "Asia/Tokyo"], newsTopic: "", newsInterests: [], weatherPlaces: [], clockStyle: "dots", clockSeconds: false },
+  home: { widgets: [], links: [], weatherCity: "Paris", worldClocks: ["America/New_York", "Europe/London", "Asia/Tokyo"], newsTopic: "", newsInterests: [], weatherPlaces: [], clockStyle: "dots", clockSeconds: false },
 };
 
 type Listener = (path: string) => void;

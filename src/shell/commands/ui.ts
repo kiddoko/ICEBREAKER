@@ -1,3 +1,4 @@
+import { addLink, links, newLinkFlow, NEW_LINK, removeLink } from "../../widgets/links";
 import { isTagColor, TAG_NAMES } from "../../vault/marks";
 import { popupCommands } from "../../widgets/popups";
 import { quoteCommand, worldclockCommand } from "../../widgets/extra";
@@ -36,8 +37,8 @@ const homeCmd: Command = {
     ["home move music.now 2", "send a widget to page 2"],
   ],
   summary: "the HOME dashboard: open it, edit it, add / remove widgets",
-  usage: "home                open HOME (key: h)\nhome edit           rearrange (key: e)\nhome done           leave edit mode\nhome add <widget>   put a widget on the grid\nhome rm <widget>    take it off\nhome widgets        what's available\nhome reset          default layout",
-  complete: () => ["edit", "done", "add", "rm", "widgets", "reset", "page", "move"],
+  usage: "home                open HOME (key: h)\nhome edit           rearrange (key: e)\nhome done           leave edit mode\nhome add <widget>   put a widget on the grid\nhome rm <widget>    take it off\nhome widgets        what's available\nhome link new       a 1×1 shortcut square (module, note, folder, page, macro, command)\nhome link add <label> \"<cmd>\" [icon] · home link rm <label> · home links\nhome reset          default layout",
+  complete: () => ["edit", "done", "add", "rm", "widgets", "reset", "page", "move", "link", "links"],
   run(ctx) {
     const d = ctx.deck;
     const [sub, id] = ctx.args;
@@ -64,6 +65,26 @@ const homeCmd: Command = {
       if (!h.moveToPage(id, n)) return ctx.err(`home: ${id} isn't on HOME\n`), 1;
       return h.setPage(n), 0;
     }
+    // the 1×1 shortcut squares
+    if (sub === "links") {
+      const all = links(d);
+      if (!all.length) return ctx.out(fmt.dim("no shortcut squares yet — home link new\n")), 0;
+      for (const l of all) ctx.out(`${l.icon} ${fmt.bold(l.label.padEnd(16))} ${fmt.dim(l.cmd)}\n`);
+      return 0;
+    }
+    if (sub === "link") {
+      const [, what, label, cmd, icon] = ctx.args;
+      if (what === "new" || !what) return void newLinkFlow(d), 0;
+      if (what === "add") {
+        if (!label || !cmd) return ctx.err('usage: home link add <label> "<command>" [icon]\n'), 1;
+        const l = addLink(d, label, cmd, icon ?? "◆");
+        h.place(`link.${l.id}`);
+        return 0;
+      }
+      if (what === "rm") return removeLink(d, label ?? "") ? 0 : (ctx.err(`home: no shortcut "${label ?? ""}" (home links)\n`), 1);
+      return ctx.err("usage: home link new | add <label> \"<cmd>\" [icon] | rm <label>\n"), 1;
+    }
+    if (sub === "add" && id === NEW_LINK) return void newLinkFlow(d), 0;
     if (sub === "add" || sub === "rm") {
       if (!id && sub === "add") return h.add(), 0; // no name: the picker
       if (!id) return ctx.err(`usage: home ${sub} <widget>   (home widgets lists them)\n`), 1;

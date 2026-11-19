@@ -22,6 +22,10 @@ export interface WidgetSpec {
   size: { w: number; h: number };
   /** Smallest size that still makes sense. */
   min?: { w: number; h: number };
+  /** One click anywhere on it runs `activate` (a shortcut square), instead of just selecting it. */
+  clickActivates?: boolean;
+  /** Biggest size it may take (a shortcut square: 1×1). */
+  max?: { w: number; h: number };
   render(ui: UI, rect: Rect, ctx: WidgetContext): void;
   /** Enter pressed while the widget is selected (outside edit mode), when it has no pop-up. */
   activate?(ctx: WidgetContext): void;

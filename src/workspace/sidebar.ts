@@ -9,6 +9,7 @@ import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import type { VaultEntry } from "../platform/types";
 import { ListView } from "../ui/list";
+import { addLink } from "../widgets/links";
 import { WheelSpin } from "../ui/wheelspin";
 import type { UI } from "../ui/ui";
 import { basename, dirname, join } from "../vault/paths";
@@ -217,6 +218,13 @@ export class Sidebar {
       ...(!e.isDir ? [{ label: t("duplicate"), cmd: `cp ${abs} ${q("/" + copyName(p))}` }] : []),
       { label: pinned ? t("unpin") : t("pin"), cmd: `${pinned ? "unpin" : "pin"} ${q(p)}`, hint: "p" },
       "-",
+      {
+        label: t("square on HOME"),
+        run: () => {
+          const l = addLink(d, e.isDir ? e.name : e.name.replace(/\.md$/i, ""), e.isDir ? `explore ${q(p)}` : `open ${q(p)}`, d.marks.iconOf(p) ?? (e.isDir ? "▣" : "≡"));
+          void d.act(`home add link.${l.id}`);
+        },
+      },
       { label: t("colour"), sub: () => this.colourMenu(p) },
       { label: t("icon"), sub: () => this.iconMenu(p) },
       { label: t("copy path"), run: () => (copyToClipboard(p), d.notify(t("path copied"))) },

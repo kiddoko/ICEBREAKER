@@ -83,6 +83,7 @@ export class HomeApp implements App {
     const min = spec?.min ?? { w: 1, h: 1 };
     const next = f({ ...cur });
     if (next.x < 0 || next.y < 0 || next.x + next.w > COLS || next.w < min.w || next.h < min.h) return;
+    if (spec?.max && (next.w > spec.max.w || next.h > spec.max.h)) return; // a shortcut square stays 1×1
     if (this.overlaps(layout, i, next)) return;
     layout[i] = next;
     this.want = { i, w: next.w, h: next.h }; // a deliberate resize sets the size to come back to
@@ -425,6 +426,7 @@ export class HomeApp implements App {
       const frameHit = {
         onClick: (m: { x: number; y: number }) => {
           this.selected = i;
+          if (!this.editing && spec.clickActivates && spec.activate) return void spec.activate({ deck: this.deck, focused: true });
           if (this.editing) this.drag = { index: i, dx: m.x - rect.x, dy: m.y - rect.y, mx: m.x, my: m.y, spot: null };
         },
         // the widget follows the mouse as a ghost; the spot it would land on lights up; it lands on release

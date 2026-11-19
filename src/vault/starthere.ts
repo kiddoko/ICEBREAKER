@@ -108,6 +108,10 @@ Modules talk to each other (\`modules api\` lists what they share).
 
 ## HOME
 Widgets on a 12-column grid, several pages (\`[\` \`]\`).
+**Shortcut squares** (1×1, always): e then a → *Shortcut 1×1*, or right-click a
+note / folder → *square on HOME*, or \`home link new\`. One opens anything — a
+module, a note, a folder, a page, a macro, any command — in one click, with the
+icon of what it opens.
 
 | Key | On HOME |
 |---|---|

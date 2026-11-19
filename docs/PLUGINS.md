@@ -133,6 +133,7 @@ The full surface is typed and commented in
 [`src/plugins/api.ts`](../src/plugins/api.ts). Highlights:
 
 - `ib.ai.session({ system, tools })` → streaming chat; `ib.ai.vaultTools()` lets the model read notes.
+- Widget specs can set `max` (the biggest size, e.g. `{ w: 1, h: 1 }`) and `clickActivates` (one click runs `activate` instead of only selecting).
 - `ib.storage.get/set` → a private JSON file per plugin (`.icebreaker/plugin-data/<id>.json`).
 - `ib.settings.register([...])` → your section in Settings (◇ YOUR MODULE, after the normal ones). Row types: `toggle`, `choice` (`options`), `text`, `number`, and `action` — a row that does something when chosen: `cmd` (a shell command, shown under the row like every setting) or `run()` (a picker, a confirmation…), plus `value()` for the status on the right ("connected", a name…). Read with `ib.settings.get(key)`, react with `onChange`; shell: `modules set <id> <key> <value>`. Example: the CALENDAR module (`plugins/calendar/main.ts`).
 - `ib.shell.run(line)` → run a command, echoed in the shell (what your clicks should do).
