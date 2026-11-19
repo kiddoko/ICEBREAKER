@@ -28,7 +28,7 @@ export function tickFocus(deck: Deck): void {
       focus.phase = focus.phase === "focus" ? "break" : "focus";
       focus.left = (focus.phase === "focus" ? focus.work : focus.rest) * 60_000;
       focus.flashUntil = performance.now() + 3000;
-      deck.alert(focus.phase === "break" ? "◎ focus done — take a break" : "◎ break over — jack back in", focus.task);
+      deck.alert(focus.phase === "break" ? "◎ focus done — take a break" : "◎ break over — jack back in", focus.task, "timers");
     }
   }
   if (focus.running && !focusWatch) focusWatch = setInterval(() => tickFocus(deck), 1000);

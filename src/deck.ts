@@ -76,6 +76,9 @@ import { WidgetRegistry } from "./widgets/types";
  * commands and plugins use. If you're looking for "where does X start",
  * it's here.
  */
+/** What the voice may say (Settings → VOICE): see Deck.speak. */
+export type VoiceTopic = "greet" | "ai" | "errors" | "reminders" | "timers" | "calendar" | "weather" | "time" | "system" | "modules";
+
 export class Deck implements InputSink {
   readonly themes = new ThemeManager();
   readonly vault: Vault;
@@ -259,6 +262,7 @@ export class Deck implements InputSink {
       return p ? { text: `Uplink offline: ${p}`, status: "WARN" } : { text: `Uplink: ${this.ai.provider.label}${this.ai.claudeCodePath ? ` (${this.ai.claudeCodePath})` : ""}`, status: "OK" };
     });
 
+    this.watchForVoice();
     await step(() => this.registerCore(), () => ({ text: `Shell ibsh: ${this.commands.names().length} commands · ${this.apps.list().length} apps · ${this.widgets.list().length} widgets`, status: "OK" }));
     detachCorePackages(this); // core features become modules (plugins/core-packages.ts)
     // no AI at all while the UPLINK module is off (modules can't reach it either)
@@ -317,7 +321,10 @@ export class Deck implements InputSink {
     };
     window.addEventListener("error", (e) => caught(e.message || String(e.error)));
     window.addEventListener("unhandledrejection", (e) => caught(e.reason instanceof Error ? e.reason.message : String(e.reason)));
-    this.errors.onAdd = () => this.requestFrame();
+    this.errors.onAdd = (e) => {
+      this.requestFrame();
+      this.speak("errors", t("error {code}: {title}", { code: e.code.split("").join(" "), title: t(e.title) }));
+    };
     window.addEventListener("blur", () => focus(false));
     // some webviews don't report a minimized window as hidden: ask the window itself
     void this.platform.onMinimized?.((min) => {
@@ -778,7 +785,7 @@ export class Deck implements InputSink {
    * system notification, the "alert" sound (tu-dut), a toast — and the voice
    * reads it when it's on. Modules call it through ib.ui.alert.
    */
-  alert(title: string, body = ""): void {
+  alert(title: string, body = "", topic: VoiceTopic = "reminders"): void {
     const mode = this.settings.data.notifications?.mode ?? "both";
     const hear = mode === "both" || mode === "sound", see = mode === "both" || mode === "visual";
     if (hear) this.sound.play("alert");
@@ -786,7 +793,49 @@ export class Deck implements InputSink {
       this.workspace.notify(body ? `${title} — ${body}` : title, "warning");
       void this.platform.notify?.(title, body).catch((e) => console.warn("[notify]", e));
     }
-    if (hear && this.settings.data.voice.enabled) this.voice.say(body ? `${title}. ${body}` : title);
+    if (hear) this.speak(topic, body ? `${title}. ${body}` : title);
+  }
+
+  /**
+   * The voice says `text` — if the voice is on, nothing is muted, and the user
+   * wants this kind of thing said (Settings → VOICE → say aloud). Everything
+   * that talks goes through here: errors, reminders, the time, modules…
+   */
+  speak(topic: VoiceTopic, text: string): void {
+    const v = this.settings.data.voice;
+    if (!v.enabled || this.settings.data.sound.muted || !this.voice.available) return;
+    const wanted = topic === "greet" ? v.greet : topic === "ai" ? v.readAI : v.speak?.[topic] !== false;
+    if (wanted) this.voice.say(text);
+  }
+
+  /**
+   * The things the voice can announce on its own, checked every 20 s (cheap; the
+   * system stats only when that topic is on): the time at :00 and :30, a CPU or
+   * memory overload (two checks in a row above 90 %, then quiet for 10 min).
+   */
+  private watchForVoice(): void {
+    let lastSlot = "";
+    let hot = 0, warnedAt = 0;
+    setInterval(() => {
+      const v = this.settings.data.voice;
+      if (!v.enabled) return;
+      const now = new Date();
+      const m = now.getMinutes();
+      const slot = `${now.getHours()}:${m < 30 ? "00" : "30"}`;
+      if ((m === 0 || m === 30) && slot !== lastSlot) {
+        lastSlot = slot;
+        this.speak("time", t("it's {time}", { time: now.toLocaleTimeString(this.settings.data.user.locale || undefined, { hour: "2-digit", minute: "2-digit" }) }));
+      }
+      if (v.speak?.system === false || !this.platform.system) return;
+      void this.platform.system.stats().then((st) => {
+        const mem = st.memTotal ? (st.memUsed / st.memTotal) * 100 : 0;
+        hot = st.cpu >= 90 || mem >= 90 ? hot + 1 : 0;
+        if (hot >= 2 && Date.now() - warnedAt > 10 * 60_000) {
+          warnedAt = Date.now();
+          this.speak("system", st.cpu >= 90 ? t("warning: CPU at {n} percent", { n: Math.round(st.cpu) }) : t("warning: memory at {n} percent", { n: Math.round(mem) }));
+        }
+      }).catch(() => {});
+    }, 20_000);
   }
 
   /** "Welcome, netrunner": once per start, when the desktop appears (voice.greet). */

@@ -24,7 +24,8 @@ import { SystemTerminal } from "../shell/systerm";
 
 export type ShellTab = "term" | "ibsh" | "history" | "errors";
 
-export type Pane = "sidebar" | "main" | "shell";
+/** the parts of the screen that can have the focus (the side panel only while shown) */
+export type Pane = "sidebar" | "main" | "shell" | "panel";
 
 /**
  * The desktop: top bar with tabs, file tree on the left, the active app in
@@ -385,14 +386,16 @@ export class Workspace {
   }
 
   private moveFocus(dir: "left" | "right" | "up" | "down"): void {
-    if (dir === "left" && this.sidebarVisible) this.focus = "sidebar";
+    if (dir === "left" && this.focus === "panel") this.focus = "main";
+    else if (dir === "left" && this.sidebarVisible) this.focus = "sidebar";
     else if (dir === "right" && this.focus === "sidebar") this.focus = "main";
+    else if (dir === "right" && this.focus === "main" && this.sidePanel.area) this.focus = "panel";
     else if (dir === "down" && this.shellVisible) this.focus = "shell";
     else if (dir === "up" && this.focus === "shell") this.focus = "main";
   }
 
   private cycleFocus(): void {
-    const order: Pane[] = ["main", ...(this.shellVisible ? (["shell"] as Pane[]) : []), ...(this.sidebarVisible ? (["sidebar"] as Pane[]) : [])];
+    const order: Pane[] = ["main", ...(this.sidePanel.area ? (["panel"] as Pane[]) : []), ...(this.shellVisible ? (["shell"] as Pane[]) : []), ...(this.sidebarVisible ? (["sidebar"] as Pane[]) : [])];
     this.focus = order[(order.indexOf(this.focus) + 1) % order.length];
   }
 
@@ -611,6 +614,7 @@ export class Workspace {
       return this.deck.shell;
     }
     if (this.focus === "sidebar" && this.sidebarVisible) return this.sidebar;
+    if (this.focus === "panel" && this.sidePanel.area) return this.sidePanel;
     return this.activeApp;
   }
 
@@ -766,7 +770,7 @@ export class Workspace {
     switch (m.kind) {
       case "down": {
         if (!this.topModal) {
-          for (const pane of ["sidebar", "main", "shell"] as Pane[]) {
+          for (const pane of ["sidebar", "main", "shell", "panel"] as Pane[]) {
             const r = this.rects[pane];
             if (r && inside(r, m.x, m.y)) this.focus = pane;
           }
@@ -877,8 +881,11 @@ export class Workspace {
     this.sidePanel.area = null;
     if (d.settings.data.panel?.shown && mainR.w - panelW - 1 >= 40) {
       mainR.w -= panelW + 1;
-      this.sidePanel.render(ui, { x: mainR.x + mainR.w + 1, y: mainR.y, w: panelW, h: mainR.h });
+      const pr = { x: mainR.x + mainR.w + 1, y: mainR.y, w: panelW, h: mainR.h };
+      this.rects.panel = pr; // a click there gives it the focus
+      this.sidePanel.render(ui, pr);
     }
+    if (this.focus === "panel" && !this.sidePanel.area) this.focus = "main"; // the panel went away
     this.rects.main = mainR;
     const app = this.activeApp;
     const mainFocused = this.focus === "main" && !this.topModal;
@@ -1217,12 +1224,12 @@ export class Workspace {
     const c = ui.c;
     const d = this.deck;
     ui.fill(r, { bg: c.statusBg });
-    const pane = this.focus === "main" ? (this.activeApp?.kind ?? "deck") : this.focus === "sidebar" ? "vault" : "shell";
+    const pane = this.focus === "main" ? (this.activeApp?.kind ?? "deck") : this.focus === "sidebar" ? "vault" : this.focus === "panel" ? "panel" : "shell";
     let x = ui.text(r.x, r.y, ` ${pane.toUpperCase()} `, { fg: c.panel, bg: c.accent, attrs: BOLD });
     x = ui.text(x, r.y, "", { fg: c.accent, bg: c.statusBg });
     const status = this.focus === "shell" && this.shellTab === "term" && this.termAvailable
       ? `${this.sysTerm?.shellName ?? "terminal"} · ctrl = Control (nano: ctrl+X quits) · ⌘C ⌘V copy/paste · ⌘K palette · F12 tabs`
-      : this.focus === "shell" ? d.shell.status() : this.focus === "sidebar" ? "enter open · n new note · r rescan" : (this.activeApp?.status?.() ?? "");
+      : this.focus === "shell" ? d.shell.status() : this.focus === "sidebar" ? "enter open · n new note · r rescan" : this.focus === "panel" ? t("a add a widget · right-click: move, remove · ⌘⇧B hide") : (this.activeApp?.status?.() ?? "");
 
     // right side
     const parts: { text: string; fg: number; cmd?: string; tip?: string }[] = [];

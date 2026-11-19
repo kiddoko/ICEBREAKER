@@ -1,3 +1,4 @@
+import type { VoiceTopic } from "../deck";
 import { corePackageEntries } from "./core-packages";
 import { registerBackground } from "../fx/backgrounds";
 import { vaultTools } from "../ai/tools";
@@ -380,6 +381,7 @@ export class PluginHost {
         prompt: (t, o) => deck.prompt(t, o),
         choose: (t, options, o) => deck.choose(t, options, o),
         alert: (title, body) => deck.alert(title, body),
+        say: (text, topic) => deck.speak((["calendar", "reminders", "timers", "weather", "system"].includes(topic ?? "") ? topic : "modules") as VoiceTopic, text),
         theme: () => deck.theme,
         redraw: () => deck.requestFrame(),
       },

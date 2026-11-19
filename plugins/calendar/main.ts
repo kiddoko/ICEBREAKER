@@ -118,6 +118,8 @@ function until(d: Date): string {
 
 let syncTimer: ReturnType<typeof setInterval> | null = null;
 
+let sayTimer: ReturnType<typeof setInterval> | undefined;
+
 export function activate(ib: IcebreakerAPI): void {
   const { BOLD, hex, mix, strWidth, q, fmt, parseFlags, t } = ib.lib;
   const run = (line: string) => void ib.shell.run(line);
@@ -422,6 +424,22 @@ export function activate(ib: IcebreakerAPI): void {
   }
 
   // ── the `cal` command ────────────────────────────────────────────────────
+  // ── 30 minutes before a timed event: the voice says it (Settings → VOICE → calendar)
+  const announced = new Set<string>();
+  if (sayTimer) clearInterval(sayTimer); // the module switched off and on again: one timer only
+  sayTimer = setInterval(() => {
+    const now = Date.now();
+    for (const e of visible()) {
+      if (e.allDay) continue;
+      const mins = (dayOf(e.start).getTime() - now) / 60_000;
+      const key = `${e.cal}:${e.id}:${e.start}`;
+      if (mins > 0 && mins <= 30 && !announced.has(key)) {
+        announced.add(key);
+        ib.ui.say(t("in {n} minutes: {title}", { n: Math.max(1, Math.round(mins)), title: e.title }), "calendar");
+      }
+    }
+  }, 60_000);
+
   // ── Settings → ◇ CALENDAR (each row is also a command) ─────────────────────
   ib.settings.register([
     { key: "weekStart", label: "first day of the week", type: "choice", options: ["monday", "sunday"], default: "monday", help: "Where the week starts in the month grid, the week view and `cal month`." },

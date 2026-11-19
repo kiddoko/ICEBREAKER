@@ -1,3 +1,4 @@
+import { t } from "../core/i18n";
 import { ago } from "../core/time";
 import { q } from "../ui/ui";
 import { mix, type RGB } from "../core/color";
@@ -139,6 +140,10 @@ async function loadWeather(key: string, deck: Deck): Promise<void> {
       `&hourly=temperature_2m&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,precipitation_probability_max`;
     const f = await (await fetch(`https://api.open-meteo.com/v1/forecast?${q}`)).json();
     const hhmm = (iso: string) => iso?.slice(11, 16) ?? "--:--";
+    // the sky changed since the last look (rain coming, sun back…): the voice may say it
+    const before = weather && weather.key === key ? sky(weather.code) : null;
+    const after = sky(f.current.weather_code);
+    if (before && before !== after) deck.speak("weather", t("weather in {place}: {sky}", { place: place.name, sky: t(SKY_WORDS[after]) }));
     weather = {
       place: place.name,
       temp: f.current.temperature_2m,
@@ -169,6 +174,8 @@ async function loadWeather(key: string, deck: Deck): Promise<void> {
 }
 
 type Sky = "sun" | "partly" | "cloud" | "fog" | "rain" | "snow" | "storm";
+/** how the voice says a sky */
+const SKY_WORDS: Record<Sky, string> = { sun: "clear sky", partly: "a few clouds", cloud: "cloudy", fog: "fog", rain: "rain", snow: "snow", storm: "storm" };
 export function sky(code: number): Sky {
   if (code === 0 || code === 1) return "sun";
   if (code === 2) return "partly";

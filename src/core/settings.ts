@@ -123,6 +123,13 @@ export interface Settings {
     volume: number;
     /** read LINK's answers aloud */
     readAI: boolean;
+    /**
+     * What else the voice says, topic by topic (Settings → VOICE → say aloud):
+     * errors · reminders · timers (and focus) · calendar (30 min before) ·
+     * weather (when the sky changes) · time (every half hour) · system (CPU or
+     * memory overload) · modules (what modules ask to say). See Deck.speak.
+     */
+    speak: Record<string, boolean>;
     /** "Welcome, netrunner" when the deck starts */
     greet: boolean;
     /** the language it speaks: en · fr · ja (Japanese, whatever the UI language) */
@@ -193,7 +200,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   journal: { folder: "journal" },
   privacy: { stealth: false },
-  voice: { subtitles: true, enabled: false, engine: "auto", name: "", rate: 1.1, robot: 100, volume: 50, readAI: false, greet: true, language: "en" },
+  voice: { subtitles: true, enabled: false, engine: "auto", name: "", rate: 1.1, robot: 100, volume: 50, readAI: false, greet: true, language: "en", speak: { errors: true, reminders: true, timers: true, calendar: true, weather: false, time: false, system: true, modules: true } },
   editor: { autosave: true, tabSize: 2, treeWheel: true },
   // the community index: a JSON list of plugins/themes (see docs/COMMUNITY.md)
   plugins: { enabled: [], disabled: [], removed: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json", sources: [] },

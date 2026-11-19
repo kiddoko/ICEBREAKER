@@ -15,7 +15,8 @@ type Line = { group: string; label: string; count: number } | { w: WidgetSpec & 
 /**
  * "Add a widget": the widgets grouped by module (each group folds: enter, → ←,
  * a click), searchable (a search shows every match, flat), and a live preview
- * of the one under the cursor. Enter (or a click) on a widget runs `home add <id>`.
+ * of the one under the cursor. Enter (or a click) on a widget runs `home add <id>`
+ * — or `panel add <id>` when it was opened for the side panel (`target: "panel"`).
  */
 export class WidgetPicker implements Overlay {
   modal = true;
@@ -26,13 +27,17 @@ export class WidgetPicker implements Overlay {
   private openGroups = new Set<string>();
   private lastQuery = "\0";
 
-  constructor(private readonly deck: Deck) {
+  constructor(
+    private readonly deck: Deck,
+    /** where the chosen widget goes: HOME's grid, or the side panel (at the end) */
+    private readonly target: "home" | "panel" = "home",
+  ) {
     this.input.onSubmit = () => this.pick();
     this.list.onActivate = () => this.pick();
   }
 
   private placed(id: string): boolean {
-    return this.deck.settings.data.home.widgets.some((p) => p.id === id);
+    return this.target === "panel" ? (this.deck.settings.data.panel?.widgets ?? []).includes(id) : this.deck.settings.data.home.widgets.some((p) => p.id === id);
   }
 
   private toggle(group: string, open = !this.openGroups.has(group)): void {
@@ -47,8 +52,8 @@ export class WidgetPicker implements Overlay {
     if ("group" in line) return this.toggle(line.group);
     const w = line.w;
     this.done = true;
-    if (this.placed(w.id)) this.deck.notify(`${w.title} is already on HOME`);
-    else void this.deck.act(`home add ${w.id}`);
+    if (this.placed(w.id)) this.deck.notify(this.target === "panel" ? t("{name} is already in the side panel", { name: t(w.title) }) : t("{name} is already on HOME", { name: t(w.title) }));
+    else void this.deck.act(`${this.target} add ${w.id}`);
   }
 
   onKey(k: KeyInput): boolean {
@@ -110,7 +115,7 @@ export class WidgetPicker implements Overlay {
     ui.hit(screen, { onClick: () => (this.done = true), onWheel: () => {}, block: true });
     const W = Math.min(screen.w - 4, 110), H = Math.min(screen.h - 4, 30);
     const box = { x: Math.floor((screen.w - W) / 2), y: Math.max(1, Math.floor((screen.h - H) / 2)), w: W, h: H };
-    const inner = ui.box(box, { title: t("ADD A WIDGET"), focused: true, bg: c.panelAlt, info: `${this.list.items.length} · ${t("enter adds · esc")}` });
+    const inner = ui.box(box, { title: this.target === "panel" ? t("ADD A WIDGET · SIDE PANEL") : t("ADD A WIDGET"), focused: true, bg: c.panelAlt, info: `${this.list.items.length} · ${t("enter adds · esc")}` });
     ui.hit(box, { onClick: () => {} });
     ui.text(inner.x + 1, inner.y, "❯", { fg: c.accent, attrs: BOLD });
     this.input.render(ui, { x: inner.x + 3, y: inner.y, w: inner.w - 4, h: 1 }, true);

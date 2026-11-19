@@ -2,6 +2,7 @@ import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
 import type { Deck } from "../deck";
 import { inside, type Hit, type UI } from "../ui/ui";
+import { WidgetPicker } from "./widgetpicker";
 
 /**
  * The side panel on the right (◧ in the status bar, ⌘⇧B, `panel`): a column of
@@ -34,7 +35,8 @@ export class SidePanel {
     const c = ui.c;
     const home = ws.findTab("home") as { isEditing?: boolean } | undefined;
     const editing = !!home?.isEditing && ws.activeApp === (home as unknown);
-    const inner = ui.box(r, { title: t("PANEL"), info: editing ? t("edit") : undefined, border: editing ? "heavy" : undefined, focused: editing });
+    const hasFocus = ws.focus === "panel";
+    const inner = ui.box(r, { title: t("PANEL"), info: editing ? t("edit") : hasFocus ? t("a: add a widget") : undefined, border: editing ? "heavy" : undefined, focused: editing || hasFocus });
     ui.hit(inner, { menu: () => [{ label: t("add a widget…"), run: () => void this.pick() }, { label: t("hide the panel"), cmd: "panel hide" }] });
     const ids = (d.settings.data.panel?.widgets ?? []).filter((id) => d.widgets.get(id));
     const slots: { id: string; y: number; h: number }[] = [];
@@ -130,10 +132,21 @@ export class SidePanel {
     this.deck.settings.set("panel", { ...this.deck.settings.data.panel, widgets: list });
   }
 
-  /** Pick a widget for the side panel. */
+  /** Pick a widget for the side panel: the same picker as HOME's (a), it goes at the end. */
   async pick(): Promise<void> {
-    const list = this.deck.widgets.list().filter((w) => w.picker !== false && !w.id.startsWith("link."));
-    const i = await this.deck.choose(t("A widget for the panel"), list.map((w) => ({ label: t(w.title), hint: w.id })));
-    if (i !== null) void this.deck.act(`panel add ${list[i].id}`);
+    this.deck.workspace.push(new WidgetPicker(this.deck, "panel"));
   }
+
+  /** Keys while the panel has the focus: a adds a widget (like on HOME). */
+  onText(t: string): boolean {
+    if (t === "a") return void this.pick(), true;
+    return false;
+  }
+  onKey(): boolean {
+    return false;
+  }
+  onAction(): boolean {
+    return false;
+  }
+
 }

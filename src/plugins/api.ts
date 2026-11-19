@@ -229,6 +229,12 @@ export interface IcebreakerAPI {
     prompt(title: string, opts?: { initial?: string; placeholder?: string; mask?: boolean; suggestions?: string[] }): Promise<string | null>;
     /** Get the user's attention: system notification + the alert sound (+ the voice, if on). */
     alert(title: string, body?: string): void;
+    /**
+     * Have the voice say something — only if the user lets that topic speak
+     * (Settings → VOICE → say aloud). Topics: "calendar", "reminders", "timers",
+     * "weather", "system"… anything else counts as "modules".
+     */
+    say(text: string, topic?: string): void;
     /** Pick one option (type to filter). Resolves with its index, or null. */
     choose(title: string, options: ChoiceOption[], opts?: { selected?: number }): Promise<number | null>;
     theme(): Theme;

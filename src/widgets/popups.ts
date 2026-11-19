@@ -418,7 +418,7 @@ export const timerCommand: Command = {
         const now = Date.now();
         for (const done of clockState.timers.filter((x) => now >= x.end)) {
           clockState.timers = clockState.timers.filter((x) => x !== done);
-          deck.alert(`⏰ ${done.label}`, t("timer done"));
+          deck.alert(`⏰ ${done.label}`, t("timer done"), "timers");
         }
         if (!clockState.timers.length) {
           clearInterval(timerWatch!);
