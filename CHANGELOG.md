@@ -2,6 +2,45 @@
 
 ## Unreleased
 
+## 0.3.0 — 2026-11-19
+
+- MODULES and NEXUS share one wheel feel: a trackpad steps every few lines (no
+  more racing), the ring glides and slows down little by little; MODULES sits in
+  the middle when the shell is hidden. Each step clicks like a notched wheel
+  (a `tick` sound per theme pack), choosing plays a `select`.
+- MODULES: thicker, more colourful floppies (each its own accent, or the colour
+  you give it: right-click → colour, `modules tag todo cyan`), a colour filter
+  (squares top right, `modules view cyan`), a glow under the chosen one and a
+  quick insert-into-the-drive animation. NEXUS follows the tree's colour filter.
+- Sound packs per theme: Settings → SOUND → sound pack (this theme), `sound pack`;
+  the theme's own shows as "(default)".
+- Tree: drag & drop notes and folders onto folders (below the rows = the root);
+  drop files from the Finder / Explorer to copy them into the vault (never
+  overwrites). The wheel over the tree walks file by file and shows each one at
+  once in a preview tab (Settings → VAULT to turn it off).
+- TRASH page (⌫ above the tree, `trash open`): what's in .trash, where it lived,
+  restore / restore elsewhere / open.
+- Settings → ◇ CALENDAR: first day of the week (weeks can start on Sunday), where
+  your calendar lives, Google account, sync, your own Google client, default
+  calendar; `cal settings`. docs/GOOGLE.md explains connecting on Windows. Module
+  settings get an `action` row type.
+- Terminal: tabs drawn as chips (your terminals │ the deck's panes), the panel's
+  buttons on the right; macros can be hidden (▴, `macro hide`) and bound to keys
+  (right-click → shortcut…: press the keys, see conflicts, several actions in a
+  row; `bind --pick`, `macro run`).
+- Windows PowerShell: the ICEBREAKER prompt no longer shows garbled characters
+  (UTF-8 console, script saved with a BOM).
+- Login: the account isn't filled in unless "remember me" is ticked.
+- Shortcut squares: 1×1 HOME widgets that open anything in one click (module,
+  note, folder, page, macro, command): `home link new`, right-click → square on HOME.
+- Side panel on the right (◧ in the status bar, `panel`): widgets always in view.
+- Profile icon: pixel-art faces and glyphs in your colour (Settings → YOU, `avatar`),
+  on the login screen and in `whoami`.
+- Gamepad: hold RB for the action wheel (8 slots a page, point a stick, let go);
+  a tap on RB still turns the tab. `wheel` opens it with the mouse; right-click →
+  add to the wheel.
+- Swipes and mouse side buttons switch tabs with an even shorter transition.
+
 ## 0.2.1 — 2026-11-19
 
 - Effects are per theme: each theme keeps the effects you last set on it
