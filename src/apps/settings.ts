@@ -1,3 +1,5 @@
+import { avatarGlyph, avatarOf } from "../core/avatar";
+import { AvatarPicker } from "../workspace/avatarpicker";
 import { SOUND_PACKS } from "../core/sound";
 import { t } from "../core/i18n";
 import { displayKeys, SHORTCUTS } from "../core/shortcuts";
@@ -126,6 +128,15 @@ export class SettingsApp implements App {
       { section: "YOU", label: "", value: () => "" },
       cycle("user.language", "language", ["en", "fr"], undefined, (v) => (v === "fr" ? "Français" : "English")),
       text("user.handle", "handle"),
+      {
+        label: "profile icon",
+        value: () => {
+          const a = avatarOf(s.data.user.avatar?.id);
+          return `${avatarGlyph(a)} ${a.name} · ${s.data.user.avatar?.color ?? "accent"}`;
+        },
+        cmd: () => `avatar ${s.data.user.avatar?.id ?? "visor"} ${s.data.user.avatar?.color ?? "accent"}`,
+        change: () => d.workspace.push(new AvatarPicker(d)),
+      },
       cycle("user.gender", "gender (optional)", ["", "woman", "man", "nonbinary", "other"], undefined, (v) => v || "not specified"),
       text("user.genderOther", "your own word (when gender is other)"),
       {

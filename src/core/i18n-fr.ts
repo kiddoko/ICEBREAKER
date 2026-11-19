@@ -830,4 +830,9 @@ export const FR: Record<string, string> = {
   "The command": "La commande",
   "Its name": "Son nom",
   "square on HOME": "carré sur le HOME",
+  // ── profile icon (19 nov.)
+  "profile icon": "icône de profil",
+  "PROFILE ICON": "ICÔNE DE PROFIL",
+  "enter keep · tab colours · esc": "entrée garder · tab couleurs · échap",
+  "keep it": "la garder",
 };

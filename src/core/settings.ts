@@ -25,6 +25,8 @@ export interface Settings {
     pronouns: string;
     /** the login screen fills in the account name (off: you type it each time) */
     rememberAccount: boolean;
+    /** your profile icon (core/avatar.ts): a pixel face or a glyph, and its colour */
+    avatar: { id: string; color: string };
     /**
      * Where you are, as precisely as you choose (weather, local news). Nothing
      * leaves the machine except to open-meteo.com / Google News when a widget asks.
@@ -142,7 +144,7 @@ export interface Secrets {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  user: { handle: "netrunner", locale: "", language: "en", gender: "", genderOther: "", pronouns: "", rememberAccount: false, location: { precision: "none", name: "", country: "", lat: null, lon: null } },
+  user: { handle: "netrunner", locale: "", language: "en", gender: "", genderOther: "", pronouns: "", rememberAccount: false, avatar: { id: "visor", color: "accent" }, location: { precision: "none", name: "", country: "", lat: null, lon: null } },
   setup: { done: false },
   vault: { path: "" },
   appearance: { theme: "nightshade", tweaks: {}, fontSize: 13, scale: 100, startFullscreen: false, fontWeight: "thin", maxFps: 60, showFps: true, lineNumbers: true, backgroundSlow: true },

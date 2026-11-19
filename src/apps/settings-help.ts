@@ -6,6 +6,7 @@
 export const SETTINGS_HELP: Record<string, [string, string]> = {
   "user.language": ["The language of the interface and of the deck's voice. Command output and man pages stay in English for now.", "La langue de l'interface et de la voix du deck. Les sorties de commandes et les pages man restent en anglais pour l'instant."],
   "user.handle": ["What the deck calls you: the greeting, the shell prompt, the login.", "Comment le deck t'appelle : l'accueil, le prompt du shell, la connexion."],
+  "profile icon": ["Your icon: a little pixel-art face or a glyph, in the colour you like. It shows on the login screen and in whoami, and the chat will use it. Shell: avatar.", "Ton icône : un petit visage en pixel art ou un glyphe, dans la couleur de ton choix. Elle s'affiche à la connexion et dans whoami, et le chat s'en servira. Shell : avatar."],
   "user.gender": ["Only used so the voice and the texts address you the right way. Optional, stays on this machine.", "Sert seulement à ce que la voix et les textes s'adressent à toi correctement. Facultatif, reste sur cette machine."],
   "user.genderOther": ["Your own word, used when gender is set to other.", "Ton propre mot, utilisé quand le genre est « autre »."],
   "user.pronouns": ["How the deck refers to you (she/her, they/them, iel…). Type your own with config set user.pronouns \"…\".", "Comment le deck parle de toi (elle, iel, they/them…). Les tiens : config set user.pronouns \"…\"."],

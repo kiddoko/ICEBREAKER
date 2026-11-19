@@ -3,6 +3,7 @@ import { BOLD, type Rect } from "../core/grid";
 import type { KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import { decrypt } from "../fx/glitch";
+import { avatarOf, avatarRGB, drawAvatar } from "../core/avatar";
 import type { UI } from "../ui/ui";
 
 /**
@@ -134,6 +135,12 @@ export class LockScreen {
     const title = "deck locked · authenticate";
     ui.textCenter({ x: 0, y, w: W, h: 1 }, y, p < 1 ? decrypt(title, p, ui.now) : title, { fg: c.muted });
     y += 2;
+    // your icon (only once the account is filled in: nothing about you shows before)
+    if (this.user && H >= 24) {
+      const av = this.deck.settings.data.user.avatar;
+      drawAvatar(ui, { x: Math.floor((W - 5) / 2) + shake, y, w: 5, h: 3 }, avatarOf(av?.id), avatarRGB(ui, av?.color), { dim: p < 1 });
+      y += 4;
+    }
 
     this.input(ui, { x, y, w, h: 1 }, "account", this.user, false, this.field === "user", () => (this.field = "user"));
     y += 2;

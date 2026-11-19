@@ -1,3 +1,5 @@
+import { AVATAR_COLORS, AVATARS, avatarOf } from "../../core/avatar";
+import { AvatarPicker } from "../../workspace/avatarpicker";
 import { helpText } from "../help";
 import { fmt } from "../../core/ansi";
 import { gradient } from "../../core/color";
@@ -101,9 +103,35 @@ const cal: Command = {
 
 const whoami: Command = {
   name: "whoami",
-  summary: "print your handle",
+  summary: "print your handle (and your profile icon)",
   run(ctx) {
-    ctx.out(ctx.deck.settings.data.user.handle + "\n");
+    const u = ctx.deck.settings.data.user;
+    const a = avatarOf(u.avatar?.id);
+    if (Array.isArray(a.art) && ctx.args[0] !== "-s") for (const line of a.art) ctx.out(`  ${fmt.magenta(line)}\n`);
+    ctx.out(u.handle + "\n");
+  },
+};
+
+const avatar: Command = {
+  name: "avatar",
+  aliases: ["profile"],
+  summary: "your profile icon: a pixel face or a glyph, in a colour (Settings → YOU)",
+  usage: "avatar                    the picker\navatar list               every icon\navatar <icon> [colour]    e.g. avatar visor cyan · avatar ☠ red\ncolours: " + Object.keys(AVATAR_COLORS).join(", "),
+  complete: () => [...AVATARS.map((a) => a.id), "list", ...Object.keys(AVATAR_COLORS)],
+  run(ctx) {
+    const d = ctx.deck;
+    const [id, color] = ctx.args;
+    if (!id) return void d.workspace.push(new AvatarPicker(d)), 0;
+    if (id === "list") {
+      for (const a of AVATARS) ctx.out(`${a.id.padEnd(10)} ${Array.isArray(a.art) ? a.art.join(fmt.dim(" │ ")) : a.art}\n`);
+      return 0;
+    }
+    const a = AVATARS.find((x) => x.id === id);
+    if (!a) return ctx.err(`avatar: no icon ${id} (avatar list)\n`), 1;
+    if (color && !(color in AVATAR_COLORS)) return ctx.err(`avatar: colours are ${Object.keys(AVATAR_COLORS).join(", ")}\n`), 1;
+    d.settings.set("user.avatar", { id: a.id, color: color ?? d.settings.data.user.avatar?.color ?? "accent" });
+    ctx.out(`${a.name}${color ? ` · ${color}` : ""}\n`);
+    return 0;
   },
 };
 
@@ -296,4 +324,4 @@ export function formatUptime(sec: number): string {
   return [d && `${d}d`, h && `${h}h`, `${m}m`].filter(Boolean).join(" ");
 }
 
-export const systemCommands: Command[] = [help, man, clear, history, date, cal, whoami, uname, hostname, uptime, env, exportCmd, sleep, which, neofetch, fortune, rain, exit, reboot, fullscreen, colors];
+export const systemCommands: Command[] = [help, man, clear, history, date, cal, whoami, avatar, uname, hostname, uptime, env, exportCmd, sleep, which, neofetch, fortune, rain, exit, reboot, fullscreen, colors];

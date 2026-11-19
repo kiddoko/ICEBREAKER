@@ -164,6 +164,10 @@ were on come back as you left them next time.
 - Status bar, right: **♪** mutes everything · **☾** the screensaver (each theme
   has its own: a neon city, an 80s mainframe, sonar, warp, an e-reader).
 - Too many tabs for the bar: they scroll around the one shown (‹ ›).
+- **Your profile icon**: Settings → YOU → profile icon (or \`avatar\`): a little
+  pixel-art face or a glyph, in the colour you like. It's on the login screen
+  and in \`whoami\`; the chat will use it.
+- **Sounds**: Settings → SOUND → sound pack — each theme keeps its own.
 `,
 
   "shell.md": `# The shell
