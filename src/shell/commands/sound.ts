@@ -73,10 +73,11 @@ export const sound: Command = {
       const cur = deck.soundPack();
       if (!b) {
         for (const [name, p] of Object.entries(SOUND_PACKS)) ctx.out(`${name === cur ? fmt.green("●") : " "} ${fmt.bold(name)}${name === own ? fmt.dim(" (default)") : ""}  ${fmt.dim(p.description)}\n`);
+        for (const name of deck.soundFolderPacks) ctx.out(`${name === cur ? fmt.green("●") : " "} ${fmt.bold(name)}  ${fmt.dim("files · .icebreaker/sounds/packs/" + name)}\n`);
         ctx.out(fmt.dim(`for the theme ${deck.theme.name} · sound pack <name> · sound pack default\n`));
         return 0;
       }
-      if (b !== "default" && !SOUND_PACKS[b]) return ctx.err(`sound: no pack ${b} (${Object.keys(SOUND_PACKS).join(", ")})\n`), 1;
+      if (b !== "default" && !SOUND_PACKS[b] && !deck.soundFolderPacks.includes(b)) return ctx.err(`sound: no pack ${b} (${[...Object.keys(SOUND_PACKS), ...deck.soundFolderPacks].join(", ")})\n`), 1;
       deck.setSoundPack(b);
       deck.sound.play("confirm");
       ctx.out(`${deck.theme.name}: ${deck.soundPack()}${deck.soundPack() === own ? " (default)" : ""}\n`);

@@ -19,13 +19,19 @@ interface Row {
   level?: FxLevel;
 }
 
-type Preset = "minimal" | "max" | "potato";
+/** How much CRT: five steps, from nothing to the dance floor. */
+export const FX_PRESET_NAMES = ["none", "light", "medium", "heavy", "party"] as const;
+export type Preset = (typeof FX_PRESET_NAMES)[number];
+/** the names of before (fx minimal / max / potato still work) */
+export const FX_PRESET_ALIASES: Record<string, Preset> = { potato: "none", minimal: "light", max: "heavy" };
 
-/** What each preset turns on (everything else off). */
-export const FX_PRESETS: Record<Preset, FxKey[]> = {
-  minimal: ["ambient", "glitch"],
-  max: ["ambient", "glitch", "bloom", "scanlines", "vignette", "flicker"],
-  potato: [],
+/** Each preset: the switches on (the rest off) and every effect's strength (0 = off, up to 200). */
+export const FX_PRESETS: Record<Preset, { on: FxKey[]; levels: Record<FxLevel, number>; hint: string }> = {
+  none: { on: [], levels: { bloom: 0, scanlines: 0, vignette: 0, chroma: 0, glow: 0, sharpness: 100 }, hint: "flat and sharp, nothing moves (old laptops)" },
+  light: { on: ["ambient", "glitch"], levels: { bloom: 60, scanlines: 40, vignette: 50, chroma: 0, glow: 0, sharpness: 90 }, hint: "a hint of glow, crisp text (default)" },
+  medium: { on: ["ambient", "glitch"], levels: { bloom: 100, scanlines: 100, vignette: 100, chroma: 30, glow: 30, sharpness: 80 }, hint: "a real CRT" },
+  heavy: { on: ["ambient", "glitch", "flicker"], levels: { bloom: 150, scanlines: 150, vignette: 130, chroma: 100, glow: 80, sharpness: 70 }, hint: "glow, fringes, flicker" },
+  party: { on: ["ambient", "glitch", "flicker"], levels: { bloom: 200, scanlines: 200, vignette: 200, chroma: 200, glow: 200, sharpness: 60 }, hint: "everything at the max. sunglasses on" },
 };
 
 /**
@@ -49,9 +55,7 @@ export class FxPanel implements Overlay {
       { label: "background", hint: "the theme's animation", key: "ambient" },
       { label: "glitch", hint: "transitions", key: "glitch" },
       { label: "flicker", hint: "unstable tube", key: "flicker" },
-      { label: "▸ minimal", hint: "default", preset: "minimal" },
-      { label: "▸ max", hint: "everything on", preset: "max" },
-      { label: "▸ potato", hint: "all off, 30fps", preset: "potato" },
+      ...FX_PRESET_NAMES.map((p) => ({ label: `▸ ${p}`, hint: FX_PRESETS[p].hint, preset: p })),
     ];
     this.list.onActivate = (row) => this.activate(row);
   }
@@ -134,12 +138,10 @@ export class FxPanel implements Overlay {
   }
 }
 
-export function applyFxPreset(deck: Deck, preset: Preset): void {
-  const on = FX_PRESETS[preset];
-  for (const key of FX_PRESETS.max) deck.settings.set(`fx.${key}`, on.includes(key));
-  deck.settings.set("appearance.maxFps", preset === "potato" ? 30 : 60);
-  // full CRT: the colour fringes at max; potato: everything flat and sharp
-  if (preset === "max") deck.settings.set("fx.levels.chroma", 100);
-  if (preset === "potato") deck.settings.set("fx.levels.chroma", 0), deck.settings.set("fx.levels.sharpness", 100);
+export function applyFxPreset(deck: Deck, name: Preset | string): void {
+  const preset = (FX_PRESETS[name as Preset] ? name : FX_PRESET_ALIASES[name] ?? "light") as Preset;
+  const p = FX_PRESETS[preset];
+  for (const key of ["ambient", "glitch", "flicker"] as const) deck.settings.set(`fx.${key}`, p.on.includes(key));
+  for (const [lv, v] of Object.entries(p.levels)) setFx(deck, lv as FxLevel, v);
   deck.applyFx();
 }

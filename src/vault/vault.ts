@@ -1,3 +1,4 @@
+import type { UndoHistory } from "../core/undo";
 import { writeStartHere } from "./starthere";
 import { Emitter } from "../core/events";
 import { WELCOME_NOTE } from "../platform/demo-vault";
@@ -31,16 +32,19 @@ export class Vault {
     return n;
   }
 
+  /** START HERE notes you changed, which a newer version of the deck would have updated (`starthere --force`) */
+  docsYours: string[] = [];
+
   async mount(absPath: string): Promise<void> {
     this.root = await this.backend.mount(absPath || (await this.backend.defaultPath()));
     await this.rescan();
     if (this.entries.length === 0) {
       // Brand-new vault: leave a note explaining where you are.
       await this.write("Welcome.md", WELCOME_NOTE);
-      // the docs, as notes: START HERE/
-      await writeStartHere(this).catch(() => {});
-      await this.rescan();
     }
+    // the docs, as notes (START HERE/, FOR DEVELOPERS/): written into a new vault, and
+    // brought up to date in an old one at every start — the notes you edited stay yours
+    if ((await writeStartHere(this).catch(() => 0)) > 0) await this.rescan();
   }
 
   async defaultPath(): Promise<string> {
@@ -87,6 +91,20 @@ export class Vault {
     return this.backend.list(normalize(dir));
   }
 
+  /** The deck's undo history (core/undo.ts): trash and renames go in it. */
+  history?: UndoHistory;
+
+  /** A new file or folder you made (a note, `touch`, `mkdir`): ⌘Z sends it to the trash. */
+  recordCreated(path: string): void {
+    const p = normalize(path);
+    let inTrash = "";
+    this.history?.record({
+      label: `new ${p}`,
+      undo: async () => { if (await this.exists(p)) inTrash = await this.trash(p); },
+      redo: async () => { if (inTrash) await this.restore(inTrash, p); },
+    });
+  }
+
   async write(path: string, content: string): Promise<void> {
     const p = normalize(path);
     await this.backend.write(p, content);
@@ -117,6 +135,13 @@ export class Vault {
     await this.noteTrashed(dest, p).catch(() => {});
     this.events.emit("trashed", { path: p });
     this.events.emit("changed", { path: p });
+    // ⌘Z puts it back; ⌘⇧Z sends it again (each time to a new place in .trash)
+    let inTrash = dest;
+    this.history?.record({
+      label: `trash ${p}`,
+      undo: async () => void (await this.restore(inTrash)),
+      redo: async () => void (inTrash = await this.trash(p)),
+    });
     return dest;
   }
 
@@ -154,6 +179,9 @@ export class Vault {
 
   async rename(from: string, to: string): Promise<void> {
     await this.backend.rename(normalize(from), normalize(to));
+    // a restore from the trash records itself (as the trash's undo), not as a rename
+    if (!normalize(from).startsWith(".trash/"))
+      this.history?.record({ label: `rename ${normalize(from)}`, undo: () => this.rename(to, from), redo: () => this.rename(from, to) });
     this.events.emit("renamed", { from: normalize(from), to: normalize(to) });
     await this.rescan();
     this.events.emit("changed", { path: normalize(to) });

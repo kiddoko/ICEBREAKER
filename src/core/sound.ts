@@ -4,7 +4,8 @@
  * a detuned buzz for errors — an old OS that is trying its best.
  *
  * Replace any of them with your own: drop `<name>.wav` (or .ogg / .mp3) in
- * `<vault>/.icebreaker/sounds/` and run `sound reload`. Names:
+ * `<vault>/.icebreaker/sounds/` and run `sound reload` — or make a whole pack of
+ * files (`.icebreaker/sounds/packs/<id>/`, docs/SOUND_PACKS.md). Names:
  *
  *   move     cursor moves in a list           open     a tab / app opens
  *   confirm  enter / validate                 back     esc / close
@@ -15,8 +16,35 @@
  *   tick     a detent of the ring (MODULES, NEXUS): one click per step
  *   select   picking a module / a locker: a little "clunk"
  */
-export const SOUND_NAMES = ["move", "open", "confirm", "back", "success", "error", "notify", "boot", "unlock", "denied", "alert", "tick", "select"] as const;
+export const SOUND_NAMES = ["move", "open", "confirm", "back", "success", "error", "notify", "boot", "unlock", "denied", "alert", "tick", "select", "blip", "key", "erase"] as const;
 export type SoundName = (typeof SOUND_NAMES)[number];
+
+/**
+ * The mixer: every sound belongs to one channel, each with its own volume
+ * (settings.sound.mix, 0-100), under the main volume (settings.sound.volume).
+ *   ui      moving around, opening, confirming, the wheel's clicks
+ *   alerts  notifications, success, errors, reminders, unlock / denied
+ *   boot    the start-up
+ *   text    the blips of text typing itself out (ui/typewriter.ts)
+ *   typing  your own keys (off by default: settings.sound.typing)
+ */
+export const SOUND_CHANNELS = ["ui", "alerts", "boot", "text", "typing"] as const;
+export type SoundChannel = (typeof SOUND_CHANNELS)[number];
+export const CHANNEL_OF: Record<SoundName, SoundChannel> = {
+  move: "ui", open: "ui", confirm: "ui", back: "ui", tick: "ui", select: "ui",
+  success: "alerts", error: "alerts", notify: "alerts", alert: "alerts", unlock: "alerts", denied: "alerts",
+  boot: "boot",
+  blip: "text",
+  key: "typing",
+  erase: "typing",
+};
+
+/** A sound file may weigh this much at most (docs/SOUND_PACKS.md). */
+export const MAX_SOUND_BYTES = 1024 * 1024;
+/** How long a sound may last: the start-up and the alert may take longer, the rest are clicks. */
+export function maxSeconds(name: SoundName): number {
+  return name === "boot" ? 6 : name === "alert" || name === "unlock" || name === "denied" ? 3 : name === "blip" || name === "key" || name === "erase" ? 0.3 : 1.5;
+}
 
 type Synth = (ctx: AudioContext, out: AudioNode, t: number) => void;
 
@@ -53,6 +81,8 @@ let V: Voice = SOUND_PACKS.retro.voice;
 export class Sound {
   enabled = true;
   volume = 0.5;
+  /** each channel's volume, 0-1 (the mixer) */
+  mix: Record<SoundChannel, number> = { ui: 1, alerts: 1, boot: 1, text: 0.6, typing: 0.6 };
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private custom = new Map<SoundName, AudioBuffer>();
@@ -67,27 +97,40 @@ export class Sound {
     if (this.lowpass) this.lowpass.frequency.value = this.voice.tone;
   }
 
-  /** Load user overrides from the vault (`readBytes` returns null when a file is missing). */
-  async loadCustom(readBytes: (path: string) => Promise<ArrayBuffer | null>): Promise<number> {
+  /**
+   * Load sounds from the vault, folder by folder (a later folder wins): your own
+   * `.icebreaker/sounds/`, then the sound pack's folder if it's one made of files
+   * (`.icebreaker/sounds/packs/<id>/`). Rules for the files: docs/SOUND_PACKS.md.
+   * `readBytes` returns null when a file is missing.
+   */
+  async loadCustom(readBytes: (path: string) => Promise<ArrayBuffer | null>, dirs: string[] = [".icebreaker/sounds"]): Promise<number> {
     this.custom.clear();
     const ctx = this.context();
     if (!ctx) return 0;
-    for (const name of SOUND_NAMES)
-      for (const ext of ["wav", "ogg", "mp3"]) {
-        const data = await readBytes(`.icebreaker/sounds/${name}.${ext}`).catch(() => null);
-        if (!data) continue;
-        try {
-          this.custom.set(name, await ctx.decodeAudioData(data));
-          break;
-        } catch {
-          console.warn(`sound ${name}.${ext}: not a playable audio file`);
+    for (const dir of dirs)
+      for (const name of SOUND_NAMES)
+        for (const ext of ["wav", "ogg", "mp3"]) {
+          const data = await readBytes(`${dir}/${name}.${ext}`).catch(() => null);
+          if (!data) continue;
+          if (data.byteLength > MAX_SOUND_BYTES) {
+            console.warn(`sound ${dir}/${name}.${ext}: bigger than 1 MB, left out`);
+            break;
+          }
+          try {
+            const buf = await ctx.decodeAudioData(data);
+            if (buf.duration > maxSeconds(name)) console.warn(`sound ${dir}/${name}.${ext}: ${buf.duration.toFixed(1)} s, longer than ${maxSeconds(name)} s — left out`);
+            else this.custom.set(name, buf);
+            break;
+          } catch {
+            console.warn(`sound ${dir}/${name}.${ext}: not a playable audio file`);
+          }
         }
-      }
     return this.custom.size;
   }
 
   play(name: SoundName): void {
-    if (!this.enabled || this.volume <= 0) return;
+    const level = this.mix[CHANNEL_OF[name]] ?? 1;
+    if (!this.enabled || this.volume <= 0 || level <= 0) return;
     // the same sound twice within 35 ms is noise, not feedback (key repeat…)
     const now = performance.now();
     if (now - (this.last.get(name) ?? 0) < 35) return;
@@ -96,17 +139,22 @@ export class Sound {
     if (!ctx || !this.master) return;
     if (ctx.state === "suspended") void ctx.resume();
     this.master.gain.value = this.volume * 0.35;
-    const t = ctx.currentTime + 0.005;
+    // keys and blips start now; the rest a hair later (so every voice of a chord starts together)
+    const t = ctx.currentTime + (CHANNEL_OF[name] === "typing" || name === "blip" ? 0 : 0.005);
+    // the channel's fader
+    const out = ctx.createGain();
+    out.gain.value = level;
+    out.connect(this.master);
     const buf = this.custom.get(name);
     if (buf) {
       const src = ctx.createBufferSource();
       src.buffer = buf;
-      src.connect(this.master);
+      src.connect(out);
       src.start(t);
       return;
     }
     V = this.voice;
-    SYNTHS[name](ctx, this.master, t);
+    SYNTHS[name](ctx, out, t);
   }
 
   private context(): AudioContext | null {
@@ -114,7 +162,8 @@ export class Sound {
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AC) return null;
     try {
-      this.ctx = new AC();
+      // "interactive": the smallest output buffer the system gives (the typing click must land with the key)
+      this.ctx = new AC({ latencyHint: "interactive" });
       this.master = this.ctx.createGain();
       // a gentle low-pass: square waves through an old speaker
       const lp = this.ctx.createBiquadFilter();
@@ -236,6 +285,18 @@ const SYNTHS: Record<SoundName, Synth> = {
     noise(c, o, t, 0.07, 700, 0.3, 1.8);
     tone(c, o, t + 0.02, 330, 0.05, "square", 0.18);
     tone(c, o, t + 0.07, 494, 0.08, "square", 0.16);
+  },
+  // text typing itself out: a Game Boy RPG blip (each pack gives it its colour)
+  blip: (c, o, t) => tone(c, o, t, jitter(980, 0.04), 0.045, "square", 0.26),
+  // your own keys: a little mechanical click — papery, clacky, glassy… with the pack
+  key: (c, o, t) => {
+    noise(c, o, t, 0.016, jitter(3200, 0.12), 0.22, 4);
+    tone(c, o, t, jitter(170, 0.08), 0.014, "triangle", 0.08);
+  },
+  // erasing (backspace, delete): lower and softer than a key, sliding down — "un-typing"
+  erase: (c, o, t) => {
+    noise(c, o, t, 0.014, jitter(1800, 0.1), 0.18, 3);
+    tone(c, o, t, jitter(420, 0.05), 0.03, "triangle", 0.09, 240);
   },
   denied: (c, o, t) => {
     tone(c, o, t, 196, 0.12, "square", 0.25);

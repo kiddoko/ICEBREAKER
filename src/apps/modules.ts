@@ -7,7 +7,9 @@ import { decrypt } from "../fx/glitch";
 import type { MenuEntry, UI } from "../ui/ui";
 import { ring, WheelSpin } from "../ui/wheelspin";
 import { FilterBar } from "../ui/filterbar";
-import { addToWheel } from "../workspace/actionwheel";
+import { pageBar } from "../ui/pagebar";
+import { perspectiveFloor } from "../ui/floor";
+import { addToMenu } from "../workspace/quickmenu";
 import { isTagColor, TAG_NAMES, tagRGB, type TagColor } from "../vault/marks";
 import type { App, AppSpec } from "./types";
 
@@ -127,24 +129,24 @@ export class ModulesApp implements App {
   /** Right-click on a card. */
   private cartMenu(c: Cart): MenuEntry[] {
     const items: MenuEntry[] = [];
-    if (c.module && !c.on) items.push({ label: t("switch on"), run: () => this.run(c), hint: "enter" });
-    else if (c.launch || !c.module) items.push({ label: t("launch"), run: () => this.run(c), hint: "enter" });
+    if (c.module && !c.on) items.push({ label: t("Turn on"), run: () => this.run(c), hint: "enter" });
+    else if (c.launch || !c.module) items.push({ label: t("Open"), tip: t("its pop-up: bigger, with its settings"), run: () => this.run(c), hint: "enter" });
     if (c.module) {
-      if (c.on) items.push({ label: t("switch off"), cmd: `plugin disable ${c.id}`, hint: "space" });
+      if (c.on) items.push({ label: t("Turn off"), cmd: `plugin disable ${c.id}`, hint: "space" });
       items.push(
-        { label: t("pin"), cmd: `pin ${c.id}`, hint: "p" },
-        ...(c.launch ? [{ label: t("add to the wheel"), run: () => void addToWheel(this.deck, { label: c.name, cmd: c.launch!, icon: c.icon }) }] : []),
+        { label: t("Pin"), tip: t("at the top of the tree and in the pinned widget"), cmd: `pin ${c.id}`, hint: "p" },
+        ...(c.launch ? [{ label: t("Add to THE MENU…"), tip: t("give it a key on THE MENU (⌘K)"), run: () => addToMenu(this.deck, c.name, c.launch!) }] : []),
         {
-          label: t("colour"),
+          label: t("Colour"), tip: t("a colour tag, like Ableton"),
           sub: () => [
             ...TAG_NAMES.map((tc) => ({ label: t(tc), color: tagRGB(tc), hint: c.tag === tc ? "✓" : "", cmd: `modules tag ${c.id} ${tc}` })),
             "-" as const,
-            { label: t("no colour"), cmd: `modules tag ${c.id} rm`, disabled: !c.tag },
-            { label: t("see this colour"), cmd: `modules view ${c.tag}`, disabled: !c.tag },
+            { label: t("No colour"), cmd: `modules tag ${c.id} rm`, disabled: !c.tag },
+            { label: t("Show only this colour"), cmd: `modules view ${c.tag}`, disabled: !c.tag },
           ],
         },
         "-",
-        { label: t("remove…"), run: () => void this.onText("x"), danger: true, hint: "x" },
+        { label: t("Uninstall…"), tip: t("remove the module (the STORE can put it back)"), run: () => void this.onText("x"), danger: true, hint: "x" },
       );
     }
     items.push("-", { label: t("store"), cmd: "store", hint: "s" });
@@ -197,17 +199,26 @@ export class ModulesApp implements App {
     this.sel = Math.min(this.sel, carts.length - 1);
     ui.fill(r, { bg: c.bg });
 
+    // ── the top of the page: the same bar as NEXUS (chip, count, tools, then search + colours) ──
+    const n = carts.length;
+    const all = this.deck.plugins.list().length;
+    const sceneTop = pageBar(ui, r, {
+      crumbs: [{ label: "▦ modules" }],
+      info: this.filter.active ? `${n} / ${all + 3}` : `${n}`,
+      tools: [
+        { label: "store", run: () => this.deck.act("store"), tip: "more modules · s" },
+        { label: ":", run: () => this.deck.workspace.openMenu(this.menu(), r.x + r.w - 4, r.y + 1), tip: "every action · right-click" },
+      ],
+      filter: this.filter,
+      counts: this.tagCounts(),
+    });
     // ── a ring of shards, like NEXUS: never ends, 5 in front (3 for 3-4 modules) ──
     const panelH = 5;
     // a tall page (shell hidden): the scene keeps its size and sits in the middle, the bar under it
-    const sceneH = Math.min(r.h - panelH - 1, 30);
-    const top = r.y + Math.max(0, Math.floor((r.h - panelH - 1 - sceneH) / 2));
-    const field = { x: r.x, y: top + 1, w: r.w, h: sceneH };
-    const n = carts.length;
-    // the colour squares, top right: only one colour's modules (modules view <colour>)
-    const tagBar = () => this.filter.render(ui, { x: r.x + 2, y: top, w: r.w - 3, h: 1 }, this.tagCounts());
+    const free = r.y + r.h - panelH - sceneTop;
+    const sceneH = Math.max(4, Math.min(free, 28));
+    const field = { x: r.x, y: sceneTop + Math.max(0, Math.floor((free - sceneH) / 2)), w: r.w, h: sceneH };
     if (!n) {
-      tagBar();
       ui.textCenter(field, field.y + Math.floor(field.h / 2), t("nothing matches"), { fg: c.muted });
       ui.textCenter(field, field.y + Math.floor(field.h / 2) + 1, t("esc clears the search · × shows everything"), { fg: c.faint });
       return;
@@ -217,32 +228,22 @@ export class ModulesApp implements App {
     this.depth = this.spin.pos;
     const age = now - this.bornAt;
     ui.animate(moving || age < 900 ? 16 : focused ? 120 : 400);
-    ui.hit(r, {
+    ui.hit(field, {
       onWheel: (lines) => {
         const s = this.spin.wheel(lines);
         if (s) (this.sel = (((this.sel + s) % n) + n) % n), this.deck.sound.play("tick");
       },
     });
 
-    // the floor: a quiet perspective grid rolling toward you as the ring turns
-    const horizon = field.y + Math.max(2, Math.floor(field.h * 0.22));
+    // the floor: the same quiet braille grid as NEXUS, rolling as the ring turns
+    const horizon = field.y + Math.max(2, Math.floor(field.h * 0.3));
     const bottom = field.y + field.h;
     const vx = r.x + r.w / 2;
-    ui.hline(r.x, horizon, r.w, { fg: mix(c.bg, c.accent, 0.35) }, "─");
-    for (let y = horizon + 1; y < bottom; y++) {
-      const k = (y - horizon) / Math.max(1, bottom - horizon);
-      const col = mix(c.bg, c.accent, 0.05 + k * 0.14);
-      for (let i = -6; i <= 6; i++) {
-        const x = Math.round(vx + i * k * (r.w / 7));
-        if (x >= r.x && x < r.x + r.w) ui.text(x, y, k > 0.45 ? (i < 0 ? "╱" : i > 0 ? "╲" : "│") : "·", { fg: col });
-      }
-      const z = 1 / Math.max(0.04, k) + this.depth * 1.5;
-      if (Math.abs((z % 1.6) - 0.8) < 0.8 * k * 0.4) ui.hline(r.x, y, r.w, { fg: mix(c.bg, c.accent, 0.03 + k * 0.08) }, k > 0.5 ? "─" : "╌");
-    }
+    perspectiveFloor(ui, { x: r.x, y: horizon, w: r.w, h: bottom - horizon }, vx, this.depth * 0.8);
 
     const half = n >= 5 ? 2 : n >= 3 ? 1 : 0;
     const step = half === 2 ? 0.62 : 0.9;
-    const radius = Math.min(r.w * 0.42, 64);
+    const radius = Math.min(r.w * 0.42, 60);
     const shown: { cart: Cart; i: number; z: number; x: number }[] = [];
     for (let i = 0; i < n; i++) {
       const off = ring(i - this.depth, n);
@@ -251,50 +252,45 @@ export class ModulesApp implements App {
       shown.push({ cart: carts[i], i, z: Math.cos(ang), x: vx + Math.sin(ang) * radius });
     }
     shown.sort((p, q) => p.z - q.z);
-    const roomy = bottom - horizon >= 16;
+    const roomy = bottom - horizon >= 14;
+    // the cards follow the page's width: a narrow page gets narrower cards (less overlap)
+    const frontW = Math.max(16, Math.min(roomy ? 24 : 20, Math.round(r.w * 0.3)));
+    const backW = Math.max(12, Math.round(frontW * 0.6));
+    // the ring at rest: the cards' descriptions show. While it turns they don't —
+    // text re-wrapping on cards that change size every frame is what made it look choppy
+    const still = Math.abs(ring(this.sel - this.depth, n)) < 0.03;
     for (const v of shown) {
       const near = (v.z + 1) / 2;
-      // sizes follow the depth continuously (no jump from one size to the next)
-      const big = near > 0.93;
+      // sizes follow the depth continuously, in a narrow range (big jumps of size
+      // repaint half the screen at every step: that's what looked messy)
       const k = near * near;
-      const w = Math.round(14 + ((roomy ? 30 : 26) - 14) * k);
-      const h = Math.round(7 + ((roomy ? 14 : 12) - 7) * k);
-      const y = Math.round(horizon + 1 + near * near * Math.max(0, bottom - horizon - h - 1)) - (big ? 1 : 0);
+      const w = Math.round(backW + (frontW - backW) * k);
+      const h = Math.round(6 + ((roomy ? 10 : 8) - 6) * k);
+      const y = Math.round(horizon + 1 + k * Math.max(0, bottom - horizon - h - 1));
       const rect = { x: Math.round(v.x - w / 2), y, w, h };
       if (rect.x + rect.w < r.x || rect.x >= r.x + r.w) continue;
       const isSel = v.i === this.sel;
       const hue = this.hueOf(ui, v.cart);
-      // the one in front glows on the floor under it
-      if (isSel && rect.y + rect.h < bottom) ui.hline(rect.x - 1, rect.y + rect.h, rect.w + 2, { fg: mix(c.bg, hue, focused ? 0.45 : 0.25) }, "▀");
-      // its thickness: the back of the disk, offset toward the middle of the ring and up
-      const side = Math.sign(Math.round(v.x - vx));
-      const d = big ? 2 : 1;
-      // (the body starts under the contacts' row: its back, one row up, lies under them)
-      const back = { x: rect.x - side * d * 2, y: rect.y, w: rect.w, h: rect.h - 1 };
       const fadeK = Math.max(0, 0.85 - near) * 0.9;
-      ui.fill(back, { bg: mix(mix(c.bg, hue, 0.22), c.bg, fadeK) });
-      ui.hline(back.x, back.y, back.w, { fg: mix(mix(c.bg, hue, 0.55), c.bg, fadeK), bg: mix(mix(c.bg, hue, 0.22), c.bg, fadeK) }, "▔");
       // the socket above the chosen one: where it plugs in
-      if (isSel) ui.text(rect.x + 2, rect.y - 2, `╺${"━".repeat(Math.max(0, rect.w - 6))}╸`, { fg: mix(c.bg, hue, focused ? 0.6 : 0.3) });
+      if (isSel && rect.y - 1 > horizon) ui.text(rect.x + 2, rect.y - 1, `╺${"━".repeat(Math.max(0, rect.w - 6))}╸`, { fg: mix(c.bg, hue, focused ? 0.6 : 0.3) });
       // enter: the module slides UP into the socket, then it opens
       const ins = this.inserting?.id === v.cart.id ? Math.min(1, (now - this.inserting.at) / 180) : 0;
       if (ins) ui.animate(16);
       const dy = Math.round(ins * ins * rect.h * 0.8);
-      this.drawShard(ui, { ...rect, y: rect.y - dy }, v.cart, isSel && focused, fadeK, age - Math.abs(ring(v.i - this.sel, n)) * 60, hue);
+      this.drawShard(ui, { ...rect, y: rect.y - dy }, v.cart, isSel && focused, fadeK, age - Math.abs(ring(v.i - this.sel, n)) * 60, hue, still ? frontW - 4 : 0);
       if (ins) {
         // what went into the socket is hidden; the socket glows
         const top = Math.max(field.y, rect.y - dy - 1);
-        ui.fill({ x: rect.x - 2, y: top, w: rect.w + 4, h: Math.max(0, rect.y - 2 - top) }, { bg: c.bg });
-        ui.hline(rect.x - 2, rect.y - 2, rect.w + 4, { fg: hue, attrs: BOLD }, "▄");
+        ui.fill({ x: rect.x - 2, y: top, w: rect.w + 4, h: Math.max(0, rect.y - 1 - top) }, { bg: c.bg });
+        ui.hline(rect.x - 2, rect.y - 1, rect.w + 4, { fg: hue, attrs: BOLD }, "▄");
       }
       ui.hit(rect, { onClick: () => (this.sel = v.i), onDouble: () => this.run(v.cart), tip: v.cart.description, menu: () => ((this.sel = v.i), this.cartMenu(v.cart)) });
     }
 
-    tagBar();
-
     // the bar: what it is, what you can do
     const cur = carts[this.sel];
-    const py = field.y + field.h;
+    const py = r.y + r.h - panelH;
     ui.fill({ x: r.x, y: py, w: r.w, h: panelH }, { bg: c.panelAlt });
     ui.hline(r.x, py, r.w, { fg: mix(c.accent, c.bg, 0.4) }, "━");
     if (!cur) return;
@@ -329,7 +325,8 @@ export class ModulesApp implements App {
    * colour as a glowing stripe, its name, a line of what it does, a status
    * light and a serial. Far ones are smaller and fade into the dark.
    */
-  private drawShard(ui: UI, r: Rect, cart: Cart, sel: boolean, fade: number, age: number, hue: RGB): void {
+  /** `textW`: the description's wrap width (the front card's: the same lines at any size), 0 = no description */
+  private drawShard(ui: UI, r: Rect, cart: Cart, sel: boolean, fade: number, age: number, hue: RGB, textW: number): void {
     const c = ui.c;
     const dim = (col: number) => mix(col, c.bg, fade);
     const body = sel ? mix(c.panel, hue, 0.2) : dim(cart.on ? mix(c.panel, hue, 0.1) : c.panel);
@@ -367,11 +364,11 @@ export class ModulesApp implements App {
       y++;
     }
     // what it does (wrapped), when there's room and it's near enough to read
-    if (fade < 0.45) {
+    if (fade < 0.45 && textW > 0) {
       const lines: string[] = [];
       let line = "";
       for (const w of cart.description.split(" ")) {
-        if ((line + " " + w).length > iw && line) (lines.push(line), (line = w));
+        if ((line + " " + w).length > textW && line) (lines.push(line), (line = w));
         else line = line ? `${line} ${w}` : w;
       }
       lines.push(line);

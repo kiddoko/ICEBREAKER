@@ -1,3 +1,5 @@
+import { typed } from "../ui/typewriter";
+import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
 import { chatWidget } from "./chatbox";
 import { t } from "../core/i18n";
 import { q } from "../ui/ui";
@@ -8,7 +10,8 @@ import { decrypt } from "../fx/glitch";
 import { Rain } from "../fx/rain";
 import { basename } from "../vault/paths";
 import { cellsFor, dots, fitMatrix, matrixSize, matrixText } from "../ui/dots";
-import { isoDay, streakOf } from "./builtin";
+import { drawUplinkCore } from "../ui/uplinkcore";
+import { isoDay, streakOf } from "../core/time";
 import { newsWidget } from "./news";
 import type { WidgetSpec } from "./types";
 import type { Command } from "../shell/types";
@@ -160,12 +163,13 @@ const matrixWidget: WidgetSpec = {
   description: "digital rain. does nothing. looks great.",
   size: { w: 3, h: 6 },
   min: { w: 1, h: 2 },
-  render(ui, r) {
-    const key = `${r.w}x${r.h}`;
-    if (!rains.has(key)) rains.set(key, new Rain(0.8));
-    const rain = rains.get(key)!;
-    rain.speed = matrixLook.speed;
-    rain.chars = MATRIX_SETS[matrixLook.set] ?? null;
+  render(ui, r, { deck, key }) {
+    const id = `${key ?? "matrix"}|${r.w}x${r.h}`;
+    if (!rains.has(id)) rains.set(id, new Rain(0.8));
+    const rain = rains.get(id)!;
+    // each copy its own speed and glyphs (the shared look is the default)
+    rain.speed = widgetConfig(deck, key, "speed", matrixLook.speed);
+    rain.chars = MATRIX_SETS[widgetConfig(deck, key, "set", matrixLook.set)] ?? null;
     rain.render(ui, r);
   },
 };
@@ -178,10 +182,10 @@ const worldWidget: WidgetSpec = {
   description: "time elsewhere (config set home.worldClocks …)",
   size: { w: 5, h: 3 },
   min: { w: 2, h: 2 },
-  render(ui, r, { deck }) {
+  render(ui, r, { deck, key }) {
     const c = ui.c;
     const here = new Date();
-    deck.settings.data.home.worldClocks.slice(0, r.h).forEach((tz, i) => {
+    zonesOf(deck, key).slice(0, r.h).forEach((tz, i) => {
       let time = "--:--", hour = 12, day = "";
       try {
         const parts = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", weekday: "short" }).formatToParts(here);
@@ -205,9 +209,9 @@ const worldWidget: WidgetSpec = {
     title: "world clock",
     size: { w: 56, h: 14 },
     hint: "a add · x remove · ↑↓",
-    render(ui, r, { deck }) {
+    render(ui, r, { deck, key }) {
       const c = ui.c;
-      const list = deck.settings.data.home.worldClocks;
+      const list = zonesOf(deck, key);
       worldSel = Math.max(0, Math.min(worldSel, list.length - 1));
       if (!list.length) ui.text(r.x + 1, r.y + 1, t("no clocks — a adds one"), { fg: c.muted });
       list.slice(0, r.h - 2).forEach((tz, i) => {
@@ -229,14 +233,14 @@ const worldWidget: WidgetSpec = {
       ui.button(r.x + 1, r.y + r.h - 1, t("+ add a city"), () => void addClock(deck), { tip: "a · worldclock add <Area/City>" });
       ui.animate(1000);
     },
-    onText: (t, { deck }) => {
+    onText: (t, { deck, key }) => {
       if (t === "a" || t === "+") return void addClock(deck), true;
-      if (t === "x") return removeClock(deck), true;
+      if (t === "x") return removeClock(deck, key), true;
       return false;
     },
-    onKey: (k, { deck }) => (k.combo === "delete" || k.combo === "backspace" ? (removeClock(deck), true) : false),
-    onAction: (a, { deck }) => {
-      const n = deck.settings.data.home.worldClocks.length;
+    onKey: (k, { deck, key }) => (k.combo === "delete" || k.combo === "backspace" ? (removeClock(deck, key), true) : false),
+    onAction: (a, { deck, key }) => {
+      const n = zonesOf(deck, key).length;
       if (a === "up") return (worldSel = Math.max(0, worldSel - 1)), true;
       if (a === "down") return (worldSel = Math.min(n - 1, worldSel + 1)), true;
       return false;
@@ -245,8 +249,12 @@ const worldWidget: WidgetSpec = {
 };
 
 let worldSel = 0;
-function removeClock(deck: Deck): void {
-  const tz = deck.settings.data.home.worldClocks[worldSel];
+/** a world clock copy's cities (the shared list until that copy has its own) */
+function zonesOf(deck: Deck, key: string | undefined): string[] {
+  return widgetConfig(deck, key, "zones", deck.settings.data.home.worldClocks);
+}
+function removeClock(deck: Deck, key?: string): void {
+  const tz = zonesOf(deck, key)[worldSel];
   if (tz) void deck.act(`worldclock rm ${tz}`);
 }
 async function addClock(deck: Deck): Promise<void> {
@@ -265,7 +273,8 @@ export const worldclockCommand: Command = {
   complete: () => ["add", "rm"],
   run(ctx) {
     const [sub, tz] = ctx.args;
-    const list = [...ctx.deck.settings.data.home.worldClocks];
+    // the copy whose pop-up is open (or that's selected) changes; else the shared list
+    const list = [...zonesOf(ctx.deck, widgetTarget("worldclock") ?? undefined)];
     if (!sub) {
       for (const z of list) ctx.out(`${z}\n`);
       return 0;
@@ -282,7 +291,7 @@ export const worldclockCommand: Command = {
       if (!list.includes(tz)) return ctx.err(`worldclock: "${tz}" isn't there\n`), 1;
       list.splice(list.indexOf(tz), 1);
     } else return ctx.err("usage: worldclock add|rm <Area/City>\n"), 1;
-    ctx.deck.settings.set("home.worldClocks", list);
+    setWidgetSetting(ctx.deck, "worldclock", "zones", list, "home.worldClocks");
     ctx.out(`${list.length} clocks\n`);
     return 0;
   },
@@ -432,62 +441,30 @@ const aiWidget: WidgetSpec = {
     // four moods: idle (a slow orbit) · thinking (fast, two signals) · speaking (a voice wave) · offline
     const thinking = deck.ai.busy > 0;
     const speaking = deck.voice.speaking;
-    const col = !ok ? c.error : thinking ? c.accentAlt : speaking ? c.info : c.accent;
-    // a dotted orbit around a core; a signal runs the orbit, the core breathes
     // ring + a blank line + the label lines, centered in the card; the ring grows with it
     const lines = ok ? 2 : 3;
     const rows = Math.max(3, Math.min(r.h - lines - 1, 9));
     const top = r.y + Math.max(0, Math.round((r.h - rows - 1 - lines) / 2));
     const cols = Math.min(r.w, cellsFor(ui, rows));
     const box = { x: r.x + Math.floor((r.w - cols) / 2), y: top, w: cols, h: rows };
-    const R = rows / 2 - 0.2, ox = (cols * ui.cellAspect) / 2, oy = rows / 2;
-    const head = (ui.now / (thinking ? 500 : 1600)) % 1; // fraction of a turn
-    const breath = (Math.sin(ui.now / (thinking ? 160 : 700)) + 1) / 2;
-    // the pointer over the widget: the core looks at it (a pupil pulled toward the mouse)
+    // the pointer over the widget: the core becomes an eye that looks at it
     const over = ui.hovered(r);
     if (over && !hover) hover = { since: ui.now, quip: QUIPS[Math.floor(Math.random() * QUIPS.length)].replace("{name}", deck.settings.data.user.handle) };
     if (!over) hover = null;
-    const blink = hover && ui.now - hover.since < 140;
-    let look = { x: 0, y: 0 };
+    let look: { x: number; y: number } | null = null;
     if (hover) {
+      const ox = (cols * ui.cellAspect) / 2, oy = rows / 2;
       const mx = (ui.mouse.x - box.x + 0.5) * ui.cellAspect - ox, my = ui.mouse.y - box.y + 0.5 - oy;
       const len = Math.hypot(mx, my) || 1;
-      look = { x: (mx / len) * R * 0.32, y: (my / len) * R * 0.32 };
+      look = { x: mx / len, y: my / len };
     }
-    dots(ui, box, [c.faint, mix(col, c.bg, 0.55), col, mix(col, 0xffffff, 0.45)], (x, y) => {
-      if (hover) {
-        // an eye: the white of it, then the pupil where you are (closed for a blink)
-        const ex = x - ox, ey = y - oy, de = Math.hypot(ex, ey);
-        if (blink) return Math.abs(ey) < 0.06 && Math.abs(ex) < R * 0.55 ? 4 : Math.abs(de - R) < 0.07 ? 1 : 0;
-        if (Math.hypot(ex - look.x, ey - look.y) < R * 0.2) return 4;
-        if (Math.abs(de - R * 0.55) < 0.06) return 3;
-        if (Math.abs(de - R) < 0.07) return 1;
-        return 0;
-      }
-      const dx = x - ox, dy = y - oy, d = Math.hypot(dx, dy);
-      if (speaking && Math.abs(dx) < R * 0.75 && d < R * 0.85) {
-        // a voice waveform across the core
-        const amp = (Math.sin(dx * 3.1 + ui.now / 90) * 0.5 + Math.sin(dx * 7.3 - ui.now / 60) * 0.3) * R * 0.45 * (0.6 + breath * 0.4);
-        return Math.abs(dy - amp) < 0.09 ? 4 : Math.abs(dy) < 0.04 ? 1 : 0;
-      }
-      if (d < R * (0.22 + breath * 0.08)) return ok ? 3 : 2; // core
-      if (Math.abs(d - R) < 0.07) {
-        if (!ok) return 1;
-        const a = ((Math.atan2(dy, dx) / (Math.PI * 2) + 1.25) % 1); // 0 at the top, clockwise
-        const lag = (head - a + 1) % 1;
-        const lag2 = (head + 0.5 - a + 1) % 1; // thinking: a second signal
-        return lag < 0.03 || (thinking && lag2 < 0.03) ? 4 : lag < 0.25 || (thinking && lag2 < 0.25) ? 3 : 1;
-      }
-      // a faint inner ring, counter-rotating
-      if (Math.abs(d - R * 0.6) < 0.05) {
-        const a = (Math.atan2(dy, dx) / (Math.PI * 2) + 1 - head) % 1;
-        return ok && (a * 12) % 1 < 0.5 ? 2 : 0;
-      }
-      return 0;
-    });
+    // the face itself is shared with the guided tour (ui/uplinkcore.ts)
+    drawUplinkCore(ui, box, { mood: !ok ? "offline" : thinking ? "thinking" : speaking ? "speaking" : "idle", look, blink: !!hover && ui.now - hover.since < 140 });
     const y = top + rows + 1;
     if (y < r.y + r.h) ui.textCenter(r, y, label, { fg: c.fg, attrs: BOLD });
-    const state = hover ? `“${hover.quip}”` : !ok ? "○ offline" : thinking ? "◌ processing" : speaking ? "◖ speaking" : "● uplink up";
+    // its little line types itself out, with blips (ui/typewriter.ts)
+    const quip = hover ? `“${hover.quip}”` : "";
+    const state = hover ? [...quip].slice(0, typed(ui, `uplink-quip:${hover.since}`, quip)).join("") : !ok ? "○ offline" : thinking ? "◌ processing" : speaking ? "◖ speaking" : "● uplink up";
     if (y + 1 < r.y + r.h) ui.textCenter(r, y + 1, state, { fg: !ok ? c.error : thinking ? c.accentAlt : speaking ? c.info : c.success });
     if (!ok && y + 2 < r.y + r.h) ui.textCenter(r, y + 2, deck.settings.data.privacy.stealth ? "stealth: local model only" : "enter: settings", { fg: c.faint });
     ui.animate(ok ? (thinking || speaking ? 33 : 50) : 1000);

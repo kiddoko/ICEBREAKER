@@ -6,6 +6,8 @@ import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import { ChatView, type ChatEntry } from "../ui/chatview";
 import type { UI } from "../ui/ui";
+import { strWidth } from "../core/unicode";
+import { t } from "../core/i18n";
 import { isoDate } from "../vault/paths";
 import type { App, AppSpec } from "./types";
 
@@ -16,24 +18,65 @@ import type { App, AppSpec } from "./types";
  *
  * Slash commands: /clear  /save  /help
  */
+/** One conversation: its own chat on screen, AI session and transcript (a tab of UPLINK). */
+class Conversation {
+  readonly chat = new ChatView("ask anything — your vault is in reach. /help for commands");
+  session: ChatSession | null = null;
+  abort: AbortController | null = null;
+  startedAt = new Date();
+  transcript: string[] = [];
+  /** the first question, short: the tab's name */
+  name = "";
+}
+
 export class LinkApp implements App {
   readonly kind = "link";
   readonly key = "link";
-  private chat = new ChatView("ask anything — your vault is in reach. /help for commands");
-  private session: ChatSession | null = null;
-  private abort: AbortController | null = null;
-  private startedAt = new Date();
-  private transcript: string[] = [];
+  /** the conversation tabs (ctrl+T a new one, ctrl+[ ctrl+] to move, ctrl+shift+W or /close) */
+  private convs: Conversation[] = [];
+  private cur = 0;
 
   constructor(
     private readonly deck: Deck,
     initialPrompt?: string,
   ) {
-    this.chat.onSubmit = (text) => void this.handle(text);
-    this.chat.onCancel = () => this.abort?.abort();
-    this.chat.assistantName = deck.ai.provider.label;
-    this.greet();
+    this.open();
     if (initialPrompt) void this.handle(initialPrompt);
+  }
+
+  private get c(): Conversation {
+    return this.convs[this.cur];
+  }
+
+  /** A new conversation tab, in front. */
+  private open(): Conversation {
+    const c = new Conversation();
+    c.chat.onSubmit = (text) => void this.handle(text, c);
+    c.chat.onCancel = () => c.abort?.abort();
+    c.chat.assistantName = this.deck.ai.provider.label;
+    this.convs.push(c);
+    this.cur = this.convs.length - 1;
+    this.greet(c);
+    this.deck.requestFrame();
+    return c;
+  }
+
+  /** Close a conversation tab (it was saved in chats/ as it went). The last one only starts over. */
+  private closeConv(i = this.cur): void {
+    const c = this.convs[i];
+    if (!c) return;
+    c.abort?.abort();
+    void this.persist(c);
+    if (this.convs.length === 1) return this.slash("/clear", c);
+    this.convs.splice(i, 1);
+    this.cur = Math.max(0, Math.min(this.cur > i ? this.cur - 1 : this.cur, this.convs.length - 1));
+    this.deck.requestFrame();
+  }
+
+  private select(i: number): void {
+    this.cur = (i + this.convs.length) % this.convs.length;
+    this.deck.sound.play("move");
+    this.deck.requestFrame();
   }
 
   title(): string {
@@ -42,26 +85,27 @@ export class LinkApp implements App {
 
   status(): string {
     const p = this.deck.ai.provider;
-    return this.deck.ai.ready ? `linked · ${p.label}` : `offline · ${this.deck.ai.problem}`;
+    const tabs = this.convs.length > 1 ? ` · ${this.cur + 1}/${this.convs.length}` : "";
+    return (this.deck.ai.ready ? `linked · ${p.label}` : `offline · ${this.deck.ai.problem}`) + tabs + " · ctrl+T new conversation";
   }
 
-  private greet(): void {
+  private greet(c: Conversation): void {
     const problem = this.deck.ai.problem;
     if (problem) {
-      this.chat.push("error", `Uplink down: ${problem}.`);
-      this.chat.push("info", this.deck.settings.data.ai.provider === "anthropic"
+      c.chat.push("error", `Uplink down: ${problem}.`);
+      c.chat.push("info", this.deck.settings.data.ai.provider === "anthropic"
         ? "Get a key at console.anthropic.com, then run `config key` in the shell (or Ctrl+K → “Set API key”).\nPrefer local & offline? Install Ollama and run `config set ai.provider ollama`."
         : "Start Ollama (ollama serve) and pull a model (ollama pull llama3.1).");
     } else {
-      this.chat.push("info", `Link established with ${this.deck.ai.provider.label}. Ask about your notes: “what did I write about last week?”`);
+      c.chat.push("info", `Link established with ${this.deck.ai.provider.label}. Ask about your notes: “what did I write about last week?”`);
     }
   }
 
-  private ensureSession(): ChatSession {
-    if (!this.session) {
+  private ensureSession(c: Conversation): ChatSession {
+    if (!c.session) {
       const ai = this.deck.ai;
       const toolsEnabled = ai.provider.id === "anthropic";
-      this.session = ai.session({
+      c.session = ai.session({
         system: linkSystemPrompt({
           providerId: ai.provider.id,
           handle: this.deck.settings.data.user.handle,
@@ -73,27 +117,29 @@ export class LinkApp implements App {
         tools: toolsEnabled ? vaultTools(this.deck.vault, (t, d) => this.deck.confirm(t, d)) : [],
       });
     }
-    return this.session;
+    return c.session;
   }
 
-  private async handle(text: string): Promise<void> {
-    if (text.startsWith("/")) return this.slash(text);
+  private async handle(text: string, c: Conversation = this.c): Promise<void> {
+    if (text.startsWith("/")) return this.slash(text, c);
     this.deck.voice.stop(); // a new question interrupts the reading
-    this.chat.push("user", text);
-    this.transcript.push(`## ❯ ${this.deck.settings.data.user.handle}\n\n${text}\n`);
+    c.chat.push("user", text);
+    if (!c.name) c.name = text.replace(/\s+/g, " ").trim().slice(0, 24);
+    c.transcript.push(`## ❯ ${this.deck.settings.data.user.handle}\n\n${text}\n`);
 
     let session: ChatSession;
     try {
-      session = this.ensureSession();
+      session = this.ensureSession(c);
     } catch (e) {
-      this.chat.push("error", e instanceof Error ? e.message : String(e));
+      c.chat.push("error", e instanceof Error ? e.message : String(e));
       return;
     }
 
-    this.chat.busy = true;
+    const chat = c.chat;
+    chat.busy = true;
     this.deck.ai.busy++;
-    this.chat.busyLabel = "jacked in";
-    this.abort = new AbortController();
+    chat.busyLabel = "jacked in";
+    c.abort = new AbortController();
     let answer: ChatEntry | null = null;
     let thinking: ChatEntry | null = null;
     const redraw = () => this.deck.requestFrame();
@@ -103,74 +149,82 @@ export class LinkApp implements App {
         text,
         {
           onText: (d) => {
-            answer ??= this.chat.push("assistant", "");
-            this.chat.append(answer, d);
+            answer ??= chat.push("assistant", "");
+            chat.append(answer, d);
             redraw();
           },
           onThinking: (d) => {
-            thinking ??= this.chat.push("thinking", "");
-            this.chat.append(thinking, d);
-            this.chat.busyLabel = "thinking";
+            thinking ??= chat.push("thinking", "");
+            chat.append(thinking, d);
+            chat.busyLabel = "thinking";
             redraw();
           },
           onToolCall: (name, input) => {
             const arg = String(input.path ?? input.query ?? input.folder ?? "");
-            this.chat.push("tool", `${name}${arg ? ` ${arg}` : ""}`);
-            this.chat.busyLabel = name.replace("_", " ");
+            chat.push("tool", `${name}${arg ? ` ${arg}` : ""}`);
+            chat.busyLabel = name.replace("_", " ");
             // text after a tool call starts a new block
             answer = null;
             thinking = null;
             redraw();
           },
           onToolResult: (_name, output, isError) => {
-            if (isError) this.chat.push("error", output);
+            if (isError) chat.push("error", output);
             redraw();
           },
         },
-        this.abort.signal,
+        c.abort.signal,
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      this.chat.push(msg === "aborted" ? "info" : "error", msg === "aborted" ? "— aborted —" : msg);
+      chat.push(msg === "aborted" ? "info" : "error", msg === "aborted" ? "— aborted —" : msg);
     } finally {
-      this.chat.busy = false;
+      chat.busy = false;
       this.deck.ai.busy = Math.max(0, this.deck.ai.busy - 1);
-      this.abort = null;
-      const final = this.chat.entries.filter((e) => e.role === "assistant").pop();
-      if (final) this.transcript.push(`## ◆ ${this.deck.ai.provider.label}\n\n${final.text}\n`);
+      c.abort = null;
+      const final = chat.entries.filter((e) => e.role === "assistant").pop();
+      if (final) c.transcript.push(`## ◆ ${this.deck.ai.provider.label}\n\n${final.text}\n`);
       const v = this.deck.settings.data.voice;
-      if (final && answer && v.enabled && v.readAI) void this.deck.voice.speak(final.text);
-      void this.persist();
+      // read aloud only the conversation in front
+      if (final && answer && v.enabled && v.readAI && c === this.c) void this.deck.voice.speak(final.text);
+      void this.persist(c);
       redraw();
     }
   }
 
-  private slash(cmd: string): void {
+  private slash(cmd: string, c: Conversation = this.c): void {
     const [name] = cmd.slice(1).split(/\s+/);
     switch (name) {
       case "clear":
-        this.session?.reset();
-        this.session = null;
-        this.chat.clear();
-        this.transcript = [];
-        this.startedAt = new Date();
-        this.chat.push("info", "context cleared — new conversation");
+        c.session?.reset();
+        c.session = null;
+        c.chat.clear();
+        c.transcript = [];
+        c.name = "";
+        c.startedAt = new Date();
+        c.chat.push("info", "context cleared — new conversation");
+        break;
+      case "new":
+        this.open();
+        break;
+      case "close":
+        this.closeConv(this.convs.indexOf(c));
         break;
       case "save":
-        void this.persist(true);
+        void this.persist(c, true);
         break;
       default:
-        this.chat.push("info", "/clear  new conversation\n/save   save the transcript to chats/ now\nesc     abort the current answer\npgup/pgdn  scroll");
+        c.chat.push("info", "/new    a new conversation, in a tab (ctrl+T)\n/close  close this one (ctrl+shift+W)\n/clear  start this one over (ctrl+L)\n/save   save the transcript to chats/ now\nctrl+[ ctrl+]  the conversation before / after · click a tab\nesc     abort the current answer\npgup/pgdn  scroll");
     }
   }
 
   /** Save the conversation as a Markdown note (chats/YYYY-MM-DD-HHMM.md). */
-  private async persist(force = false): Promise<void> {
-    if (!this.transcript.length || (!force && !this.deck.settings.data.ai.saveChats)) return;
-    const d = this.startedAt;
-    const stamp = `${isoDate(d)}-${String(d.getHours()).padStart(2, "0")}${String(d.getMinutes()).padStart(2, "0")}`;
+  private async persist(c: Conversation, force = false): Promise<void> {
+    if (!c.transcript.length || (!force && !this.deck.settings.data.ai.saveChats)) return;
+    const d = c.startedAt;
+    const stamp = `${isoDate(d)}-${String(d.getHours()).padStart(2, "0")}${String(d.getMinutes()).padStart(2, "0")}${String(d.getSeconds()).padStart(2, "0")}`;
     const path = `chats/${stamp}.md`;
-    const body = `---\ndate: ${isoDate(d)}\nmodel: ${this.deck.ai.provider.label}\ntags: [chat]\n---\n# Link session ${stamp}\n\n${this.transcript.join("\n")}`;
+    const body = `---\ndate: ${isoDate(d)}\nmodel: ${this.deck.ai.provider.label}\ntags: [chat]\n---\n# ${c.name || `Link session ${stamp}`}\n\n${c.transcript.join("\n")}`;
     try {
       await this.deck.vault.write(path, body);
       if (force) this.deck.notify(`saved ${path}`, "success");
@@ -180,23 +234,26 @@ export class LinkApp implements App {
   }
 
   onKey(k: KeyInput): boolean {
-    if (k.combo === "ctrl+l") {
-      this.slash("/clear");
+    if (k.combo === "ctrl+l") return this.slash("/clear"), true;
+    if (k.combo === "ctrl+t") return this.open(), true;
+    if (k.combo === "ctrl+shift+w") return this.closeConv(), true;
+    if (k.combo === "ctrl+[" || k.combo === "ctrl+]") {
+      if (this.convs.length > 1) this.select(this.cur + (k.combo === "ctrl+]" ? 1 : -1));
       return true;
     }
-    return this.chat.onKey(k);
+    return this.c.chat.onKey(k);
   }
 
   onText(t: string): boolean {
-    return this.chat.onText(t);
+    return this.c.chat.onText(t);
   }
 
   onAction(a: Action): boolean {
-    return this.chat.onAction(a);
+    return this.c.chat.onAction(a);
   }
 
   close(): boolean {
-    this.abort?.abort();
+    for (const c of this.convs) c.abort?.abort();
     return true;
   }
 
@@ -204,8 +261,53 @@ export class LinkApp implements App {
     const ready = this.deck.ai.ready;
     const head = `${ready ? "●" : "○"} ${ready ? "LINKED" : "OFFLINE"} · ${this.deck.ai.provider.label}`;
     ui.text(r.x + 1, r.y, head, { fg: ready ? ui.c.success : ui.c.error, attrs: BOLD });
-    if (this.chat.busy) ui.gradientText(r.x + r.w - 14, r.y, "▰▰▰▰▰▰▰▰▰▰▰▰", ui.theme.gradient, 0, (ui.now / 1200) % 1);
-    this.chat.render(ui, { x: r.x, y: r.y + 2, w: r.w, h: r.h - 2 }, focused);
+    if (this.c.chat.busy) ui.gradientText(r.x + r.w - 14, r.y, "▰▰▰▰▰▰▰▰▰▰▰▰", ui.theme.gradient, 0, (ui.now / 1200) % 1);
+    this.renderTabs(ui, { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: 1 });
+    this.c.chat.render(ui, { x: r.x, y: r.y + 2, w: r.w, h: r.h - 2 }, focused);
+  }
+
+  /** The conversation tabs: one per conversation, ● while it answers, + for a new one. */
+  private renderTabs(ui: UI, r: Rect): void {
+    const c = ui.c;
+    let x = r.x;
+    const right = r.x + r.w - 4;
+    // too many to show: start so the one in front is in view
+    let first = 0;
+    const widthOf = (i: number) => strWidth(this.tabLabel(i)) + 1;
+    let used = 0;
+    for (let i = this.cur; i >= 0; i--) {
+      used += widthOf(i);
+      if (used > right - r.x) break;
+      first = i;
+    }
+    if (first > 0) ui.text(x++, r.y, "‹", { fg: c.muted });
+    for (let i = first; i < this.convs.length; i++) {
+      const label = this.tabLabel(i);
+      const w = strWidth(label);
+      if (x + w > right) {
+        ui.text(right - 1, r.y, "›", { fg: c.muted });
+        break;
+      }
+      const on = i === this.cur;
+      ui.text(x, r.y, label, { fg: on ? c.panel : c.muted, bg: on ? c.accent : c.panelAlt, attrs: on ? BOLD : 0 });
+      const n = i;
+      ui.hit({ x, y: r.y, w, h: 1 }, {
+        onClick: () => this.select(n),
+        menu: () => [
+          { label: t("New conversation"), hint: "ctrl+T", run: () => void this.open() },
+          { label: t("Close conversation"), hint: "ctrl+shift+W", run: () => this.closeConv(n) },
+        ],
+        tip: t("click: this conversation · right-click: close it"),
+      });
+      x += w + 1;
+    }
+    ui.button(r.x + r.w - 3, r.y, " + ", () => void this.open(), { tip: t("new conversation (ctrl+T)") });
+  }
+
+  private tabLabel(i: number): string {
+    const conv = this.convs[i];
+    const name = conv.name || t("new");
+    return ` ${conv.chat.busy ? "● " : ""}${i + 1} ${name} `;
   }
 }
 

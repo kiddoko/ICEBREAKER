@@ -77,13 +77,16 @@ export class StatsStore {
     if (!this.loaded) {
       this.loadedFor = this.vault.root;
       this.loaded = (async () => {
+        let text = "";
         try {
           if (await this.vault.exists(FILE)) {
-            const data = JSON.parse(await this.vault.read(FILE)) as { stats?: Record<string, Stat> };
+            text = await this.vault.read(FILE);
+            const data = JSON.parse(text) as { stats?: Record<string, Stat> };
             for (const [id, s] of Object.entries(data.stats ?? {})) this.stats.set(id, { ...s, id });
           }
         } catch {
-          /* a broken file starts empty; it's rewritten on the next change */
+          // a broken file starts empty and is rewritten on the next change: keep a copy first
+          if (text) await this.vault.write(`${FILE}.broken`, text).catch(() => {});
         }
       })();
     }

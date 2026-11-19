@@ -1,3 +1,4 @@
+import { mmss } from "../core/time";
 /**
  * FOCUS — the module's own app: a big ring that empties as the minutes go,
  * what you're working on, presets (25/5, 50/10, 90/20), today's sessions, and
@@ -17,10 +18,6 @@ import { focus, tickFocus } from "../widgets/focusstate";
 import type { App, AppSpec } from "./types";
 
 const PRESETS: [number, number][] = [[25, 5], [50, 10], [90, 20]];
-const mmss = (ms: number) => {
-  const s = Math.max(0, Math.ceil(ms / 1000));
-  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-};
 
 class FocusApp implements App {
   readonly kind = "focus";

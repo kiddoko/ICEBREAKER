@@ -291,7 +291,12 @@ const mkdir: Command = {
   complete: "path",
   async run(ctx) {
     const { rest } = parseFlags(ctx.args);
-    for (const d of rest) await ctx.deck.vault.mkdir(ctx.resolve(d));
+    for (const d of rest) {
+      const p = ctx.resolve(d);
+      const isNew = !(await ctx.deck.vault.exists(p));
+      await ctx.deck.vault.mkdir(p);
+      if (isNew) ctx.deck.vault.recordCreated(p);
+    }
   },
 };
 
@@ -303,8 +308,10 @@ const touch: Command = {
   async run(ctx) {
     for (const f of ctx.args) {
       const p = ctx.resolve(f);
-      const content = (await ctx.deck.vault.exists(p)) ? await ctx.deck.vault.read(p) : "";
+      const existed = await ctx.deck.vault.exists(p);
+      const content = existed ? await ctx.deck.vault.read(p) : "";
       await ctx.deck.vault.write(p, content);
+      if (!existed) ctx.deck.vault.recordCreated(p);
     }
   },
 };
@@ -378,7 +385,11 @@ const cp: Command = {
     }
     let to = ctx.resolve(dest);
     if (ctx.deck.vault.isDir(to)) to = join(to, basename(ctx.resolve(src)));
+    const existed = await ctx.deck.vault.exists(to);
+    const before = existed ? await ctx.deck.vault.read(to) : "";
     await ctx.deck.vault.write(to, await ctx.deck.vault.read(ctx.resolve(src)));
+    if (!existed) ctx.deck.vault.recordCreated(to);
+    else ctx.deck.history.record({ label: `cp → ${to}`, undo: () => ctx.deck.vault.write(to, before) });
   },
 };
 

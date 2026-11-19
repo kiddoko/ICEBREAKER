@@ -23,7 +23,7 @@ const help: Command = {
       ctx.out(`\n${ctx.isTTY ? fmt.bold(fmt.magenta(g.toUpperCase())) : g.toUpperCase()}\n`);
       for (const c of cmds) ctx.out(`  ${ctx.isTTY ? fmt.green(padEnd(c.name, 12)) : padEnd(c.name, 12)} ${c.summary}\n`);
     }
-    ctx.out(`\n${fmt.dim("<command> -h for its help and examples (todo -h) · Ctrl+K palette · F1 manual")}\n`);
+    ctx.out(`\n${fmt.dim("<command> -h for its help and examples (todo -h) · ⌘K / shift twice: THE MENU · F1 manual")}\n`);
   },
 };
 

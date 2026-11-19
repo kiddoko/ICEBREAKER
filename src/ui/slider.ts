@@ -1,5 +1,5 @@
 import { BOLD, type Rect } from "../core/grid";
-import { strWidth } from "../core/unicode";
+import { strWidth, truncate } from "../core/unicode";
 import type { UI } from "./ui";
 
 export interface SliderOptions {
@@ -17,7 +17,7 @@ export interface SliderOptions {
 }
 
 /**
- * A real slider: ━━━━━━╸──────  120%
+ * A real slider: ━━━━━━■──────  120%
  * Click or drag anywhere on the track: the pointer's exact position (to the
  * pixel, not the cell) gives the value, so it moves 1 % at a time. The wheel
  * steps by 5; the caller handles ← → (also by 5). Double-click the number to
@@ -48,29 +48,31 @@ export function slider(ui: UI, r: Rect, value: number, min: number, max: number,
     ui.animate(16);
   };
   const show = o.show ?? ((v: number) => (o.zeroIsOff && v === 0 ? "off" : `${v}%`));
-  const text = show(value);
-  const textW = Math.max(5, strWidth(show(max)), strWidth(text));
+  // every slider of the deck looks the same: the number in a column of the same width,
+  // so the bars line up and have the same length whatever their unit
+  const textW = 6;
+  const text = truncate(show(value), textW);
   const tw = Math.max(4, r.w - textW - 1);
   const track = { x: r.x, y: r.y, w: tw, h: 1 };
   const k = max > min ? (Math.max(min, Math.min(max, value)) - min) / (max - min) : 0;
-  // the cheat: the filled part ends with a partial block, so it moves by eighths of a cell
-  const exact = k * (tw - 1);
-  const filled = Math.floor(exact);
-  const eighth = Math.round((exact - filled) * 8);
   const hot = ui.hovered(track);
   if (o.disabled) {
     // greyed: the track and the number, no handle to grab
-    ui.text(r.x, r.y, "┄".repeat(tw), { fg: c.faint });
+    ui.text(r.x, r.y, "─".repeat(tw), { fg: c.faint });
     ui.textRight(r.x + r.w, r.y, text, { fg: c.faint });
     ui.hit(track, { onClick: () => {}, tip: o.tip ?? "locked" });
     return;
   }
+  // The rules, the same for every slider of the deck (settings, ✦ fx, the setup):
+  //  · one track width per place, the number in a 6-column box on the right
+  //  · the filled part ━ in the accent (grey when the value means "off"), the rest ─ always visible
+  //  · one handle, ■ — a true square drawn centred on the track's line (core/glyphs.ts) — at the value's cell
+  //  · the number: "80%" by default, the unit when it isn't a percentage (px, fps, min), "off" at 0 when 0 is off
   const on = !(o.zeroIsOff && value === 0);
-  ui.text(r.x, r.y, "━".repeat(filled), { fg: on ? c.accent : c.subtle });
-  // the handle: a block whose width says where in its cell the value is
-  const handle = eighth > 0 ? " ▏▎▍▌▋▊▉█"[eighth] : "╸";
-  ui.text(r.x + filled, r.y, handle, { fg: hot ? c.fg : on ? c.accent : c.subtle, attrs: BOLD });
-  if (filled + 1 < tw) ui.text(r.x + filled + 1, r.y, "─".repeat(tw - filled - 1), { fg: c.faint });
+  const at0 = Math.round(k * (tw - 1));
+  ui.text(r.x, r.y, "━".repeat(at0), { fg: on ? c.accent : c.subtle });
+  if (at0 + 1 < tw) ui.text(r.x + at0 + 1, r.y, "─".repeat(tw - at0 - 1), { fg: c.subtle });
+  ui.text(r.x + at0, r.y, "■", { fg: hot ? c.fg : on ? c.accent : c.subtle, attrs: BOLD });
   ui.textRight(r.x + r.w, r.y, text, { fg: on ? c.accent : c.subtle, attrs: BOLD });
   // where the pointer is along the track, to the pixel: 0 at the left edge, 1 at the right
   const at = (m: { x: number; fx?: number }) => {

@@ -1,3 +1,4 @@
+import type { UndoHistory } from "./undo";
 import type { Platform } from "../platform/types";
 import type { WidgetPlacement } from "../widgets/types";
 
@@ -24,7 +25,6 @@ export interface Settings {
     /** how the deck refers to you: "she/her", "they/them", "iel"… (free text) */
     pronouns: string;
     /** the login screen fills in the account name (off: you type it each time) */
-    rememberAccount: boolean;
     /** your profile icon (core/avatar.ts): a pixel face or a glyph, and its colour */
     avatar: { id: string; color: string };
     /**
@@ -56,7 +56,11 @@ export interface Settings {
     reduceMotion: boolean;
     showFps: boolean; lineNumbers: boolean;
     /** slow animations down (12 fps) while the window isn't the one you use */
-    backgroundSlow: boolean };
+    backgroundSlow: boolean;
+    /** how fast text types itself out (ui/typewriter.ts): 0-100, 100 = at once */
+    textSpeed: number;
+    /** letters fade in as they appear — typing, the terminal, the chat (core/renderer.ts fadeMs) */
+    fadeIn: boolean };
   /** levels: how strong each effect is, in % of what the theme sets (0–200) */
   fx: { bloom: boolean; scanlines: boolean; vignette: boolean; ambient: boolean; flicker: boolean; glitch: boolean; screensaverMinutes: number; levels: { bloom: number; scanlines: number; vignette: number;
     /** 0–100: red/blue fringes of an old tube (0 = off) */ chroma: number;
@@ -77,18 +81,33 @@ export interface Settings {
   /** UI sounds (core/sound.ts). Volume 0–100. */
   /** muted: everything silent (ui sounds, voice, alerts) — the 🔇 button, `mute` */
   /** packByTheme: the sound pack chosen for a theme (else the theme's own) */
-  sound: { enabled: boolean; volume: number; muted?: boolean; packByTheme: Record<string, string> };
+  /** mix: each channel's volume 0-100 (core/sound.ts SOUND_CHANNELS); typing: a click on your own keys */
+  sound: { enabled: boolean; volume: number; muted?: boolean; packByTheme: Record<string, string>; mix: { ui: number; alerts: number; boot: number; text: number; typing: number }; typing: boolean };
   /** How alerts (reminders, modules' ib.ui.alert) reach you: sound (+ voice), visual (system notification + toast), both, or none. */
-  notifications: { mode: "both" | "sound" | "visual" | "none" };
+  notifications: {
+    /** a toast in the deck */
+    screen: boolean;
+    /** the alert sound (tu-dut) */
+    sound: boolean;
+    /** the system's notification center */
+    system: boolean;
+    /** …only when the deck isn't in front */
+    systemOnlyAway: boolean;
+    /** the voice reads it (if the voice is on) */
+    voice: boolean;
+  };
   /** Your own shortcuts: key combo → shell command (`bind ctrl+shift+1 "open notes/ideas.md"`). */
   keys: Record<string, string>;
   /** module settings values (ib.settings), per module id */
   moduleSettings: Record<string, Record<string, unknown>>;
   /** the deck's shortcuts you changed: shortcut id → keys ("" = switched off); see core/shortcuts.ts */
   keyOverrides: Record<string, string>;
+  /** THE MENU (⌘K): shift twice opens it too; the deck shortcuts' keys on it you changed (id → key, "" = none) */
+  menu: { doubleShift: boolean; keys: Record<string, string> };
   /** the side panel on the right: widgets always in view (panel show / add <widget>) */
-  panel: { shown: boolean; widgets: string[] };
-  /** the gamepad's action wheel (hold RB): pages of 8 slots, each a shell command */
+  /** the side panel: its widgets (copy keys, like HOME's), the height you gave each and where each starts (lines from the top: gaps allowed) */
+  panel: { shown: boolean; widgets: string[]; heights: Record<string, number>; tops: Record<string, number> };
+  /** (before 0.3.2: the gamepad's action wheel; its slots move to THE MENU's keys once, then this stays empty) */
   gamepad: { wheel: { label: string; icon: string; cmd: string }[][] };
   /** MODULES: a colour per module (red, orange…), to sort and filter the ring */
   moduleTags: Record<string, string>;
@@ -154,6 +173,8 @@ export interface Settings {
   home: { widgets: WidgetPlacement[]; links: { id: string; label: string; icon: string; cmd: string }[]; weatherCity: string; worldClocks: string[]; newsTopic: string;
     /** news interests: categories (tech, politics…) and free words, mixed with your area's news */
     newsInterests: string[];
+    /** each widget copy's own settings ("clock#2" → { style: "flip" }), see widgets/instances.ts */
+    widgetConfig: Record<string, Record<string, unknown>>;
     /** saved places of the WEATHER app */
     weatherPlaces: { name: string; admin: string; country: string; countryCode: string; lat: number; lon: number }[];
     /** the clock widget's face (clock style) and seconds (clock seconds) */
@@ -165,16 +186,16 @@ export interface Secrets {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  user: { handle: "netrunner", locale: "", language: "en", gender: "", genderOther: "", pronouns: "", rememberAccount: false, avatar: { id: "visor", color: "accent" }, location: { precision: "none", name: "", country: "", lat: null, lon: null } },
+  user: { handle: "netrunner", locale: "", language: "en", gender: "", genderOther: "", pronouns: "", avatar: { id: "visor", color: "accent" }, location: { precision: "none", name: "", country: "", lat: null, lon: null } },
   setup: { done: false },
   vault: { path: "" },
-  appearance: { theme: "nightshade", tweaks: {}, fontSize: 13, scale: 100, startFullscreen: false, fontWeight: "thin", maxFps: 60, vsync: true, brightness: 100, reduceMotion: false, showFps: true, lineNumbers: true, backgroundSlow: true },
+  appearance: { theme: "nightshade", tweaks: {}, fontSize: 13, scale: 100, startFullscreen: false, fontWeight: "thin", maxFps: 60, vsync: true, brightness: 100, reduceMotion: false, showFps: true, lineNumbers: true, backgroundSlow: true, textSpeed: 50, fadeIn: true },
   // Minimal by default: the animated background and short glitch transitions.
   // The heavy CRT stuff (bloom, scanlines, vignette, flicker) is one click away in the FX panel.
   fx: { bloom: false, scanlines: false, vignette: false, ambient: true, flicker: false, glitch: true, screensaverMinutes: 0, levels: { bloom: 100, scanlines: 100, vignette: 100, chroma: 0, sharpness: 80, glow: 0 } },
   boot: { mode: "full" },
-  sound: { enabled: true, volume: 50, packByTheme: {} },
-  notifications: { mode: "both" },
+  sound: { enabled: true, volume: 50, muted: false, packByTheme: {}, mix: { ui: 100, alerts: 100, boot: 100, text: 60, typing: 60 }, typing: false },
+  notifications: { screen: true, sound: true, system: true, systemOnlyAway: true, voice: true },
   keys: {},
   favorites: [],
   session: {},
@@ -183,7 +204,8 @@ export const DEFAULT_SETTINGS: Settings = {
   moduleTags: {},
   gamepad: { wheel: [] },
   keyOverrides: {},
-  panel: { shown: false, widgets: ["clock", "system"] },
+  menu: { doubleShift: true, keys: {} },
+  panel: { shown: false, widgets: ["clock", "system"], heights: {}, tops: {} },
   shell: {
     mode: "system",
     prompt: "icebreaker",
@@ -216,10 +238,17 @@ export const DEFAULT_SETTINGS: Settings = {
   // the community index: a JSON list of plugins/themes (see docs/COMMUNITY.md)
   plugins: { enabled: [], disabled: [], removed: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json", sources: [] },
   // empty = the default layout (widgets/builtin.ts)
-  home: { widgets: [], links: [], weatherCity: "Paris", worldClocks: ["America/New_York", "Europe/London", "Asia/Tokyo"], newsTopic: "", newsInterests: [], weatherPlaces: [], clockStyle: "dots", clockSeconds: false },
+  home: { widgets: [], links: [], weatherCity: "Paris", worldClocks: ["America/New_York", "Europe/London", "Asia/Tokyo"], newsTopic: "", newsInterests: [], weatherPlaces: [], clockStyle: "dots", clockSeconds: false, widgetConfig: {} },
 };
 
 type Listener = (path: string) => void;
+
+/** Changed by the deck itself, or not safe to flip back with ⌘Z (accounts, modules, the vault). */
+const NOT_UNDONE = ["session", "setup", "vault", "plugins", "fxByTheme"];
+
+function clone<T>(v: T): T {
+  return v === undefined ? v : (JSON.parse(JSON.stringify(v)) as T);
+}
 
 export class SettingsStore {
   data: Settings;
@@ -241,6 +270,20 @@ export class SettingsStore {
     const rawSecrets = await platform.config.read("secrets.json").catch(() => null);
     // (JSON copy rather than structuredClone: works on older macOS WebKit too)
     const data = deepMerge(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), safeJson(raw)) as Settings;
+    // notifications were one choice (both / sound / visual / none) before 0.3.2: now one box each
+    // (the merge only keeps known keys, so the old choice is read from the file itself)
+    const saved = (safeJson(raw) as { notifications?: { mode?: string; screen?: boolean } }).notifications;
+    const oldMode = saved?.mode;
+    if (oldMode && saved?.screen === undefined) {
+      const hear = oldMode === "both" || oldMode === "sound", see = oldMode === "both" || oldMode === "visual";
+      Object.assign(data.notifications, { screen: see, system: see, sound: hear, voice: hear });
+    }
+    // THE MENU's keys were "space <key>" (settings.leader) before 0.3.2
+    const old = safeJson(raw) as { leader?: { keys?: Record<string, string> } };
+    if (old.leader?.keys && !Object.keys(data.menu.keys).length) data.menu.keys = { ...old.leader.keys };
+    // text speed: the first default (85) was far too fast to see the text typing — 50 now
+    if (data.appearance.textSpeed === 85) data.appearance.textSpeed = 50;
+    for (const k of Object.keys(data.keys)) if (k.startsWith("space ")) (data.keys[`menu ${k.slice(6)}`] = data.keys[k]), delete data.keys[k];
     // the community index moved to icebreaker-modules
     if (data.plugins.registry === "https://raw.githubusercontent.com/kiddoko/icebreaker-community/main/index.json") data.plugins.registry = DEFAULT_SETTINGS.plugins.registry;
     const secrets = { anthropicApiKey: "", ...(safeJson(rawSecrets) as Partial<Secrets>) };
@@ -272,13 +315,35 @@ export class SettingsStore {
       defaults = (defaults?.[k] ?? {}) as Record<string, unknown>;
     }
     if (!(last in target)) throw new Error(`unknown setting: ${path}`);
+    const before = target[last];
     target[last] = coerce(value, defaults[last] ?? target[last]);
+    const after = target[last];
+    if (this.history && !NOT_UNDONE.some((k) => path === k || path.startsWith(k + ".")) && JSON.stringify(before) !== JSON.stringify(after)) {
+      const was = clone(before);
+      const now = clone(after);
+      this.history.record({
+        label: path,
+        key: `set:${path}`,
+        undo: () => this.revert(path, was),
+        redo: () => this.revert(path, now),
+      });
+    }
     this.listeners.forEach((fn) => fn(path));
     this.scheduleSave();
   }
 
+  /** The undo history (core/undo.ts) every change goes into, and what puts it on screen again. */
+  history?: UndoHistory;
+  onRevert?: (path: string) => void;
+
+  private revert(path: string, value: unknown): void {
+    this.set(path, clone(value));
+    this.onRevert?.(path);
+  }
+
   setSecret<K extends keyof Secrets>(key: K, value: Secrets[K]): Promise<void> {
     this.secrets[key] = value;
+    if (this.readOnly) return Promise.resolve();
     return this.platform.config.write("secrets.json", JSON.stringify(this.secrets, null, 2));
   }
 
@@ -297,6 +362,15 @@ export class SettingsStore {
   }
 
   private frozen = false;
+  /** nobody logged in (the login screen): settings are defaults, and nothing is written */
+  readOnly = false;
+
+  /** Write now (before a reload: logging out, switching account). */
+  async flush(): Promise<void> {
+    if (this.frozen || this.readOnly) return;
+    clearTimeout(this.saveTimer);
+    await this.platform.config.write("settings.json", JSON.stringify(this.data, null, 2)).catch((e) => console.error("settings save failed", e));
+  }
 
   /** Stop writing settings.json (before a factory reset moves the folder away). */
   freeze(): void {
@@ -305,7 +379,7 @@ export class SettingsStore {
   }
 
   private scheduleSave(): void {
-    if (this.frozen) return;
+    if (this.frozen || this.readOnly) return;
     clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => {
       this.platform.config.write("settings.json", JSON.stringify(this.data, null, 2)).catch((e) => console.error("settings save failed", e));

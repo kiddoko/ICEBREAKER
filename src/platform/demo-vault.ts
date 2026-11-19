@@ -16,7 +16,8 @@ You just jacked into your deck. Everything here is a plain **Markdown** file
 in your vault — open it with Obsidian, vim, anything. Nothing is locked in.
 
 ## First moves
-- \`Ctrl+K\` opens the command palette — everything is in there
+- \`Ctrl+K\` (or shift twice) opens THE MENU — everything is in there
+- \`Ctrl+Z\` undoes anything; \`tour\` in the shell shows you around
 - \`Ctrl+J\` opens today's journal entry
 - \`Ctrl+\`\` (the key under Esc) toggles the shell
 - \`F1\` opens the manual

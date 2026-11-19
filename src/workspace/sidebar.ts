@@ -1,3 +1,4 @@
+import { fileIcon } from "../ui/fileicon";
 import { q, type MenuEntry } from "../ui/ui";
 import { strWidth } from "../core/unicode";
 import { copyToClipboard } from "../core/clipboard";
@@ -10,11 +11,12 @@ import type { Deck } from "../deck";
 import type { VaultEntry } from "../platform/types";
 import { ListView } from "../ui/list";
 import { addLink } from "../widgets/links";
-import { addToWheel } from "./actionwheel";
+import { addToMenu } from "./quickmenu";
 import { WheelSpin } from "../ui/wheelspin";
 import type { UI } from "../ui/ui";
 import { basename, dirname, join } from "../vault/paths";
 import { ICON_CHOICES, TAG_NAMES, tagRGB, type TagColor } from "../vault/marks";
+import { colourSquares } from "../ui/filterbar";
 
 interface Row {
   entry: VaultEntry;
@@ -234,30 +236,30 @@ export class Sidebar {
     const md = !e.isDir && e.name.endsWith(".md");
     return [
       e.isDir
-        ? { label: this.open.has(p) ? t("fold") : t("unfold"), run: () => this.activate(row), hint: "enter" }
-        : { label: t("open"), cmd: `open ${q(p)}`, hint: "enter" },
+        ? { label: this.open.has(p) ? t("Fold") : t("Unfold"), run: () => this.activate(row), hint: "enter" }
+        : { label: t("Open"), tip: t("its pop-up: bigger, with its settings"), cmd: `open ${q(p)}`, hint: "enter" },
       "-",
-      { label: t("new note here"), run: () => d.newNote(here || "notes"), hint: "n" },
-      { label: t("new folder here"), run: () => d.newFolder(here) },
+      { label: t("New note"), tip: t("a new note in this folder"), run: () => d.newNote(here || "notes"), hint: "n" },
+      { label: t("New folder"), tip: t("a new folder inside this one"), run: () => d.newFolder(here) },
       "-",
-      { label: t("rename…"), run: () => this.rename(row), hint: "F2" },
-      ...(!e.isDir ? [{ label: t("duplicate"), cmd: `cp ${abs} ${q("/" + copyName(p))}` }] : []),
-      { label: pinned ? t("unpin") : t("pin"), cmd: `${pinned ? "unpin" : "pin"} ${q(p)}`, hint: "p" },
+      { label: t("Rename…"), run: () => this.rename(row), hint: "F2" },
+      ...(!e.isDir ? [{ label: t("Duplicate"), tip: t("a copy next to it"), cmd: `cp ${abs} ${q("/" + copyName(p))}` }] : []),
+      { label: pinned ? t("Unpin") : t("Pin"), cmd: `${pinned ? "unpin" : "pin"} ${q(p)}`, hint: "p" },
       "-",
       {
-        label: t("square on HOME"),
+        label: t("Add to HOME"), tip: t("a shortcut square on HOME that opens it in one click"),
         run: () => {
           const l = addLink(d, e.isDir ? e.name : e.name.replace(/\.md$/i, ""), e.isDir ? `explore ${q(p)}` : `open ${q(p)}`, d.marks.iconOf(p) ?? (e.isDir ? "▣" : "≡"));
           void d.act(`home add link.${l.id}`);
         },
       },
-      { label: t("add to the wheel"), run: () => void addToWheel(d, { label: e.isDir ? e.name : e.name.replace(/\.md$/i, ""), cmd: e.isDir ? `explore ${q(p)}` : `open ${q(p)}`, icon: d.marks.iconOf(p) ?? (e.isDir ? "▣" : "≡") }) },
-      { label: t("colour"), sub: () => this.colourMenu(p) },
-      { label: t("icon"), sub: () => this.iconMenu(p) },
-      { label: t("copy path"), run: () => (copyToClipboard(p), d.notify(t("path copied"))) },
-      ...(md ? [{ label: t("copy [[link]]"), run: () => (copyToClipboard(`[[${e.name.replace(/\.md$/, "")}]]`), d.notify(t("link copied"))) }] : []),
+      { label: t("Add to THE MENU…"), tip: t("give it a key on THE MENU (⌘K)"), run: () => addToMenu(d, e.isDir ? e.name : e.name.replace(/\.md$/i, ""), e.isDir ? `explore ${q(p)}` : `open ${q(p)}`) },
+      { label: t("Colour"), tip: t("a colour tag, like Ableton"), sub: () => this.colourMenu(p) },
+      { label: t("Icon"), sub: () => this.iconMenu(p) },
+      { label: t("Copy path"), run: () => (copyToClipboard(p), d.notify(t("path copied"))) },
+      ...(md ? [{ label: t("Copy link"), tip: t("a [[link]] to paste in a note"), run: () => (copyToClipboard(`[[${e.name.replace(/\.md$/, "")}]]`), d.notify(t("link copied"))) }] : []),
       "-",
-      { label: t("move to the trash"), cmd: `rm ${e.isDir ? "-r " : ""}${abs}`, danger: true, hint: "del" },
+      { label: t("Delete"), tip: t("goes to the trash — ⌘Z or the TRASH page brings it back"), cmd: `rm ${e.isDir ? "-r " : ""}${abs}`, danger: true, hint: "del" },
     ];
   }
 
@@ -267,8 +269,8 @@ export class Sidebar {
     return [
       ...TAG_NAMES.map((tc) => ({ label: t(tc), color: tagRGB(tc), hint: cur === tc ? "✓" : "", cmd: `tag ${abs} ${tc}` })),
       "-",
-      { label: t("no colour"), cmd: `tag rm ${abs}`, disabled: !cur },
-      { label: t("see this colour only"), cmd: `tag view ${cur}`, disabled: !cur },
+      { label: t("No colour"), cmd: `tag rm ${abs}`, disabled: !cur },
+      { label: t("Show only this colour"), cmd: `tag view ${cur}`, disabled: !cur },
     ];
   }
 
@@ -279,13 +281,13 @@ export class Sidebar {
       ...ICON_CHOICES.slice(0, 16).map((g) => ({ label: g, hint: cur === g ? "✓" : "", cmd: `icon ${abs} ${q(g)}` })),
       "-",
       {
-        label: t("other…"),
+        label: t("Other…"),
         run: async () => {
           const g = await this.deck.prompt(t("One character: an emoji, a symbol (★ ♥ ⚡ λ…)"), { initial: cur ?? "", suggestions: ICON_CHOICES });
           if (g?.trim()) void this.deck.act(`icon ${abs} ${q([...g.trim()][0])}`);
         },
       },
-      { label: t("default icon"), cmd: `icon rm ${abs}`, disabled: !cur },
+      { label: t("Default icon"), cmd: `icon rm ${abs}`, disabled: !cur },
     ];
   }
 
@@ -294,10 +296,10 @@ export class Sidebar {
     const row = this.list.current;
     if (row) return this.entryMenu(row);
     return [
-      { label: t("new note"), run: () => this.deck.newNote("notes"), hint: "n" },
-      { label: t("new folder"), run: () => this.deck.newFolder("") },
-      { label: t("rescan the vault"), run: () => this.deck.vault.rescan(), hint: "r" },
-      { label: t("the trash…"), cmd: "trash open" },
+      { label: t("New note"), tip: t("a new note in this folder"), run: () => this.deck.newNote("notes"), hint: "n" },
+      { label: t("New folder"), tip: t("a new folder inside this one"), run: () => this.deck.newFolder("") },
+      { label: t("Refresh"), tip: t("read the vault folder again (files changed outside the deck)"), run: () => this.deck.vault.rescan(), hint: "r" },
+      { label: t("Trash"), tip: t("what's in the trash, and put things back"), cmd: "trash open" },
     ];
   }
 
@@ -405,16 +407,7 @@ export class Sidebar {
         ui.hit(rect, { cmd: `tag view +${tc}`, tip: `${t(tc)} · ${counts[tc]}\n${on ? t("click: take this colour out") : t("click: add this colour")}` });
         dx += w + 1;
       }
-    } else for (const tc of TAG_NAMES) {
-      if (dx + 2 > r.x + r.w) break;
-      const on = this.colours.has(tc);
-      const n = counts[tc];
-      const rect = { x: dx, y: r.y + 1, w: 2, h: 1 };
-      const hot = ui.hovered(rect);
-      ui.text(dx, r.y + 1, on ? "▣" : n ? "■" : "□", { fg: n || on || hot ? tagRGB(tc) : mix(tagRGB(tc), c.bg, 0.45), bg: on || hot ? c.highlight : undefined });
-      ui.hit(rect, { cmd: `tag view +${tc}`, tip: `${t(tc)} · ${n}\n${on ? t("click: take this colour out") : t("click: add this colour")}` });
-      dx += 2;
-    }
+    } else dx = colourSquares(ui, dx, r.y + 1, this.colours, counts, (tc) => ({ cmd: `tag view +${tc}` }), r.x + r.w - 1);
     if (this.colours.size && dx + 4 <= r.x + r.w) {
       const xr = { x: dx, y: r.y + tagRows, w: 3, h: 1 };
       ui.text(dx, r.y + tagRows, " × ", { fg: ui.hovered(xr) ? c.error : c.subtle });
@@ -438,9 +431,9 @@ export class Sidebar {
           cmd: favCommand(this.deck, f),
           tip: `${favCommand(this.deck, f)}\nunpin ${f.target}`,
           menu: () => [
-            { label: t("open"), cmd: favCommand(this.deck, f) },
-            ...(f.kind !== "module" ? [{ label: t("show in the tree"), run: () => this.reveal(f.target) }] : []),
-            { label: t("unpin"), cmd: `unpin ${q(f.target)}` },
+            { label: t("Open"), tip: t("its pop-up: bigger, with its settings"), cmd: favCommand(this.deck, f) },
+            ...(f.kind !== "module" ? [{ label: t("Reveal in tree"), run: () => this.reveal(f.target) }] : []),
+            { label: t("Unpin"), cmd: `unpin ${q(f.target)}` },
           ],
         });
         top++;
@@ -508,15 +501,6 @@ export class Sidebar {
     if (this.list.items.length === 0) ui.text(list.x + 2, list.y + 1, this.colours.size ? t("nothing {colour} yet", { colour: [...this.colours].map((x) => t(x)).join(" · ") }) : "empty vault", { fg: c.subtle }, list.w - 3);
   }
 }
-
-/** A glyph per file type (notes need none): code, scripts, data, media… */
-const ICONS: [RegExp, string][] = [
-  [/\.py$/i, "∿"], [/\.(js|mjs|cjs|ts|tsx|jsx)$/i, "ʝ"], [/\.(sh|zsh|bash|fish|ibsh|ps1|bat)$/i, "❯"], [/\.(rs|go|c|cpp|h|java|kt|swift|rb|lua)$/i, "λ"],
-  [/\.(json|toml|ya?ml|ini|conf|cfg)$/i, "⚙"], [/\.(csv|tsv|xlsx?)$/i, "▥"], [/\.(html?|css|svg)$/i, "◇"], [/\.(txt|log)$/i, "≡"],
-  [/\.(png|jpe?g|gif|webp|heic|bmp)$/i, "▣"], [/\.pdf$/i, "▤"], [/\.(mp3|wav|flac|m4a|ogg|aiff?)$/i, "♪"], [/\.(mp4|mov|mkv|webm)$/i, "▶"],
-  [/\.(zip|tar|gz|7z|rar)$/i, "▦"], [/\.(canvas|base)$/i, "◫"],
-];
-export const fileIcon = (name: string) => ICONS.find(([re]) => re.test(name))?.[1] ?? "◦";
 
 /** notes/a.md → notes/a copy.md (then a copy 2…) */
 function copyName(p: string): string {

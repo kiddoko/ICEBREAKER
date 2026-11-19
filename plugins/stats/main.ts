@@ -22,6 +22,9 @@ import type { UI } from "../../src/ui/ui";
 const RANGES = [7, 30, 90, 365];
 
 export function activate(ib: IcebreakerAPI): void {
+  ib.settings.register([
+    { key: "range", label: "default period (days)", type: "choice", options: RANGES.map(String), default: "30", help: "The period the STATS page shows when it opens: 7, 30, 90 or 365 days (←→ changes it on the page)." },
+  ]);
   const { BOLD, mix, fmt, parseFlags, t, q, sparkline, formatStat } = ib.lib;
   const run = (line: string) => void ib.shell.run(line);
   let all: Stat[] = [];
@@ -189,7 +192,7 @@ export function activate(ib: IcebreakerAPI): void {
     readonly kind = "stats";
     readonly key = "stats";
     private sel = 0;
-    private range = 1;
+    private range = Math.max(0, RANGES.indexOf(Number(ib.settings.get("range")) || 30));
     private series: number[] = [];
     private seriesFor = "";
     private setup = false;

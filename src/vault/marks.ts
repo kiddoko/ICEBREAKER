@@ -55,13 +55,17 @@ export class Marks {
   }
 
   private async readJson<T>(file: string, ok: (v: unknown) => boolean): Promise<Record<string, T>> {
+    let text = "";
     try {
       if (!(await this.vault.exists(file))) return {};
-      const raw = JSON.parse(await this.vault.read(file)) as Record<string, unknown>;
+      text = await this.vault.read(file);
+      const raw = JSON.parse(text) as Record<string, unknown>;
       const out: Record<string, T> = {};
       for (const [k, v] of Object.entries(raw ?? {})) if (ok(v)) out[normalize(k)] = v as T;
       return out;
     } catch {
+      // a broken file would be overwritten by the next change: keep a copy first
+      if (text) await this.vault.write(`${file}.broken`, text).catch(() => {});
       return {};
     }
   }

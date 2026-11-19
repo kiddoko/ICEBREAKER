@@ -18,7 +18,8 @@ import type { UI } from "./ui";
  *
  * Use: keep one `FilterBar` in your app, call `bar.matches(text, tag)` to keep
  * a thing, `bar.onText / onKey` first in your own input handlers, and
- * `bar.render(ui, rect, counts)` where it should show.
+ * `bar.render(ui, rect, counts)` where it should show — on a full page, let
+ * `pageBar` (ui/pagebar.ts) draw it, so every page has it in the same place.
  */
 export class FilterBar {
   query = "";
@@ -74,8 +75,10 @@ export class FilterBar {
    */
   render(ui: UI, r: Rect, counts: Partial<Record<TagColor, number>> = {}): void {
     const c = ui.c;
-    const squaresW = TAG_NAMES.length * 2 + 3;
-    const fw = Math.max(8, Math.min(28, r.w - squaresW - 2));
+    // the squares end on the rect's last cell (under the last button of a page bar);
+    // the × that clears everything sits just left of them
+    const squaresW = TAG_NAMES.length * 2 - 1;
+    const fw = Math.max(8, Math.min(28, r.w - squaresW - 5));
     const field = { x: r.x, y: r.y, w: fw, h: 1 };
     const fbg = this.typing ? mix(c.accent, c.bg, 0.82) : c.highlight;
     ui.fill(field, { bg: fbg });
@@ -85,20 +88,32 @@ export class FilterBar {
     if (this.typing) ui.cursor(field.x + 3 + Math.min(strWidth(this.query), fw - 4), r.y);
     ui.hit(field, { onClick: () => (this.typing = true), tip: t("type to filter · / · esc clears") });
     // the colours, several at once
-    let x = r.x + r.w - squaresW;
-    for (const tc of TAG_NAMES) {
-      const on = this.colours.has(tc);
-      const n = counts[tc] ?? 0;
-      const rect = { x, y: r.y, w: 2, h: 1 };
-      const hot = ui.hovered(rect);
-      ui.text(x, r.y, on ? "▣" : n ? "■" : "□", { fg: n || on || hot ? tagRGB(tc) : mix(tagRGB(tc), c.bg, 0.45), bg: on || hot ? c.highlight : undefined, attrs: on ? BOLD : 0 });
-      ui.hit(rect, { onClick: () => this.toggle(tc), tip: `${t(tc)} · ${n}\n${on ? t("click: take this colour out") : t("click: add this colour")}` });
-      x += 2;
-    }
+    const x = r.x + r.w - squaresW;
     if (this.active) {
-      const xr = { x: x + 1, y: r.y, w: 2, h: 1 };
+      const xr = { x: x - 3, y: r.y, w: 2, h: 1 };
       ui.text(xr.x, r.y, "×", { fg: ui.hovered(xr) ? c.error : c.subtle, attrs: BOLD });
       ui.hit(xr, { onClick: () => this.clear(), tip: t("show everything") });
     }
+    colourSquares(ui, x, r.y, this.colours, counts, (tc) => ({ onClick: () => this.toggle(tc) }));
   }
+}
+
+/**
+ * THE row of colour squares (FilterBar, the tree): □ nobody wears it, ■ some
+ * do, ▣ ticked. One square every 2 cells; `act` says what a click does (a
+ * function or a shell command). Returns the x after the last square.
+ */
+export function colourSquares(ui: UI, x: number, y: number, on: Set<TagColor>, counts: Partial<Record<TagColor, number>>, act: (tc: TagColor) => { onClick?: () => void; cmd?: string }, maxX = Infinity): number {
+  const c = ui.c;
+  for (const tc of TAG_NAMES) {
+    if (x + 1 > maxX) break;
+    const ticked = on.has(tc);
+    const n = counts[tc] ?? 0;
+    const rect = { x, y, w: 1, h: 1 };
+    const hot = ui.hovered(rect);
+    ui.text(x, y, ticked ? "▣" : n ? "■" : "□", { fg: n || ticked || hot ? tagRGB(tc) : mix(tagRGB(tc), c.bg, 0.45), bg: ticked || hot ? c.highlight : undefined, attrs: ticked ? BOLD : 0 });
+    ui.hit(rect, { ...act(tc), tip: `${t(tc)} · ${n}\n${ticked ? t("click: take this colour out") : t("click: add this colour")}` });
+    x += 2;
+  }
+  return x;
 }

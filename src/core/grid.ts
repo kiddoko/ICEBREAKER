@@ -22,6 +22,10 @@ export interface Style {
   /** Omit (or NONE) to keep the background already in the cell. */
   bg?: RGB;
   attrs?: number;
+  /** drawn as is: no keycaps on the shortcuts in it (typed text) — see ui/keycaps.ts */
+  raw?: boolean;
+  /** the whole text is a key (a menu line's shortcut: "n", "p", "⌘K") */
+  key?: boolean;
 }
 
 /**

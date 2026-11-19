@@ -21,7 +21,20 @@ export function drawSpecialGlyph(
   if (cp >= 0x2580 && cp <= 0x259f) return drawBlock(ctx, cp, x, y, w, h);
   if (cp >= 0x2800 && cp <= 0x28ff) return drawBraille(ctx, cp - 0x2800, x, y, w, h);
   if (cp >= 0xe0b0 && cp <= 0xe0b7) return drawPowerline(ctx, cp, x, y, w, h);
+  if (cp === 0x25a0) return drawSquare(ctx, x, y, w, h);
   return false;
+}
+
+/**
+ * ■ drawn by hand: a true square, centred on the cell — on the same middle line as
+ * ─ ━ (the slider's handle, the ticked boxes [■]). Fonts put theirs a bit off.
+ */
+function drawSquare(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): boolean {
+  const side = Math.max(2, Math.round(Math.min(w, h) * 0.8));
+  const sx = Math.round(x + (w - side) / 2);
+  const sy = Math.round(y + (h - side) / 2);
+  ctx.fillRect(sx, sy, side, side);
+  return true;
 }
 
 // ── Box drawing ────────────────────────────────────────────────────────────

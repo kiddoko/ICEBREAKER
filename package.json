@@ -1,19 +1,20 @@
 {
   "name": "icebreaker",
   "private": true,
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "ICEBREAKER — an open-source, terminal-styled cyberdeck for notes, journaling and AI-powered plugins.",
   "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "check": "tsc --noEmit",
+    "check": "tsc --noEmit && tsc --noEmit -p tests && vitest run",
     "preview": "vite preview",
     "tauri": "tauri",
     "app": "tauri dev",
     "app:build": "tauri build",
-    "app:mac": "tauri build --bundles app && sh scripts/mac-dev-sign.sh"
+    "app:mac": "tauri build --bundles app && sh scripts/mac-dev-sign.sh",
+    "test": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.9.0",
@@ -30,7 +31,9 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.12.5",
+    "@types/node": "^26.6.6",
     "typescript": "^7.0.2",
-    "vite": "^8.3.8"
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
   }
 }

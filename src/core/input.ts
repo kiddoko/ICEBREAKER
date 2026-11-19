@@ -117,6 +117,11 @@ export class InputManager {
    * swipes stay what they are: scrolling.
    */
   onGesture: (g: "back" | "forward" | "zoom-in" | "zoom-out") => void = () => {};
+  /** shift pressed twice quickly (THE MENU) */
+  onDoubleShift: () => void = () => {};
+  /** a key went down that types, erases or enters (the typing sound) */
+  onKeyPress: (kind: "type" | "erase" | "enter") => void = () => {};
+  private shiftAt = 0;
   private swipePx = 0;
   private swipeAt = 0;
   private swipeFired = false;
@@ -152,11 +157,26 @@ export class InputManager {
     const ta = this.textarea;
     ta.addEventListener("keydown", (e) => {
       this.onActivity();
+      // the typing click (settings.sound.typing): right now, on the key going down —
+      // not later, when the browser turns it into text
+      if (!e.ctrlKey && !e.metaKey) {
+        if (e.key === "Backspace" || e.key === "Delete") this.onKeyPress("erase");
+        else if (e.key === "Enter") this.onKeyPress("enter");
+        else if ([...e.key].length === 1) this.onKeyPress("type");
+      }
       if (e.isComposing || e.keyCode === 229) return; // IME is busy, let it work
       // Characters typed with AltGr (Windows/Linux: @ # { [ on many layouts) or
       // Option (macOS: | { [ …) are text, not shortcuts.
       const altGr = e.getModifierState("AltGraph");
       const macOption = IS_MAC && e.altKey && !e.ctrlKey && !e.metaKey;
+      // shift twice, quickly, nothing in between: THE MENU (works anywhere, even typing)
+      if (e.key === "Shift" && !e.repeat) {
+        const now = performance.now();
+        if (now - this.shiftAt < 350) (this.shiftAt = 0), this.onDoubleShift();
+        else this.shiftAt = now;
+        return;
+      }
+      this.shiftAt = 0;
       const printable = [...e.key].length === 1 && (!(e.ctrlKey || e.metaKey || e.altKey) || altGr || macOption);
       if (printable || e.key === "Dead") return; // becomes an `input` event
       // ⌘Q ⌘H ⌘M ⌃⌘F are the macOS menu bar's: if we preventDefault them, WKWebView swallows them.

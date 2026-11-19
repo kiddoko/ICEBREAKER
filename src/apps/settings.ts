@@ -1,42 +1,17 @@
-import { avatarGlyph, avatarOf } from "../core/avatar";
-import { AvatarPicker } from "../workspace/avatarpicker";
-import { SOUND_PACKS } from "../core/sound";
+import { Glide } from "../ui/glide";
 import { t } from "../core/i18n";
-import { displayKeys } from "../core/shortcuts";
-import { DEFAULT_SETTINGS } from "../core/settings";
 import { SETTINGS_HELP } from "./settings-help";
-import { focus } from "../widgets/focusstate";
-import { q } from "../ui/ui";
+import { checkNeural } from "./settings-rows";
 import { strWidth, truncate } from "../core/unicode";
 import { askNumber, slider } from "../ui/slider";
-import { fxMax, getFx, setFx, type FxLevel } from "../core/fxlevels";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import { mix } from "../core/color";
+import { displayKeys } from "../core/shortcuts";
+import { kindOf, resetRow, rowIsDefault, rowResettable, type SettingRow as Row } from "../core/prefs";
 import type { Deck } from "../deck";
-import { ListView } from "../ui/list";
 import type { UI } from "../ui/ui";
 import type { App, AppSpec } from "./types";
-
-interface Row {
-  section?: string;
-  /** the settings key (search, and the command shown under the list) */
-  key?: string;
-  label: string;
-  value: () => string;
-  /** dir: +1 = next / confirm, -1 = previous */
-  change?: (dir: 1 | -1) => void | Promise<void>;
-  /** a text value (opens an input box, no ‹ ›) */
-  isText?: boolean;
-  /** a choice you step through both ways (‹ value ›); rows with a settings key and change() are by default */
-  steps?: boolean;
-  /** The shell command for one click (next value). */
-  cmd?: () => string;
-  /** greyed and locked (e.g. the fps cap while vsync is on) */
-  disabled?: () => boolean;
-  /** a real slider instead of a value (drag / click / wheel; ←→ by 5) */
-  slider?: { min: number; max: number; get: () => number; set: (v: number) => void; zeroIsOff?: boolean; show?: (v: number) => string };
-}
 
 /**
  * Settings screen for people who'd rather not type `config set …`.
@@ -45,26 +20,11 @@ interface Row {
 export class SettingsApp implements App {
   readonly kind = "settings";
   readonly key = "settings";
-  private list = new ListView<Row>();
-
-  /** a neural voice for the voice's language is installed (null: don't know yet) */
-  private neural: boolean | null = null;
-  private async checkNeural(): Promise<void> {
-    try {
-      const info = await this.deck.platform.voice?.info();
-      const lang = this.deck.settings.data.voice.language;
-      this.neural = !!info?.piper && info.piper_voices.some((v) => v.includes(`-${lang}_`) || v.includes(`-${lang}-`));
-    } catch {
-      this.neural = false;
-    }
-    this.deck.requestFrame();
-  }
+  /** the rows, from deck.prefs (rebuilt when what they depend on changes) */
+  private secs: ReturnType<Deck["prefs"]["sections"]> = [];
 
   constructor(private readonly deck: Deck) {
-    void this.checkNeural();
-    this.list.items = this.rows();
-    this.list.onActivate = (row) => void row.change?.(1);
-    this.list.select(1);
+    void checkNeural(deck);
   }
 
   title(): string {
@@ -72,250 +32,20 @@ export class SettingsApp implements App {
   }
 
   status(): string {
-    return t("type to search · ↑↓ choose · ←→ / enter change · tab categories ⇄ settings · every setting: `config set`");
+    return t("type to search · ↑↓ ←→ enter · del: back to default");
   }
 
-  private rows(): Row[] {
-    const d = this.deck;
-    const s = d.settings;
-    const set = (key: string, v: unknown) => {
-      s.set(key, v);
-      d.applySettings(key);
-    };
-    const toggle = (key: string, label: string, section?: string): Row => ({
-      section,
-      key,
-      label,
-      cmd: () => `config set ${key} ${!s.get(key)}`,
-      value: () => (s.get(key) ? "on" : "off"),
-      change: () => set(key, !s.get(key)),
-    });
-    const cycle = <T,>(key: string, label: string, options: T[], section?: string, show: (v: T) => string = String): Row => ({
-      section,
-      key,
-      label,
-      cmd: () => {
-        const i = options.indexOf(s.get(key) as T);
-        return `config set ${key} ${q(String(options[(i + 1) % options.length]))}`;
-      },
-      value: () => show(s.get(key) as T),
-      change: (dir) => {
-        const i = options.indexOf(s.get(key) as T);
-        set(key, options[(i + dir + options.length) % options.length]);
-      },
-    });
-    /** a real slider row; ←→ step by 5 */
-    const slide = (key: string, label: string, min: number, max: number, get: () => number, put: (v: number) => void, extra: { zeroIsOff?: boolean; show?: (v: number) => string; cmd?: (v: number) => string } = {}): Row => ({
-      key,
-      label,
-      cmd: () => (extra.cmd ? extra.cmd(get()) : `config set ${key} ${get()}`),
-      value: () => (extra.show ? extra.show(get()) : extra.zeroIsOff && get() === 0 ? t("off") : `${get()}%`),
-      change: (dir) => put(Math.max(min, Math.min(max, Math.round(get() / 5) * 5 + dir * 5))),
-      slider: { min, max, get, set: put, zeroIsOff: extra.zeroIsOff, show: extra.show },
-    });
-    const fxSlide = (e: FxLevel, label: string, show?: (v: number) => string) =>
-      slide(`fx.levels.${e}`, label, 0, fxMax(e), () => getFx(d, e), (v) => void setFx(d, e, v), { zeroIsOff: e !== "sharpness", show, cmd: (v) => `fx ${e} ${v}` });
-    const num = (key: string) => Number(s.get(key) ?? 0);
-    const text = (key: string, label: string, section?: string, placeholder = "", suggestions?: () => string[]): Row => ({
-      section,
-      key,
-      isText: true,
-      label,
-      cmd: () => `config set ${key} ${q(String(s.get(key) ?? ""))}`,
-      value: () => String(s.get(key) || "—"),
-      change: async () => {
-        const v = await d.prompt(t(label), { initial: String(s.get(key) ?? ""), placeholder, suggestions: suggestions?.() });
-        if (v !== null) set(key, v);
-      },
-    });
-
-    return [
-      { section: "YOU", label: "", value: () => "" },
-      cycle("user.language", "language", ["en", "fr"], undefined, (v) => (v === "fr" ? "Français" : "English")),
-      text("user.handle", "handle"),
-      {
-        label: "profile icon",
-        value: () => {
-          const a = avatarOf(s.data.user.avatar?.id);
-          return `${avatarGlyph(a)} ${a.name} · ${s.data.user.avatar?.color ?? "accent"}`;
-        },
-        cmd: () => `avatar ${s.data.user.avatar?.id ?? "visor"} ${s.data.user.avatar?.color ?? "accent"}`,
-        change: () => d.workspace.push(new AvatarPicker(d)),
-      },
-      cycle("user.gender", "gender (optional)", ["", "woman", "man", "nonbinary", "other"], undefined, (v) => v || "not specified"),
-      text("user.genderOther", "your own word (when gender is other)"),
-      {
-        key: "user.pronouns",
-        label: "pronouns",
-        cmd: () => `config set user.pronouns ${q(String(s.get("user.pronouns") ?? ""))}`,
-        value: () => String(s.get("user.pronouns") || "not specified"),
-        // the usual ones, or your own
-        change: async () => {
-          const opts = ["", "she/her", "he/him", "they/them", "elle", "il", "iel"];
-          const cur = String(s.get("user.pronouns") ?? "");
-          const i = await d.choose(t("pronouns"), [...opts.map((o) => ({ label: o || t("not specified") })), { label: t("my own…") }], { selected: Math.max(0, opts.indexOf(cur)) });
-          if (i === null) return;
-          if (i < opts.length) return set("user.pronouns", opts[i]);
-          const v = await d.prompt(t("Your pronouns"), { initial: opts.includes(cur) ? "" : cur, placeholder: "xe/xem", suggestions: ["xe/xem", "ze/hir", "ae/aer", "fae/faer", "any", "ille", "ul", "al"] });
-          if (v !== null) set("user.pronouns", v.trim());
-        },
-      },
-      text("user.locale", "date language", undefined, "fr-FR, en-US… (empty = system)", () => ["fr-FR", "fr-CH", "fr-BE", "fr-CA", "en-US", "en-GB", "de-CH", "de-DE", "it-CH", "it-IT", "es-ES", "pt-BR", "ja-JP", "nb-NO"]),
-      { section: "APPEARANCE", label: "", value: () => "" },
-      cycle("appearance.theme", "theme", d.themes.list().map((t) => t.name)),
-      slide("appearance.scale", "interface scale", 50, 200, () => num("appearance.scale"), (v) => set("appearance.scale", v)),
-      cycle("appearance.fontSize", "text size at 100%", [10, 11, 12, 13, 14, 15, 16, 18, 20], undefined, (v) => `${v}px`),
-      cycle("appearance.fontWeight", "font weight", ["thin", "light", "regular"]),
-      toggle("appearance.startFullscreen", "start fullscreen"),
-      // the pace of frames: vsync (the screen's rate) or your own cap, greyed while vsync is on
-      toggle("appearance.vsync", "vertical sync (the screen's refresh rate)"),
-      (() => {
-        const row = slide("appearance.maxFps", "frames per second", 0, 240, () => num("appearance.maxFps"), (v) => set("appearance.maxFps", v), { show: (v) => (v === 0 ? t("only when you act") : `${v} fps`) });
-        const vsync = () => s.data.appearance.vsync !== false;
-        return { ...row, disabled: vsync, change: (dir: 1 | -1) => (vsync() ? d.notify(t("vertical sync is on: it follows your screen")) : row.change?.(dir)) };
-      })(),
-      slide("appearance.brightness", "brightness", 50, 150, () => num("appearance.brightness") || 100, (v) => set("appearance.brightness", v)),
-      toggle("appearance.reduceMotion", "reduce animations (slower machines)"),
-      toggle("appearance.showFps", "show fps"),
-      toggle("appearance.lineNumbers", "line numbers"),
-      toggle("appearance.backgroundSlow", "slow down in the background (energy)"),
-
-      // (the effects are part of APPEARANCE)
-      toggle("fx.ambient", "animated background"),
-      toggle("fx.flicker", "crt flicker"),
-      toggle("fx.glitch", "animations (glitch, page & typing motion)"),
-      {
-        label: "effect presets: minimal / max / potato",
-        value: () => "open",
-        change: () => d.workspace.fxPanel(),
-      },
-      // one slider per effect: 0 = off
-      fxSlide("bloom", "bloom glow"),
-      fxSlide("scanlines", "scanlines"),
-      fxSlide("vignette", "vignette"),
-      fxSlide("chroma", "RGB split (colour fringes)"),
-      fxSlide("glow", "glow (bright things give off light)"),
-      fxSlide("sharpness", "sharpness", (v) => (v === 100 ? t("razor sharp") : `${v}%`)),
-      cycle("fx.screensaverMinutes", "screensaver after", [0, 5, 10, 20, 30], undefined, (v) => (v ? `${v} min` : "never")),
-      cycle("boot.mode", "boot sequence", ["full", "fast", "off"]),
-      { section: "SOUND", label: "", value: () => "" },
-      // ui sounds: one slider, 0 = off
-      slide("sound.volume", "ui sounds", 0, 100, () => (s.data.sound.enabled ? num("sound.volume") : 0), (v) => {
-        set("sound.enabled", v > 0);
-        if (v > 0) set("sound.volume", v);
-      }, { zeroIsOff: true }),
-      {
-        label: "sound pack (this theme)",
-        steps: true,
-        value: () => `${d.soundPack()}${d.soundPack() === d.theme.sound.pack ? ` ${t("(default)")}` : ""}`,
-        cmd: () => `sound pack ${d.soundPack()}`,
-        change: (dir) => {
-          const packs = Object.keys(SOUND_PACKS);
-          d.setSoundPack(packs[(packs.indexOf(d.soundPack()) + dir + packs.length) % packs.length]);
-          d.sound.play("tick");
-        },
-      },
-      cycle("notifications.mode", "notifications", ["both", "sound", "visual", "none"], undefined, (v) => t(({ both: "sound + screen", sound: "sound only", visual: "screen only", none: "off" } as Record<string, string>)[String(v)] ?? String(v))),
-      { section: "VOICE", label: "", value: () => "" },
-      toggle("voice.enabled", "voice"),
-      toggle("voice.readAI", "read LINK's answers aloud"),
-      toggle("voice.subtitles", "subtitles (what the voice says, bottom-right)"),
-      toggle("voice.greet", "greeting at start-up"),
-      // say aloud: one switch per kind of thing (Deck.speak)
-      toggle("voice.speak.errors", "say errors"),
-      toggle("voice.speak.reminders", "say reminders"),
-      toggle("voice.speak.timers", "say timers and focus"),
-      toggle("voice.speak.calendar", "say events 30 min before"),
-      toggle("voice.speak.weather", "say when the weather changes"),
-      toggle("voice.speak.time", "say the time every half hour"),
-      toggle("voice.speak.system", "say CPU / memory overload"),
-      toggle("voice.speak.modules", "say what modules announce"),
-      slide("voice.robot", "robot filter", 0, 100, () => num("voice.robot"), (v) => set("voice.robot", v), { zeroIsOff: true }),
-      cycle("voice.rate", "speed", [0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.5], undefined, (v) => `×${v}`),
-      slide("voice.volume", "voice volume", 0, 100, () => num("voice.volume"), (v) => set("voice.volume", v), { zeroIsOff: true }),
-      cycle("voice.language", "voice language", ["en", "fr", "ja"], undefined, (v) => (v === "fr" ? "Français" : v === "ja" ? "日本語" : "English")),
-      cycle("voice.engine", "engine", ["auto", "piper", "system"], undefined, (v) => (v === "auto" ? "auto (piper if installed)" : v)),
-      {
-        label: "natural voice (neural, ~60 MB)",
-        value: () => (s.data.voice.language === "ja" ? "system voice" : this.neural === null ? "…" : this.neural ? "installed ✓" : "download ↓"),
-        cmd: () => `voice install ${s.data.voice.language === "en" ? "en" : s.data.voice.language}`,
-        change: () => {
-          if (s.data.voice.language === "ja") return d.notify("Japanese uses the system voice", "info");
-          if (this.neural) return void d.act("voice test");
-          // the download shows its progress in the shell
-          d.workspace.showShellTab("ibsh");
-          d.notify("downloading the natural voice — the shell shows the progress", "info");
-          void d.act(`voice install ${s.data.voice.language}`).then(() => this.checkNeural());
-        },
-      },
-      { label: "hear it", value: () => "test", cmd: () => "voice test", change: () => void d.act("voice test") },
-      { section: "PRIVACY", label: "", value: () => "" },
-      toggle("privacy.stealth", "stealth: 100 % local, no internet"),
-      { section: "UPLINK (AI)", label: "", value: () => "" },
-      cycle("ai.provider", "provider", ["claude-code", "anthropic", "ollama"], undefined, (v) => (v === "claude-code" ? "claude code (subscription)" : v === "anthropic" ? "anthropic api (tokens)" : "ollama (local)")),
-      text("ai.claudeCodeModel", "claude code model", undefined, "sonnet, opus… (empty = default)"),
-      toggle("ai.allowWrites", "AI can write notes (vault only)"),
-      cycle("shell.mode", "shell panel", ["system", "ibsh"], undefined, (v) => (v === "system" ? "my terminal + ICEBREAKER" : "ibsh only")),
-      cycle("shell.prompt", "terminal prompt", ["icebreaker", "mine"], undefined, (v) => (v === "mine" ? "mine (my own theme)" : "ICEBREAKER's")),
-      text("ai.model", "api model", undefined, "claude-opus-5-5"),
-      cycle("ai.effort", "claude effort", ["low", "medium", "high", "xhigh", "max"]),
-      {
-        label: "anthropic api key",
-        value: () => (s.secrets.anthropicApiKey ? `sk-…${s.secrets.anthropicApiKey.slice(-4)}` : d.ai.envKey ? "from env" : "not set"),
-        change: () => void d.shell.runLine("config key"),
-      },
-      text("ai.ollamaHost", "ollama host", undefined, "http://localhost:11434"),
-      text("ai.ollamaModel", "ollama model", undefined, "llama3.1"),
-      toggle("ai.saveChats", "save chats to vault"),
-      { section: "KEYS", label: "", value: () => "" },
-      { label: "every shortcut on one page, in columns (searchable)", value: () => "open", cmd: () => "shortcuts", change: () => void d.openApp("shortcuts") },
-      { label: "+ bind a key to anything", value: () => "add", cmd: () => "bind", change: async () => {
-        const keys = await d.prompt("Which keys?", { placeholder: "ctrl+shift+1 · alt+t" });
-        if (!keys?.trim()) return;
-        const cmd = await d.prompt("Run what? (a shell command)", { placeholder: "open notes/ideas.md · launch todo" });
-        if (cmd?.trim()) void d.act(`bind ${keys.trim()} ${q(cmd.trim())}`);
-      } },
-      ...Object.entries(s.data.keys ?? {}).map(([k, cmd]): Row => ({ label: `★ ${cmd}`, value: () => displayKeys(k), cmd: () => `unbind ${k}`, change: () => void d.act(`unbind ${k}`) })),
-      // (every shortcut, with F2 to change it and Del for its default, lives on the SHORTCUTS page: one place)
-      { label: "change a deck shortcut / back to the defaults", value: () => `${Object.keys(s.data.keyOverrides ?? {}).length} ${t("changed")}`, cmd: () => "keys list", change: () => void d.openApp("shortcuts") },
-      { section: "OVERVIEW", label: "", value: () => "" },
-      { label: "modules on", value: () => `${d.plugins.active().length} / ${d.plugins.list().length}`, cmd: () => "modules", change: () => void d.openApp("modules") },
-      { label: "store", value: () => "open", cmd: () => "store", change: () => void d.act("store") },
-      { label: "what modules expose to each other", value: () => String(d.services.list().length), cmd: () => "modules api", change: () => void d.act("modules api") },
-      { section: "VAULT", label: "", value: () => "" },
-      text("journal.folder", "journal folder"),
-      toggle("editor.autosave", "autosave notes"),
-      toggle("editor.treeWheel", "shift + wheel over the tree shows each file"),
-      {
-        label: "vault folder",
-        value: () => d.vault.root,
-        change: async () => {
-          const p = await d.prompt("Mount another folder as vault (absolute path)", { initial: d.vault.root });
-          if (p) await d.mountVault(p);
-        },
-      },
-      // ── each module's own settings (only the modules that are on) ──
-      ...this.moduleRows(set, toggle, cycle, text),
-      { section: "DANGER ZONE", label: "", value: () => "" },
-      { label: "self-destruct the vault (asks 4 times)", value: () => "☢", cmd: () => "self-destruct", change: () => void d.act("self-destruct") },
-    ];
-  }
-
-  /** the categories, in order, with their rows */
-  private sections(): { name: string; rows: Row[]; group: "GENERAL" | "MODULES" | "DANGER" }[] {
-    const out: { name: string; rows: Row[]; group: "GENERAL" | "MODULES" | "DANGER" }[] = [];
-    for (const r of this.list.items) {
-      if (!r.label && r.section) out.push({ name: r.section, rows: [], group: r.section === "DANGER ZONE" ? "DANGER" : r.section === "OVERVIEW" || r.section.startsWith("◇") ? "MODULES" : "GENERAL" });
-      else if (out.length) out[out.length - 1].rows.push(r);
-    }
-    // GENERAL, then MODULES (the overview, then each module), then the danger zone alone at the bottom
-    return [...out.filter((x) => x.group === "GENERAL"), ...out.filter((x) => x.group === "MODULES"), ...out.filter((x) => x.group === "DANGER")];
+  /** the categories, in order, with their rows (deck.prefs: the deck's and the modules') */
+  private sections(): ReturnType<Deck["prefs"]["sections"]> {
+    return this.secs;
   }
   private cat = 0;
   private sel = 0;
   private pane: "cats" | "rows" = "cats";
   private query = "";
   private scroll = 0;
+  /** the wheel's glide (ui/glide.ts) */
+  private readonly glide = new Glide();
   /** the selection the view last followed */
   private shownSel = -1;
 
@@ -323,146 +53,56 @@ export class SettingsApp implements App {
   private shown(): { row: Row; from: string }[] {
     const secs = this.sections();
     const q = this.query.toLowerCase().trim();
+    const visible = (row: Row) => !row.hidden?.();
     if (!q) {
       const sec = secs[this.cat];
-      if (!sec) return [];
-      const rows = sec.rows.map((row) => ({ row, from: sec.name }));
-      // the big button at the bottom: the whole category back to its defaults (asks first)
-      if (sec.rows.some((r) => r.key) && sec.group !== "DANGER") rows.push({ row: { label: `↺ ${t("everything in {cat} back to default", { cat: t(sec.name) })}`, value: () => "", change: () => void this.resetSection(sec.name, sec.rows) }, from: sec.name });
-      return rows;
+      return sec ? sec.rows.filter(visible).map((row) => ({ row, from: sec.name })) : [];
     }
     return secs.flatMap((sec) =>
       sec.rows
-        .filter((row) => `${row.label} ${t(row.label)} ${row.key ?? ""} ${sec.name} ${t(sec.name)} ${row.value()}`.toLowerCase().includes(q))
+        .filter((row) => visible(row) && !row.head && `${row.label} ${t(row.label)} ${row.key ?? ""} ${sec.name} ${t(sec.name)} ${row.value()}`.toLowerCase().includes(q))
         .map((row) => ({ row, from: sec.name })),
     );
   }
 
+  /** the next selectable row (headings are skipped) */
+  private step(rows: { row: Row }[], from: number, dir: 1 | -1): number {
+    if (!rows.length) return 0;
+    let i = from;
+    for (let n = 0; n < rows.length; n++) {
+      i = (i + dir + rows.length) % rows.length;
+      if (!rows[i].row.head) return i;
+    }
+    return from;
+  }
+
   // ── back to default ──────────────────────────────────────────────────────
 
-  /** A setting's default value (module settings: what the module registered). */
-  private defaultOf(key: string): unknown {
-    if (key.startsWith("plugin.")) {
-      const [, id, k] = key.split(".");
-      return this.deck.moduleSettings.get(id)?.find((m) => m.key === k)?.default;
-    }
-    return key.split(".").reduce<unknown>((o, k) => (o as Record<string, unknown> | undefined)?.[k], DEFAULT_SETTINGS);
+  private rowDefault(row: Row): boolean {
+    return rowIsDefault(this.deck, row);
   }
-
-  /** Is this row at its default? (rows without a key: always) */
-  private isDefault(key: string | undefined): boolean {
-    if (!key) return true;
-    const d = this.deck;
-    if (key.startsWith("plugin.")) {
-      const [, id, k] = key.split(".");
-      return JSON.stringify(d.moduleSettingValue(id, k) ?? null) === JSON.stringify(this.defaultOf(key) ?? null);
-    }
-    const def = this.defaultOf(key);
-    return def === undefined || JSON.stringify(d.settings.get(key) ?? null) === JSON.stringify(def);
-  }
-
-  /** Put one setting back to its default (no question: the caller asked). */
-  private resetKey(key: string): void {
-    const d = this.deck;
-    if (key.startsWith("plugin.")) {
-      const [, id, k] = key.split(".");
-      return d.setModuleSetting(id, k, this.defaultOf(key));
-    }
-    const def = this.defaultOf(key);
-    if (def === undefined) return;
-    d.settings.set(key, structuredClone(def));
-    d.applySettings(key);
+  private resettable(row: Row): boolean {
+    return rowResettable(this.deck, row);
   }
 
   private async resetOne(row: Row): Promise<void> {
-    if (!row.key || !(await this.deck.confirm(t("Back to the default?"), t(row.label)))) return;
-    this.resetKey(row.key);
+    if (!this.resettable(row) || this.rowDefault(row)) return;
+    if (!(await this.deck.confirm(t("Back to the default?"), t(row.label)))) return;
+    resetRow(this.deck, row);
+  }
+
+  /** the category shown: everything back to default (asks first) */
+  private resetCategory(): void {
+    const sec = this.sections()[this.cat];
+    if (sec && sec.group !== "DANGER") void this.resetSection(sec.name, sec.rows);
   }
 
   private async resetSection(name: string, rows: Row[]): Promise<void> {
-    const changed = rows.filter((r) => r.key && !this.isDefault(r.key));
+    const changed = rows.filter((r) => this.resettable(r) && !this.rowDefault(r));
     if (!changed.length) return this.deck.notify(t("everything here is already at its default"));
     if (!(await this.deck.confirm(t("Everything in {cat} back to default?", { cat: t(name) }), t("{n} settings change back: {list}", { n: changed.length, list: changed.map((r) => t(r.label)).slice(0, 6).join(", ") })))) return;
-    for (const r of changed) this.resetKey(r.key!);
+    for (const r of changed) resetRow(this.deck, r);
     this.deck.notify(t("{cat}: back to default", { cat: t(name) }), "success");
-  }
-
-  /** A section per module: the built-in ones here, the others from ib.settings.register. */
-  private moduleRows(set: (k: string, v: unknown) => void, toggle: (k: string, l: string) => Row, cycle: <T>(k: string, l: string, o: T[], sec?: string, show?: (v: T) => string) => Row, text: (k: string, l: string, sec?: string, ph?: string, sug?: () => string[]) => Row): Row[] {
-    const d = this.deck;
-    const on = (id: string) => d.plugins.list().some((p) => p.manifest.id === id && p.active);
-    const out: Row[] = [];
-    const head = (name: string) => out.push({ section: `◇ ${name}`, label: "", value: () => "" });
-    if (on("weather")) {
-      head("WEATHER");
-      out.push(text("home.weatherCity", "weather city (when your location isn't set)", undefined, "Lausanne", () => [...((d.settings.data.home.weatherPlaces ?? []) as { name: string }[]).map((p) => p.name), "Lausanne", "Genève", "Zürich", "Paris", "London", "New York", "Tokyo", "Oslo", "Berlin", "Montréal"]));
-      out.push({ label: "saved places", value: () => String((d.settings.data.home.weatherPlaces ?? []).length), cmd: () => "weather places", change: () => void d.act("weather open") });
-    }
-    if (on("news")) {
-      head("NEWS");
-      out.push(text("home.newsTopic", "news topic (instead of your area)", undefined, "space, F1…"));
-      out.push({ label: "news interests", value: () => (d.settings.data.home.newsInterests ?? []).join(", ") || "—", cmd: () => "news interests", change: () => void d.act("news interests") });
-    }
-    if (on("focus")) {
-      head("FOCUS");
-      out.push({ label: "focus / break minutes", steps: true, value: () => `${focus.work} / ${focus.rest}`, cmd: () => "focus set 25 5", change: (dir) => {
-        const p: [number, number][] = [[25, 5], [50, 10], [90, 20]];
-        const i = p.findIndex(([w]) => w === focus.work);
-        const [w, b] = p[(i + dir + p.length) % p.length];
-        void d.act(`focus set ${w} ${b}`);
-      } });
-    }
-    if (on("clocks")) {
-      head("CLOCKS");
-      out.push({ label: "world clocks", value: () => d.settings.data.home.worldClocks.map((z) => z.split("/").pop()).join(", "), cmd: () => "worldclock", change: () => void d.act("launch clocks") });
-    }
-    // modules from /plugins and the store: whatever they registered
-    for (const [id, rows] of d.moduleSettings) {
-      if (!on(id) || !rows.length) continue;
-      head(d.plugins.list().find((p) => p.manifest.id === id)?.manifest.name ?? id.toUpperCase());
-      for (const ms of rows) {
-        const k = `plugin.${id}.${ms.key}`;
-        if (ms.type === "action") {
-          const cmdOf = () => (typeof ms.cmd === "function" ? ms.cmd() : ms.cmd ?? "");
-          out.push({
-            key: k,
-            label: ms.label,
-            value: () => ms.value?.() ?? "▸",
-            cmd: cmdOf,
-            change: async () => {
-              if (ms.run) await ms.run();
-              else if (cmdOf()) await d.act(cmdOf());
-            },
-          });
-          if (ms.help) SETTINGS_HELP[k] = [ms.help, ms.help];
-          continue;
-        }
-        out.push({
-          key: k,
-          label: ms.label,
-          isText: ms.type === "text",
-          steps: ms.type === "choice",
-          value: () => {
-            const v = d.moduleSettingValue(id, ms.key);
-            return ms.type === "toggle" ? (v ? "on" : "off") : String(v ?? "—");
-          },
-          cmd: () => `modules set ${id} ${ms.key} ${q(String(d.moduleSettingValue(id, ms.key) ?? ""))}`,
-          change: async (dir) => {
-            const v = d.moduleSettingValue(id, ms.key);
-            if (ms.type === "toggle") return void d.setModuleSetting(id, ms.key, !v);
-            if (ms.type === "choice" && ms.options?.length) {
-              const i = ms.options.indexOf(String(v));
-              return void d.setModuleSetting(id, ms.key, ms.options[(i + dir + ms.options.length) % ms.options.length]);
-            }
-            const nv = await d.prompt(ms.label, { initial: String(v ?? "") });
-            if (nv !== null) d.setModuleSetting(id, ms.key, ms.type === "number" ? Number(nv) : nv);
-          },
-        });
-        if (ms.help) SETTINGS_HELP[k] = [ms.help, ms.help];
-      }
-    }
-    void set; void toggle; void cycle;
-    return out;
   }
 
   onText(ch: string): boolean {
@@ -473,7 +113,15 @@ export class SettingsApp implements App {
     return true;
   }
 
+  /** on a shortcut row: 0 = its keys, 1 = its key on THE MENU */
+  private keyCell: 0 | 1 = 0;
+
   onKey(k: KeyInput): boolean {
+    const cur = this.pane === "rows" || this.query ? this.shown()[this.sel]?.row : undefined;
+    // del: this row back to its default (one of your shortcuts: removed) · shift+del: the whole category
+    if (k.combo === "delete" && cur) return cur.keys?.remove ? cur.keys.remove() : void this.resetOne(cur), true;
+    if (k.combo === "shift+delete" && !this.query) return void this.resetCategory(), true;
+    if (k.combo === "f2" && cur?.keys?.editCombo) return cur.keys.editCombo(), true;
     if (k.combo === "backspace" && this.query) return (this.query = this.query.slice(0, -1)), (this.sel = 0), true;
     if (k.combo === "esc" && this.query) return (this.query = ""), (this.sel = 0), true;
     if (k.combo === "esc" && this.pane === "rows") return (this.pane = "cats"), true;
@@ -495,21 +143,35 @@ export class SettingsApp implements App {
     }
     const rows = this.shown();
     const row = rows[this.sel]?.row;
-    if (a === "up") return (this.sel = rows.length ? (this.sel - 1 + rows.length) % rows.length : 0), true;
-    if (a === "down" || a === "item-next") return (this.sel = rows.length ? (this.sel + 1) % rows.length : 0), true;
-    if (a === "left" && !this.query && (!row?.change || this.sel < 0)) return (this.pane = "cats"), true;
-    if ((a === "left" || a === "right") && row?.change) return void row.change(a === "left" ? -1 : 1), true;
-    if (a === "confirm" && row?.change) return void row.change(1), true;
+    if (a === "up") return (this.sel = this.step(rows, this.sel, -1)), true;
+    if (a === "down" || a === "item-next") return (this.sel = this.step(rows, this.sel, 1)), true;
     if (a === "back" && !this.query) return (this.pane = "cats"), true;
+    if (!row) return a === "left" ? ((this.pane = "cats"), true) : false;
+    const kind = kindOf(row);
+    // a shortcut: ←→ between its keys and its menu key, enter changes the one chosen
+    if (kind === "keys") {
+      const k = row.keys!;
+      if (a === "right" && k.menuKey && this.keyCell === 0) return (this.keyCell = 1), true;
+      if (a === "left" && this.keyCell === 1) return (this.keyCell = 0), true;
+      if (a === "confirm") return (this.keyCell === 1 && k.menuKey ? k.editMenuKey : k.editCombo)?.(), true;
+      if (a === "left" && !this.query) return (this.pane = "cats"), true;
+      return a === "right";
+    }
+    // a choice, a box, a slider: ←→ change it · text and actions: enter / → open, ← back to the categories
+    const sideways = kind === "choice" || kind === "toggle" || kind === "slider";
+    if ((a === "left" || a === "right") && sideways) return void row.change?.(a === "left" ? -1 : 1), true;
+    if (a === "left") return !this.query && ((this.pane = "cats"), true);
+    if ((a === "right" || a === "confirm") && row.change) return void row.change(1), true;
     return false;
   }
 
   private builtFor = "";
   render(ui: UI, r: Rect, focused: boolean): void {
     const c = ui.c;
-    // your own shortcuts and the language change the rows: rebuild then
-    const sig = `${JSON.stringify(this.deck.settings.data.keys ?? {})}|${this.deck.settings.data.user.language}`;
-    if (sig !== this.builtFor) (this.builtFor = sig), (this.list.items = this.rows());
+    // what the rows depend on (your shortcuts, the language, the modules that are on): rebuild then
+    const d = this.deck;
+    const sig = `${JSON.stringify(d.settings.data.keys ?? {})}|${d.settings.data.user.language}|${d.plugins.active().map((p) => p.manifest.id).join()}|${d.moduleSettings.size}`;
+    if (sig !== this.builtFor) (this.builtFor = sig), (this.secs = d.prefs.sections());
     const secs = this.sections();
     this.cat = Math.min(this.cat, secs.length - 1);
     // the search field
@@ -546,122 +208,176 @@ export class SettingsApp implements App {
     ui.vline(sx + catW + 1, top, r.y + r.h - top - 2, { fg: c.faint });
 
     // right: the settings of that category (or the search results)
-    const rx = sx + catW + 3, rw = Math.min(r.w - (rx - r.x) - 2, 86);
+    const rx = sx + catW + 3, rw = Math.min(r.w - (rx - r.x) - 2, 80);
     const rows = this.shown();
     this.sel = Math.min(this.sel, Math.max(0, rows.length - 1));
-    // a big interface scale leaves few lines: the help box at the bottom goes first, the settings stay
-    const helpH = r.h - (top - r.y) >= 16 ? 7 : 1;
+    if (rows[this.sel]?.row.head) this.sel = this.step(rows, this.sel, 1);
+    // a big interface scale leaves few lines: the help at the bottom goes first, the settings stay
+    const helpH = r.h - (top - r.y) >= 14 ? 5 : 1;
     const room = Math.max(1, r.y + r.h - top - helpH);
-    // keep the selected row in view only when the selection moves (else the wheel
-    // could never scroll away from it)
+    // keep the selected row in view only when the selection moves (else the wheel couldn't scroll away)
     if (this.sel !== this.shownSel) {
-      if (this.sel < this.scroll) this.scroll = this.sel;
+      if (this.sel < this.scroll) this.scroll = Math.max(0, this.sel - (rows[this.sel - 1]?.row.head ? 1 : 0));
       if (this.sel >= this.scroll + room) this.scroll = this.sel - room + 1;
       this.shownSel = this.sel;
     }
-    this.scroll = Math.max(0, Math.min(this.scroll, Math.max(0, rows.length - room)));
-    ui.hit({ x: rx, y: top, w: rw, h: room }, { onWheel: (d) => (this.scroll = Math.max(0, Math.min(Math.max(0, rows.length - room), this.scroll + d))) });
-    if (!rows.length) ui.text(rx, top, t("nothing matches — esc clears the search"), { fg: c.muted });
+    this.scroll = this.glide.follow(ui, this.scroll, rows.length - room);
+    ui.hit({ x: rx, y: top, w: rw, h: room }, { onWheel: (d) => this.glide.push(d) });
+    if (!rows.length) ui.text(rx + 2, top, t("nothing matches — esc clears the search"), { fg: c.muted });
     let hoverRow: Row | undefined;
+
+    // One sheet, the same on every row:
+    //   ▎ label ……………………………………………  value  ›  ↺
+    // the label on the left, the value against the right edge (everything ends in the
+    // same column), the controls only on the row you're on (or under the mouse):
+    //   choice ‹ English ›   box [■]   text netrunner ✎   action edit ›   slider ━━━━╸── 80%
+    // (every value, box and slider ends in column ve; the hint after it — › ✎ — in column vx)
+    // ▎ on the left = changed from the default; ↺ (on the row you're on) puts it back.
+    const re = rx + rw - 1;
+    const vx = re - 2; // where every control ends
+    const ve = vx - 2; // where every value ends
+    const sliderW = Math.max(14, Math.min(26, Math.floor(rw * 0.34)));
+
     rows.slice(this.scroll, this.scroll + room).forEach(({ row, from }, k) => {
       const i = this.scroll + k;
       const y = top + k;
-      const selected = i === this.sel && (this.pane === "rows" || !!this.query);
-      const line = { x: rx, y, w: rw, h: 1 };
-      const bg = selected && focused ? mix(c.accent, c.bg, 0.82) : ui.hovered(line) ? c.highlight : undefined;
-      if (bg !== undefined) ui.fill(line, { bg });
-      const st = bg !== undefined ? { bg } : {};
-      const label = this.query ? `${t(row.label)}  ` : t(row.label);
-      const raw = row.value();
-      const v = t(raw);
-      const vx = rx + rw - 1;
-      // a slider: drawn in the value's place, dragged with the mouse
-      if (row.slider) {
-        const sw = Math.min(30, Math.max(10, Math.floor(rw * 0.45)));
-        ui.text(rx + 1, y, label, { fg: selected ? c.fg : c.muted, ...st }, Math.max(4, rw - sw - 3));
-        if (ui.hovered(line)) hoverRow = row;
-        ui.hit(line, { onClick: () => ((this.sel = i), (this.pane = "rows")) });
-        const sl = row.slider;
-        const off = row.disabled?.() ?? false;
-        if (row.key && !this.isDefault(row.key)) {
-          const ur = { x: rx + rw - sw - 3, y, w: 1, h: 1 };
-          ui.text(ur.x, y, "↺", { fg: ui.hovered(ur) ? c.warning : c.subtle });
-          ui.hit(ur, { onClick: () => void this.resetOne(row), tip: t("back to the default") });
+      const kind = kindOf(row);
+      if (kind === "head") {
+        // a heading inside the category (KEYS: with the names of the two columns)
+        const name = t(row.label).toUpperCase();
+        const hx = ui.text(rx + 2, y, name, { fg: c.title, attrs: BOLD });
+        ui.hline(hx + 1, y, Math.max(0, re - hx - 1), { fg: mix(c.subtle, c.bg, 0.5) }, "─");
+        if (from === "KEYS") {
+          ui.textRight(vx - 4, y, ` ${t("keys")} `, { fg: c.subtle });
+          ui.text(vx - 2, y, " ≡ ", { fg: c.subtle, attrs: BOLD });
         }
-        slider(ui, { x: rx + rw - sw - 1, y, w: sw, h: 1 }, sl.get(), sl.min, sl.max, (v) => {
-          this.sel = i;
-          this.pane = "rows";
-          sl.set(v);
-        }, {
-          zeroIsOff: sl.zeroIsOff,
-          show: sl.show,
-          disabled: off,
-          tip: `${row.cmd?.() ?? ""}\n${t("drag, click, wheel · ←→ by 5 · double-click the number to type it")}`,
-          onEdit: () => void askNumber(this.deck, t(row.label), sl.get(), sl.min, sl.max, sl.zeroIsOff).then((v) => v !== null && sl.set(v)),
-        });
         return;
       }
-      // ‹ › on every value you step through (both ways, always shown: you can see it turns);
-      // an action just says what it does
-      const steps = !!row.change && (row.steps ?? (!!row.key && !row.isText && !row.key.startsWith("plugin.") && raw !== "on" && raw !== "off"));
-      const shownV = steps ? `‹ ${truncate(v, Math.max(2, Math.floor(rw / 2) - 4))} ›` : truncate(selected && row.change ? `${v} ›` : v, Math.max(4, Math.floor(rw / 2)));
-      // the label gets what the value leaves (never a negative width: the line must never vanish)
-      const labelW = Math.max(4, rw - strWidth(shownV) - 3);
-      const lx = ui.text(rx + 1, y, label, { fg: selected ? c.fg : c.muted, ...st }, labelW);
-      if (this.query) ui.text(lx, y, t(from).toLowerCase(), { fg: c.faint, ...st }, Math.max(0, labelW - (lx - rx - 1)));
-      const color = raw === "on" ? c.success : raw === "off" ? c.subtle : from === "DANGER ZONE" ? c.error : c.accent;
-      ui.textRight(vx, y, shownV, { fg: color, attrs: selected ? BOLD : 0, ...st });
-      const vw = strWidth(shownV);
-      // ↺ next to a setting you changed: back to its default (asks first)
-      if (row.key && !this.isDefault(row.key)) {
-        const ux = vx - vw - 2;
-        const ur = { x: ux, y, w: 1, h: 1 };
-        ui.text(ux, y, "↺", { fg: ui.hovered(ur) ? c.warning : c.subtle, ...st });
-        ui.hit(ur, { onClick: () => void this.resetOne(row), tip: t("back to the default") });
+      const selected = i === this.sel && (this.pane === "rows" || !!this.query);
+      const line = { x: rx, y, w: rw, h: 1 };
+      // the chosen row's long label scrolls by itself (ui.marqueeZone)
+      ui.marqueeZone = selected && focused ? line : null;
+      const hovered = ui.hovered(line);
+      const hot = (selected && focused) || hovered;
+      const bg = selected && focused ? mix(c.accent, c.bg, 0.84) : hovered ? c.highlight : undefined;
+      if (bg !== undefined) ui.fill(line, { bg });
+      const st = bg !== undefined ? { bg } : {};
+      if (hovered) hoverRow = row;
+      const changed = this.resettable(row) && !this.rowDefault(row);
+      const disabled = row.disabled?.() ?? false;
+      if (changed) ui.text(rx, y, "▎", { fg: c.accent, ...st });
+
+      // the value first (so the label knows how much room is left)
+      const raw = row.value();
+      const v = kind === "keys" || kind === "slider" || kind === "toggle" ? "" : truncate(t(raw), Math.max(6, Math.floor(rw * 0.42)));
+      const vw = kind === "slider" ? sliderW : kind === "toggle" ? 3 : kind === "keys" ? Math.min(22, Math.floor(rw * 0.4)) : strWidth(v) + 2;
+      const labelRoom = Math.max(6, vx - vw - (rx + 2) - 2);
+      const label = row.keys?.remove ? row.label : t(row.label); // yours: the command as you wrote it
+      const lend = ui.text(rx + 2, y, label, { fg: selected ? c.fg : kind === "keys" && !row.keys?.editCombo ? c.subtle : disabled ? c.subtle : c.muted, attrs: selected ? BOLD : 0, ...st }, labelRoom);
+      if (this.query) ui.text(lend + 2, y, t(from).toLowerCase(), { fg: c.faint, ...st }, Math.max(0, vx - vw - lend - 4));
+
+      const pick = () => ((this.sel = i), (this.pane = "rows"));
+      const act = (dir: 1 | -1 = 1) => (pick(), void row.change?.(dir));
+      const tip = row.cmd?.();
+      // the whole line: choose it; a box ticks, text and actions open, at once
+      ui.hit(line, { onClick: () => (kind === "toggle" || kind === "text" || kind === "action" ? act() : pick()), tip });
+
+      const valFg = disabled ? c.faint : from === "DANGER ZONE" ? c.error : kind === "info" ? c.subtle : kind === "text" ? c.fg : c.accent;
+      if (kind === "slider") {
+        const sl = row.slider!;
+        slider(ui, { x: ve - sliderW + 1, y, w: sliderW, h: 1 }, sl.get(), sl.min, sl.max, (nv) => (pick(), sl.set(nv)), {
+          zeroIsOff: sl.zeroIsOff,
+          show: sl.show,
+          step: sl.step,
+          disabled,
+          tip: t("drag, click, wheel · ←→ by 5 · double-click the number to type it"),
+          onEdit: () => void askNumber(this.deck, t(row.label), sl.get(), sl.min, sl.max, sl.zeroIsOff).then((nv) => nv !== null && sl.set(nv)),
+        });
+      } else if (kind === "toggle") {
+        const on = raw === "on";
+        ui.text(ve - 2, y, "[", { fg: hot ? c.fg : c.subtle, ...st });
+        ui.text(ve - 1, y, on ? "■" : " ", { fg: c.accent, attrs: BOLD, ...st });
+        ui.text(ve, y, "]", { fg: hot ? c.fg : c.subtle, ...st });
+      } else if (kind === "keys") {
+        this.drawKeys(ui, row, y, { vx, selected: selected && focused, hot, st, pick });
+      } else {
+        const vxStart = ve - strWidth(v) + 1;
+        ui.text(vxStart, y, v, { fg: valFg, attrs: selected ? BOLD : 0, ...st });
+        if (kind === "choice") {
+          // ‹ value ›: the arrows only on the row you're on
+          const arrow = (x: number, ch: string, dir: 1 | -1) => {
+            const ar = { x: x - 1, y, w: 2, h: 1 };
+            if (hot) ui.text(x, y, ch, { fg: ui.hovered(ar) ? c.fg : c.accent, attrs: BOLD, ...st });
+            ui.hit(ar, { onClick: () => act(dir) });
+          };
+          ui.hit({ x: vxStart, y, w: strWidth(v), h: 1 }, { onClick: () => act(1), tip });
+          arrow(vxStart - 2, "‹", -1);
+          arrow(vx, "›", 1);
+        } else if (hot && kind === "text") ui.text(vx, y, "✎", { fg: c.accent, ...st });
+        else if (hot && kind === "action") ui.text(vx, y, "›", { fg: c.accent, attrs: BOLD, ...st });
       }
-      if (steps) {
-        // the arrows: dim until the row is chosen, bright under the mouse
-        const lx2 = vx - vw, rx2 = vx - 1;
-        const arrow = (x: number, ch: string) => ui.text(x, y, ch, { fg: ui.hovered({ x, y, w: 1, h: 1 }) ? c.fg : selected ? c.accent : c.faint, attrs: BOLD, ...st });
-        arrow(lx2, "‹");
-        arrow(rx2, "›");
-      }
-      if (ui.hovered(line)) hoverRow = row;
-      // a choice (‹ ›) is selected by a click and changed with the arrows; anything
-      // else that does something (a picker, a text box, an action) opens on one click
-      const oneClick = !!row.change && !steps && raw !== "on" && raw !== "off";
-      ui.hit(line, {
-        onClick: () => ((this.sel = i), (this.pane = "rows"), oneClick && void row.change?.(1)),
-        onDouble: () => !oneClick && void row.change?.(1),
-        tip: oneClick ? t("click: open") : steps ? t("‹ › or ←→: change") : undefined,
-      });
-      const cmd = row.cmd?.();
-      if (row.change) ui.hit({ x: vx - vw, y, w: vw, h: 1 }, cmd ? { cmd, tip: t("←→ / enter change it too") } : { onClick: () => void row.change?.(1) });
-      if (steps) {
-        const pick = (dir: 1 | -1) => () => ((this.sel = i), (this.pane = "rows"), void row.change?.(dir));
-        ui.hit({ x: vx - vw, y, w: 2, h: 1 }, { onClick: pick(-1), tip: t("previous") });
-        ui.hit({ x: vx - 2, y, w: 2, h: 1 }, { onClick: pick(1), tip: t("next") });
+      // ↺: back to the default, on the row you're on
+      if (changed && hot) {
+        const ur = { x: re, y, w: 1, h: 1 };
+        ui.text(re, y, "↺", { fg: ui.hovered(ur) ? c.warning : c.subtle, attrs: BOLD, ...st });
+        ui.hit(ur, { onClick: () => void this.resetOne(row), tip: `${t("back to the default")} · del` });
       }
     });
+    if (rows.length > room) ui.text(re, this.scroll + room < rows.length ? top + room - 1 : top, this.scroll + room < rows.length ? "↓" : "↑", { fg: c.accent, attrs: BOLD });
 
-    // what it does (the row under the mouse, else the selected one), and the command that does the same
+    // at the bottom: what the row does (the one under the mouse, else the chosen one),
+    // and the category's "everything back to default" on the right
     const cur = hoverRow ?? rows[this.sel]?.row;
     const help = cur ? SETTINGS_HELP[cur.key ?? cur.label] : undefined;
     const fr = this.deck.settings.data.user.language === "fr";
-    if ((help || cur) && helpH > 1) {
-      ui.hline(rx, r.y + r.h - 6, rw, { fg: c.faint }, "┄");
-      const words = (help ? help[fr ? 1 : 0] : t(cur!.label)).split(" ");
+    const by = r.y + r.h - 1;
+    let helpRoom = rw - 2;
+    const sec = secs[this.cat];
+    if (!this.query && sec && sec.group !== "DANGER" && sec.rows.some((x) => this.resettable(x))) {
+      const nChanged = sec.rows.filter((x) => this.resettable(x) && !this.rowDefault(x)).length;
+      if (nChanged) {
+        const label = `↺ ${t("all back to default")}`;
+        const bx = re - strWidth(label) - 1;
+        ui.button(bx, by, label, () => void this.resetSection(sec.name, sec.rows), { tip: `${t("everything in {cat} back to default", { cat: t(sec.name) })} (${nChanged}) · shift+del`, accent: c.warning });
+      }
+    }
+    if (help && helpH > 1) {
+      helpRoom = rw - 2;
+      const words = help[fr ? 1 : 0].split(" ");
       const lines: string[] = [];
       let line = "";
       for (const w of words) {
-        if ((line + " " + w).length > rw - 2 && line) (lines.push(line), (line = w));
+        if (strWidth(`${line} ${w}`) > helpRoom && line) (lines.push(line), (line = w));
         else line = line ? `${line} ${w}` : w;
       }
       lines.push(line);
-      lines.slice(0, 3).forEach((l, i) => ui.text(rx, r.y + r.h - 5 + i, l, { fg: c.fg }, rw));
+      ui.hline(rx, by - 4, rw, { fg: mix(c.subtle, c.bg, 0.5) }, "┄");
+      lines.slice(0, 3).forEach((l, j) => ui.text(rx + 2, by - 3 + j, l, { fg: c.muted }, helpRoom));
     }
-    const cmd = cur?.cmd?.() ?? (cur?.key ? `config get ${cur.key}` : "");
-    if (cmd && helpH > 1) ui.text(rx, r.y + r.h - 2, `› ${cmd}`, { fg: c.subtle }, rw);
+  }
+
+  /** A shortcut row: its keys and its key on THE MENU (≡); × for yours. */
+  private drawKeys(ui: UI, row: Row, y: number, o: { vx: number; selected: boolean; hot: boolean; st: { bg?: ReturnType<typeof mix> }; pick: () => void }): void {
+    const c = ui.c;
+    const k = row.keys!;
+    const cell = (xEnd: number, w: number, text: string, on: boolean, edit: (() => void) | undefined, tip: string, fg: typeof c.fg) => {
+      const r = { x: xEnd - w + 1, y, w, h: 1 };
+      const hov = !!edit && ui.hovered(r);
+      const bg = on ? mix(c.accent, c.bg, 0.6) : hov ? mix(c.accent, c.bg, 0.8) : o.st.bg;
+      if (bg !== undefined && bg !== o.st.bg) ui.fill(r, { bg });
+      ui.textRight(xEnd + 1, y, truncate(text, w), { fg: on ? c.fg : fg, attrs: edit ? BOLD : 0, ...(bg !== undefined ? { bg } : {}) });
+      if (edit) ui.hit(r, { onClick: () => (o.pick(), edit()), tip });
+    };
+    const combo = k.combo();
+    cell(o.vx - 4, 16, combo ? displayKeys(combo) : t("off"), o.selected && this.keyCell === 0, k.editCombo, t("click (or enter): press the new keys"), k.editCombo ? (combo ? c.accent : c.subtle) : c.subtle);
+    if (k.menuKey) {
+      const lead = k.menuKey();
+      cell(o.vx, 3, lead || (o.hot ? "+" : ""), o.selected && this.keyCell === 1, k.editMenuKey, t("its key on THE MENU (⌘K, this key, enter) · click to change"), lead ? c.accent : c.faint);
+    } else if (k.remove && o.hot) {
+      const xr = { x: o.vx - 1, y, w: 2, h: 1 };
+      ui.text(o.vx, y, "×", { fg: ui.hovered(xr) ? c.error : c.subtle, attrs: BOLD, ...o.st });
+      ui.hit(xr, { onClick: () => k.remove!(), tip: t("remove this shortcut · del") });
+    }
   }
 }
 

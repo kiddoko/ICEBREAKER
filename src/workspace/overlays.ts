@@ -2,15 +2,15 @@ import { BOLD, DIM, type Rect } from "../core/grid";
 import type { Action, ActionSource, KeyInput } from "../core/input";
 import { fuzzyFilter } from "../core/fuzzy";
 import { strWidth, truncate } from "../core/unicode";
-import type { PaletteAction } from "../apps/types";
 import type { ChoiceOption } from "../plugins/api";
 import { hex, mix } from "../core/color";
 import { TextEditor } from "../ui/editor";
 import { ListView } from "../ui/list";
+import { typed } from "../ui/typewriter";
 import type { UI } from "../ui/ui";
 
 /**
- * Things drawn on top of everything: command palette, dialogs, on-screen
+ * Things drawn on top of everything: THE MENU, dialogs, on-screen
  * keyboard, notifications. Modal overlays take all input; the others only
  * what they use.
  */
@@ -36,81 +36,16 @@ function backdrop(ui: UI, screen: Rect, onOutside?: () => void): void {
   ui.hit(screen, { onClick: () => onOutside?.(), onWheel: () => {}, block: true });
 }
 
-// ── Command palette ────────────────────────────────────────────────────────
-
-export class Palette implements Overlay {
-  modal = true;
-  done = false;
-  private input = new TextEditor("", { singleLine: true, placeholder: "type a command, a note, a theme…" });
-  private list = new ListView<PaletteAction>();
-  private lastQuery = "\0";
-
-  constructor(private readonly source: () => PaletteAction[]) {
-    this.input.onSubmit = () => this.run();
-    this.list.onActivate = () => this.run();
-  }
-
-  private run(): void {
-    const a = this.list.current;
-    this.done = true;
-    if (a) void Promise.resolve(a.run()).catch((e) => console.error(e));
-  }
-
-  onKey(k: KeyInput): boolean {
-    if (k.key === "esc") return (this.done = true);
-    if (["up", "down", "pageup", "pagedown"].includes(k.key)) {
-      this.list.onAction(k.key === "up" ? "up" : k.key === "down" ? "down" : k.key === "pageup" ? "page-up" : "page-down");
-      return true;
-    }
-    if (k.combo === "ctrl+k" || k.combo === "ctrl+p") return (this.done = true);
-    this.input.onKey(k);
-    return true;
-  }
-
-  onText(t: string): boolean {
-    this.input.onText(t);
-    return true;
-  }
-
-  onAction(a: Action): boolean {
-    if (a === "back" || a === "palette") this.done = true;
-    else if (a === "confirm") this.run();
-    else this.list.onAction(a);
-    return true;
-  }
-
-  render(ui: UI, screen: Rect): void {
-    const c = ui.c;
-    if (this.input.text !== this.lastQuery) {
-      this.lastQuery = this.input.text;
-      this.list.items = fuzzyFilter(this.input.text, this.source(), (a) => `${a.group ?? ""} ${a.title}`, 300);
-      this.list.select(0);
-      this.list.scrollTop = 0;
-    }
-    backdrop(ui, screen, () => (this.done = true));
-    const box = centered(screen, 72, 22, screen.y + Math.max(1, Math.floor(screen.h * 0.12)));
-    const inner = ui.box(box, { title: "COMMAND", focused: true, bg: c.panelAlt, info: `${this.list.items.length} results` });
-    ui.text(inner.x + 1, inner.y, "❯", { fg: c.accent, attrs: BOLD });
-    this.input.render(ui, { x: inner.x + 3, y: inner.y, w: inner.w - 4, h: 1 }, true);
-    ui.hline(inner.x, inner.y + 1, inner.w, { fg: c.border });
-    const listRect = { x: inner.x, y: inner.y + 2, w: inner.w, h: inner.h - 2 };
-    this.list.render(ui, listRect, true, (a, row, selected) => {
-      const gx = ui.text(row.x + 1, row.y, a.group ? `${a.group} ` : "", { fg: selected ? c.accentAlt : c.subtle });
-      // the hint keeps to the right third and never leaves the box
-      const hintW = a.hint ? Math.min(strWidth(a.hint), Math.floor(row.w / 3)) : 0;
-      const tx = ui.text(gx, row.y, a.title, { fg: selected ? c.fg : c.muted, attrs: selected ? BOLD : 0 }, row.w - (gx - row.x) - hintW - 3);
-      if (a.hint && row.x + row.w - 2 - hintW > tx) ui.textRight(row.x + row.w - 2, row.y, truncate(a.hint, hintW), { fg: c.faint });
-    });
-    if (this.list.items.length === 0) ui.textCenter(listRect, listRect.y + 1, "no match", { fg: c.subtle });
-  }
-}
-
 // ── Confirm / prompt dialogs ───────────────────────────────────────────────
+
+let typewriterIds = 0;
 
 export class ConfirmDialog implements Overlay {
   modal = true;
   done = false;
   private choice = true;
+  /** its text's name for the typewriter */
+  private readonly tw = `confirm:${++typewriterIds}`;
 
   constructor(
     private readonly title: string,
@@ -152,9 +87,19 @@ export class ConfirmDialog implements Overlay {
     const w = Math.max(44, strWidth(this.title) + 8, ...lines.map((l) => Math.min(90, strWidth(l) + 6)));
     const box = centered(screen, w, lines.length + 6);
     const inner = ui.box(box, { title: "CONFIRM", focused: true, bg: c.panelAlt });
-    ui.text(inner.x + 1, inner.y, this.title, { fg: c.fg, attrs: BOLD }, inner.w - 2);
+    // the question types itself out (ui/typewriter.ts), then the details
+    const all = [this.title, ...lines].join("\n");
+    let left = typed(ui, this.tw, all);
+    const shown = (s: string) => {
+      const chars = [...s];
+      const part = chars.slice(0, Math.max(0, left)).join("");
+      left -= chars.length + 1;
+      return part;
+    };
+    ui.text(inner.x + 1, inner.y, shown(this.title), { fg: c.fg, attrs: BOLD }, inner.w - 2);
     lines.forEach((l, i) => {
-      if (inner.y + 2 + i < inner.y + inner.h - 2) ui.text(inner.x + 1, inner.y + 2 + i, l, { fg: c.muted }, inner.w - 2);
+      const part = shown(l);
+      if (inner.y + 2 + i < inner.y + inner.h - 2) ui.text(inner.x + 1, inner.y + 2 + i, part, { fg: c.muted }, inner.w - 2);
     });
     const by = inner.y + inner.h - 1;
     let x = inner.x + inner.w - 22;
@@ -375,10 +320,10 @@ export type ToastKind = "info" | "success" | "warning" | "error";
 
 export class Toasts implements Overlay {
   modal = false;
-  private items: { text: string; kind: ToastKind; until: number }[] = [];
+  private items: { text: string; kind: ToastKind; until: number; id: string }[] = [];
 
   push(text: string, kind: ToastKind = "info"): void {
-    this.items.push({ text, kind, until: performance.now() + 3500 + text.length * 25 });
+    this.items.push({ text, kind, until: performance.now() + 3500 + text.length * 25, id: `toast:${++typewriterIds}` });
     if (this.items.length > 4) this.items.shift();
   }
 
@@ -393,7 +338,9 @@ export class Toasts implements Overlay {
       const r = { x: screen.x + screen.w - w - 2, y, w, h: 3 };
       const inner = ui.box(r, { bg: ui.c.panelAlt, border: "round" });
       ui.vline(r.x, r.y, 3, { fg: color }, "▌");
-      ui.text(inner.x + 1, inner.y, `${icon} ${t.text}`, { fg: color }, inner.w - 1);
+      // it types itself out, with its blips (ui/typewriter.ts)
+      const n = typed(ui, t.id, t.text);
+      ui.text(inner.x + 1, inner.y, `${icon} ${[...t.text].slice(0, n).join("")}`, { fg: color }, inner.w - 1);
       ui.hit(r, { onClick: () => (t.until = 0) });
       y += 3;
     }

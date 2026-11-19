@@ -62,11 +62,20 @@ export interface WidgetContext {
   deck: Deck;
   /** The widget is selected on a focused HOME. */
   focused: boolean;
+  /**
+   * Which copy this is ("clock", "clock#2"…): the same widget can be placed
+   * several times, each with its own settings — read them with
+   * widgetConfig(deck, key, name, fallback) (widgets/instances.ts).
+   */
+  key?: string;
 }
 
 /** Where a widget sits on the grid (saved in settings.json → home.widgets). */
 export interface WidgetPlacement {
+  /** the widget (its spec) */
   id: string;
+  /** this copy, when the widget is placed more than once ("clock#2"); else the id */
+  key?: string;
   /** HOME page (0 = first). */
   page?: number;
   x: number;

@@ -4,7 +4,7 @@ import type { Action } from "./input";
  * Gamepad support via the standard Web Gamepad API (Xbox / PlayStation / Switch Pro
  * pads in "standard" mapping).
  *
- *   A confirm    B back       X on-screen keyboard   Y command palette
+ *   A confirm    B back       X on-screen keyboard   Y THE MENU
  *   LB/RB tabs   LT/RT page   Start menu             Select switch pane
  *   hold RB      the action wheel: a stick points, LB turns the page, let go runs it
  *   D-pad / left stick: move      right stick: scroll
@@ -18,7 +18,7 @@ const BUTTON_ACTIONS: Record<number, Action> = {
   12: "up", 13: "down", 14: "left", 15: "right",
 };
 
-/** RB (button 5): a tap = next tab, held = the action wheel */
+/** RB (button 5): a tap = next tab, held = THE MENU */
 const RB = 5, LB = 4, B = 1;
 const HOLD_MS = 260;
 
@@ -34,7 +34,7 @@ export class GamepadInput {
   private timer: ReturnType<typeof setInterval> | undefined;
   /** action → time it was first pressed / last repeated */
   private held = new Map<Action, { since: number; last: number }>();
-  /** the action wheel (hold RB) */
+  /** THE MENU (hold RB): open, the stick aims, let go */
   onWheel?: (e: WheelEvent) => void;
   private rbSince = 0;
   private wheelOpen = false;
@@ -83,11 +83,11 @@ export class GamepadInput {
       lb ||= btn(LB);
       b ||= btn(B);
       const [lx = 0, ly = 0, rx = 0, ry = 0] = pad.axes;
-      // whichever stick is pushed further aims the wheel
+      // whichever stick is pushed further aims in the menu
       if (Math.hypot(rx, ry) > Math.hypot(stick.x, stick.y)) stick = { x: rx, y: ry };
       if (Math.hypot(lx, ly) > Math.hypot(stick.x, stick.y)) stick = { x: lx, y: ly };
     }
-    // ── RB: tap = next tab, hold = the wheel ──
+    // ── RB: tap = next tab, hold = THE MENU ──
     if (rb && !this.rbSince) this.rbSince = now0;
     if (rb && !this.wheelOpen && now0 - this.rbSince > HOLD_MS && this.onWheel) {
       this.wheelOpen = true;
@@ -106,7 +106,7 @@ export class GamepadInput {
       this.bWas = b;
       if (!rb) this.rbSince = 0;
       this.held.clear();
-      return; // the wheel takes the pad while it's open
+      return; // the menu takes the pad while RB is held
     }
     if (!rb && this.rbSince) {
       if (now0 - this.rbSince <= HOLD_MS || !this.onWheel) this.emit("tab-next");

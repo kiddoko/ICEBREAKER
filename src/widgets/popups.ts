@@ -1,3 +1,4 @@
+import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
 import { clockState, dur, soonestTimer, swNow, type ClockTimer } from "./clockstate";
 import { NEWS_CATEGORIES } from "./news";
 import { clockCommand } from "./clockfaces";
@@ -19,17 +20,13 @@ import type { Deck } from "../deck";
 import type { Command } from "../shell/types";
 import { q } from "../ui/ui";
 import { basename } from "../vault/paths";
-import { currentWeather, isoDay, sky, streakOf } from "./builtin";
+import { currentWeather, sky } from "./builtin";
+import { isoDay, mmss, streakOf } from "../core/time";
 import { focus, MATRIX_SETS, matrixLook, openTasks, tickFocus } from "./extra";
 import type { PopupContext, WidgetPopupSpec, WidgetSpec } from "./types";
 import { Field } from "./field";
 import { chatPopup } from "./chatbox";
 
-const pad2 = (n: number) => String(n).padStart(2, "0");
-const mmss = (ms: number) => {
-  const s = Math.max(0, Math.ceil(ms / 1000));
-  return `${pad2(Math.floor(s / 60))}:${pad2(s % 60)}`;
-};
 
 /* ─────────── focus: start / pause / reset, durations ─────────── */
 
@@ -250,9 +247,9 @@ const weatherPopup: WidgetPopupSpec = {
   title: "weather",
   size: { w: 56, h: 13 },
   hint: "c: city",
-  render(ui, r, { deck }) {
+  render(ui, r, { deck, key }) {
     const c = ui.c;
-    const w = currentWeather();
+    const w = currentWeather(widgetConfig(deck, key, "city", ""));
     if (!w) return void ui.text(r.x + 2, r.y + 1, "no forecast yet (location: setup or config set home.weatherCity)", { fg: c.muted }, r.w - 4);
     ui.text(r.x + 2, r.y, w.place, { fg: c.fg, attrs: BOLD });
     ui.textRight(r.x + r.w - 2, r.y, `${Math.round(w.temp)}° · feels ${Math.round(w.feels)}° · ${w.humidity}% · wind ${Math.round(w.wind)} km/h`, { fg: c.muted });
@@ -271,10 +268,11 @@ const weatherPopup: WidgetPopupSpec = {
     });
     void deck;
   },
-  onText: (t, { deck }) => {
+  onText: (t, { deck, key }) => {
     if (t !== "c") return false;
-    void deck.prompt("Weather city (when your location isn't set)", { initial: deck.settings.data.home.weatherCity }).then((v) => {
-      if (v?.trim()) void deck.act(`config set home.weatherCity ${q(v.trim())}`);
+    // this copy's own city (empty: back to where you are)
+    void deck.prompt("This widget's city (empty: where you are)", { initial: widgetConfig(deck, key, "city", ""), placeholder: "Tokyo" }).then((v) => {
+      if (v !== null) setWidgetSetting(deck, "weather", "city", v.trim());
     });
     return true;
   },
@@ -284,21 +282,41 @@ const weatherPopup: WidgetPopupSpec = {
 
 const newsPopup: WidgetPopupSpec = {
   title: "news",
-  size: { w: 60, h: 9 },
-  hint: "t: topic · i: interests · - : back to your area",
-  render(ui, r, { deck }) {
+  size: { w: 66, h: 15 },
+  hint: "this widget: its categories, its mode · t: topic · i: interests",
+  render(ui, r, { deck, key }) {
     const c = ui.c;
-    const topic = deck.settings.data.home.newsTopic;
-    ui.text(r.x + 2, r.y + 1, t("following:"), { fg: c.muted });
-    ui.text(r.x + 14, r.y + 1, topic || t("your area (top stories)"), { fg: c.fg, attrs: BOLD }, r.w - 16);
+    // this copy: list or "à la une", and the categories it shows (none: the shared feed)
+    const mode = widgetConfig<string>(deck, key, "mode", "list");
+    const cats = widgetConfig<string[]>(deck, key, "cats", []);
+    ui.text(r.x + 2, r.y, t("THIS WIDGET"), { fg: c.title, attrs: BOLD });
     let x = r.x + 2;
-    x += ui.button(x, r.y + 3, t("change topic"), () => void askTopic(deck), { tip: "t · news topic <words>" }) + 2;
-    x += ui.button(x, r.y + 3, t("my area"), () => {}, { cmd: "news topic -", tip: "-" }) + 2;
-    ui.button(x, r.y + 3, t("refresh"), () => {}, { cmd: "news refresh" });
+    x = ui.text(x, r.y + 1, `${t("show")} `, { fg: c.muted }) + 1;
+    x += ui.button(x, r.y + 1, t("headlines"), () => {}, { cmd: "news mode list", selected: mode !== "featured" }) + 1;
+    ui.button(x, r.y + 1, t("à la une (one, big, with its summary)"), () => {}, { cmd: "news mode featured", selected: mode === "featured" });
+    ui.text(r.x + 2, r.y + 3, cats.length ? t("only these categories (click to switch one):") : t("categories: none chosen — it shows your area + interests"), { fg: c.muted }, r.w - 4);
+    x = r.x + 2;
+    let y = r.y + 4;
+    for (const [id, cat] of Object.entries(NEWS_CATEGORIES)) {
+      const label = t(cat.label);
+      const w = label.length + 2;
+      if (x + w > r.x + r.w - 2) (x = r.x + 2), y++;
+      const on = cats.includes(id);
+      ui.button(x, y, label, () => {}, { cmd: `news show ${on ? "-" : "+"}${id}`, selected: on });
+      x += w + 1;
+    }
+    if (cats.length) ui.button(r.x + 2, y + 1, t("× all categories off (the shared feed)"), () => {}, { cmd: "news show all", accent: c.subtle });
+    // the shared feed (every copy without categories)
+    const sy = y + 3;
+    const topic = deck.settings.data.home.newsTopic;
     const mine = deck.settings.data.home.newsInterests ?? [];
-    ui.text(r.x + 2, r.y + 5, t("interests:"), { fg: c.muted });
-    ui.text(r.x + 14, r.y + 5, mine.join(" · ") || t("none — your area only"), { fg: mine.length ? c.accent : c.faint }, r.w - 16);
-    ui.button(r.x + 2, r.y + 7, t("+ / − interests"), () => void pickInterests(deck), { tip: "i · news add tech · news rm tech" });
+    ui.text(r.x + 2, sy, t("SHARED FEED"), { fg: c.title, attrs: BOLD });
+    ui.text(r.x + 2, sy + 1, `${t("following:")} ${topic || t("your area (top stories)")} · ${t("interests:")} ${mine.join(", ") || "—"}`, { fg: c.muted }, r.w - 4);
+    x = r.x + 2;
+    x += ui.button(x, sy + 2, t("change topic"), () => void askTopic(deck), { tip: "t · news topic <words>" }) + 2;
+    x += ui.button(x, sy + 2, t("my area"), () => {}, { cmd: "news topic -", tip: "-" }) + 2;
+    x += ui.button(x, sy + 2, t("+ / − interests"), () => void pickInterests(deck), { tip: "i · news add tech · news rm tech" }) + 2;
+    ui.button(x, sy + 2, t("refresh"), () => {}, { cmd: "news refresh" });
   },
   onText: (t, { deck }) => (t === "t" ? (void askTopic(deck), true) : t === "i" ? (void pickInterests(deck), true) : t === "-" ? (void deck.act("news topic -"), true) : false),
 };
@@ -336,7 +354,7 @@ const clockPopup: WidgetPopupSpec = {
   title: "clock",
   size: { w: 54, h: 13 },
   hint: "t timer · space stopwatch · r reset · f face · s seconds",
-  render(ui, r, { deck }) {
+  render(ui, r, { deck, key }) {
     const c = ui.c;
     ui.animate(200);
     const now = new Date();
@@ -363,9 +381,11 @@ const clockPopup: WidgetPopupSpec = {
     // the widget's face
     x = r.x + 3;
     const h = deck.settings.data.home;
+    // this copy's face (each clock on HOME / the panel has its own)
+    const style = widgetConfig(deck, key, "style", h.clockStyle), seconds = widgetConfig(deck, key, "seconds", h.clockSeconds);
     x = ui.text(x, r.y + 11, `${t("FACE")} `, { fg: c.subtle, attrs: BOLD }) + 1;
-    x += ui.button(x, r.y + 11, `‹ ${t(h.clockStyle || "dots")} ›`, () => {}, { cmd: "clock style next", tip: "f" }) + 2;
-    ui.button(x, r.y + 11, h.clockSeconds ? t("seconds ✓") : t("seconds ✗"), () => {}, { cmd: "clock seconds", tip: "s" });
+    x += ui.button(x, r.y + 11, `‹ ${t(style || "dots")} ›`, () => {}, { cmd: "clock style next", tip: "f" }) + 2;
+    ui.button(x, r.y + 11, seconds ? t("seconds ✓") : t("seconds ✗"), () => {}, { cmd: "clock seconds", tip: "s" });
   },
   onText: (t, { deck }) => {
     if (t === " ") return void deck.act("stopwatch toggle"), true;
@@ -540,27 +560,31 @@ const modulesPopup: WidgetPopupSpec = {
 
 /* ─────────── matrix: its look ─────────── */
 
+/** a matrix copy's look (the shared one until it has its own) */
+const lookOf = (deck: Deck, key?: string) => ({ speed: widgetConfig(deck, key, "speed", matrixLook.speed), set: widgetConfig(deck, key, "set", matrixLook.set) });
+
 const matrixPopup: WidgetPopupSpec = {
   title: "matrix",
   size: { w: 50, h: 8 },
   hint: "←→ speed · ↑↓ characters",
-  render(ui, r) {
+  render(ui, r, { deck, key }) {
     const c = ui.c;
+    const look = lookOf(deck, key);
     ui.text(r.x + 2, r.y + 1, t("speed"), { fg: c.subtle });
-    ui.text(r.x + 14, r.y + 1, `${matrixLook.speed.toFixed(1)}×`, { fg: c.fg, attrs: BOLD });
+    ui.text(r.x + 14, r.y + 1, `${look.speed.toFixed(1)}×`, { fg: c.fg, attrs: BOLD });
     ui.text(r.x + 2, r.y + 3, t("characters"), { fg: c.subtle });
     let x = r.x + 14;
-    for (const name of Object.keys(MATRIX_SETS)) x += ui.button(x, r.y + 3, name, () => {}, { cmd: `matrix glyphs ${name}`, selected: matrixLook.set === name }) + 1;
-    let y = r.y + 5;
-    ui.button(r.x + 14, y, t("slower"), () => {}, { cmd: `matrix speed ${Math.max(0.2, matrixLook.speed - 0.2).toFixed(1)}` });
-    ui.button(r.x + 24, y, t("faster"), () => {}, { cmd: `matrix speed ${Math.min(4, matrixLook.speed + 0.2).toFixed(1)}` });
-    y++;
+    for (const name of Object.keys(MATRIX_SETS)) x += ui.button(x, r.y + 3, name, () => {}, { cmd: `matrix glyphs ${name}`, selected: look.set === name }) + 1;
+    const y = r.y + 5;
+    ui.button(r.x + 14, y, t("slower"), () => {}, { cmd: `matrix speed ${Math.max(0.2, look.speed - 0.2).toFixed(1)}` });
+    ui.button(r.x + 24, y, t("faster"), () => {}, { cmd: `matrix speed ${Math.min(4, look.speed + 0.2).toFixed(1)}` });
   },
-  onAction: (a, { deck }) => {
+  onAction: (a, { deck, key }) => {
+    const look = lookOf(deck, key);
     const sets = Object.keys(MATRIX_SETS);
-    const i = sets.indexOf(matrixLook.set);
-    if (a === "left") return void deck.act(`matrix speed ${Math.max(0.2, matrixLook.speed - 0.2).toFixed(1)}`), true;
-    if (a === "right") return void deck.act(`matrix speed ${Math.min(4, matrixLook.speed + 0.2).toFixed(1)}`), true;
+    const i = sets.indexOf(look.set);
+    if (a === "left") return void deck.act(`matrix speed ${Math.max(0.2, look.speed - 0.2).toFixed(1)}`), true;
+    if (a === "right") return void deck.act(`matrix speed ${Math.min(4, look.speed + 0.2).toFixed(1)}`), true;
     if (a === "up" || a === "down") return void deck.act(`matrix glyphs ${sets[(i + (a === "down" ? 1 : sets.length - 1)) % sets.length]}`), true;
     return false;
   },
@@ -572,10 +596,13 @@ export const matrixCommand: Command = {
   usage: `matrix speed <0.2-4>\nmatrix glyphs ${Object.keys(MATRIX_SETS).join(" | ")}`,
   run(ctx) {
     const [a, b] = ctx.args;
-    if (a === "speed" && Number(b) >= 0.2 && Number(b) <= 4) matrixLook.speed = Number(b);
-    else if (a === "glyphs" && b && b in MATRIX_SETS) matrixLook.set = b;
+    // the copy whose pop-up is open (or that's selected); else the shared look
+    const key = widgetTarget("matrix");
+    if (a === "speed" && Number(b) >= 0.2 && Number(b) <= 4) key ? setWidgetSetting(ctx.deck, "matrix", "speed", Number(b)) : (matrixLook.speed = Number(b));
+    else if (a === "glyphs" && b && b in MATRIX_SETS) key ? setWidgetSetting(ctx.deck, "matrix", "set", b) : (matrixLook.set = b);
     else if (a) return ctx.err(`usage: matrix speed <0.2-4> | matrix glyphs ${Object.keys(MATRIX_SETS).join(" | ")}\n`), 1;
-    ctx.out(`matrix: ${matrixLook.set}, ${matrixLook.speed.toFixed(1)}×\n`);
+    const look = lookOf(ctx.deck, key ?? undefined);
+    ctx.out(`matrix: ${look.set}, ${look.speed.toFixed(1)}×\n`);
     ctx.deck.requestFrame();
     return 0;
   },

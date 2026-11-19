@@ -1,5 +1,5 @@
+import { pad2 } from "../core/time";
 /** The clocks' shared state — no imports, so anything can use it without import cycles. */
-const pad2 = (n: number) => String(n).padStart(2, "0");
 
 /** Timers (several at once, named), the stopwatch and its laps — shared by the clock pop-up, the CLOCKS app and the commands. */
 export interface ClockTimer {

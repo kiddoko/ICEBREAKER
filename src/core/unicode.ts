@@ -59,3 +59,38 @@ export function padStart(s: string, width: number): string {
   const w = strWidth(s);
   return w >= width ? s : " ".repeat(width - w) + s;
 }
+
+/**
+ * Words to lines of at most `w` columns (the one word-wrap of the deck: the tour,
+ * the setup, the chat widget, the news…). Line breaks in the text are kept; a word
+ * longer than a line is cut.
+ */
+export function wrapWords(s: string, w: number): string[] {
+  const width = Math.max(1, w);
+  const out: string[] = [];
+  for (const para of s.split("\n")) {
+    let line = "";
+    for (let word of para.split(/ +/)) {
+      while (strWidth(word) > width) {
+        if (line) (out.push(line), (line = ""));
+        const chars = [...word];
+        let cut = 0, cw = 0;
+        while (cut < chars.length && cw + strWidth(chars[cut]) <= width) cw += strWidth(chars[cut++]);
+        out.push(chars.slice(0, Math.max(1, cut)).join(""));
+        word = chars.slice(Math.max(1, cut)).join("");
+      }
+      if (!word) continue;
+      if (line && strWidth(line) + 1 + strWidth(word) > width) {
+        out.push(line);
+        line = word;
+      } else line = line ? `${line} ${word}` : word;
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+/** The deck's one easing: fast, then settling (0 → 1). */
+export function easeOut(k: number): number {
+  return 1 - Math.pow(1 - Math.min(1, Math.max(0, k)), 3);
+}

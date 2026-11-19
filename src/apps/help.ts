@@ -16,18 +16,19 @@ function manual(deck: Deck): string {
 Everything works with **keyboard only**, **mouse only**, a **gamepad**, or any mix.
 
 ## Keyboard
-**Every shortcut, searchable: \`Ctrl+/\` (the SHORTCUTS page, or \`shortcuts\` in the shell).** Bind your own with \`bind\`.
-- \`Tab\` — the next thing on the screen (widget, card, line) · \`Shift+Tab\` — the next part of the screen (tree → deck → shell)
-- \`Ctrl+K\` / \`Ctrl+P\` — command palette (search everything)
-- \`Ctrl+J\` — today's journal · \`Ctrl+N\` — new note · \`Ctrl+Space\` — AI link · \`Ctrl+,\` — settings
-- \`Ctrl+\`\` (key under Esc) — show / focus the shell · \`Ctrl+B\` — toggle the file tree
-- \`Alt+←↑↓→\` — move focus between panes · \`Alt+1…9\` — switch tab
-- \`Ctrl+Tab\` / \`Ctrl+Shift+Tab\` — next / previous tab · \`Ctrl+W\` — close tab
-- \`Ctrl+S\` — save (notes also autosave) · \`Ctrl+Enter\` — follow [[link]] under cursor
-- \`Ctrl+=\` / \`Ctrl+-\` / \`Ctrl+0\` — interface scale 25–200 % · \`F11\` — fullscreen · \`F1\` — this manual
-- \`h\` — back to HOME from anywhere you're not typing
-- \`Esc\` — close the page you're on and go back to the previous one (HOME stays)
-- In the shell: \`daily\` — end-of-day check-in · \`chat\` — talk to the AI · \`lock\` — lock the deck
+**Every shortcut, searchable: \`Ctrl+/\` (the SHORTCUTS page).** Change any of them in Settings → KEYS; bind your own with \`bind\`. On a Mac, ⌘ plays the role of Ctrl.
+- \`Ctrl+K\` or **Shift twice** — THE MENU: type to search everything, or a menu key + Enter
+- \`Ctrl+Z\` / \`Ctrl+Shift+Z\` — undo / redo anything (settings, widgets, trash, renames, new notes)
+- \`Tab\` — the next thing on the screen · \`Shift+Tab\` — the next part of the screen (tree → page → shell)
+- \`Ctrl+Shift+H / M / E / U\` — HOME · MODULES · NEXUS · UPLINK (the AI)
+- \`Ctrl+Shift+T / P / S\` — the tree · the side panel · the shell
+- \`Ctrl+N\` new note · \`Ctrl+Shift+N\` new folder · \`Ctrl+J\` today's journal · \`Ctrl+,\` settings
+- \`Ctrl+Tab\` / \`Ctrl+Shift+Tab\` — next / previous tab · \`Ctrl+1…9\` — that tab · \`Ctrl+W\` / \`Shift+Esc\` — close it
+- \`Ctrl+S\` — save (notes also save themselves) · \`Ctrl+Enter\` — follow the [[link]] under the cursor
+- \`Ctrl+=\` / \`Ctrl+-\` / \`Ctrl+0\` — interface scale · \`F11\` — fullscreen · \`F1\` — this manual
+- \`Ctrl+Shift+L\` — log out · \`Ctrl+Shift+Backspace\` — the trash
+- \`h\` — HOME, from anywhere you're not typing · \`Esc\` — back to the page before
+- In the shell: \`tour\` — the guided tour · \`undo list\` · \`chat\` — talk to the AI · \`daily\` — end-of-day check-in
 
 ## Mouse
 Click anything: tabs, files, tiles, buttons, calendar days. Every click runs a
@@ -39,7 +40,7 @@ the on-screen keyboard (mouse-only typing).
 
 ## Gamepad (Xbox / PlayStation layout)
 - **D-pad / left stick** — move · **right stick** — scroll
-- **A** — confirm · **B** — back · **Y** — command palette · **X** — on-screen keyboard
+- **A** — confirm · **B** — back · **Y** (or hold **RB**) — THE MENU · **X** — on-screen keyboard
 - **LB / RB** — previous / next tab · **LT / RT** — page up / down
 - **Select** — switch pane · **Start** — home
 On-screen keyboard: A types, B deletes, Y space, Start enter, LB/RB move the cursor, X closes.

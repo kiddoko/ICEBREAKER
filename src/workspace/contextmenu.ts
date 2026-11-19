@@ -187,9 +187,11 @@ export class ContextMenu implements Overlay {
         let tx = inner.x + 1;
         if (e.checked !== undefined) tx = ui.text(tx, ry, e.checked ? "✓ " : "  ", { fg: sel ? c.panel : c.accent, bg });
         else if (e.color !== undefined) tx = ui.text(tx, ry, "■ ", { fg: e.color, bg });
-        ui.text(tx, ry, e.label, { fg, bg, attrs: sel ? BOLD : 0 }, inner.w - (tx - inner.x) - (hintW ? hintW + 2 : 1));
+        ui.text(tx, ry, e.label, { fg, bg, attrs: sel ? BOLD : 0, raw: true }, inner.w - (tx - inner.x) - (hintW ? hintW + 2 : 1)); // a name, never keys
         const right = e.sub ? "▸" : e.hint ?? "";
-        if (right) ui.textRight(inner.x + inner.w - 1, ry, right, { fg: sel ? c.panel : c.subtle, bg });
+        // a shortcut is a key; "shift+click", "ls -la" and the like stay words
+        const isKey = !e.sub && !!e.hint && !/\s/.test(e.hint.trim()) && !/click/.test(e.hint);
+        if (right) ui.textRight(inner.x + inner.w - 1, ry, right, { fg: sel ? c.panel : c.subtle, bg, key: isKey });
         ui.hit(row, {
           onClick: () => {
             l.sel = i;
@@ -205,6 +207,18 @@ export class ContextMenu implements Overlay {
         });
       }
     });
+    // what the chosen line does, in a strip under its menu (never over the other lines)
+    const last = this.levels[this.levels.length - 1];
+    const chosen = last?.items[last.sel];
+    if (chosen && chosen !== "-" && chosen.tip && last.box) {
+      const tip = chosen.tip;
+      const b = last.box;
+      const w = Math.min(screen.w - 2, Math.max(b.w, strWidth(tip) + 4));
+      const below = b.y + b.h + 1 < screen.y + screen.h;
+      const strip = { x: Math.max(screen.x, Math.min(b.x, screen.x + screen.w - w)), y: below ? b.y + b.h : b.y - 1, w, h: 1 };
+      ui.fill(strip, { bg: c.highlight });
+      ui.text(strip.x + 1, strip.y, `ℹ ${tip}`, { fg: c.muted, bg: c.highlight }, strip.w - 2);
+    }
   }
 }
 

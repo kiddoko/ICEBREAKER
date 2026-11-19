@@ -1,3 +1,4 @@
+import { Glide } from "./glide";
 import { mix } from "../core/color";
 import type { Action, MouseInput } from "../core/input";
 import { BOLD, type Rect } from "../core/grid";
@@ -16,6 +17,8 @@ export class ListView<T> {
   items: T[] = [];
   selected = 0;
   scrollTop = 0;
+  /** the wheel's glide: speed, slowing down, a dead stop at both ends (ui/glide.ts) */
+  private readonly glide = new Glide();
   /** where the view really is (eases toward scrollTop: page jumps glide) */
   private shownTop = 0;
   private prevSel = -1;
@@ -124,7 +127,7 @@ export class ListView<T> {
       if (this.selected >= this.scrollTop + this.viewH) this.scrollTop = this.selected - this.viewH + 1;
       this.reveal = false;
     }
-    this.scrollTop = Math.max(0, Math.min(this.scrollTop, Math.max(0, this.items.length - this.viewH)));
+    this.scrollTop = this.glide.follow(ui, this.scrollTop, this.items.length - this.viewH);
     if (this.selected >= this.items.length) this.selected = Math.max(0, this.items.length - 1);
     // smooth scroll: the view eases toward its target, a few rows per frame
     const lag = this.scrollTop - this.shownTop;
@@ -222,7 +225,10 @@ export class ListView<T> {
           if (!this.clickActivates?.(item)) this.onActivate?.(item, idx);
         },
       });
+      // the selected row's long text scrolls by itself (ui.marqueeZone)
+      if (isSel) ui.marqueeZone = row;
       drawRow(item, row, isSel, idx);
+      if (isSel) ui.marqueeZone = null;
     }
 
     // dragging below the last row: it lands at the root (or wherever the list says)
@@ -248,6 +254,6 @@ export class ListView<T> {
       const thumbY = r.y + Math.round((this.scrollTop / (this.items.length - this.viewH)) * (this.viewH - thumbH));
       ui.vline(r.x + r.w - 1, thumbY, thumbH, { fg: focused ? ui.c.accent : ui.c.subtle }, "▐");
     }
-    ui.hit(r, { onWheel: (d, m) => void (this.wheel?.(d, m) || (this.scrollTop = Math.max(0, this.scrollTop + d))) });
+    ui.hit(r, { onWheel: (d, m) => void (this.wheel?.(d, m) || this.glide.push(d)) });
   }
 }

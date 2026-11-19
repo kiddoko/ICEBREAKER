@@ -18,13 +18,13 @@ scanlines — but works with the keyboard, the mouse, or a gamepad.
 - **Everything is a module** — only the frame is fixed (HOME, notes and their editor, the tree, the shell, settings). NEXUS, UPLINK, the journal, calendar, music, clocks, news, weather… are modules you can switch off, remove and reinstall from the STORE, like the ones made by the community. MODULES shows them all as a turning ring of shards — the chips netrunners slot in (give each a colour, show one colour at a time; enter plugs it into its socket).
 - **Your real terminal, upgraded** — the shell panel runs your own zsh / bash / fish, or PowerShell on Windows (your profile, oh-my-posh and all), (ssh, git, vim, htop…) in the vault folder, with every ICEBREAKER command added (`todo add …`, `journal`, `theme set …`; `ib <cmd>` when a name clashes). Your ~/.zshrc is loaded, never modified. Prefer a vault-only sandbox? `term mode ibsh`. Clicks log their commands in a separate **history** tab.
 - **A real-ish shell** — pipes, redirections, globs, history, fish-style suggestions, 70+ commands working on your vault. `cat note.md | ask "summarize"` works.
-- **LINK** — chat with Claude, which can search, read and write your notes ("make me a note with a shopping list for a spinach pie"). With Claude Code it writes inside the vault only, never elsewhere (`config set ai.allowWrites false` to keep it read-only); with an API key it asks before each write. Or use a local open-source model through [Ollama](https://ollama.com).
+- **UPLINK** — chat with Claude, which can search, read and write your notes ("make me a note with a shopping list for a spinach pie"). With Claude Code it writes inside the vault only, never elsewhere (`config set ai.allowWrites false` to keep it read-only); with an API key it asks before each write. Or use a local open-source model through [Ollama](https://ollama.com).
 - **Plugins** — small JS modules with a documented API and declared permissions; the bundled modules (TODO, CALENDAR, STATS…) use the very same API.
 - **Themes** — TOML files, hot-swappable: colors, font, border style and symbols. Default: `nightshade` (violet, Catppuccin-flavoured). Also `amber`, `neon-ronin`, `phosphor`, `ghost`, `redline`, `graphite`.
 - **Modules** — one feature, one module, each with its own command, app and HOME widget. So far: **TODO** (`todo add "walk the dog" --urgent --due tomorrow +home`, or the app, or the widget), **CALENDAR** (a local calendar plus your Google calendars: `cal add "dentist" fri 14:30 --cal work`, the app, and an "upcoming" widget that shows more as it grows; Google setup in `man cal`), **STATS** (numbers over time — what your modules record, like a budget left or the commands you ran, and your own: `stats set weight 72.4 --unit kg`, `stats add pushups 20`; a graph per stat, a widget, and `ib.stats` for module makers), **HABITS** (boxes that reset every day, with streaks: `habit add "drink water" --times 8`, `habit check water`), **REMINDERS** (`remind "call mom" fri 18:00`) and **MUSIC** (your own music folder played by the deck, a text-only mini iTunes with no cover art: `music play daft punk`; plus what's playing in Spotify / Music on macOS or any player on Linux).
 - **NEXUS** — walk your vault in pseudo-3D: files ride an endless ring above a synthwave floor grid (5 in front; the wheel turns it; a dive when you enter a folder) — `explore`, or ⬡ in the top bar.
 - **Daily log** — `daily` asks a short end-of-day check-in in the shell (quick answers 1-5) and writes it to your journal; `daily trend` charts it.
-- **Login** — optional account that locks the deck at start-up. The password is hashed with Argon2id and never stored. It locks the app, it does not encrypt your notes (they stay readable Markdown files). Forgot it? Quit, delete `account.json` in the config folder (macOS: `~/Library/Application Support/org.icebreaker.deck/`), restart.
+- **Accounts** — every account is its own deck: its settings, theme, sounds, vault and Google connection, behind its password (Argon2id, never stored). The login page is the way in, and where new accounts are made (approved by an existing one). It locks the app, it does not encrypt your notes (they stay readable Markdown files). Forgot a password? Quit, remove that account from `accounts.json` in the config folder (macOS: `~/Library/Application Support/org.icebreaker.deck/`); its settings stay in `users/<id>/`.
 - **English or French** — the whole interface and the voice, chosen at setup (Settings → language).
 - **Voice** — the deck can talk: local, open-source neural female voices (Jenny in English, Siwis in French, on sherpa-onnx), or Japanese — whatever the UI language — for the full cyberpunk effect, through a robot filter — clearly a machine, not choppy. It greets you at start-up, and you choose what else it says aloud (Settings → VOICE → say aloud): errors, reminders, timers, your next event 30 min before, weather changes, the time every half hour, CPU / memory overload, the AI's answers, what modules announce. `voice install`, `voice on`. Nothing leaves your computer.
 - **Stealth mode** — `stealth on`: 100 % local. No internet at all; AI only through a local model (Ollama on this machine or a box at home); your vault can live on your own server.
@@ -42,7 +42,11 @@ scanlines — but works with the keyboard, the mouse, or a gamepad.
 - **Smooth, light, for every machine** — vertical sync (one frame per screen refresh, 120 Hz ProMotion included; the rings glide on a spring) or your own cap from 0 to 240 fps (0 = no animations), a brightness slider, and *reduce animations* for slower machines. The deck draws nothing when nothing moves.
 - **PULSE** — one widget for what's happening everywhere: the next event, tasks due, the next reminder, habits left, the music, the focus timer, the weather, new errors; a click opens the module.
 - **Tabs like a browser** — wide when few, narrower as you open more; past the limit, `▾ +N` lists the rest.
-- **Side panel** — ◧ in the status bar: widgets that stay in view on every page, on the right (`panel add clock`).
+- **Side panel** — ◧ in the status bar: widgets that stay in view on every page, on the right (`panel add clock`). Edited together with HOME (one edit band across both); widgets stay where you put them, gaps included, and the panel scrolls when it's taller than the window.
+- **Undo anything** — ⌘Z / Ctrl+Z, anywhere: a setting, a theme, a widget moved or resized, a file sent to the trash, a rename, a new note. ⌘⇧Z redoes; `undo list` shows the history.
+- **A guided tour** — after the setup, UPLINK lights each part of the screen and explains it (`tour` plays it again).
+- **The same widget several times** — two clocks, two news feeds…: each copy has its own settings. Clocks have tiny → huge versions of every style; news widgets show the categories you choose, or one featured story with its summary.
+- **Conversations in tabs** — UPLINK keeps several chats open at once (Ctrl+T).
 - **Profile icon** — a pixel-art face or a glyph in your colour (`avatar`), on the login screen and in `whoami`.
 - **Shortcut squares** — square HOME tiles that open anything in one click, their kind written on them (module, folder, file, page, macro, command). A folder square opens a little browser right under it: go in and out (‹ ›), make a note or a folder, trash something. `home link new`, or right-click → square on HOME.
 - **Browse with the wheel** — shift + wheel over the tree walks file by file and shows each one at once (a preview tab the next file replaces); the plain wheel scrolls.
@@ -54,6 +58,13 @@ scanlines — but works with the keyboard, the mouse, or a gamepad.
 - **Gestures** — mouse back / forward and a two-finger sideways swipe switch tabs; pinch zooms the interface.
 - **Picks up where you left** — the tabs, the open folders of the tree, the page you were on come back at the next start. Notifications reach your system's notification centre when the deck isn't in front.
 - **Light** — renders only what changed, sleeps when idle, effects throttle themselves on slow webviews, `fx potato` for old laptops. ~10 MB binary.
+
+> [!WARNING]
+> **Not for sensitive documents.** ICEBREAKER is a hobby project, made with care
+> but without any security audit. Your notes are plain files on your disk
+> (vault encryption is being worked on, not there yet). Don't use it to keep
+> passwords, medical, legal, financial or other sensitive documents. Use it at
+> your own risk — see the [license](LICENSE): no warranty of any kind.
 
 ## Yours, offline, anonymous — if you want
 
@@ -99,16 +110,17 @@ To talk to Claude: get an API key at [console.anthropic.com](https://console.ant
 
 | | keyboard | gamepad |
 |---|---|---|
-| command palette | `Ctrl+K` | Y |
+| THE MENU: search everything, or a key + enter | `Ctrl+K` (⌘K) · `Shift` twice (anywhere, even typing) | hold RB · Y |
 | today's journal / new note | `Ctrl+J` / `Ctrl+N` | — |
 | AI link (UPLINK) | `Ctrl+Shift+U` · `Ctrl+Space` | — |
 | tree · side panel · shell | `Ctrl+Shift+T` · `Ctrl+Shift+P` · ``Ctrl+` `` / `Ctrl+Shift+S` | — |
 | HOME · MODULES · NEXUS | `Ctrl+Shift+H` · `Ctrl+Shift+M` · `Ctrl+Shift+E` | Start (HOME) |
-| macros · effects · action wheel | `Ctrl+Shift+K` · `Ctrl+Shift+F` · `Ctrl+Shift+A` | hold RB (wheel) |
+| macros · effects | `Ctrl+Shift+K` · `Ctrl+Shift+F` | — |
 | shell | ``Ctrl+` `` (key under Esc) | Select (switch pane) |
 | move between panes | `Alt+←↑↓→` | Select |
-| tabs | `Alt+1…9`, `Ctrl+Tab`, `Ctrl+W` | LB / RB (tap) |
-| action wheel: 8 slots a page, any command | `wheel` (click a slot) | hold RB, point a stick, let go (LB: next page) |
+| tabs | `Ctrl+1…9`, `Ctrl+Tab`, `Ctrl+W` | LB / RB (tap) |
+| undo / redo anything | `Ctrl+Z` / `Ctrl+Shift+Z` (⌘Z / ⌘⇧Z) | — |
+| put anything on THE MENU | right-click → *add to the menu…* · `menu add <key> "<cmd>"` | — |
 | on-screen keyboard | status bar `⌨` | X |
 | interface scale (25–200 %) / fullscreen | `Ctrl+=` `Ctrl+-` `Ctrl+0` / `F11` | — |
 | back to HOME | `h` (when not typing) | Start |
@@ -125,7 +137,7 @@ src/
   deck.ts        composition root — every subsystem is created here
   core/          grid, renderer, glyph atlas, frame loop, input, gamepad, themes, settings
   ui/            immediate-mode drawing toolkit + widgets (editor, list, chat)
-  workspace/     layout, tabs, focus, overlays (palette, dialogs, OSK), boot sequence
+  workspace/     layout, tabs, focus, overlays (THE MENU, dialogs, OSK), boot sequence
   apps/          home, note, journal, link (AI), sysmon, settings, help
   shell/         parser, executor, terminal buffer, commands/
   ai/            Claude (Anthropic SDK) and Ollama providers, vault tools, prompts
@@ -140,6 +152,9 @@ themes/          built-in themes (nightshade.toml is the annotated reference)
 - Error codes (E101…) and what to do → [docs/ERRORS.md](docs/ERRORS.md)
 - Who made it → [CONTRIBUTORS.md](CONTRIBUTORS.md)
 - Make a theme → [docs/THEMES.md](docs/THEMES.md)
+- Make a sound pack → [docs/SOUND_PACKS.md](docs/SOUND_PACKS.md)
+- The house rules for modules and themes → [docs/GUIDELINES.md](docs/GUIDELINES.md)
+- Modules and safety (the audit, the sandbox plan) → [docs/SANDBOX.md](docs/SANDBOX.md)
 - Share them, install other people's → [docs/COMMUNITY.md](docs/COMMUNITY.md)
 - Contribute to the core → [CONTRIBUTING.md](CONTRIBUTING.md) · report a vulnerability → [SECURITY.md](SECURITY.md)
 

@@ -302,6 +302,11 @@ function tokenize(s: string): string[] {
 // ── the module ─────────────────────────────────────────────────────────────
 
 export function activate(ib: IcebreakerAPI): void {
+  // its settings (Settings → ◇ TODO)
+  ib.settings.register([
+    { key: "view", label: "opens on", type: "choice", options: ["open", "today", "all", "done"], default: "open", help: "What the TODO page shows when it opens: the open tasks, today's, all of them, or the done ones." },
+    { key: "add", label: "new task", type: "action", value: () => "add", cmd: "todo add", help: "Add a task (todo add \"…\" --due fri --urgent)." },
+  ]);
   ib.lib.addTranslations("fr", {
     "doesn't repeat": "ne se répète pas",
     "every day": "tous les jours",
@@ -671,7 +676,7 @@ export function activate(ib: IcebreakerAPI): void {
   class TodoApp implements App {
     readonly kind = "todo";
     readonly key = "todo";
-    private filter: Filter = "open";
+    private filter: Filter = (FILTERS as string[]).includes(String(ib.settings.get("view"))) ? (ib.settings.get("view") as Filter) : "open";
     private sel = 0;
     private scroll = 0;
     private typing = false;

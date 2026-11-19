@@ -199,7 +199,7 @@ class WeatherApp implements App {
       lastPlace = p;
       this.f = await forecastFor(p);
       // your own city is a favourite from the start (★, first of the ←→ places)
-      if (!place && !this.wantFor && !this.places().length) this.deck.settings.set("home.weatherPlaces", [p]);
+      if (!place && !this.wantFor && !this.places().length) this.deck.history.quiet(() => this.deck.settings.set("home.weatherPlaces", [p])); // automatic: not a ⌘Z step
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
     } finally {

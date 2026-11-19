@@ -1374,4 +1374,6 @@ export function activate(ib: IcebreakerAPI): void {
 export function deactivate(): void {
   if (syncTimer) clearInterval(syncTimer);
   syncTimer = null;
+  if (sayTimer) clearInterval(sayTimer); // the "events 30 min before" voice watch
+  sayTimer = undefined;
 }

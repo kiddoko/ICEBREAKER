@@ -2,7 +2,17 @@ import { BOLD, DIM, ITALIC, type Rect, type Style } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import { TextEditor, wrapLine } from "./editor";
 import { highlightLine, initialMdState } from "./markdown";
+import { typed } from "./typewriter";
 import type { UI } from "./ui";
+
+/** each chat line's name for the typewriter */
+const ids = new WeakMap<object, number>();
+let nextId = 0;
+function idOf(e: object): number {
+  let id = ids.get(e);
+  if (id === undefined) ids.set(e, (id = ++nextId));
+  return id;
+}
 
 /**
  * A chat transcript + input box. Used by the LINK app (talk to the AI) and
@@ -37,7 +47,7 @@ export class ChatView {
 
   private scrollFromBottom = 0;
   private version = 0;
-  private cache = { version: -1, width: -1, rows: [] as Row[] };
+  private cache = { version: -1, width: -1, rows: [] as Row[], typing: "" };
 
   constructor(placeholder = "type a message — Enter to send, Shift+Enter for a new line") {
     this.input = new TextEditor("", { submitOnEnter: true, placeholder, markdown: false });
@@ -100,7 +110,15 @@ export class ChatView {
     const inputH = Math.min(6, Math.max(1, this.input.lines.length));
     const logH = r.h - inputH - 1;
     const logRect = { x: r.x + 1, y: r.y, w: r.w - 2, h: logH };
-    const rows = this.layout(ui, logRect.w);
+    // what the deck and the AI say types itself out (ui/typewriter.ts) — an answer
+    // streaming in carries on as it grows; your own messages show at once
+    const shown = new Map<ChatEntry, number>();
+    for (const e of this.entries) {
+      if (e.role === "user") continue;
+      const n = typed(ui, `chat:${idOf(e)}`, e.text);
+      if (n < [...e.text].length) shown.set(e, n);
+    }
+    const rows = this.layout(ui, logRect.w, shown);
 
     const maxScroll = Math.max(0, rows.length - logRect.h);
     this.scrollFromBottom = Math.min(this.scrollFromBottom, maxScroll);
@@ -141,15 +159,18 @@ export class ChatView {
   }
 
   /** Turn entries into wrapped, styled screen rows (cached until something changes). */
-  private layout(ui: UI, width: number): Row[] {
-    if (this.cache.version === this.version && this.cache.width === width) return this.cache.rows;
+  private layout(ui: UI, width: number, shown: Map<ChatEntry, number> = new Map()): Row[] {
+    const typing = [...shown.values()].join(",");
+    if (this.cache.version === this.version && this.cache.width === width && this.cache.typing === typing) return this.cache.rows;
     const t = ui.theme;
     const rows: Row[] = [];
     for (const e of this.entries) {
       const { prefix, base } = this.styleFor(e.role, ui);
       const textW = Math.max(4, width - 2);
       let md = initialMdState();
-      const lines = e.text.replace(/\s+$/, "").split("\n");
+      const limit = shown.get(e);
+      const text = limit === undefined ? e.text : [...e.text].slice(0, limit).join("");
+      const lines = text.replace(/\s+$/, "").split("\n");
       lines.forEach((line, li) => {
         const hl = e.role === "assistant" ? highlightLine(line, md, t) : null;
         if (hl) md = hl.next;
@@ -167,7 +188,7 @@ export class ChatView {
       });
       rows.push({ prefix: "", text: "", styles: [], base });
     }
-    this.cache = { version: this.version, width, rows };
+    this.cache = { version: this.version, width, rows, typing };
     return rows;
   }
 

@@ -1,19 +1,18 @@
+import { widgetConfig } from "./instances";
 import { t } from "../core/i18n";
 import { focus } from "./focusstate";
-import { ago } from "../core/time";
+import { ago, isoDay, streakOf } from "../core/time";
 import { q } from "../ui/ui";
 import { mix, type RGB } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
-import { resolvePlace } from "../core/location";
+import { geocode, langOf, resolvePlace } from "../core/location";
 import { strWidth } from "../core/unicode";
 import type { Deck } from "../deck";
 import type { SystemStats } from "../platform/types";
 import { dots } from "../ui/dots";
 import type { UI } from "../ui/ui";
 import { basename, dirname } from "../vault/paths";
-import { EXTRA_WIDGETS } from "./extra";
 import { drawClock } from "./clockfaces";
-import { withPopups } from "./popups";
 import type { WidgetPlacement, WidgetSpec } from "./types";
 
 /* ═══════════════════════ big pixel digits ═══════════════════════
@@ -100,8 +99,8 @@ const clock: WidgetSpec = {
   description: "big time, minute progress, date",
   size: { w: 4, h: 4 },
   min: { w: 2, h: 2 },
-  render(ui, r, { deck }) {
-    drawClock(ui, r, deck);
+  render(ui, r, { deck, key }) {
+    drawClock(ui, r, deck, new Date(), key);
   },
 };
 
@@ -124,17 +123,30 @@ interface Weather {
   key: string;
 }
 
-let weather: Weather | null = null;
-/** the last forecast (the weather pop-up and `weather` read it) */
-export const currentWeather = () => weather;
-let weatherError: string | null = null;
-let weatherLoading = false;
+/**
+ * One forecast per place shown: "" is where you are (your location setting);
+ * a weather widget copy can show another city (its own setting "city").
+ */
+interface Slot {
+  w: Weather | null;
+  error: string | null;
+  loading: boolean;
+}
+const slots = new Map<string, Slot>();
+function slotOf(city: string): Slot {
+  let sl = slots.get(city);
+  if (!sl) slots.set(city, (sl = { w: null, error: null, loading: false }));
+  return sl;
+}
+/** the last forecast for where you are, or for a city a weather copy shows (the pop-up, `weather`, PULSE) */
+export const currentWeather = (city = "") => slotOf(city).w;
 
-async function loadWeather(key: string, deck: Deck): Promise<void> {
-  weatherLoading = true;
+async function loadWeather(key: string, deck: Deck, city = ""): Promise<void> {
+  const sl = slotOf(city);
+  sl.loading = true;
   try {
-    const place = await resolvePlace(deck);
-    if (!place) throw new Error("no location — run setup (ctrl+k → setup)");
+    const place = city ? ((await geocode(city, langOf(deck)))[0] ?? null) : await resolvePlace(deck);
+    if (!place) throw new Error(city ? `no place called "${city}"` : "no location — run setup (ctrl+k → setup)");
     const q =
       `latitude=${place.lat}&longitude=${place.lon}&timezone=auto&forecast_days=7&forecast_hours=24` +
       `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m` +
@@ -142,10 +154,11 @@ async function loadWeather(key: string, deck: Deck): Promise<void> {
     const f = await (await fetch(`https://api.open-meteo.com/v1/forecast?${q}`)).json();
     const hhmm = (iso: string) => iso?.slice(11, 16) ?? "--:--";
     // the sky changed since the last look (rain coming, sun back…): the voice may say it
-    const before = weather && weather.key === key ? sky(weather.code) : null;
+    const weather = sl.w;
+    const before = !city && weather && weather.key === key ? sky(weather.code) : null;
     const after = sky(f.current.weather_code);
     if (before && before !== after) deck.speak("weather", t("weather in {place}: {sky}", { place: place.name, sky: t(SKY_WORDS[after]) }));
-    weather = {
+    sl.w = {
       place: place.name,
       temp: f.current.temperature_2m,
       feels: f.current.apparent_temperature,
@@ -166,11 +179,11 @@ async function loadWeather(key: string, deck: Deck): Promise<void> {
       at: Date.now(),
       key,
     };
-    weatherError = null;
+    sl.error = null;
   } catch (e) {
-    weatherError = e instanceof Error ? e.message : String(e);
+    sl.error = e instanceof Error ? e.message : String(e);
   } finally {
-    weatherLoading = false;
+    sl.loading = false;
   }
 }
 
@@ -251,18 +264,21 @@ const weatherWidget: WidgetSpec = {
   description: "now, the next 24 h and the week (open-meteo.com)",
   size: { w: 4, h: 7 },
   min: { w: 2, h: 2 },
-  render(ui, r, { deck }) {
+  render(ui, r, { deck, key: copy }) {
     const c = ui.c;
     const loc = deck.settings.data.user.location;
-    const key = `${loc.precision}|${loc.name}|${loc.lat}|${loc.lon}|${deck.settings.data.home.weatherCity}`;
-    const stale = !weather || weather.key !== key || Date.now() - weather.at > 15 * 60_000;
-    if (stale && !weatherLoading && !weatherError) void loadWeather(key, deck).then(() => deck.requestFrame());
-    if (!weather) {
-      ui.text(r.x + 1, r.y + 1, weatherError ? `⚠ ${weatherError}` : `${ui.spinner()} contacting the sky…`, { fg: weatherError ? c.error : c.muted }, r.w - 2);
-      if (weatherError) ui.text(r.x + 1, r.y + 2, "enter: retry", { fg: c.faint });
+    // this copy's city (its pop-up: c), else where you are
+    const city = widgetConfig(deck, copy, "city", "");
+    const sl = slotOf(city);
+    const key = city ? `city|${city}` : `${loc.precision}|${loc.name}|${loc.lat}|${loc.lon}|${deck.settings.data.home.weatherCity}`;
+    const stale = !sl.w || sl.w.key !== key || Date.now() - sl.w.at > 15 * 60_000;
+    if (stale && !sl.loading && !sl.error) void loadWeather(key, deck, city).then(() => deck.requestFrame());
+    if (!sl.w) {
+      ui.text(r.x + 1, r.y + 1, sl.error ? `⚠ ${sl.error}` : `${ui.spinner()} contacting the sky…`, { fg: sl.error ? c.error : c.muted }, r.w - 2);
+      if (sl.error) ui.text(r.x + 1, r.y + 2, "enter: retry", { fg: c.faint });
       return;
     }
-    const w = weather;
+    const w = sl.w;
     const s = sky(w.code);
     const artColor = s === "sun" ? c.warning : s === "storm" ? c.accentAlt : s === "snow" ? c.fg : c.info;
     const showArt = r.w >= 36 && r.h >= 5;
@@ -327,9 +343,10 @@ const weatherWidget: WidgetSpec = {
       });
     }
   },
-  activate: ({ deck }) => {
-    weather = null;
-    weatherError = null;
+  activate: ({ deck, key }) => {
+    const sl = slotOf(widgetConfig(deck, key, "city", ""));
+    sl.w = null;
+    sl.error = null;
     deck.requestFrame();
   },
 };
@@ -393,20 +410,6 @@ const calendar: WidgetSpec = {
   activate: ({ deck }) => void deck.openJournal(new Date()),
 };
 
-export function isoDay(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-export function streakOf(entries: Set<string>): number {
-  const d = new Date();
-  if (!entries.has(isoDay(d))) d.setDate(d.getDate() - 1);
-  let n = 0;
-  while (entries.has(isoDay(d))) {
-    n++;
-    d.setDate(d.getDate() - 1);
-  }
-  return n;
-}
 
 /* ═══════════════════════ system ═══════════════════════ */
 
@@ -590,35 +593,19 @@ const modules: WidgetSpec = {
   activate: ({ deck }) => void refreshPulse(deck),
 };
 
-export const BUILTIN_WIDGETS: WidgetSpec[] = withPopups([clock, weatherWidget, calendar, system, recent, modules, ...EXTRA_WIDGETS]);
+/** the first HOME widgets (the others are in extra.ts); widgets/index.ts adds the pop-ups and puts them together */
+export const CORE_WIDGETS: WidgetSpec[] = [clock, weatherWidget, calendar, system, recent, modules];
 
 /** Home layouts offered by the setup questionnaire. The first one is the default. */
-export const LAYOUT_PRESETS: Record<"essentials" | "productivity" | "gadget", WidgetPlacement[]> = {
-  essentials: [
-    { id: "clock", x: 0, y: 0, w: 4, h: 4 },
-    { id: "system", x: 0, y: 4, w: 4, h: 3 },
-    { id: "weather", x: 4, y: 0, w: 4, h: 7 },
-    { id: "calendar", x: 8, y: 0, w: 4, h: 7 },
-    { id: "recent", x: 0, y: 7, w: 6, h: 4 },
-    { id: "modules", x: 6, y: 7, w: 6, h: 4 },
-  ],
-  productivity: [
-    { id: "clock", x: 0, y: 0, w: 4, h: 4 },
-    { id: "focus", x: 0, y: 4, w: 4, h: 4 },
-    { id: "todo.list", x: 4, y: 0, w: 4, h: 8 },
-    { id: "calendar", x: 8, y: 0, w: 4, h: 6 },
-    { id: "streak", x: 8, y: 6, w: 4, h: 2 },
-    { id: "weather", x: 0, y: 8, w: 6, h: 4 },
-    { id: "news", x: 6, y: 8, w: 6, h: 4 },
-  ],
-  gadget: [
-    { id: "clock", x: 0, y: 0, w: 5, h: 4 },
-    { id: "ai", x: 5, y: 0, w: 3, h: 7 },
-    { id: "moon", x: 8, y: 0, w: 4, h: 4 },
-    { id: "worldclock", x: 0, y: 4, w: 5, h: 3 },
-    { id: "quote", x: 8, y: 4, w: 4, h: 3 },
-    { id: "weather", x: 0, y: 7, w: 6, h: 5 },
-    { id: "news", x: 6, y: 7, w: 6, h: 5 },
-  ],
-};
-export const DEFAULT_LAYOUT = LAYOUT_PRESETS.essentials;
+/**
+ * The HOME everyone starts with: the time, the weather, the AI, the news and
+ * your modules at a glance — and room left on purpose, so it's obvious HOME is
+ * yours to fill (e to edit, a to add).
+ */
+export const DEFAULT_LAYOUT: WidgetPlacement[] = [
+  { id: "clock", x: 0, y: 0, w: 4, h: 4 },
+  { id: "weather", x: 4, y: 0, w: 4, h: 5 },
+  { id: "ai", x: 8, y: 0, w: 4, h: 6 },
+  { id: "news", x: 0, y: 4, w: 4, h: 5 },
+  { id: "modules", x: 4, y: 5, w: 4, h: 4 },
+];

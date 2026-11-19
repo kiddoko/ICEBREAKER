@@ -106,8 +106,11 @@ function linkSpec(l: HomeLink): WidgetSpec {
       if (kind === "folder") deck.workspace.push(new FileBrowser(deck, { source: "vault", start: folderOf(l), title: `▣ ${l.label}`, anchor: drawnAt.get(l.id) }));
       else void deck.act(l.cmd);
     },
-    render(ui, r, { focused }) {
+    render(ui, slot, { focused }) {
       const c = ui.c;
+      // truly square on screen: cells are taller than wide (ui.cellAspect = width / height),
+      // so the tile is as many columns as it is rows ÷ the aspect, centred in its slot
+      const r = squareIn(slot, ui.cellAspect);
       drawnAt.set(l.id, r);
       const hot = ui.hovered(r);
       const col = KIND[kind].color(c);
@@ -215,4 +218,26 @@ export async function newLinkFlow(deck: Deck): Promise<void> {
   if (!pick) return;
   const l = addLink(deck, pick.label, pick.cmd, pick.icon);
   void deck.act(`home add link.${l.id}`);
+}
+
+/**
+ * The biggest on-screen square inside `slot` (in cells), centred. aspect = cell
+ * width / cell height (about 0.5). Cells are whole, so not every size can be a
+ * true square: from the tallest down, the first size within 6 % of square wins
+ * (else the closest one).
+ */
+export function squareIn(slot: { x: number; y: number; w: number; h: number }, aspect: number): { x: number; y: number; w: number; h: number } {
+  const a = aspect > 0 ? aspect : 0.5;
+  let best = { w: slot.w, h: Math.max(1, Math.min(slot.h, Math.round(slot.w * a))), err: Infinity };
+  for (let h = slot.h; h >= 1; h--) {
+    const w = Math.round(h / a);
+    if (w < 1 || w > slot.w) continue;
+    const err = Math.abs(w * a - h) / h;
+    if (err < best.err) best = { w, h, err };
+    if (err <= 0.06) {
+      best = { w, h, err };
+      break;
+    }
+  }
+  return { x: slot.x + Math.floor((slot.w - best.w) / 2), y: slot.y + Math.floor((slot.h - best.h) / 2), w: best.w, h: best.h };
 }

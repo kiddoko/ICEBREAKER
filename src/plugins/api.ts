@@ -38,6 +38,8 @@ import type { Stat, StatMeta, StatPoint } from "../core/stats";
 import type { ModuleProxy, ServiceInfo, ServiceSpec } from "./services";
 
 /** "terminal": type commands in the user's real shell (terminal.run / write) */
+import type { BlockInfo, BlockKind } from "../core/catalog";
+
 export type Permission = "vault:read" | "vault:write" | "ai" | "media" | "google-calendar" | "stats:read" | "terminal";
 
 export interface PluginManifest {
@@ -68,7 +70,13 @@ export interface IcebreakerAPI {
   /** Add apps (screens that open in a tab) and open them. */
   apps: { register(spec: AppSpec): void; open(kind: string, args?: unknown): App | null };
 
-  /** Add entries to the command palette (Ctrl+K). */
+  /**
+   * Add entries to THE MENU (⌘K · shift twice · hold RB): they show up when the
+   * user searches, and with `key` they get a menu key too (⌘K, that key, enter) —
+   * only if the key is free: the deck's and the user's own come first.
+   *
+   *   ib.palette.register({ id: "todo.add", title: "Todo: add…", key: "+", run: () => ib.shell.run("todo add") });
+   */
   palette: { register(action: PaletteAction): void };
 
   /**
@@ -202,10 +210,33 @@ export interface IcebreakerAPI {
    *   const c = await ib.use("theme").colors();
    *
    * The deck's own parts: tree · terminal · shell · theme · home · panel · tabs ·
-   * notes · sound · deck (notify, say, setting). `modules api` (in the shell)
+   * notes · sound · menu · keys · deck (notify, alert, say, setting). `modules api` (in the shell)
    * lists every function of every module with one line of doc.
    */
   use<T = ModuleProxy>(module: string): T;
+
+  /**
+   * A line for developers: it lands in the shell's LOG tab under "debug",
+   * tagged with your module's id (`log show debug` to see only those).
+   *
+   *   ib.debug(`fetched ${items.length} items in ${ms} ms`);
+   */
+  debug(text: string): void;
+
+  /**
+   * Everything the deck can do, as blocks you can read: commands, THE MENU's
+   * actions, shortcuts, settings, functions (ib.use), widgets, apps, themes,
+   * modules — each with who provides it, one line of doc and how to call it.
+   * Plain data (JSON), the same as the BLOCKS page and `catalog` in the shell.
+   *
+   *   const fns = ib.catalog.list("function", "todo");   // [{ kind, id, name, doc, from, call, value }]
+   *   const theme = ib.catalog.get("setting", "appearance.theme")?.value;
+   */
+  catalog: {
+    list(kind?: BlockKind, words?: string): BlockInfo[];
+    get(kind: BlockKind, id: string): BlockInfo | undefined;
+    kinds(): readonly BlockKind[];
+  };
 
   modules: {
     expose(name: string, spec: ServiceSpec | ServiceSpec["fn"]): void;

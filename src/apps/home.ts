@@ -1,5 +1,6 @@
+import { allWidgetKeys, focusWidget, forgetWidget, keyOf, newWidgetKey, widgetIdOf } from "../widgets/instances";
+import { Glide } from "../ui/glide";
 import { t } from "../core/i18n";
-import { strWidth } from "../core/unicode";
 import { mix } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
@@ -29,7 +30,13 @@ export class HomeApp implements App {
   readonly kind = "home";
   readonly key = "home";
   private selected = 0;
-  private editing = false;
+  /** edit mode is the workspace's: HOME and the side panel are edited together */
+  private get editing(): boolean {
+    return this.deck.workspace.editing;
+  }
+  private set editing(on: boolean) {
+    this.deck.workspace.editing = on;
+  }
   /** edit mode is on (the side panel shows its own edit controls then) */
   get isEditing(): boolean {
     return this.editing;
@@ -37,9 +44,13 @@ export class HomeApp implements App {
   /** a widget being dragged: where it was grabbed, where the mouse is, where it would land */
   private drag: { index: number; dx: number; dy: number; mx: number; my: number; spot: WidgetPlacement | null } | null = null;
   private colW = 1;
+  /** a widget being resized by its corner (index), -1 none */
+  private sizing = -1;
   private origin = { x: 0, y: 0 };
   /** Vertical scroll in text rows (the grid can be taller than the screen). */
   private scroll = 0;
+  /** the wheel's glide (ui/glide.ts) */
+  private readonly glide = new Glide();
   private areaH = 40;
   /** Scroll so the selected widget is visible on the next frame. */
   private reveal = false;
@@ -153,9 +164,13 @@ export class HomeApp implements App {
    * the default size then smaller ones down to the minimum; else below the
    * rest (the HOME scrolls). Returns false if it's already there or unknown.
    */
-  place(id: string): boolean {
+  place(what: string, keep = false): boolean {
+    // a widget can be placed several times: each copy has its own key (widgets/instances.ts);
+    // `keep` (a widget moving here from the side panel) keeps its key, and its settings
+    const id = widgetIdOf(what);
+    const key = keep || what.includes("#") ? what : newWidgetKey(this.deck, id);
     const spec = this.deck.widgets.get(id);
-    if (!spec || this.layout.some((p) => p.id === id)) return false;
+    if (!spec || this.layout.some((p) => keyOf(p) === key)) return false;
     const layout = this.layout.map((p) => ({ ...p }));
     const visible = Math.max(1, Math.floor(this.areaH / this.rowH));
     const sizes: [number, number][] = [];
@@ -167,7 +182,7 @@ export class HomeApp implements App {
       for (const [w, h] of sizes)
         for (let y = 0; y + h <= maxY; y++)
           for (let x = 0; x + w <= COLS; x++) {
-            const cand = { id, page, x, y, w, h };
+            const cand: WidgetPlacement = { id, ...(key !== id ? { key } : {}), page, x, y, w, h };
             if (!this.overlaps(layout, -1, cand)) return cand;
           }
       return null;
@@ -177,7 +192,7 @@ export class HomeApp implements App {
     const pages = this.pageCount();
     let spot = fit(this.page, visible);
     for (let k = 1; !spot && k < pages; k++) spot = fit((this.page + k) % pages, visible);
-    spot ??= fit(pages, visible) ?? { id, page: pages, x: 0, y: 0, w: Math.min(COLS, spec.size.w), h: spec.size.h };
+    spot ??= fit(pages, visible) ?? { id, ...(key !== id ? { key } : {}), page: pages, x: 0, y: 0, w: Math.min(COLS, spec.size.w), h: spec.size.h };
     layout.push(spot);
     this.selected = layout.length - 1;
     this.reveal = true;
@@ -208,7 +223,7 @@ export class HomeApp implements App {
   /** Send a widget to another page (`home move <widget> <page>`). */
   moveToPage(id: string, n: number): boolean {
     const layout = this.layout.map((p) => ({ ...p }));
-    const p = layout.find((x) => x.id === id);
+    const p = layout.find((x) => keyOf(x) === id) ?? layout.find((x) => x.id === id);
     if (!p) return false;
     const target = Math.max(0, n);
     const others = layout.filter((o) => o !== p && (o.page ?? 0) === target);
@@ -222,17 +237,17 @@ export class HomeApp implements App {
   /** Right-click on an empty spot of HOME. */
   /** First in every right-click on HOME: into edit mode, or out of it. */
   private editEntry(): MenuEntry {
-    return { label: this.editing ? t("stop edit mode") : t("edit mode"), cmd: this.editing ? "home done" : "home edit", hint: this.editing ? "esc" : "e" };
+    return { label: this.editing ? t("Done editing") : t("Edit layout"), cmd: this.editing ? "home done" : "home edit", hint: this.editing ? "esc" : "e" };
   }
 
   menu(): MenuEntry[] {
     return [
       this.editEntry(),
       "-",
-      { label: t("add a widget…"), run: () => this.add(), hint: "a" },
-      { label: t("new page"), cmd: "home page new" },
+      { label: t("Add widget…"), run: () => this.add(), hint: "a" },
+      { label: t("New page"), cmd: "home page new" },
       "-",
-      { label: t("default layout"), run: async () => { if (await this.deck.confirm(t("Back to the default layout?"), t("Your widgets go back to where they were at the start."))) void this.deck.act("home reset"); }, danger: true },
+      { label: t("Reset layout"), tip: t("back to the widgets of the start (asks first)"), run: async () => { if (await this.deck.confirm(t("Back to the default layout?"), t("Your widgets go back to where they were at the start."))) void this.deck.act("home reset"); }, danger: true },
     ];
   }
 
@@ -252,13 +267,14 @@ export class HomeApp implements App {
     return [
       this.editEntry(),
       "-",
-      ...(has ? [{ label: spec.popup ? t("open its pop-up") : t("open"), cmd: `widget ${p.id}`, hint: "enter" }] : []),
-      ...(spec.open ? [{ label: t("open its module"), cmd: `widget ${p.id} open` }] : []),
+      ...(has ? [{ label: t("Open"), tip: spec.popup ? t("its pop-up: bigger, with its settings") : undefined, cmd: `widget ${keyOf(p)}`, hint: "enter" }] : []),
+      ...(spec.open ? [{ label: t("Open module"), cmd: `widget ${keyOf(p)} open` }] : []),
       "-",
-      { label: t("pin to the side panel"), cmd: `panel add ${p.id}` },
-      { label: t("add a widget…"), run: () => this.add(), hint: "a" },
+      { label: t("Move to panel"), tip: t("the side panel on the right: always in view"), run: () => void this.deck.history.groupAsync(`${p.id} → panel`, async () => { await this.deck.act(`panel add --keep ${keyOf(p)}`); await this.deck.act(`home rm ${keyOf(p)}`); }) },
+      { label: t("Duplicate"), tip: t("the same widget once more, with its own settings"), cmd: `home add ${p.id}` },
+      { label: t("Add widget…"), run: () => this.add(), hint: "a" },
       "-",
-      { label: t("remove from HOME"), cmd: `home rm ${p.id}`, danger: true, hint: "x" },
+      { label: t("Remove"), cmd: `home rm ${keyOf(p)}`, danger: true, hint: "x" },
     ];
   }
 
@@ -269,28 +285,14 @@ export class HomeApp implements App {
   }
 
   /**
-   * Gravity: every widget rises as high as it can (holes left by a removed
-   * widget close up). Shown that way outside edit mode, and saved that way
-   * when you leave it, so the layout looks the same in and out of edit mode.
+   * Widgets stay exactly where you put them — holes included (no gravity: a
+   * gap is yours to keep). Kept as one place in case a layout ever needs
+   * tidying before it's shown.
    */
   private compact(layout: WidgetPlacement[]): WidgetPlacement[] {
-    const out = layout.map((p) => ({ ...p }));
-    const live = out.map((p, i) => ({ p, i })).filter(({ p }) => this.deck.widgets.get(p.id)).sort((a, b) => a.p.y - b.p.y || a.p.x - b.p.x);
-    const done: WidgetPlacement[] = [];
-    for (const { p } of live) {
-      const hits = (y: number) => done.some((o) => (o.page ?? 0) === (p.page ?? 0) && p.x < o.x + o.w && o.x < p.x + p.w && y < o.y + o.h && o.y < y + p.h);
-      let y = 0;
-      while (y < p.y && hits(y)) y++;
-      p.y = Math.min(p.y, y);
-      done.push(p);
-    }
-    return out;
+    return layout.map((p) => ({ ...p }));
   }
-  private settle(): void {
-    const before = JSON.stringify(this.layout);
-    const after = this.compact(this.layout);
-    if (JSON.stringify(after) !== before) this.save(after);
-  }
+  private settle(): void {}
 
   /** Back to the default layout. */
   resetLayout(): void {
@@ -300,9 +302,13 @@ export class HomeApp implements App {
 
   /** Remove a widget by id. */
   unplace(id: string): boolean {
-    const i = this.layout.findIndex((p) => p.id === id);
+    let i = this.layout.findIndex((p) => keyOf(p) === id);
+    if (i < 0) i = this.layout.findIndex((p) => p.id === id);
     if (i < 0) return false;
+    const key = keyOf(this.layout[i]);
     this.remove(i);
+    // its own settings go with the last copy of that key (a move to the panel keeps them)
+    if (!allWidgetKeys(this.deck).includes(key)) forgetWidget(this.deck, key);
     return true;
   }
 
@@ -376,7 +382,7 @@ export class HomeApp implements App {
       case "confirm": {
         const p = this.layout[this.selected];
         const spec = p && this.deck.widgets.get(p.id);
-        if (spec && (spec.popup || spec.activate || spec.open)) void this.deck.act(`widget ${p.id}`);
+        if (spec && (spec.popup || spec.activate || spec.open)) void this.deck.act(`widget ${keyOf(p)}`);
         return true;
       }
       default: return false;
@@ -416,14 +422,14 @@ export class HomeApp implements App {
       }
       this.reveal = false;
     }
-    this.scroll = Math.max(0, Math.min(maxScroll, this.scroll));
+    this.scroll = this.glide.follow(ui, this.scroll, maxScroll);
     const toRect = (p: WidgetPlacement): Rect => ({
       x: colX(p.x),
       y: this.origin.y + Math.round(p.y * this.rowH) - this.scroll,
       w: colX(p.x + p.w) - colX(p.x) - 1,
       h: Math.round((p.y + p.h) * this.rowH) - Math.round(p.y * this.rowH) - 1,
     });
-    ui.hit(area, { onWheel: (d) => (this.scroll = Math.max(0, Math.min(maxScroll, this.scroll + d))) });
+    ui.hit(area, { onWheel: (d) => this.glide.push(d) });
 
     if (this.editing) {
       // grid dots so you can see where things snap
@@ -445,8 +451,10 @@ export class HomeApp implements App {
       // a widget one row high (a shortcut square when rows don't stretch) has no room
       // for a frame: it's drawn as a flat chip instead, so it never just disappears
       const flat = rect.h < 3 || !!spec.frameless;
+      // a frameless widget (a shortcut square) draws its own tile: its slot stays bare,
+      // or it would look taller than it is (shown only while editing, to see the room)
       const inner = flat
-        ? (ui.fill(rect, { bg: sel ? mix(c.panel, c.accent, 0.3) : this.editing ? c.highlight : mix(c.panel, c.fg, 0.06) }), rect)
+        ? (!spec.frameless || this.editing ? ui.fill(rect, { bg: sel ? mix(c.panel, c.accent, 0.3) : this.editing ? c.highlight : mix(c.panel, c.fg, 0.06) }) : undefined, rect)
         : ui.box(rect, {
             title: t(spec.title).toUpperCase(),
             info: this.editing && sel ? `${p.w}×${p.h}` : undefined,
@@ -464,7 +472,7 @@ export class HomeApp implements App {
           const d = this.drag;
           if (!this.editing || !d || d.index !== i) return;
           // over the side panel: it lights up, the widget can go there
-          this.deck.workspace.panelDrop = this.overPanel(m);
+          this.deck.workspace.panelDrop = this.overPanel(m) ? { key: keyOf(p), y: m.y } : null;
           d.mx = m.x;
           d.my = m.y;
           const nx = Math.round((m.x - this.origin.x - d.dx) / this.colW);
@@ -479,26 +487,25 @@ export class HomeApp implements App {
         onUp: (m: { x: number; y: number }) => {
           const d = this.drag;
           this.drag = null;
-          this.deck.workspace.panelDrop = false;
-          // dropped on the side panel: it moves there
-          if (d?.index === i && this.overPanel(m)) {
-            void this.deck.act(`panel add ${p.id}`).then(() => this.deck.act(`home rm ${p.id}`));
-            return;
-          }
+          this.deck.workspace.panelDrop = null;
+          // dropped on the side panel: it moves there, where the line showed
+          if (d?.index === i && this.overPanel(m)) return this.deck.workspace.sidePanel.dropFromHome(keyOf(p), m.y);
           const cur = this.layout[i];
           if (!d?.spot || d.index !== i || !cur || (cur.x === d.spot.x && cur.y === d.spot.y && cur.w === d.spot.w)) return;
           this.place2(this.layout.map((q) => ({ ...q })), i, d.spot);
         },
-        onDouble: () => !this.editing && (spec.popup || spec.activate || spec.open) && void this.deck.act(`widget ${p.id}`),
+        onDouble: () => !this.editing && (spec.popup || spec.activate || spec.open) && void this.deck.act(`widget ${keyOf(p)}`),
         menu: () => this.widgetMenu(i),
-        tip: this.editing ? "drag to move · shift+arrows resize · x remove" : spec.popup || spec.activate || spec.open ? `${spec.description ?? spec.title}\ndouble-click / enter → widget ${p.id}` : spec.description,
+        tip: this.editing ? "drag to move · shift+arrows resize · x remove" : spec.popup || spec.activate || spec.open ? `${spec.description ?? spec.title}\ndouble-click / enter → widget ${keyOf(p)}` : spec.description,
       };
       // normally the widget's own buttons sit on top of its frame; while editing,
       // the frame covers everything, so a click only selects (and drags)
       if (!this.editing) ui.hit(rect, frameHit);
       ui.clip(inner, () => {
         try {
-          spec.render(ui, inner, { deck: this.deck, focused: sel });
+          // the copy you're on is the one its commands change (clock style next…)
+          if (sel && focused) focusWidget(keyOf(p));
+          spec.render(ui, inner, { deck: this.deck, focused: sel, key: keyOf(p) });
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           ui.text(inner.x, inner.y, `⚠ ${msg}`, { fg: c.error }, inner.w);
@@ -516,7 +523,24 @@ export class HomeApp implements App {
           if (inner.h > 2) ui.textCenter(inner, inner.y + Math.floor((inner.h - 1) / 2) + 1, t("bigger: e, shift+arrows"), { fg: c.faint });
         }
       });
-      if (this.editing) ui.hit(rect, frameHit);
+      if (this.editing) {
+        ui.hit(rect, frameHit);
+        // the bottom-right corner: drag it to resize (like shift+arrows)
+        const corner = { x: rect.x + rect.w - 2, y: rect.y + rect.h - 1, w: 2, h: 1 };
+        const hot = ui.hovered(corner) || this.sizing === i;
+        ui.text(corner.x + 1, corner.y, "◢", { fg: hot ? c.accent : c.subtle, attrs: BOLD });
+        ui.hit(corner, {
+          onClick: () => ((this.selected = i), (this.sizing = i)),
+          onDrag: (m) => {
+            if (this.sizing !== i) return;
+            const w = Math.max(1, Math.round((m.x + 1 - colX(p.x)) / this.colW));
+            const h = Math.max(1, Math.round((m.y + 1 + this.scroll - this.origin.y - Math.round(p.y * this.rowH)) / this.rowH));
+            if (w !== p.w || h !== p.h) this.change(i, (q) => ({ ...q, w, h }));
+          },
+          onUp: () => (this.sizing = -1),
+          tip: t("drag: bigger / smaller · shift+arrows"),
+        });
+      }
       if (anim) drawEffects(ui, rect, inner, i, sel, this.shownAt, this.selAt);
     }
     // dragging: where it would land (dashed), and the widget itself following the mouse
@@ -551,18 +575,7 @@ export class HomeApp implements App {
         px += label.length + 1;
       }
     }
-    if (this.editing) {
-      // impossible to miss: a band across the top, gently pulsing, with a way out
-      const band = { x: r.x, y: r.y, w: r.w, h: 1 };
-      const pulse = 0.75 + 0.25 * Math.sin(ui.now / 400);
-      ui.fill(band, { bg: mix(c.bg, c.accent, pulse) });
-      ui.text(r.x + 1, r.y, ` ✎ ${t("EDIT MODE")} · ${t("drag to move · shift+arrows resize · a add · x remove")}`, { fg: c.panel, bg: mix(c.bg, c.accent, pulse), attrs: BOLD }, r.w - 12);
-      const done = ` ✓ ${t("done")} `;
-      const dr = { x: r.x + r.w - strWidth(done) - 1, y: r.y, w: strWidth(done), h: 1 };
-      ui.text(dr.x, dr.y, done, { fg: ui.hovered(dr) ? c.accent : c.fg, bg: ui.hovered(dr) ? c.panel : c.panelAlt, attrs: BOLD });
-      ui.hit(dr, { cmd: "home done", tip: "esc · e" });
-      ui.animate(60);
-    }
+    // (edit mode's band, across HOME and the side panel, is the workspace's: editBand)
   }
 }
 

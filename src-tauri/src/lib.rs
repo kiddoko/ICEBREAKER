@@ -95,6 +95,9 @@ pub fn run() {
             voice::voice_speak,
             voice::voice_install,
             account::account_status,
+            account::account_session,
+            account::account_count,
+            account::account_lock,
             account::account_create,
             account::account_verify,
             account::account_change,
@@ -155,13 +158,35 @@ fn mac_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<tauri
 /// WebKit setting: we ask first whether this WebKit knows it, and skip if not.
 #[cfg(target_os = "macos")]
 mod promotion {
-    use objc2::runtime::{AnyObject, Bool};
+    //! ProMotion: WebKit keeps a page's animation frames near 60 per second by
+    //! default, even on a 120 Hz screen. Two ways to lift it, both tried:
+    //!   1. the feature flag "PreferPageRenderingUpdatesNear60FPSEnabled" (the one
+    //!      Safari shows in Develop → Feature Flags), found by name in WebKit's
+    //!      list of features and switched off with `_setEnabled:forFeature:`;
+    //!   2. the older private setter, when this WebKit still has it.
+    //! Private API, so every step checks it exists first; nothing breaks if not.
+    //! `ICEBREAKER_DEBUG_FPS=1` prints what was found (run the binary from a terminal).
+    use objc2::runtime::{AnyClass, AnyObject, Bool};
     use objc2::{msg_send, sel};
+    use std::ffi::CStr;
     use tauri::Manager;
+
+    unsafe fn key_of(feature: *mut AnyObject) -> String {
+        let key: *mut AnyObject = msg_send![&*feature, key];
+        if key.is_null() {
+            return String::new();
+        }
+        let utf8: *const std::os::raw::c_char = msg_send![&*key, UTF8String];
+        if utf8.is_null() {
+            return String::new();
+        }
+        CStr::from_ptr(utf8).to_string_lossy().into_owned()
+    }
 
     pub fn unlock(app: &tauri::App) {
         let Some(win) = app.get_webview_window("main") else { return };
-        let _ = win.with_webview(|wv| unsafe {
+        let debug = std::env::var("ICEBREAKER_DEBUG_FPS").is_ok();
+        let _ = win.with_webview(move |wv| unsafe {
             let wk = wv.inner() as *mut AnyObject;
             if wk.is_null() {
                 return;
@@ -174,9 +199,48 @@ mod promotion {
             if prefs.is_null() {
                 return;
             }
+            // 1. the feature flag, by name
+            let mut done = false;
+            if let Some(cls) = AnyClass::get(c"WKPreferences") {
+                for list in [sel!(_features), sel!(_experimentalFeatures), sel!(_internalDebugFeatures)] {
+                    let has: Bool = msg_send![cls, respondsToSelector: list];
+                    if !has.as_bool() {
+                        continue;
+                    }
+                    let arr: *mut AnyObject = msg_send![cls, performSelector: list];
+                    if arr.is_null() {
+                        continue;
+                    }
+                    let n: usize = msg_send![&*arr, count];
+                    for i in 0..n {
+                        let f: *mut AnyObject = msg_send![&*arr, objectAtIndex: i];
+                        if f.is_null() {
+                            continue;
+                        }
+                        let key = key_of(f);
+                        if debug && (key.contains("FPS") || key.contains("RenderingUpdate") || key.contains("FrameRate")) {
+                            eprintln!("[fps] feature {key}");
+                        }
+                        if key == "PreferPageRenderingUpdatesNear60FPSEnabled" {
+                            let can: Bool = msg_send![&*prefs, respondsToSelector: sel!(_setEnabled:forFeature:)];
+                            if can.as_bool() {
+                                let _: () = msg_send![&*prefs, _setEnabled: Bool::NO, forFeature: f];
+                                done = true;
+                            }
+                        }
+                    }
+                }
+            }
+            // 2. the older setter
             let knows: Bool = msg_send![&*prefs, respondsToSelector: sel!(_setPreferPageRenderingUpdatesNear60FPSEnabled:)];
             if knows.as_bool() {
                 let _: () = msg_send![&*prefs, _setPreferPageRenderingUpdatesNear60FPSEnabled: Bool::NO];
+                done = true;
+            }
+            // the web view takes its preferences again (some only apply to a new page)
+            let _: () = msg_send![&*config, setPreferences: prefs];
+            if debug {
+                eprintln!("[fps] 60 fps preference lifted: {done}");
             }
         });
     }

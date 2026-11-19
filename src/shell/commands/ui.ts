@@ -1,10 +1,14 @@
-import { ActionWheel, addToWheel, setWheelSlot, wheelPages } from "../../workspace/actionwheel";
+import { allWidgetKeys, forgetWidget, newWidgetKey, widgetIdOf } from "../../widgets/instances";
+import { addToMenu, quickItems } from "../../workspace/quickmenu";
+import { MENU, normalizeCombo } from "../../core/shortcuts";
+import { BLOCK_KINDS, type BlockKind } from "../../core/catalog";
 import { addLink, links, newLinkFlow, NEW_LINK, removeLink } from "../../widgets/links";
 import { isTagColor, TAG_NAMES } from "../../vault/marks";
 import { popupCommands } from "../../widgets/popups";
 import { quoteCommand, worldclockCommand } from "../../widgets/extra";
 import { WidgetPopup } from "../../workspace/widgetpopup";
 import { fmt } from "../../core/ansi";
+import { q } from "../../ui/ui";
 import { HomeApp } from "../../apps/home";
 import { DEFAULT_SETTINGS } from "../../core/settings";
 
@@ -42,7 +46,9 @@ const homeCmd: Command = {
   complete: () => ["edit", "done", "add", "rm", "widgets", "reset", "page", "move", "link", "links"],
   run(ctx) {
     const d = ctx.deck;
-    const [sub, id] = ctx.args;
+    // --keep: a widget moving here from the side panel keeps its key (and its own settings)
+    const keep = ctx.args.includes("--keep");
+    const [sub, id] = ctx.args.filter((a) => a !== "--keep");
     if (sub === "widgets") {
       const used = new Set(d.settings.data.home.widgets.map((p) => p.id));
       for (const w of d.widgets.list()) ctx.out(`${used.has(w.id) ? fmt.green("●") : fmt.dim("○")} ${w.id.padEnd(12)} ${fmt.dim(w.description ?? "")}\n`);
@@ -89,8 +95,8 @@ const homeCmd: Command = {
     if (sub === "add" || sub === "rm") {
       if (!id && sub === "add") return h.add(), 0; // no name: the picker
       if (!id) return ctx.err(`usage: home ${sub} <widget>   (home widgets lists them)\n`), 1;
-      if (!d.widgets.get(id)) return ctx.err(`home: no widget "${id}" (home widgets)\n`), 1;
-      const ok = sub === "add" ? h.place(id) : h.unplace(id);
+      if (!d.widgets.get(widgetIdOf(id))) return ctx.err(`home: no widget "${id}" (home widgets)\n`), 1;
+      const ok = sub === "add" ? h.place(id, keep) : h.unplace(id);
       if (!ok) return ctx.err(`home: ${id} is ${sub === "add" ? "already" : "not"} on the grid\n`), 1;
       return 0;
     }
@@ -105,12 +111,13 @@ const widget: Command = {
   usage: "widget <id>        its pop-up, or its action (what enter does on it)\nwidget <id> open   the module it belongs to\nwidget <id> do     its action, even when it has a pop-up",
   complete: () => [],
   run(ctx) {
+    // a copy's key ("clock#2") or a widget's id
     const [id, what] = ctx.args;
-    const spec = id ? ctx.deck.widgets.get(id) : undefined;
+    const spec = id ? ctx.deck.widgets.get(widgetIdOf(id)) : undefined;
     if (!spec) return ctx.err("usage: widget <id> [open | do]   (home widgets lists them)\n"), 1;
     if (what === "open") return spec.open ? ctx.deck.act(spec.open) : (ctx.out(fmt.dim(`${id} belongs to no module\n`)), 0);
-    if (spec.popup && what !== "do") return void ctx.deck.workspace.push(new WidgetPopup(ctx.deck, spec));
-    if (spec.activate) return void spec.activate({ deck: ctx.deck, focused: true });
+    if (spec.popup && what !== "do") return void ctx.deck.workspace.push(new WidgetPopup(ctx.deck, spec, id));
+    if (spec.activate) return void spec.activate({ deck: ctx.deck, focused: true, key: id });
     if (spec.open) return ctx.deck.act(spec.open);
     ctx.out(fmt.dim(`${id} has no action\n`));
   },
@@ -219,7 +226,7 @@ const scale: Command = {
 
 const palette: Command = {
   name: "palette",
-  summary: "the command palette (ctrl+k): search everything",
+  summary: "THE MENU, straight to searching everything (ctrl+k)",
   run(ctx) {
     ctx.deck.workspace.palette();
   },
@@ -251,10 +258,10 @@ const explore: Command = {
 
 const termCmd: Command = {
   name: "term",
-  summary: "the shell panel: your terminals, ibsh, history; a terminal in the main window",
-  usage: "term            your system terminal (zsh, bash…)\nterm new        another terminal tab (+ on the panel)\nterm close [n]  close one (× on the panel)\nterm rename [n] <name>   rename one (right-click on its tab)\nterm <n>        go to terminal n\nterm open       a terminal in the main window (a tab of its own)\nterm hide       fold the shell panel away (term show, ctrl+`)\nterm max        the shell becomes a big tab after the others (⤢)\nterm dock       a terminal tab goes back to the panel\nterm ibsh       ICEBREAKER's shell\nterm history    what clicks ran\nterm restart    a fresh system shell\nterm mode system|ibsh   which one the panel uses",
+  summary: "the shell panel: your terminals, ibsh, the log; a terminal in the main window",
+  usage: "term            your system terminal (zsh, bash…)\nterm new        another terminal tab (+ on the panel)\nterm close [n]  close one (× on the panel)\nterm rename [n] <name>   rename one (right-click on its tab)\nterm <n>        go to terminal n\nterm open       a terminal in the main window (a tab of its own)\nterm hide       fold the shell panel away (term show, ctrl+`)\nterm max        the shell becomes a big tab after the others (⤢)\nterm dock       a terminal tab goes back to the panel\nterm ibsh       ICEBREAKER's shell\nterm log        the log (what happened, with filters)\nterm restart    a fresh system shell\nterm mode system|ibsh   which one the panel uses",
   examples: [["term", "jump to your real terminal"], ["term new", "a second terminal"], ["term open", "a terminal as a big tab"], ["term hide", "fold the panel away"]],
-  complete: () => ["new", "close", "rename", "open", "dock", "hide", "show", "max", "ibsh", "history", "restart", "mode"],
+  complete: () => ["new", "close", "rename", "open", "dock", "hide", "show", "max", "ibsh", "log", "restart", "mode"],
   run(ctx) {
     const d = ctx.deck;
     const ws = d.workspace;
@@ -269,8 +276,10 @@ const termCmd: Command = {
     if (a === "max") return ws.toggleShellMax(), 0;
     if (a === "dock") return ws.dockTerminal(), 0;
     if (a === "open") return void d.openApp("terminal", { fresh: true }), 0;
+    if (a === "ibsh") return ws.showShellTab("ibsh"), 0;
+    if (a === "log" || a === "history" || a === "errors") return ws.showShellTab("log"), 0;
     if (!d.platform.pty) return ctx.err("term: needs the desktop app\n"), 1;
-    if (!ws.termAvailable && a !== "ibsh" && a !== "history") return ctx.err("term: the panel is in ibsh mode (term mode system)\n"), 1;
+    if (!ws.termAvailable) return ctx.err("term: the panel is in ibsh mode (term mode system)\n"), 1;
     if (a === "new") return ws.newTerminal(), 0;
     if (a === "rename") {
       // term rename <name> (the one shown) · term rename <n> <name>
@@ -290,7 +299,7 @@ const termCmd: Command = {
       ws.termIndex = i;
       return ws.showShellTab("term"), 0;
     }
-    ws.showShellTab(a === "ibsh" ? "ibsh" : a === "history" ? "history" : "term");
+    ws.showShellTab("term");
   },
 };
 
@@ -343,69 +352,121 @@ const macro: Command = {
   },
 };
 
-const wheelCmd: Command = {
-  name: "wheel",
-  summary: "the action wheel: 8 slots a page (hold RB on the gamepad; here: click one)",
-  usage: 'wheel                          open it (mouse / keyboard)\nwheel ls                       every slot, page by page\nwheel add <label> "<cmd>" [icon]   in the first free slot\nwheel rm <label>\nwheel reset                    the default slots',
+const menuCmd: Command = {
+  name: "menu",
+  aliases: ["wheel"],
+  summary: "THE MENU: search everything, or a key + enter (⌘K, shift twice, hold RB)",
+  usage: 'menu                        open it\nmenu ls                     every key on it, and where it comes from\nmenu add <key> "<cmd>"      ⌘K, <key>, enter runs the command\nmenu add "<cmd>"            asks for the key\nmenu rm <key>               one of yours off the menu',
   examples: [
-    ['wheel add todo "launch todo" ☑', "TODO one flick away"],
-    ['wheel add ls "macro run ls"', "a macro on the wheel"],
+    ['menu add t "launch todo"', "⌘K t ⏎ opens TODO"],
+    ['menu add 1 "open notes/ideas.md"', "a note one key away"],
   ],
-  complete: () => ["ls", "add", "rm", "reset"],
+  complete: () => ["ls", "add", "rm"],
   run(ctx) {
     const d = ctx.deck;
-    const [a, label, cmd, icon] = ctx.args;
-    if (!a) return void d.workspace.push(new ActionWheel(d)), 0;
+    const [a, ...rest] = ctx.args;
+    if (!a) return void d.workspace.menu(), 0;
     if (a === "ls") {
-      wheelPages(d).forEach((p, i) => {
-        ctx.out(fmt.bold(`page ${i + 1}\n`));
-        p.forEach((s, j) => ctx.out(`  ${j + 1}. ${s.icon} ${s.label.padEnd(14)} ${fmt.dim(s.cmd)}\n`));
-      });
+      for (const it of quickItems(d)) ctx.out(`${fmt.bold(`≡ ${it.key}`)}  ${it.label.padEnd(28)} ${fmt.dim(it.from)}\n`);
       return 0;
     }
     if (a === "add") {
-      if (!label || !cmd) return ctx.err('usage: wheel add <label> "<command>" [icon]\n'), 1;
-      const at = addToWheel(d, { label, cmd, icon: icon ? [...icon][0] : "◆" });
-      return ctx.out(`page ${at.page + 1}, slot ${at.index + 1}\n`), 0;
+      if (rest.length === 1) return addToMenu(d, rest[0], rest[0]), 0;
+      const [key, ...cmd] = rest;
+      if (!key || [...key].length !== 1 || !cmd.length) return ctx.err('usage: menu add <key> "<command>"\n'), 1;
+      return d.act(`bind ${q(MENU + key)} ${q(cmd.join(" "))}`);
     }
     if (a === "rm") {
-      const pages = wheelPages(d);
-      for (let pi = 0; pi < pages.length; pi++) {
-        const i = pages[pi].findIndex((s) => s.label === label);
-        if (i >= 0) return setWheelSlot(d, pi, i, null), 0;
-      }
-      return ctx.err(`wheel: no slot "${label ?? ""}" (wheel ls)\n`), 1;
+      const combo = normalizeCombo(`menu ${rest[0] ?? ""}`);
+      if (!combo || !(combo in (d.settings.data.keys ?? {}))) return ctx.err(`menu: no key of yours on "${rest[0] ?? ""}" (menu ls)\n`), 1;
+      return d.act(`unbind ${q(combo)}`);
     }
-    if (a === "reset") return d.settings.set("gamepad", { ...d.settings.data.gamepad, wheel: [] }), 0;
-    return ctx.err("usage: wheel [ls | add | rm | reset]\n"), 1;
+    return ctx.err("usage: menu [ls | add | rm]\n"), 1;
+  },
+};
+
+/** The catalog in the shell: every block, by kind, searchable; --json for scripts. */
+const catalogCmd: Command = {
+  name: "catalog",
+  aliases: ["blocks"],
+  summary: "everything the deck can do — commands, settings, functions, shortcuts… — and how to call it",
+  usage: "catalog                      the BLOCKS page\ncatalog <kind> [words]       one kind: " + BLOCK_KINDS.join(" · ") + "\ncatalog all <words>          search every kind\ncatalog … --json             as JSON (scripts)",
+  examples: [
+    ["catalog function todo", "what the TODO module lets you call"],
+    ["catalog setting voice", "every voice setting and its value"],
+  ],
+  complete: () => [...BLOCK_KINDS, "all", "--json"],
+  run(ctx) {
+    const d = ctx.deck;
+    const json = ctx.args.includes("--json");
+    const args = ctx.args.filter((a) => a !== "--json");
+    if (!args.length && !json) return void d.openApp("blocks"), 0;
+    const [k, ...words] = args;
+    const kind = (BLOCK_KINDS as readonly string[]).includes(k) ? (k as BlockKind) : undefined;
+    const q = (kind || k === "all" ? words : args).join(" ");
+    const list = d.catalog.info(kind, q);
+    if (json) return ctx.out(`${JSON.stringify(list, null, 2)}\n`), 0;
+    for (const b of list) ctx.out(`${fmt.dim(b.kind.padEnd(9))}${fmt.bold(b.name.padEnd(28))} ${b.doc.slice(0, 60)}${b.from !== "core" ? fmt.cyan(`  ${b.from}`) : ""}\n`);
+    ctx.out(fmt.dim(`${list.length} blocks\n`));
+    return 0;
+  },
+};
+
+/** Tell yourself something (scripts, macros, bound keys): a toast, or a real alert. */
+const notifyCmd: Command = {
+  name: "notify",
+  summary: "a message on screen — or --alert: the way reminders call you (Settings → NOTIFICATIONS)",
+  usage: 'notify <text>                     a toast\nnotify --ok | --warn | --error <text>\nnotify --alert "<title>" [body]   sound, screen, notification center, voice — as you set them',
+  run(ctx) {
+    const d = ctx.deck;
+    const [first, ...rest] = ctx.args;
+    if (!first) return ctx.err("usage: notify <text>\n"), 1;
+    if (first === "--alert") return d.alert(rest[0] ?? "ICEBREAKER", rest.slice(1).join(" ")), 0;
+    const kind = ({ "--ok": "success", "--warn": "warning", "--error": "error" } as const)[first as "--ok"];
+    d.notify((kind ? rest : ctx.args).join(" "), kind ?? "info");
+    return 0;
   },
 };
 
 const panelCmd: Command = {
   name: "panel",
   summary: "the side panel on the right: widgets always in view (◧ in the status bar)",
-  usage: "panel                show / hide it\npanel show | hide\npanel add [widget]   one more (no name: the list)\npanel rm <widget>\npanel up | down <widget>   reorder\npanel ls",
-  complete: () => ["show", "hide", "add", "rm", "up", "down", "ls"],
+  usage: "panel                show / hide it\npanel show | hide\npanel add [widget]   one more (no name: the list; the same widget again: another copy)\npanel rm <widget>\npanel up | down <widget>   reorder\npanel height <widget> <lines>   how tall it is\npanel top <widget> <line>       where it starts (gaps allowed)\npanel ls",
+  complete: () => ["show", "hide", "add", "rm", "up", "down", "height", "top", "ls"],
   run(ctx) {
     const d = ctx.deck;
     const s = d.settings;
-    const cur = s.data.panel ?? { shown: false, widgets: [] };
-    const [a, id] = ctx.args;
+    const p0 = s.data.panel;
+    const cur = { shown: !!p0?.shown, widgets: [...(p0?.widgets ?? [])], heights: { ...(p0?.heights ?? {}) }, tops: { ...(p0?.tops ?? {}) } };
+    // --keep: a widget moving here from HOME keeps its key (and its own settings)
+    const keep = ctx.args.includes("--keep");
+    const [a, id, n] = ctx.args.filter((x) => x !== "--keep");
     const save = (p: Partial<typeof cur>) => s.set("panel", { ...cur, ...p });
     if (!a) return save({ shown: !cur.shown }), 0;
     if (a === "show" || a === "hide") return save({ shown: a === "show" }), 0;
     if (a === "ls") {
-      for (const w of cur.widgets) ctx.out(`${w}\n`);
+      for (const w of cur.widgets) ctx.out(`${w}${cur.heights[w] ? fmt.dim(`  ${cur.heights[w]} lines`) : ""}\n`);
       return 0;
     }
     if (a === "add") {
       if (!id) return void d.workspace.panelAdd(), 0;
-      if (!d.widgets.get(id)) return ctx.err(`panel: no widget ${id} (home widgets)\n`), 1;
-      if (!cur.widgets.includes(id)) save({ shown: true, widgets: [...cur.widgets, id] });
+      if (!d.widgets.get(widgetIdOf(id))) return ctx.err(`panel: no widget ${id} (home widgets)\n`), 1;
+      const key = keep || id.includes("#") ? id : newWidgetKey(d, widgetIdOf(id));
+      if (!cur.widgets.includes(key)) save({ shown: true, widgets: [...cur.widgets, key] });
       else save({ shown: true });
       return 0;
     }
-    if (a === "rm") return save({ widgets: cur.widgets.filter((w) => w !== id) }), 0;
+    if (a === "rm") {
+      const key = cur.widgets.includes(id ?? "") ? id! : cur.widgets.find((w) => widgetIdOf(w) === id);
+      if (!key) return ctx.err(`panel: ${id ?? ""} isn't in the panel (panel ls)\n`), 1;
+      const heights = { ...cur.heights };
+      const tops = { ...cur.tops };
+      delete heights[key];
+      delete tops[key];
+      save({ widgets: cur.widgets.filter((w) => w !== key), heights, tops });
+      if (!allWidgetKeys(d).includes(key)) forgetWidget(d, key);
+      return 0;
+    }
     if (a === "up" || a === "down") {
       const w = [...cur.widgets];
       const i = w.indexOf(id ?? "");
@@ -414,12 +475,34 @@ const panelCmd: Command = {
       [w[i], w[j]] = [w[j], w[i]];
       return save({ widgets: w }), 0;
     }
-    return ctx.err("usage: panel [show | hide | add | rm | up | down | ls]\n"), 1;
+    if (a === "top") {
+      // where it starts, in lines from the top of the panel (the panel keeps gaps: no gravity)
+      const y = Math.round(Number(n));
+      if (!id || !cur.widgets.includes(id) || !(y >= 0 && y <= 500)) return ctx.err("usage: panel top <widget> <line>\n"), 1;
+      return save({ tops: { ...cur.tops, [id]: y } }), 0;
+    }
+    if (a === "layout") {
+      // every widget's start line at once: panel layout clock=0 system=12 (the panel's drag and arrows use it)
+      const tops = { ...cur.tops };
+      for (const pair of ctx.args.slice(1)) {
+        const [k, v] = pair.split("=");
+        if (cur.widgets.includes(k) && Number(v) >= 0) tops[k] = Math.round(Number(v));
+      }
+      return save({ tops }), 0;
+    }
+    if (a === "height") {
+      const h = Math.round(Number(n));
+      if (!id || !cur.widgets.includes(id) || !(h >= 3 && h <= 60)) return ctx.err("usage: panel height <widget> <3-60>\n"), 1;
+      return save({ heights: { ...cur.heights, [id]: h } }), 0;
+    }
+    return ctx.err("usage: panel [show | hide | add | rm | up | down | height | ls]\n"), 1;
   },
 };
 
 export const uiCommands: Command[] = [
-  wheelCmd,
+  menuCmd,
+  notifyCmd,
+  catalogCmd,
   panelCmd,
   worldclockCommand,
   quoteCommand,

@@ -1,28 +1,28 @@
-import { shortcutFor } from "../core/shortcuts";
-import { mix } from "../core/color";
-import { KeyCapture } from "./keycapture";
+import { editMenu, shellMenu } from "./menus";
+import { editBand, renderShellPanel, renderStatusBar, renderSubtitles, renderTip, renderTopBar } from "./chrome";
+import { shortcutFor, type Shortcut } from "../core/shortcuts";
 import { SidePanel } from "./sidepanel";
-import { addToWheel } from "./actionwheel";
+import { LogPane } from "./logpane";
+import { Tour } from "./tour";
+import { KeyCapture } from "./keycapture";
+import { QuickMenu } from "./quickmenu";
 import { drawScreensaver } from "../fx/screensaver";
 import { IbshApp, TerminalApp } from "../apps/terminal";
 import { t } from "../core/i18n";
-import { BOLD, type Rect } from "../core/grid";
+import { type Rect } from "../core/grid";
 import { IS_MAC, type Action, type ActionSource, type KeyInput, type MouseInput } from "../core/input";
-import { strWidth, truncate } from "../core/unicode";
 import type { App } from "../apps/types";
 import type { Deck } from "../deck";
 import { drawBackground } from "../fx/backgrounds";
 import { inside, q, type Hit, type MenuEntry, type MenuItem, type UI } from "../ui/ui";
-import { copyToClipboard, readClipboard } from "../core/clipboard";
 import { ContextMenu } from "./contextmenu";
-import { describe, ERRORS_DOC } from "../core/errors";
-import { ConfirmDialog, Osk, Palette, PromptDialog, Toasts, type Overlay, type PromptOptions, type ToastKind, ChooseDialog } from "./overlays";
+import { ConfirmDialog, Osk, PromptDialog, Toasts, type Overlay, type PromptOptions, type ToastKind, ChooseDialog } from "./overlays";
 import type { ChoiceOption } from "../plugins/api";
 import { FxPanel } from "./fxpanel";
 import { Sidebar } from "./sidebar";
 import { SystemTerminal } from "../shell/systerm";
 
-export type ShellTab = "term" | "ibsh" | "history" | "errors";
+export type ShellTab = "term" | "ibsh" | "log";
 
 /** the parts of the screen that can have the focus (the side panel only while shown) */
 export type Pane = "sidebar" | "main" | "shell" | "panel";
@@ -46,7 +46,7 @@ export class Workspace {
   focus: Pane = "main";
   sidebarVisible = true;
   shellVisible = true;
-  private shellRatio = 0.3;
+  shellRatio = 0.3;
   overlays: Overlay[] = [];
   readonly toasts = new Toasts();
   readonly sidebar: Sidebar;
@@ -54,13 +54,26 @@ export class Workspace {
   rects: Partial<Record<Pane, Rect>> = {};
   private dragging: Hit | null = null;
   /** Hover tooltip: what's under the mouse and since when. */
-  private tip = { key: "", since: 0 };
+  tip = { key: "", since: 0 };
   tipHidden = false;
   /** where the text cursor was last frame (the menu key opens the menu there) */
   private lastCaret: { x: number; y: number } | null = null;
   /** The shell panel's tabs: your system terminal, ibsh, what clicks ran. */
   shellTab: ShellTab = "ibsh";
-  private shellTabChosen = false;
+  /** edit mode: HOME and the side panel are rearranged together (e on either, esc ends it) */
+  get editing(): boolean {
+    // going to another page or module ends it
+    if (this._editing && this._editingOn !== this.activeApp) this._editing = false;
+    return this._editing;
+  }
+  set editing(on: boolean) {
+    this._editing = on;
+    this._editingOn = on ? this.activeApp : undefined;
+  }
+  private _editing = false;
+  /** the page edit mode started on */
+  private _editingOn: unknown;
+  shellTabChosen = false;
   /** your system terminals (tabs in the shell panel; + adds one) */
   terms: SystemTerminal[] = [];
   termIndex = 0;
@@ -135,42 +148,14 @@ export class Workspace {
     this.terminal.write(`${cmd}\r`);
   }
 
-  /** Right-click on a macro button. */
-  private macroMenu(i: number): MenuEntry[] {
-    const m = this.deck.settings.data.shell.macros[i];
-    if (!m) return [];
-    return [
-      { label: t("run"), run: () => void this.runMacro(m), hint: m.cmd },
-      { label: t("shortcut…"), run: () => this.push(new KeyCapture(this.deck, t("A key for the macro “{name}”", { name: m.label }), [`macro run ${q(m.label)}`])) },
-      { label: t("add to the wheel"), run: () => void addToWheel(this.deck, { label: m.label, cmd: `macro run ${q(m.label)}`, icon: "⌗" }) },
-      { label: t("edit…"), run: () => void this.editMacro(i), hint: "shift+click" },
-      "-",
-      { label: t("hide the macros"), cmd: "macro hide" },
-      { label: t("remove"), cmd: `macro rm ${q(m.label)}`, danger: true },
-    ];
-  }
 
-  private async editMacro(i: number): Promise<void> {
-    const list = [...this.deck.settings.data.shell.macros];
-    const cur = list[i];
-    const label = await this.deck.prompt(i < 0 ? "New macro — button label" : "Label (empty = delete this macro)", { initial: cur?.label ?? "", placeholder: "deploy" });
-    if (label === null) return;
-    if (!label.trim()) {
-      if (cur) void this.deck.act(`macro rm ${q(cur.label)}`);
-      return;
-    }
-    const cmd = await this.deck.prompt(`Command for "${label.trim()}" — {name} asks for a value`, { initial: cur?.cmd ?? "", placeholder: "git pull && npm run build" });
-    if (!cmd?.trim()) return;
-    if (cur && cur.label !== label.trim()) await this.deck.act(`macro rm ${q(cur.label)}`);
-    void this.deck.act(`macro add ${q(label.trim())} ${q(cmd.trim())}`);
-  }
 
   /** The system terminal is on (desktop + setting shell.mode = system). */
   get termAvailable(): boolean {
     return !!this.deck.platform.pty && this.deck.settings.data.shell.mode === "system";
   }
 
-  private get terminal(): SystemTerminal {
+  get terminal(): SystemTerminal {
     if (!this.terms.length) this.terms.push(new SystemTerminal(this.deck));
     return this.terms[Math.min(this.termIndex, this.terms.length - 1)];
   }
@@ -190,7 +175,7 @@ export class Workspace {
   private cycleShellTab(): void {
     // every terminal, then ibsh, then history
     if (this.shellTab === "term" && this.termIndex < this.terms.length - 1) return (this.termIndex++, this.showShellTab("term"));
-    const tabs: ShellTab[] = [...(this.termAvailable ? (["term"] as ShellTab[]) : []), "ibsh", "history"];
+    const tabs: ShellTab[] = [...(this.termAvailable ? (["term"] as ShellTab[]) : []), "ibsh", "log"];
     const next = tabs[(tabs.indexOf(this.shellTab) + 1) % tabs.length];
     if (next === "term") this.termIndex = 0;
     this.showShellTab(next);
@@ -199,7 +184,8 @@ export class Workspace {
   /** Tabs in the order they were looked at (keys), for esc → back. */
   private visited: string[] = [];
 
-  constructor(private readonly deck: Deck) {
+  constructor(readonly deck: Deck) {
+    this.logPane = new LogPane(deck);
     this.sidebar = new Sidebar(deck);
     this.sidePanel = new SidePanel(deck);
   }
@@ -246,9 +232,9 @@ export class Workspace {
   get panelArea(): Rect | null {
     return this.sidePanel.area;
   }
-  /** a HOME widget is being dragged over the side panel (it lights up) */
-  set panelDrop(on: boolean) {
-    this.sidePanel.dropHint = on;
+  /** a HOME widget is being dragged over the side panel (its key and the pointer's line), or not */
+  set panelDrop(at: { key: string; y: number } | null) {
+    this.sidePanel.dropHint = at;
   }
   panelAdd(): Promise<void> {
     return this.sidePanel.pick();
@@ -283,6 +269,7 @@ export class Workspace {
   }
 
   open(app: App): App {
+    if (this.deck.log.debugOn) this.deck.debug(`opened ${app.kind}`);
     if (Workspace.PAGES.has(app.kind)) {
       const cur = this.page;
       if (cur?.key === app.key) {
@@ -410,8 +397,7 @@ export class Workspace {
   }
 
   palette(): void {
-    if (this.overlays.some((o) => o instanceof Palette)) return;
-    this.push(new Palette(() => this.deck.paletteEntries()));
+    this.menu();
   }
 
   fxPanel(): void {
@@ -450,56 +436,25 @@ export class Workspace {
     this.push(new Screensaver());
   }
 
-  // ── the errors tab ───────────────────────────────────────────────────────
+  // ── the log tab ──────────────────────────────────────────────────────
 
-  private errorsScroll = 0;
-  private readonly errorsPane = {
-    onAction: (a: Action) => {
-      if (a === "up" || a === "scroll-up") this.errorsScroll = Math.max(0, this.errorsScroll - 1);
-      else if (a === "down" || a === "scroll-down") this.errorsScroll++;
-      else return false;
-      return true;
-    },
-  };
-
-  /** Newest first: code, time, what it is, what happened, what to do, where the docs are. */
-  private renderErrors(ui: UI, r: Rect): void {
-    const c = ui.c;
-    const log = this.deck.errors;
-    log.unseen = 0;
-    const lines: { text: string; fg: number; attrs?: number; cmd?: string }[] = [];
-    for (const e of [...log.list].reverse()) {
-      const time = new Date(e.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-      lines.push({ text: `${e.code}  ${time}  ${t(e.title)}`, fg: c.error, attrs: BOLD, cmd: `errors ${e.code}` });
-      lines.push({ text: `   ${e.detail}`, fg: c.fg });
-      lines.push({ text: `   → ${t(describe(e.code).hint)}`, fg: c.muted });
-      lines.push({ text: `   ${ERRORS_DOC}#${e.code.toLowerCase()}`, fg: c.faint });
-      lines.push({ text: "", fg: c.faint });
-    }
-    lines.push({ text: t("errors clear empties this list · errors <code> explains one"), fg: c.subtle });
-    this.errorsScroll = Math.max(0, Math.min(this.errorsScroll, lines.length - r.h));
-    lines.slice(this.errorsScroll, this.errorsScroll + r.h).forEach((l, i) => {
-      ui.text(r.x + 1, r.y + i, l.text, { fg: l.fg, attrs: l.attrs }, r.w - 2);
-      if (l.cmd) ui.hit({ x: r.x, y: r.y + i, w: r.w, h: 1 }, { cmd: l.cmd });
-    });
-    ui.hit(r, { onWheel: (dw) => (this.errorsScroll = Math.max(0, this.errorsScroll + dw)) });
-  }
+  /** the shell's LOG tab (workspace/logpane.ts), made in the constructor */
+  readonly logPane: LogPane;
 
   // ── right-click menus ────────────────────────────────────────────────────
 
   /**
-   * Open a context menu at (x, y) with `items` for the thing clicked, then
-   * the common lines: copy/paste where there's text, palette, shortcuts, settings.
+   * Open a context menu at (x, y) with `items` for the thing clicked — only
+   * those (THE MENU, the shortcuts and the settings have their keys: ⌘K, ⌘/, ⌘,).
+   * On text with nothing of its own: copy / paste.
    */
   openMenu(items: MenuEntry[], x: number, y: number, title?: string): void {
     for (const o of this.overlays) if (o instanceof ContextMenu) o.done = true;
-    const has = (label: string) => items.some((e) => e !== "-" && e.label === label);
-    const tail: MenuEntry[] = ["-"];
-    if (!items.length && (this.focus === "main" || this.focus === "shell")) tail.push(...this.editMenu(), "-");
-    if (!has(t("command palette"))) tail.push({ label: t("command palette"), cmd: "palette", hint: IS_MAC ? "⌘K" : "ctrl+K" });
-    tail.push({ label: t("shortcuts"), cmd: "shortcuts", hint: IS_MAC ? "⌘/" : "ctrl+/" }, { label: t("settings"), cmd: "settings", hint: IS_MAC ? "⌘," : "ctrl+," });
+    // (the menu tidies its separators itself: workspace/contextmenu.ts tidy)
+    const all = items.length ? items : this.focus === "main" || this.focus === "shell" ? editMenu(this) : [];
+    if (!all.length) return;
     this.deck.sound.play("move");
-    this.push(new ContextMenu([...items, ...tail], x, y, (it) => this.runMenuItem(it), title));
+    this.push(new ContextMenu(all, x, y, (it) => this.runMenuItem(it), title));
   }
 
   private runMenuItem(it: MenuItem): void {
@@ -511,23 +466,11 @@ export class Workspace {
     this.deck.requestFrame();
   }
 
-  /** copy / cut / paste / select all, sent to whatever has the focus. */
-  editMenu(opts: { copy?: boolean; cut?: boolean; selectAll?: boolean } = {}): MenuEntry[] {
-    const m = IS_MAC ? "⌘" : "ctrl+";
-    const key = (letter: string) => () =>
-      this.routeKey({ key: letter, code: `Key${letter.toUpperCase()}`, ctrl: true, alt: false, shift: false, meta: false, combo: `ctrl+${letter}`, rawCtrl: !IS_MAC, rawMeta: IS_MAC }, false);
-    const out: MenuEntry[] = [];
-    if (opts.copy !== false) out.push({ label: t("copy"), run: key("c"), hint: `${m}C` });
-    if (opts.cut !== false) out.push({ label: t("cut"), run: key("x"), hint: `${m}X` });
-    out.push({ label: t("paste"), run: async () => { const txt = await readClipboard(); if (txt) this.handleText(txt); else this.notify(t("the clipboard is empty (or can't be read)"), "warning"); }, hint: `${m}V` });
-    if (opts.selectAll !== false) out.push({ label: t("select all"), run: key("a"), hint: `${m}A` });
-    return out;
-  }
 
   /** The focused pane's own menu (empty spot, or the menu key). */
   private paneMenu(): MenuEntry[] {
     if (this.focus === "sidebar" && this.sidebarVisible) return this.sidebar.menu();
-    if (this.focus === "shell" && this.shellVisible) return this.shellMenu();
+    if (this.focus === "shell" && this.shellVisible) return shellMenu(this);
     return this.activeApp?.menu?.() ?? [];
   }
 
@@ -539,78 +482,16 @@ export class Workspace {
     this.openMenu(this.paneMenu(), pos.x, pos.y + 1);
   }
 
-  /** Right-click on a terminal tab. */
-  private termTabMenu(i: number): MenuEntry[] {
-    return [
-      { label: t("rename…"), run: () => this.renameTerminal(i), hint: "term rename" },
-      { label: t("new terminal"), cmd: "term new" },
-      { label: t("restart this shell"), run: () => { this.termIndex = i; void this.deck.act("term restart"); } },
-      { label: t("open in a tab of its own"), run: () => { this.termIndex = i; void this.deck.act("term max"); } },
-      "-",
-      { label: t("close"), cmd: `term close ${i + 1}`, danger: true, disabled: this.terms.length < 2 },
-    ];
-  }
 
-  /** Right-click in the shell panel. */
-  private shellMenu(): MenuEntry[] {
-    const term = this.shellTab === "term" && this.termAvailable;
-    const items: MenuEntry[] = term
-      ? [
-          { label: t("copy"), run: () => void this.terminal.copySelection(), hint: IS_MAC ? "⌘C" : "ctrl+shift+C", disabled: !this.terminal.hasSelection() },
-          ...this.editMenu({ copy: false, cut: false, selectAll: false }),
-          { label: t("select all"), run: () => this.terminal.selectAll(), hint: IS_MAC ? "⌘A" : "" },
-          "-",
-        ]
-      : [...this.editMenu(), "-"];
-    if (term) items.push({ label: t("clear the screen"), run: () => void this.terminal.onKey({ key: "l", code: "KeyL", ctrl: true, alt: false, shift: false, meta: false, combo: "ctrl+l", rawCtrl: true, rawMeta: false }), hint: "ctrl+L" });
-    else if (this.shellTab === "ibsh") items.push({ label: t("clear the screen"), cmd: "clear" });
-    items.push(
-      { label: t("new terminal"), cmd: "term new" },
-      ...(term ? [{ label: t("rename…"), run: () => this.renameTerminal() } as MenuItem] : []),
-      { label: t("scripts"), cmd: "script menu" },
-      "-",
-      { label: this.shellMax ? t("put back in the panel") : t("maximize"), cmd: this.shellMax ? "term dock" : "term max" },
-      { label: t("hide the shell"), cmd: "term hide", hint: "ctrl+`" },
-    );
-    return items;
-  }
 
-  /** Right-click on a tab of the top bar. */
-  private tabMenu(i: number): MenuEntry[] {
-    const app = this.tabs[i];
-    const note = app?.kind === "note" ? app.key.slice(5) : "";
-    const items: MenuEntry[] = [
-      { label: t("close"), cmd: `tab close ${i + 1}`, hint: IS_MAC ? "⌘W" : "ctrl+W" },
-      { label: t("close the others"), run: () => this.closeMany((j) => j !== i), disabled: this.tabs.length < 2 },
-      { label: t("close the ones on the right"), run: () => this.closeMany((j) => j > i), disabled: i >= this.tabs.length - 1 },
-    ];
-    if (note) {
-      const pinned = (this.deck.settings.data.favorites ?? []).some((f) => f.target === note);
-      items.push(
-        "-",
-        { label: t("show in the tree"), run: () => { if (!this.sidebarVisible) this.toggleSidebar(); this.sidebar.reveal(note); this.focus = "sidebar"; } },
-        { label: pinned ? t("unpin") : t("pin"), cmd: `${pinned ? "unpin" : "pin"} ${q("/" + note)}` },
-        { label: t("copy path"), run: () => (copyToClipboard(note), this.notify(t("path copied"))) },
-      );
-    }
-    return items;
-  }
 
-  /** Close every tab `which` says, right to left (a tab can refuse: unsaved). */
-  private async closeMany(which: (i: number) => boolean): Promise<void> {
-    const keep = this.tabs[this.active];
-    for (let j = this.tabs.length - 1; j >= 0; j--) if (which(j)) await this.closeTab(j);
-    const i = keep ? this.tabs.indexOf(keep) : -1;
-    if (i >= 0) this.switchTab(i);
-  }
 
   // ── input routing ────────────────────────────────────────────────────────
 
   private paneTarget(): { onKey?(k: KeyInput): boolean; onText?(t: string): boolean; onAction?(a: Action): boolean } | undefined {
     if (this.focus === "shell" && this.shellVisible) {
       if (this.shellTab === "term" && this.termAvailable) return this.terminal;
-      if (this.shellTab === "history") return this.deck.shell.historyPane;
-      if (this.shellTab === "errors") return this.errorsPane;
+      if (this.shellTab === "log") return this.logPane;
       return this.deck.shell;
     }
     if (this.focus === "sidebar" && this.sidebarVisible) return this.sidebar;
@@ -622,6 +503,12 @@ export class Workspace {
     this.tipHidden = true;
     const modal = this.topModal;
     if (modal) {
+      // ⌘Z over a pop-up (a widget's settings, the effects…) undoes there too; not
+      // where you type or choose something (a prompt, THE MENU's search, a key, a yes/no)
+      const u = undoKey(k);
+      const typing = modal instanceof PromptDialog || modal instanceof QuickMenu || modal instanceof KeyCapture || modal instanceof ConfirmDialog || modal instanceof Tour;
+      if (u && !typing) return void this.deck.undoLast(u === "redo");
+      if (k.combo === "ctrl+backspace" && !typing) return void modal.onKey?.(asDelete(k));
       modal.onKey?.(k);
       return;
     }
@@ -645,7 +532,7 @@ export class Workspace {
   }
 
   /** Key → focused pane → fallback Action. `fromOsk` skips global shortcuts. */
-  private routeKey(k: KeyInput, fromOsk: boolean): void {
+  routeKey(k: KeyInput, fromOsk: boolean): void {
     const modal = fromOsk ? this.topModal : undefined;
     if (modal) {
       modal.onKey?.(k);
@@ -653,6 +540,11 @@ export class Workspace {
     }
     const target = this.paneTarget();
     if (target?.onKey?.(k)) return;
+    // ⌘⌫ (a MacBook has no Delete key): Delete for whoever didn't take it (the tree, NEXUS, lists…)
+    if (k.combo === "ctrl+backspace" && target?.onKey?.(asDelete(k))) return;
+    // ⌘Z / ctrl+Z: the deck's history (core/undo.ts) when the pane didn't take it (a note undoes its typing first)
+    const u = undoKey(k);
+    if (u) return void this.deck.undoLast(u === "redo");
     const fallback: Record<string, Action> = {
       up: "up", down: "down", left: "left", right: "right", enter: "confirm", esc: "back",
       pageup: "page-up", pagedown: "page-down", home: "home", end: "end",
@@ -696,7 +588,7 @@ export class Workspace {
     if (this.paneTarget()?.onAction?.(a)) return;
 
     switch (a) {
-      case "palette": this.palette(); break;
+      case "palette": this.menu({ pad: true }); break; // the gamepad's Y: THE MENU, a quick key chosen
       case "osk": this.toggleOsk(); break;
       case "tab-next": this.switchTab(this.active + 1); break;
       case "tab-prev": this.switchTab(this.active - 1); break;
@@ -722,7 +614,30 @@ export class Workspace {
     shell: () => this.focusShell(),
     "shell-tabs": () => (this.focus === "shell" && this.shellVisible ? this.cycleShellTab() : this.focusShell()),
     back: () => void this.closeAndGoBack(),
+    menu: () => void this.menu(),
   };
+
+  /** The guided tour (workspace/tour.ts): UPLINK shows the deck, one part at a time. */
+  tour(onEnd?: () => void): void {
+    if (this.overlays.some((o) => o instanceof Tour && !o.done)) return;
+    this.push(new Tour(this, onEnd));
+  }
+
+  /** THE MENU (workspace/quickmenu.ts): quick keys, or searching everything. Again: closes it. */
+  menu(o: { pad?: boolean } = {}): QuickMenu | undefined {
+    const open = this.overlays.find((x): x is QuickMenu => x instanceof QuickMenu && !x.done);
+    if (open) return void (open.done = true);
+    const m = new QuickMenu(this.deck, o);
+    this.push(m);
+    return m;
+  }
+
+  /** Do what a deck shortcut does (its keys, THE MENU, Settings → KEYS). */
+  runShortcut(s: Shortcut): void {
+    const act = s.id ? this.keyActions[s.id] : undefined;
+    if (act) act();
+    else if (s.cmd) void this.deck.act(s.cmd);
+  }
 
   /** App-wide shortcuts. Uses physical key codes where layouts differ (AZERTY…). */
   private globalKey(k: KeyInput): boolean {
@@ -735,12 +650,7 @@ export class Workspace {
     if (c === "ctrl+p") return this.palette(), true;
     // the deck's shortcuts: one table (core/shortcuts.ts), with your changes (Settings → KEYS)
     const own = shortcutFor(c, d.settings.data.keyOverrides);
-    if (own) {
-      const act = own.id ? this.keyActions[own.id] : undefined;
-      if (act) act();
-      else if (own.cmd) void d.act(own.cmd);
-      return true;
-    }
+    if (own) return this.runShortcut(own), true;
     // Pane focus: Alt+arrows (macOS: ⌘⌥+arrows, since ⌥+arrows jumps words there)
     const paneMod = IS_MAC ? k.ctrl && k.alt : k.alt && !k.ctrl;
     if (paneMod && ["left", "right", "up", "down"].includes(k.key)) return this.moveFocus(k.key as "left"), true;
@@ -857,7 +767,7 @@ export class Workspace {
     // the animated background (not with reduce motion: it's the costliest thing that never stops)
     if (d.settings.data.fx.ambient && !d.settings.data.appearance.reduceMotion) drawBackground(ui, { x: 0, y: 0, w: W, h: H }, ui.theme, 0.7);
 
-    this.renderTopBar(ui, { x: 0, y: 0, w: W, h: 1 });
+    renderTopBar(this, ui, { x: 0, y: 0, w: W, h: 1 });
 
     const body = { x: 1, y: 1, w: W - 2, h: H - 2 };
     let shellH = 0;
@@ -894,14 +804,15 @@ export class Workspace {
     const inner = ui.box(mainR, { title: app ? t(app.title()).toUpperCase() : "", focused: mainFocused, info: app?.kind === "note" ? app.key.slice(5) : app && app.kind !== app.title().toLowerCase() ? app.kind : undefined });
     if (app?.menu) ui.hit(inner, { menu: () => app.menu!() });
     if (app) ui.clip(inner, () => app.render(ui, inner, mainFocused));
+    if (this.editing) editBand(this, ui, inner, this.sidePanel.area);
 
     if (this.shellVisible) {
       const r = max ? { x: right.x, y: body.y, w: right.w, h: body.h - stripH } : { x: body.x, y: top.y + top.h, w: body.w, h: shellH };
-      this.renderShellPanel(ui, r, body, max);
+      renderShellPanel(this, ui, r, body, max);
     }
 
-    this.renderStatusBar(ui, { x: 0, y: H - 1, w: W, h: 1 });
-    this.renderSubtitles(ui, W, H);
+    renderStatusBar(this, ui, { x: 0, y: H - 1, w: W, h: 1 });
+    renderSubtitles(this, ui, W, H);
 
     const screen = { x: 0, y: 0, w: W, h: H };
     this.overlays = this.overlays.filter((o) => !o.done);
@@ -909,357 +820,10 @@ export class Workspace {
     for (const o of this.overlays) if (!(o instanceof Osk)) o.render(ui, screen);
     for (const o of this.overlays) if (o instanceof Osk) o.render(ui, screen);
     this.toasts.render(ui, screen);
-    this.renderTip(ui, screen);
+    renderTip(this, ui, screen);
     if (ui.caret) this.lastCaret = { ...ui.caret };
   }
 
-  /**
-   * The shell panel: tabs on its top border (your terminals [+] │ ibsh · history ·
-   * errors), the window-style buttons on the right, the macro row above a system
-   * terminal, then the shell itself. Its top border drags to resize.
-   */
-  private renderShellPanel(ui: UI, r: Rect, body: Rect, max: boolean): void {
-    const d = this.deck;
-    this.rects.shell = r;
-    const shellFocused = this.focus === "shell" && !this.topModal;
-    const c = ui.c;
-    if (!this.shellTabChosen && this.termAvailable) this.shellTab = "term";
-    if (this.shellTab === "term" && !this.termAvailable) this.shellTab = "ibsh";
-    const si = ui.box(r, { focused: shellFocused });
-    // tabs on the top border, drawn as chips: your terminals │ ibsh · history · errors.
-    // The panel's buttons (scripts, hide, maximize) sit apart, on the right.
-    if (this.termAvailable && !this.terms.length) this.terms.push(new SystemTerminal(d));
-    const tabs: [ShellTab, string, number][] = [
-      ...(this.termAvailable ? this.terms.map((tm, i) => ["term", tm.name, i] as [ShellTab, string, number]) : []),
-      ["ibsh", "ibsh", -1],
-      ["history", d.shell.unseen ? `${t("history")} •${d.shell.unseen}` : t("history"), -1],
-      // errors: only once there are some; blinks red while some are unread
-      ...(d.errors.list.length ? [["errors", d.errors.unseen ? `⚠ ${t("errors")} ${d.errors.unseen}` : t("errors"), -1] as [ShellTab, string, number]] : []),
-    ];
-    // the panel's buttons on the right, like a program window's: one icon in a little square each
-    const buttons: [string, string, string][] = [
-      ...(this.shellTab === "term" && this.termAvailable && d.settings.data.shell.macrosShown === false ? [["⌗", "macro show", t("show the macros · macro show")] as [string, string, string]] : []),
-      ["≡", "script menu", t("your scripts · script new <name>")],
-      ["▁", "term hide", t("hide the shell · ctrl+` brings it back")],
-      ["□", "term max", t("maximize: the shell becomes a big tab (term dock puts it back)")],
-    ];
-    let bxr = r.x + r.w - 2;
-    for (const [icon, cmd, tip] of [...buttons].reverse()) {
-      const br = { x: bxr - 3, y: r.y, w: 3, h: 1 };
-      if (br.x < r.x + r.w / 2) break;
-      const hot = ui.hovered(br);
-      ui.text(br.x, r.y, ` ${icon} `, { fg: hot ? c.bg : c.fg, bg: hot ? (cmd === "term hide" ? c.warning : c.accent) : mix(c.panel, c.fg, 0.14) });
-      ui.hit(br, { cmd, tip });
-      bxr = br.x - 1;
-    }
-    // the tabs, as chips: your terminals [+] │ ibsh · history · errors
-    const chipBg = mix(c.panel, c.accent, 0.1);
-    const chip = (x: number, text: string, style: { fg: number; bg: number; attrs?: number }) => (ui.text(x, r.y, text, style), strWidth(text));
-    let tx = r.x + 2;
-    let lastGroup = "";
-    for (const [id, label, ti] of tabs) {
-      const group = id === "term" ? "term" : "deck";
-      if (lastGroup && group !== lastGroup) (ui.text(tx, r.y, "│", { fg: c.faint, bg: c.panel }), (tx += 2));
-      lastGroup = group;
-      const on = id === this.shellTab && (ti < 0 || ti === this.termIndex);
-      const icon = id === "term" ? "❯" : id === "ibsh" ? ui.theme.glyphs.mark : id === "history" ? "↺" : "";
-      const text = ` ${icon && !label.startsWith("⚠") ? `${icon} ` : ""}${label} `;
-      const rect = { x: tx, y: r.y, w: strWidth(text), h: 1 };
-      if (rect.x + rect.w > bxr) break;
-      const alarm = id === "errors" && d.errors.unseen > 0;
-      if (alarm) ui.animate(400);
-      const blink = alarm && Math.floor(ui.now / 400) % 2 === 0;
-      const onBg = shellFocused ? c.accent : mix(c.accent, c.panel, 0.35);
-      const style = alarm
-        ? { fg: blink ? c.panel : c.error, bg: blink ? c.error : chipBg, attrs: BOLD }
-        : on
-          ? { fg: c.bg, bg: onBg, attrs: BOLD }
-          : { fg: ui.hovered(rect) ? c.accent : c.fg, bg: chipBg };
-      tx += chip(tx, text, style);
-      ui.hit(rect, { onClick: () => (ti >= 0 && (this.termIndex = ti), this.showShellTab(id)), menu: ti >= 0 ? () => this.termTabMenu(ti) : undefined, tip: id === "term" ? `right-click: rename, close… · term rename <name> · F12 next tab\n${this.terms[ti]?.shellName ?? ""}: your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)` : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash · F12 next tab" : id === "errors" ? "what went wrong, with a code (docs/ERRORS.md) · errors clear" : "what clicks ran, with their output" });
-      // the terminal shown, when there are several: its × is part of its chip
-      if (id === "term" && on && this.terms.length > 1) {
-        const xr = { x: tx, y: r.y, w: 2, h: 1 };
-        tx += chip(tx, "× ", { fg: ui.hovered(xr) ? c.error : c.bg, bg: onBg, attrs: BOLD });
-        ui.hit(xr, { cmd: "term close", tip: t("close this terminal") });
-      }
-      tx += 1;
-      // [+] a new terminal, right after the last one
-      if (id === "term" && ti === this.terms.length - 1) {
-        const pr = { x: tx, y: r.y, w: 3, h: 1 };
-        tx += chip(tx, " + ", { fg: ui.hovered(pr) ? c.bg : c.accent, bg: ui.hovered(pr) ? c.accent : chipBg, attrs: BOLD }) + 1;
-        ui.hit(pr, { cmd: "term new", tip: t("another terminal · term new") });
-      }
-    }
-    // macro bar above the system terminal (one free row under the tabs)
-    let termR = si;
-    const macrosShown = d.settings.data.shell.macrosShown !== false;
-    if (this.shellTab === "term" && this.termAvailable && si.h > 6 && macrosShown) {
-      const my = si.y + 1;
-      termR = { ...si, y: si.y + 3, h: si.h - 3 };
-      // ◂ first: folds the macros away (⌗ on the panel's top brings them back)
-      const fold = { x: si.x, y: my, w: 3, h: 1 };
-      ui.text(fold.x, my, " ◂ ", { fg: ui.hovered(fold) ? c.bg : c.subtle, bg: ui.hovered(fold) ? c.accent : c.highlight, attrs: BOLD });
-      ui.hit(fold, { cmd: "macro hide", tip: t("hide the macros · macro show brings them back") });
-      let bx = si.x + 4;
-      d.settings.data.shell.macros.forEach((m, i) => {
-        const label = ` ${m.label} `;
-        const rect = { x: bx, y: my, w: strWidth(label), h: 1 };
-        if (bx + rect.w > si.x + si.w - 4) return;
-        const hot = ui.hovered(rect);
-        const bound = Object.entries(d.settings.data.keys ?? {}).find(([, cmd]) => cmd.split(/\s*;\s*/).includes(`macro run ${q(m.label)}`))?.[0];
-        ui.text(bx, my, label, hot ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: c.fg, bg: c.highlight });
-        ui.hit(rect, {
-          onClick: (mi) => void (mi.shift ? this.editMacro(i) : this.runMacro(m)),
-          tip: `${m.cmd}${bound ? `\n⌨ ${bound}` : ""}\n${t("right-click: shortcut, edit, remove")}`,
-          menu: () => this.macroMenu(i),
-        });
-        bx += rect.w + 1;
-      });
-      const plus = { x: bx, y: my, w: 3, h: 1 };
-      ui.text(bx, my, " + ", { fg: ui.hovered(plus) ? c.accent : c.subtle, bg: c.highlight, attrs: BOLD });
-      ui.hit(plus, { onClick: () => void this.editMacro(-1), tip: "new macro · or: macro add <label> <command>" });
-    }
-    ui.hit(si, { menu: () => this.shellMenu() });
-    ui.clip(si, () => {
-      if (this.shellTab === "term") this.terminal.render(ui, termR, shellFocused);
-      else if (this.shellTab === "history") d.shell.renderHistory(ui, si);
-      else if (this.shellTab === "errors") this.renderErrors(ui, si);
-      else d.shell.render(ui, si, shellFocused);
-    });
-    // drag the top border to resize
-    const handle = { x: tx + 2, y: r.y, w: max ? 0 : Math.max(0, r.x + r.w - 30 - tx), h: 1 };
-    ui.hit(handle, {
-      onClick: () => {},
-      onDrag: (m) => {
-        const fromBottom = body.y + body.h - m.y;
-        this.shellRatio = Math.max(0.15, Math.min(0.8, fromBottom / body.h));
-      },
-    });
-  }
-
-  /** After ~0.6 s on something clickable: its shell command and a tip. */
-  private renderTip(ui: UI, screen: Rect): void {
-    const { x, y } = ui.mouse;
-    let h: Hit | undefined;
-    for (let i = ui.hits.length - 1; i >= 0; i--) {
-      const it = ui.hits[i];
-      if (!inside(it.rect, x, y) || !(it.onClick || it.onDrag || it.cmd || it.tip)) continue;
-      h = it.cmd || it.tip ? it : undefined;
-      break;
-    }
-    const key = h ? `${h.rect.x},${h.rect.y},${h.rect.w},${h.cmd ?? ""},${h.tip ?? ""}` : "";
-    if (key !== this.tip.key) {
-      this.tip = { key, since: ui.now };
-      this.tipHidden = false;
-    }
-    if (!h || this.tipHidden) return;
-    const wait = 650 - (ui.now - this.tip.since);
-    if (wait > 0) return ui.animate(wait);
-    const c = ui.c;
-    const lines: { t: string; fg: number; attrs?: number }[] = [];
-    if (h.cmd) lines.push({ t: `❯ ${h.cmd}`, fg: c.accent, attrs: BOLD });
-    if (h.tip) for (const l of h.tip.split("\n")) lines.push({ t: l, fg: c.muted });
-    const w = Math.min(screen.w - 2, Math.max(...lines.map((l) => strWidth(l.t))) + 4);
-    const hgt = lines.length + 2;
-    let bx = Math.min(x + 2, screen.w - w - 1);
-    let by = y + 1;
-    if (by + hgt > screen.h - 1) by = Math.max(0, y - hgt);
-    if (bx < 0) bx = 0;
-    ui.box({ x: bx, y: by, w, h: hgt }, { bg: c.panelAlt, border: "single" });
-    lines.forEach((l, i) => ui.text(bx + 2, by + 1 + i, l.t, { fg: l.fg, bg: c.panelAlt, attrs: l.attrs }, w - 4));
-  }
-
-  private renderTopBar(ui: UI, r: Rect): void {
-    const c = ui.c;
-    const d = this.deck;
-    ui.fill(r, { bg: c.panelAlt });
-    let x = ui.text(r.x, r.y, " ", { bg: c.panelAlt });
-    // a narrow window (or a big interface scale): the logo keeps just its mark
-    x = ui.gradientText(x, r.y, r.w < 90 ? ui.theme.glyphs.mark : `${ui.theme.glyphs.mark} ICEBREAKER`, ui.theme.gradient, BOLD, (ui.now / 8000) % 1);
-    x += 2;
-
-    // right side first, so tabs know how much room they have
-    const now = new Date();
-    const time = now.toLocaleTimeString(d.settings.data.user.locale || undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    const date = now.toLocaleDateString(d.settings.data.user.locale || undefined, { weekday: "short", day: "numeric", month: "short" });
-    ui.animate(1000 - now.getMilliseconds());
-    // narrow (small window, big interface scale): the right side shrinks so the tabs keep room
-    const narrow = r.w < 110;
-    const ai = d.ai.ready ? (narrow ? ui.theme.glyphs.mark : `${ui.theme.glyphs.mark} ${d.ai.provider.label}`) : narrow ? "○" : `○ ${t("offline")}`;
-    // settings stay one click away whatever is open
-    const gear = narrow ? " ⚙ " : ` ⚙ ${t("settings")} `;
-    const right = narrow ? ` ${ai} ${time.slice(0, 5)} ` : ` ${ai}  │  ${date}  ${time} `;
-    const rx = r.x + r.w - strWidth(right);
-    const gx = rx - strWidth(gear) - 1;
-    const gearRect = { x: gx, y: r.y, w: strWidth(gear), h: 1 };
-    const gearHot = ui.hovered(gearRect) || this.activeApp?.kind === "settings";
-    ui.text(gx, r.y, gear, { fg: gearHot ? c.panel : c.muted, bg: gearHot ? c.accent : c.highlight });
-    ui.hit(gearRect, { cmd: "settings", tip: "ctrl+, · or `config list` in the shell" });
-    // the places you go all the time, one click away
-    let nx = gx - 1;
-    const nav: [string, string, string, string][] = [
-      ["modules", `▦ ${t("modules")}`, "launch modules", "all apps and modules · m on HOME"],
-      ["store", `⇣ ${t("store")}`, "store", "modules and themes from GitHub · store in the shell"],
-      ["explorer", `⬡ ${t("nexus")}`, "launch explorer", "the vault in 3D · explore in the shell"],
-    ];
-    // a narrow window: the buttons shrink to their icon so the tabs keep their room
-    const tabsW = this.tabs.slice(0, this.tabCount).reduce((n, tb, i) => n + strWidth(` ${i + 1}:${tb.title().toLowerCase()} `) + 1, 0) + 4;
-    const navW = nav.filter(([k]) => d.apps.get(k)).reduce((n, [, label]) => n + strWidth(label) + 3, 0);
-    const compact = x + tabsW > gx - navW;
-    for (const [kind, full, cmd, tip] of nav) {
-      if (!d.apps.get(kind)) continue; // its module is off or removed
-      const label = compact ? full.split(" ")[0] : full;
-      const lw = strWidth(label) + 2;
-      nx -= lw;
-      const rect = { x: nx, y: r.y, w: lw, h: 1 };
-      const on = ui.hovered(rect) || this.activeApp?.kind === kind;
-      ui.text(nx, r.y, ` ${label} `, { fg: on ? c.panel : c.muted, bg: on ? c.accent : c.highlight });
-      ui.hit(rect, { cmd, tip: compact ? `${full.slice(2)} · ${tip}` : tip });
-      nx -= 1;
-    }
-    ui.text(rx, r.y, right, { fg: c.muted, bg: c.panelAlt });
-    ui.text(rx + 1, r.y, ai, { fg: d.ai.ready ? c.accent : c.error, bg: c.panelAlt });
-    ui.hit({ x: rx, y: r.y, w: strWidth(ai) + 2, h: 1 }, d.ai.ready ? { cmd: "link", tip: "ctrl+space · or `chat` right here in the shell" } : { cmd: "settings", tip: `AI offline: ${d.ai.problem ?? ""}` });
-
-    // the button-pages (NEXUS, STORE…) have no tab: their button lights up instead
-    this.renderTabs(ui, { x, y: r.y, w: Math.max(0, nx - x - 1), h: 1 });
-  }
-
-  /**
-   * The tabs, like a browser's: wide when there are few, narrower as more open
-   * (never below a minimum). When even that doesn't fit, the last chip is
-   * "▾ +N": a menu of the tabs that didn't fit. The tab shown is always visible.
-   * Each tab: its number, its name (cut with … if needed), and × to close it.
-   */
-  private renderTabs(ui: UI, r: Rect): void {
-    const c = ui.c;
-    const n = this.tabCount;
-    const MAXW = 18, MINW = 8;
-    const plusW = 3; // "+" (open anything) at the end
-    const avail = r.w - plusW;
-    let tabW = n ? Math.max(MINW, Math.min(MAXW, Math.floor(avail / n) - 1)) : MAXW;
-    // which tabs get a chip: all of them, or as many as fit (the shown one always among them)
-    let shown = Array.from({ length: n }, (_, i) => i);
-    const moreW = 7;
-    if (n * (tabW + 1) > avail) {
-      tabW = MINW;
-      const fit = Math.max(1, Math.floor((avail - moreW) / (tabW + 1)));
-      shown = shown.slice(0, fit);
-      const act = Math.min(this.active, n - 1);
-      if (act >= fit) shown[fit - 1] = act;
-    }
-    const hidden = Array.from({ length: n }, (_, i) => i).filter((i) => !shown.includes(i));
-    const nameOf = (i: number) => `${i + 1}:${this.tabs[i].title().toLowerCase()}${this.tabs[i].dirty?.() ? " ●" : ""}`;
-    let x = r.x;
-    for (const i of shown) {
-      const rect = { x, y: r.y, w: tabW, h: 1 };
-      const isActive = i === this.active;
-      const hot = ui.hovered(rect);
-      const style = isActive ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: hot ? c.fg : c.muted, bg: hot ? c.highlight : mix(c.panelAlt, c.fg, 0.05) };
-      // " 3:name…   × " — the × keeps a space on each side, away from the edge
-      ui.fill(rect, { bg: style.bg });
-      ui.text(x + 1, r.y, truncate(nameOf(i), tabW - 5), style);
-      const closeX = x + tabW - 3;
-      const closeHot = ui.hovered({ x: closeX, y: r.y, w: 2, h: 1 });
-      ui.text(closeX, r.y, isActive || hot ? "×" : " ", { fg: closeHot ? c.error : isActive ? c.panel : c.subtle, bg: style.bg, attrs: closeHot ? BOLD : 0 });
-      ui.hit(rect, { cmd: `tab ${i + 1}`, tip: `${this.tabs[i].title()}\n${IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`} · ${t("right-click: close others…")}`, menu: () => this.tabMenu(i) });
-      ui.hit({ x: closeX - 1, y: r.y, w: 3, h: 1 }, { cmd: `tab close ${i + 1}`, tip: t("close · ctrl+w · shift+esc") });
-      x += tabW + 1;
-    }
-    // the tabs that didn't fit: a menu
-    if (hidden.length) {
-      const label = ` ▾ +${hidden.length} `;
-      const rect = { x, y: r.y, w: strWidth(label), h: 1 };
-      const hot = ui.hovered(rect);
-      ui.text(x, r.y, label, { fg: hot ? c.panel : c.accent, bg: hot ? c.accent : c.highlight, attrs: BOLD });
-      ui.hit(rect, {
-        onClick: () => this.openMenu(hidden.map((i) => ({ label: nameOf(i), cmd: `tab ${i + 1}`, hint: i < 9 ? (IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`) : "" })), rect.x, r.y + 1, t("more tabs")),
-        tip: t("{n} more tabs: click for the list", { n: hidden.length }),
-      });
-      x += rect.w + 1;
-    }
-    if (x + 1 < r.x + r.w + plusW) {
-      const pr = { x, y: r.y, w: 1, h: 1 };
-      ui.text(x, r.y, "+", { fg: ui.hovered(pr) ? c.accent : c.subtle, bg: c.panelAlt, attrs: BOLD });
-      ui.hit(pr, { cmd: "palette", tip: t("open anything · ctrl+k") });
-    }
-  }
-
-  /** What the voice says, in a small sci-fi box bottom-right (voice.subtitles). */
-  private renderSubtitles(ui: UI, W: number, H: number): void {
-    const sub = this.deck.voice.subtitle;
-    if (!sub || this.deck.settings.data.voice.subtitles === false) return;
-    const c = ui.c;
-    const w = Math.min(46, W - 4);
-    const words = sub.text.split(/\s+/);
-    const lines: string[] = [];
-    let line = "";
-    for (const wd of words) {
-      if (strWidth(line + " " + wd) > w - 9 && line) (lines.push(line), (line = wd));
-      else line = line ? `${line} ${wd}` : wd;
-    }
-    lines.push(line);
-    const shown = lines.slice(0, 3);
-    const h = shown.length + 2;
-    const r = { x: W - w - 2, y: H - h - 2, w, h };
-    ui.box(r, { title: "VOICE", focused: true, bg: c.panelAlt });
-    // a little orbit spinning, the AI thinking out loud
-    const t = ui.now / 120;
-    const orbit = ["◜", "◝", "◞", "◟"];
-    ui.text(r.x + 2, r.y + 1, orbit[Math.floor(t) % 4], { fg: c.accent, attrs: BOLD, bg: c.panelAlt });
-    ui.text(r.x + 3, r.y + 1, orbit[Math.floor(t + 2) % 4], { fg: c.accentAlt, bg: c.panelAlt });
-    const wave = "▁▂▃▅▃▂";
-    ui.text(r.x + 2, r.y + 2, [...Array(3)].map((_, i) => wave[Math.floor(t + i * 2) % wave.length]).join(""), { fg: c.accent, bg: c.panelAlt });
-    // the words type in
-    const typed = Math.floor((ui.now - sub.at) / 28);
-    let left = typed;
-    shown.forEach((l, i) => {
-      const part = l.slice(0, Math.max(0, left));
-      left -= l.length + 1;
-      ui.text(r.x + 7, r.y + 1 + i, part, { fg: c.fg, bg: c.panelAlt }, w - 9);
-    });
-    ui.animate(60);
-  }
-
-  private renderStatusBar(ui: UI, r: Rect): void {
-    const c = ui.c;
-    const d = this.deck;
-    ui.fill(r, { bg: c.statusBg });
-    const pane = this.focus === "main" ? (this.activeApp?.kind ?? "deck") : this.focus === "sidebar" ? "vault" : this.focus === "panel" ? "panel" : "shell";
-    let x = ui.text(r.x, r.y, ` ${pane.toUpperCase()} `, { fg: c.panel, bg: c.accent, attrs: BOLD });
-    x = ui.text(x, r.y, "", { fg: c.accent, bg: c.statusBg });
-    const status = this.focus === "shell" && this.shellTab === "term" && this.termAvailable
-      ? `${this.sysTerm?.shellName ?? "terminal"} · ctrl = Control (nano: ctrl+X quits) · ⌘C ⌘V copy/paste · ⌘K palette · F12 tabs`
-      : this.focus === "shell" ? d.shell.status() : this.focus === "sidebar" ? "enter open · n new note · r rescan" : this.focus === "panel" ? t("a add a widget · right-click: move, remove · ⌘⇧B hide") : (this.activeApp?.status?.() ?? "");
-
-    // right side
-    const parts: { text: string; fg: number; cmd?: string; tip?: string }[] = [];
-    if (d.settings.data.privacy.stealth) parts.push({ text: `◉ ${t("stealth")}`, fg: c.success, cmd: "stealth", tip: t("100 % local: no internet · stealth off") });
-    if (d.voice.speaking) parts.push({ text: `◖ ${t("voice")}`, fg: c.accentAlt, cmd: "voice stop", tip: t("speaking · click to stop") });
-    if (d.gamepad.connected) parts.push({ text: "◈ pad", fg: c.success });
-    parts.push(this.shellVisible ? { text: "▾ shell", fg: c.muted, cmd: "term hide", tip: "fold the shell away · ctrl+`" } : { text: "▴ shell", fg: c.accent, cmd: "term show", tip: "bring the shell back · ctrl+`" });
-    parts.push({ text: "⌨", fg: this.overlays.some((o) => o instanceof Osk) ? c.accent : c.muted, cmd: "osk", tip: "on-screen keyboard · pad: X" });
-    parts.push({ text: "✦ fx", fg: c.accentAlt, cmd: "view fx", tip: "bloom, scanlines… · `fx` in the shell" });
-    const muted = !!d.settings.data.sound.muted;
-    parts.push({ text: muted ? "⊘ mute" : "♪", fg: muted ? c.error : c.muted, cmd: "mute", tip: muted ? t("muted: click to hear things again") : t("mute everything (sounds, voice, alerts)") });
-    parts.push({ text: "☾", fg: c.muted, cmd: "screensaver", tip: t("screensaver now (any key brings you back)") });
-    if (d.settings.data.appearance.showFps) parts.push({ text: `${d.loop.fps}fps ${d.loop.frameMs.toFixed(1)}ms`, fg: c.subtle });
-    parts.push({ text: `^K ${t("palette")}`, fg: c.muted, cmd: "palette" });
-    parts.push({ text: `F1 ${t("help")}`, fg: c.muted, cmd: "manual" });
-    // the side panel's switch: always the last thing on the right
-    parts.push({ text: "◧", fg: d.settings.data.panel?.shown ? c.accent : c.muted, cmd: "panel", tip: `${t("the side panel: widgets always in view · panel")} · ${IS_MAC ? "⌘⇧B" : "ctrl+shift+B"}` });
-    const rightW = parts.reduce((s, p) => s + strWidth(p.text) + 3, 0);
-    let rx = r.x + r.w - rightW;
-    ui.text(x + 1, r.y, status, { fg: c.statusFg, bg: c.statusBg }, Math.max(0, rx - x - 3));
-    for (const p of parts) {
-      const w = strWidth(p.text);
-      ui.text(rx, r.y, "│ ", { fg: c.faint, bg: c.statusBg });
-      ui.text(rx + 2, r.y, p.text, { fg: p.cmd && ui.hovered({ x: rx + 2, y: r.y, w, h: 1 }) ? c.accent : p.fg, bg: c.statusBg });
-      if (p.cmd) ui.hit({ x: rx + 2, y: r.y, w, h: 1 }, { cmd: p.cmd, tip: p.tip });
-      rx += w + 3;
-    }
-  }
 }
 
 /** Full-screen rain; any input brings you back. */
@@ -1279,4 +843,18 @@ class Screensaver implements Overlay {
     drawScreensaver(ui, screen);
     ui.hit(screen, { onClick: () => (this.done = true), onWheel: () => {}, block: true });
   }
+}
+
+/** ⌘Z → undo, ⌘⇧Z / ctrl+Y → redo (any layout: the letter typed, or the physical key). */
+export function undoKey(k: KeyInput): "undo" | "redo" | null {
+  if (!k.ctrl || k.alt) return null;
+  const letter = k.key.length === 1 ? k.key.toLowerCase() : "";
+  if (letter === "z" || (!letter && k.code === "KeyZ")) return k.shift ? "redo" : "undo";
+  if ((letter === "y" || (!letter && k.code === "KeyY")) && !k.shift) return "redo";
+  return null;
+}
+
+/** The same key press as Delete (⌘⌫ / ctrl+⌫ where nothing else uses it). */
+function asDelete(k: KeyInput): KeyInput {
+  return { ...k, key: "delete", code: "Delete", ctrl: false, combo: "delete" };
 }

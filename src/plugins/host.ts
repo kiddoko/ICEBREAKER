@@ -1,3 +1,6 @@
+import { auditCode, auditReport, type AuditFinding } from "./audit";
+import { moduleSettingRows } from "../apps/settings-rows";
+import { BLOCK_KINDS } from "../core/catalog";
 import type { VoiceTopic } from "../deck";
 import { corePackageEntries } from "./core-packages";
 import { registerBackground } from "../fx/backgrounds";
@@ -65,9 +68,11 @@ export class PluginHost {
     if (p.active) return false;
     if (p.source === "vault") {
       const perms = p.manifest.permissions?.length ? p.manifest.permissions.join(", ") : "none";
+      // what its code does that a module shouldn't need (plugins/audit.ts)
+      const report = auditReport(await this.audit(id).catch(() => []));
       const ok = await this.deck.confirm(
         `Enable plugin "${p.manifest.name}"?`,
-        `${p.manifest.description ?? ""}\nby ${p.manifest.author ?? "unknown"} · v${p.manifest.version}\n\npermissions: ${perms}\n\nPlugins run with access to what they're granted. Only enable code you trust — read ${VAULT_PLUGIN_DIR}/${id}/ first.`,
+        `${p.manifest.description ?? ""}\nby ${p.manifest.author ?? "unknown"} · v${p.manifest.version}\n\npermissions: ${perms}\n\n${report}\n\nModules run inside the deck: only enable code you trust — read ${VAULT_PLUGIN_DIR}/${id}/ first.`,
       );
       if (!ok) return false;
       const s = this.deck.settings;
@@ -78,6 +83,14 @@ export class PluginHost {
     }
     await this.activate(p);
     return p.active;
+  }
+
+  /** What a vault module's code does that a module shouldn't need (plugins/audit.ts). Built-in ones: nothing to read. */
+  async audit(id: string): Promise<AuditFinding[]> {
+    const p = this.plugins.find((x) => x.manifest.id === id);
+    if (!p) throw new Error(`no plugin "${id}"`);
+    if (p.source !== "vault") return [];
+    return auditCode(await this.deck.vault.read(`${VAULT_PLUGIN_DIR}/${id}/${p.manifest.main ?? "main.js"}`));
   }
 
   async disable(id: string): Promise<boolean> {
@@ -219,6 +232,7 @@ export class PluginHost {
     this.deck.widgets.unregisterSource(id);
     this.deck.services.unregisterSource(id);
     this.deck.moduleSettings.delete(id);
+    this.deck.prefs.unregisterSource(id);
     this.deck.moduleSettingListeners.delete(id);
   }
 
@@ -238,15 +252,21 @@ export class PluginHost {
       if (!deck.platform.google) throw new Error("Google needs the desktop app");
       return deck.platform.google;
     };
+    let storageQueue: Promise<void> = Promise.resolve();
     const readData = async (): Promise<Record<string, unknown>> => {
+      let text = "";
       try {
-        return (await deck.vault.exists(dataPath)) ? JSON.parse(await deck.vault.read(dataPath)) : {};
+        if (!(await deck.vault.exists(dataPath))) return {};
+        text = await deck.vault.read(dataPath);
+        return JSON.parse(text);
       } catch {
+        // a broken file would be overwritten by the next ib.storage.set (a whole TODO list…): keep a copy
+        if (text) await deck.vault.write(`${dataPath}.broken`, text).catch(() => {});
         return {};
       }
     };
 
-    return {
+    const api: IcebreakerAPI = {
       version: APP_VERSION,
       manifest: m,
       commands: { register: (cmd) => deck.commands.register({ ...cmd, source: m.id }) },
@@ -355,12 +375,21 @@ export class PluginHost {
         };
       })(),
       settings: {
-        register: (specs) => void deck.moduleSettings.set(m.id, specs),
+        register: (specs) => {
+          deck.moduleSettings.set(m.id, specs);
+          deck.prefs.register(m.id, () => moduleSettingRows(deck, m.id));
+        },
         get: <T,>(key: string) => deck.moduleSettingValue(m.id, key) as T,
         set: (key, value) => deck.setModuleSetting(m.id, key, value),
         onChange: (fn) => void deck.moduleSettingListeners.set(m.id, [...(deck.moduleSettingListeners.get(m.id) ?? []), fn]),
       },
       use: (module) => deck.services.proxy({ id: m.id, permissions: granted }, module),
+      debug: (text) => deck.debug(String(text), m.id),
+      catalog: {
+        list: (kind, words = "") => deck.catalog.info(kind, String(words)),
+        get: (kind, id) => deck.catalog.info(kind).find((b) => b.id === String(id)),
+        kinds: () => BLOCK_KINDS,
+      },
       modules: {
         expose: (name, spec) => deck.services.expose(m.id, name, spec),
         call: (module, name, ...args) => deck.services.call({ id: m.id, permissions: granted }, module, name, args) as Promise<never>,
@@ -370,11 +399,14 @@ export class PluginHost {
       },
       storage: {
         get: async <T,>(key: string, fallback: T) => ((await readData())[key] as T) ?? fallback,
-        set: async (key, value) => {
-          const data = await readData();
-          data[key] = value;
-          await deck.vault.write(dataPath, JSON.stringify(data, null, 2));
-        },
+        // one write at a time: two set() calls not awaited would otherwise each read the
+        // old file and the second would drop the first one's key
+        set: (key, value) =>
+          (storageQueue = storageQueue.catch(() => {}).then(async () => {
+            const data = await readData();
+            data[key] = value;
+            await deck.vault.write(dataPath, JSON.stringify(data, null, 2));
+          })),
       },
       ui: {
         notify: (text, kind) => deck.notify(`${m.name}: ${text}`, kind),
@@ -388,6 +420,8 @@ export class PluginHost {
       },
       lib,
     };
+    // one module can't rewire the API another one gets (ib.ui.notify = …)
+    return freezeApi(api);
   }
 }
 
@@ -426,3 +460,9 @@ export function activate(ib) {
 
 export function deactivate() {}
 `;
+
+/** Freeze the API object and its sections (not what they return: themes, apps…). */
+function freezeApi<T extends object>(api: T): T {
+  for (const v of Object.values(api)) if (v && typeof v === "object" && Object.getPrototypeOf(v) === Object.prototype) Object.freeze(v);
+  return Object.freeze(api);
+}

@@ -5,11 +5,14 @@ A ten-minute tour of the deck. Everything here also works with a gamepad.
 ## 1. The first launch
 
 ICEBREAKER plays its boot sequence (each line is a real start-up step, with its
-duration), then asks a few questions: the deck's language (English or French),
-connected or stealth, your handle, an optional gender, an optional login, your
-terminal, language, location (only as precise as you want), AI, calendar, HOME
-layout, effects and sounds. **Every question has a "no" or "later" answer.**
-Run it again any time: `Ctrl+K` → *Setup*.
+duration), then the **login page**: the first time, create your account (a name
+and a password — every account is its own deck: settings, theme, sounds, vault).
+Then a few questions: the deck's language (English or French), connected or
+stealth, your handle, terminal, location (only as precise as you want), AI,
+calendar, theme and effects (both show live on the whole deck as you move through
+them), sounds and notifications. **Every question has a "no" or "later" answer.**
+After it, a **guided tour**: UPLINK lights each part of the screen and explains
+it (`tour` plays it again). Run the setup again any time: `Ctrl+K` → *setup*.
 
 Your vault is a folder of Markdown files (default `Documents/Icebreaker`). Point
 the deck at an existing Obsidian vault with `vault mount /path` or in Settings.
@@ -17,20 +20,26 @@ the deck at an existing Obsidian vault with `vault mount /path` or in Settings.
 ## 2. The screen
 
 ```
-┌ VAULT ┐┌ HOME / the page you opened ─────────────────────────┐
-│ tree  ││ widgets, notes, apps…                               │
-└───────┘└─────────────────────────────────────────────────────┘
-┌ zsh ─ ibsh ─ history ─ ⤢ maximize ──────────────────────────┐
-│ the shell                                                    │
-└──────────────────────────────────────────────────────────────┘
- status bar · ✦ fx · ^K palette · F1 help
+┌ VAULT ┐┌ HOME / the page you opened ──────────────┐┌ PANEL ┐
+│ tree  ││ widgets, notes, apps…                    ││widgets│
+└───────┘└──────────────────────────────────────────┘└───────┘
+┌ zsh ─ ibsh ─ log ─────────────────────────── ≡ ─ ▢ ┐
+│ the shell                                           │
+└─────────────────────────────────────────────────────┘
+ status bar · ✦ fx · ⌘K menu · F1 help · ◧ panel
 ```
 
-- **HOME** — widgets. `e` to edit the layout, `a` to add a widget, `[` `]` to change page.
-- **The shell** — your real terminal (zsh/bash) with every ICEBREAKER command added,
-  ICEBREAKER's own sandboxed shell (*ibsh*), and the *history* of what your clicks ran.
+- **HOME** — widgets. `e` to edit (drag them, pull the corner ◢ to resize, gaps
+  allowed), `a` to add one (the same widget several times if you like), `[` `]`
+  to change page.
+- **The side panel** (◧, `Ctrl+Shift+P`) — widgets that stay in view on every page.
+- **The shell** — your real terminal (zsh/bash/PowerShell) with every ICEBREAKER
+  command added, ICEBREAKER's own sandboxed shell (*ibsh*), and the *log* of what
+  your clicks ran, errors and notifications.
 - **Every click is a command.** Hover anything to see the command it runs; the
-  history tab shows it. The mouse teaches you the keyboard.
+  log tab shows it. The mouse teaches you the keyboard.
+- **THE MENU** — `Ctrl+K`, or shift twice: search everything, or a key + enter.
+- **Undo** — `Ctrl+Z` (⌘Z) takes back the last thing you did, anywhere.
 
 ## 3. Things to try
 
@@ -45,7 +54,7 @@ theme set <Tab>                           # change the look
 help                                      # every command · man <cmd> for details
 ```
 
-`Ctrl+K` opens the palette (commands, notes, themes). `F1` is the full manual.
+`Ctrl+K` opens THE MENU (commands, notes, themes, settings). `F1` is the full manual.
 
 ## 4. Modules
 
@@ -68,12 +77,12 @@ point the deck at it (`vault mount /Volumes/nas/vault`). See [PRIVACY.md](PRIVAC
 voice install en      # a neural English voice (Jenny), once (~85 MB) — or fr (Siwis), en-us (Amy)
 voice language ja     # or: Japanese, always (the system's Japanese voice; AI answers get translated)
 voice on              # then: voice test
-voice read on         # LINK reads its answers aloud
+voice read on         # UPLINK reads its answers aloud
 voice robot 80        # more machine (0 = clean, 100 = full robot)
 ```
 
 No command line needed: the setup and **Settings → VOICE** do the same (download,
-language, robot filter, reading LINK's answers). Without the download, the system voice works too (macOS `say`, `espeak-ng` on
+language, robot filter, reading UPLINK's answers). Without the download, the system voice works too (macOS `say`, `espeak-ng` on
 Linux, Windows' own). Everything is synthesized on your computer.
 
 ## 7. Widgets and themes

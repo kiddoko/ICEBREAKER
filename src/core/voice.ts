@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import type { Deck } from "../deck";
 
 /**
@@ -195,6 +196,36 @@ export class DeckVoice {
     carrier.stop();
     lfo.stop();
     out.disconnect();
+  }
+
+  /**
+   * The things the voice can announce on its own, checked every 20 s (cheap; the
+   * system stats only when that topic is on): the time at :00 and :30, a CPU or
+   * memory overload (two checks in a row above 90 %, then quiet for 10 min).
+   */
+  watch(): void {
+    let lastSlot = "";
+    let hot = 0, warnedAt = 0;
+    setInterval(() => {
+      const v = this.deck.settings.data.voice;
+      if (!v.enabled) return;
+      const now = new Date();
+      const m = now.getMinutes();
+      const slot = `${now.getHours()}:${m < 30 ? "00" : "30"}`;
+      if ((m === 0 || m === 30) && slot !== lastSlot) {
+        lastSlot = slot;
+        this.deck.speak("time", t("it's {time}", { time: now.toLocaleTimeString(this.deck.settings.data.user.locale || undefined, { hour: "2-digit", minute: "2-digit" }) }));
+      }
+      if (v.speak?.system === false || !this.deck.platform.system) return;
+      void this.deck.platform.system.stats().then((st) => {
+        const mem = st.memTotal ? (st.memUsed / st.memTotal) * 100 : 0;
+        hot = st.cpu >= 90 || mem >= 90 ? hot + 1 : 0;
+        if (hot >= 2 && Date.now() - warnedAt > 10 * 60_000) {
+          warnedAt = Date.now();
+          this.deck.speak("system", st.cpu >= 90 ? t("warning: CPU at {n} percent", { n: Math.round(st.cpu) }) : t("warning: memory at {n} percent", { n: Math.round(mem) }));
+        }
+      }).catch(() => {});
+    }, 20_000);
   }
 }
 

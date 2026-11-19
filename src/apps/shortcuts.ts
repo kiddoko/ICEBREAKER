@@ -1,16 +1,18 @@
+import { Glide } from "../ui/glide";
 import { fmt } from "../core/ansi";
 import { mix } from "../core/color";
 import { strWidth } from "../core/unicode";
 import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
-import { DECK_KEYS, displayKeys, keysOf, normalizeCombo, SHORTCUT_CATEGORIES, SHORTCUTS, type Shortcut } from "../core/shortcuts";
+import { DECK_KEYS, displayKeys, displayMenuKey, keysOf, menuKeyOf, normalizeCombo, SHORTCUT_CATEGORIES, SHORTCUTS, type Shortcut } from "../core/shortcuts";
 import type { Deck } from "../deck";
 
 import type { Command } from "../shell/types";
 import type { UI } from "../ui/ui";
 import type { App, AppSpec } from "./types";
 import { KeyCapture } from "../workspace/keycapture";
+import { q } from "../ui/ui";
 
 /**
  * SHORTCUTS (ctrl+/) — every shortcut by category, with a search field: just
@@ -22,7 +24,13 @@ type Row = { kind: "head"; cat: string } | { kind: "key"; s: Shortcut };
 /** Rebind one of the deck's shortcuts: the dialog, then `keys set <id> <combo>`. */
 export function rebind(deck: Deck, s: Shortcut): void {
   if (!s.id) return;
-  deck.workspace.push(new KeyCapture(deck, t("New keys for: {what}", { what: t(s.what) }), [], (combo) => void deck.act(`keys set ${s.id} ${combo}`), s.id));
+  deck.workspace.push(new KeyCapture(deck, t("New keys for: {what}", { what: t(s.what) }), [], (combo) => void deck.act(`keys set ${s.id} ${combo}`), s.id, "combo"));
+}
+
+/** Its key on THE MENU: the dialog, then `keys menu <id> <key>`. */
+export function rebindMenuKey(deck: Deck, s: Shortcut): void {
+  if (!s.id) return;
+  deck.workspace.push(new KeyCapture(deck, t("Its key on THE MENU: {what}", { what: t(s.short ?? s.what) }), [], (key) => void deck.act(`keys menu ${s.id} ${q(key)}`), s.id, "menu"));
 }
 
 /** Back to the default keys — one shortcut, or all of them (asks first). */
@@ -42,6 +50,8 @@ class ShortcutsApp implements App {
   private query = "";
   private sel = 0;
   private scroll = 0;
+  /** the wheel's glide (ui/glide.ts) */
+  private readonly glide = new Glide();
   /** waiting for the key combo to bind */
 
   constructor(private readonly deck: Deck) {}
@@ -165,8 +175,8 @@ class ShortcutsApp implements App {
     const selLine = cols.map((col) => col.findIndex((l) => l.kind === "key" && l.s === selShortcut)).find((i) => i >= 0) ?? -1;
     if (selLine >= 0 && selLine - this.scroll >= room) this.scroll = selLine - room + 1;
     if (selLine >= 0 && selLine < this.scroll + 1) this.scroll = Math.max(0, selLine - 1);
-    this.scroll = Math.max(0, Math.min(Math.max(0, boardH - room), this.scroll));
-    ui.hit({ x: r.x, y, w: r.w, h: room }, { onWheel: (d) => (this.scroll = Math.max(0, Math.min(Math.max(0, boardH - room), this.scroll + d))) });
+    this.scroll = this.glide.follow(ui, this.scroll, boardH - room);
+    ui.hit({ x: r.x, y, w: r.w, h: room }, { onWheel: (d) => this.glide.push(d) });
     const keyW = Math.min(20, Math.floor(colW * 0.42));
     cols.forEach((col, k) => {
       const cx = area.x + k * (colW + 3);
@@ -212,13 +222,38 @@ export const shortcutsSpec: AppSpec = {
 const keysCmd: Command = {
   name: "keys",
   summary: "the deck's own shortcuts: change them, switch them off, back to the defaults",
-  usage: "keys                    the ones you changed\nkeys list               every deck shortcut, with its id\nkeys set <id> <keys>    e.g. keys set panel ctrl+shift+b\nkeys off <id>           switch one off\nkeys reset <id> | all   back to the default keys",
-  complete: () => ["list", "set", "off", "reset", ...DECK_KEYS.map((s) => s.id!)],
+  usage: "keys                    the ones you changed\nkeys list               every deck shortcut, with its id\nkeys set <id> <keys>    e.g. keys set panel ctrl+shift+b\nkeys off <id>           switch one off\nkeys reset <id> | all   back to the default keys (and keys on THE MENU)\nkeys menu               the keys on THE MENU (⌘K, a key, enter)\nkeys menu <id> <key>    e.g. keys menu panel p  (off: none, reset: its default)",
+  complete: () => ["list", "set", "off", "reset", "menu", ...DECK_KEYS.map((s) => s.id!)],
   run(ctx) {
     const d = ctx.deck;
     const over = { ...(d.settings.data.keyOverrides ?? {}) };
     const [a, id, ...rest] = ctx.args;
     const find = (i?: string) => DECK_KEYS.find((s) => s.id === i);
+    if (a === "menu" || a === "space") {
+      const lead = { ...(d.settings.data.menu?.keys ?? {}) };
+      if (!id) {
+        ctx.out(fmt.dim("THE MENU (⌘K · shift twice): a key, then enter\n"));
+        for (const s of DECK_KEYS) {
+          const k = menuKeyOf(s, lead);
+          if (k) ctx.out(`${fmt.bold(displayMenuKey(k).padEnd(6))} ${t(s.short ?? s.what)}${s.id! in lead ? fmt.yellow("  (changed)") : ""}\n`);
+        }
+        return 0;
+      }
+      const s = find(id);
+      if (!s) return ctx.err(`keys: no shortcut ${id} (keys list)\n`), 1;
+      const v = rest.join(" ");
+      if (v === "reset") delete lead[s.id!];
+      else if (v === "off") lead[s.id!] = "";
+      else {
+        const key = v;
+        if ([...key].length !== 1 || key === " ") return ctx.err("keys menu: one key (a letter, a digit, a sign)\n"), 1;
+        // one key, one shortcut: the one that had it lets it go
+        for (const o of DECK_KEYS) if (o !== s && menuKeyOf(o, lead) === key) lead[o.id!] = "";
+        lead[s.id!] = key;
+      }
+      d.settings.set("menu.keys", lead);
+      return ctx.out(`${s.id} → ${displayMenuKey(menuKeyOf(s, lead)) || "(off)"}\n`), 0;
+    }
     if (!a || a === "list") {
       const list = a === "list" ? DECK_KEYS : DECK_KEYS.filter((s) => s.id! in over);
       if (!list.length) return ctx.out(fmt.dim("all at their default keys · keys list shows them\n")), 0;
@@ -226,8 +261,14 @@ const keysCmd: Command = {
       return 0;
     }
     if (a === "reset") {
-      if (id === "all") d.settings.set("keyOverrides", {});
-      else if (find(id)) (delete over[id!], d.settings.set("keyOverrides", over));
+      if (id === "all") d.settings.set("keyOverrides", {}), d.settings.set("menu.keys", {});
+      else if (find(id)) {
+        delete over[id!];
+        d.settings.set("keyOverrides", over);
+        const lead = { ...(d.settings.data.menu?.keys ?? {}) };
+        delete lead[id!];
+        d.settings.set("menu.keys", lead);
+      }
       else return ctx.err(`keys: no shortcut ${id ?? ""} (keys list)\n`), 1;
       return ctx.out(`${id === "all" ? "every shortcut" : id}: default keys\n`), 0;
     }
@@ -248,7 +289,6 @@ export const shortcutCommands: Command[] = [
   keysCmd,
   {
     name: "shortcuts",
-    aliases: ["keys"],
     summary: "every keyboard shortcut, by category (ctrl+/)",
     usage: "shortcuts            the page\nshortcuts <words>    search them here",
     run(ctx) {

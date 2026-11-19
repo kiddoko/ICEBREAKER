@@ -2,6 +2,77 @@
 
 ## Unreleased
 
+## 0.4.0 — 2026-11-19
+
+- **Accounts**: each one is its own deck (settings, theme, sounds, vault, Google),
+  with a mandatory password (Argon2id). The login page is the way in, and the
+  only place to create an account (an existing one approves it). The profile
+  icon shows only once the name *and* the password are right. ⏻ log out, bigger.
+- **THE MENU** (⌘K or shift twice): search everything, or a key + enter.
+- **BLOCKS**: everything the deck is made of, browsable; settings rebuilt from one
+  registry (`core/prefs.ts`), simpler sheet, notifications as boxes.
+- **⌘Z undoes anything**, anywhere: settings, themes, widgets moved or resized,
+  trash, renames, new notes and folders (`undo`, `undo list`, `redo`).
+- **Guided tour** after the setup (`tour`): UPLINK lights each part of the screen
+  and explains it; skipping asks first.
+- **UPLINK**: conversations in tabs (ctrl+T, ctrl+[ ], right-click to close).
+- **Setup**: the EYE CANDY presets show live on the whole deck, like themes.
+- **HOME and the side panel**: one edit mode with a band across both; widgets stay
+  where you put them (gaps allowed, nothing rises); the corner ◢ resizes; the
+  panel scrolls when taller than the window; status-bar buttons click on their
+  whole cell.
+- **The same widget several times**, each copy with its own settings.
+- **Clocks**: every style has tiny → huge versions (no more fallback clock).
+- **News**: categories per widget (science, AI, nature, economy…) and a
+  *featured* mode (one story, big, with its summary).
+- Effects presets: none · light · medium · heavy · party. Sound 0-100, starts at 50.
+- Glide scrolling everywhere; long text scrolls by itself on hover.
+- Themes: an automatic contrast check (tests/themes.test.ts); PHOSPHOR's status
+  bar and REDLINE's hints are easier to read.
+- **Shortcuts on keycaps**: every key written in the interface (⌘⇧P, ctrl+K,
+  F2, esc, hint letters) is drawn on a little key (ui/keycaps.ts).
+- **Text that types itself out** with a Game Boy RPG blip (the tour, notifications,
+  dialogs, the setup, UPLINK's lines): Settings → APPEARANCE → text speed
+  (100 = instant). New sounds `blip` and `key` (your keys, off by default) per pack.
+- **Sound mixer**: one fader per channel (moving around, notifications, text,
+  your keys, start-up) under the main volume.
+- **Guided tour**: texts checked against the app; UPLINK big, with an animated
+  face (an eye that looks at what it shows, voice bars while it talks).
+- **Sliders**: one look and one set of rules everywhere (visible track, a square
+  handle drawn centred, the number in its own column); text size, screensaver
+  and voice speed are sliders too.
+- ⌘Z works with a widget's pop-up open; ⌘⇧Z redoes trash and new notes too;
+  a widget moved between HOME and the panel is one undo step (`history.groupAsync`);
+  undo messages name the thing ("the HOME layout"), not the setting key.
+- Right-click menus: their shortcuts are keycaps too (`Style.key`); usual short
+  names (Open, Rename…, Duplicate, Delete…), what a line does in a strip under the
+  menu (`MenuItem.tip`); THE MENU / shortcuts / settings no longer repeated in
+  every menu.
+- The tour's UPLINK is the HOME widget's face (`ui/uplinkcore.ts`, shared), in its
+  own card: a voice wave while it talks, an eye on what it shows.
+- Typing: the letter coming in fades up, frames as fast as the screen; text speed
+  50 by default (was 85: too fast to see), a gentler curve (15-240 characters/s).
+- Sounds: a louder blip; `erase` for backspace/delete; the typing click plays on
+  key down with an "interactive" audio context (in sync with your finger).
+- Dropping on the side panel inserts between widgets (the ones below move down).
+- Edit mode ends when you go to another page. Dropping a widget on the side
+  panel shows a line where it lands. Shortcut squares are truly square.
+- ⌘⌫ is Delete on a Mac. Right-click on a macro → *add to the menu…* shows again.
+- **Smooth text everywhere**: letters fade in as they appear (core/renderer.ts
+  `fadeMs`; not when many cells appear at once — motion, a new page); the
+  typewriter also runs in UPLINK's chat and the shell's output, growing text
+  carrying on, never more than 1 s behind (`ui/typewriter.ts` `revealed`).
+- **Settings**: short usual names (Zoom, Font size, V-Sync, Reduce motion,
+  Chromatic aberration, Mixer…), the details only in the help under the list;
+  SHELL gets its own category; *Smooth text* setting.
+- MODULES: the cards' descriptions wrap at a fixed width and show once the ring
+  stops (re-wrapping text on cards that change size every frame looked choppy).
+- One word-wrap (`wrapWords`), one easing (`easeOut`), one `pad2`/`mmss` instead
+  of copies in the tour, setup, chat widget, news, popups, clocks, focus.
+- Security: modules are audited before install, the vault refuses symlinks that
+  lead out of it (docs/SANDBOX.md). README: a warning — not for sensitive
+  documents (vault encryption is next).
+
 ## 0.3.1 — 2026-11-19
 
 - MODULES and NEXUS glide: the ring moves on a spring (no jump when you spam the

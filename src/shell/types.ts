@@ -75,17 +75,28 @@ export interface Command {
 export class CommandRegistry {
   private commands = new Map<string, Command>();
   private aliases = new Map<string, string>();
+  /** commands a module's command of the same name hides (they come back when it goes) */
+  private hidden = new Map<string, Command[]>();
 
   register(cmd: Command): void {
+    const before = this.commands.get(cmd.name);
+    if (before && before.source !== cmd.source) this.hidden.set(cmd.name, [...(this.hidden.get(cmd.name) ?? []), before]);
     this.commands.set(cmd.name, cmd);
     for (const a of cmd.aliases ?? []) this.aliases.set(a, cmd.name);
   }
 
   unregisterSource(source: string): void {
+    for (const [name, list] of this.hidden) this.hidden.set(name, list.filter((c) => c.source !== source));
     for (const [name, c] of this.commands) {
       if (c.source !== source) continue;
       this.commands.delete(name);
-      for (const a of c.aliases ?? []) this.aliases.delete(a);
+      for (const a of c.aliases ?? []) if (this.aliases.get(a) === name) this.aliases.delete(a);
+      // the command it hid (the deck's `cal` under CALENDAR's) comes back
+      const back = this.hidden.get(name)?.pop();
+      if (back) {
+        this.commands.set(name, back);
+        for (const a of back.aliases ?? []) this.aliases.set(a, name);
+      }
     }
   }
 

@@ -7,7 +7,7 @@ import type { Deck } from "../deck";
 import { trashItems, type TrashItem } from "../shell/commands/trash";
 import { ListView } from "../ui/list";
 import { q, type MenuEntry, type UI } from "../ui/ui";
-import { fileIcon } from "../workspace/sidebar";
+import { fileIcon } from "../ui/fileicon";
 import type { App, AppSpec } from "./types";
 
 /**
@@ -76,8 +76,8 @@ export class TrashApp implements App {
   private itemMenu(it: TrashItem): MenuEntry[] {
     return [
       { label: `${t("restore")}${it.from ? ` → /${it.from}` : ""}`, run: () => this.restore(it), hint: "enter" },
-      { label: t("restore to…"), run: () => void this.restoreTo(it), hint: "r" },
-      { label: t("open it (read only)"), run: () => this.open(it), hint: "o", disabled: it.isDir },
+      { label: t("Restore to…"), tip: t("put it back somewhere else"), run: () => void this.restoreTo(it), hint: "r" },
+      { label: t("Preview"), tip: t("read it without taking it out of the trash"), run: () => this.open(it), hint: "o", disabled: it.isDir },
     ];
   }
 
@@ -173,7 +173,7 @@ export class TrashApp implements App {
     const dim = mix(c.accent, c.bg, 0.65);
     const full = Math.min(5, Math.ceil(n / 3));
     let y = r.y;
-    ui.text(r.x + 3, y++, "┏━━━┓", { fg: edge });
+    ui.text(r.x + 4, y++, "┏━━━┓", { fg: edge }); // the handle: its corners stand on the lid's two ┻
     ui.text(r.x, y++, "╺━━━┻━━━┻━━━╸", { fg: edge, attrs: BOLD });
     for (let i = 0; i < 5; i++) {
       const filled = 5 - i <= full;

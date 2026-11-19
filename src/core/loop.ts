@@ -11,6 +11,8 @@ export class FrameLoop {
   fps = 0;
   /** Time spent building + painting the last frame, in ms. */
   frameMs = 0;
+  /** after each frame, with how long it took (the deck's `debug on` watches slow ones) */
+  onFrame?: (ms: number) => void;
 
   private raf = 0;
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -166,6 +168,7 @@ export class FrameLoop {
       next = 250;
     }
     this.frameMs = performance.now() - t0;
+    this.onFrame?.(this.frameMs);
 
     this.count++;
     if (now - this.windowStart >= 1000) {

@@ -5,6 +5,7 @@ import type { Deck } from "../deck";
 import type { UI } from "../ui/ui";
 import type { WidgetSpec } from "../widgets/types";
 import type { Overlay } from "./overlays";
+import { focusWidget } from "../widgets/instances";
 
 /**
  * A widget's pop-up (enter or double-click on HOME, or `widget <id>`): more
@@ -19,10 +20,14 @@ export class WidgetPopup implements Overlay {
   constructor(
     private readonly deck: Deck,
     private readonly spec: WidgetSpec,
-  ) {}
+    /** which copy ("clock#2"): its commands change that one */
+    private readonly key?: string,
+  ) {
+    focusWidget(key ?? spec.id);
+  }
 
   private get ctx() {
-    return { deck: this.deck, focused: true, close: () => (this.done = true) };
+    return { deck: this.deck, focused: true, key: this.key ?? this.spec.id, close: () => (this.done = true) };
   }
 
   private open(): void {

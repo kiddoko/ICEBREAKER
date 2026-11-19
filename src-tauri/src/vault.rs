@@ -96,8 +96,26 @@ fn resolve(root: &Path, rel: &str) -> CmdResult<PathBuf> {
             Component::CurDir => {}
             _ => return Err(format!("path escapes the vault: {rel}")),
         }
+        // a link (symlink, alias) on the way must lead back inside the vault: the deck
+        // never reads or writes outside it, whatever the path looks like
+        if fs::symlink_metadata(&out).map(|m| m.file_type().is_symlink()).unwrap_or(false) && !leads_inside(root, &out) {
+            return Err(format!("a link leads out of the vault: {rel}"));
+        }
     }
     Ok(out)
+}
+
+/// Does this path, links followed, end up inside the vault? (a dangling link: no)
+fn leads_inside(root: &Path, p: &Path) -> bool {
+    match (p.canonicalize(), root.canonicalize()) {
+        (Ok(real), Ok(real_root)) => real.starts_with(real_root),
+        _ => false,
+    }
+}
+
+/// An entry to show: links that lead out of the vault are left out (they couldn't be opened).
+fn shown(root: &Path, p: &Path) -> bool {
+    !fs::symlink_metadata(p).map(|m| m.file_type().is_symlink()).unwrap_or(false) || leads_inside(root, p)
 }
 
 /// On Windows, `canonicalize` returns `\\?\C:\…` paths: drop that prefix so the
@@ -169,7 +187,7 @@ pub fn vault_list(state: State<VaultState>, path: String) -> CmdResult<Vec<Entry
     let root = root(&state)?;
     let dir = resolve(&root, &path)?;
     let read = fs::read_dir(&dir).map_err(|e| format!("{path}: {e}"))?;
-    let mut out: Vec<Entry> = read.flatten().filter_map(|d| entry(&root, &d.path())).collect();
+    let mut out: Vec<Entry> = read.flatten().filter(|d| shown(&root, &d.path())).filter_map(|d| entry(&root, &d.path())).collect();
     out.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.to_lowercase().cmp(&b.name.to_lowercase())));
     Ok(out)
 }
@@ -186,6 +204,9 @@ pub fn vault_walk(state: State<VaultState>) -> CmdResult<Vec<Entry>> {
             let name = item.file_name().to_string_lossy().into_owned();
             let is_dir = item.file_type().map(|t| t.is_dir()).unwrap_or(false);
             if is_dir && (SKIPPED_DIRS.contains(&name.as_str()) || name.starts_with('.')) {
+                continue;
+            }
+            if !shown(&root, &p) {
                 continue;
             }
             if let Some(e) = entry(&root, &p) {
@@ -378,5 +399,28 @@ mod tests {
         assert!(resolve(root, "/notes/a.md").is_ok()); // leading slash = vault root
         assert!(resolve(root, "../etc/passwd").is_err());
         assert!(resolve(root, "notes/../../x").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn links_out_of_the_vault_are_refused() {
+        let base = std::env::temp_dir().join(format!("ib-vault-test-{}", std::process::id()));
+        let vault = base.join("vault");
+        let outside = base.join("outside");
+        fs::create_dir_all(vault.join("notes")).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(outside.join("secret.txt"), "no").unwrap();
+        fs::write(vault.join("notes/a.md"), "yes").unwrap();
+        std::os::unix::fs::symlink(&outside, vault.join("out")).unwrap();
+        std::os::unix::fs::symlink(vault.join("notes"), vault.join("in")).unwrap();
+        std::os::unix::fs::symlink(base.join("nowhere"), vault.join("dangling")).unwrap();
+        assert!(resolve(&vault, "out/secret.txt").is_err());
+        assert!(resolve(&vault, "out").is_err());
+        assert!(resolve(&vault, "dangling").is_err());
+        assert!(resolve(&vault, "in/a.md").is_ok()); // a link that stays inside is fine
+        assert!(resolve(&vault, "notes/a.md").is_ok());
+        assert!(!shown(&vault, &vault.join("out")));
+        assert!(shown(&vault, &vault.join("in")));
+        let _ = fs::remove_dir_all(&base);
     }
 }

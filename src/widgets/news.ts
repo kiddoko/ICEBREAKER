@@ -1,7 +1,9 @@
+import { t } from "../core/i18n";
+import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
 import { BOLD, DIM, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import { countryOf, langOf } from "../core/location";
-import { strWidth } from "../core/unicode";
+import { strWidth, wrapWords } from "../core/unicode";
 import type { Deck } from "../deck";
 import { decrypt } from "../fx/glitch";
 import type { Command } from "../shell/types";
@@ -38,6 +40,7 @@ export const NEWS_CATEGORIES: Record<string, { en: string; fr: string; label: st
   sports: { en: "sports", fr: "sport", label: "sports" },
   health: { en: "health", fr: "santé", label: "health" },
   environment: { en: "climate environment", fr: "climat environnement", label: "environment" },
+  nature: { en: "nature wildlife", fr: "nature animaux", label: "nature" },
   security: { en: "cybersecurity", fr: "cybersécurité", label: "security" },
 };
 /** What to search for an interest: a category's words in your language, or the words themselves. */
@@ -58,9 +61,70 @@ const state = {
   widened: false,
 };
 const seenAt = new Map<string, number>();
+
+/**
+ * A news widget copy can show only some categories (its own setting "cats"):
+ * each set of categories has its own feed here. A copy without categories shows
+ * the shared feed (your area + your interests, `state`).
+ */
+interface Feed {
+  items: Headline[];
+  at: number;
+  loading: boolean;
+  error: string | null;
+}
+const feeds = new Map<string, Feed>();
+const catsOf = (deck: Deck, key?: string): string[] => widgetConfig<string[]>(deck, key, "cats", []).filter(Boolean);
+function feedOf(cats: string[]): Feed {
+  const id = [...cats].sort().join(",");
+  let f = feeds.get(id);
+  if (!f) feeds.set(id, (f = { items: [], at: 0, loading: false, error: null }));
+  return f;
+}
+
+/** Load the feed of some categories: a few recent headlines each, woven together. */
+async function loadCats(deck: Deck, cats: string[]): Promise<void> {
+  const f = feedOf(cats);
+  f.loading = true;
+  try {
+    const rss = deck.platform.newsRss;
+    if (!rss) throw new Error("news needs the desktop app");
+    const fresh = (l: Headline[]) => l.filter((h) => !h.at || Date.now() - h.at < 21 * 86400_000);
+    const per = Math.max(4, Math.floor(30 / cats.length));
+    const batches = await Promise.all(
+      cats.map((cat) =>
+        rss(interestQuery(deck, cat), langOf(deck), countryOf(deck), "bing")
+          .then(parse)
+          .catch(() => [] as Headline[])
+          .then((l) => fresh(l).slice(0, per).map((h) => ({ ...h, tag: NEWS_CATEGORIES[cat]?.label ?? cat }))),
+      ),
+    );
+    const woven: Headline[] = [];
+    for (let k = 0; k < per; k++) for (const list of batches) if (list[k] && !woven.some((w) => w.title === list[k].title)) woven.push(list[k]);
+    if (!woven.length) throw new Error("no recent news in these categories");
+    Object.assign(f, { items: woven.slice(0, 30), at: Date.now(), error: null });
+  } catch (e) {
+    f.error = e instanceof Error ? e.message : String(e);
+  } finally {
+    f.loading = false;
+    deck.requestFrame();
+  }
+}
+
+/** "à la une": the headline a featured copy shows now (a new one every 10 min, or on a click) */
+const featured = new Map<string, { i: number; at: number }>();
+function featuredIndex(key: string, n: number, next = false): number {
+  const cur = featured.get(key);
+  if (!cur || next || Date.now() - cur.at > 10 * 60_000 || cur.i >= n) {
+    let i = Math.floor(Math.random() * n);
+    if (cur && n > 1 && i === cur.i) i = (i + 1) % n;
+    featured.set(key, { i, at: Date.now() });
+    return i;
+  }
+  return cur.i;
+}
 /** the headlines on screen (other modules read them through ib.modules: news.headlines) */
 export const currentHeadlines = (): Headline[] => state.items.slice();
-let hover = { i: -1, since: 0 };
 
 function query(deck: Deck): string {
   const loc = deck.settings.data.user.location;
@@ -143,33 +207,60 @@ function when(deck: Deck, at: number): string {
   return at ? new Date(at).toLocaleString(deck.settings.data.user.locale || undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
 }
 
-function wrap(s: string, w: number): string[] {
-  const out: string[] = [];
-  let line = "";
-  for (const word of s.split(/\s+/)) {
-    if (line && strWidth(line) + 1 + strWidth(word) > w) {
-      out.push(line);
-      line = word;
-    } else line = line ? `${line} ${word}` : word;
-  }
-  if (line) out.push(line);
-  return out;
-}
-
 export const newsWidget: WidgetSpec = {
   id: "news",
   title: "news",
   description: "headlines for your area or a topic, with summaries",
   size: { w: 6, h: 5 },
   min: { w: 2, h: 2 },
-  render(ui, r, { deck }) {
+  render(ui, r, { deck, key }) {
     const c = ui.c;
-    if (stale(deck) && !state.loading && !state.error) void loadNews(deck);
-    if (!state.loaded) return void ui.text(r.x + 1, r.y, state.error ? `⚠ ${state.error}` : `${ui.spinner()} pulling the feed…`, { fg: state.error ? c.error : c.muted }, r.w - 2);
-    const q = query(deck);
-    ui.text(r.x + 1, r.y, q ? `◉ ${q}${state.widened ? ` + ${countryOf(deck)}` : ""}` : `◉ top stories · ${countryOf(deck)}`, { fg: c.accentAlt, attrs: BOLD }, r.w - 2);
-    let hovered = -1;
-    state.items.slice(0, Math.max(0, r.h - 1)).forEach((h, i) => {
+    // this copy: its categories (else the shared feed: your area + interests), list or "à la une"
+    const cats = catsOf(deck, key);
+    const mode = widgetConfig<string>(deck, key, "mode", "list");
+    let items: Headline[], error: string | null, header: string;
+    if (cats.length) {
+      const f = feedOf(cats);
+      if ((!f.at || Date.now() - f.at > 20 * 60_000) && !f.loading && !f.error) void loadCats(deck, cats);
+      items = f.items;
+      error = f.error;
+      header = `◉ ${cats.map((x) => NEWS_CATEGORIES[x]?.label ?? x).join(" · ")}`;
+      if (!f.at) return void ui.text(r.x + 1, r.y, error ? `⚠ ${error}` : `${ui.spinner()} pulling the feed…`, { fg: error ? c.error : c.muted }, r.w - 2);
+    } else {
+      if (stale(deck) && !state.loading && !state.error) void loadNews(deck);
+      if (!state.loaded) return void ui.text(r.x + 1, r.y, state.error ? `⚠ ${state.error}` : `${ui.spinner()} pulling the feed…`, { fg: state.error ? c.error : c.muted }, r.w - 2);
+      items = state.items;
+      error = state.error;
+      const q = query(deck);
+      header = q ? `◉ ${q}${state.widened ? ` + ${countryOf(deck)}` : ""}` : `◉ top stories · ${countryOf(deck)}`;
+    }
+    void error;
+    const open = (i: number) => (cats.length ? showCard(deck, items, i + 1) : void deck.act(`news ${i + 1}`));
+
+    if (mode === "featured" && items.length) {
+      // à la une: one headline, big, with its summary
+      const i = featuredIndex(key ?? "news", items.length);
+      const h = items[i];
+      const tw = r.w - 2;
+      ui.text(r.x + 1, r.y, `${header}  ·  ${t("à la une")}`, { fg: c.accentAlt, attrs: BOLD }, tw);
+      let y = r.y + 2;
+      for (const l of wrapWords(h.title, tw).slice(0, Math.max(1, Math.floor((r.h - 3) / 2)))) ui.text(r.x + 1, y++, l, { fg: c.accent, attrs: BOLD }, tw);
+      if (y < r.y + r.h) ui.text(r.x + 1, y++, `${h.tag ? `[${h.tag}] ` : ""}${h.source}${h.at ? ` · ${when(deck, h.at)}` : ""}`, { fg: c.subtle }, tw);
+      y++;
+      for (const l of wrapWords(h.summary || t("no summary in the feed — click to read it"), tw)) {
+        if (y >= r.y + r.h - 1) break;
+        ui.text(r.x + 1, y++, l, { fg: h.summary ? c.fg : c.faint }, tw);
+      }
+      const nx = { x: r.x + r.w - 3, y: r.y + r.h - 1, w: 3, h: 1 };
+      ui.text(nx.x, nx.y, " ↻ ", { fg: ui.hovered(nx) ? c.accent : c.subtle, attrs: BOLD });
+      ui.hit({ x: r.x, y: r.y + 1, w: r.w, h: r.h - 2 }, { onClick: () => open(i), tip: t("the article · ↻ another one") });
+      ui.hit(nx, { onClick: () => void (featuredIndex(key ?? "news", items.length, true), deck.requestFrame()), tip: t("another headline") });
+      ui.animate(60_000);
+      return;
+    }
+
+    ui.text(r.x + 1, r.y, header, { fg: c.accentAlt, attrs: BOLD }, r.w - 2);
+    items.slice(0, Math.max(0, r.h - 1)).forEach((h, i) => {
       const y = r.y + 1 + i;
       // new headlines decrypt in, staggered
       const first = seenAt.get(h.title) ?? (seenAt.set(h.title, ui.now + i * 90), ui.now + i * 90);
@@ -177,31 +268,26 @@ export const newsWidget: WidgetSpec = {
       if (p < 1) ui.animate(40);
       const row = { x: r.x, y, w: r.w, h: 1 };
       const hot = ui.hovered(row);
-      if (hot) hovered = i;
       const src = r.w >= 50 ? h.source.slice(0, 14) : "";
       const room = r.w - 5 - (src ? strWidth(src) + 1 : 0);
       ui.text(r.x + 1, y, ui.theme.glyphs.bullet, { fg: c.accent });
       // an interest's headline wears its tag, dimly
       const tagW = h.tag && r.w >= 34 ? strWidth(h.tag) + 3 : 0;
       if (tagW) ui.text(r.x + 3, y, `[${h.tag}]`, { fg: c.subtle });
-      let shown = p < 1 ? decrypt(h.title, p, ui.now) : h.title;
-      // hovered ~1 s and too long: scroll it like a ticker
-      if (hot && hover.i === i && strWidth(h.title) > room) {
-        const t = ui.now - hover.since - 900;
-        if (t > 0) {
-          const loop = [...`${h.title}     ·     `];
-          const off = Math.floor(t / 110) % loop.length;
-          shown = [...loop.slice(off), ...loop.slice(0, off)].join("");
-          ui.animate(110);
-        } else ui.animate(Math.max(16, -t));
-      }
+      const shown = p < 1 ? decrypt(h.title, p, ui.now) : h.title;
+      // too long: it scrolls by itself under the mouse (ui.text does it everywhere)
       ui.text(r.x + 3 + tagW, y, shown, { fg: hot ? c.accent : i === 0 ? c.fg : c.muted }, room - tagW);
       if (src) ui.textRight(r.x + r.w - 1, y, src, { fg: c.faint, attrs: DIM });
-      ui.hit(row, { cmd: `news ${i + 1}`, tip: "summary, then open it in your browser" });
+      ui.hit(row, cats.length ? { onClick: () => open(i), tip: "summary, then open it in your browser" } : { cmd: `news ${i + 1}`, tip: "summary, then open it in your browser" });
     });
-    if (hovered !== hover.i) hover = { i: hovered, since: ui.now };
   },
-  activate: ({ deck }) => {
+  activate: ({ deck, key }) => {
+    const cats = catsOf(deck, key);
+    if (cats.length) {
+      const f = feedOf(cats);
+      f.error = null;
+      return void loadCats(deck, cats);
+    }
     state.loaded = false;
     state.error = null;
     void loadNews(deck);
@@ -215,14 +301,17 @@ class NewsCard implements Overlay {
   constructor(
     private readonly deck: Deck,
     private readonly n: number,
+    /** the headlines it browses (a copy's own categories; else the shared feed) */
+    private readonly items: Headline[] = state.items,
   ) {}
 
   private get h(): Headline | undefined {
-    return state.items[this.n - 1];
+    return this.items[this.n - 1];
   }
 
   private open(): void {
-    void this.deck.act(`news open ${this.n}`);
+    const h = this.h;
+    if (h?.link && this.deck.platform.openUrl) void this.deck.platform.openUrl(h.link);
     this.done = true;
   }
 
@@ -230,7 +319,7 @@ class NewsCard implements Overlay {
     if (k.combo === "esc" || k.combo === "q") this.done = true;
     else if (k.combo === "enter" || k.combo === "o") this.open();
     else if (k.combo === "left" && this.n > 1) this.swap(this.n - 1);
-    else if (k.combo === "right" && this.n < state.items.length) this.swap(this.n + 1);
+    else if (k.combo === "right" && this.n < this.items.length) this.swap(this.n + 1);
     return true;
   }
 
@@ -248,7 +337,7 @@ class NewsCard implements Overlay {
 
   private swap(n: number): void {
     this.done = true;
-    this.deck.workspace.push(new NewsCard(this.deck, n));
+    this.deck.workspace.push(new NewsCard(this.deck, n, this.items));
   }
 
   render(ui: UI, screen: Rect): void {
@@ -258,11 +347,11 @@ class NewsCard implements Overlay {
     ui.tint(screen, c.faint, c.bg);
     const w = Math.min(76, screen.w - 6);
     const tw = w - 4;
-    const title = wrap(h.title, tw);
-    const summary = h.summary ? wrap(h.summary, tw) : [];
+    const title = wrapWords(h.title, tw);
+    const summary = h.summary ? wrapWords(h.summary, tw) : [];
     const hgt = Math.min(screen.h - 4, title.length + summary.length + 7);
     const box = { x: Math.floor((screen.w - w) / 2), y: Math.max(1, Math.floor((screen.h - hgt) / 2)), w, h: hgt };
-    const inner = ui.box(box, { title: `NEWS ${this.n}/${state.items.length}`, focused: true, bg: c.panelAlt, info: "←→ browse" });
+    const inner = ui.box(box, { title: `NEWS ${this.n}/${this.items.length}`, focused: true, bg: c.panelAlt, info: "←→ browse" });
     ui.hit(screen, { onClick: () => {}, onWheel: () => {}, block: true });
     ui.hit(box, { onClick: () => {} });
     let y = inner.y;
@@ -276,6 +365,13 @@ class NewsCard implements Overlay {
     if (h.link && this.deck.platform.openUrl) bx += ui.button(bx, by, "open in browser ↗  (enter)", () => this.open()) + 2;
     ui.button(bx, by, "close  (esc)", () => (this.done = true), { accent: c.subtle });
   }
+}
+
+/** A copy's own headline, on its card. */
+function showCard(deck: Deck, items: Headline[], n: number): void {
+  if (!items[n - 1]) return;
+  deck.workspace.push(new NewsCard(deck, n, items));
+  deck.requestFrame();
 }
 
 export function showNews(deck: Deck, n: number): boolean {
@@ -295,11 +391,33 @@ export const newsCommand: Command = {
     ["news topic -", "back to your city"],
   ],
   summary: "headlines for your area or topic; read one, open it",
-  usage: "news              list the headlines\nnews <n>          summary of headline n (a card on screen)\nnews open <n>     open it in your browser\nnews refresh\nnews topic <words> | news topic -   (follow a topic / back to your city)\nnews add <category | words>        an interest, mixed in (news add tech, news add \"formula 1\")\nnews rm <…> · news interests       (categories: tech ai science space politics world business people culture art music cinema gaming sports health environment security)",
-  complete: () => ["open", "refresh", "topic", "add", "rm", "interests", ...Object.keys(NEWS_CATEGORIES)],
+  usage: "news              list the headlines\nnews <n>          summary of headline n (a card on screen)\nnews open <n>     open it in your browser\nnews refresh\nnews topic <words> | news topic -   (follow a topic / back to your city)\nnews add <category | words>        an interest, mixed in (news add tech, news add \"formula 1\")\nnews rm <…> · news interests       (categories: tech ai science space politics world business people culture art music cinema gaming sports health environment nature security)\nnews show <categories> | +cat | -cat | all   a news widget's own categories (its pop-up open)\nnews mode list | featured          that widget: headlines, or one at a time in big with its summary",
+  complete: () => ["open", "refresh", "topic", "add", "rm", "interests", "show", "mode", "featured", "list", ...Object.keys(NEWS_CATEGORIES)],
   async run(ctx) {
     const { deck } = ctx;
     const [a, b] = ctx.args;
+    // a news widget copy (its pop-up open, or selected): its categories and its mode
+    if (a === "show" || a === "mode") {
+      const target = widgetTarget("news");
+      if (!target) return ctx.err(`news ${a}: open a news widget's pop-up first (or select it on HOME)\n`), 1;
+      if (a === "mode") {
+        if (b !== "list" && b !== "featured") return ctx.err("usage: news mode list | featured\n"), 1;
+        setWidgetSetting(deck, "news", "mode", b);
+        return ctx.out(`news (${target}): ${b}\n`), 0;
+      }
+      const words = ctx.args.slice(1).map((x) => x.toLowerCase());
+      const cur = catsOf(deck, target);
+      // news show science ai · news show +nature · news show -ai · news show all (back to the shared feed)
+      let next = words[0] === "all" || words[0] === "-" ? [] : words.some((w) => /^[+-]/.test(w)) ? [...cur] : [];
+      for (const w of words) {
+        if (w === "all" || w === "-") continue;
+        const c2 = w.replace(/^[+-]/, "");
+        if (w.startsWith("-")) next = next.filter((x) => x !== c2);
+        else if (!next.includes(c2)) next.push(c2);
+      }
+      setWidgetSetting(deck, "news", "cats", next);
+      return ctx.out(`news (${target}): ${next.length ? next.join(", ") : "your area + interests"}\n`), 0;
+    }
     if (a === "interests" || a === "categories") {
       ctx.out(`${"\x1b[1m"}yours:\x1b[0m ${interests(deck).join(", ") || "\x1b[2mnone — news add tech\x1b[0m"}\n`);
       ctx.out(`\x1b[2mcategories: ${Object.keys(NEWS_CATEGORIES).join(" ")}  (or any words: news add "formula 1")\x1b[0m\n`);

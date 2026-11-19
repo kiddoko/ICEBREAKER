@@ -28,6 +28,24 @@ export class Renderer {
   private front: Grid | null = null;
   private atlas!: GlyphAtlas;
   private dirty = new Uint8Array(0);
+  /**
+   * Letters fade in: a cell going from empty to a glyph is drawn see-through
+   * first, then solid, over `fadeMs` (0 = off). Everything that appears does it
+   * — what you type, the terminal, the chat — so text flows instead of popping.
+   * `fading` says frames are still needed (the deck asks for the next one).
+   */
+  fadeMs = 110;
+  /** `debug state`: cells fading now, and those fading for too long (should be 0) */
+  fadeStats(): { fading: number; stuck: number } {
+    const now = performance.now();
+    let fading = 0, stuck = 0;
+    for (const b of this.born) if (b > 0) (fading++, now - b > this.fadeMs * 3 && stuck++);
+    return { fading, stuck };
+  }
+  /** more letters than this appearing in one frame: no fade (motion, a new page) */
+  static readonly FADE_MAX_PER_FRAME = 48;
+  fading = false;
+  private born = new Float64Array(0);
   private fontPx = 16;
   private baseline = 0;
   /** [normal, bold] weights. Thin 200/500 is the crispest on HiDPI screens. */
@@ -304,6 +322,20 @@ export class Renderer {
     if (this.dirty.length !== g.cols) this.dirty = new Uint8Array(g.cols);
     const dirty = this.dirty;
     let painted = false;
+    const now = performance.now();
+    const fade = this.fadeMs;
+    if (this.born.length !== g.cols * g.rows) this.born = new Float64Array(g.cols * g.rows);
+    const born = this.born;
+    this.fading = false;
+    // Fade only what appears a few letters at a time (typing, text typing itself out).
+    // Many letters appearing in one frame is something moving or a page changing:
+    // fading those would make them flicker — they're drawn as they are.
+    let appearing = 0;
+    if (fade > 0 && !full) {
+      const n = g.cols * g.rows;
+      for (let i = 0; i < n && appearing <= Renderer.FADE_MAX_PER_FRAME; i++) if (g.ch[i] > 32 && front!.ch[i] <= 32) appearing++;
+    }
+    const fadeNew = appearing <= Renderer.FADE_MAX_PER_FRAME;
 
     const gctx = this.glow > 0 ? this.glowCtx : null;
     if (gctx) {
@@ -315,12 +347,31 @@ export class Renderer {
       let rowDirty = false;
       for (let x = 0; x < g.cols; x++) {
         const i = base + x;
-        const d =
+        let d =
           full ||
           g.ch[i] !== front!.ch[i] ||
           g.fg[i] !== front!.fg[i] ||
           g.bg[i] !== front!.bg[i] ||
           g.attr[i] !== front!.attr[i];
+        if (fade > 0) {
+          // born[i]: > 0 = fading in since then · < 0 = empty since -born[i] · 0 = settled
+          if (g.ch[i] <= 32) {
+            if (front!.ch[i] > 32 || born[i] > 0) born[i] = -now;
+          } else if (d && !full && front!.ch[i] <= 32 && fadeNew) {
+            // a letter where there was nothing — but not one that only blinked (a cursor,
+            // a blinking badge, a theme's typing effect): empty for 150 ms at least
+            born[i] = born[i] === 0 || now + born[i] > 150 ? now : 0;
+          }
+          // still fading: drawn again, a bit more solid (and settled for good once it's done,
+          // so a letter can never stay see-through)
+          if (born[i] > 0) {
+            if (now - born[i] < fade) d = true;
+            else {
+              d = true; // one last draw, solid — however late that frame came
+              born[i] = 0;
+            }
+          }
+        } else born[i] = 0;
         dirty[x] = d ? 1 : 0;
         if (d) rowDirty = true;
       }
@@ -356,7 +407,15 @@ export class Renderer {
         const cp = g.ch[i];
         if (cp === 0) continue;
         const attrs = g.attr[i];
-        if (cp > 32) this.atlas.draw(ctx, cp, g.fg[i], attrs, x * cw, y * ch, charWidth(cp) === 2 ? 2 : 1);
+        if (cp > 32) {
+          const age = born[i] > 0 ? (now - born[i]) / fade : 1;
+          if (age < 1) {
+            ctx.globalAlpha = 0.25 + 0.75 * age * (2 - age); // ease out, never invisible
+            this.fading = true;
+          } else born[i] = 0;
+          this.atlas.draw(ctx, cp, g.fg[i], attrs, x * cw, y * ch, charWidth(cp) === 2 ? 2 : 1);
+          ctx.globalAlpha = 1;
+        }
         if (gctx) {
           // what this cell gives off: its glyph if it's bright, else a lit background
           // neon gives light, plain text doesn't: bright AND saturated colours emit

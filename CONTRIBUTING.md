@@ -40,6 +40,9 @@ command / app / widget / setting / shortcut / translation, and the traps.
 
 ## Code style
 
+The house rules for modules and themes (and the spirit of the code) are in
+[docs/GUIDELINES.md](docs/GUIDELINES.md).
+
 - A file does one thing; its top comment says what and why (the commands it
   answers to, if any). Functions get a one-line `/** … */` when the name isn't enough.
 - Comments explain *why* and what the user sees, not what the next line does.
@@ -52,7 +55,8 @@ command / app / widget / setting / shortcut / translation, and the traps.
 
 - Keep them focused; describe what changes for the user.
 - `npm run check` passes; the app builds.
-- Update the docs (README, docs/, `man` text of commands) when behaviour changes.
+- Update the docs when behaviour changes: README, docs/, the `man` text of
+  commands, **and the notes every vault gets** (`src/vault/starthere.ts`).
 - By contributing you agree your work is released under the MIT licence.
 
 Be kind: see [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).

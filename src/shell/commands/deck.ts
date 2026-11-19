@@ -1,3 +1,5 @@
+import { redoCommand, tourCommand, undoCommand } from "./undo";
+import { auditReport } from "../../plugins/audit";
 import { DEFAULT_SETTINGS } from "../../core/settings";
 import { stealthCommand, voiceCommand } from "./voice";
 import { fmt } from "../../core/ansi";
@@ -5,7 +7,7 @@ import { padEnd } from "../../core/unicode";
 import { ASK_SYSTEM_PROMPT } from "../../ai/prompts";
 import { appendLog, ensureEntry } from "../../vault/journal";
 import { join, slugify } from "../../vault/paths";
-import { applyFxPreset } from "../../workspace/fxpanel";
+import { applyFxPreset, FX_PRESET_ALIASES, FX_PRESET_NAMES, FX_PRESETS } from "../../workspace/fxpanel";
 import { fetchIndex, installPlugin, installTheme } from "../../plugins/install";
 import { parseFlags } from "../parser";
 import type { Command } from "../types";
@@ -14,6 +16,7 @@ import { knob, KNOBS, parseKnobValue } from "../../core/tweaks";
 import { account, lock, selfDestruct } from "./account";
 import { chat, daily } from "./daily";
 import { errorsCommand, mute, sound } from "./sound";
+import { debugCommand, logCommand } from "./log";
 import { FX_LEVELS, fxMax, getFx, setFx, type FxLevel } from "../../core/fxlevels";
 import { uiCommands } from "./ui";
 import { devCommands } from "./dev"; // DEV ONLY
@@ -123,7 +126,10 @@ const note: Command = {
       return 1;
     }
     const path = join("notes", `${slugify(title)}.md`);
-    if (!(await ctx.deck.vault.exists(path))) await ctx.deck.vault.write(path, `# ${title}\n\n${ctx.stdin}`);
+    if (!(await ctx.deck.vault.exists(path))) {
+      await ctx.deck.vault.write(path, `# ${title}\n\n${ctx.stdin}`);
+      ctx.deck.vault.recordCreated(path);
+    }
     await ctx.deck.openFile(path);
   },
 };
@@ -182,7 +188,6 @@ const ask: Command = {
 
 const link: Command = {
   name: "link",
-  aliases: ["chat"],
   summary: "open the AI chat (LINK)",
   run(ctx) {
     ctx.deck.openApp("link");
@@ -352,25 +357,38 @@ const fx: Command = {
   name: "fx",
   examples: [
     "fx bloom on",
-    ["fx potato", "everything off, for old laptops"],
+    ["fx none", "everything off, for old laptops"],
+    ["fx party", "everything at the max"],
   ],
   summary: "toggle visual effects (bloom, scanlines, ambient…)",
-  usage: "fx                      show current state\nfx <effect> on|off      bloom scanlines vignette ambient flicker glitch\nfx minimal              default: ambient fog + glitch only\nfx max                  everything on\nfx potato               everything off, 30fps (weak laptops)\nfx panel                open the FX panel (also: ✦ fx in the status bar)\nfx <effect> <0-200>     strength, 0 = off: bloom scanlines vignette chroma (RGB split)\nfx sharpness <0-100>    100 = razor sharp, lower = a CRT's soft focus",
-  run(ctx) {
+  usage: "fx                      show current state\nfx <effect> on|off      bloom scanlines vignette ambient flicker glitch\nfx none | light | medium | heavy | party   how much CRT, from nothing to everything (light: the default)\nfx panel                open the FX panel (also: ✦ fx in the status bar)\nfx <effect> <0-200>     strength, 0 = off: bloom scanlines vignette chroma (RGB split)\nfx sharpness <0-100>    100 = razor sharp, lower = a CRT's soft focus\nfx fps                  measure the frames a second the screen really gives",
+  async run(ctx) {
     const d = ctx.deck;
     const effects = ["bloom", "scanlines", "vignette", "ambient", "flicker", "glitch"] as const;
     const [what, state] = ctx.args;
     if (!what) {
       for (const e of effects) ctx.out(`${padEnd(e, 10)} ${d.settings.data.fx[e] ? fmt.green("on") : fmt.gray("off")}\n`);
       ctx.out(`${padEnd("chroma", 10)} ${d.settings.data.fx.levels.chroma ?? 0}%\n${padEnd("sharpness", 10)} ${d.settings.data.fx.levels.sharpness ?? 100}%\n`);
-      ctx.out(`${padEnd("fps cap", 10)} ${d.settings.data.appearance.maxFps || "unlimited"}\n`);
+      const ap = d.settings.data.appearance;
+      ctx.out(`${padEnd("fps", 10)} ${ap.vsync ? "vsync (the screen's rate)" : ap.maxFps || "frozen"}\n`);
       return;
     }
-    if (what === "potato" || what === "max" || what === "minimal") {
+    if (what === "fps") {
+      // count the frames the web view really gives for one second (the screen's
+      // rate with ProMotion unlocked: 120 on a MacBook Pro, else 60)
+      const n = await new Promise<number>((done) => {
+        let frames = 0;
+        const start = performance.now();
+        const tick = (now: number) => (now - start < 1000 ? (frames++, requestAnimationFrame(tick)) : done(frames));
+        requestAnimationFrame(tick);
+      });
+      ctx.out(`the screen gives ${fmt.green(String(n))} frames a second${n < 70 ? " (60 Hz: no ProMotion here, or Low Power mode)" : ""}\n`);
+      return;
+    }
+    if ((FX_PRESET_NAMES as readonly string[]).includes(what) || what in FX_PRESET_ALIASES) {
       applyFxPreset(d, what);
-      ctx.out(
-        { potato: "potato mode: all effects off, 30fps cap\n", max: "all effects on. welcome to the future.\n", minimal: "back to minimal: ambient fog + glitch\n" }[what],
-      );
+      const p = FX_PRESET_ALIASES[what] ?? what;
+      ctx.out(`effects: ${p} — ${FX_PRESETS[p as keyof typeof FX_PRESETS].hint}\n`);
       return;
     }
     if (what === "panel") {
@@ -489,11 +507,18 @@ const plugin: Command = {
   name: "plugin",
   aliases: ["plugins"],
   summary: "list, enable, disable, scaffold plugins",
-  usage: "plugin [ls]\nplugin enable <id>\nplugin disable <id>\nplugin reload\nplugin new <id>     (scaffold a plugin in .icebreaker/plugins/<id>)\nplugin install <user/repo | id>   (download from GitHub / the community index)\nplugin update <id>  (re-download an installed plugin)\nplugin search [words]  (browse the community index)",
+  usage: "plugin [ls]\nplugin enable <id>\nplugin disable <id>\nplugin reload\nplugin new <id>     (scaffold a plugin in .icebreaker/plugins/<id>)\nplugin install <user/repo | id>   (download from GitHub / the community index)\nplugin update <id>  (re-download an installed plugin)\nplugin search [words]  (browse the community index)\nplugin audit <id>   (what its code does that a module shouldn't need)",
   man: "Plugins live in <vault>/.icebreaker/plugins/<id>/ with a plugin.json and a main.js.\nVault plugins are disabled until you enable them; you'll see the permissions they ask for first.\nSee docs/PLUGINS.md.",
   async run(ctx) {
     const host = ctx.deck.plugins;
     const [sub, id] = ctx.args;
+    if (sub === "audit") {
+      if (!id) return ctx.err("usage: plugin audit <id>\n"), 1;
+      const found = await host.audit(id);
+      ctx.out(`${auditReport(found)}\n`);
+      for (const f of found) ctx.out(fmt.dim(`  line ${f.line}: ${f.excerpt}\n`));
+      return found.some((f) => f.level === "danger") ? 1 : 0;
+    }
     if (!sub || sub === "ls" || sub === "list") {
       for (const p of host.list()) {
         const state = p.error ? fmt.red("error") : p.active ? fmt.green("on ") : fmt.gray("off");
@@ -572,7 +597,7 @@ const today: Command = {
   },
 };
 
-export const deckCommands: Command[] = [...devCommands, ...uiCommands, voiceCommand, stealthCommand, newsCommand, daily, chat, account, selfDestruct, lock, sound, mute, errorsCommand, open, journal, note, checkboxes, ask, link, sysmon, theme, fx, config, vaultCmd, plugin, today];
+export const deckCommands: Command[] = [undoCommand, redoCommand, tourCommand, ...devCommands, ...uiCommands, voiceCommand, stealthCommand, newsCommand, daily, chat, account, selfDestruct, lock, sound, mute, errorsCommand, logCommand, debugCommand, open, journal, note, checkboxes, ask, link, sysmon, theme, fx, config, vaultCmd, plugin, today];
 
 /** A theme's current value for "section.key", for display. */
 export function knobValue(t: Theme, key: string): string {

@@ -9,6 +9,10 @@ export { ListView } from "../ui/list";
 export { FilterBar } from "../ui/filterbar";
 /** the wheel / trackpad feel of a ring of things (MODULES, NEXUS) */
 export { WheelSpin, ring } from "../ui/wheelspin";
+// a widget placed several times: each copy its own settings (ctx.key)
+export { setWidgetSetting, widgetConfig } from "../widgets/instances";
+export { Glide } from "../ui/glide";
+export { slider } from "../ui/slider";
 export { bigText, ICE_ART } from "../ui/bigtext";
 export { inset, split, q } from "../ui/ui";
 export { parseFlags } from "../shell/parser";

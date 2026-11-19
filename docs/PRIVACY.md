@@ -19,7 +19,7 @@ names:
 
 | feature | goes to | sends |
 |---------|---------|-------|
-| AI (LINK, AI-powered modules) | the provider *you* choose: Claude (Anthropic) via Claude Code or an API key, or a local model (Ollama, nothing leaves your machine) | your messages and the notes you or the AI pick |
+| AI (UPLINK, AI-powered modules) | the provider *you* choose: Claude (Anthropic) via Claude Code or an API key, or a local model (Ollama, nothing leaves your machine) | your messages and the notes you or the AI pick |
 | Weather widget | open-meteo.com | the location you entered (city or coordinates) |
 | News widget | Google News / Bing News RSS | your search terms, language, country |
 | Google Calendar (optional) | googleapis.com | see below |

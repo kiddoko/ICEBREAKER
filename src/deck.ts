@@ -5,7 +5,7 @@ import { clocksSpec } from "./apps/clocks";
 import { weatherCommand, weatherSpec } from "./apps/weather";
 import { pinCommand, pinnedWidget, unpinCommand } from "./workspace/favorites";
 import { terminalSpec } from "./apps/terminal";
-import { scriptCommand, scriptsMenu } from "./shell/commands/scripts";
+import { scriptCommand } from "./shell/commands/scripts";
 import { ServiceRegistry } from "./plugins/services";
 import { shortcutCommands, shortcutsSpec } from "./apps/shortcuts";
 import { trashSpec } from "./apps/trash";
@@ -27,15 +27,17 @@ import { ActionRegistry, AppRegistry } from "./apps/registry";
 import { settingsSpec } from "./apps/settings";
 import { sysmonSpec } from "./apps/sysmon";
 import type { App, PaletteAction } from "./apps/types";
-import { css } from "./core/color";
+import { css, mix } from "./core/color";
 import { GamepadInput } from "./core/gamepad";
 import { Grid } from "./core/grid";
 import { InputManager, type Action, type ActionSource, type InputSink, type KeyInput, type MouseInput } from "./core/input";
 import { FrameLoop } from "./core/loop";
 import { fontStack, loadFont, WEIGHTS } from "./core/fonts";
 import { Renderer } from "./core/renderer";
-import { Sound } from "./core/sound";
+import { Sound, SOUND_CHANNELS, type SoundName } from "./core/sound";
 import { DEFAULT_SETTINGS, type SettingsStore } from "./core/settings";
+import { UndoHistory } from "./core/undo";
+import { setTypewriterHost } from "./ui/typewriter";
 import { applyTweaks, ThemeManager, type Theme } from "./core/theme";
 import { glitch } from "./fx/glitch";
 import type { Platform } from "./platform/types";
@@ -46,6 +48,7 @@ import { iconCommand, tagCommand } from "./shell/commands/marks";
 import { trashCommand } from "./shell/commands/trash";
 import { Marks } from "./vault/marks";
 import { ErrorLog } from "./core/errors";
+import { EventLog } from "./core/eventlog";
 import { systemCommands } from "./shell/commands/system";
 import { ShellApp } from "./shell/shell";
 import { ShellExecutor } from "./shell/exec";
@@ -65,11 +68,16 @@ import { setLang, t } from "./core/i18n";
 import type { ChoiceOption } from "./plugins/api";
 import { LockScreen } from "./workspace/lock";
 import type { PromptOptions } from "./workspace/overlays";
-import { ActionWheel } from "./workspace/actionwheel";
-import { applyFxPreset } from "./workspace/fxpanel";
+import { migrateWheel, QuickMenu } from "./workspace/quickmenu";
+import { SettingsRegistry } from "./core/prefs";
+import { lookKey, readDevice, writeDevice } from "./core/device";
+import { Catalog } from "./core/catalog";
+import { blocksSpec } from "./apps/blocks";
+import { registerCoreActions } from "./deck-actions";
+import { coreSettingRows } from "./apps/settings-rows";
 import type { ToastKind } from "./workspace/overlays";
 import { Workspace } from "./workspace/workspace";
-import { BUILTIN_WIDGETS } from "./widgets/builtin";
+import { BUILTIN_WIDGETS } from "./widgets";
 import { WidgetRegistry } from "./widgets/types";
 
 /**
@@ -87,6 +95,10 @@ export class Deck implements InputSink {
   readonly commands = new CommandRegistry();
   readonly apps = new AppRegistry();
   readonly actions = new ActionRegistry();
+  /** every setting row, the deck's and the modules' (core/prefs.ts): Settings draws them */
+  readonly prefs = new SettingsRegistry();
+  /** everything the deck can do, as blocks (core/catalog.ts): the BLOCKS page, `catalog`, ib.catalog */
+  readonly catalog = new Catalog(this);
   readonly widgets = new WidgetRegistry();
   readonly ai: AIManager;
   /** numbers kept over time by modules (ib.stats), shown by STATS */
@@ -95,6 +107,19 @@ export class Deck implements InputSink {
   readonly marks: Marks;
   /** every error, with a code (E101…): the shell's "errors" tab, `errors` */
   readonly errors = new ErrorLog();
+  /** everything that happens (commands, clicks, errors, messages, debug): the shell's LOG tab */
+  readonly log = new EventLog();
+
+  /**
+   * A line for developers, in the LOG tab under "debug" (modules: `ib.debug`).
+   * Always kept (cheap); `debug on` adds the deck's own events.
+   */
+  /** `debug hits`: tint every clickable area (green: runs a command, yellow: has a menu) */
+  showHits = false;
+
+  debug(text: string, source = "deck"): void {
+    this.log.add("debug", text, { source });
+  }
   /** settings modules declare (ib.settings.register) — shown under MODULES in Settings */
   readonly moduleSettings = new Map<string, ModuleSettingSpec[]>();
   moduleSettingValue(id: string, key: string): unknown {
@@ -122,6 +147,10 @@ export class Deck implements InputSink {
 
   private readonly ui = new UI();
   private grid = new Grid(1, 1);
+  /** the screen's size in cells (debug state) */
+  get gridSize(): { cols: number; rows: number } {
+    return { cols: this.grid.cols, rows: this.grid.rows };
+  }
   private hits: Hit[] = [];
   private boot: BootScreen | null = null;
   /** the last real boot, replayed by `reboot` */
@@ -137,12 +166,24 @@ export class Deck implements InputSink {
   private readonly cellFx = new CellFx();
   private lastActivity = performance.now();
 
+  /** Undo / redo for everything (⌘Z, ⌘⇧Z): core/undo.ts */
+  readonly history = new UndoHistory();
+
   constructor(
     readonly platform: Platform,
     readonly settings: SettingsStore,
   ) {
     const el = (id: string) => document.getElementById(id)!;
     this.vault = new Vault(platform.vault);
+    // ⌘Z: settings and the vault's trash/renames go in one history (core/undo.ts)
+    settings.history = this.history;
+    settings.onRevert = (path) => this.reverted(path);
+    // text that types itself out: its speed and its blip (ui/typewriter.ts)
+    setTypewriterHost({
+      speed: () => (this.settings.data.appearance.reduceMotion ? 100 : this.settings.data.appearance.textSpeed ?? 50),
+      blip: () => this.sound.play("blip"),
+    });
+    this.vault.history = this.history;
     this.stats = new StatsStore(this.vault);
     this.marks = new Marks(this.vault);
     this.ai = new AIManager(settings);
@@ -153,6 +194,13 @@ export class Deck implements InputSink {
     this.renderer = new Renderer(el("screen") as HTMLCanvasElement, el("bloom") as HTMLCanvasElement, settings.data.appearance.fontSize);
     this.loop = new FrameLoop(this.frame, settings.data.appearance.maxFps);
     this.input = new InputManager(this, this.renderer, el("deck"), el("keyboard-sink") as HTMLTextAreaElement);
+    this.input.onKeyPress = (kind) => this.typingSound(kind);
+    // shift twice: THE MENU, from anywhere (Settings → KEYS can switch it off)
+    this.input.onDoubleShift = () => {
+      if (this.locked || this.settings.data.menu?.doubleShift === false) return;
+      this.workspace.menu();
+      this.requestFrame();
+    };
     this.input.onGesture = (g) => {
       const ws = this.workspace;
       if (g === "back" || g === "forward") {
@@ -172,17 +220,16 @@ export class Deck implements InputSink {
       this.loop.idle = false;
       this.action(a, "gamepad");
     });
-    // hold RB: the action wheel
+    // hold RB: THE MENU (the stick chooses, letting go runs it)
     this.gamepad.onWheel = (e) => {
       this.lastActivity = performance.now();
-      const open = this.workspace.overlays.find((o): o is ActionWheel => o instanceof ActionWheel && !o.done);
+      const open = this.workspace.overlays.find((o): o is QuickMenu => o instanceof QuickMenu && !o.done);
       if (e.type === "open") {
-        if (!open && !this.locked) this.workspace.push(new ActionWheel(this, true));
+        if (!open && !this.locked) this.workspace.menu({ pad: true });
       } else if (open) {
         if (e.type === "aim") open.aim(e.angle, e.mag);
-        else if (e.type === "page") open.turnPage(1);
         else if (e.type === "release") open.release();
-        else open.done = true;
+        else if (e.type === "cancel") open.done = true;
       }
       this.requestFrame();
     };
@@ -214,6 +261,11 @@ export class Deck implements InputSink {
     // (browsers only allow fullscreen after a click, so this is desktop-only)
     if (s.appearance.startFullscreen && this.platform.kind === "desktop") void this.platform.window.setFullscreen(true).catch(() => {});
 
+    // nobody logged in: only the login screen — no vault, no modules, no settings of anyone
+    const session = await this.platform.account.session().catch(() => null);
+    if (!session) return this.startLogin();
+    this.account = session.user;
+
     // the POST runs live: each line shows when its step is really done
     const boot = s.boot.mode !== "off" ? new BootScreen(s.boot.mode) : null;
     this.boot = boot;
@@ -238,7 +290,10 @@ export class Deck implements InputSink {
     );
     if (boot) boot.memMB = stats ? Math.round(stats.memTotal / 1024 ** 2) : 0;
     this.vault.journalFolder = s.journal.folder;
-    await step(() => this.vault.mount(s.vault.path).then(() => this.recordVaultStats()), () => ({ text: `Mounted vault at ${this.vault.root} (${this.vault.markdown().length} notes, ${this.vault.journalDates().size} journal entries)`, status: "OK" }));
+    // a new account (not the first) gets a folder of its own next to the default one
+    let vaultPath = s.vault.path;
+    if (!vaultPath && (await this.platform.account.count().catch(() => 1)) > 1) vaultPath = `${await this.vault.defaultPath()}-${session.id}`;
+    await step(() => this.vault.mount(vaultPath).then(() => this.recordVaultStats()), () => ({ text: `Mounted vault at ${this.vault.root} (${this.vault.markdown().length} notes, ${this.vault.journalDates().size} journal entries)${this.vault.docsYours.length ? ` · START HERE: ${this.vault.docsYours.length} notes you edited kept (starthere --force updates them)` : ""}`, status: "OK" }));
     if (!s.vault.path) this.settings.set("vault.path", this.vault.root);
     const fontOf = () => `${this.theme.font.family}|${this.theme.font.scale}|${this.theme.font.weights}`;
     const font = fontOf();
@@ -246,13 +301,11 @@ export class Deck implements InputSink {
     this.refreshTheme(true);
     if (fontOf() !== font) await this.applyFont(); // your theme lives in the vault and has its own font
 
-    this.account = await step(
-      () => this.platform.account.status().catch(() => null),
-      (a) => ({ text: a ? `Account ${a}: login required` : "No account: the deck opens unlocked", status: a ? "OK" : "INFO" }),
-    );
-    if (this.account) this.lockNow();
+    boot?.log({ text: `Account ${session.user}: its settings, its vault`, status: "OK" });
+    void this.rememberLook();
     this.sound.enabled = s.sound.enabled && !s.sound.muted;
     this.sound.volume = s.sound.volume / 100;
+    this.applyMix();
     await step(() => this.reloadSounds().catch(() => 0), (n) => ({ text: `Sound ${s.sound.enabled ? "on" : "muted"} · pack ${this.soundPack()}${n ? ` · ${n} custom sounds` : ""}`, status: "OK" }));
 
     await step(async () => {
@@ -264,11 +317,12 @@ export class Deck implements InputSink {
       return p ? { text: `Uplink offline: ${p}`, status: "WARN" } : { text: `Uplink: ${this.ai.provider.label}${this.ai.claudeCodePath ? ` (${this.ai.claudeCodePath})` : ""}`, status: "OK" };
     });
 
-    this.watchForVoice();
+    this.voice.watch(); // the time, CPU / memory overload (core/voice.ts)
     await step(() => this.registerCore(), () => ({ text: `Shell ibsh: ${this.commands.names().length} commands · ${this.apps.list().length} apps · ${this.widgets.list().length} widgets`, status: "OK" }));
     detachCorePackages(this); // core features become modules (plugins/core-packages.ts)
     // no AI at all while the UPLINK module is off (modules can't reach it either)
     this.ai.gate = () => (this.plugins.list().some((p) => p.manifest.id === "uplink" && p.active) ? null : "the UPLINK module is off (MODULES → UPLINK)");
+    migrateWheel(this); // the old gamepad wheel's slots → keys on THE MENU (once)
     await step(() => this.plugins.init(), () => ({ text: `Plugins: ${this.plugins.active().map((p) => p.manifest.id).join(", ") || "none"}`, status: this.plugins.list().some((p) => p.error) ? "WARN" : "OK" }));
     this.platform.bridge?.onRun((req) => void this.runBridged(req));
     // files changed in the terminal, Obsidian, Finder…: refresh the tree, search, widgets
@@ -290,6 +344,8 @@ export class Deck implements InputSink {
     this.sound.play("boot");
     setInterval(() => this.checkIdle(), 15_000);
     this.watchVisibility();
+    // what starting changed (migrations, the vault path, restored tabs) isn't something to ⌘Z
+    this.history.clear();
     this.loop.request();
   }
 
@@ -323,7 +379,17 @@ export class Deck implements InputSink {
     };
     window.addEventListener("error", (e) => caught(e.message || String(e.error)));
     window.addEventListener("unhandledrejection", (e) => caught(e.reason instanceof Error ? e.reason.message : String(e.reason)));
+    this.log.onAdd = () => this.requestFrame();
+    // debug on: the deck reports its own events (slow frames at most once a second, settings changed)
+    let slowAt = 0;
+    this.loop.onFrame = (ms) => {
+      if (!this.log.debugOn || ms < 50 || performance.now() - slowAt < 1000) return;
+      slowAt = performance.now();
+      this.debug(`slow frame: ${ms.toFixed(0)} ms (${this.workspace.activeApp?.kind ?? "?"})`);
+    };
+    this.settings.onChange((path) => this.log.debugOn && this.debug(`setting changed: ${path}`));
     this.errors.onAdd = (e) => {
+      this.log.add("error", `${e.code}  ${t(e.title)}`, { detail: e.detail, code: e.code });
       this.requestFrame();
       this.speak("errors", t("error {code}: {title}", { code: e.code.split("").join(" "), title: t(e.title) }));
     };
@@ -336,54 +402,16 @@ export class Deck implements InputSink {
   }
 
   private registerCore(): void {
+    // the settings rows: the deck's own (apps/settings-rows.ts, modules' rows included)
+    this.prefs.register("core", () => coreSettingRows(this));
     for (const c of [...fileCommands, ...systemCommands, ...deckCommands, storeCommand, ...shortcutCommands, scriptCommand, pinCommand, unpinCommand, tagCommand, iconCommand, trashCommand, weatherCommand, startHereCommand]) this.commands.register({ ...c, source: "core" });
     for (const w of [...BUILTIN_WIDGETS, pinnedWidget]) this.widgets.register(w);
     // the frame's own parts, callable like modules: deck.use("tree").reveal(…), ib.use("terminal")…
     for (const [id, fns] of Object.entries(frameServices(this))) this.services.exposeAll(id, fns);
     syncLinkWidgets(this); // the 1×1 shortcut squares
-    for (const a of [homeSpec, modulesSpec, storeSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec, shortcutsSpec, terminalSpec, weatherSpec, clocksSpec, focusSpec, trashSpec]) this.apps.register(a);
+    for (const a of [homeSpec, modulesSpec, storeSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec, shortcutsSpec, terminalSpec, weatherSpec, clocksSpec, focusSpec, trashSpec, blocksSpec]) this.apps.register(a);
 
-    const act = (id: string, title: string, run: () => void, hint?: string, group = "deck") => this.actions.register({ id, title, run, hint, group });
-    act("journal.today", "Journal: today", () => void this.openJournal(new Date()), "ctrl+j", "journal");
-    act("journal.yesterday", "Journal: yesterday", () => void this.openJournal(new Date(Date.now() - 86400_000)), undefined, "journal");
-    act("note.new", "New note", () => void this.newNote(), "ctrl+n", "notes");
-    act("folder.new", "New folder", () => void this.newFolder(), "ctrl+shift+n", "notes");
-    act("scripts.menu", "Scripts… (run one of your saved shell scripts)", () => void scriptsMenu(this), undefined, "shell");
-    act("terminal.open", "Terminal in a tab", () => void this.act("term open"), undefined, "shell");
-    act("shortcuts.open", "Keyboard shortcuts (all, searchable)", () => void this.openApp("shortcuts"), "ctrl+/", "deck");
-    act("daily.log", "Daily log (end-of-day check-in)", () => void this.shell.runLine("daily"), undefined, "journal");
-    act("deck.lock", "Lock the deck", () => this.account ? this.lockNow() : this.notify("no account yet — run `account create` in the shell"), undefined, "deck");
-    act("setup.run", "Setup (first-run questionnaire)", () => void this.openApp("setup"), undefined, "deck");
-    act("modules.open", "Modules (all apps and plugins)", () => void this.openApp("modules"), undefined, "deck");
-    act("link.open", "Open LINK (AI chat)", () => void this.openApp("link"), "ctrl+space", "ai");
-    act("ai.key", "Set Anthropic API key", () => void this.shell.runLine("config key"), undefined, "ai");
-    act("ai.provider", "Cycle AI provider (Claude Code ⇄ Anthropic API ⇄ local Ollama)", () => {
-      const order = ["claude-code", "anthropic", "ollama"] as const;
-      this.settings.set("ai.provider", order[(order.indexOf(this.settings.data.ai.provider) + 1) % order.length]);
-      this.notify(`AI provider: ${this.settings.data.ai.provider}`);
-    }, undefined, "ai");
-    act("shell.focus", "Focus shell", () => this.workspace.focusShell(), "ctrl+`", "view");
-    act("sidebar.toggle", "Toggle file tree", () => this.workspace.toggleSidebar(), "ctrl+b", "view");
-    act("view.fullscreen", "Toggle fullscreen", () => void this.toggleFullscreen(), "F11", "view");
-    act("view.zoomin", "Zoom in", () => this.zoom(1), "ctrl+=", "view");
-    act("view.zoomout", "Zoom out", () => this.zoom(-1), "ctrl+-", "view");
-    act("view.osk", "On-screen keyboard", () => this.workspace.toggleOsk(), "pad X", "view");
-    act("fx.panel", "Visual effects… (bloom, scanlines, vignette)", () => this.workspace.fxPanel(), "✦ fx", "fx");
-    act("fx.minimal", "Effects: minimal (default)", () => applyFxPreset(this, "minimal"), undefined, "fx");
-    act("fx.max", "Effects: everything on", () => applyFxPreset(this, "max"), undefined, "fx");
-    act("fx.potato", "Effects: potato mode (all off, 30fps)", () => applyFxPreset(this, "potato"), undefined, "fx");
-    act("fx.rain", "Screensaver", () => this.screensaver(), undefined, "fx");
-    act("deck.reboot", "Reboot (replay boot sequence)", () => this.reboot(), undefined, "deck");
-    act("deck.quit", "Quit ICEBREAKER", () => void this.quit(), undefined, "deck");
-    act("vault.rescan", "Rescan vault", () => void this.vault.rescan(), undefined, "vault");
-    act("plugin.new", "Create a plugin…", async () => {
-      const id = await this.prompt("Plugin id", { placeholder: "my-plugin" });
-      if (id) void this.shell.runLine(`plugin new ${id}`);
-    }, undefined, "dev");
-    act("theme.new", "Create a theme from the current one…", async () => {
-      const name = await this.prompt("Theme name", { placeholder: "my-theme" });
-      if (name) void this.shell.runLine(`theme new ${name}`);
-    }, undefined, "dev");
+    registerCoreActions(this); // THE MENU's searchable actions (deck-actions.ts)
   }
 
   // ── the frame ────────────────────────────────────────────────────────────
@@ -419,22 +447,63 @@ export class Deck implements InputSink {
       glitch(this.grid, Math.min(1, g / 300), Math.floor(now / 50));
       ui.animate(16);
     }
+    // `debug hits`: every clickable area outlined (the last one under the pointer wins)
+    if (this.showHits) {
+      const g = this.grid;
+      for (const h of ui.hits) {
+        const col = h.cmd ? ui.c.success : h.menu ? ui.c.warning : ui.c.accentAlt;
+        for (let y = Math.max(0, h.rect.y); y < Math.min(g.rows, h.rect.y + h.rect.h); y++)
+          for (let x = Math.max(0, h.rect.x); x < Math.min(g.cols, h.rect.x + h.rect.w); x++) g.bg[y * g.cols + x] = mix(g.bg[y * g.cols + x], col, 0.25);
+      }
+    }
     this.renderer.draw(this.grid);
+    if (this.renderer.fading) ui.animate(0); // letters still fading in (renderer.fadeMs)
     if (ui.caret) this.input.placeCaret(ui.caret.x, ui.caret.y);
     this.hits = ui.hits;
     return ui.wakeIn;
   };
 
-  /** Show the login screen (only when an account exists). */
-  lockNow(): void {
-    if (!this.account) return;
-    this.lock = new LockScreen(this, this.account, () => {
-      this.lock = null;
-      this.glitch(400);
-      this.greet();
-      this.notify(`welcome back, ${this.settings.data.user.handle}`, "success");
+  /**
+   * Nobody logged in: the login screen, alone. Settings are the defaults (read
+   * only), with the look of the account last remembered; no vault is mounted
+   * and no module runs. Logging in (or making an account) reloads the deck as
+   * that account — its settings, its vault, its theme.
+   */
+  private async startLogin(): Promise<void> {
+    this.settings.readOnly = true;
+    const device = await readDevice(this.platform);
+    const look = device.look[lookKey(device.last)];
+    if (look?.theme && this.themes.get(look.theme)) this.settings.data.appearance.theme = look.theme;
+    this.refreshTheme(true);
+    this.sound.enabled = true;
+    const count = await this.platform.account.count().catch(() => 0);
+    this.lock = new LockScreen(this, device, count, () => {
+      // the account is unlocked on the native side: start again as that account
+      location.reload();
     });
-    this.requestFrame();
+    this.starting = false;
+    this.watchVisibility();
+    this.loop.request();
+  }
+
+  /** Remember this account's look for the login screen (theme, icon). */
+  private async rememberLook(): Promise<void> {
+    const s = this.settings.data;
+    if (!this.account) return;
+    await writeDevice(this.platform, (d) => {
+      d.look[lookKey(this.account!)] = { theme: s.appearance.theme, avatar: s.user.avatar };
+      if (d.remember) d.last = this.account!;
+    });
+  }
+
+  /** Lock (log out): the settings are saved, the account is locked, the login screen comes back. */
+  lockNow(): void {
+    void (async () => {
+      await this.settings.flush();
+      await this.rememberLook();
+      await this.platform.account.lock().catch(() => {});
+      location.reload();
+    })();
   }
 
   get locked(): boolean {
@@ -534,10 +603,11 @@ export class Deck implements InputSink {
   notify(text: string, kind: ToastKind = "info"): void {
     this.sound.play(kind === "error" ? "error" : kind === "success" ? "success" : "notify");
     if (kind === "error") this.errors.add(text);
+    else this.log.add("notify", text, { source: kind });
     // the deck isn't in front (minimized, hidden, another app on top): a real system
     // notification too, so you see it anyway (notifications: off / sound only skip it)
-    const mode = this.settings.data.notifications?.mode ?? "both";
-    if ((mode === "both" || mode === "visual") && (document.hidden || !document.hasFocus())) {
+    const n = this.settings.data.notifications;
+    if (n.system && (document.hidden || !document.hasFocus())) {
       const title = kind === "error" ? "ICEBREAKER · error" : kind === "warning" ? "ICEBREAKER · warning" : "ICEBREAKER";
       void this.platform.notify?.(title, text).catch(() => {});
     }
@@ -607,7 +677,10 @@ export class Deck implements InputSink {
     if (!title?.trim()) return;
     if (folder === "notes") return void this.act(`note ${title.trim()}`);
     const path = join(folder, `${slugify(title)}.md`);
-    if (!(await this.vault.exists(path))) await this.vault.write(path, `# ${title.trim()}\n\n`);
+    if (!(await this.vault.exists(path))) {
+      await this.vault.write(path, `# ${title.trim()}\n\n`);
+      this.vault.recordCreated(path);
+    }
     await this.openFile(path);
   }
 
@@ -625,8 +698,11 @@ export class Deck implements InputSink {
       // effects are per theme: keep this one's, bring back the next one's
       this.rememberFx(prev);
       this.fxSwitching = true;
-      this.settings.set("appearance.theme", name);
-      this.recallFx(name);
+      // one ⌘Z brings the old theme back, with its effects
+      this.history.group(`theme ${name}`, () => {
+        this.settings.set("appearance.theme", name);
+        this.recallFx(name);
+      });
       this.fxSwitching = false;
     }
     this.refreshTheme();
@@ -723,6 +799,71 @@ export class Deck implements InputSink {
     // the pace of frames: the screen's (vsync), or the user's cap; 0 = no animations
     const a = this.settings.data.appearance;
     this.loop.configure({ maxFps: a.vsync ? 0 : Math.max(0, Math.min(240, a.maxFps)), timed: !a.vsync, frozen: !a.vsync && a.maxFps === 0, slow: !!a.reduceMotion });
+    // letters fade in as they appear (not with reduce animations, nor with no animations at all)
+    this.renderer.fadeMs = a.fadeIn !== false && !a.reduceMotion && !(!a.vsync && a.maxFps === 0) ? 110 : 0;
+    this.requestFrame();
+  }
+
+  /** A setting put back by ⌘Z: whoever uses it hears about it, like after `config set`. */
+  private reverted(path: string): void {
+    this.applySettings(path);
+    if (path === "moduleSettings")
+      for (const [id, fns] of this.moduleSettingListeners)
+        for (const [key, value] of Object.entries(this.settings.data.moduleSettings?.[id] ?? {})) for (const fn of fns) fn(key, value);
+  }
+
+  /** What an undo step was, in words: a setting's own name (as in Settings), else a plain phrase. */
+  private undoLabel(label: string): string {
+    const PLAIN: Record<string, string> = {
+      "home.widgets": "the HOME layout",
+      "home.widgetConfig": "a widget's settings",
+      "home.links": "the shortcut squares",
+      "panel.widgets": "the side panel",
+      "panel.tops": "the side panel's layout",
+      "panel.heights": "a panel widget's size",
+      "panel.shown": "the side panel",
+      "keys": "your shortcuts",
+      "keyOverrides": "a shortcut",
+      "menu.keys": "a key on THE MENU",
+      "favorites": "the pins",
+    };
+    if (PLAIN[label]) return t(PLAIN[label]);
+    const row = this.prefs.rows().find((r) => r.key === label);
+    if (row?.label) return t(row.label);
+    // "trash notes/x.md", "rename …", "new …", "theme e-ink": already words
+    return label.replace(/^(trash|rename|new|theme) /, (_m, w: string) => `${t(w)} `);
+  }
+
+  /** The mixer (Settings → SOUND): each channel's volume, 0-100 → 0-1. */
+  private applyMix(): void {
+    const mix = this.settings.data.sound.mix;
+    for (const ch of SOUND_CHANNELS) this.sound.mix[ch] = Math.max(0, Math.min(100, mix?.[ch] ?? 100)) / 100;
+  }
+
+  /**
+   * Your own keys click, if you want (settings.sound.typing, off by default; the
+   * theme's pack colours it): a click to type, another sound to erase. Played on
+   * the key going down (core/input.ts onKeyPress), so it lands with your finger.
+   */
+  private typingSound(kind: "type" | "erase" | "enter"): void {
+    if (!this.settings.data.sound.typing) return;
+    this.sound.play(kind === "erase" ? "erase" : "key");
+  }
+
+  /** ⌘Z (redo: ⌘⇧Z): the last thing done anywhere, taken back — with a word on screen. */
+  async undoLast(redo = false): Promise<void> {
+    let label: string | undefined;
+    try {
+      label = redo ? await this.history.redo() : await this.history.undo();
+    } catch (e) {
+      // e.g. the file was already brought back from the TRASH page
+      this.notify(`${t(redo ? "can't redo" : "can't undo")}: ${e instanceof Error ? e.message : e}`, "error");
+      return;
+    }
+    if (label) {
+      this.sound.play("back");
+      this.notify(`${redo ? "↷ " + t("redone") : "↶ " + t("undone")}: ${this.undoLabel(label)}`);
+    } else this.notify(t(redo ? "nothing to redo" : "nothing to undo"));
     this.requestFrame();
   }
 
@@ -735,12 +876,18 @@ export class Deck implements InputSink {
     else if (key === "appearance.fontWeight" || key === "appearance.fontSize" || key === "appearance.scale") void this.applyFont();
     else if (key === "journal.folder") this.vault.journalFolder = s.journal.folder;
     else if (key === "user.handle") this.shell.exec.env.USER = s.user.handle;
-    else if (key.startsWith("fx") || ["appearance.maxFps", "appearance.vsync", "appearance.brightness", "appearance.reduceMotion"].includes(key)) this.applyFx();
-    else if (key.startsWith("sound.")) {
+    else if (key.startsWith("fx") || ["appearance.maxFps", "appearance.vsync", "appearance.brightness", "appearance.reduceMotion", "appearance.fadeIn"].includes(key)) this.applyFx();
+    else if (key === "sound.packByTheme") {
+      this.sound.setPack(this.soundPack(), this.theme.sound.pitch);
+      void this.reloadSounds();
+    } else if (key.startsWith("sound.")) {
       this.sound.enabled = s.sound.enabled && !s.sound.muted;
       this.sound.volume = s.sound.volume / 100;
+      this.applyMix();
       if (s.sound.muted) this.voice.stop();
-      this.sound.play("confirm");
+      // a fader moved: hear that channel (Settings → SOUND → mixer)
+      const sample: Record<string, SoundName> = { "sound.mix.text": "blip", "sound.mix.typing": "key", "sound.mix.alerts": "notify", "sound.mix.boot": "unlock", "sound.typing": "key" };
+      this.sound.play(sample[key] ?? "confirm");
     }
     this.requestFrame();
   }
@@ -782,10 +929,18 @@ export class Deck implements InputSink {
   }
 
   /** (Re)load custom sounds from .icebreaker/sounds. Returns how many were found. */
+  /** Sound packs made of files, in <vault>/.icebreaker/sounds/packs/<id>/ (docs/SOUND_PACKS.md). */
+  soundFolderPacks: string[] = [];
+
   async reloadSounds(): Promise<number> {
     const rb = this.platform.vault.readBytes;
     if (!rb) return 0;
-    return this.sound.loadCustom(async (p) => ((await this.vault.exists(p).catch(() => false)) ? rb(p) : null));
+    const packsDir = ".icebreaker/sounds/packs";
+    this.soundFolderPacks = (await this.vault.exists(packsDir).catch(() => false)) ? (await this.vault.list(packsDir)).filter((e) => e.isDir).map((e) => e.name) : [];
+    const pack = this.soundPack();
+    // your own sounds, then the pack's files on top (what a pack doesn't have stays synthesized)
+    const dirs = [".icebreaker/sounds", ...(this.soundFolderPacks.includes(pack) ? [`${packsDir}/${pack}`] : [])];
+    return this.sound.loadCustom(async (p) => ((await this.vault.exists(p).catch(() => false)) ? rb(p) : null), dirs);
   }
 
   /**
@@ -794,14 +949,12 @@ export class Deck implements InputSink {
    * reads it when it's on. Modules call it through ib.ui.alert.
    */
   alert(title: string, body = "", topic: VoiceTopic = "reminders"): void {
-    const mode = this.settings.data.notifications?.mode ?? "both";
-    const hear = mode === "both" || mode === "sound", see = mode === "both" || mode === "visual";
-    if (hear) this.sound.play("alert");
-    if (see) {
-      this.workspace.notify(body ? `${title} — ${body}` : title, "warning");
-      void this.platform.notify?.(title, body).catch((e) => console.warn("[notify]", e));
-    }
-    if (hear) this.speak(topic, body ? `${title}. ${body}` : title);
+    // one box each in Settings → NOTIFICATIONS
+    const n = this.settings.data.notifications;
+    if (n.sound) this.sound.play("alert");
+    if (n.screen) this.workspace.notify(body ? `${title} — ${body}` : title, "warning");
+    if (n.system && (!n.systemOnlyAway || document.hidden || !document.hasFocus())) void this.platform.notify?.(title, body).catch((e) => console.warn("[notify]", e));
+    if (n.voice) this.speak(topic, body ? `${title}. ${body}` : title);
   }
 
   /**
@@ -816,35 +969,7 @@ export class Deck implements InputSink {
     if (wanted) this.voice.say(text);
   }
 
-  /**
-   * The things the voice can announce on its own, checked every 20 s (cheap; the
-   * system stats only when that topic is on): the time at :00 and :30, a CPU or
-   * memory overload (two checks in a row above 90 %, then quiet for 10 min).
-   */
-  private watchForVoice(): void {
-    let lastSlot = "";
-    let hot = 0, warnedAt = 0;
-    setInterval(() => {
-      const v = this.settings.data.voice;
-      if (!v.enabled) return;
-      const now = new Date();
-      const m = now.getMinutes();
-      const slot = `${now.getHours()}:${m < 30 ? "00" : "30"}`;
-      if ((m === 0 || m === 30) && slot !== lastSlot) {
-        lastSlot = slot;
-        this.speak("time", t("it's {time}", { time: now.toLocaleTimeString(this.settings.data.user.locale || undefined, { hour: "2-digit", minute: "2-digit" }) }));
-      }
-      if (v.speak?.system === false || !this.platform.system) return;
-      void this.platform.system.stats().then((st) => {
-        const mem = st.memTotal ? (st.memUsed / st.memTotal) * 100 : 0;
-        hot = st.cpu >= 90 || mem >= 90 ? hot + 1 : 0;
-        if (hot >= 2 && Date.now() - warnedAt > 10 * 60_000) {
-          warnedAt = Date.now();
-          this.speak("system", st.cpu >= 90 ? t("warning: CPU at {n} percent", { n: Math.round(st.cpu) }) : t("warning: memory at {n} percent", { n: Math.round(mem) }));
-        }
-      }).catch(() => {});
-    }, 20_000);
-  }
+
 
   /** "Welcome, netrunner": once per start, when the desktop appears (voice.greet). */
   private greeted = false;
@@ -887,6 +1012,7 @@ export class Deck implements InputSink {
     else all[this.theme.name] = pack;
     this.settings.set("sound.packByTheme", all);
     this.sound.setPack(this.soundPack(), this.theme.sound.pitch);
+    void this.reloadSounds(); // a pack made of files: load them (another pack: they go)
   }
 
   /** A page or tab change: themes with an eink / wipe / fade transition play it (glitch stays for big moments). */
@@ -923,7 +1049,7 @@ export class Deck implements InputSink {
     if (min > 0 && performance.now() - this.lastActivity > min * 60_000 && !this.boot && !this.workspace.overlays.length) this.screensaver();
   }
 
-  /** Everything the command palette can do. */
+  /** Everything THE MENU can search. */
   paletteEntries(): PaletteAction[] {
     const out: PaletteAction[] = [...this.actions.list()];
     for (const spec of this.apps.list()) {

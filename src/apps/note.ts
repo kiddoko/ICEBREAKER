@@ -1,3 +1,4 @@
+import { editMenu } from "../workspace/menus";
 import type { Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
@@ -130,20 +131,20 @@ export class NoteApp implements App {
     const { line, col } = ed.cursor;
     const link = linkAt(ed.lines[line] ?? "", col);
     const pinned = (d.settings.data.favorites ?? []).some((f) => f.target === this.path);
-    const m = d.workspace.editMenu();
+    const m = editMenu(d.workspace);
     for (const e of m) if (e !== "-" && (e.label === t("copy") || e.label === t("cut"))) e.disabled = !hasSel;
     return [
       ...m,
       "-",
-      { label: t("undo"), run: () => ed.undo(), hint: "⌘Z" },
-      { label: t("redo"), run: () => ed.redo(), hint: "⇧⌘Z" },
-      ...(link ? ["-" as const, { label: /^https?:/.test(link) ? t("copy the link") : t("follow the link"), run: () => (/^https?:/.test(link) ? copyToClipboard(link) : void this.followLink()), hint: "⌘⏎" }] : []),
+      { label: t("Undo"), run: () => ed.undo(), hint: "⌘Z" },
+      { label: t("Redo"), run: () => ed.redo(), hint: "⇧⌘Z" },
+      ...(link ? ["-" as const, { label: /^https?:/.test(link) ? t("Copy link") : t("Follow link"), run: () => (/^https?:/.test(link) ? copyToClipboard(link) : void this.followLink()), hint: "⌘⏎" }] : []),
       "-",
-      { label: t("save"), run: () => this.save().then(() => d.notify(`saved ${this.path}`, "success")), hint: "⌘S", disabled: !this.dirty() },
-      { label: pinned ? t("unpin") : t("pin"), cmd: `${pinned ? "unpin" : "pin"} ${q(this.path)}` },
-      { label: t("show in the tree"), run: () => { d.workspace.sidebar.reveal(this.path); } },
-      { label: t("copy path"), run: () => (copyToClipboard(this.path), d.notify(t("path copied"))) },
-      ...(this.path.endsWith(".md") ? [{ label: t("copy [[link]]"), run: () => (copyToClipboard(`[[${basename(this.path, ".md")}]]`), d.notify(t("link copied"))) }] : []),
+      { label: t("Save"), run: () => this.save().then(() => d.notify(`saved ${this.path}`, "success")), hint: "⌘S", disabled: !this.dirty() },
+      { label: pinned ? t("Unpin") : t("Pin"), cmd: `${pinned ? "unpin" : "pin"} ${q(this.path)}` },
+      { label: t("Reveal in tree"), run: () => { d.workspace.sidebar.reveal(this.path); } },
+      { label: t("Copy path"), run: () => (copyToClipboard(this.path), d.notify(t("path copied"))) },
+      ...(this.path.endsWith(".md") ? [{ label: t("Copy link"), tip: t("a [[link]] to paste in a note"), run: () => (copyToClipboard(`[[${basename(this.path, ".md")}]]`), d.notify(t("link copied"))) }] : []),
     ];
   }
 

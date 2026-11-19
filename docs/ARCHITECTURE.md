@@ -35,10 +35,10 @@ src-tauri/src/     the native side, one file per area (see §8)
 
 | Folder | Files worth knowing |
 |---|---|
-| `core/` | `grid.ts` cells · `renderer.ts` paints them · `loop.ts` frames on demand · `input.ts` keys/mouse/gestures · `gamepad.ts` pad + the RB action wheel · `settings.ts` **every setting and its default** · `theme.ts` TOML themes · `shortcuts.ts` the shortcut table (some keys are bound right there: `global`) · `sound.ts` synthesized UI sounds, packs · `voice.ts` · `errors.ts` error codes · `i18n.ts` + `i18n-fr.ts` · `avatar.ts` profile icons · `time.ts` `ago()` · `fxlevels.ts` effect strengths · `stealth.ts` the offline guard |
+| `core/` | `grid.ts` cells · `renderer.ts` paints them · `loop.ts` frames on demand · `input.ts` keys/mouse/gestures · `gamepad.ts` pad (hold RB: THE MENU) · `settings.ts` **every setting and its default** · `theme.ts` TOML themes · `shortcuts.ts` the shortcut table (some keys are bound right there: `global`) · `sound.ts` synthesized UI sounds, packs · `voice.ts` · `errors.ts` error codes · `i18n.ts` + `i18n-fr.ts` · `avatar.ts` profile icons · `time.ts` `ago()` · `fxlevels.ts` effect strengths · `stealth.ts` the offline guard · `prefs.ts` **the settings registry** (every row, the deck's and the modules', with its kind and its way back to default) · `catalog.ts` **the catalog**: everything the deck can do as blocks (commands, actions, shortcuts, settings, functions, widgets, apps, themes, modules) |
 | `ui/` | `ui.ts` the `UI` class (text, box, fill, button, **hit**) · `list.ts` `ListView` (selection, scroll, drag & drop, wheel hook) · `editor.ts` text editing · `slider.ts` sliders + `askNumber` · `wheelspin.ts` the wheel/trackpad feel of rings (`WheelSpin`: a critically damped spring, `ring()`) · `filterbar.ts` **the** search + colours bar (`FilterBar`) every list of things uses · `markdown.ts`, `chatview.ts`, `bigtext.ts`, `dots.ts` |
-| `workspace/` | `workspace.ts` layout + routing + top/status bars + shell panel · `sidebar.ts` the tree · `sidepanel.ts` the right panel · `overlays.ts` palette, prompt, choose, confirm, toasts, on-screen keyboard · `contextmenu.ts` right-click menus · `keycapture.ts` "press the keys" dialog · `actionwheel.ts` the action wheel · `avatarpicker.ts` · `widgetpicker.ts`, `widgetpopup.ts` · `fxpanel.ts` · `filebrowser.ts` **the** little file browser (a vault folder, or picking a file on the computer) · `lock.ts` login · `boot.ts` · `favorites.ts` pins |
-| `apps/` | `types.ts` the `App` interface · `home.ts` the widget grid · `note.ts` editor · `settings.ts` (+ `settings-help.ts` one sentence per setting) · `modules.ts` the shard ring · `explorer.ts` NEXUS · `trash.ts` · `shortcuts.ts` · `store.ts` · `setup.ts` · `terminal.ts` · weather / clocks / focus / journal / sysmon / studio / link / help |
+| `workspace/` | `workspace.ts` layout, tabs, focus, input routing · `chrome.ts` the frame around the page: top bar, tabs, status bar, shell panel, tips, subtitles · `sidebar.ts` the tree · `sidepanel.ts` the right panel · `overlays.ts` prompt, choose, confirm, toasts, on-screen keyboard · `quickmenu.ts` **THE MENU** (⌘K / shift twice: search everything, or a key + enter) · `contextmenu.ts` right-click menus · `keycapture.ts` "press the keys" dialog · `avatarpicker.ts` · `widgetpicker.ts`, `widgetpopup.ts` · `fxpanel.ts` · `filebrowser.ts` **the** little file browser (a vault folder, or picking a file on the computer) · `lock.ts` login · `boot.ts` · `favorites.ts` pins |
+| `apps/` | `types.ts` the `App` interface · `home.ts` the widget grid · `note.ts` editor · `settings.ts` draws the settings (its rows come from `settings-rows.ts` through `deck.prefs`; `settings-help.ts` one sentence per setting) · `blocks.ts` the BLOCKS page (the catalog) · `modules.ts` the shard ring · `explorer.ts` NEXUS · `trash.ts` · `shortcuts.ts` · `store.ts` · `setup.ts` · `terminal.ts` · weather / clocks / focus / journal / sysmon / studio / link / help |
 | `widgets/` | `types.ts` `WidgetSpec` · `builtin.ts` core widgets · `extra.ts` more · `links.ts` 1×1 shortcut squares · `popups.ts` widget pop-ups · shared state in dependency-free files (`clockstate.ts`, `focusstate.ts`) |
 | `shell/` | `shell.ts` ibsh · `parser.ts` (pipes, `;` `&&` `\|\|`, quotes) · `exec.ts` · `commands/*.ts` every command, by area · `systerm.ts` your real shell in a PTY · `terminal.ts` the terminal emulator |
 | `vault/` | `vault.ts` (cached entries, events `changed` / `renamed` / `trashed`, trash log) · `marks.ts` colour tags & icons · `journal.ts` · `paths.ts` · `starthere.ts` the START HERE notes |
@@ -50,12 +50,19 @@ src-tauri/src/     the native side, one file per area (see §8)
 
 `main.ts` → `new Deck(platform)` → `deck.start()`:
 
+0. **who's logged in?** The native side remembers the account unlocked in this
+   run of the app (`account_session`). Nobody → `Deck.startLogin()`: the login
+   page alone (`workspace/lock.ts`), with default settings (read-only) and the
+   look of the last account (`core/device.ts`, device.json) — no vault, no
+   module. Logging in or making an account unlocks it natively, then the page
+   reloads and starts again as that account. Logging out (`lockNow`) saves,
+   locks natively and reloads.
 1. stealth guard, theme + font (so the boot screen already looks right);
-2. the boot screen's lines are real steps: settings, **vault mount**, user themes,
-   **account** (login?), sounds, AI detection, `registerCore()` (core commands,
-   apps, widgets, the 1×1 squares), plugins, STATS;
+2. the boot screen's lines are real steps: the account's settings, **its vault
+   mount** (a new account gets its own folder), user themes, sounds, AI detection,
+   `registerCore()` (core commands, apps, widgets, the 1×1 squares), plugins, STATS;
 3. the session comes back (`Workspace.restoreSession`: tabs, open folders);
-4. login screen if there's an account (`workspace/lock.ts`), else the greeting.
+4. the greeting (and the setup, the first time an account logs in).
 
 ---
 
@@ -112,7 +119,17 @@ next file replaces (`Workspace.previewNote`).
 `core/input.ts` turns DOM events into `KeyInput`, text and `MouseInput` (cell
 `x`, `y`, and `fx` — the x with the fraction of a cell, used by sliders);
 `core/gamepad.ts` turns the Gamepad API into `Action`s (`up`, `confirm`, `back`…)
-and holding RB into the action wheel.
+and holding RB into THE MENU.
+
+**THE MENU** (`workspace/quickmenu.ts`) is the one place to do anything: ⌘K
+(ctrl+K), shift pressed twice (`InputManager.onDoubleShift`: works anywhere, even
+in a note or a terminal), holding RB or Y. Typing searches everything (commands,
+notes, apps, themes — `Deck.paletteEntries()`); empty, it shows the menu keys of
+the things you use most, and a key + enter runs it (m ⏎ = MODULES: the exact
+key always comes first, so nothing fires by itself). Menu keys come from the
+shortcut table (`menuKey`), then modules (`PaletteAction.key`, only if free),
+then the user's own (`settings.keys` `"menu g"`). It replaced the command palette
+and the gamepad's action wheel.
 
 Routing (`workspace/workspace.ts`):
 
@@ -149,10 +166,28 @@ paste work like in any native app.
   vault. `rm` moves to `.trash/` (and the trash log remembers where things lived);
   writes are atomic (temp file + rename). Files dragged in from the Finder /
   Explorer go through `vault_import` (copies, never overwrites).
-- **Settings** (`core/settings.ts`) — `settings.json` / `secrets.json` in the OS
-  config folder. Every key is reachable with `config set a.b value`.
+- **Accounts** (`src-tauri/src/account.rs`) — `accounts.json` (names + Argon2id
+  hashes) in the OS config folder; each account's own files in `users/<id>/`:
+  `settings.json`, `secrets.json`, `google.json`. The native side only reads and
+  writes the files of the account unlocked (`config.rs`), so an account can't see
+  another's settings. `device.json` (the deck's own) only holds the login page's
+  look. A new account needs an existing one's name + password (they all run as
+  the same computer user: a new one could otherwise open a terminal).
+- **Settings** (`core/settings.ts`) — the unlocked account's `settings.json` /
+  `secrets.json`. Every key is reachable with `config set a.b value`.
   > ⚠️ **Every key must exist in `DEFAULT_SETTINGS`.** `settings.set()` throws on
   > an unknown key — add the default with the type, even for an empty record.
+- **Undo** (`core/undo.ts`, `deck.history`) — one history for ⌘Z / ⌘⇧Z. The
+  settings store records every `set()` (except `session`, `setup`, `vault`,
+  `plugins`, `fxByTheme`), merging quick changes to one key (a slider, a drag)
+  into one step; the vault records trash and renames, `vault.recordCreated(path)`
+  a new file. Anything else: `deck.history.record({ label, undo, redo })`;
+  several changes as one step: `history.group(label, fn)`; automatic changes that
+  shouldn't be undone: `history.quiet(fn)`. The workspace gives ⌘Z to the focused
+  pane first (a note's editor has its own), then to the history.
+- **The guided tour** (`workspace/tour.ts`) — an overlay: a list of steps, each
+  lighting a part of the screen (`ws.rects`) while UPLINK's bubble explains.
+  Starts after the setup and with `tour`; puts the tree, shell and panel back.
 - **Module data** — `ib.storage` (a JSON file per module in the vault),
   `ib.settings` (rows in Settings), Google data in the config folder (never the vault).
 - **Themes** (`core/theme.ts`) — TOML, merged over the default theme.
@@ -182,6 +217,12 @@ same name, add it to `CORE_IN_TERMINAL` (`shell/systerm.ts`), like `reboot` and 
 `onKey` / `onText` / `onAction` / `menu`), export an `AppSpec`, register it in
 `Deck.registerCore()`. Make it a page (no tab) by adding its kind to `Workspace.PAGES`.
 
+**Finding anything** — `deck.catalog` (`core/catalog.ts`) reads every registry and
+describes each thing the same way: kind, id, name, one line of doc, who provides it,
+how to call it. The BLOCKS page, `catalog <kind> [words] [--json]` and
+`ib.catalog.list()` are three views of it. A new kind of thing = a registry + one
+`case` in `Catalog.of()`.
+
 **Calling another part** — modules and the deck's own parts expose functions
 (`plugins/services.ts`, `plugins/core-services.ts`, `plugins/frame-services.ts`):
 `deck.use("tree").reveal(path)`, `deck.use("todo").add("…")` — in a module,
@@ -195,7 +236,13 @@ the voice may say it (Settings → VOICE → say aloud). Add a topic to `VoiceTo
 
 **A widget** — a `WidgetSpec` (`widgets/types.ts`): `size`, `min`, optional `max`,
 `render`, and `popup` / `activate` / `open` for what Enter does. `clickActivates`
-makes one click run `activate` (the 1×1 squares).
+makes one click run `activate` (the 1×1 squares). A widget can be placed several
+times (HOME and the side panel): each copy has a key (`"clock"`, `"clock#2"`) in
+`ctx.key`; read a copy's own settings with `widgetConfig(deck, ctx.key, name,
+fallback)` and change them with `setWidgetSetting` (`widgets/instances.ts`) —
+the copy whose pop-up is open (or that's selected) is the one a command changes.
+HOME places widgets exactly where they're put (no gravity); edit mode is the
+workspace's (`ws.editing`), shared by HOME and the side panel.
 
 **An overlay** (a dialog, a menu) — implement `Overlay` (`workspace/overlays.ts`)
 and `deck.workspace.push(new MyOverlay(…))`. Set `done = true` to close.
@@ -203,18 +250,29 @@ and `deck.workspace.push(new MyOverlay(…))`. Set `done = true` to close.
 **A shortcut** — a line in `core/shortcuts.ts` (it shows on the SHORTCUTS page).
 With an `id`, `cmd` and `global: true`, the key works everywhere with no other
 code, and the user can change it (`settings.keyOverrides[id]`, `keys set`, F2 on
-the SHORTCUTS page). Without a `cmd`, add its function to `Workspace.keyActions`.
-Pick the letter that says what it does.
+the SHORTCUTS page, Settings → KEYS). Without a `cmd`, add its function to
+`Workspace.keyActions`. Pick the letter that says what it does. `menuKey: "x"` (and
+`short`, a short name) puts it on THE MENU too: x, then enter.
 
-**A setting** — its default in `DEFAULT_SETTINGS`, a row in `apps/settings.ts`
-(`toggle`, `cycle`, `slide`, `text`, or a custom row), one sentence in
-`apps/settings-help.ts` (English + French).
+**A setting** — its default in `DEFAULT_SETTINGS`, a row in `apps/settings-rows.ts` (rows reach the page through `deck.prefs`; a module's come from `ib.settings.register`)
+(`toggle`, `cycle`, `slide`, `text`, or a custom row with a `kind`: toggle ·
+choice · text · action · slider · info), one sentence in `apps/settings-help.ts`
+(English + French). Keep the value short: the page shows the value on the right
+and its controls (‹ ›, ✎, ›, ↺) only on the row you're on; a changed row gets a
+▎ on the left, del puts it back, the button bottom right resets the category.
+
+**The docs in the vault** — \`src/vault/starthere.ts\` holds the notes every vault
+gets (START HERE/, FOR DEVELOPERS/). **Update them with every change the user can
+see.** They sync at every start: missing notes are written, untouched ones replaced
+by the new version, ones the user edited kept (\`starthere --force\` rewrites them).
 
 **A translation** — wrap UI text in `t("English")`, add the line to
 `core/i18n-fr.ts`. Missing keys simply show in English.
 
 **A theme / a module** — see [THEMES.md](THEMES.md) and [PLUGINS.md](PLUGINS.md);
-no rebuild needed.
+no rebuild needed. How to make them well (names, file layout, exposing an API
+others can build on, settings, data, a theme's contrast):
+[GUIDELINES.md](GUIDELINES.md).
 
 ---
 
@@ -233,14 +291,14 @@ pieces through `ib.lib` (`FilterBar`, `WheelSpin`, `ListView`…).
 - `settings.set()` throws on keys missing from `DEFAULT_SETTINGS` (see §5).
 - Modal overlays get raw keys, not Actions (see §4).
 - Hits: last registered wins (see §4).
-- **Import cycles**: `widgets/popups` ↔ `widgets/builtin` ↔ `widgets/extra`, and
+- **Import cycles** are forbidden (`tests/imports.test.ts` fails on one). Shared helpers go in small files that import nothing of theirs (`core/time.ts`, `ui/fileicon.ts`), lists of things are put together in an `index.ts` (`widgets/index.ts`). Watch
   apps ↔ widgets. Shared state goes in small dependency-free files
   (`widgets/clockstate.ts`, `core/time.ts`); apps don't import `widgets/popups`.
 - The browser preview (`npm run dev`) has no native side: no system terminal, no
   Google, no file drop, no real login. `window.deck` is exposed there for testing:
   `await deck.act("panel show")`, `deck.errors.list`…
 - Every UI action should be a shell command (`cmd` on hits, `deck.act()`): it's
-  how the history, macros, key bindings and the action wheel can reuse it.
+  how the history, macros, key bindings and THE MENU can reuse it.
 
 ---
 
@@ -253,7 +311,7 @@ pieces through `ib.lib` (`FilterBar`, `WheelSpin`, `ListView`…).
 | `term.rs` | the PTY (your shell) and the bridge that lets it run deck commands; shell hooks for zsh, bash, fish, PowerShell |
 | `files.rs` | read-only access to the computer for the deck's file picker |
 | `config.rs` | settings and secrets files |
-| `account.rs` | the optional login (password hash) |
+| `account.rs` | the accounts: Argon2id hashes, the unlocked one (session), each one's folder of settings |
 | `voice.rs` | text to speech (sherpa-onnx / piper, system voices) |
 | `media.rs`, `audio.rs` | what's playing (Spotify…), local music |
 | `google.rs` | Google OAuth (PKCE) and the Calendar API |
@@ -275,6 +333,12 @@ drives the Claude Code CLI; `ai/ollama.ts` talks to a local Ollama.
 ---
 
 ## 11. Checking your work, releasing
+
+`npm run check` = the types (`tsc`), the tests' types, then the unit tests
+(`vitest`, in `tests/`: shortcuts, the shell parser, settings and their
+migrations, the command registry, the scroll glide, the module audit, and **no
+import cycles**). Add a test with each fix you can test without a screen.
+`cd src-tauri && cargo test` checks the native side (the vault's walls).
 
 ```bash
 npm run check          # types (also covers plugins/)

@@ -4,9 +4,10 @@ import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import { drawBackground } from "../fx/backgrounds";
-import { dots } from "../ui/dots";
+import { perspectiveFloor } from "../ui/floor";
 import { ring, WheelSpin } from "../ui/wheelspin";
 import { FilterBar } from "../ui/filterbar";
+import { pageBar } from "../ui/pagebar";
 import { tagRGB, type TagColor } from "../vault/marks";
 import { decrypt } from "../fx/glitch";
 import type { VaultEntry } from "../platform/types";
@@ -247,68 +248,34 @@ export class ExplorerApp implements App {
     const t = ui.theme;
     drawBackground(ui, sky, { ...t, background: { ...t.background, effect: "rain", density: 0.3 + warp, speed: 1 + warp * 4, color: mix(c.bg, c.accent, 0.2 + warp * 0.25), color2: mix(c.bg, c.accentAlt, 0.5), glyphs: t.anim.noise } }, 0.7);
 
-    // ── floor: a fine perspective grid (braille dots: continuous thin lines) ──
+    // ── floor: the shared perspective grid (the same as MODULES') ──
     const cx = r.x + r.w / 2;
-    const depthRows = Math.max(1, floorBottom - horizon);
-    ui.hline(r.x, horizon, r.w, { fg: mix(c.bg, c.accent, 0.4) }, "─");
-    const floorR = { x: r.x, y: horizon + 1, w: r.w, h: depthRows };
-    const A = ui.cellAspect;
-    const vx = (cx - r.x) * A; // vanishing point x, in cell-height units
-    const spacing = Math.max(2.5, (r.w * A) / 16); // rail spacing at the bottom edge
-    const travel = this.travel;
-    // a quiet floor: it's the stage, not the show
-    const near = mix(c.bg, c.accent, 0.36), far = mix(c.bg, c.accent, 0.14);
-    dots(ui, floorR, [far, near], (X, Y) => {
-      const k = (Y + 0.5) / (depthRows + 0.5); // 0 at the horizon → 1 at the bottom
-      if (k <= 0.02) return 0;
-      // rails converge on the vanishing point
-      const off = (X - vx) / (spacing * k);
-      const rail = Math.abs(off - Math.round(off)) * spacing * k < 0.07 + k * 0.05;
-      // cross lines: evenly spaced in depth, scrolling toward you
-      const z = 1 / k + travel * 3;
-      const cross = k > 0.08 && Math.abs(z - Math.round(z)) < Math.min(0.12, 0.022 / k);
-      if (!rail && !cross) return 0;
-      return k > 0.45 ? 2 : 1;
-    });
+    perspectiveFloor(ui, { x: r.x, y: horizon, w: r.w, h: floorBottom - horizon + 1 }, cx, this.travel);
 
-    // ── breadcrumb ──
+    // ── the top of the page: where you are, the tools, the filter (the same bar as MODULES) ──
     const parts = this.dir ? this.dir.split("/") : [];
-    let bx = ui.text(r.x + 1, r.y, " ◈ vault ", { fg: c.panel, bg: c.accent, attrs: BOLD });
-    ui.hit({ x: r.x + 1, y: r.y, w: 9, h: 1 }, { onClick: () => this.go(""), tip: "back to the root" });
-    parts.forEach((p, i) => {
-      const path = parts.slice(0, i + 1).join("/");
-      bx = ui.text(bx, r.y, " / ", { fg: c.subtle });
-      const x0 = bx;
-      bx = ui.text(bx, r.y, p, { fg: i === parts.length - 1 ? c.accent : c.muted, attrs: i === parts.length - 1 ? BOLD : 0 });
-      ui.hit({ x: x0, y: r.y, w: bx - x0, h: 1 }, { onClick: () => this.go(path) });
+    const counts: Partial<Record<TagColor, number>> = {};
+    for (const tc of Object.values(this.deck.marks.tags)) counts[tc] = (counts[tc] ?? 0) + 1;
+    pageBar(ui, r, {
+      crumbs: [{ label: "◈ vault", go: () => this.go(""), tip: "back to the root" }, ...parts.map((p, i) => ({ label: p, go: () => this.go(parts.slice(0, i + 1).join("/")) }))],
+      info: `${items.length} node${items.length === 1 ? "" : "s"}`,
+      tools: [
+        { label: "+ note", run: () => this.newNote(), tip: "new note here · +" },
+        { label: "+ folder", run: () => this.newFolder(), tip: "new folder here" },
+        { label: "⌕", run: () => this.search(), tip: "search the vault · /" },
+        { label: "✎", run: () => this.rename(), tip: "rename · F2" },
+        { label: "✕", run: () => this.trash(), tip: "to the trash · delete" },
+        { label: `⇅ ${this.sortBy}`, run: () => this.cycleSort(), tip: "sort: name · modified · size" },
+        { label: ":", run: () => this.actionMenu(), tip: "every action · : · pad menu" },
+      ],
+      filter: this.filter,
+      counts,
     });
-    // the toolbar: every action, one click away
-    let tx = r.x + r.w - 1;
-    const tools: [string, () => unknown, string][] = [
-      [" : ", () => this.actionMenu(), "every action · : · pad menu"],
-      [` ⇅ ${this.sortBy} `, () => this.cycleSort(), "sort: name · modified · size"],
-      [" ✕ ", () => this.trash(), "to the trash · delete"],
-      [" ✎ ", () => this.rename(), "rename · F2"],
-      [" ⌕ ", () => this.search(), "search the vault · /"],
-      [" + folder ", () => this.newFolder(), "new folder here"],
-      [" + note ", () => this.newNote(), "new note here · +"],
-    ];
-    for (const [label, run, tip] of tools) {
-      const w = label.length;
-      tx -= w;
-      const rect = { x: tx, y: r.y, w, h: 1 };
-      const hot = ui.hovered(rect);
-      ui.text(tx, r.y, label, hot ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: c.fg, bg: c.highlight });
-      ui.hit(rect, { onClick: () => void run(), tip });
-      tx -= 1;
-    }
-    if (tx - 12 > bx) ui.textRight(tx - 1, r.y, `${items.length} node${items.length === 1 ? "" : "s"} `, { fg: c.subtle });
 
     if (!items.length) {
       const on = this.filter.active;
       ui.textCenter(r, horizon + 2, on ? tr("nothing matches") : "empty sector", { fg: c.muted, attrs: BOLD });
       ui.textCenter(r, horizon + 3, on ? tr("esc clears the search · × shows everything") : "⌫ to back up", { fg: c.faint });
-      if (on) this.filter.render(ui, { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: 1 });
       return;
     }
 
@@ -347,10 +314,6 @@ export class ExplorerApp implements App {
     }
     for (const v of visible) this.drawNode(ui, r, v, horizon, floorBottom, focused);
 
-    // the filter bar (the same as MODULES'): search + colours
-    const counts: Partial<Record<TagColor, number>> = {};
-    for (const tc of Object.values(this.deck.marks.tags)) counts[tc] = (counts[tc] ?? 0) + 1;
-    this.filter.render(ui, { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: 1 }, counts);
 
     // ── data panel: the one in front ──
     if (previewH) this.drawData(ui, { x: r.x + 1, y: floorBottom + 1, w: r.w - 2, h: previewH }, items[this.sel]);

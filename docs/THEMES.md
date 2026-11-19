@@ -1,5 +1,11 @@
 # Themes
 
+> Sounds: a theme picks a synthesized pack in `[sound]`; a pack made of your own
+> audio files is described in [SOUND_PACKS.md](SOUND_PACKS.md).
+
+> What makes a theme good (contrast, one accent, works without effects, what to
+> test): [GUIDELINES.md](GUIDELINES.md#a-theme).
+
 A theme is one TOML file. Built-in ones live in [`/themes`](../themes);
 yours go in `<vault>/.icebreaker/themes/`.
 

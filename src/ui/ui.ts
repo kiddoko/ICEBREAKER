@@ -1,4 +1,5 @@
-import { gradient as sampleGradient, NONE, type RGB } from "../core/color";
+import { gradient as sampleGradient, mix, NONE, type RGB } from "../core/color";
+import { keySpans } from "./keycaps";
 import { BOLD, Grid, type Rect, type Style } from "../core/grid";
 import type { MouseInput } from "../core/input";
 import type { Theme } from "../core/theme";
@@ -17,6 +18,8 @@ export interface MenuItem {
   run?: () => void | Promise<void>;
   /** Shown on the right: a shortcut ("⌘C") or a hint. */
   hint?: string;
+  /** What it does, in a few words: shown when the mouse is on it (the label stays short). */
+  tip?: string;
   /** Red: deletes or destroys something. */
   danger?: boolean;
   disabled?: boolean;
@@ -56,6 +59,8 @@ export interface Hit {
   /** Nothing under it gets the mouse (modal backdrops, pop-ups). */
   block?: boolean;
 }
+
+const NO_KEYS: [number, number][] = [];
 
 const BORDERS: Record<string, { tl: string; tr: string; bl: string; br: string; h: string; v: string; hb?: string }> = {
   round: { tl: "╭", tr: "╮", bl: "╰", br: "╯", h: "─", v: "│" },
@@ -105,6 +110,15 @@ export class UI {
   /** Cell width ÷ cell height (≈0.5): use it to draw round things (see ui/dots.ts). */
   cellAspect = 0.5;
   private wake = Infinity;
+  /**
+   * Text too long for its room scrolls by itself — under the mouse, and inside
+   * this zone (a list's selected row sets it while it's drawn): after a short
+   * pause it runs like a ticker, then starts again. Everywhere, for free: any
+   * ui.text with a maxW does it.
+   */
+  marqueeZone: Rect | null = null;
+  private marquees = new Map<string, number>();
+  private marqueesSeen = new Set<string>();
 
   begin(grid: Grid, theme: Theme, now: number, mouse: { x: number; y: number }): void {
     this.grid = grid;
@@ -114,6 +128,10 @@ export class UI {
     this.hits = [];
     this.caret = null;
     this.wake = Infinity;
+    this.marqueeZone = null;
+    // a text that wasn't drawn scrolling last frame starts from its beginning next time
+    for (const k of this.marquees.keys()) if (!this.marqueesSeen.has(k)) this.marquees.delete(k);
+    this.marqueesSeen.clear();
     grid.clear(theme.c.fg, theme.c.bg);
   }
 
@@ -147,16 +165,62 @@ export class UI {
    * `maxW` truncates with an ellipsis.
    */
   text(x: number, y: number, s: string, style: Style = {}, maxW?: number): number {
-    if (maxW !== undefined) s = truncate(s, maxW);
+    if (maxW !== undefined) s = maxW > 4 && strWidth(s) > maxW && this.marqueeHere(x, y, maxW) ? this.scrolled(x, y, s, maxW) : truncate(s, maxW);
     const fg = style.fg ?? this.c.fg;
     const bg = style.bg ?? NONE;
     const attrs = style.attrs ?? 0;
+    // the shortcuts in it sit on little keys (ui/keycaps.ts); the width doesn't change
+    const keys = style.raw || !this.keycaps ? NO_KEYS : style.key ? [[0, [...s].length] as [number, number]] : keySpans(s);
+    if (!keys.length) {
+      for (const ch of s) {
+        const cp = ch.codePointAt(0)!;
+        if (cp === 10 || cp === 13) continue;
+        x += this.grid.set(x, y, cp === 9 ? 32 : cp, fg, bg, attrs);
+      }
+      return x;
+    }
+    // on a coloured strip (a selected line, a band): a lighter patch of that colour;
+    // on the theme's own backgrounds: the accent's key, bright text
+    const c = this.c;
+    const onColour = bg !== NONE && bg !== c.bg && bg !== c.panel && bg !== c.panelAlt && bg !== c.highlight;
+    const keyBg = onColour ? mix(bg, fg, 0.22) : mix(c.accent, bg !== NONE ? bg : c.panel, 0.72);
+    const keyFg = onColour ? fg : c.fg;
+    let i = 0, k = 0;
     for (const ch of s) {
       const cp = ch.codePointAt(0)!;
+      while (k < keys.length && i >= keys[k][1]) k++;
+      const inKey = k < keys.length && i >= keys[k][0];
+      i++;
       if (cp === 10 || cp === 13) continue;
-      x += this.grid.set(x, y, cp === 9 ? 32 : cp, fg, bg, attrs);
+      x += this.grid.set(x, y, cp === 9 ? 32 : cp, inKey ? keyFg : fg, inKey ? keyBg : bg, inKey ? attrs | BOLD : attrs);
     }
     return x;
+  }
+
+  /** shortcuts drawn as keycaps (off while drawing content that isn't interface) */
+  keycaps = true;
+
+  /** Is this text's room under the mouse, or in the marquee zone? */
+  private marqueeHere(x: number, y: number, w: number): boolean {
+    const m = this.mouse, z = this.marqueeZone;
+    return (m.y === y && m.x >= x && m.x < x + w) || (!!z && y >= z.y && y < z.y + z.h && x >= z.x && x < z.x + z.w);
+  }
+
+  /** The window of a too-long text to show now: still for 0.9 s, then it runs. */
+  private scrolled(x: number, y: number, s: string, w: number): string {
+    const key = `${x},${y},${s}`;
+    this.marqueesSeen.add(key);
+    let since = this.marquees.get(key);
+    if (since === undefined) this.marquees.set(key, (since = this.now));
+    const t = this.now - since - 900;
+    if (t <= 0) {
+      this.animate(Math.max(16, -t));
+      return truncate(s, w);
+    }
+    this.animate(110);
+    const loop = [...`${s}     ·     `];
+    const off = Math.floor(t / 110) % loop.length;
+    return truncate([...loop.slice(off), ...loop.slice(0, off)].join(""), w, "");
   }
 
   /** Text centered horizontally inside a rect row. */

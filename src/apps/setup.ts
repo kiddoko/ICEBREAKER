@@ -1,3 +1,4 @@
+import { slider } from "../ui/slider";
 import { mix } from "../core/color";
 import { LANGS, setLang, t } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
@@ -5,10 +6,10 @@ import type { Action, KeyInput } from "../core/input";
 import { geocode, type Place } from "../core/location";
 import type { Deck } from "../deck";
 import { decrypt } from "../fx/glitch";
+import { typed } from "../ui/typewriter";
 import { q, type UI } from "../ui/ui";
-import { strWidth, truncate } from "../core/unicode";
-import { LAYOUT_PRESETS } from "../widgets/builtin";
-import { applyFxPreset } from "../workspace/fxpanel";
+import { easeOut, strWidth, truncate, wrapWords } from "../core/unicode";
+import { applyFxPreset, FX_PRESET_NAMES, FX_PRESETS } from "../workspace/fxpanel";
 import type { App, AppSpec } from "./types";
 
 interface Option { value: string; label: string; hint?: string }
@@ -16,16 +17,37 @@ interface Step {
   id: string;
   title: string;
   question: string;
-  /** Text steps take typed input; choice steps a pick from `options`. */
+  /** Text steps take typed input; choice steps a pick from `options`; slider steps a number. */
   text?: { placeholder: string; mask?: boolean };
+  slider?: { min: number; max: number; start: number };
   options?: () => Option[];
   skip?: () => boolean;
 }
 
+/** The questions come in chapters (the bar at the top): the step ids of each. */
+const CHAPTERS: { name: string; steps: string[] }[] = [
+  { name: "SIGNAL", steps: ["language", "intro", "mode"] },
+  { name: "IDENTITY", steps: ["handle", "gender", "gender-other"] },
+  { name: "SYSTEM", steps: ["terminal", "vault", "vault-path"] },
+  { name: "WORLD", steps: ["locale", "precision", "place", "ai", "calendar"] },
+  { name: "LOOK", steps: ["voice", "theme", "fx", "sound", "notifications"] },
+  { name: "READY", steps: ["done"] },
+];
+const chapterOf = (id: string) => Math.max(0, CHAPTERS.findIndex((c) => c.steps.includes(id)));
+
+/** 0→1 that starts fast and lands softly */
+
 /**
  * First-run questionnaire: who you are, where you are (as precisely as you
  * like), which AI, which HOME, how much eye candy. Everything can be changed
- * later in Settings; run it again with Ctrl+K → "Setup".
+ * later in Settings; run it again with ⌘K → "Setup".
+ *
+ * On a wide screen, the left column is the deck writing down your answers as
+ * you go (click one to go back to it); the right one is the question. Fast:
+ * 1-9 picks, tab skips a question, ctrl+enter finishes with the defaults.
+ *
+ * It runs the first time an account logs in (each account has its own
+ * settings and vault), and again from ⌘K → "Setup".
  */
 export class SetupApp implements App {
   readonly kind = "setup";
@@ -37,14 +59,19 @@ export class SetupApp implements App {
   private busy = false;
   private error = "";
   private places: Place[] = [];
+  /** digits typed for an option number (10, 11… need two) */
+  private digits = "";
+  private digitsAt = 0;
+  /** the last blip of the sound slider (not one per step: it would buzz) */
+  private blipAt = 0;
   private a: Record<string, string> = {};
-  /** First password entry, kept only until the confirmation (never in `a`). */
-  private pw = "";
   private readonly steps: Step[];
 
   constructor(private readonly deck: Deck) {
     const s = deck.settings.data;
-    this.a = { handle: s.user.handle, locale: s.user.locale, precision: s.user.location.precision };
+    // a new account: what the deck calls you starts as its name
+    const handle = s.user.handle === "netrunner" && deck.account ? deck.account : s.user.handle;
+    this.a = { handle, locale: s.user.locale, precision: s.user.location.precision };
     this.steps = [
       {
         id: "language", title: "LANGUAGE · LANGUE",
@@ -73,18 +100,6 @@ export class SetupApp implements App {
         ],
       },
       { id: "gender-other", title: "PROFILE", question: "Your word for it (optional, enter to skip):", text: { placeholder: "" }, skip: () => this.a.gender !== "other" },
-      {
-        id: "lock", title: "ACCESS",
-        question: "Lock the deck with a login? The password is hashed (Argon2id) and never stored. It locks the app — your notes stay plain Markdown files on disk.",
-        options: () => [
-          { value: "create", label: "Create a login", hint: "name + password at every start" },
-          { value: "none", label: "No login", hint: "add one later: account create" },
-        ],
-        skip: () => !!deck.account,
-      },
-      { id: "acct-user", title: "ACCOUNT", question: "Account name:", text: { placeholder: "" }, skip: () => !!deck.account || this.a.lock !== "create" },
-      { id: "acct-pass", title: "PASSWORD", question: "Choose a password (8 characters or more). There is no recovery: if you forget it, you'll have to delete the login file.", text: { placeholder: t("8 characters or more"), mask: true }, skip: () => !!deck.account || this.a.lock !== "create" },
-      { id: "acct-pass2", title: "PASSWORD", question: "Type it again:", text: { placeholder: "same password", mask: true }, skip: () => !!deck.account || this.a.lock !== "create" },
       {
         id: "terminal", title: "TERMINAL",
         question: "The shell panel can be your real terminal (zsh, bash…) with ICEBREAKER's commands added — ssh, git, vim, everything works. Or ICEBREAKER's own shell, limited to the vault.",
@@ -143,54 +158,26 @@ export class SetupApp implements App {
       },
       {
         id: "voice", title: "VOICE",
-        question: "Give the deck a voice? Synthesized on this computer, through a robot filter: clearly a machine, still smooth. It can greet you and read LINK's answers.",
+        question: "Give the deck a voice? Made on this computer, through a robot filter: clearly a machine, still smooth. Its language, its engine and what it says: Settings → VOICE.",
         options: () => [
-          { value: "read", label: "Yes — greet me and read the AI's answers" },
-          { value: "greet", label: "Yes — just the greeting" },
+          { value: "on", label: "Yes, a voice", hint: "it greets you; the rest in Settings → VOICE" },
           { value: "off", label: "No voice", hint: "voice on, any time" },
         ],
         skip: () => !deck.platform.voice,
       },
       {
-        id: "voice-lang", title: "VOICE",
-        question: "Which language should the voice speak?",
-        options: () => [...LANGS.map((l) => ({ value: l.id, label: l.name })), { value: "ja", label: "日本語", hint: "Japanese, always — the cyberpunk option" }],
-        skip: () => !deck.platform.voice || this.a.voice === "off" || !this.a.voice,
-      },
-      {
-        id: "voice-engine", title: "VOICE",
-        question: "Which voice? The neural voice is open source (piper voices), light and natural before the robot filter; it's a one-time download of about 85 MB. The system voice needs nothing.",
-        options: () => [
-          { value: "piper", label: "Download the neural voice", hint: "better — open source, offline after" },
-          { value: "system", label: "The system voice", hint: "no download" },
-        ],
-        skip: () => !deck.platform.voice || this.a.voice === "off" || !this.a.voice || this.a.mode === "stealth" || this.a["voice-lang"] === "ja",
-      },
-      {
         id: "theme", title: "LOOK",
-        question: "A theme to start with (theme set <name> or theme studio any time).",
+        question: "A theme to start with: one click shows it on the whole deck, a second click (or enter) keeps it.",
         options: () =>
           deck.themes.list().map((th) => ({ value: th.name, label: th.name, hint: `${th.font.family} · ${th.description}` })),
       },
       {
-        id: "home", title: "HOME", question: "Pick a starting dashboard. Press e on HOME to rearrange, a to add widgets.",
-        options: () => [
-          { value: "essentials", label: "Essentials", hint: "clock, weather, calendar, system, notes" },
-          { value: "productivity", label: "Productivity", hint: "tasks, focus timer, streak, news" },
-          { value: "gadget", label: "Gadget", hint: "uplink, moon, world clock, quotes" },
-        ],
+        id: "fx", title: "EYE CANDY", question: "How much CRT? Each one shows on the whole deck as you move to it; enter (or a second click) keeps it. The ✦ fx button changes it any time.",
+        options: () => FX_PRESET_NAMES.map((p) => ({ value: p, label: p, hint: FX_PRESETS[p].hint })),
       },
       {
-        id: "fx", title: "EYE CANDY", question: "How much CRT do you want?",
-        options: () => [
-          { value: "minimal", label: "Minimal", hint: "crisp, light animations" },
-          { value: "max", label: "Full CRT", hint: "bloom, scanlines, flicker" },
-          { value: "potato", label: "Potato", hint: "no effects, for old laptops" },
-        ],
-      },
-      {
-        id: "sound", title: "SOUND", question: "UI sounds? (blips and clicks of an old OS doing its best — replaceable, see docs)",
-        options: () => [{ value: "on", label: "On" }, { value: "off", label: "Off" }],
+        id: "sound", title: "SOUND", question: "How loud are the interface's sounds? (blips and clicks of an old OS doing its best — 0 is off)",
+        slider: { min: 0, max: 100, start: 50 },
       },
       {
         id: "notifications", title: "NOTIFICATIONS", question: "Reminders and modules can call you. How?",
@@ -210,7 +197,7 @@ export class SetupApp implements App {
   }
 
   status(): string {
-    return t(this.cur.text ? "type · enter next · esc back" : "1-9 or ↑↓ choose · enter next · esc back");
+    return t(this.cur.text ? "type · enter next · tab skip · esc back · ctrl+enter finish" : this.cur.slider ? "←→ or drag · enter next · tab skip · esc back · ctrl+enter finish" : "a number, ↑↓ or a click chooses · enter or a 2nd click keeps · tab skip · esc back");
   }
 
   private get cur(): Step {
@@ -223,11 +210,33 @@ export class SetupApp implements App {
     return this.cur.options?.() ?? [];
   }
 
-  /** On the theme step, the deck wears the theme under the cursor. */
+  /** The effects as they were before the EYE CANDY step tried presets on (put back if none is kept). */
+  private fxBefore: string | null = null;
+
+  /** On the theme and EYE CANDY steps, the deck wears what's under the cursor. */
   private preview(): void {
-    if (this.cur.id !== "theme") return;
     const o = this.options()[this.sel];
-    if (o && this.deck.theme.name !== o.value) this.deck.setTheme(o.value);
+    if (this.cur.id === "theme") {
+      if (o && this.deck.theme.name !== o.value) this.deck.setTheme(o.value);
+    } else if (this.cur.id === "fx") {
+      this.fxBefore ??= JSON.stringify(this.deck.settings.data.fx);
+      if (o) applyFxPreset(this.deck, o.value);
+    } else this.fxBack();
+  }
+
+  /** Left EYE CANDY without choosing: the effects you had. */
+  private fxBack(): void {
+    if (this.fxBefore === null || this.a.fx) return;
+    this.deck.settings.set("fx", JSON.parse(this.fxBefore));
+    this.fxBefore = null;
+    this.deck.applyFx();
+  }
+
+  /** Back to an answered question (a click in the log). */
+  private jumpTo(i: number): void {
+    if (i >= this.step || this.steps[i]?.skip?.()) return;
+    this.step = i + 1;
+    this.go(-1);
   }
 
   private go(dir: 1 | -1): void {
@@ -241,6 +250,7 @@ export class SetupApp implements App {
     const st = this.cur;
     this.input = "";
     const opts = this.options();
+    if (st.slider) this.a[st.id] ??= String(st.id === "sound" && this.deck.settings.data.sound.enabled ? this.deck.settings.data.sound.volume : st.slider.start);
     this.sel = Math.max(0, opts.findIndex((o) => o.value === (this.a[st.id] ?? (st.id === "theme" ? this.deck.theme.name : undefined))));
     this.preview();
   }
@@ -249,16 +259,11 @@ export class SetupApp implements App {
     const st = this.cur;
     if (this.busy) return;
     if (st.id === "place") return this.submitPlace();
-    if (st.id === "acct-pass") {
-      if (this.input.length < 8) return void (this.error = t("8 characters or more"));
-      this.pw = this.input;
-      return this.go(1);
-    }
-    if (st.id === "acct-pass2") return this.createAccount();
     if (st.text) {
       this.a[st.id] = this.input.trim() || this.placeholder(st);
       return this.go(1);
     }
+    if (st.slider) return this.go(1);
     const o = this.options()[this.sel];
     if (!o) return;
     this.a[st.id] = o.value;
@@ -275,32 +280,7 @@ export class SetupApp implements App {
   /** Typing replaces the suggestion; enter on empty keeps it. */
   private placeholder(st: Step): string {
     if (st.id === "handle") return this.a.handle || "netrunner";
-    if (st.id === "acct-user") return this.a["acct-user"] || this.a.handle || "netrunner";
     return t(st.text?.placeholder ?? "");
-  }
-
-  private async createAccount(): Promise<void> {
-    if (this.input !== this.pw) {
-      this.pw = "";
-      this.go(-1);
-      this.error = t("they didn't match — choose it again");
-      return;
-    }
-    this.busy = true;
-    try {
-      const user = (this.a["acct-user"] || this.a.handle || "netrunner").trim();
-      await this.deck.platform.account.create(user, this.pw);
-      this.deck.account = await this.deck.platform.account.status();
-      this.deck.sound.play("unlock");
-      this.go(1);
-    } catch (e) {
-      this.error = e instanceof Error ? e.message : String(e);
-    } finally {
-      this.pw = "";
-      this.input = "";
-      this.busy = false;
-      this.deck.requestFrame();
-    }
   }
 
   private async submitPlace(): Promise<void> {
@@ -333,38 +313,44 @@ export class SetupApp implements App {
 
   private finish(skipped: boolean): void {
     const set = (k: string, v: unknown) => this.deck.settings.set(k, v);
+    this.fxBack();
     if (!skipped) {
       set("user.handle", this.a.handle || "netrunner");
       set("user.locale", this.a.locale ?? "");
       if (this.a.precision === "none") set("user.location", { precision: "none", name: "", country: "", lat: null, lon: null });
       if (this.a.ai && this.a.ai !== "keep") set("ai.provider", this.a.ai);
-      if (this.a.home) set("home.widgets", LAYOUT_PRESETS[this.a.home as keyof typeof LAYOUT_PRESETS]);
-      if (this.a.fx) applyFxPreset(this.deck, this.a.fx as "minimal" | "max" | "potato");
-      if (this.a.sound) set("sound.enabled", this.a.sound === "on");
-      if (this.a.notifications) set("notifications.mode", this.a.notifications);
+      if (this.a.fx) applyFxPreset(this.deck, this.a.fx);
+      if (this.a.sound !== undefined) {
+        const v = Number(this.a.sound);
+        set("sound.enabled", v > 0);
+        if (v > 0) set("sound.volume", v);
+      }
+      if (this.a.notifications) {
+        const hear = this.a.notifications === "both" || this.a.notifications === "sound", see = this.a.notifications === "both" || this.a.notifications === "visual";
+        set("notifications.screen", see), set("notifications.system", see), set("notifications.sound", hear), set("notifications.voice", hear);
+      }
       if (this.a.terminal) set("shell.mode", this.a.terminal);
       // modules are configured through their commands, like everything else
       if (this.a.calendar === "local") void this.deck.act("cal mode local");
       if (this.a.calendar === "google") void this.deck.act("cal mode google");
-      set("user.language", this.a.language || "en");
+      set("user.language", this.a.language || this.deck.settings.data.user.language || "en");
       set("user.gender", this.a.gender ?? "");
       set("user.genderOther", this.a.gender === "other" ? (this.a["gender-other"] ?? "") : "");
       void this.deck.act(`stealth ${this.a.mode === "stealth" ? "on" : "off"}`);
       if (this.a.theme) void this.deck.act(`theme set ${this.a.theme}`);
-      if (this.a.voice && this.a.voice !== "off") {
+      if (this.a.voice === "on") {
         void (async () => {
           await this.deck.act("voice on");
-          await this.deck.act(`voice read ${this.a.voice === "read" ? "on" : "off"}`);
           await this.deck.act("voice greet on");
-          const vl = this.a["voice-lang"] || this.a.language || "en";
-          await this.deck.act(`voice language ${vl}`);
-          if (this.a["voice-engine"] === "piper") await this.deck.act(`voice install ${vl}`);
+          await this.deck.act(`voice language ${this.a.language || "en"}`);
           await this.deck.act("voice test");
         })();
       } else if (this.a.voice === "off") void this.deck.act("voice off");
       if (this.a.vault === "other" && this.a["vault-path"]) void this.deck.act(`vault mount ${q(this.a["vault-path"])}`);
     }
     set("setup.done", true);
+    // the answers aren't something to ⌘Z (the acts above finish a moment later)
+    setTimeout(() => this.deck.history.clear(), 1500);
     const ws = this.deck.workspace;
     const i = ws.tabs.indexOf(this);
     if (i >= 0) ws.tabs.splice(i, 1);
@@ -372,9 +358,10 @@ export class SetupApp implements App {
     this.deck.openApp("home");
     // then the Welcome note opens on top (HOME stays the first tab): where to start
     // (a moment later, so a vault mounted just now is there)
+    // the guided tour (workspace/tour.ts), then the Welcome note
     if (!skipped)
       setTimeout(() => {
-        void this.deck.vault.exists("Welcome.md").then((ok) => (ok ? this.deck.openFile("Welcome.md") : undefined));
+        this.deck.workspace.tour(() => void this.deck.vault.exists("Welcome.md").then((ok) => (ok ? this.deck.openFile("Welcome.md") : undefined)));
       }, 1200);
     this.deck.notify(skipped ? t("setup skipped — ctrl+k → Setup to run it later") : t("welcome, {handle}", { handle: this.a.handle || "netrunner" }), "success");
   }
@@ -382,11 +369,18 @@ export class SetupApp implements App {
   onText(t: string): boolean {
     if (this.busy) return true;
     if (!this.cur.text || this.places.length) {
-      // quick answers: 1-9 picks an option
-      const n = Number(t);
-      if (/^[1-9]$/.test(t) && n <= this.options().length) {
+      // quick answers: a number picks an option (more than 9: type both digits — it
+      // shows that one, enter keeps it)
+      if (!/^[0-9]$/.test(t)) return true;
+      const now = performance.now();
+      this.digits = now - this.digitsAt < 700 ? this.digits + t : t;
+      this.digitsAt = now;
+      const n = Number(this.digits), count = this.options().length;
+      if (n >= 1 && n <= count) {
         this.sel = n - 1;
-        void this.next();
+        this.preview();
+        this.deck.sound.play("move");
+        if (count < 10) void this.next();
       }
       return true;
     }
@@ -401,6 +395,9 @@ export class SetupApp implements App {
   }
 
   onKey(k: KeyInput): boolean {
+    // fast: tab skips the question (its default stays), ctrl+enter finishes with the defaults
+    if (k.combo === "tab" && this.cur.id !== "done") return this.go(1), true;
+    if (k.combo === "ctrl+enter" && !this.busy) return this.finish(false), true;
     if (this.cur.text && !this.places.length && k.combo === "backspace") {
       this.input = this.input.slice(0, -1);
       return true;
@@ -408,7 +405,25 @@ export class SetupApp implements App {
     return false;
   }
 
+  /** The sound step's value moved: hear it (at most ~8 blips a second). */
+  private setSound(v: number): void {
+    const st = this.cur;
+    if (!st.slider) return;
+    v = Math.max(st.slider.min, Math.min(st.slider.max, Math.round(v)));
+    if (String(v) === this.a[st.id]) return;
+    this.a[st.id] = String(v);
+    this.deck.sound.volume = v / 100;
+    this.deck.sound.enabled = v > 0;
+    const now = performance.now();
+    if (v > 0 && now - this.blipAt > 120) {
+      this.blipAt = now;
+      this.deck.sound.play("tick");
+    }
+  }
+
   onAction(a: Action): boolean {
+    const st = this.cur;
+    if (st.slider && (a === "left" || a === "right")) return this.setSound(Number(this.a[st.id]) + (a === "left" ? -5 : 5)), true;
     const n = this.options().length;
     switch (a) {
       case "up": this.sel = (this.sel - 1 + Math.max(1, n)) % Math.max(1, n); this.preview(); return true;
@@ -422,76 +437,163 @@ export class SetupApp implements App {
     }
   }
 
+  /** What the log shows for an answered question. */
+  private answerOf(st: Step): string {
+    const v = this.a[st.id];
+    if (v === undefined) return "";
+    if (st.text) return v || "—";
+    const o = st.options?.().find((x) => x.value === v);
+    return o ? (st.id === "theme" || st.id === "language" || st.id === "voice-lang" ? o.label : t(o.label)) : v || "—";
+  }
+
   render(ui: UI, r: Rect, focused: boolean): void {
     const c = ui.c;
     const st = this.cur;
-    const w = Math.min(72, r.w - 4);
-    const x = r.x + Math.floor((r.w - w) / 2);
-    let y = r.y + Math.max(1, Math.floor(r.h * 0.18));
-    // progress: one dot per step
-    const dots = this.steps.map((_, i) => (i < this.step ? "━━" : i === this.step ? "██" : "──")).join(" ");
-    ui.textCenter(r, y, dots, { fg: c.accent });
-    y += 2;
     const age = performance.now() - this.stepAt;
-    const p = Math.min(1, age / 500);
-    if (p < 1) ui.animate(30);
-    const title = t(st.title);
-    ui.textCenter(r, y, `▸ ${p < 1 ? decrypt(title, p, ui.now) : title} ◂`, { fg: c.accent, attrs: BOLD });
+    if (age < 600) ui.animate(16);
+
+    // ── top: the chapters, and how far along ───────────────────────────────
+    let y = r.y + 1;
+    const brand = "◢◤ ICEBREAKER // SETUP";
+    ui.text(r.x + 2, y, brand, { fg: c.accent, attrs: BOLD });
+    if (this.deck.account) ui.text(r.x + 3 + strWidth(brand), y, `· ${this.deck.account}`, { fg: c.title });
+    const cur = chapterOf(st.id);
+    let cx = r.x + r.w - 2;
+    for (let k = CHAPTERS.length - 1; k >= 0; k--) {
+      const name = t(CHAPTERS[k].name);
+      const label = k < cur ? `✓ ${name}` : name;
+      cx -= strWidth(label);
+      ui.text(cx, y, label, { fg: k === cur ? c.accent : k < cur ? c.subtle : c.faint, attrs: k === cur ? BOLD : 0 });
+      if (k) (cx -= 3), ui.text(cx, y, " ─ ", { fg: c.faint });
+    }
+    y += 1;
+    const visible = this.steps.filter((s2) => !s2.skip?.());
+    const at = Math.max(0, visible.indexOf(st));
+    ui.bar(r.x + 2, y, r.w - 4, visible.length > 1 ? at / (visible.length - 1) : 1, c.accent, c.faint);
     y += 2;
-    let q = t(st.question, { vault: this.deck.vault.root });
-    if (st.id === "place") q = this.places.length ? t("Which one?") : this.a.precision === "precise" ? t("Coordinates (lat, lon):") : this.a.precision === "country" ? t("Which country?") : t("Which city?");
-    for (const line of wrap(q, w)) ui.textCenter(r, y++, line, { fg: c.fg });
-    y++;
+
+    // ── left: the deck writing your answers down (wide screens) ────────────
+    const logW = r.w >= 100 ? 34 : 0;
+    if (logW) {
+      const lx = r.x + 2;
+      ui.text(lx, y, t("// what you told the deck"), { fg: c.subtle });
+      let ly = y + 2;
+      const answered = this.steps.map((s2, i) => ({ s2, i })).filter(({ s2, i }) => i < this.step && !s2.skip?.() && this.answerOf(s2) !== "");
+      const fit = answered.slice(-Math.max(1, r.y + r.h - ly - 3));
+      for (const { s2, i } of fit) {
+        const row = { x: lx, y: ly, w: logW, h: 1 };
+        const hot = ui.hovered(row);
+        const name = t(s2.title).toLowerCase();
+        ui.text(lx, ly, `${hot ? "‹" : "›"} ${name}`, { fg: hot ? c.accent : c.muted }, logW - 12);
+        const val = truncate(this.answerOf(s2), 14);
+        const dotsFrom = lx + 2 + strWidth(name) + 1;
+        const valX = lx + logW - strWidth(val);
+        if (valX - dotsFrom > 1) ui.text(dotsFrom, ly, "·".repeat(valX - dotsFrom - 1), { fg: c.faint });
+        ui.text(valX, ly, val, { fg: c.accent, attrs: hot ? BOLD : 0 });
+        ui.hit(row, { onClick: () => this.jumpTo(i), tip: t("click: change it") });
+        ly++;
+      }
+      // the line being written: the cursor blinks there
+      ui.text(lx, ly, `▸ ${t(st.title).toLowerCase()}`, { fg: c.fg, attrs: BOLD }, logW - 2);
+      if (Math.floor(ui.now / 500) % 2) ui.text(lx + logW - 1, ly, "█", { fg: c.accent });
+      ui.animate(500);
+      ui.vline(lx + logW + 2, y, r.y + r.h - y - 2, { fg: c.faint }, "┊");
+    }
+
+    // ── right: the question, sliding in ─────────────────────────────────────
+    const area = { x: r.x + (logW ? logW + 6 : 2), w: r.w - (logW ? logW + 8 : 4) };
+    const w = Math.min(76, area.w);
+    const slide = Math.round((1 - easeOut(age / 220)) * 6);
+    const x = area.x + Math.floor((area.w - w) / 2) + slide;
+    const box = { x, y, w, h: Math.max(8, r.y + r.h - y - 2) };
+    const inner = ui.box(box, { title: age < 400 ? decrypt(t(st.title), age / 400, ui.now) : t(st.title), focused: true, bg: c.panel, info: `${at + 1}/${visible.length}` });
+    let iy = inner.y + 1;
+    let qText = t(st.question, { vault: this.deck.vault.root });
+    if (st.id === "place") qText = this.places.length ? t("Which one?") : this.a.precision === "precise" ? t("Coordinates (lat, lon):") : this.a.precision === "country" ? t("Which country?") : t("Which city?");
+    // the question types itself in, with its blips (ui/typewriter.ts: the text speed setting)
+    const qLines = wrapWords(qText, inner.w - 4);
+    const shownChars = typed(ui, `setup:${st.id}`, qText);
+    let used = 0;
+    for (const line of qLines) {
+      const part = line.slice(0, Math.max(0, shownChars - used));
+      used += line.length + 1;
+      ui.text(inner.x + 2, iy++, part, { fg: c.fg, bg: c.panel });
+    }
+    iy++;
     if (st.text && !this.places.length) {
-      const box = ui.box({ x, y, w, h: 3 }, { focused: true });
+      const fb = { x: inner.x + 2, y: iy, w: inner.w - 4, h: 1 };
+      ui.fill(fb, { bg: c.highlight });
       const shown = st.text.mask && this.input ? "•".repeat(this.input.length) : this.input || this.placeholder(st);
-      ui.text(box.x + 1, box.y, shown, { fg: this.input ? c.fg : c.faint }, box.w - 2);
-      if (focused) ui.cursor(box.x + 1 + Math.min(this.input.length, box.w - 3), box.y);
-      y += 4;
-      if (this.busy) ui.textCenter(r, y, `${ui.spinner()} ${st.id.startsWith("acct") ? t("hashing…") : t("locating…")}`, { fg: c.muted });
+      ui.text(fb.x + 1, iy, "❯", { fg: c.accent, bg: c.highlight, attrs: BOLD });
+      ui.text(fb.x + 3, iy, shown, { fg: this.input ? c.fg : c.faint, bg: c.highlight }, fb.w - 4);
+      if (focused) ui.cursor(fb.x + 3 + Math.min(strWidth(st.text.mask ? "•".repeat(this.input.length) : this.input), fb.w - 5), iy);
+      iy += 2;
+      if (this.busy) ui.text(inner.x + 2, iy, `${ui.spinner()} ${t("locating…")}`, { fg: c.muted, bg: c.panel });
+      else ui.text(inner.x + 2, iy, t("enter: keep the grey suggestion · type to replace it"), { fg: c.faint, bg: c.panel }, inner.w - 4);
+    } else if (st.slider) {
+      // a real slider: drag, click, ←→ by 5 — you hear the level as it moves
+      const v = Number(this.a[st.id] ?? st.slider.start);
+      slider(ui, { x: inner.x + 2, y: iy, w: inner.w - 4, h: 1 }, v, st.slider.min, st.slider.max, (nv) => this.setSound(nv), { zeroIsOff: true, tip: t("drag, click · ←→ by 5") });
+      iy += 2;
+      ui.text(inner.x + 2, iy, t("enter: keep it"), { fg: c.faint, bg: c.panel }, inner.w - 4);
     } else {
       this.options().forEach((o, i) => {
-        const row = { x, y, w, h: 1 };
+        // the options arrive one after the other
+        const appear = easeOut((age - 60 - i * 35) / 160);
+        if (appear <= 0) return ui.animate(16);
+        const row = { x: inner.x + 1, y: iy, w: inner.w - 2, h: 1 };
         const sel = i === this.sel;
         const hot = ui.hovered(row);
-        if (sel) ui.fill(row, { bg: mix(c.accent, c.bg, 0.82) });
-        ui.text(x + 1, y, sel ? "▶" : String(i + 1), { fg: sel ? c.accent : c.subtle, attrs: Math.floor(ui.now / 500) % 2 ? BOLD : 0 });
+        const bg = sel ? mix(c.accent, c.panel, 0.78) : hot ? c.highlight : c.panel;
+        ui.fill(row, { bg });
+        if (sel) {
+          // a light sweeps across the chosen line
+          const sweep = Math.floor(((ui.now % 1400) / 1400) * (row.w + 12)) - 6;
+          for (let k = 0; k < 4; k++) {
+            const sx = row.x + sweep + k;
+            if (sx >= row.x && sx < row.x + row.w) ui.fill({ x: sx, y: iy, w: 1, h: 1 }, { bg: mix(c.accent, c.panel, 0.6 + k * 0.05) });
+          }
+          ui.animate(33);
+        }
+        const fade = (col: typeof c.fg) => mix(c.panel, col, appear);
+        // the number (what 1-9 picks) in a column as wide as the biggest one
+        const numW = String(this.options().length).length;
+        ui.textRight(row.x + 1 + numW, iy, sel ? "▶" : String(i + 1), { fg: fade(sel ? c.accent : c.subtle), attrs: BOLD });
+        const lx = row.x + numW + 2;
         const label = st.id === "theme" || st.id === "language" || st.id === "voice-lang" ? o.label : t(o.label);
-        ui.text(x + 3, y, label, { fg: sel || hot ? c.accent : c.fg, bg: sel ? mix(c.accent, c.bg, 0.82) : undefined, attrs: sel ? BOLD : 0 });
-        const lx = x + 3 + strWidth(label) + 2;
-        let hx = x + w - 1;
+        ui.text(lx, iy, label, { fg: fade(sel || hot ? c.accent : c.fg), attrs: sel ? BOLD : 0 }, row.w - (lx - row.x) - 1);
+        const lend = lx + strWidth(label) + 2;
+        let hx = row.x + row.w - 1;
         if (st.id === "theme") {
           // its palette, as swatches
           const th = this.deck.themes.get(o.value);
           if (th) {
             hx -= 13;
-            [th.c.bg, th.c.panel, th.c.fg, th.c.accent, th.c.accentAlt, th.c.success].forEach((col, k) => ui.text(hx + 1 + k * 2, y, "██", { fg: col }));
+            [th.c.bg, th.c.panel, th.c.fg, th.c.accent, th.c.accentAlt, th.c.success].forEach((col, k) => ui.text(hx + 1 + k * 2, iy, "██", { fg: col }));
           }
         }
-        if (o.hint && hx - lx > 6) {
+        if (o.hint && hx - lend > 6 && (sel || hot || w >= 70)) {
           const hint = st.id === "theme" ? o.hint : t(o.hint);
-          ui.textRight(hx - 1, y, truncate(hint, hx - lx - 1), { fg: c.subtle, bg: sel ? mix(c.accent, c.bg, 0.82) : undefined });
+          ui.textRight(hx - 1, iy, truncate(hint, hx - lend - 1), { fg: fade(sel ? c.fg : c.subtle) });
         }
-        ui.hit(row, { onClick: () => { this.sel = i; void this.next(); } });
-        y++;
+        // one click chooses it (a theme shows at once), a click on the chosen one keeps it
+        ui.hit(row, { onClick: () => { if (this.sel === i) void this.next(); else { this.sel = i; this.preview(); this.deck.sound.play("move"); } }, tip: sel ? t("click again (or enter): keep it") : undefined });
+        iy++;
       });
-      if (this.cur.options) ui.animate(500);
     }
-    if (this.error) ui.textCenter(r, y + 1, `⚠ ${this.error}`, { fg: c.error });
+    if (this.error) ui.text(inner.x + 2, inner.y + inner.h - 2, `⚠ ${this.error}`, { fg: c.error, bg: c.panel }, inner.w - 4);
+    // the way out, always in the same place
+    const keys = st.text ? t("enter next · tab skip · esc back") : st.slider ? t("←→ · enter next · tab skip · esc back") : t("a number or a click chooses · enter (or a 2nd click) keeps · esc back");
+    // the button on the right, the keys in the room left of it
+    let keysRoom = inner.w - 4;
+    if (st.id !== "done") {
+      const fin = `${t("finish with the defaults")} ⌃⏎`;
+      const bx = inner.x + inner.w - strWidth(fin) - 3;
+      ui.button(bx, inner.y + inner.h - 1, fin, () => this.finish(false), { accent: c.subtle });
+      keysRoom = bx - inner.x - 4;
+    }
+    ui.text(inner.x + 2, inner.y + inner.h - 1, keys, { fg: c.faint, bg: c.panel }, keysRoom);
   }
-}
-
-function wrap(s: string, w: number): string[] {
-  const out: string[] = [];
-  let line = "";
-  for (const word of s.split(" ")) {
-    if ((line + " " + word).trim().length > w) {
-      out.push(line);
-      line = word;
-    } else line = (line + " " + word).trim();
-  }
-  if (line) out.push(line);
-  return out;
 }
 
 export const setupSpec: AppSpec = {

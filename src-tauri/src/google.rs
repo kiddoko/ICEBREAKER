@@ -62,9 +62,18 @@ pub struct GoogleStatus {
     connected: bool,
 }
 
+/// Each account has its own Google connection (users/<id>/google.json): only while it's unlocked.
 fn creds_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
-    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    use tauri::Manager;
+    let id = app.state::<crate::account::AccountState>().session().ok_or("locked: log in first")?;
+    let dir = crate::account::user_dir(app, &id)?;
+    // a Google connection from before accounts goes to the first account that uses it
+    let root = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    for name in ["google.json", "google-cache.json"] {
+        if root.join(name).exists() && !dir.join(name).exists() {
+            let _ = std::fs::rename(root.join(name), dir.join(name));
+        }
+    }
     Ok(dir.join("google.json"))
 }
 

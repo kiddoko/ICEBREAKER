@@ -7,6 +7,9 @@
  *   binary    BCD columns ●○ — hours, minutes, (seconds)
  *   minimal   just the time, big and quiet
  */
+import { strWidth } from "../core/unicode";
+import { bigText } from "../ui/bigtext";
+import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
 import type { RGB } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
 import type { Command } from "../shell/types";
@@ -18,6 +21,13 @@ export const CLOCK_STYLES = ["dots", "segment", "analog", "binary", "minimal"] a
 export type ClockStyle = (typeof CLOCK_STYLES)[number];
 
 const pad = (n: number) => String(n).padStart(2, "0");
+
+/** the segment face's small size: 2 lines a digit */
+const MINI: Record<string, string[]> = {
+  "0": ["█▀█", "█▄█"], "1": [" ▀█", "  █"], "2": ["▀▀█", "█▄▄"], "3": ["▀▀█", "▄▄█"], "4": ["█ █", "▀▀█"],
+  "5": ["█▀▀", "▄▄█"], "6": ["█▀▀", "█▄█"], "7": ["▀▀█", "  █"], "8": ["█▄█", "█▄█"], "9": ["█▀█", "▀▀█"],
+  ":": ["∙", "∙"], " ": [" ", " "],
+};
 
 const SEG: Record<string, string[]> = {
   "0": ["┏━┓", "┃ ┃", "┗━┛"],
@@ -64,11 +74,13 @@ class Braille {
   }
 }
 
-export function drawClock(ui: UI, r: Rect, deck: Deck, now = new Date()): void {
+/** `key`: which copy of the clock widget (each has its own face, widgets/instances.ts) */
+export function drawClock(ui: UI, r: Rect, deck: Deck, now = new Date(), key?: string): void {
   const c = ui.c;
   const h = deck.settings.data.home;
-  const style = (CLOCK_STYLES as readonly string[]).includes(h.clockStyle) ? (h.clockStyle as ClockStyle) : "dots";
-  const secs = !!h.clockSeconds;
+  const want = widgetConfig(deck, key, "style", h.clockStyle);
+  const style = (CLOCK_STYLES as readonly string[]).includes(want) ? (want as ClockStyle) : "dots";
+  const secs = !!widgetConfig(deck, key, "seconds", h.clockSeconds);
   const locale = deck.settings.data.user.locale || undefined;
   const date = now.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
   const grad = ui.theme.gradient.length ? ui.theme.gradient : [c.accent, c.accentAlt];
@@ -77,6 +89,15 @@ export function drawClock(ui: UI, r: Rect, deck: Deck, now = new Date()): void {
   const text = secs ? `${hh}:${mm}:${ss}` : `${hh}${blink}${mm}`;
   const showDate = (y: number) => y < r.y + r.h && ui.textCenter(r, y, date, { fg: c.muted });
   ui.animate(secs || style === "analog" ? Math.min(200, 1000 - (Date.now() % 1000)) : Math.min(500, 1000 - (Date.now() % 1000)));
+
+  if (style === "analog" && r.h < 3) {
+    // tiny: a quarter-dial glyph that turns with the hour, then the time
+    const q = ["◴", "◷", "◶", "◵"][Math.floor(((now.getHours() % 12) / 12) * 4)];
+    const line = `${q} ${text.replace(" ", ":")}`;
+    ui.textCenter(r, r.y + Math.floor((r.h - 1) / 2), line, { fg: c.accent, attrs: BOLD });
+    if (r.h >= 2) showDate(r.y + 1);
+    return;
+  }
 
   if (style === "analog") {
     // the dial fills the height; dots are square when a cell is twice as tall as wide
@@ -103,6 +124,19 @@ export function drawClock(ui: UI, r: Rect, deck: Deck, now = new Date()): void {
     if (secs) b.line(cx, cy, ...px((now.getSeconds() / 60) * Math.PI * 2, R * 0.9), 2);
     b.draw(ui, r.x + Math.floor((r.w - wCells) / 2), r.y, [c.subtle, c.accent, c.accentAlt]);
     if (r.h >= 6) showDate(r.y + rows);
+    return;
+  }
+
+  if (style === "binary" && r.h < 5) {
+    // small: each digit's 4 bits in one braille cell (top bit at the top), in a row
+    const digits = (secs ? `${hh}${mm}${ss}` : `${hh}${mm}`).split("").map(Number);
+    const rowMask = [0x01 | 0x08, 0x02 | 0x10, 0x04 | 0x20, 0x40 | 0x80];
+    const cells = digits.map((d) => String.fromCodePoint(0x2800 + rowMask.reduce((m, mask, bit) => ((d >> (3 - bit)) & 1 ? m | mask : m), 0)));
+    const line = cells.map((ch, i) => (i % 2 === 1 && i < cells.length - 1 ? `${ch} ` : ch)).join("");
+    const y = r.y + Math.max(0, Math.floor((r.h - (r.h >= 2 ? 2 : 1)) / 2));
+    const x = r.x + Math.floor((r.w - strWidth(line)) / 2);
+    [...line].forEach((ch, i) => ui.text(x + i, y, ch, { fg: grad[Math.min(grad.length - 1, Math.floor((i / line.length) * grad.length))], attrs: BOLD }));
+    if (r.h >= 2) ui.textCenter(r, y + 1, text.replace(" ", ":"), { fg: c.subtle });
     return;
   }
 
@@ -139,6 +173,21 @@ export function drawClock(ui: UI, r: Rect, deck: Deck, now = new Date()): void {
       if (r.h >= 5) showDate(top + 4);
       return;
     }
+    // smaller: the same digits in a 2-line font, then on one line
+    const miniW = chars.reduce((n, ch) => n + (MINI[ch]?.[0].length ?? 1) + 1, -1);
+    if (miniW <= r.w && r.h >= 2) {
+      const top = r.y + Math.max(0, Math.floor((r.h - 2 - (r.h >= 3 ? 1 : 0)) / 2));
+      let x = r.x + Math.floor((r.w - miniW) / 2);
+      for (const ch of chars) {
+        const g = MINI[ch] ?? MINI[" "];
+        g.forEach((row, i) => ui.text(x, top + i, row, { fg: grad[Math.min(grad.length - 1, i)], attrs: BOLD }));
+        x += g[0].length + 1;
+      }
+      if (r.h >= 3) showDate(top + 2);
+      return;
+    }
+    ui.textCenter(r, r.y + Math.floor((r.h - 1) / 2), `▐${text.replace(" ", ":")}▌`, { fg: c.accent, attrs: BOLD });
+    return;
   }
 
   if (style === "dots") {
@@ -159,6 +208,24 @@ export function drawClock(ui: UI, r: Rect, deck: Deck, now = new Date()): void {
         y++;
       }
       if (extra >= 2) showDate(y);
+      return;
+    }
+    // too small for the dot matrix: the digits in a row, dotted and in the theme's gradient
+    const line = [...text.replace(" ", ":")].map((ch) => (ch === ":" ? "∙" : ch)).join(" ");
+    const y = r.y + Math.max(0, Math.floor((r.h - (r.h >= 2 ? 2 : 1)) / 2));
+    const x = r.x + Math.max(0, Math.floor((r.w - strWidth(line)) / 2));
+    [...line].forEach((ch, i) => ui.text(x + i, y, ch, { fg: grad[Math.min(grad.length - 1, Math.floor((i / line.length) * grad.length))], attrs: BOLD }));
+    if (r.h >= 2) showDate(y + 1);
+    return;
+  }
+
+  // minimal, huge: the time in big letters when there's room
+  if (style === "minimal") {
+    const big = bigText(text.replace(" ", ":"));
+    if (big.length && r.h >= big.length + 2 && r.w >= Math.max(...big.map((l) => strWidth(l))) + 2) {
+      const top = r.y + Math.floor((r.h - big.length - 1) / 2);
+      big.forEach((l, i) => ui.textCenter(r, top + i, l, { fg: grad[Math.min(grad.length - 1, Math.floor((i / big.length) * grad.length))], attrs: BOLD }));
+      showDate(top + big.length);
       return;
     }
   }
@@ -182,18 +249,22 @@ export const clockCommand: Command = {
     const d = ctx.deck;
     const h = d.settings.data.home;
     const [sub, v] = ctx.args;
-    if (!sub) return ctx.out(`style ${h.clockStyle} · seconds ${h.clockSeconds ? "on" : "off"}\n`), 0;
+    // the copy whose pop-up is open (or that's selected) changes; else every clock without its own face
+    const key = widgetTarget("clock") ?? undefined;
+    const style = widgetConfig(d, key, "style", h.clockStyle);
+    const seconds = widgetConfig(d, key, "seconds", h.clockSeconds);
+    if (!sub) return ctx.out(`style ${style} · seconds ${seconds ? "on" : "off"}\n`), 0;
     if (sub === "style") {
-      const cur = (CLOCK_STYLES as readonly string[]).indexOf(h.clockStyle);
+      const cur = (CLOCK_STYLES as readonly string[]).indexOf(style);
       const next = v === "next" || !v ? CLOCK_STYLES[(cur + 1) % CLOCK_STYLES.length] : v;
       if (!(CLOCK_STYLES as readonly string[]).includes(next)) return ctx.err(`clock: styles are ${CLOCK_STYLES.join(", ")}\n`), 1;
-      d.settings.set("home.clockStyle", next);
+      setWidgetSetting(d, "clock", "style", next, "home.clockStyle");
       ctx.out(`clock style ${next}\n`);
       return 0;
     }
     if (sub === "seconds") {
-      const on = v === undefined ? !h.clockSeconds : v === "on" || v === "true" || v === "1";
-      d.settings.set("home.clockSeconds", on);
+      const on = v === undefined ? !seconds : v === "on" || v === "true" || v === "1";
+      setWidgetSetting(d, "clock", "seconds", on, "home.clockSeconds");
       ctx.out(`clock seconds ${on ? "on" : "off"}\n`);
       return 0;
     }

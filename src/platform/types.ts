@@ -58,8 +58,9 @@ export interface Platform {
   vault: VaultBackend;
   /** App config files (settings.json, secrets.json). */
   config: {
-    read(name: "settings.json" | "secrets.json"): Promise<string | null>;
-    write(name: "settings.json" | "secrets.json", content: string): Promise<void>;
+    /** settings.json, secrets.json: the unlocked account's (nothing while locked) · device.json: the deck's own */
+    read(name: "settings.json" | "secrets.json" | "device.json"): Promise<string | null>;
+    write(name: "settings.json" | "secrets.json" | "device.json", content: string): Promise<void>;
   };
   system: { stats(): Promise<SystemStats> };
   /** ANTHROPIC_API_KEY from the environment, if set. */
@@ -81,11 +82,20 @@ export interface Platform {
    * on the native side; the hash never comes back here (see account.rs).
    */
   account: {
-    /** Account name, or null when there's no lock. */
+    /** The unlocked account's name (null: locked). */
     status(): Promise<string | null>;
-    create(user: string, password: string): Promise<void>;
+    /** The account unlocked in this run of the app (survives a page reload), or null. */
+    session(): Promise<{ id: string; user: string } | null>;
+    /** How many accounts there are (0: the first one is made on the login screen). */
+    count(): Promise<number>;
+    /** A new account, unlocked at once. Every account after the first needs an existing one's name + password. */
+    create(user: string, password: string, approver?: string, approverPassword?: string): Promise<{ id: string; user: string }>;
+    /** Right name + password → that account is unlocked (its settings are the ones read and written). */
     verify(user: string, password: string): Promise<boolean>;
+    /** No account unlocked any more. */
+    lock(): Promise<void>;
     change(password: string, newUser: string, newPassword: string): Promise<void>;
+    /** Delete the unlocked account and its settings (its vault stays). */
     remove(password: string): Promise<void>;
   };
   /**

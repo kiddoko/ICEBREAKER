@@ -22,53 +22,43 @@ export const account: Command = {
   name: "account",
   interactive: true,
   examples: [
-    ["account create", "add a login"],
-    ["account passwd", "change it"],
-    ["lock", "lock now"],
+    ["account", "who you are"],
+    ["account passwd", "a new name or password"],
+    ["logout", "back to the login page (lock does the same)"],
   ],
   aliases: ["passwd"],
-  summary: "the deck login: create, change or remove it, lock now",
-  usage: "account            status\naccount create     add a login (name + password)\naccount passwd     change name / password\naccount remove     no more login\nlock               lock the deck now",
-  man: "The password is hashed with Argon2id on the native side and never stored or shown.\nIt locks the app; your notes stay plain Markdown files on disk.\nForgot it? Quit, delete account.json in the app's config folder, restart.",
-  complete: () => ["create", "passwd", "remove"],
+  summary: "your account: its name, its password, delete it · lock (log out)",
+  usage: "account            who you're logged in as\naccount passwd     a new name / password\naccount delete     delete this account and its settings (its vault, your notes, stays)\nlock               log out: back to the login page",
+  man: "Each account is its own deck: its settings, its theme, its vault. Accounts are made on the login page (+ new account, approved by an account of this deck).\nThe password is hashed with Argon2id on the native side and never stored or shown.\nForgot it? Quit, and remove that account from accounts.json in the app's config folder.",
+  complete: () => ["passwd", "delete"],
   async run(ctx) {
     const { deck } = ctx;
     const acc = deck.platform.account;
     const sub = ctx.args[0] ?? "";
     if (!sub) {
-      ctx.out(deck.account ? `login: ${fmt.bold(deck.account)} ${fmt.dim("(Argon2id · `account passwd` to change, `lock` to lock now)")}\n` : `no login ${fmt.dim("— `account create` to add one")}\n`);
+      ctx.out(`logged in as ${fmt.bold(deck.account ?? "?")} ${fmt.dim("· account passwd · lock to log out · new accounts: on the login page")}\n`);
       return 0;
     }
+    if (sub === "create") return ctx.err("account: new accounts are made on the login page (lock, then + new account)\n"), 1;
     if (!ctx.isTTY) return ctx.err("account: needs the terminal\n"), 1;
     try {
-      if (sub === "create") {
-        if (deck.account) return ctx.err("account: there's already one (account passwd to change it)\n"), 1;
-        const user = (await ctx.read("account name", { placeholder: deck.settings.data.user.handle }))?.trim();
-        if (user === undefined) return 130;
-        const pw = await newPassword(ctx);
-        if (!pw) return 130;
-        await acc.create(user || deck.settings.data.user.handle, pw);
-        deck.account = await acc.status();
-        ctx.out(`${fmt.green("✓")} login created for ${fmt.bold(deck.account ?? "")}\n`);
-        return 0;
-      }
-      if (!deck.account) return ctx.err("account: no login yet (account create)\n"), 1;
       const cur = await ctx.read("current password", { mask: true });
       if (cur === null) return 130;
       if (sub === "passwd") {
-        const user = (await ctx.read("account name", { placeholder: deck.account }))?.trim();
+        const user = (await ctx.read("account name", { placeholder: deck.account ?? "" }))?.trim();
         if (user === undefined) return 130;
         const pw = await newPassword(ctx);
         if (!pw) return 130;
-        await acc.change(cur, user || deck.account, pw);
+        await acc.change(cur, user || deck.account || "", pw);
         deck.account = await acc.status();
-        ctx.out(`${fmt.green("✓")} login updated\n`);
+        ctx.out(`${fmt.green("✓")} account updated\n`);
         return 0;
       }
-      if (sub === "remove") {
+      if (sub === "delete" || sub === "remove") {
+        if (!(await deck.confirm(`Delete the account ${deck.account}?`, "Its settings go for good. Its vault — your notes — stays where it is."))) return 1;
         await acc.remove(cur);
-        deck.account = null;
-        ctx.out(`${fmt.green("✓")} login removed — the deck opens without a password\n`);
+        ctx.out(`${fmt.green("✓")} account deleted\n`);
+        setTimeout(() => location.reload(), 600);
         return 0;
       }
       ctx.err(`account: unknown subcommand ${sub}\n`);
@@ -81,11 +71,10 @@ export const account: Command = {
 };
 
 export const lock: Command = {
-  name: "lock",
-  aliases: ["logout"],
-  summary: "log out of ICEBREAKER: back to the login screen (needs a login: account create)",
+  name: "logout",
+  aliases: ["lock"],
+  summary: "log out of ICEBREAKER: back to the login page",
   run(ctx) {
-    if (!ctx.deck.account) return ctx.err("lock: no login yet — account create\n"), 1;
     ctx.deck.lockNow();
   },
 };
@@ -116,7 +105,7 @@ export const selfDestruct: Command = {
     // 3 — DESTROY
     const word = await ctx.read("last chance. type DESTROY (capitals) to arm it:");
     if (word?.trim() !== "DESTROY") return ctx.out("aborted. nothing happened.\n"), 1;
-    // 4 — the password, when the deck has a login
+    // 4 — the account's password
     if (d.account) {
       const pw = await d.prompt("Your password", { mask: true });
       if (!pw || !(await d.platform.account?.verify(d.account, pw).catch(() => false))) return ctx.out("wrong password. aborted, nothing happened.\n"), 1;

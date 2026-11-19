@@ -1,7 +1,7 @@
 /**
  * THE FRAME, CALLABLE LIKE A MODULE. The parts of the deck that aren't modules
  * (the tree, the terminal, the shell, the theme, HOME, the side panel, tabs,
- * notes, sounds) expose functions the same way modules do, so anything can
+ * notes, sounds, THE MENU, the shortcuts) expose functions the same way modules do, so anything can
  * drive them with one line:
  *
  *   const tree = ib.use("tree");          // in a module
@@ -21,8 +21,13 @@ import type { Deck } from "../deck";
 import { q } from "../ui/ui";
 import { isTagColor } from "../vault/marks";
 import type { ServiceSpec } from "./services";
+import { DECK_KEYS, keysOf, menuKeyOf } from "../core/shortcuts";
+import { quickItems } from "../workspace/quickmenu";
 
 const hexOf = (n: number) => `#${(n & 0xffffff).toString(16).padStart(6, "0")}`;
+
+/** The frame's parts (callable like modules, provided by the deck itself). */
+export const FRAME_PARTS = new Set(["tree", "terminal", "shell", "theme", "home", "panel", "tabs", "notes", "sound", "menu", "keys", "deck"]);
 
 export function frameServices(deck: Deck): Record<string, Record<string, ServiceSpec>> {
   const ws = () => deck.workspace;
@@ -76,7 +81,18 @@ export function frameServices(deck: Deck): Record<string, Record<string, Service
     sound: {
       play: { doc: 'play(name) → one of the UI sounds: move, open, confirm, back, success, error, notify, alert, tick, select…', fn: (name: string) => deck.sound.play(name as never) },
     },
+    menu: {
+      open: { doc: "open() → THE MENU (search everything, menu keys)", fn: () => void ws().menu() },
+      items: { doc: "items() → [{ key, label, from }] every quick key on THE MENU", fn: () => quickItems(deck).map(({ key, label, from }) => ({ key, label, from })) },
+      add: { doc: 'add(key, command) → space, then key runs the command (one of the user\'s: Settings → KEYS shows it)', fn: (key: string, cmd: string) => deck.act(`menu add ${q(String(key))} ${q(String(cmd))}`) },
+    },
+    keys: {
+      list: { doc: "list() → [{ id, keys, menuKey, what }] every deck shortcut, with the user's changes", fn: () => DECK_KEYS.map((s) => ({ id: s.id, keys: keysOf(s, deck.settings.data.keyOverrides), menuKey: menuKeyOf(s, deck.settings.data.menu?.keys), what: s.what })) },
+      run: { doc: 'run(id) → does what a deck shortcut does ("tree", "home", "menu"…)', fn: (id: string) => { const s = DECK_KEYS.find((x) => x.id === String(id)); if (s) ws().runShortcut(s); return !!s; } },
+      bind: { doc: 'bind(keys, command) → one of the user\'s shortcuts ("ctrl+shift+1", "space g")', fn: (keys: string, cmd: string) => deck.act(`bind ${q(String(keys))} ${q(String(cmd))}`) },
+    },
     deck: {
+      alert: { doc: "alert(title, body?) → calls the user the way they chose (Settings → NOTIFICATIONS: screen, sound, notification center, voice)", fn: (title: string, body = "") => deck.alert(String(title), String(body)) },
       notify: { doc: 'notify(text, kind?) → a toast ("info" · "success" · "warning" · "error")', fn: (text: string, kind?: "info" | "success" | "warning" | "error") => deck.notify(String(text), kind) },
       say: { doc: "say(text, topic?) → the voice says it, if that topic may speak (Settings → VOICE)", fn: (text: string, topic = "modules") => deck.speak(topic as never, String(text)) },
       setting: { doc: 'setting(key) → a setting\'s value ("appearance.theme", "user.handle"…)', fn: (key: string) => String(key).split(".").reduce<unknown>((o, k) => (o as Record<string, unknown> | undefined)?.[k], deck.settings.data) },

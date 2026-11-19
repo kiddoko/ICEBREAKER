@@ -7,7 +7,7 @@ import { BOLD } from "../core/grid";
 import { t } from "../core/i18n";
 import type { Deck } from "../deck";
 import type { ChatSession } from "../ai/types";
-import { strWidth } from "../core/unicode";
+import { wrapWords } from "../core/unicode";
 import { q } from "../ui/ui";
 import type { UI } from "../ui/ui";
 import { Field } from "./field";
@@ -20,30 +20,15 @@ interface Msg {
 const chat = { msgs: [] as Msg[], session: null as ChatSession | null, busy: false, error: "" };
 const field = new Field();
 
-function wrap(text: string, w: number): string[] {
-  const out: string[] = [];
-  for (const para of text.split("\n")) {
-    let line = "";
-    for (const word of para.split(" ")) {
-      if (strWidth(line + " " + word) > w && line) {
-        out.push(line);
-        line = word;
-      } else line = line ? `${line} ${word}` : word;
-    }
-    out.push(line);
-  }
-  return out;
-}
-
 /** The conversation as styled lines, newest last. */
 function lines(ui: UI, w: number): { text: string; fg: number; bold?: boolean }[] {
   const c = ui.c;
   const out: { text: string; fg: number; bold?: boolean }[] = [];
   for (const m of chat.msgs) {
     const prefix = m.who === "you" ? "› " : "◆ ";
-    wrap(m.text || (chat.busy ? `${ui.spinner()} ${t("processing…")}` : ""), w - 2).forEach((l, i) => out.push({ text: (i ? "  " : prefix) + l, fg: m.who === "you" ? c.accentAlt : c.fg, bold: m.who === "you" && !i }));
+    wrapWords(m.text || (chat.busy ? `${ui.spinner()} ${t("processing…")}` : ""), w - 2).forEach((l, i) => out.push({ text: (i ? "  " : prefix) + l, fg: m.who === "you" ? c.accentAlt : c.fg, bold: m.who === "you" && !i }));
   }
-  if (chat.error) out.push(...wrap(chat.error, w).map((text) => ({ text, fg: c.error })));
+  if (chat.error) out.push(...wrapWords(chat.error, w).map((text) => ({ text, fg: c.error })));
   return out;
 }
 

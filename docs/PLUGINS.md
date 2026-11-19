@@ -1,5 +1,8 @@
 # Writing plugins
 
+> Before you start: [GUIDELINES.md](GUIDELINES.md), the house rules for a
+> module (or a theme) that others can use, read, call and borrow from.
+
 A plugin is a folder in your vault:
 
 ```
@@ -52,8 +55,9 @@ didn't declare throws an error.
 > Honesty note: plugins run in the app's JavaScript context. Permissions
 > govern the API object, and the app's Content-Security-Policy blocks network
 > access except to the AI endpoints — but a malicious plugin could still misbehave.
-> Read the code before enabling something (it's one `main.js`). A Worker-based
-> sandbox is on the roadmap.
+> Read the code before enabling something (it's one `main.js`): the deck shows
+> what it found in it first (`plugin audit <id>`). Where safety stands and the
+> plan to run modules in a sandbox: [SANDBOX.md](SANDBOX.md).
 
 ## main.js
 
@@ -71,8 +75,8 @@ export function activate(ib) {
     },
   });
 
-  // palette entry (Ctrl+K)
-  ib.palette.register({ id: "hello.say", title: "Say hello", run: () => ib.ui.notify("hello!") });
+  // on THE MENU (⌘K): found when searching, and "!" + enter runs it
+  ib.palette.register({ id: "hello.say", title: "Say hello", key: "!", run: () => ib.ui.notify("hello!") });
 
   // an app in a tab
   ib.apps.register({
@@ -155,7 +159,9 @@ anybody can `ib.use("<your id>").name(…)`.
 | `tabs` | `list()` · `go(n)` · `open(app)` |
 | `notes` | `open(path)` · `current()` · `new(folder)` |
 | `sound` | `play(name)` (move, open, confirm, back, success, error, notify, alert, tick, select…) |
-| `deck` | `notify(text, kind)` · `say(text, topic)` · `setting(key)` |
+| `menu` | `open()` · `items()` · `add(key, command)` (THE MENU) |
+| `keys` | `list()` · `run(id)` · `bind(keys, command)` (every deck shortcut) |
+| `deck` | `notify(text, kind)` · `alert(title, body)` · `say(text, topic)` · `setting(key)` |
 | modules | `todo.list/add/done` · `calendar.events/today/add` · `reminders.list/add` · `habits.list/check` · `music.status/control` · `journal.today/append` · `uplink.ask/ready` · `sysmon.stats` · `weather.now` · `news.headlines` · `clocks.timer/stopwatch` · `focus.status/start/stop` · `voice.say` |
 
 Inside the deck's own code it's the same: `deck.use("todo").add("…")` (with every permission).
@@ -169,11 +175,13 @@ The full surface is typed and commented in
 
 - `ib.ai.session({ system, tools })` → streaming chat; `ib.ai.vaultTools()` lets the model read notes.
 - Widget specs can set `max` (the biggest size), `clickActivates` (one click runs `activate` instead of only selecting) and `frameless` (no frame or title: your `render` gets the whole rectangle — a tile).
+- The user can place your widget **several times** (HOME, the side panel): `render(ui, r, { deck, key })` tells you which copy (`"mywidget"`, `"mywidget#2"`). Keep each copy's settings apart with `ib.lib`'s `widgetConfig(deck, key, name, fallback)` / `setWidgetSetting(deck, id, name, value)` — or key your own state by `key`.
 - `ib.storage.get/set` → a private JSON file per plugin (`.icebreaker/plugin-data/<id>.json`).
 - `ib.settings.register([...])` → your section in Settings (◇ YOUR MODULE, after the normal ones). Row types: `toggle`, `choice` (`options`), `text`, `number`, and `action` — a row that does something when chosen: `cmd` (a shell command, shown under the row like every setting) or `run()` (a picker, a confirmation…), plus `value()` for the status on the right ("connected", a name…). Read with `ib.settings.get(key)`, react with `onChange`; shell: `modules set <id> <key> <value>`. Example: the CALENDAR module (`plugins/calendar/main.ts`).
 - `ib.shell.run(line)` → run a command, echoed in the shell (what your clicks should do).
+- `ib.catalog.list(kind?, words?)` → everything the deck can do, as plain data: commands, actions, shortcuts, settings (with their value), functions (`ib.use`), widgets, apps, themes, modules — each with `name`, `doc`, `from` and `call` (how to call it). `get(kind, id)` for one. The BLOCKS page and `catalog … --json` show the same.
 - `ib.ui.notify / confirm / prompt / choose` → talk to the user (`choose` = pick one option from a filtered list; `prompt(title, { suggestions })` adds a ▾ list, a grey completion and Tab to complete). `notify(text, "error")` also lands in the error log with a code — see [ERRORS.md](ERRORS.md).
-- `ib.ui.alert(title, body)` → get the user's attention even in the background: a system notification, the alert sound, the voice if it's on (see the REMINDERS module).
+- `ib.ui.alert(title, body)` → get the user's attention, the way they chose in Settings → NOTIFICATIONS (on screen, sound, the system's notification center — by default only when the deck isn't in front —, read aloud). See the REMINDERS module. The shell: `notify --alert "<title>" [body]`.
 - `ib.ui.say(text, topic?)` → the voice says it, only if the user lets that topic speak (Settings → VOICE → say aloud: `calendar`, `reminders`, `timers`, `weather`, `system`; anything else is `modules`).
 - `ib.stats` → numbers kept over time, shown by the STATS module and its widget. `define("left", { label: "budget left", unit: "€" })`, `set("left", 412.5)` for a level, `add("pages", 12)` for a counter (adds up per day), `series(id, 30)` → one point per day, `onChange(fn)`. Names without a dot are yours (`left` → `budget.left`); you write only your own, reading another module's stats needs `stats:read`. The deck itself keeps `deck.commands` and `deck.notes`. Stored in the vault (`.icebreaker/stats.json`); recording works even while STATS is switched off.
 - `ib.modules` → modules talk to each other. `expose("add", { doc, fn, needs })` publishes a function under your id; `call("todo", "add", "walk the dog")` calls another module's (built-in or downloaded); `has(id, fn)`, `list()`, `installed()`. A function can require a permission from its callers (`needs: "vault:write"`), so calling it is no way around permissions. In the shell: `modules api` lists everything, `modules call <module> <fn> [args…]` calls it. Built-in today: `journal.today/append`, `uplink.ask/ready`, `sysmon.stats`, `weather.now`, `news.headlines`, `clocks.timer/stopwatch`, `focus.status/start/stop`, `voice.say`, `todo.list/add/done`, `reminders.list/add`, `calendar.events/today/add`, `music.status/control`.

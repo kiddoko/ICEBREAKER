@@ -46,12 +46,14 @@ export interface AppSpec {
   create(deck: Deck, args?: unknown): App;
 }
 
-/** An entry of the command palette (Ctrl+K). */
+/** An entry of THE MENU (Ctrl+K). */
 export interface PaletteAction {
   id: string;
   title: string;
   /** Shown on the right, e.g. "ctrl+j". */
   hint?: string;
   group?: string;
+  /** a key on THE MENU (space, then this key) — only if nothing else has it */
+  key?: string;
   run(): void | Promise<void>;
 }

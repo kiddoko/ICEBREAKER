@@ -30,6 +30,14 @@ type Repeat = "off" | "all" | "one";
 let tick: ReturnType<typeof setInterval> | null = null;
 
 export function activate(ib: IcebreakerAPI): void {
+  ib.settings.register([
+    { key: "folder", label: "music folder", type: "action", value: () => folder.split(/[\\/]/).filter(Boolean).pop() ?? "—", run: async () => {
+      const p = await ib.ui.prompt("Your music folder (a full path)", { initial: folder });
+      if (p?.trim()) await ib.shell.run(`music folder ${ib.lib.q(p.trim())}`);
+    }, help: "Where your music files are (mp3, flac, m4a…): the library is read from there." },
+    { key: "shuffle", label: "shuffle", type: "action", value: () => (shuffle ? "on" : "off"), cmd: "music shuffle", help: "Play the queue in a random order." },
+    { key: "scan", label: "scan the folder again", type: "action", value: () => `${lib.length}`, cmd: "music scan", help: "Read the music folder again (new files, removed ones)." },
+  ]);
   const { BOLD, strWidth, fmt, q, mix, fuzzyFilter } = ib.lib;
   const run = (line: string) => void ib.shell.run(line);
   const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;

@@ -9,7 +9,7 @@ import { ListView } from "../ui/list";
 import { q, type UI } from "../ui/ui";
 import { basename, dirname, join } from "../vault/paths";
 import type { Overlay } from "./overlays";
-import { fileIcon } from "./sidebar";
+import { fileIcon } from "../ui/fileicon";
 
 /**
  * THE little file browser — one window for every "go through folders" need:

@@ -13,6 +13,7 @@ deep   = "#04120a"
 dark   = "#0a2414"
 dim    = "#145a2c"
 mid    = "#1f8a44"
+status = "#2fb556"   # the status bar text: readable on dark
 green  = "#33ff66"
 bright = "#a8ffbf"
 amber  = "#ffcc33"
@@ -41,7 +42,7 @@ error = "red"
 info = "bright"
 ambient = "#062a12"
 status_bg = "dark"
-status_fg = "mid"
+status_fg = "status"
 
 [syntax]
 heading1 = "bright"

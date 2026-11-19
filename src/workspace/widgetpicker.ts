@@ -52,8 +52,8 @@ export class WidgetPicker implements Overlay {
     if ("group" in line) return this.toggle(line.group);
     const w = line.w;
     this.done = true;
-    if (this.placed(w.id)) this.deck.notify(this.target === "panel" ? t("{name} is already in the side panel", { name: t(w.title) }) : t("{name} is already on HOME", { name: t(w.title) }));
-    else void this.deck.act(`${this.target} add ${w.id}`);
+    // already there: one more copy (each copy has its own settings)
+    void this.deck.act(`${this.target} add ${w.id}`);
   }
 
   onKey(k: KeyInput): boolean {

@@ -1,3 +1,4 @@
+import { Glide } from "../ui/glide";
 import { mix } from "../core/color";
 import { BOLD, DIM, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
@@ -34,6 +35,8 @@ export class ShellApp implements App {
   private histIndex = -1;
   private histDraft = "";
   private scroll = 0;
+  /** the wheel's glide (ui/glide.ts) */
+  private readonly glide = new Glide();
   private lastInputAt = 0;
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
   /** An interactive command is waiting for an answer (ctx.read). */
@@ -115,6 +118,7 @@ export class ShellApp implements App {
       this.saveHistory();
     }
     const code = await this.exec.run(line);
+    if (line.trim()) this.deck.log.add("cmd", line, { failed: code !== 0 });
     if (line.trim()) void this.deck.stats.add("deck.commands", 1, "deck", { label: "commands run", kind: "counter" }).catch(() => {});
     this.term.ensureNewline();
     this.deck.requestFrame();
@@ -142,47 +146,15 @@ export class ShellApp implements App {
       this.exec.history.push(line);
       this.saveHistory();
     }
-    const time = new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    this.history.ensureNewline();
-    this.history.write(`\x1b[2m${time}\x1b[0m \x1b[95m❯\x1b[0m ${line}\n`);
-    const side = new ShellExecutor(this.deck, (text, isError) => this.history.write(text, isError ? { fg: this.deck.theme.ansi[1] } : undefined), () => this.history.clear());
+    // the LOG tab shows it, with its output (the terminals stay clean)
+    const entry = this.deck.log.add("action", line);
+    const side = new ShellExecutor(this.deck, (text) => this.deck.log.append(entry, text), () => {});
     side.cwd = this.exec.cwd;
     side.env = this.exec.env;
     const code = await side.run(line);
-    this.history.ensureNewline();
-    if (!this.deck.workspace.isShellTab("history")) this.unseen++;
-    this.historyScroll = 0;
+    if (code !== 0) entry.failed = true;
     this.deck.requestFrame();
     return code;
-  }
-
-  /** What clicks ran (the "history" tab), so the terminals stay clean. */
-  readonly history = new TerminalBuffer();
-  unseen = 0;
-  private historyScroll = 0;
-
-  readonly historyPane = {
-    onAction: (a: Action): boolean => {
-      if (a === "scroll-up" || a === "up") this.historyScroll += 3;
-      else if (a === "scroll-down" || a === "down") this.historyScroll = Math.max(0, this.historyScroll - 3);
-      else return false;
-      return true;
-    },
-    onKey: (k: KeyInput): boolean => {
-      if (k.combo === "pageup") return (this.historyScroll += 10), true;
-      if (k.combo === "pagedown") return (this.historyScroll = Math.max(0, this.historyScroll - 10)), true;
-      return false;
-    },
-  };
-
-  renderHistory(ui: UI, r: Rect): void {
-    this.unseen = 0;
-    const total = this.history.rowCount(r.w);
-    if (!total) return void ui.text(r.x, r.y, "commands run by clicking appear here, with their output — type them yourself next time", { fg: ui.c.faint }, r.w);
-    const maxScroll = Math.max(0, total - r.h);
-    this.historyScroll = Math.min(this.historyScroll, maxScroll);
-    this.history.render(ui, r, Math.max(0, total - r.h - this.historyScroll));
-    ui.hit(r, { onWheel: (d) => (this.historyScroll = Math.max(0, this.historyScroll - d)) });
   }
 
   // ── input ────────────────────────────────────────────────────────────────
@@ -416,7 +388,7 @@ export class ShellApp implements App {
     const total = this.term.rowCount(r.w);
     const outH = Math.min(total, r.h - promptH);
     const maxScroll = Math.max(0, total - outH);
-    this.scroll = Math.min(this.scroll, maxScroll);
+    this.scroll = this.glide.follow(ui, Math.min(this.scroll, maxScroll), maxScroll);
     const first = total - outH - this.scroll;
     this.term.render(ui, { x: r.x, y: r.y, w: r.w, h: outH }, first);
 
@@ -430,7 +402,7 @@ export class ShellApp implements App {
     } else {
       this.drawPrompt(ui, r.x, py, r.w, focused);
     }
-    ui.hit(r, { onWheel: (d) => (this.scroll = Math.max(0, this.scroll - d)) });
+    ui.hit(r, { onWheel: (d) => this.glide.push(-d) });
   }
 
   /** The question line: numbered quick-answer chips, then "label ❯ answer". */
@@ -463,7 +435,7 @@ export class ShellApp implements App {
     if (!this.input) {
       const hint = rd.opts.placeholder ?? (ch.length && !rd.opts.allowText ? "1-9 · ←→ · enter" : "enter = skip · esc = stop");
       ui.text(x, y, hint, { fg: c.faint }, room);
-    } else ui.text(x, y, [...shown].slice(off).join(""), { fg: c.fg }, room);
+    } else ui.text(x, y, [...shown].slice(off).join(""), { fg: c.fg, raw: true }, room); // what you type: no keycaps
     if (focused) ui.cursor(x + cw - off, y, this.lastInputAt);
   }
 
