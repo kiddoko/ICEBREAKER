@@ -283,7 +283,6 @@ const rain: Command = {
 
 const exit: Command = {
   name: "exit",
-  aliases: ["logout"],
   summary: "hide the shell (`exit --quit` closes ICEBREAKER)",
   async run(ctx) {
     if (ctx.args.includes("--quit")) await ctx.deck.quit();

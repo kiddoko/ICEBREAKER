@@ -26,7 +26,8 @@ function color256(n: number, ansi: RGB[]): RGB {
  * drawn in the deck's grid with the theme's colors.
  */
 /** core deck commands that win over system programs of the same name in your terminal */
-const CORE_IN_TERMINAL = ["reboot"];
+/** deck commands that win over the system shell's own (zsh's logout would close the terminal) */
+const CORE_IN_TERMINAL = ["reboot", "logout"];
 
 export class SystemTerminal {
   readonly term: Terminal;

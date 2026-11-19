@@ -785,7 +785,7 @@ export const FR: Record<string, string> = {
   "(default)": "(défaut)",
   // ── MODULES colours (19 nov.)
   "no module of this colour": "aucun module de cette couleur",
-  "right-click a floppy → colour · × shows them all": "clic droit sur une disquette → couleur · × les montre toutes",
+  "right-click a module → colour · × shows them all": "clic droit sur un module → couleur · × les montre tous",
   "only": "seulement",
   // ── shortcut dialog, macros (19 nov.)
   "SHORTCUT": "RACCOURCI",

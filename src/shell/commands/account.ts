@@ -82,7 +82,8 @@ export const account: Command = {
 
 export const lock: Command = {
   name: "lock",
-  summary: "lock the deck now (needs a login: account create)",
+  aliases: ["logout"],
+  summary: "log out of ICEBREAKER: back to the login screen (needs a login: account create)",
   run(ctx) {
     if (!ctx.deck.account) return ctx.err("lock: no login yet — account create\n"), 1;
     ctx.deck.lockNow();

@@ -17,6 +17,8 @@ export class LockScreen {
   private field: "user" | "pass" | "remember";
   /** fill in the account name next time (off by default: nothing is shown before you type it) */
   private remember: boolean;
+  /** the account came remembered: then (only then) your icon shows before you log in */
+  private readonly prefilled: boolean;
   private busy = false;
   private fails = 0;
   private error = "";
@@ -30,6 +32,7 @@ export class LockScreen {
   ) {
     this.remember = deck.settings.data.user.rememberAccount === true;
     this.user = this.remember ? account : "";
+    this.prefilled = !!this.user;
     this.field = this.user ? "pass" : "user";
   }
 
@@ -120,11 +123,15 @@ export class LockScreen {
     ui.fill({ x: 0, y: 0, w: W, h: H }, { bg: c.bg });
     ui.hit({ x: 0, y: 0, w: W, h: H }, { onClick: () => {}, onWheel: () => {}, block: true });
 
+    // a centred card: the title, then (if the account is remembered) your icon, the
+    // two fields with their labels above them, remember me, the button
     const w = Math.min(44, W - 4);
     const shake = performance.now() - this.shakeAt < 300 ? Math.round(Math.sin((performance.now() - this.shakeAt) / 25) * 2) : 0;
     if (shake) ui.animate(16);
+    const showIcon = this.prefilled && H >= 28;
+    const cardH = 13 + (showIcon ? 4 : 0);
     const x = Math.floor((W - w) / 2) + shake;
-    let y = Math.max(1, Math.floor(H / 2) - 6);
+    let y = Math.max(1, Math.floor((H - cardH - 4) / 2));
     const p = Math.min(1, (ui.now - this.shownAt) / 600);
     if (p < 1) ui.animate(30);
 
@@ -135,49 +142,49 @@ export class LockScreen {
     const title = "deck locked · authenticate";
     ui.textCenter({ x: 0, y, w: W, h: 1 }, y, p < 1 ? decrypt(title, p, ui.now) : title, { fg: c.muted });
     y += 2;
-    // your icon (only once the account is filled in: nothing about you shows before)
-    if (this.user && H >= 24) {
+    const card = ui.box({ x, y, w, h: cardH }, { title: "ACCESS", focused: true, bg: c.panel });
+    const ix = card.x + 2, iw = card.w - 4;
+    let cy = card.y;
+    if (showIcon) {
       const av = this.deck.settings.data.user.avatar;
-      drawAvatar(ui, { x: Math.floor((W - 5) / 2) + shake, y, w: 5, h: 3 }, avatarOf(av?.id), avatarRGB(ui, av?.color), { dim: p < 1 });
-      y += 4;
+      drawAvatar(ui, { x: card.x, y: cy, w: card.w, h: 3 }, avatarOf(av?.id), avatarRGB(ui, av?.color), { dim: p < 1, bg: c.panel });
+      cy += 4;
     }
-
-    this.input(ui, { x, y, w, h: 1 }, "account", this.user, false, this.field === "user", () => (this.field = "user"));
-    y += 2;
-    this.input(ui, { x, y, w, h: 1 }, "password", this.pass, true, this.field === "pass", () => (this.field = "pass"));
-    y += 2;
+    this.input(ui, { x: ix, y: cy, w: iw, h: 2 }, "ACCOUNT", this.user, false, this.field === "user", () => (this.field = "user"));
+    cy += 3;
+    this.input(ui, { x: ix, y: cy, w: iw, h: 2 }, "PASSWORD", this.pass, true, this.field === "pass", () => (this.field = "pass"));
+    cy += 3;
     {
       const on = this.field === "remember";
       const label = `${this.remember ? "[■]" : "[ ]"} remember me`;
-      ui.text(x + 10, y, label, { fg: on ? c.accent : this.remember ? c.fg : c.subtle, attrs: on ? BOLD : 0 });
-      if (on) ui.text(x + 10 + label.length + 2, y, "space", { fg: c.faint });
-      ui.hit({ x: x + 10, y, w: label.length, h: 1 }, { onClick: () => ((this.field = "remember"), this.toggleRemember()), tip: "fill in the account name next time" });
+      ui.text(ix, cy, label, { fg: on ? c.accent : this.remember ? c.fg : c.subtle, bg: c.panel, attrs: on ? BOLD : 0 });
+      if (on) ui.text(ix + label.length + 2, cy, "space", { fg: c.faint, bg: c.panel });
+      ui.hit({ x: ix, y: cy, w: label.length, h: 1 }, { onClick: () => ((this.field = "remember"), this.toggleRemember()), tip: "fill in the account name next time" });
     }
-    y += 2;
-
-    if (this.busy) ui.textCenter({ x: 0, y, w: W, h: 1 }, y, `${ui.spinner()} verifying…`, { fg: c.accent });
+    cy += 2;
+    if (this.busy) ui.textCenter(card, cy, `${ui.spinner()} verifying…`, { fg: c.accent, bg: c.panel });
     else {
-      const label = " jack in ⏎ ";
-      const bx = Math.floor((W - label.length) / 2);
-      ui.button(bx, y, label.trim(), () => void this.submit());
+      const label = "jack in ⏎";
+      ui.button(card.x + Math.floor((card.w - label.length - 2) / 2), cy, label, () => void this.submit());
     }
-    y += 2;
+    y = card.y + card.h + 2;
     if (this.error) ui.textCenter({ x: 0, y, w: W, h: 1 }, y, `⚠ ${this.error}`, { fg: c.error });
     if (this.fails >= 5)
       ui.textCenter({ x: 0, y: y + 1, w: W, h: 1 }, y + 1, "forgot it? quit, delete account.json in the app's config folder (see README)", { fg: c.faint });
     ui.textCenter({ x: 0, y: H - 2, w: W, h: 1 }, H - 2, "tab switch field · enter unlock · ⌘Q / alt+F4 quit", { fg: c.faint });
   }
 
+  /** A field: its label on one line, the box on the next. */
   private input(ui: UI, r: Rect, label: string, value: string, mask: boolean, focused: boolean, focus: () => void): void {
     const c = ui.c;
-    ui.text(r.x, r.y, label.padEnd(9), { fg: focused ? c.accent : c.subtle, attrs: focused ? BOLD : 0 });
-    const fx = r.x + 10, fw = r.w - 10;
-    const bg = focused ? mix(c.accent, c.bg, 0.88) : c.panel;
-    ui.fill({ x: fx, y: r.y, w: fw, h: 1 }, { bg });
-    const shown = mask ? "•".repeat(Math.min(value.length, fw - 2)) : value;
-    ui.text(fx + 1, r.y, shown, { fg: c.fg, bg }, fw - 2);
-    ui.hline(fx, r.y + 1, fw, { fg: focused ? c.accent : c.faint }, "─");
-    if (focused && !this.busy) ui.cursor(fx + 1 + Math.min(shown.length, fw - 2), r.y);
-    ui.hit({ x: r.x, y: r.y, w: r.w, h: 1 }, { onClick: focus });
+    ui.text(r.x, r.y, label, { fg: focused ? c.accent : c.subtle, bg: c.panel, attrs: focused ? BOLD : 0 });
+    const fy = r.y + 1;
+    const bg = focused ? mix(c.accent, c.bg, 0.82) : c.highlight;
+    ui.fill({ x: r.x, y: fy, w: r.w, h: 1 }, { bg });
+    const shown = mask ? "•".repeat(Math.min(value.length, r.w - 2)) : value;
+    ui.text(r.x + 1, fy, shown, { fg: c.fg, bg }, r.w - 2);
+    if (focused && !this.busy) ui.cursor(r.x + 1 + Math.min(shown.length, r.w - 2), fy);
+    ui.hit({ x: r.x, y: r.y, w: r.w, h: 2 }, { onClick: focus });
   }
+
 }

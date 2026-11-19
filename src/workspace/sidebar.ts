@@ -60,14 +60,16 @@ export class Sidebar {
       return !(row.entry.isDir && (dest === row.entry.path || dest.startsWith(`${row.entry.path}/`)));
     };
     this.list.onDrop = (row, target) => void this.moveInto(row.entry, destOf(target));
+    this.list.dragLabel = (row) => `${row.entry.isDir ? "▸" : "≡"} ${row.entry.name}`;
     this.list.dropEndLabel = ` ↳ ${t("to the vault's root")} `;
     // the wheel walks the tree file by file and shows each one at once (Settings → VAULT)
     this.list.wheel = (lines) => {
       if (!deck.settings.data.editor.treeWheel || this.list.items.length === 0) return false;
       const steps = this.spin.wheel(lines);
       if (!steps) return true;
+      // past the last row comes the first again (and the other way)
       const n = this.list.items.length;
-      this.list.select(Math.max(0, Math.min(n - 1, this.list.selected + steps)));
+      this.list.select((((this.list.selected + steps) % n) + n) % n);
       deck.sound.play("tick");
       const row = this.list.current;
       if (row && !row.entry.isDir) deck.workspace.previewNote(row.entry.path);

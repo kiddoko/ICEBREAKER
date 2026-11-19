@@ -1,6 +1,6 @@
 import { mix } from "../core/color";
 import type { Action } from "../core/input";
-import type { Rect } from "../core/grid";
+import { BOLD, type Rect } from "../core/grid";
 import type { MenuEntry, UI } from "./ui";
 
 /**
@@ -54,7 +54,9 @@ export class ListView<T> {
   /** may `item` land on `target`? (else the target isn't lit) */
   canDrop?: (item: T, target: T | undefined) => boolean;
   /** a row being dragged: where it started, where the pointer is */
-  private drag: { idx: number; x: number; y: number; over: number; active: boolean; outside: boolean } | null = null;
+  private drag: { idx: number; x: number; y: number; over: number; active: boolean; outside: boolean; px: number; py: number } | null = null;
+  /** what the ghost under the pointer says while a row is dragged */
+  dragLabel?: (item: T) => string;
   /** a one-click activation waiting for the button to come up (drag-enabled lists) */
   private pending: number | null = null;
 
@@ -148,7 +150,7 @@ export class ListView<T> {
         onClick: (m) => {
           this.select(idx);
           if (this.onDrop) {
-            this.drag = { idx, x: m.x, y: m.y, over: idx, active: false, outside: false };
+            this.drag = { idx, x: m.x, y: m.y, over: idx, active: false, outside: false, px: m.x, py: m.y };
             if (this.clickActivates?.(item)) this.pending = idx;
           } else if (this.clickActivates?.(item)) this.onActivate?.(item, idx);
         },
@@ -158,6 +160,8 @@ export class ListView<T> {
               if (!d) return;
               if (!d.active && (Math.abs(m.y - d.y) >= 1 || Math.abs(m.x - d.x) >= 3)) (d.active = true), (this.pending = null);
               d.outside = m.x < r.x || m.x >= r.x + r.w || m.y < r.y || m.y >= r.y + r.h;
+              d.px = m.x;
+              d.py = m.y;
               // near the top / bottom edge: the list scrolls
               if (d.active && m.y <= r.y && this.scrollTop > 0) this.scrollTop--;
               else if (d.active && m.y >= r.y + r.h - 1 && this.scrollTop < this.items.length - this.viewH) this.scrollTop++;
@@ -193,6 +197,17 @@ export class ListView<T> {
     if ((this.hoverDrop !== null && this.hoverDrop >= this.items.length && this.dropEndLabel) || (dg && !dg.outside && dg.over >= this.items.length && this.dropEndLabel && (this.canDrop?.(this.items[dg.idx], undefined) ?? true))) {
       const y = r.y + this.items.length - top;
       if (y < r.y + r.h) ui.text(r.x + 1, y, this.dropEndLabel, { fg: ui.c.panel, bg: ui.c.accent });
+    }
+    // the ghost: what's being dragged, following the pointer (dimmed where it can't land)
+    if (dg && this.dragLabel) {
+      const item = this.items[dg.idx];
+      if (item !== undefined) {
+        const text = ` ${this.dragLabel(item)} `;
+        const target = dg.over >= 0 && dg.over < this.items.length ? this.items[dg.over] : undefined;
+        const ok = !dg.outside && dg.over !== dg.idx && (this.canDrop?.(item, target) ?? true);
+        const gx = Math.max(r.x, Math.min(dg.px + 1, r.x + r.w - Math.min(r.w, text.length)));
+        ui.text(gx, Math.max(r.y, Math.min(dg.py, r.y + r.h - 1)), text, { fg: ok ? ui.c.bg : ui.c.muted, bg: ok ? ui.c.accent : ui.c.highlight, attrs: BOLD }, r.w - (gx - r.x));
+      }
     }
     if (this.items.length > this.viewH) {
       const thumbH = Math.max(1, Math.round((this.viewH * this.viewH) / this.items.length));

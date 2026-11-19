@@ -1,5 +1,5 @@
 /**
- * The wheel and trackpad on a ring (NEXUS lockers, MODULES floppies): one feel
+ * The wheel and trackpad on a ring (NEXUS lockers, MODULES shards): one feel
  * for both.
  *
  * - A mouse notch (or the first event of a swipe) turns exactly one step.

@@ -74,11 +74,11 @@ reinstalled** (MODULES → space / x, or the STORE) — the built-in ones too.
 
 \`\`\`
    ┌──┐ ┌──┐ ┌──┐ ┌──┐
-   │▦ │ │◆ │ │☂ │ │◷ │   MODULES (⌘⇧M): a ring of floppy disks, like NEXUS
+   │▦ │ │◆ │ │☂ │ │◷ │   MODULES (⌘⇧M): a ring of shards (the chips netrunners slot in)
    └──┘ └──┘ └──┘ └──┘   ←↑↓→ choose · enter launch · space on/off · p pin
 \`\`\`
 
-Give a module a **colour** (right-click a floppy → colour, or \`modules tag todo cyan\`):
+Give a module a **colour** (right-click a module → colour, or \`modules tag todo cyan\`):
 its label turns that colour, and the squares top right show one colour at a
 time (\`modules view cyan\`). NEXUS follows the tree's colour (\`tag view red\`).
 

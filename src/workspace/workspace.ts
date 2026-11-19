@@ -931,27 +931,28 @@ export class Workspace {
         // errors: only once there are some; blinks red while some are unread
         ...(d.errors.list.length ? [["errors", d.errors.unseen ? `⚠ ${t("errors")} ${d.errors.unseen}` : t("errors"), -1] as [ShellTab, string, number]] : []),
       ];
-      // the right side first, so the tabs know where to stop
+      // the panel's buttons on the right, like a program window's: one icon in a little square each
       const buttons: [string, string, string][] = [
-        ...(this.shellTab === "term" && this.termAvailable && d.settings.data.shell.macrosShown === false ? [[`⌗ ${t("macros")}`, "macro show", "show the macro buttons · macro show"] as [string, string, string]] : []),
-        [`≡ ${t("scripts")}`, "script menu", "your scripts (.icebreaker/scripts) · script new <name>"],
-        [`▾ ${t("hide")}`, "term hide", "fold the shell away · ctrl+` brings it back"],
-        [`⤢ ${t("maximize")}`, "term max", "this shell becomes a big tab (term dock puts it back)"],
+        ...(this.shellTab === "term" && this.termAvailable && d.settings.data.shell.macrosShown === false ? [["⌗", "macro show", t("show the macros · macro show")] as [string, string, string]] : []),
+        ["≡", "script menu", t("your scripts · script new <name>")],
+        ["▁", "term hide", t("hide the shell · ctrl+` brings it back")],
+        ["□", "term max", t("maximize: the shell becomes a big tab (term dock puts it back)")],
       ];
       let bxr = r.x + r.w - 2;
-      for (const [label, cmd, tip] of [...buttons].reverse()) {
-        const text = ` ${label} `;
-        const br = { x: bxr - strWidth(text), y: r.y, w: strWidth(text), h: 1 };
+      for (const [icon, cmd, tip] of [...buttons].reverse()) {
+        const br = { x: bxr - 3, y: r.y, w: 3, h: 1 };
         if (br.x < r.x + r.w / 2) break;
-        ui.text(br.x, r.y, text, { fg: ui.hovered(br) ? c.accent : c.subtle, bg: c.panel });
+        const hot = ui.hovered(br);
+        ui.text(br.x, r.y, ` ${icon} `, { fg: hot ? c.bg : c.fg, bg: hot ? (cmd === "term hide" ? c.warning : c.accent) : mix(c.panel, c.fg, 0.14) });
         ui.hit(br, { cmd, tip });
         bxr = br.x - 1;
       }
+      // the tabs, as chips: your terminals [+] │ ibsh · history · errors
       const chipBg = mix(c.panel, c.accent, 0.1);
+      const chip = (x: number, text: string, style: { fg: number; bg: number; attrs?: number }) => (ui.text(x, r.y, text, style), strWidth(text));
       let tx = r.x + 2;
       let lastGroup = "";
       for (const [id, label, ti] of tabs) {
-        // a bar between your terminals and the deck's own panes
         const group = id === "term" ? "term" : "deck";
         if (lastGroup && group !== lastGroup) (ui.text(tx, r.y, "│", { fg: c.faint, bg: c.panel }), (tx += 2));
         lastGroup = group;
@@ -963,26 +964,26 @@ export class Workspace {
         const alarm = id === "errors" && d.errors.unseen > 0;
         if (alarm) ui.animate(400);
         const blink = alarm && Math.floor(ui.now / 400) % 2 === 0;
+        const onBg = shellFocused ? c.accent : mix(c.accent, c.panel, 0.35);
         const style = alarm
           ? { fg: blink ? c.panel : c.error, bg: blink ? c.error : chipBg, attrs: BOLD }
           : on
-            ? { fg: c.bg, bg: shellFocused ? c.accent : mix(c.accent, c.panel, 0.35), attrs: BOLD }
+            ? { fg: c.bg, bg: onBg, attrs: BOLD }
             : { fg: ui.hovered(rect) ? c.accent : c.fg, bg: chipBg };
-        ui.text(tx, r.y, text, style);
+        tx += chip(tx, text, style);
         ui.hit(rect, { onClick: () => (ti >= 0 && (this.termIndex = ti), this.showShellTab(id)), menu: ti >= 0 ? () => this.termTabMenu(ti) : undefined, tip: id === "term" ? `right-click: rename, close… · term rename <name> · F12 next tab\n${this.terms[ti]?.shellName ?? ""}: your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)` : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash · F12 next tab" : id === "errors" ? "what went wrong, with a code (docs/ERRORS.md) · errors clear" : "what clicks ran, with their output" });
-        tx += rect.w + 1;
-        // × close the one shown (when there are several) · + a new terminal, after the last one
+        // the terminal shown, when there are several: its × is part of its chip
+        if (id === "term" && on && this.terms.length > 1) {
+          const xr = { x: tx, y: r.y, w: 2, h: 1 };
+          tx += chip(tx, "× ", { fg: ui.hovered(xr) ? c.error : c.bg, bg: onBg, attrs: BOLD });
+          ui.hit(xr, { cmd: "term close", tip: t("close this terminal") });
+        }
+        tx += 1;
+        // [+] a new terminal, right after the last one
         if (id === "term" && ti === this.terms.length - 1) {
-          if (this.terms.length > 1 && this.shellTab === "term") {
-            const xr = { x: tx, y: r.y, w: 3, h: 1 };
-            ui.text(xr.x, r.y, " × ", { fg: ui.hovered(xr) ? c.error : c.subtle, bg: c.panel });
-            ui.hit(xr, { cmd: "term close", tip: "close this terminal" });
-            tx += 3;
-          }
           const pr = { x: tx, y: r.y, w: 3, h: 1 };
-          ui.text(pr.x, r.y, " + ", { fg: ui.hovered(pr) ? c.accent : c.subtle, bg: c.panel });
-          ui.hit(pr, { cmd: "term new", tip: "another terminal" });
-          tx += 4;
+          tx += chip(tx, " + ", { fg: ui.hovered(pr) ? c.bg : c.accent, bg: ui.hovered(pr) ? c.accent : chipBg, attrs: BOLD }) + 1;
+          ui.hit(pr, { cmd: "term new", tip: t("another terminal · term new") });
         }
       }
       // macro bar above the system terminal (one free row under the tabs)
@@ -991,11 +992,15 @@ export class Workspace {
       if (this.shellTab === "term" && this.termAvailable && si.h > 6 && macrosShown) {
         const my = si.y + 1;
         termR = { ...si, y: si.y + 3, h: si.h - 3 };
-        let bx = si.x;
+        // ◂ first: folds the macros away (⌗ on the panel's top brings them back)
+        const fold = { x: si.x, y: my, w: 3, h: 1 };
+        ui.text(fold.x, my, " ◂ ", { fg: ui.hovered(fold) ? c.bg : c.subtle, bg: ui.hovered(fold) ? c.accent : c.highlight, attrs: BOLD });
+        ui.hit(fold, { cmd: "macro hide", tip: t("hide the macros · macro show brings them back") });
+        let bx = si.x + 4;
         d.settings.data.shell.macros.forEach((m, i) => {
           const label = ` ${m.label} `;
           const rect = { x: bx, y: my, w: strWidth(label), h: 1 };
-          if (bx + rect.w > si.x + si.w - 8) return;
+          if (bx + rect.w > si.x + si.w - 4) return;
           const hot = ui.hovered(rect);
           const bound = Object.entries(d.settings.data.keys ?? {}).find(([, cmd]) => cmd.split(/\s*;\s*/).includes(`macro run ${q(m.label)}`))?.[0];
           ui.text(bx, my, label, hot ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: c.fg, bg: c.highlight });
@@ -1009,10 +1014,6 @@ export class Workspace {
         const plus = { x: bx, y: my, w: 3, h: 1 };
         ui.text(bx, my, " + ", { fg: ui.hovered(plus) ? c.accent : c.subtle, bg: c.highlight, attrs: BOLD });
         ui.hit(plus, { onClick: () => void this.editMacro(-1), tip: "new macro · or: macro add <label> <command>" });
-        // ▴ fold the row away (the ⌗ macros button on the panel's top brings it back)
-        const fold = { x: si.x + si.w - 3, y: my, w: 3, h: 1 };
-        ui.text(fold.x, my, " ▴ ", { fg: ui.hovered(fold) ? c.accent : c.subtle });
-        ui.hit(fold, { cmd: "macro hide", tip: t("hide the macros · macro show brings them back") });
       }
       ui.hit(si, { menu: () => this.shellMenu() });
       ui.clip(si, () => {

@@ -2,7 +2,6 @@ import { mix, type RGB } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
-import { strWidth } from "../core/unicode";
 import type { Deck } from "../deck";
 import { decrypt } from "../fx/glitch";
 import type { MenuEntry, UI } from "../ui/ui";
@@ -12,7 +11,7 @@ import { addToWheel } from "../workspace/actionwheel";
 import { isTagColor, TAG_NAMES, tagRGB, type TagColor } from "../vault/marks";
 import type { App, AppSpec } from "./types";
 
-/** One floppy on the ring: a module, or one of the deck's own doors. */
+/** One shard on the ring: a module, or one of the deck's own doors. */
 interface Cart {
   id: string;
   icon: string;
@@ -30,7 +29,7 @@ interface Cart {
 }
 
 /**
- * MODULES — a ring of floppy disks, like NEXUS: every module is a disk turning
+ * MODULES — a ring of shards (the chips netrunners slot in), like NEXUS: every module turning
  * on an endless ring (5 in front), smaller and dimmer toward the back. The one
  * in front sits under the drive's read beam; the bar below says what it is and
  * what you can do with it.
@@ -49,7 +48,7 @@ export class ModulesApp implements App {
   private lastT = 0;
   /** only the modules of this colour (modules view <colour>) */
   filter: TagColor | null = null;
-  /** a floppy going into the drive (enter): it launches once it's in */
+  /** a shard going into its socket (enter): it launches once it's in */
   private inserting: { at: number; id: string } | null = null;
   private bornAt = performance.now();
 
@@ -107,7 +106,7 @@ export class ModulesApp implements App {
   private run(c: Cart | undefined): void {
     if (!c || this.inserting) return;
     this.deck.sound.play("select");
-    // the floppy slides into the drive first (a blink: 180 ms), then it launches
+    // the shard slides up into its socket first (a blink: 180 ms), then it launches
     this.inserting = { at: performance.now(), id: c.id };
     this.deck.requestFrame();
     setTimeout(() => {
@@ -196,7 +195,7 @@ export class ModulesApp implements App {
     this.sel = Math.min(this.sel, carts.length - 1);
     ui.fill(r, { bg: c.bg });
 
-    // ── a ring of floppies, like NEXUS: never ends, 5 in front (3 for 3-4 modules) ──
+    // ── a ring of shards, like NEXUS: never ends, 5 in front (3 for 3-4 modules) ──
     const panelH = 5;
     // a tall page (shell hidden): the scene keeps its size and sits in the middle, the bar under it
     const sceneH = Math.min(r.h - panelH - 1, 30);
@@ -208,7 +207,7 @@ export class ModulesApp implements App {
     if (!n) {
       tagBar();
       ui.textCenter(field, field.y + Math.floor(field.h / 2), t("no module of this colour"), { fg: c.muted });
-      ui.textCenter(field, field.y + Math.floor(field.h / 2) + 1, t("right-click a floppy → colour · × shows them all"), { fg: c.faint });
+      ui.textCenter(field, field.y + Math.floor(field.h / 2) + 1, t("right-click a module → colour · × shows them all"), { fg: c.faint });
       return;
     }
     // ease the ring the short way round (pos never resets: past the last comes the first)
@@ -266,21 +265,23 @@ export class ModulesApp implements App {
       // its thickness: the back of the disk, offset toward the middle of the ring and up
       const side = Math.sign(Math.round(v.x - vx));
       const d = big ? 2 : 1;
-      const back = { x: rect.x - side * d * 2, y: rect.y - 1, w: rect.w, h: rect.h };
+      // (the body starts under the contacts' row: its back, one row up, lies under them)
+      const back = { x: rect.x - side * d * 2, y: rect.y, w: rect.w, h: rect.h - 1 };
       const fadeK = Math.max(0, 0.85 - near) * 0.9;
       ui.fill(back, { bg: mix(mix(c.bg, hue, 0.22), c.bg, fadeK) });
       ui.hline(back.x, back.y, back.w, { fg: mix(mix(c.bg, hue, 0.55), c.bg, fadeK), bg: mix(mix(c.bg, hue, 0.22), c.bg, fadeK) }, "▔");
-      // enter: the floppy slides down into the drive's slot, then the module opens
+      // the socket above the chosen one: where it plugs in
+      if (isSel) ui.text(rect.x + 2, rect.y - 2, `╺${"━".repeat(Math.max(0, rect.w - 6))}╸`, { fg: mix(c.bg, hue, focused ? 0.6 : 0.3) });
+      // enter: the module slides UP into the socket, then it opens
       const ins = this.inserting?.id === v.cart.id ? Math.min(1, (now - this.inserting.at) / 180) : 0;
       if (ins) ui.animate(16);
       const dy = Math.round(ins * ins * rect.h * 0.8);
-      const drawn = { ...rect, y: rect.y + dy };
-      this.drawFloppy(ui, drawn, v.cart, isSel && focused, fadeK, age - Math.abs(ring(v.i - this.sel, n)) * 60, hue);
+      this.drawShard(ui, { ...rect, y: rect.y - dy }, v.cart, isSel && focused, fadeK, age - Math.abs(ring(v.i - this.sel, n)) * 60, hue);
       if (ins) {
-        // what went into the drive is hidden; the slot is a bright line
-        const slot = rect.y + rect.h;
-        ui.fill({ x: rect.x - 1, y: slot, w: rect.w + 2, h: Math.max(0, Math.min(dy, bottom - slot)) }, { bg: c.bg });
-        ui.hline(rect.x - 2, slot, rect.w + 4, { fg: hue }, "▀");
+        // what went into the socket is hidden; the socket glows
+        const top = Math.max(field.y, rect.y - dy - 1);
+        ui.fill({ x: rect.x - 2, y: top, w: rect.w + 4, h: Math.max(0, rect.y - 2 - top) }, { bg: c.bg });
+        ui.hline(rect.x - 2, rect.y - 2, rect.w + 4, { fg: hue, attrs: BOLD }, "▄");
       }
       ui.hit(rect, { onClick: () => (this.sel = v.i), onDouble: () => this.run(v.cart), tip: v.cart.description, menu: () => ((this.sel = v.i), this.cartMenu(v.cart)) });
     }
@@ -309,12 +310,7 @@ export class ModulesApp implements App {
     btn(t("store  s"), () => void this.deck.act("store"), "s");
   }
 
-  /**
-   * A floppy disk in characters: the metal shutter on top (with its window),
-   * a write-protect notch, the label with the module's name, icon and what it
-   * does, a status light. Far ones are smaller and fade into the dark.
-   */
-  /** A floppy's colour: its tag, else one of the theme's accents (each disk keeps its own). */
+  /** A module's colour: its tag, else one of the theme's accents (each module keeps its own). */
   private hueOf(ui: UI, cart: Cart): RGB {
     if (cart.tag) return tagRGB(cart.tag);
     const c = ui.c;
@@ -324,53 +320,64 @@ export class ModulesApp implements App {
     return pal[h % pal.length];
   }
 
-  private drawFloppy(ui: UI, r: Rect, cart: Cart, sel: boolean, fade: number, age: number, hue: RGB): void {
+  /**
+   * A module as a cyberdeck shard (the chips netrunners slot into their neck):
+   * gold contacts on top (it plugs in upward), a chamfered corner, the module's
+   * colour as a glowing stripe, its name, a line of what it does, a status
+   * light and a serial. Far ones are smaller and fade into the dark.
+   */
+  private drawShard(ui: UI, r: Rect, cart: Cart, sel: boolean, fade: number, age: number, hue: RGB): void {
     const c = ui.c;
     const dim = (col: number) => mix(col, c.bg, fade);
-    const body = sel ? mix(hue, c.bg, 0.78) : dim(cart.on ? mix(c.panel, hue, 0.12) : c.panel);
-    const edge = sel ? hue : dim(cart.on ? mix(hue, c.border, 0.4) : c.faint);
-    ui.fill(r, { bg: body });
-    ui.box(r, { fill: false, border: sel ? "heavy" : "single", bg: body, focused: sel });
-    // the shutter: a metal strip with its window, slid to one side
-    const sw = Math.max(4, Math.floor(r.w * 0.55)), sx = r.x + Math.floor((r.w - sw) / 2);
-    if (r.h >= 5) {
-      const metal = dim(mix(c.subtle, c.fg, 0.35));
-      ui.text(sx, r.y + 1, "▐" + "█".repeat(sw - 2) + "▌", { fg: metal, bg: body });
-      const win = Math.max(2, Math.floor(sw * 0.3));
-      ui.text(sx + Math.floor(sw * 0.55), r.y + 1, "▒".repeat(win), { fg: dim(c.bg), bg: metal });
-      if (r.h >= 9) ui.text(sx, r.y + 2, "▐" + "█".repeat(sw - 2) + "▌", { fg: metal, bg: body });
+    const body = sel ? mix(c.panel, hue, 0.2) : dim(cart.on ? mix(c.panel, hue, 0.1) : c.panel);
+    const edge = sel ? hue : dim(cart.on ? mix(hue, c.border, 0.35) : c.faint);
+    const gold = dim(mix(c.warning, c.fg, 0.25));
+    const W = r.w, H = r.h;
+    // the contacts: a row of gold pins above the body
+    const pins = Math.max(3, Math.floor(W * 0.55));
+    const px = r.x + Math.floor((W - pins) / 2);
+    ui.text(px, r.y, "╻".repeat(pins), { fg: gold });
+    // the body: heavy edges, the bottom-right corner cut off
+    const top = r.y + 1, bot = r.y + H - 1;
+    ui.fill({ x: r.x, y: top, w: W, h: H - 1 }, { bg: body });
+    ui.text(r.x, top, `┏${"━".repeat(W - 2)}┓`, { fg: edge, bg: body });
+    for (let y = top + 1; y < bot; y++) {
+      ui.text(r.x, y, "┃", { fg: edge, bg: body });
+      ui.text(r.x + W - 1, y, y === bot - 1 ? "╱" : "┃", { fg: edge, bg: body });
     }
-    // the write-protect notch and the status light
-    ui.text(r.x + r.w - 2, r.y + 1, cart.on ? "●" : "○", { fg: cart.on ? (sel ? c.success : dim(c.success)) : dim(c.subtle), bg: body });
-    ui.text(r.x + 1, r.y + r.h - 2, "▪", { fg: edge, bg: body });
-    // the label: a lighter sticker with the name, the icon, a line of what it does
-    const top = r.h >= 9 ? r.y + 4 : r.h >= 5 ? r.y + 3 : r.y + 1;
-    const lh = Math.max(1, r.y + r.h - 1 - top);
-    const label = { x: r.x + 2, y: top, w: r.w - 4, h: lh };
-    // the label sticker: coloured when the module has a colour, like real disks
-    const paper = cart.tag ? (sel ? mix(c.panelAlt, hue, 0.35) : dim(mix(c.panelAlt, hue, 0.25))) : sel ? mix(c.panelAlt, hue, 0.12) : dim(c.panelAlt);
-    ui.fill(label, { bg: paper });
-    const name = r.w >= 16 ? cart.name.toUpperCase() : cart.icon;
-    const shownName = age < 600 ? decrypt(name, Math.max(0, age / 600), ui.now) : name;
-    ui.text(label.x + 1, label.y, r.w >= 16 ? `${cart.icon} ${shownName}` : shownName, { fg: sel ? c.fg : dim(cart.on ? c.fg : c.muted), bg: paper, attrs: BOLD }, label.w - 2);
-    if (lh >= 2) ui.hline(label.x + 1, label.y + 1, label.w - 2, { fg: dim(c.faint), bg: paper }, "┈");
-    if (lh >= 3 && fade < 0.45) {
-      const room = label.w - 2, lines: string[] = [];
+    ui.text(r.x, bot, `┗${"━".repeat(W - 3)}╱`, { fg: edge, bg: body });
+    ui.text(r.x + W - 1, bot, " ", { bg: c.bg });
+    // a notch on the left, like a key
+    if (H >= 7) ui.text(r.x, top + 2, "╢", { fg: edge, bg: body });
+    const ix = r.x + 2, iw = W - 4;
+    let y = top + 1;
+    // the status light and the name
+    ui.text(r.x + W - 3, y, cart.on ? "●" : "○", { fg: cart.on ? (sel ? c.success : dim(c.success)) : dim(c.subtle), bg: body });
+    const name = W >= 16 ? cart.name.toUpperCase() : cart.icon;
+    const shown = age < 600 ? decrypt(name, Math.max(0, age / 600), ui.now) : name;
+    ui.text(ix, y, W >= 16 ? `${cart.icon} ${shown}` : shown, { fg: sel ? c.fg : dim(cart.on ? c.fg : c.muted), bg: body, attrs: BOLD }, iw - 2);
+    y++;
+    // the stripe: the module's colour, a light running along it on the chosen one
+    if (y < bot) {
+      const run = sel ? Math.floor((ui.now / 70) % (iw + 6)) - 3 : -99;
+      for (let i = 0; i < iw; i++) ui.text(ix + i, y, "▬", { fg: Math.abs(i - run) <= 1 ? mix(hue, c.fg, 0.6) : dim(sel ? hue : mix(hue, c.bg, 0.35)), bg: body });
+      y++;
+    }
+    // what it does (wrapped), when there's room and it's near enough to read
+    if (fade < 0.45) {
+      const lines: string[] = [];
       let line = "";
       for (const w of cart.description.split(" ")) {
-        if ((line + " " + w).length > room && line) (lines.push(line), (line = w));
+        if ((line + " " + w).length > iw && line) (lines.push(line), (line = w));
         else line = line ? `${line} ${w}` : w;
       }
       lines.push(line);
-      const max = lh - 2;
-      lines.slice(0, max).forEach((l, i) => ui.text(label.x + 1, label.y + 2 + i, i === max - 1 && lines.length > max ? `${l.slice(0, room - 1)}…` : l, { fg: sel ? c.muted : dim(c.subtle), bg: paper }, room));
+      const room = Math.max(0, bot - y - (H >= 9 ? 1 : 0));
+      lines.slice(0, room).forEach((l, i) => ui.text(ix, y + i, i === room - 1 && lines.length > room ? `${l.slice(0, iw - 1)}…` : l, { fg: sel ? c.muted : dim(c.subtle), bg: body }, iw));
     }
-    if (sel) {
-      // the drive's read beam gliding over the chosen one
-      const span = Math.max(1, r.h - 2), pos = Math.floor((ui.now / 160) % span);
-      ui.tint({ x: r.x + 1, y: r.y + 1 + pos, w: r.w - 2, h: 1 }, -1, mix(body, hue, 0.22));
-    }
-    void strWidth;
+    // the serial, bottom left
+    if (H >= 9) ui.text(ix, bot - 1, `${cart.module ? "MOD" : "SYS"}·${cart.id.slice(0, 6).toUpperCase()}`, { fg: dim(mix(c.faint, hue, 0.3)), bg: body }, iw - 2);
+    if (sel) ui.animate(70);
   }
 
 }

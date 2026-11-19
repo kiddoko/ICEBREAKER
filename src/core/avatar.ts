@@ -18,14 +18,15 @@ export interface Avatar {
 }
 
 export const AVATARS: Avatar[] = [
-  { id: "visor", name: "visor", art: ["▗▄▄▄▖", "▐▀▀▀▌", "▝▄▄▄▘"] },
+  // only full / half blocks and box lines: they line up in every font
+  { id: "visor", name: "visor", art: ["▄███▄", "█═══█", " ▀█▀ "] },
   { id: "netrunner", name: "netrunner", art: ["┌▄▄▄┐", "│▓▓▓│", "└┬─┬┘"] },
-  { id: "hood", name: "hood", art: [" ▄▀▄ ", "▐ ▪ ▌", "▐▄▄▄▌"] },
+  { id: "hood", name: "hood", art: [" ▄█▄ ", "▐▀▪▀▌", "▐▄▄▄▌"] },
   { id: "robot", name: "robot", art: ["╭─┴─╮", "│◉ ◉│", "╰┬─┬╯"] },
-  { id: "skull", name: "skull", art: ["▄███▄", "█▀█▀█", " ▀▀▀ "] },
-  { id: "alien", name: "alien", art: ["▗▄▄▄▖", "▐◣ ◢▌", " ▝▀▘ "] },
-  { id: "cat", name: "cat", art: ["▲   ▲", "◕ ᴥ ◕", " ─── "] },
-  { id: "ghost", name: "ghost", art: ["▄▀▀▀▄", "█ ▪ ▪", "▀▄▀▄▀"] },
+  { id: "skull", name: "skull", art: ["▄███▄", "█ █ █", "▀█▀█▀"] },
+  { id: "alien", name: "alien", art: [" ▄▄▄ ", "█◣ ◢█", " ▀▄▀ "] },
+  { id: "cat", name: "cat", art: ["▲   ▲", "● ▾ ●", " ─── "] },
+  { id: "ghost", name: "ghost", art: ["▄▀▀▀▄", "█▪ ▪█", "▀▄▀▄▀"] },
   { id: "mask", name: "mask", art: ["▄▄▄▄▄", "▀▄ ▄▀", " ▀▀▀ "] },
   { id: "oni", name: "oni", art: ["▲▄▄▄▲", "█◥ ◤█", "▀▀▼▀▀"] },
   { id: "drone", name: "drone", art: ["─┬─┬─", " ▐◎▌ ", "─┴─┴─"] },
@@ -53,7 +54,7 @@ export const avatarRGB = (ui: UI, color: string | undefined): RGB => (color && A
 /** One character: for a line of text (the chat, a list). */
 export function avatarGlyph(a: Avatar): string {
   if (typeof a.art === "string") return a.art;
-  return { visor: "▣", netrunner: "▓", hood: "▲", robot: "◉", skull: "☠", alien: "◣", cat: "ᴥ", ghost: "▪", mask: "▼", oni: "◥", drone: "◎", eye: "◉" }[a.id] ?? "◆";
+  return { visor: "▣", netrunner: "▓", hood: "▲", robot: "◉", skull: "☠", alien: "◣", cat: "▾", ghost: "▪", mask: "▼", oni: "◥", drone: "◎", eye: "◉" }[a.id] ?? "◆";
 }
 
 /** The 5×3 picture, centred in `r` (a glyph sits in a little frame). */
