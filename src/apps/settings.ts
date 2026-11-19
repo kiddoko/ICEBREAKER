@@ -3,7 +3,7 @@ import { displayKeys, SHORTCUTS } from "../core/shortcuts";
 import { SETTINGS_HELP } from "./settings-help";
 import { focus } from "../widgets/focusstate";
 import { q } from "../ui/ui";
-import { strWidth } from "../core/unicode";
+import { strWidth, truncate } from "../core/unicode";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import { mix } from "../core/color";
@@ -425,7 +425,9 @@ export class SettingsApp implements App {
     const rx = sx + catW + 3, rw = Math.min(r.w - (rx - r.x) - 2, 86);
     const rows = this.shown();
     this.sel = Math.min(this.sel, Math.max(0, rows.length - 1));
-    const room = r.y + r.h - top - 7;
+    // a big interface scale leaves few lines: the help box at the bottom goes first, the settings stay
+    const helpH = r.h - (top - r.y) >= 16 ? 7 : 1;
+    const room = Math.max(1, r.y + r.h - top - helpH);
     if (this.sel < this.scroll) this.scroll = this.sel;
     if (this.sel >= this.scroll + room) this.scroll = this.sel - room + 1;
     this.scroll = Math.max(0, Math.min(this.scroll, Math.max(0, rows.length - room)));
@@ -441,13 +443,15 @@ export class SettingsApp implements App {
       if (bg !== undefined) ui.fill(line, { bg });
       const st = bg !== undefined ? { bg } : {};
       const label = this.query ? `${t(row.label)}  ` : t(row.label);
-      const lx = ui.text(rx + 1, y, label, { fg: selected ? c.fg : c.muted, ...st }, rw - 24);
-      if (this.query) ui.text(lx, y, t(from).toLowerCase(), { fg: c.faint, ...st }, rw - (lx - rx) - 24);
       const raw = row.value();
       const v = t(raw);
       const vx = rx + rw - 1;
       // ◂ ▸ only on values you step through; an action just says what it does
-      const shownV = selected && row.change && row.key && !row.isText ? `◂ ${v} ▸` : selected && row.change ? `${v} ›` : v;
+      const shownV = truncate(selected && row.change && row.key && !row.isText ? `◂ ${v} ▸` : selected && row.change ? `${v} ›` : v, Math.max(4, Math.floor(rw / 2)));
+      // the label gets what the value leaves (never a negative width: the line must never vanish)
+      const labelW = Math.max(4, rw - strWidth(shownV) - 3);
+      const lx = ui.text(rx + 1, y, label, { fg: selected ? c.fg : c.muted, ...st }, labelW);
+      if (this.query) ui.text(lx, y, t(from).toLowerCase(), { fg: c.faint, ...st }, Math.max(0, labelW - (lx - rx - 1)));
       const color = raw === "on" ? c.success : raw === "off" ? c.subtle : from === "DANGER ZONE" ? c.error : c.accent;
       ui.textRight(vx, y, shownV, { fg: color, attrs: selected ? BOLD : 0, ...st });
       if (ui.hovered(line)) hoverRow = row;
@@ -460,7 +464,7 @@ export class SettingsApp implements App {
     const cur = hoverRow ?? rows[this.sel]?.row;
     const help = cur ? SETTINGS_HELP[cur.key ?? cur.label] : undefined;
     const fr = this.deck.settings.data.user.language === "fr";
-    if (help || cur) {
+    if ((help || cur) && helpH > 1) {
       ui.hline(rx, r.y + r.h - 6, rw, { fg: c.faint }, "┄");
       const words = (help ? help[fr ? 1 : 0] : t(cur!.label)).split(" ");
       const lines: string[] = [];
@@ -473,7 +477,7 @@ export class SettingsApp implements App {
       lines.slice(0, 3).forEach((l, i) => ui.text(rx, r.y + r.h - 5 + i, l, { fg: c.fg }, rw));
     }
     const cmd = cur?.cmd?.() ?? (cur?.key ? `config get ${cur.key}` : "");
-    if (cmd) ui.text(rx, r.y + r.h - 2, `› ${cmd}`, { fg: c.subtle }, rw);
+    if (cmd && helpH > 1) ui.text(rx, r.y + r.h - 2, `› ${cmd}`, { fg: c.subtle }, rw);
   }
 }
 

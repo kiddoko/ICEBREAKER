@@ -25,6 +25,9 @@ function color256(n: number, ansi: RGB[]): RGB {
  * native side, xterm's terminal engine here (colors, cursor, vim, htop, ssh…),
  * drawn in the deck's grid with the theme's colors.
  */
+/** core deck commands that win over system programs of the same name in your terminal */
+const CORE_IN_TERMINAL = ["reboot"];
+
 export class SystemTerminal {
   readonly term: Terminal;
   readonly id = `pty${Math.random().toString(36).slice(2, 8)}`;
@@ -86,11 +89,12 @@ export class SystemTerminal {
 
   /** Module commands (and aliases): in this shell they win over system programs with the same name (macOS `cal`…). */
   private moduleCommands(): string[] {
-    return this.deck.commands
+    const mods = this.deck.commands
       .all()
       .filter((c) => c.source && c.source !== "core")
-      .flatMap((c) => [c.name, ...(c.aliases ?? [])])
-      .filter((n) => /^[a-z][a-z0-9_-]*$/.test(n));
+      .flatMap((c) => [c.name, ...(c.aliases ?? [])]);
+    // deck commands that share a name with a system one and mean the deck here (`command reboot` is still the system's)
+    return [...mods, ...CORE_IN_TERMINAL].filter((n) => /^[a-z][a-z0-9_-]*$/.test(n));
   }
 
   restart(): void {
@@ -279,8 +283,10 @@ export class SystemTerminal {
       for (let y = 0; y < r.h; y++) {
         const l = buf.viewportY + y;
         if (l < sr[0].line || l > sr[1].line) continue;
+        // only real text (and the spaces between words), never the empty end of a line
+        const used = buf.getLine(l)?.translateToString(true).length ?? 0;
         const from = l === sr[0].line ? sr[0].col : 0;
-        const to = l === sr[1].line ? sr[1].col : r.w;
+        const to = Math.min(l === sr[1].line ? sr[1].col : r.w, used);
         if (to > from) ui.tint({ x: r.x + from, y: r.y + y, w: Math.min(r.w, to) - from, h: 1 }, c.fg, c.selection);
       }
     }
