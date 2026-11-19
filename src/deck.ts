@@ -168,6 +168,8 @@ export class Deck implements InputSink {
     this.voice = new DeckVoice(this);
     this.shell = new ShellApp(this);
 
+    // files dragged in from the Finder / Explorer land in the tree
+    this.platform.files?.onDragDrop((e) => this.workspace.sidebar.externalDrop(e));
     this.vault.events.on("changed", () => this.requestFrame());
     window.addEventListener("resize", () => this.resize());
   }

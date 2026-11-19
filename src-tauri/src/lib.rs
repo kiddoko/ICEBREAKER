@@ -59,6 +59,7 @@ pub fn run() {
             files::fs_read_text,
             vault::vault_rename,
             vault::vault_exists,
+            vault::vault_import,
             config::config_read,
             config::config_write,
             config::env_api_key,

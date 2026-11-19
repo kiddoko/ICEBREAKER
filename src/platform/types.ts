@@ -135,6 +135,13 @@ export interface Platform {
     home(): Promise<string>;
     list(path: string): Promise<{ name: string; path: string; isDir: boolean; size: number }[]>;
     readText(path: string): Promise<string>;
+    /** Copy a file / folder from the computer into a vault folder (never overwrites). Returns its vault path. */
+    importInto(src: string, dir: string): Promise<string>;
+    /**
+     * Files dragged from the Finder / Explorer over the window: "over" while
+     * they move (x, y in CSS pixels), "drop" with their paths, "leave".
+     */
+    onDragDrop(cb: (e: { type: "over" | "drop" | "leave"; paths: string[]; x: number; y: number }) => void): void;
   };
   /** Your system shell in a pseudo-terminal (desktop). */
   pty?: {

@@ -40,11 +40,22 @@ export class Sidebar {
     deck.vault.events.on("changed", () => this.version++);
     deck.vault.events.on("rescanned", () => this.version++);
     this.list.onActivate = (row) => this.activate(row);
-    this.list.cmdOf = (row) => (row.entry.isDir ? undefined : `open ${q(row.entry.path)}`);
-    this.list.tipOf = (row) => (row.entry.isDir ? "click: select · double-click: fold · right-click: more" : "n new note here · p pin · F2 rename · right-click: more");
+    this.list.tipOf = (row) =>
+      row.entry.isDir
+        ? t("click: fold / unfold · drag things onto it to move them in · right-click: more")
+        : `open ${q(row.entry.path)}\n${t("drag it onto a folder to move it · F2 rename · right-click: more")}`;
     this.list.menuOf = (row) => this.entryMenu(row);
-    // one click opens or folds a folder (files already open on one click)
-    this.list.clickActivates = (row) => row.entry.isDir;
+    // one click opens a file or folds a folder (when the button comes up: a drag never does)
+    this.list.clickActivates = () => true;
+    // drag & drop: onto a folder (or a file: its folder), or below everything (the vault's root)
+    const destOf = (target: Row | undefined) => (!target ? "" : target.entry.isDir ? target.entry.path : dirname(target.entry.path));
+    this.list.canDrop = (row, target) => {
+      const dest = destOf(target);
+      if (dest === dirname(row.entry.path)) return false;
+      return !(row.entry.isDir && (dest === row.entry.path || dest.startsWith(`${row.entry.path}/`)));
+    };
+    this.list.onDrop = (row, target) => void this.moveInto(row.entry, destOf(target));
+    this.list.dropEndLabel = ` ↳ ${t("to the vault's root")} `;
     // the folders you had open last time
     const saved = deck.settings.data.session?.tree;
     if (saved) this.open = new Set(saved);
@@ -96,7 +107,62 @@ export class Sidebar {
       else this.open.add(row.entry.path);
       this.version++;
       this.saveOpen();
-    } else void this.deck.openFile(row.entry.path);
+    } else void this.deck.act(`open ${q(row.entry.path)}`);
+  }
+
+  /** The folder a cell of the tree stands for: a folder row, a file's folder, "" below the rows; null outside the tree. */
+  private folderAt(x: number, y: number): { dest: string; idx: number } | null {
+    const i = this.list.indexAt(x, y);
+    if (i < 0) return null;
+    const row = this.list.items[i];
+    return { dest: !row ? "" : row.entry.isDir ? row.entry.path : dirname(row.entry.path), idx: row ? (row.entry.isDir ? i : this.list.items.findIndex((r) => r.entry.path === dirname(row.entry.path))) : i };
+  }
+
+  /**
+   * Files dragged in from the Finder / Explorer: the folder under the pointer
+   * lights up; on drop they're copied there (anywhere else in the window: the
+   * vault's root). The originals stay where they were.
+   */
+  externalDrop(e: { type: "over" | "drop" | "leave"; paths: string[]; x: number; y: number }): void {
+    const cell = this.deck.renderer.cellAt(e.x, e.y);
+    const at = e.type === "leave" ? null : this.folderAt(cell.x, cell.y);
+    this.list.hoverDrop = e.type === "over" && at ? (at.idx >= 0 ? at.idx : this.list.items.length) : null;
+    this.deck.requestFrame();
+    if (e.type !== "drop" || !e.paths.length) return;
+    void this.importPaths(e.paths, at?.dest ?? "");
+  }
+
+  private async importPaths(paths: string[], dest: string): Promise<void> {
+    const files = this.deck.platform.files;
+    if (!files) return;
+    let last = "";
+    let n = 0;
+    for (const p of paths) {
+      try {
+        last = await files.importInto(p, dest);
+        n++;
+      } catch (err) {
+        this.deck.notify(`${basename(p.replace(/\\/g, "/"))}: ${err instanceof Error ? err.message : err}`, "error");
+      }
+    }
+    if (!n) return;
+    await this.deck.vault.rescan();
+    if (dest) this.open.add(dest);
+    this.version++;
+    if (last) this.reveal(last);
+    this.deck.sound.play("move");
+    this.deck.notify(n === 1 ? t("copied into /{dir}", { dir: dest }) : t("{n} copied into /{dir}", { n, dir: dest }), "success");
+  }
+
+  /** Drag & drop: `mv` the thing into a folder ("" = the vault's root), refusing to overwrite. */
+  private async moveInto(e: VaultEntry, dest: string): Promise<void> {
+    const to = join(dest, e.name);
+    if (to === e.path) return;
+    if (await this.deck.vault.exists(to)) return this.deck.notify(t("there's already a {name} in /{dir}", { name: e.name, dir: dest }), "warning");
+    if (dest) this.open.add(dest);
+    await this.deck.act(`mv ${q(`/${e.path}`)} ${q(`/${dest}`)}`);
+    this.reveal(to);
+    this.deck.sound.play("move");
   }
 
   /** Remember the open folders (they come back after a restart). */

@@ -773,4 +773,11 @@ export const FR: Record<string, string> = {
   "↑↓ choose · enter restore · r restore to… · o open · esc close": "↑↓ choisir · entrée restaurer · r ailleurs… · o ouvrir · échap fermer",
   "enter: put it back": "entrée : la remettre",
   "Restore to (a path in the vault)": "Restaurer vers (un chemin dans le vault)",
+  // ── tree drag & drop (19 nov.)
+  "click: fold / unfold · drag things onto it to move them in · right-click: more": "clic : plier / déplier · glisse des choses dessus pour les y ranger · clic droit : plus",
+  "drag it onto a folder to move it · F2 rename · right-click: more": "glisse-le sur un dossier pour le déplacer · F2 renommer · clic droit : plus",
+  "to the vault's root": "à la racine du vault",
+  "there's already a {name} in /{dir}": "il y a déjà un {name} dans /{dir}",
+  "copied into /{dir}": "copié dans /{dir}",
+  "{n} copied into /{dir}": "{n} copiés dans /{dir}",
 };

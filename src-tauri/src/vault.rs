@@ -308,6 +308,58 @@ pub fn vault_rename(state: State<VaultState>, from: String, to: String) -> CmdRe
     fs::rename(resolve(&root, &from)?, dest).map_err(|e| format!("{from}: {e}"))
 }
 
+/// Copy a file or a folder from anywhere on the computer into a vault folder
+/// (drag & drop from the Finder / Explorer). Never overwrites: "a.md" becomes
+/// "a copy.md", "a copy 2.md"… Returns the new vault-relative path.
+#[tauri::command]
+pub fn vault_import(state: State<VaultState>, src: String, dir: String) -> CmdResult<String> {
+    let root = root(&state)?;
+    let from = PathBuf::from(&src);
+    let meta = fs::symlink_metadata(&from).map_err(|e| format!("{src}: {e}"))?;
+    let name = from.file_name().ok_or_else(|| format!("{src}: no file name"))?.to_string_lossy().into_owned();
+    let folder = resolve(&root, &dir)?;
+    // dropping the vault (or something inside it) into itself
+    if let (Ok(a), Ok(b)) = (from.canonicalize(), folder.canonicalize()) {
+        if b.starts_with(&a) {
+            return Err(format!("{name}: can't copy a folder into itself"));
+        }
+    }
+    fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+    let (stem, ext) = match name.rfind('.') {
+        Some(i) if i > 0 && !meta.is_dir() => (name[..i].to_string(), name[i..].to_string()),
+        _ => (name.clone(), String::new()),
+    };
+    let mut dest = folder.join(&name);
+    let mut n = 1;
+    while dest.exists() {
+        dest = folder.join(if n == 1 { format!("{stem} copy{ext}") } else { format!("{stem} copy {n}{ext}") });
+        n += 1;
+    }
+    copy_tree(&from, &dest, 0)?;
+    let rel = dest.strip_prefix(&root).map_err(|e| e.to_string())?;
+    Ok(rel.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect::<Vec<_>>().join("/"))
+}
+
+fn copy_tree(from: &Path, to: &Path, depth: usize) -> CmdResult<()> {
+    if depth > 32 {
+        return Err("folders too deep".into());
+    }
+    let meta = fs::symlink_metadata(from).map_err(|e| format!("{}: {e}", from.display()))?;
+    if meta.file_type().is_symlink() {
+        return Ok(()); // links stay where they are
+    }
+    if meta.is_dir() {
+        fs::create_dir_all(to).map_err(|e| e.to_string())?;
+        for e in fs::read_dir(from).map_err(|e| format!("{}: {e}", from.display()))? {
+            let e = e.map_err(|e| e.to_string())?;
+            copy_tree(&e.path(), &to.join(e.file_name()), depth + 1)?;
+        }
+        Ok(())
+    } else {
+        fs::copy(from, to).map(|_| ()).map_err(|e| format!("{}: {e}", from.display()))
+    }
+}
+
 #[tauri::command]
 pub fn vault_exists(state: State<VaultState>, path: String) -> CmdResult<bool> {
     let root = root(&state)?;

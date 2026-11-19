@@ -1,6 +1,7 @@
 import { listen } from "@tauri-apps/api/event";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { LocalTrack, MediaStatus, Platform, PlayerStatus, SystemStats, VaultEntry } from "./types";
 
 /**
@@ -62,6 +63,19 @@ export function createTauriPlatform(): Platform {
       home: () => invoke<string>("fs_home"),
       list: (path) => invoke("fs_list", { path }),
       readText: (path) => invoke<string>("fs_read_text", { path }),
+      importInto: (src, dir) => invoke<string>("vault_import", { src, dir }),
+      onDragDrop: (cb) => {
+        let paths: string[] = [];
+        void getCurrentWebview().onDragDropEvent((ev) => {
+          const p = ev.payload;
+          const dpr = window.devicePixelRatio || 1;
+          const at = "position" in p ? { x: p.position.x / dpr, y: p.position.y / dpr } : { x: 0, y: 0 };
+          if (p.type === "enter") paths = p.paths;
+          if (p.type === "enter" || p.type === "over") cb({ type: "over", paths, ...at });
+          else if (p.type === "drop") cb({ type: "drop", paths: p.paths, ...at });
+          else cb({ type: "leave", paths: [], x: 0, y: 0 });
+        });
+      },
     },
     onMinimized: async (cb) => {
       let was = false;

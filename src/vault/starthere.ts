@@ -133,6 +133,10 @@ duplicate, pin, copy the path or a [[link]], a **colour** (red, orange, yellow,
 green, cyan, blue, purple, pink — like Ableton), an **icon**, the trash.
 In the shell: \`tag notes/ideas.md red\`, \`tag view red\`, \`icon projects ⚡\`.
 Tags and icons live in your vault (.icebreaker/tags.json, icons.json).
+**Drag & drop**: drag a note or a folder onto another folder to move it there
+(below the last row = the vault's root; \`mv\` does the same). Drag files from
+the Finder / Explorer onto a folder of the tree: they're **copied** into it
+(the originals stay where they were; never overwritten: "a copy.md").
 One click opens a note or folds a folder. The tree, your tabs and the page you
 were on come back as you left them next time.
 
