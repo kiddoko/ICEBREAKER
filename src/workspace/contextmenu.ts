@@ -186,7 +186,7 @@ export class ContextMenu implements Overlay {
         ui.fill(row, { bg });
         let tx = inner.x + 1;
         if (e.checked !== undefined) tx = ui.text(tx, ry, e.checked ? "✓ " : "  ", { fg: sel ? c.panel : c.accent, bg });
-        else if (e.color !== undefined) tx = ui.text(tx, ry, "● ", { fg: e.color, bg });
+        else if (e.color !== undefined) tx = ui.text(tx, ry, "■ ", { fg: e.color, bg });
         ui.text(tx, ry, e.label, { fg, bg, attrs: sel ? BOLD : 0 }, inner.w - (tx - inner.x) - (hintW ? hintW + 2 : 1));
         const right = e.sub ? "▸" : e.hint ?? "";
         if (right) ui.textRight(inner.x + inner.w - 1, ry, right, { fg: sel ? c.panel : c.subtle, bg });

@@ -245,6 +245,8 @@ export class Deck implements InputSink {
     this.shell.motd();
     this.openApp("home");
     if (!s.setup.done) this.openApp("setup");
+    // the tabs you had open last time
+    await step(() => this.workspace.restoreSession(!s.setup.done).catch(() => {}), () => (s.setup.done && s.session?.tabs?.length ? { text: `Session restored: ${s.session.tabs.length} tab(s)`, status: "OK" } : null));
     boot?.log({ text: `Reached target: Cyberspace. (startup took ${Math.round(performance.now() - t0)} ms)`, status: "OK" });
     boot?.finish();
     this.lastBoot = boot;

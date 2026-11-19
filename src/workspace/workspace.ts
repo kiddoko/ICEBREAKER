@@ -737,9 +737,47 @@ export class Workspace {
 
   // ── drawing ──────────────────────────────────────────────────────────────
 
+  /** the tabs as they were last saved (they reopen at the next start) */
+  private savedTabs = "";
+  /** nothing is saved before the last session has been reopened (it would be overwritten by HOME alone) */
+  private sessionReady = false;
+  private saveSession(): void {
+    const tabs = this.tabs.slice(0, this.tabCount).map((a) => a.key).filter((k) => !["setup", "terminal", "ibsh"].includes(k));
+    const sig = `${tabs.join("|")}#${Math.min(this.active, this.tabCount - 1)}`;
+    if (!this.sessionReady || sig === this.savedTabs) return;
+    this.savedTabs = sig;
+    const s = this.deck.settings;
+    s.set("session", { ...(s.data.session ?? {}), tabs, active: Math.max(0, tabs.indexOf(this.tabs[this.active]?.key ?? "")) });
+  }
+
+  /** Open again what was open when the deck closed (notes that still exist, modules that are still on). */
+  async restoreSession(skip = false): Promise<void> {
+    const ses = this.deck.settings.data.session;
+    try {
+      if (!skip && ses?.tabs?.length) await this.reopen(ses);
+    } finally {
+      this.sessionReady = true;
+    }
+  }
+
+  private async reopen(ses: { tabs?: string[]; active?: number }): Promise<void> {
+    if (!ses.tabs) return;
+    for (const key of ses.tabs) {
+      if (key === "home" || this.findTab(key)) continue;
+      if (key.startsWith("note:")) {
+        const p = key.slice(5);
+        if (await this.deck.vault.exists(p)) await this.deck.openFile(p);
+      } else if (this.deck.apps.get(key) && !Workspace.PAGES.has(key)) this.deck.openApp(key);
+    }
+    const want = ses.tabs[ses.active ?? 0];
+    const i = this.tabs.findIndex((t) => t.key === want);
+    if (i >= 0) this.switchTab(i);
+  }
+
   render(ui: UI): void {
     const d = this.deck;
     this.noteVisit();
+    this.saveSession();
     const W = ui.cols;
     const H = ui.rows;
     if (d.settings.data.fx.ambient) drawBackground(ui, { x: 0, y: 0, w: W, h: H }, ui.theme, 0.7);

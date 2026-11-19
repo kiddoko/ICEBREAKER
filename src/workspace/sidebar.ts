@@ -43,6 +43,11 @@ export class Sidebar {
     this.list.cmdOf = (row) => (row.entry.isDir ? undefined : `open ${q(row.entry.path)}`);
     this.list.tipOf = (row) => (row.entry.isDir ? "click: select · double-click: fold · right-click: more" : "n new note here · p pin · F2 rename · right-click: more");
     this.list.menuOf = (row) => this.entryMenu(row);
+    // one click opens or folds a folder (files already open on one click)
+    this.list.clickActivates = (row) => row.entry.isDir;
+    // the folders you had open last time
+    const saved = deck.settings.data.session?.tree;
+    if (saved) this.open = new Set(saved);
   }
 
   /** Show one colour only (null: everything). */
@@ -90,7 +95,14 @@ export class Sidebar {
       if (this.open.has(row.entry.path)) this.open.delete(row.entry.path);
       else this.open.add(row.entry.path);
       this.version++;
+      this.saveOpen();
     } else void this.deck.openFile(row.entry.path);
+  }
+
+  /** Remember the open folders (they come back after a restart). */
+  private saveOpen(): void {
+    const s = this.deck.settings;
+    s.set("session", { ...(s.data.session ?? {}), tree: [...this.open] });
   }
 
   /** Highlight the file shown in the main area. */
@@ -279,7 +291,7 @@ export class Sidebar {
       const n = counts[tc];
       const rect = { x: dx, y: r.y + 1, w: 2, h: 1 };
       const hot = ui.hovered(rect);
-      ui.text(dx, r.y + 1, on ? "◉" : n ? "●" : "○", { fg: n || on || hot ? tagRGB(tc) : mix(tagRGB(tc), c.bg, 0.45), bg: on || hot ? c.highlight : undefined });
+      ui.text(dx, r.y + 1, on ? "▣" : n ? "■" : "□", { fg: n || on || hot ? tagRGB(tc) : mix(tagRGB(tc), c.bg, 0.45), bg: on || hot ? c.highlight : undefined });
       ui.hit(rect, { cmd: on ? "tag view off" : `tag view ${tc}`, tip: `${t(tc)} · ${n}\n${on ? t("click: show everything") : t("click: show only this colour")}` });
       dx += 2;
     }
@@ -330,7 +342,7 @@ export class Sidebar {
       let x = row.x + 1;
       if (flat) {
         // colour view: icon + the whole path
-        x = ui.text(x, row.y, custom ?? (entry.isDir ? "▸" : entry.name.endsWith(".md") ? "●" : fileIcon(entry.name)), { fg: tint ?? c.accent });
+        x = ui.text(x, row.y, custom ?? (entry.isDir ? "▸" : entry.name.endsWith(".md") ? "■" : fileIcon(entry.name)), { fg: tint ?? c.accent });
         x = ui.text(x, row.y, " ", {});
         const dir = dirname(entry.path);
         if (dir) x = ui.text(x, row.y, `${dir}/`, { fg: c.subtle }, row.w - (x - row.x) - 2);
@@ -345,21 +357,28 @@ export class Sidebar {
       if (entry.isDir) {
         const opened = this.open.has(entry.path);
         x = ui.text(x, row.y, depth > 0 ? "─" : "", guide);
-        x = ui.text(x, row.y, opened ? "▾" : "▸", { fg: tint ?? c.accent });
-        if (custom) x = ui.text(x, row.y, custom, { fg: tint ?? c.accent });
-        const word = mono && tag ? `${t(tag)} ` : "";
-        x = ui.text(x, row.y, ` ${entry.name}/`, { fg: c.fg, attrs: BOLD }, row.w - (x - row.x) - 5 - strWidth(word));
-        if (count !== undefined && row.w - (x - row.x) > 4 + strWidth(word)) ui.textRight(row.x + row.w - 1, row.y, `${word}${count}`, { fg: selected ? c.subtle : c.faint });
+        x = ui.text(x, row.y, opened ? "▾" : "▸", { fg: c.accent });
+        if (custom) x = ui.text(x, row.y, custom, { fg: c.accent });
+        // the colour tag: a small square at the right edge (a word in greys-only themes)
+        const mark = tag ? (mono ? `${t(tag)} ` : "■ ") : "";
+        x = ui.text(x, row.y, ` ${entry.name}/`, { fg: c.fg, attrs: BOLD }, row.w - (x - row.x) - 5 - strWidth(mark));
+        const countS = count !== undefined ? String(count) : "";
+        if (row.w - (x - row.x) > 3 + strWidth(mark) + countS.length) {
+          const cx = ui.textRight(row.x + row.w - 1, row.y, countS, { fg: selected ? c.subtle : c.faint });
+          if (mark) ui.textRight(cx, row.y, mark, { fg: mono ? (selected ? c.subtle : c.faint) : tint, attrs: BOLD });
+        }
       } else {
         const md = entry.name.endsWith(".md");
         x = ui.text(x, row.y, depth > 0 ? "─" : "", guide);
-        x = ui.text(x, row.y, custom ?? (md ? (tag ? "●" : " ") : fileIcon(entry.name)), { fg: tint ?? c.accentAlt });
-        const word = mono && tag ? t(tag) : "";
+        // the icon, then a space: a glyph never touches the name
+        const icon = custom ?? (md ? "" : fileIcon(entry.name));
+        x = icon ? ui.text(ui.text(x, row.y, icon, { fg: c.accentAlt }), row.y, " ") : ui.text(x, row.y, " ");
+        const word = tag ? (mono ? t(tag) : "■") : "";
         ui.text(x, row.y, md ? entry.name.replace(/\.md$/, "") : entry.name, {
           fg: isOpen ? c.accentAlt : selected ? c.fg : c.muted,
           attrs: isOpen ? BOLD : 0,
-        }, row.w - (x - row.x) - 1 - (word ? strWidth(word) + 1 : 0));
-        if (word) ui.textRight(row.x + row.w - 1, row.y, word, { fg: selected ? c.subtle : c.faint });
+        }, row.w - (x - row.x) - 1 - (word ? strWidth(word) + 2 : 0));
+        if (word) ui.textRight(row.x + row.w - 2, row.y, word, { fg: mono ? (selected ? c.subtle : c.faint) : tint, attrs: BOLD });
         if (isOpen) ui.text(row.x, row.y, "▌", { fg: c.accentAlt });
       }
     });

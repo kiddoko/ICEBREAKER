@@ -21,6 +21,8 @@ export class ListView<T> {
   private prevSel = -1;
   private selAt = 0;
   onActivate?: (item: T, index: number) => void;
+  /** one click is enough for these (a folder folds / unfolds); the others wait for a double-click */
+  clickActivates?: (item: T) => boolean;
   /** Shell command a click on this item runs (shown in the shell and in the tooltip). */
   cmdOf?: (item: T) => string | undefined;
   tipOf?: (item: T) => string | undefined;
@@ -107,10 +109,13 @@ export class ListView<T> {
         cmd: this.cmdOf?.(item),
         tip: this.tipOf?.(item),
         menu: this.menuOf ? () => (this.select(idx), this.menuOf!(item, idx)) : undefined,
-        onClick: () => this.select(idx),
+        onClick: () => {
+          this.select(idx);
+          if (this.clickActivates?.(item)) this.onActivate?.(item, idx);
+        },
         onDouble: () => {
           this.select(idx);
-          this.onActivate?.(item, idx);
+          if (!this.clickActivates?.(item)) this.onActivate?.(item, idx);
         },
       });
       drawRow(item, row, isSel, idx);

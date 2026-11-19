@@ -205,10 +205,30 @@ export function activate(ib: IcebreakerAPI): void {
   async function addFlow(): Promise<void> {
     const title = await ib.ui.prompt(t("Remind me of…"), { placeholder: t("call mom") });
     if (!title?.trim()) return;
-    const at = await ib.ui.prompt(t("When?"), { placeholder: "fri 18:00 · tomorrow 9h · +10m" });
-    if (!at?.trim()) return;
-    run(`remind ${q(title.trim())} ${at.trim()}`);
+    // ask again until the time is understood (it used to fail silently, in the shell)
+    let initial = "";
+    for (;;) {
+      const at = await ib.ui.prompt(t("When? (enter to confirm)"), { initial, placeholder: "fri 18:00 · tomorrow 9h · +10m", suggestions: ["+10m", "+30m", "+1h", "today 18:00", "today 21:00", "tomorrow 9:00", "demain 9h", "mon 9:00", "fri 18:00"] });
+      if (!at?.trim()) return;
+      const before = list.length;
+      const code = await ib.shell.run(`remind ${q(title.trim())} ${at.trim()}`);
+      if (code === 0 && list.length > before) {
+        const r = list[list.length - 1];
+        ib.ui.notify(`⏰ ${r.title} — ${when(r)}`, "success");
+        return;
+      }
+      ib.ui.notify(t("I didn't understand \"{at}\" — try fri 18:00, tomorrow 9h, +10m", { at: at.trim() }), "warning");
+      initial = at.trim();
+    }
   }
+
+  /** right-click on a reminder */
+  const remMenu = (rem: Reminder) => [
+    { label: t("done ✓"), cmd: `remind done ${rem.id}` },
+    { label: t("remove"), cmd: `remind rm ${rem.id}`, danger: true },
+    "-" as const,
+    { label: t("+ add a reminder"), run: () => void addFlow() },
+  ];
 
   // ── the app ──
   class RemindersApp implements App {
@@ -259,10 +279,16 @@ export function activate(ib: IcebreakerAPI): void {
         if (sel || ui.hovered(row)) ui.fill(row, { bg: sel ? mix(c.accent, c.bg, 0.78) : c.highlight });
         const st = sel || ui.hovered(row) ? { bg: sel ? mix(c.accent, c.bg, 0.78) : c.highlight } : {};
         ui.text(x + 1, y, "⏰", { fg: late ? c.error : c.accent, ...st });
-        ui.text(x + 4, y, rem.title, { fg: c.fg, attrs: sel ? BOLD : 0, ...st }, w - 34);
-        ui.textRight(x + w - 12, y, when(rem), { fg: c.subtle, ...st });
-        ui.textRight(x + w - 1, y, left(rem), { fg: late ? c.error : c.warning, ...st });
-        ui.hit(row, { onClick: () => (this.sel = i), tip: `remind done ${rem.id} · remind rm ${rem.id}` });
+        ui.text(x + 4, y, rem.title, { fg: c.fg, attrs: sel ? BOLD : 0, ...st }, w - 44);
+        ui.textRight(x + w - 20, y, when(rem), { fg: c.subtle, ...st });
+        ui.textRight(x + w - 10, y, left(rem), { fg: late ? c.error : c.warning, ...st });
+        ui.hit(row, { onClick: () => (this.sel = i), tip: `remind done ${rem.id} · remind rm ${rem.id}`, menu: () => remMenu(rem) });
+        // the obvious way: ✓ done and ✕ remove on every line
+        const dn = { x: x + w - 8, y, w: 4, h: 1 }, rm = { x: x + w - 3, y, w: 3, h: 1 };
+        ui.text(dn.x, y, " ✓ ", { fg: ui.hovered(dn) ? c.panel : c.success, bg: ui.hovered(dn) ? c.success : c.highlight, attrs: BOLD });
+        ui.hit(dn, { cmd: `remind done ${rem.id}`, tip: t("done (d)") });
+        ui.text(rm.x, y, " ✕ ", { fg: ui.hovered(rm) ? c.panel : c.error, bg: ui.hovered(rm) ? c.error : c.highlight });
+        ui.hit(rm, { cmd: `remind rm ${rem.id}`, tip: t("remove (x)") });
         y++;
       });
       void strWidth;
@@ -306,8 +332,12 @@ export function activate(ib: IcebreakerAPI): void {
           const row = { x: r.x, y: r.y + i, w: r.w, h: 1 };
           if (i === popSel) ui.fill(row, { bg: mix(c.accent, c.bg, 0.8) });
           const st = i === popSel ? { bg: mix(c.accent, c.bg, 0.8) } : {};
-          ui.text(r.x + 2, r.y + i, rem.title, { fg: c.fg, ...st }, r.w - 26);
-          ui.textRight(r.x + r.w - 2, r.y + i, `${when(rem)} · ${left(rem)}`, { fg: c.subtle, ...st });
+          ui.text(r.x + 2, r.y + i, rem.title, { fg: c.fg, ...st }, r.w - 30);
+          ui.textRight(r.x + r.w - 6, r.y + i, `${when(rem)} · ${left(rem)}`, { fg: c.subtle, ...st });
+          const dn = { x: r.x + r.w - 4, y: r.y + i, w: 3, h: 1 };
+          ui.text(dn.x, dn.y, " ✓ ", { fg: ui.hovered(dn) ? c.panel : c.success, bg: ui.hovered(dn) ? c.success : c.highlight, attrs: BOLD });
+          ui.hit(dn, { cmd: `remind done ${rem.id}`, tip: t("done (d)") });
+          ui.hit(row, { onClick: () => (popSel = i), menu: () => remMenu(rem) });
         });
         if (!up.length) ui.text(r.x + 2, r.y, t("nothing to remember — a adds a reminder"), { fg: c.muted });
         ui.button(r.x + 2, r.y + r.h - 1, t("+ add a reminder"), () => void addFlow(), { tip: "a" });
@@ -345,6 +375,12 @@ export function activate(ib: IcebreakerAPI): void {
     "nothing to remember — a adds a reminder": "rien à se rappeler — a ajoute un rappel",
     "nothing to remember": "rien à se rappeler",
     "a add · d done · ↑↓": "a ajouter · d fait · ↑↓",
+    "When? (enter to confirm)": "Quand ? (entrée pour valider)",
+    'I didn\'t understand "{at}" — try fri 18:00, tomorrow 9h, +10m': "je n'ai pas compris « {at} » — essaie ven 18:00, demain 9h, +10m",
+    "done ✓": "fait ✓",
+    remove: "retirer",
+    "done (d)": "fait (d)",
+    "remove (x)": "retirer (x)",
     "what you asked to remember (REMINDERS module)": "ce que tu as demandé de te rappeler (module RAPPELS)",
   });
 }

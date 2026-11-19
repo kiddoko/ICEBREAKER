@@ -665,13 +665,10 @@ export function activate(ib: IcebreakerAPI): void {
         if (r.h > 1) ui.text(r.x + 1, r.y + 1, "enter: retry", { fg: c.faint });
         return;
       }
-      if (!status) {
-        const msg = loading && !at ? `${ui.spinner()} listening…` : "nothing playing";
-        ui.textCenter(r, r.y + Math.floor((r.h - 1) / 2) - (r.h > 2 ? 1 : 0), msg, { fg: c.muted });
-        if (r.h > 2) ui.textCenter(r, r.y + Math.floor((r.h - 1) / 2), lib.length ? "enter: your library" : "Spotify, Music, or: music folder <path>", { fg: c.faint });
-        return;
-      }
-      const s = status;
+      if (!status && loading && !at) return void ui.textCenter(r, r.y + Math.floor((r.h - 1) / 2), `${ui.spinner()} listening…`, { fg: c.muted });
+      // nothing playing: the same widget (buttons included), "nothing playing" where the title goes
+      const idle = !status;
+      const s: MediaStatus = status ?? { player: "music", playing: false, title: "nothing playing", artist: lib.length ? `${lib.length} tracks · ▶ plays your library` : "Spotify, Music, or: music folder <path>", album: "", position: 0, duration: 0, volume: null };
       const w = r.w - 2;
       const x0 = r.x + 1;
       // what fits, top to bottom: header, title, artist, progress, controls
@@ -697,8 +694,8 @@ export function activate(ib: IcebreakerAPI): void {
         if (row === "head") {
           ui.text(x0, y, `♪ ${s.player.toLowerCase()}`, { fg: c.accentAlt });
           if (w > 16) drawEq(x0 + w - eq, y);
-        } else if (row === "title") ui.text(x0, y, marquee(title, w), { fg: c.fg, attrs: BOLD }, w);
-        else if (row === "artist") ui.text(x0, y, [s.artist, s.album].filter(Boolean).join(" · "), { fg: c.muted }, w);
+        } else if (row === "title") ui.text(x0, y, marquee(title, w), { fg: idle ? c.muted : c.fg, attrs: idle ? 0 : BOLD }, w);
+        else if (row === "artist") ui.text(x0, y, [s.artist, s.album].filter(Boolean).join(" · "), { fg: idle ? c.faint : c.muted }, w);
         else if (row === "mini") {
           ui.text(x0, y, "♪", { fg: c.accentAlt });
           ui.text(x0 + 2, y, marquee(`${title} — ${s.artist}`, w - 2), { fg: c.fg, attrs: BOLD }, w - 2);
@@ -714,7 +711,7 @@ export function activate(ib: IcebreakerAPI): void {
             if (filled < bw) ui.text(bx + filled, y, filled > 0 ? "╸" : "─", { fg: c.accent });
             ui.text(bx + filled + 1, y, "─".repeat(Math.max(0, bw - filled - 1)), { fg: c.faint });
             ui.text(bx + bw + 1, y, right, { fg: c.subtle });
-          } else ui.text(x0, y, s.playing ? "playing" : "paused", { fg: c.subtle });
+          } else ui.text(x0, y, idle ? "" : s.playing ? "playing" : "paused", { fg: c.subtle });
         }
         y++;
       }

@@ -68,6 +68,8 @@ export interface Settings {
   keys: Record<string, string>;
   /** module settings values (ib.settings), per module id */
   moduleSettings: Record<string, Record<string, unknown>>;
+  /** what was open when you quit, to come back to it: the tree's open folders, the tabs */
+  session?: { tree?: string[]; tabs?: string[]; active?: number };
   /** pinned notes, folders, modules (`pin`): top of the tree and the pinned widget */
   favorites: { kind: "note" | "folder" | "module"; target: string; label: string }[];
   ai: {
@@ -140,6 +142,7 @@ export const DEFAULT_SETTINGS: Settings = {
   notifications: { mode: "both" },
   keys: {},
   favorites: [],
+  session: {},
   moduleSettings: {},
   shell: {
     mode: "system",
@@ -281,9 +284,12 @@ function safeJson(raw: string | null): Record<string, unknown> {
 
 function deepMerge(base: Record<string, unknown> | object, extra: Record<string, unknown>): object {
   const b = base as Record<string, unknown>;
+  // an empty default ({}) is a free-form record (your keys, module settings, the session):
+  // everything saved in it is kept, not only the keys the defaults know about
+  const record = Object.keys(b).length === 0;
   for (const [k, v] of Object.entries(extra)) {
     if (v && typeof v === "object" && !Array.isArray(v) && b[k] && typeof b[k] === "object") deepMerge(b[k] as object, v as Record<string, unknown>);
-    else if (k in b) b[k] = v;
+    else if (k in b || record) b[k] = v;
   }
   return b;
 }
