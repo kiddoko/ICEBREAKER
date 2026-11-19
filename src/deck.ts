@@ -231,7 +231,7 @@ export class Deck implements InputSink {
     if (this.account) this.lockNow();
     this.sound.enabled = s.sound.enabled && !s.sound.muted;
     this.sound.volume = s.sound.volume / 100;
-    await step(() => this.reloadSounds().catch(() => 0), (n) => ({ text: `Sound ${s.sound.enabled ? "on" : "muted"} · pack ${this.theme.sound.pack}${n ? ` · ${n} custom sounds` : ""}`, status: "OK" }));
+    await step(() => this.reloadSounds().catch(() => 0), (n) => ({ text: `Sound ${s.sound.enabled ? "on" : "muted"} · pack ${this.soundPack()}${n ? ` · ${n} custom sounds` : ""}`, status: "OK" }));
 
     await step(async () => {
       this.ai.envKey = await this.platform.envApiKey().catch(() => null);
@@ -645,7 +645,7 @@ export class Deck implements InputSink {
       if (!quiet) this.notify(`theme tweak ignored: ${e instanceof Error ? e.message : e}`, "error");
     }
     this.themes.current = next;
-    this.sound.setPack(next.sound.pack, next.sound.pitch);
+    this.sound.setPack(this.soundPack(next), next.sound.pitch);
     const f = (t: Theme) => `${t.font.family}|${t.font.scale}|${t.font.weights}`;
     if (!quiet && f(prev) !== f(next)) void this.applyFont();
     if (!quiet) this.applyFx();
@@ -789,6 +789,20 @@ export class Deck implements InputSink {
     if (page !== "glitch") return this.pageTurn(true);
     this.glitchUntil = performance.now() + ms;
     this.requestFrame();
+  }
+
+  /** The sound pack of a theme: the one chosen for it in Settings, else the theme's own. */
+  soundPack(theme: Theme = this.theme): string {
+    return this.settings.data.sound.packByTheme?.[theme.name] ?? theme.sound.pack;
+  }
+
+  /** Choose this theme's sound pack ("default": back to the theme's own). */
+  setSoundPack(pack: string): void {
+    const all = { ...(this.settings.data.sound.packByTheme ?? {}) };
+    if (pack === "default" || pack === this.theme.sound.pack) delete all[this.theme.name];
+    else all[this.theme.name] = pack;
+    this.settings.set("sound.packByTheme", all);
+    this.sound.setPack(this.soundPack(), this.theme.sound.pitch);
   }
 
   /** A page or tab change: themes with an eink / wipe / fade transition play it (glitch stays for big moments). */

@@ -84,6 +84,7 @@ export class ModulesApp implements App {
 
   private run(c: Cart | undefined): void {
     if (!c) return;
+    this.deck.sound.play("select");
     if (c.id === "shell") return this.deck.workspace.focusShell();
     if (c.id === "note") return void this.deck.newNote();
     if (c.module && !c.on) return void this.deck.act(`plugin enable ${c.id}`);
@@ -130,11 +131,9 @@ export class ModulesApp implements App {
   onAction(a: Action): boolean {
     const n = this.carts().length;
     switch (a) {
-      case "left": this.sel = (this.sel - 1 + n) % n; return true;
-      case "right": case "item-next": this.sel = (this.sel + 1) % n; return true;
+      case "left": case "up": this.sel = (this.sel - 1 + n) % n; this.deck.sound.play("tick"); return true;
       // the ring turns with ↑↓ too
-      case "up": this.sel = (this.sel - 1 + n) % n; return true;
-      case "down": this.sel = (this.sel + 1) % n; return true;
+      case "right": case "down": case "item-next": this.sel = (this.sel + 1) % n; this.deck.sound.play("tick"); return true;
       case "confirm": this.run(this.carts()[this.sel]); return true;
       case "menu": return this.onText(" ");
       default: return false;
@@ -165,7 +164,7 @@ export class ModulesApp implements App {
     ui.hit(r, {
       onWheel: (lines) => {
         const s = this.spin.wheel(lines);
-        if (s) (this.sel = (((this.sel + s) % n) + n) % n), this.deck.sound.play("move");
+        if (s) (this.sel = (((this.sel + s) % n) + n) % n), this.deck.sound.play("tick");
       },
     });
 

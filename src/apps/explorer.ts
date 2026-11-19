@@ -153,6 +153,7 @@ export class ExplorerApp implements App {
 
   private open(e: VaultEntry | undefined): void {
     if (!e) return;
+    this.deck.sound.play("select");
     if (e.isDir) this.go(e.path);
     else void this.deck.act(`open ${q(e.path)}`);
   }
@@ -167,7 +168,7 @@ export class ExplorerApp implements App {
     const n = this.items().length;
     if (!n) return;
     this.sel = (this.sel + d + n) % n;
-    this.deck.sound.play("move");
+    this.deck.sound.play("tick");
   }
 
   onText(t: string): boolean {

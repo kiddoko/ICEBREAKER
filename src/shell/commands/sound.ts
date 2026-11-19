@@ -1,5 +1,5 @@
 import { fmt } from "../../core/ansi";
-import { SOUND_NAMES, type SoundName } from "../../core/sound";
+import { SOUND_NAMES, SOUND_PACKS, type SoundName } from "../../core/sound";
 import type { Command } from "../types";
 import { describe, ERROR_CODES, ERRORS_DOC } from "../../core/errors";
 
@@ -54,9 +54,9 @@ export const sound: Command = {
     "sound off",
   ],
   summary: "UI sounds: on / off / volume / test / reload custom files",
-  usage: "sound              status\nsound on|off\nsound 0-100        volume\nsound test [name]  play one (or all)\nsound reload       re-read .icebreaker/sounds/*.wav|ogg|mp3",
+  usage: "sound              status\nsound on|off\nsound 0-100        volume\nsound pack [name|default]   the packs; pick one for this theme\nsound test [name]  play one (or all)\nsound reload       re-read .icebreaker/sounds/*.wav|ogg|mp3",
   man: `Sounds are synthesized on the fly. Replace any of them with a file named after it in .icebreaker/sounds/:\n${SOUND_NAMES.join(", ")}`,
-  complete: () => ["on", "off", "test", "reload", ...SOUND_NAMES],
+  complete: () => ["on", "off", "pack", "test", "reload", ...SOUND_NAMES, ...Object.keys(SOUND_PACKS), "default"],
   async run(ctx) {
     const { deck } = ctx;
     const [a, b] = ctx.args;
@@ -68,6 +68,20 @@ export const sound: Command = {
     }
     if (a === "on" || a === "off") return set("sound.enabled", a === "on"), 0;
     if (/^\d+$/.test(a)) return set("sound.volume", Math.max(0, Math.min(100, Number(a)))), 0;
+    if (a === "pack" || a === "packs") {
+      const own = deck.theme.sound.pack;
+      const cur = deck.soundPack();
+      if (!b) {
+        for (const [name, p] of Object.entries(SOUND_PACKS)) ctx.out(`${name === cur ? fmt.green("●") : " "} ${fmt.bold(name)}${name === own ? fmt.dim(" (default)") : ""}  ${fmt.dim(p.description)}\n`);
+        ctx.out(fmt.dim(`for the theme ${deck.theme.name} · sound pack <name> · sound pack default\n`));
+        return 0;
+      }
+      if (b !== "default" && !SOUND_PACKS[b]) return ctx.err(`sound: no pack ${b} (${Object.keys(SOUND_PACKS).join(", ")})\n`), 1;
+      deck.setSoundPack(b);
+      deck.sound.play("confirm");
+      ctx.out(`${deck.theme.name}: ${deck.soundPack()}${deck.soundPack() === own ? " (default)" : ""}\n`);
+      return 0;
+    }
     if (a === "reload") {
       const n = await deck.reloadSounds();
       ctx.out(`${n} custom sound${n === 1 ? "" : "s"} loaded\n`);

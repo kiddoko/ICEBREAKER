@@ -12,8 +12,10 @@
  *   notify   neutral toast                    boot     power-on
  *   unlock   login accepted                   denied   wrong password
  *   alert    a reminder / system notification: a retro "tu-dut", twice
+ *   tick     a detent of the ring (MODULES, NEXUS): one click per step
+ *   select   picking a floppy / a locker: a little "clunk"
  */
-export const SOUND_NAMES = ["move", "open", "confirm", "back", "success", "error", "notify", "boot", "unlock", "denied", "alert"] as const;
+export const SOUND_NAMES = ["move", "open", "confirm", "back", "success", "error", "notify", "boot", "unlock", "denied", "alert", "tick", "select"] as const;
 export type SoundName = (typeof SOUND_NAMES)[number];
 
 type Synth = (ctx: AudioContext, out: AudioNode, t: number) => void;
@@ -223,6 +225,17 @@ const SYNTHS: Record<SoundName, Synth> = {
   unlock: (c, o, t) => {
     noise(c, o, t, 0.04, 3000, 0.3, 5);
     [392, 523, 784].forEach((f, i) => tone(c, o, t + 0.04 + i * 0.07, f, 0.09, "square", 0.18));
+  },
+  // a wheel detent: a dry click (relay noise) with a hair of pitch — each pack colours it
+  tick: (c, o, t) => {
+    noise(c, o, t, 0.014, jitter(3600, 0.08), 0.32, 7);
+    tone(c, o, t, jitter(2400, 0.04), 0.012, "square", 0.07);
+  },
+  // a floppy going into the drive: a soft thump, then two quick notes
+  select: (c, o, t) => {
+    noise(c, o, t, 0.07, 700, 0.3, 1.8);
+    tone(c, o, t + 0.02, 330, 0.05, "square", 0.18);
+    tone(c, o, t + 0.07, 494, 0.08, "square", 0.16);
   },
   denied: (c, o, t) => {
     tone(c, o, t, 196, 0.12, "square", 0.25);

@@ -64,7 +64,8 @@ export interface Settings {
   };
   /** UI sounds (core/sound.ts). Volume 0–100. */
   /** muted: everything silent (ui sounds, voice, alerts) — the 🔇 button, `mute` */
-  sound: { enabled: boolean; volume: number; muted?: boolean };
+  /** packByTheme: the sound pack chosen for a theme (else the theme's own) */
+  sound: { enabled: boolean; volume: number; muted?: boolean; packByTheme?: Record<string, string> };
   /** How alerts (reminders, modules' ib.ui.alert) reach you: sound (+ voice), visual (system notification + toast), both, or none. */
   notifications: { mode: "both" | "sound" | "visual" | "none" };
   /** Your own shortcuts: key combo → shell command (`bind ctrl+shift+1 "open notes/ideas.md"`). */

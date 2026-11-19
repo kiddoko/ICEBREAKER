@@ -1,3 +1,4 @@
+import { SOUND_PACKS } from "../core/sound";
 import { t } from "../core/i18n";
 import { displayKeys, SHORTCUTS } from "../core/shortcuts";
 import { SETTINGS_HELP } from "./settings-help";
@@ -179,6 +180,16 @@ export class SettingsApp implements App {
         set("sound.enabled", v > 0);
         if (v > 0) set("sound.volume", v);
       }, { zeroIsOff: true }),
+      {
+        label: "sound pack (this theme)",
+        value: () => `${d.soundPack()}${d.soundPack() === d.theme.sound.pack ? ` ${t("(default)")}` : ""}`,
+        cmd: () => `sound pack ${d.soundPack()}`,
+        change: (dir) => {
+          const packs = Object.keys(SOUND_PACKS);
+          d.setSoundPack(packs[(packs.indexOf(d.soundPack()) + dir + packs.length) % packs.length]);
+          d.sound.play("tick");
+        },
+      },
       cycle("notifications.mode", "notifications", ["both", "sound", "visual", "none"], undefined, (v) => t(({ both: "sound + screen", sound: "sound only", visual: "screen only", none: "off" } as Record<string, string>)[String(v)] ?? String(v))),
       { section: "VOICE", label: "", value: () => "" },
       toggle("voice.enabled", "voice"),

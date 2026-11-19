@@ -780,4 +780,7 @@ export const FR: Record<string, string> = {
   "there's already a {name} in /{dir}": "il y a déjà un {name} dans /{dir}",
   "copied into /{dir}": "copié dans /{dir}",
   "{n} copied into /{dir}": "{n} copiés dans /{dir}",
+  // ── sound packs per theme (19 nov.)
+  "sound pack (this theme)": "pack de sons (ce thème)",
+  "(default)": "(défaut)",
 };
