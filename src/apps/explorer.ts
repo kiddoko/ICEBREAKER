@@ -35,6 +35,8 @@ export class ExplorerApp implements App {
   private travel = 0;
   private warpUntil = 0;
   private shownAt = 0;
+  /** when we last went into (or out of) a folder: the dive animation */
+  private diveAt = 0;
   private typed = "";
   private typedAt = 0;
   private preview = new Map<string, string>();
@@ -143,6 +145,7 @@ export class ExplorerApp implements App {
     this.sel = Math.max(0, select ? items.findIndex((e) => e.path === select) : 0);
     this.pos = this.sel + (select ? 0 : 3); // swing in
     this.warpUntil = performance.now() + 450;
+    this.diveAt = performance.now();
     this.shownAt = 0;
     this.deck.sound.play("open");
   }
@@ -230,18 +233,19 @@ export class ExplorerApp implements App {
     // ── sky: glyph rain, fading toward the horizon ──
     const sky = { x: r.x, y: r.y + 1, w: r.w, h: horizon - r.y - 1 };
     const t = ui.theme;
-    drawBackground(ui, sky, { ...t, background: { ...t.background, effect: "rain", density: 0.5 + warp, speed: 1 + warp * 4, color: mix(c.bg, c.accent, 0.45), color2: c.accentAlt, glyphs: t.anim.noise } }, 1);
+    drawBackground(ui, sky, { ...t, background: { ...t.background, effect: "rain", density: 0.3 + warp, speed: 1 + warp * 4, color: mix(c.bg, c.accent, 0.2 + warp * 0.25), color2: mix(c.bg, c.accentAlt, 0.5), glyphs: t.anim.noise } }, 0.7);
 
     // ── floor: a fine perspective grid (braille dots: continuous thin lines) ──
     const cx = r.x + r.w / 2;
     const depthRows = Math.max(1, floorBottom - horizon);
-    ui.hline(r.x, horizon, r.w, { fg: mix(c.accent, c.bg, 0.2) }, "─");
+    ui.hline(r.x, horizon, r.w, { fg: mix(c.bg, c.accent, 0.4) }, "─");
     const floorR = { x: r.x, y: horizon + 1, w: r.w, h: depthRows };
     const A = ui.cellAspect;
     const vx = (cx - r.x) * A; // vanishing point x, in cell-height units
     const spacing = Math.max(2.5, (r.w * A) / 16); // rail spacing at the bottom edge
     const travel = this.travel;
-    const near = mix(c.bg, c.accent, 0.75), far = mix(c.bg, c.accent, 0.3);
+    // a quiet floor: it's the stage, not the show
+    const near = mix(c.bg, c.accent, 0.36), far = mix(c.bg, c.accent, 0.14);
     dots(ui, floorR, [far, near], (X, Y) => {
       const k = (Y + 0.5) / (depthRows + 0.5); // 0 at the horizon → 1 at the bottom
       if (k <= 0.02) return 0;
@@ -307,7 +311,26 @@ export class ExplorerApp implements App {
       visible.push({ e: items[i], i, z: Math.cos(a), x: cx + Math.sin(a) * radius });
     }
     visible.sort((a, b) => a.z - b.z);
-    ui.hit({ x: r.x, y: horizon, w: r.w, h: floorBottom - horizon + 1 }, { onWheel: (dir) => this.turn(dir > 0 ? 1 : -1) });
+    // the wheel turns the ring wherever the mouse is
+    ui.hit(r, { onWheel: (dir) => this.turn(dir > 0 ? 1 : -1) });
+    // diving into a folder: the lockers come out of the vanishing point, frames rush past
+    const dv = Math.min(1, (performance.now() - this.diveAt) / 420);
+    if (dv < 1) {
+      ui.animate(16);
+      const ease = 1 - (1 - dv) ** 3;
+      for (const v of visible) v.x = cx + (v.x - cx) * (0.12 + 0.88 * ease);
+      for (let k = 0; k < 3; k++) {
+        const g = (dv * 1.6 + k / 3) % 1; // each frame grows from the middle outward
+        const fw = Math.round(r.w * g), fh = Math.round((floorBottom - horizon + 6) * g);
+        if (fw < 4 || fh < 2) continue;
+        const fx = Math.round(cx - fw / 2), fy = Math.round(horizon - fh / 3);
+        const st = { fg: mix(c.bg, c.accent, (1 - g) * 0.6) };
+        ui.hline(fx, fy, fw, st, "─");
+        ui.hline(fx, fy + fh - 1, fw, st, "─");
+        ui.vline(fx, fy, fh, st, "│");
+        ui.vline(fx + fw - 1, fy, fh, st, "│");
+      }
+    }
     for (const v of visible) this.drawNode(ui, r, v, horizon, floorBottom, focused);
 
     // ── data panel: the one in front ──
