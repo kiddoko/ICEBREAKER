@@ -10,12 +10,16 @@ export interface SliderOptions {
   /** keyboard / wheel step (default 5) */
   step?: number;
   tip?: string;
+  /** double-click on the number: type a value (the caller asks for it) */
+  onEdit?: () => void;
 }
 
 /**
  * A real slider: ━━━━━━╸──────  120%
- * Click or drag anywhere on the track (1 % at a time), the wheel steps by 5;
- * the caller handles ← → (also by 5). Returns the width it used.
+ * Click or drag anywhere on the track: the pointer's exact position (to the
+ * pixel, not the cell) gives the value, so it moves 1 % at a time. The wheel
+ * steps by 5; the caller handles ← → (also by 5). Double-click the number to
+ * type one (`onEdit`).
  */
 export function slider(ui: UI, r: Rect, value: number, min: number, max: number, onSet: (v: number) => void, o: SliderOptions = {}): void {
   const c = ui.c;
@@ -32,12 +36,29 @@ export function slider(ui: UI, r: Rect, value: number, min: number, max: number,
   ui.text(r.x + filled, r.y, "╸", { fg: hot ? c.fg : on ? c.accent : c.subtle, attrs: BOLD });
   if (filled + 1 < tw) ui.text(r.x + filled + 1, r.y, "─".repeat(tw - filled - 1), { fg: c.faint });
   ui.textRight(r.x + r.w, r.y, text, { fg: on ? c.accent : c.subtle, attrs: BOLD });
-  const at = (mx: number) => Math.round(min + (Math.max(0, Math.min(tw - 1, mx - r.x)) / Math.max(1, tw - 1)) * (max - min));
+  // where the pointer is along the track, to the pixel: 0 at the left edge, 1 at the right
+  const at = (m: { x: number; fx?: number }) => {
+    const k = Math.max(0, Math.min(1, ((m.fx ?? m.x + 0.5) - r.x) / Math.max(1, tw)));
+    return Math.round(min + k * (max - min));
+  };
   const step = o.step ?? 5;
+  const num = { x: r.x + r.w - strWidth(text), y: r.y, w: strWidth(text), h: 1 };
+  if (o.onEdit) ui.hit(num, { onDouble: () => o.onEdit?.(), tip: "double-click: type a value" });
   ui.hit(track, {
-    onClick: (m) => onSet(at(m.x)),
-    onDrag: (m) => onSet(at(m.x)),
+    onClick: (m) => onSet(at(m)),
+    onDrag: (m) => onSet(at(m)),
     onWheel: (d) => onSet(Math.max(min, Math.min(max, value - Math.sign(d) * step))),
     tip: o.tip ?? "drag, click, wheel · ←→ by 5",
   });
+}
+
+/**
+ * Ask for a slider's value by typing it: digits only, clamped to [min, max]
+ * (0 = off for effects). Resolves with the number, or null when cancelled.
+ */
+export async function askNumber(deck: { prompt(title: string, o: { initial?: string; placeholder?: string; digits?: boolean }): Promise<string | null> }, label: string, current: number, min: number, max: number, zeroIsOff = false): Promise<number | null> {
+  const v = await deck.prompt(`${label} (${min}-${max}${zeroIsOff ? ", 0 = off" : ""})`, { initial: String(current), digits: true });
+  if (v === null || v.trim() === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.max(min, Math.min(max, Math.round(n))) : null;
 }

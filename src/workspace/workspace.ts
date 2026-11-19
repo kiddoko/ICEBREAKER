@@ -1,3 +1,4 @@
+import { SHORTCUTS } from "../core/shortcuts";
 import { mix } from "../core/color";
 import { KeyCapture } from "./keycapture";
 import { addToWheel } from "./actionwheel";
@@ -14,7 +15,7 @@ import { inside, q, type Hit, type MenuEntry, type MenuItem, type UI } from "../
 import { copyToClipboard, readClipboard } from "../core/clipboard";
 import { ContextMenu } from "./contextmenu";
 import { describe, ERRORS_DOC } from "../core/errors";
-import { ConfirmDialog, Osk, Palette, PromptDialog, Toasts, type Overlay, type ToastKind, ChooseDialog } from "./overlays";
+import { ConfirmDialog, Osk, Palette, PromptDialog, Toasts, type Overlay, type PromptOptions, type ToastKind, ChooseDialog } from "./overlays";
 import type { ChoiceOption } from "../plugins/api";
 import { FxPanel } from "./fxpanel";
 import { Sidebar } from "./sidebar";
@@ -131,27 +132,47 @@ export class Workspace {
     this.terminal.write(`${cmd}\r`);
   }
 
-  /** The side panel: its widgets stacked, each at its own height, as many as fit. */
+  /**
+   * The side panel: its widgets stacked, each at its own height, as many as fit.
+   * In HOME's edit mode it can be rearranged too: ▲ ▼ × on each widget, drag one
+   * up or down to reorder it, or onto HOME to send it back there. A HOME widget
+   * dragged onto the panel lands in it.
+   */
   private renderSidePanel(ui: UI, r: Rect): void {
     const d = this.deck;
     const c = ui.c;
-    const inner = ui.box(r, { title: t("PANEL"), info: "◧" });
+    const home = this.findTab("home") as { isEditing?: boolean } | undefined;
+    const editing = !!home?.isEditing && this.activeApp === (home as unknown);
+    const inner = ui.box(r, { title: t("PANEL"), info: editing ? t("edit") : undefined, border: editing ? "heavy" : undefined, focused: editing });
     ui.hit(inner, { menu: () => [{ label: t("add a widget…"), run: () => void this.panelAdd() }, { label: t("hide the panel"), cmd: "panel hide" }] });
     const ids = (d.settings.data.panel?.widgets ?? []).filter((id) => d.widgets.get(id));
+    const slots: { id: string; y: number; h: number }[] = [];
     let y = inner.y;
     for (const id of ids) {
       const spec = d.widgets.get(id)!;
       const h = Math.max(4, Math.min(14, spec.size.h * 2 + 2));
       if (y + 3 > inner.y + inner.h) break;
       const box = { x: inner.x, y, w: inner.w, h: Math.min(h, inner.y + inner.h - y) };
-      const wi = ui.box(box, { title: t(spec.title).toUpperCase(), border: ui.theme.widgetFrame });
+      slots.push({ id, y: box.y, h: box.h });
+      const dragged = this.panelDrag?.moved && this.panelDrag.id === id;
+      const wi = ui.box(box, { title: t(spec.title).toUpperCase(), border: editing ? "dashed" : ui.theme.widgetFrame, focused: dragged });
       ui.hit(box, {
-        onDouble: () => void d.act(`widget ${id}`),
-        tip: `${spec.description ?? spec.title}\n${t("double-click: its pop-up · right-click: move, remove")}`,
+        onDouble: () => !editing && void d.act(`widget ${id}`),
+        onClick: (m) => editing && (this.panelDrag = { id, x: m.x, y: m.y, moved: false }),
+        onDrag: (m) => {
+          const pd = this.panelDrag;
+          if (!pd || pd.id !== id) return;
+          pd.moved ||= Math.abs(m.y - pd.y) + Math.abs(m.x - pd.x) > 1;
+          pd.x = m.x;
+          pd.y = m.y;
+        },
+        onUp: (m) => this.panelDropAt(id, m, slots),
+        tip: editing ? t("drag: reorder, or onto HOME to put it back · ▲ ▼ ×") : `${spec.description ?? spec.title}\n${t("double-click: its pop-up · right-click: move, remove")}`,
         menu: () => [
           ...(spec.popup || spec.activate || spec.open ? [{ label: t("open"), cmd: `widget ${id}` }] : []),
           { label: t("move up"), cmd: `panel up ${id}` },
           { label: t("move down"), cmd: `panel down ${id}` },
+          { label: t("back to HOME"), run: () => void d.act(`home add ${id}`).then(() => d.act(`panel rm ${id}`)) },
           { label: t("add a widget…"), run: () => void this.panelAdd() },
           "-",
           { label: t("remove from the panel"), cmd: `panel rm ${id}`, danger: true },
@@ -164,12 +185,55 @@ export class Workspace {
           ui.text(wi.x, wi.y, "⚠", { fg: c.error });
         }
       });
+      // edit mode: ▲ ▼ × on the frame
+      if (editing) {
+        let bx = box.x + box.w - 9;
+        for (const [g, cmd, tip] of [["▲", `panel up ${id}`, t("move up")], ["▼", `panel down ${id}`, t("move down")], ["×", `panel rm ${id}`, t("remove from the panel")]] as const) {
+          const br = { x: bx, y: box.y, w: 3, h: 1 };
+          ui.text(bx, box.y, ` ${g} `, { fg: ui.hovered(br) ? c.bg : g === "×" ? c.error : c.fg, bg: ui.hovered(br) ? c.accent : c.highlight, attrs: BOLD });
+          ui.hit(br, { cmd, tip });
+          bx += 3;
+        }
+      }
       y += box.h;
     }
     if (!ids.length) {
       ui.textCenter(inner, inner.y + 1, t("empty"), { fg: c.muted });
       ui.textCenter(inner, inner.y + 3, t("right-click → add a widget"), { fg: c.faint });
+      ui.textCenter(inner, inner.y + 4, t("or drag one here from HOME (edit mode)"), { fg: c.faint });
     }
+    // a HOME widget hovering over the panel: show where it lands
+    if (this.panelDrop) ui.box(inner, { border: "double", focused: true, fill: false, title: t("drop here") });
+    // a panel widget being dragged: a ghost under the pointer
+    const pd = this.panelDrag;
+    if (pd?.moved) {
+      const label = ` ${t(d.widgets.get(pd.id)?.title ?? pd.id).toUpperCase()} `;
+      ui.text(Math.max(0, pd.x - Math.floor(label.length / 2)), pd.y, label, { fg: c.bg, bg: c.accent, attrs: BOLD });
+      ui.animate(16);
+    }
+  }
+
+  /** A panel widget let go: reorder it (over the panel), or send it to HOME (over the page). */
+  private panelDropAt(id: string, m: { x: number; y: number }, slots: { id: string; y: number; h: number }[]): void {
+    const pd = this.panelDrag;
+    this.panelDrag = null;
+    if (!pd?.moved) return;
+    const p = this.panelArea, main = this.rects.main;
+    const inside = (r: Rect | null | undefined) => !!r && m.x >= r.x && m.x < r.x + r.w && m.y >= r.y && m.y < r.y + r.h;
+    if (inside(main) && this.activeApp?.kind === "home") {
+      void this.deck.act(`home add ${id}`).then(() => this.deck.act(`panel rm ${id}`));
+      return;
+    }
+    if (!inside(p)) return;
+    const list = [...(this.deck.settings.data.panel?.widgets ?? [])];
+    const from = list.indexOf(id);
+    // the slot under the pointer is where it goes (below the last one: the end)
+    let to = slots.findIndex((sl) => m.y < sl.y + sl.h);
+    if (to < 0) to = list.length - 1;
+    if (from < 0 || to === from) return;
+    list.splice(from, 1);
+    list.splice(Math.min(to, list.length), 0, id);
+    this.deck.settings.set("panel", { ...this.deck.settings.data.panel, widgets: list });
   }
 
   /** Pick a widget for the side panel. */
@@ -283,6 +347,13 @@ export class Workspace {
   }
 
   /** Show an app; if one with the same key is open, switch to it instead. */
+  /** where the side panel is this frame (null: hidden) — HOME drops widgets on it */
+  panelArea: Rect | null = null;
+  /** a HOME widget is being dragged over the side panel */
+  panelDrop = false;
+  /** a panel widget being dragged (edit mode): its id and where the pointer is */
+  private panelDrag: { id: string; x: number; y: number; moved: boolean } | null = null;
+
   /** the tab the tree's wheel preview made (the next file replaces it) */
   private previewTab: App | null = null;
 
@@ -465,7 +536,7 @@ export class Workspace {
     return new Promise((resolve) => this.push(new ChooseDialog(title, options, selected, resolve)));
   }
 
-  prompt(title: string, opts: { initial?: string; placeholder?: string; mask?: boolean; suggestions?: string[] } = {}): Promise<string | null> {
+  prompt(title: string, opts: PromptOptions = {}): Promise<string | null> {
     return new Promise((resolve) => this.push(new PromptDialog(title, opts, resolve)));
   }
 
@@ -748,6 +819,9 @@ export class Workspace {
     if (k.ctrl && !k.alt && (k.key === "/" || k.code === "Slash")) return void d.openApp("shortcuts"), true;
     if (c === "ctrl+shift+h") return void d.openApp("home"), true;
     if (c === "ctrl+shift+m") return void d.openApp("modules"), true;
+    // keys marked `global` in SHORTCUTS (core/shortcuts.ts) run their command: the table is the binding
+    const own = SHORTCUTS.find((s) => s.global && s.keys === c);
+    if (own?.cmd) return void d.act(own.cmd), true;
     if (c === "ctrl+shift+n") return void d.newFolder(), true;
     if (c === "ctrl+shift+l") return void d.act("lock"), true;
     if (c === "ctrl+j") return void d.openJournal(new Date()), true;
@@ -901,9 +975,11 @@ export class Workspace {
     const mainR = max ? { x: right.x, y: body.y + body.h - stripH, w: right.w, h: stripH } : { x: top.x + (sideW ? sideW + 1 : 0), y: top.y, w: top.w - (sideW ? sideW + 1 : 0), h: top.h };
     // the side panel on the right: widgets that stay in view (panel show · ◧ in the status bar)
     const panelW = Math.max(24, Math.min(36, Math.round(W * 0.2)));
+    this.panelArea = null;
     if (d.settings.data.panel?.shown && mainR.w - panelW - 1 >= 40) {
       mainR.w -= panelW + 1;
       const pr = { x: mainR.x + mainR.w + 1, y: mainR.y, w: panelW, h: mainR.h };
+      this.panelArea = pr;
       this.renderSidePanel(ui, pr);
     }
     this.rects.main = mainR;
@@ -1237,7 +1313,6 @@ export class Workspace {
     if (d.voice.speaking) parts.push({ text: `◖ ${t("voice")}`, fg: c.accentAlt, cmd: "voice stop", tip: t("speaking · click to stop") });
     if (d.gamepad.connected) parts.push({ text: "◈ pad", fg: c.success });
     parts.push(this.shellVisible ? { text: "▾ shell", fg: c.muted, cmd: "term hide", tip: "fold the shell away · ctrl+`" } : { text: "▴ shell", fg: c.accent, cmd: "term show", tip: "bring the shell back · ctrl+`" });
-    parts.push({ text: "◧", fg: d.settings.data.panel?.shown ? c.accent : c.muted, cmd: "panel", tip: t("the side panel: widgets always in view · panel") });
     parts.push({ text: "⌨", fg: this.overlays.some((o) => o instanceof Osk) ? c.accent : c.muted, cmd: "osk", tip: "on-screen keyboard · pad: X" });
     parts.push({ text: "✦ fx", fg: c.accentAlt, cmd: "view fx", tip: "bloom, scanlines… · `fx` in the shell" });
     const muted = !!d.settings.data.sound.muted;
@@ -1246,6 +1321,8 @@ export class Workspace {
     if (d.settings.data.appearance.showFps) parts.push({ text: `${d.loop.fps}fps ${d.loop.frameMs.toFixed(1)}ms`, fg: c.subtle });
     parts.push({ text: `^K ${t("palette")}`, fg: c.muted, cmd: "palette" });
     parts.push({ text: `F1 ${t("help")}`, fg: c.muted, cmd: "manual" });
+    // the side panel's switch: always the last thing on the right
+    parts.push({ text: "◧", fg: d.settings.data.panel?.shown ? c.accent : c.muted, cmd: "panel", tip: `${t("the side panel: widgets always in view · panel")} · ${IS_MAC ? "⌘⇧B" : "ctrl+shift+B"}` });
     const rightW = parts.reduce((s, p) => s + strWidth(p.text) + 3, 0);
     let rx = r.x + r.w - rightW;
     ui.text(x + 1, r.y, status, { fg: c.statusFg, bg: c.statusBg }, Math.max(0, rx - x - 3));

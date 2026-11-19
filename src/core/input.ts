@@ -38,6 +38,8 @@ export interface MouseInput {
   button: number;
   /** wheel: positive = scroll down, in lines */
   delta: number;
+  /** x with the part of a cell (2.5 = the middle of column 2): sliders use it for 1 % steps */
+  fx?: number;
   ctrl: boolean;
   shift: boolean;
 }
@@ -211,7 +213,7 @@ export class InputManager {
     const host = this.host;
     const make = (kind: MouseKind, e: MouseEvent, delta = 0): MouseInput => {
       const c = this.renderer.cellAt(e.clientX, e.clientY);
-      return { kind, x: c.x, y: c.y, button: e.button, delta, ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey };
+      return { kind, x: c.x, y: c.y, fx: c.fx, button: e.button, delta, ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey };
     };
     // back / forward mouse buttons: tabs (and never the webview's own history)
     const sideButton = (e: MouseEvent) => {

@@ -62,6 +62,7 @@ import { installStealth } from "./core/stealth";
 import { setLang, t } from "./core/i18n";
 import type { ChoiceOption } from "./plugins/api";
 import { LockScreen } from "./workspace/lock";
+import type { PromptOptions } from "./workspace/overlays";
 import { ActionWheel } from "./workspace/actionwheel";
 import { applyFxPreset } from "./workspace/fxpanel";
 import type { ToastKind } from "./workspace/overlays";
@@ -546,7 +547,7 @@ export class Deck implements InputSink {
     return p;
   }
 
-  prompt(title: string, opts: { initial?: string; placeholder?: string; mask?: boolean; suggestions?: string[] } = {}): Promise<string | null> {
+  prompt(title: string, opts: PromptOptions = {}): Promise<string | null> {
     const p = this.workspace.prompt(title, opts);
     this.requestFrame();
     return p;

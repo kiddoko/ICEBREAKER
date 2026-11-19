@@ -7,7 +7,7 @@ import { SETTINGS_HELP } from "./settings-help";
 import { focus } from "../widgets/focusstate";
 import { q } from "../ui/ui";
 import { strWidth, truncate } from "../core/unicode";
-import { slider } from "../ui/slider";
+import { askNumber, slider } from "../ui/slider";
 import { fxMax, getFx, setFx, type FxLevel } from "../core/fxlevels";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
@@ -25,8 +25,10 @@ interface Row {
   value: () => string;
   /** dir: +1 = next / confirm, -1 = previous */
   change?: (dir: 1 | -1) => void | Promise<void>;
-  /** a text value (opens an input box, no ◂ ▸) */
+  /** a text value (opens an input box, no ‹ ›) */
   isText?: boolean;
+  /** a choice you step through both ways (‹ value ›); rows with a settings key and change() are by default */
+  steps?: boolean;
   /** The shell command for one click (next value). */
   cmd?: () => string;
   /** a real slider instead of a value (drag / click / wheel; ←→ by 5) */
@@ -193,6 +195,7 @@ export class SettingsApp implements App {
       }, { zeroIsOff: true }),
       {
         label: "sound pack (this theme)",
+        steps: true,
         value: () => `${d.soundPack()}${d.soundPack() === d.theme.sound.pack ? ` ${t("(default)")}` : ""}`,
         cmd: () => `sound pack ${d.soundPack()}`,
         change: (dir) => {
@@ -323,7 +326,7 @@ export class SettingsApp implements App {
     }
     if (on("focus")) {
       head("FOCUS");
-      out.push({ label: "focus / break minutes", value: () => `${focus.work} / ${focus.rest}`, cmd: () => "focus set 25 5", change: (dir) => {
+      out.push({ label: "focus / break minutes", steps: true, value: () => `${focus.work} / ${focus.rest}`, cmd: () => "focus set 25 5", change: (dir) => {
         const p: [number, number][] = [[25, 5], [50, 10], [90, 20]];
         const i = p.findIndex(([w]) => w === focus.work);
         const [w, b] = p[(i + dir + p.length) % p.length];
@@ -359,6 +362,7 @@ export class SettingsApp implements App {
           key: k,
           label: ms.label,
           isText: ms.type === "text",
+          steps: ms.type === "choice",
           value: () => {
             const v = d.moduleSettingValue(id, ms.key);
             return ms.type === "toggle" ? (v ? "on" : "off") : String(v ?? "—");
@@ -498,21 +502,41 @@ export class SettingsApp implements App {
           this.sel = i;
           this.pane = "rows";
           sl.set(v);
-        }, { zeroIsOff: sl.zeroIsOff, show: sl.show, tip: `${row.cmd?.() ?? ""}\n${t("drag, click, wheel · ←→ by 5")}` });
+        }, {
+          zeroIsOff: sl.zeroIsOff,
+          show: sl.show,
+          tip: `${row.cmd?.() ?? ""}\n${t("drag, click, wheel · ←→ by 5 · double-click the number to type it")}`,
+          onEdit: () => void askNumber(this.deck, t(row.label), sl.get(), sl.min, sl.max, sl.zeroIsOff).then((v) => v !== null && sl.set(v)),
+        });
         return;
       }
-      // ◂ ▸ only on values you step through; an action just says what it does
-      const shownV = truncate(selected && row.change && row.key && !row.isText ? `◂ ${v} ▸` : selected && row.change ? `${v} ›` : v, Math.max(4, Math.floor(rw / 2)));
+      // ‹ › on every value you step through (both ways, always shown: you can see it turns);
+      // an action just says what it does
+      const steps = !!row.change && (row.steps ?? (!!row.key && !row.isText && !row.key.startsWith("plugin.") && raw !== "on" && raw !== "off"));
+      const shownV = steps ? `‹ ${truncate(v, Math.max(2, Math.floor(rw / 2) - 4))} ›` : truncate(selected && row.change ? `${v} ›` : v, Math.max(4, Math.floor(rw / 2)));
       // the label gets what the value leaves (never a negative width: the line must never vanish)
       const labelW = Math.max(4, rw - strWidth(shownV) - 3);
       const lx = ui.text(rx + 1, y, label, { fg: selected ? c.fg : c.muted, ...st }, labelW);
       if (this.query) ui.text(lx, y, t(from).toLowerCase(), { fg: c.faint, ...st }, Math.max(0, labelW - (lx - rx - 1)));
       const color = raw === "on" ? c.success : raw === "off" ? c.subtle : from === "DANGER ZONE" ? c.error : c.accent;
       ui.textRight(vx, y, shownV, { fg: color, attrs: selected ? BOLD : 0, ...st });
+      const vw = strWidth(shownV);
+      if (steps) {
+        // the arrows: dim until the row is chosen, bright under the mouse
+        const lx2 = vx - vw, rx2 = vx - 1;
+        const arrow = (x: number, ch: string) => ui.text(x, y, ch, { fg: ui.hovered({ x, y, w: 1, h: 1 }) ? c.fg : selected ? c.accent : c.faint, attrs: BOLD, ...st });
+        arrow(lx2, "‹");
+        arrow(rx2, "›");
+      }
       if (ui.hovered(line)) hoverRow = row;
       ui.hit(line, { onClick: () => ((this.sel = i), (this.pane = "rows")), onDouble: () => void row.change?.(1) });
       const cmd = row.cmd?.();
-      if (row.change) ui.hit({ x: vx - shownV.length, y, w: shownV.length, h: 1 }, cmd ? { cmd, tip: "←→ / enter change it too" } : { onClick: () => void row.change?.(1) });
+      if (row.change) ui.hit({ x: vx - vw, y, w: vw, h: 1 }, cmd ? { cmd, tip: t("←→ / enter change it too") } : { onClick: () => void row.change?.(1) });
+      if (steps) {
+        const pick = (dir: 1 | -1) => () => ((this.sel = i), (this.pane = "rows"), void row.change?.(dir));
+        ui.hit({ x: vx - vw, y, w: 2, h: 1 }, { onClick: pick(-1), tip: t("previous") });
+        ui.hit({ x: vx - 2, y, w: 2, h: 1 }, { onClick: pick(1), tip: t("next") });
+      }
     });
 
     // what it does (the row under the mouse, else the selected one), and the command that does the same

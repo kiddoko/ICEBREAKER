@@ -163,6 +163,15 @@ export class ConfirmDialog implements Overlay {
   }
 }
 
+export interface PromptOptions {
+  initial?: string;
+  placeholder?: string;
+  mask?: boolean;
+  suggestions?: string[];
+  /** accept digits only */
+  digits?: boolean;
+}
+
 export class PromptDialog implements Overlay {
   modal = true;
   done = false;
@@ -171,12 +180,15 @@ export class PromptDialog implements Overlay {
   /** the ▾ list is open; `pick` = the highlighted suggestion */
   private open = false;
   private pick = -1;
+  /** only digits get through (a number for a slider: no letters, no surprises) */
+  private readonly digits: boolean;
 
   constructor(
     private readonly title: string,
-    opts: { initial?: string; placeholder?: string; mask?: boolean; suggestions?: string[] },
+    opts: PromptOptions,
     private readonly resolve: (value: string | null) => void,
   ) {
+    this.digits = !!opts.digits;
     this.suggestions = opts.suggestions ?? [];
     this.editor = new TextEditor(opts.initial ?? "", { singleLine: true, placeholder: opts.placeholder, mask: opts.mask });
     this.editor.setText(opts.initial ?? "", true);
@@ -231,6 +243,8 @@ export class PromptDialog implements Overlay {
   }
 
   onText(t: string): boolean {
+    if (this.digits) t = t.replace(/[^0-9]/g, "");
+    if (!t) return true;
     this.editor.onText(t);
     if (this.suggestions.length) this.pick = this.open ? 0 : -1;
     return true;

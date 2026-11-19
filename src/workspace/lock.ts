@@ -129,7 +129,7 @@ export class LockScreen {
     const shake = performance.now() - this.shakeAt < 300 ? Math.round(Math.sin((performance.now() - this.shakeAt) / 25) * 2) : 0;
     if (shake) ui.animate(16);
     const showIcon = this.prefilled && H >= 28;
-    const cardH = 13 + (showIcon ? 4 : 0);
+    const cardH = 11 + (showIcon ? 4 : 0);
     const x = Math.floor((W - w) / 2) + shake;
     let y = Math.max(1, Math.floor((H - cardH - 4) / 2));
     const p = Math.min(1, (ui.now - this.shownAt) / 600);

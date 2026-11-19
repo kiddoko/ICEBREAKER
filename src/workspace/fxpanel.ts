@@ -4,7 +4,7 @@ import type { Deck } from "../deck";
 import { ListView } from "../ui/list";
 import type { UI } from "../ui/ui";
 import type { Overlay } from "./overlays";
-import { slider } from "../ui/slider";
+import { askNumber, slider } from "../ui/slider";
 import { fxMax, getFx, setFx, type FxLevel } from "../core/fxlevels";
 
 type FxKey = "ambient" | "glitch" | "bloom" | "scanlines" | "vignette" | "flicker";
@@ -113,7 +113,11 @@ export class FxPanel implements Overlay {
         slider(ui, { x: rr.x + 14, y: rr.y, w: rr.w - 15, h: 1 }, getFx(this.deck, lv), 0, fxMax(lv), (v) => {
           this.list.select(this.list.items.indexOf(row));
           setFx(this.deck, lv, v);
-        }, { zeroIsOff: lv !== "sharpness", tip: `fx ${lv} <0-${fxMax(lv)}> · ${row.hint}` });
+        }, {
+          zeroIsOff: lv !== "sharpness",
+          tip: `fx ${lv} <0-${fxMax(lv)}> · ${row.hint} · double-click the number to type it`,
+          onEdit: () => void askNumber(this.deck, row.label, getFx(this.deck, lv), 0, fxMax(lv), lv !== "sharpness").then((v) => v !== null && setFx(this.deck, lv, v)),
+        });
         return;
       }
       if (row.key) {

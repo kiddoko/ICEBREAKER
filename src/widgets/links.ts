@@ -11,7 +11,7 @@ import type { WidgetSpec } from "./types";
  * wears the icon of what it opens. Kept in settings (home.links); each becomes
  * a widget `link.<id>`.
  *
- *   home link new                      the picker (also: + widget → Shortcut 1×1)
+ *   home link new                      the picker (also: + widget → Shortcut)
  *   home link add <label> "<cmd>" [icon]
  *   home link rm <label> · home links
  */
@@ -36,7 +36,7 @@ export function syncLinkWidgets(deck: Deck): void {
   if (!deck.widgets.get(NEW_LINK))
     deck.widgets.register({
       id: NEW_LINK,
-      title: "Shortcut 1×1",
+      title: "Shortcut",
       description: "one square that opens anything: a module, a note, a folder, a page, a macro, a command",
       size: { w: 1, h: 1 },
       min: { w: 1, h: 1 },

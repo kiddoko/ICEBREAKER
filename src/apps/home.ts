@@ -30,6 +30,10 @@ export class HomeApp implements App {
   readonly key = "home";
   private selected = 0;
   private editing = false;
+  /** edit mode is on (the side panel shows its own edit controls then) */
+  get isEditing(): boolean {
+    return this.editing;
+  }
   /** a widget being dragged: where it was grabbed, where the mouse is, where it would land */
   private drag: { index: number; dx: number; dy: number; mx: number; my: number; spot: WidgetPlacement | null } | null = null;
   private colW = 1;
@@ -153,28 +157,35 @@ export class HomeApp implements App {
     const spec = this.deck.widgets.get(id);
     if (!spec || this.layout.some((p) => p.id === id)) return false;
     const layout = this.layout.map((p) => ({ ...p }));
-    const bottom = layout.filter((p) => ((p.page ?? 0) === this.page)).reduce((m, p) => Math.max(m, p.y + p.h), 0);
     const visible = Math.max(1, Math.floor(this.areaH / this.rowH));
     const sizes: [number, number][] = [];
     const min = spec.min ?? { w: 1, h: 1 };
     // shrink a little to fit on screen, never down to a useless sliver
     const minH = Math.max(min.h, Math.ceil((spec.size.h + min.h) / 2));
     for (let h = spec.size.h; h >= minH; h--) for (let w = Math.min(COLS, spec.size.w); w >= min.w; w--) sizes.push([w, h]);
-    const fit = (maxY: number): WidgetPlacement | null => {
+    const fit = (page: number, maxY: number): WidgetPlacement | null => {
       for (const [w, h] of sizes)
         for (let y = 0; y + h <= maxY; y++)
           for (let x = 0; x + w <= COLS; x++) {
-            const cand = { id, page: this.page, x, y, w, h };
+            const cand = { id, page, x, y, w, h };
             if (!this.overlaps(layout, -1, cand)) return cand;
           }
       return null;
     };
-    const spot = fit(visible) ?? { id, page: this.page, x: 0, y: bottom, w: Math.min(COLS, spec.size.w), h: spec.size.h };
+    // here if it fits on screen; else the next page with room; else a new page.
+    // Never below the bottom of the screen, where nobody would see it.
+    const pages = this.pageCount();
+    let spot = fit(this.page, visible);
+    for (let k = 1; !spot && k < pages; k++) spot = fit((this.page + k) % pages, visible);
+    spot ??= fit(pages, visible) ?? { id, page: pages, x: 0, y: 0, w: Math.min(COLS, spec.size.w), h: spec.size.h };
     layout.push(spot);
     this.selected = layout.length - 1;
     this.reveal = true;
     this.save(layout);
-    if (spot.y + spot.h > visible) this.deck.notify(`${spec.title}: no room on screen — placed below (scroll down, or e to rearrange)`);
+    if ((spot.page ?? 0) !== this.page) {
+      this.setPage(spot.page ?? 0);
+      this.deck.notify(t("{name}: no room here — it's on page {n}", { name: t(spec.title), n: (spot.page ?? 0) + 1 }));
+    }
     return true;
   }
 
@@ -209,14 +220,26 @@ export class HomeApp implements App {
   }
 
   /** Right-click on an empty spot of HOME. */
+  /** First in every right-click on HOME: into edit mode, or out of it. */
+  private editEntry(): MenuEntry {
+    return { label: this.editing ? t("stop edit mode") : t("edit mode"), cmd: this.editing ? "home done" : "home edit", hint: this.editing ? "esc" : "e" };
+  }
+
   menu(): MenuEntry[] {
     return [
+      this.editEntry(),
+      "-",
       { label: t("add a widget…"), run: () => this.add(), hint: "a" },
-      { label: this.editing ? t("done rearranging") : t("rearrange the widgets"), cmd: this.editing ? "home done" : "home edit", hint: this.editing ? "esc" : "e" },
       { label: t("new page"), cmd: "home page new" },
       "-",
       { label: t("default layout"), run: async () => { if (await this.deck.confirm(t("Back to the default layout?"), t("Your widgets go back to where they were at the start."))) void this.deck.act("home reset"); }, danger: true },
     ];
+  }
+
+  /** The pointer is over the side panel (a widget dragged there goes to it). */
+  private overPanel(m: { x: number; y: number }): boolean {
+    const r = this.deck.workspace.panelArea;
+    return !!r && m.x >= r.x && m.x < r.x + r.w && m.y >= r.y && m.y < r.y + r.h;
   }
 
   /** Right-click on a widget. */
@@ -227,11 +250,12 @@ export class HomeApp implements App {
     this.selected = i;
     const has = spec.popup || spec.activate || spec.open;
     return [
+      this.editEntry(),
+      "-",
       ...(has ? [{ label: spec.popup ? t("open its pop-up") : t("open"), cmd: `widget ${p.id}`, hint: "enter" }] : []),
       ...(spec.open ? [{ label: t("open its module"), cmd: `widget ${p.id} open` }] : []),
       "-",
       { label: t("pin to the side panel"), cmd: `panel add ${p.id}` },
-      { label: this.editing ? t("done rearranging") : t("move / resize"), cmd: this.editing ? "home done" : "home edit", hint: "e" },
       { label: t("add a widget…"), run: () => this.add(), hint: "a" },
       "-",
       { label: t("remove from HOME"), cmd: `home rm ${p.id}`, danger: true, hint: "x" },
@@ -434,6 +458,8 @@ export class HomeApp implements App {
         onDrag: (m: { x: number; y: number }) => {
           const d = this.drag;
           if (!this.editing || !d || d.index !== i) return;
+          // over the side panel: it lights up, the widget can go there
+          this.deck.workspace.panelDrop = this.overPanel(m);
           d.mx = m.x;
           d.my = m.y;
           const nx = Math.round((m.x - this.origin.x - d.dx) / this.colW);
@@ -445,9 +471,15 @@ export class HomeApp implements App {
           d.spot = !cur ? null : cur.x === x && cur.y === y ? { ...cur } : this.fitAt(this.layout.map((q) => ({ ...q })), i, x, y);
           this.deck.requestFrame();
         },
-        onUp: () => {
+        onUp: (m: { x: number; y: number }) => {
           const d = this.drag;
           this.drag = null;
+          this.deck.workspace.panelDrop = false;
+          // dropped on the side panel: it moves there
+          if (d?.index === i && this.overPanel(m)) {
+            void this.deck.act(`panel add ${p.id}`).then(() => this.deck.act(`home rm ${p.id}`));
+            return;
+          }
           const cur = this.layout[i];
           if (!d?.spot || d.index !== i || !cur || (cur.x === d.spot.x && cur.y === d.spot.y && cur.w === d.spot.w)) return;
           this.place2(this.layout.map((q) => ({ ...q })), i, d.spot);

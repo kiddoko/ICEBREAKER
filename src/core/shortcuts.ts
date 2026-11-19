@@ -17,6 +17,8 @@ export interface Shortcut {
   cat: string;
   /** what a click on the line runs */
   cmd?: string;
+  /** the deck runs `cmd` for these keys by itself (the table is the binding: no code elsewhere) */
+  global?: boolean;
 }
 
 export const SHORTCUT_CATEGORIES = ["everywhere", "panes & tabs", "notes", "home", "shell", "lists & pages", "gamepad", "yours"] as const;
@@ -32,7 +34,10 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: "ctrl+shift+m", what: "MODULES, every module", cat: "everywhere", cmd: "modules" },
   { keys: "ctrl+space", what: "LINK, the AI chat (UPLINK)", cat: "everywhere", cmd: "launch link" },
   { keys: "ctrl+j", what: "today's journal", cat: "everywhere", cmd: "today" },
-  { keys: "ctrl+shift+l", what: "lock the deck", cat: "everywhere", cmd: "lock" },
+  { keys: "ctrl+shift+l", what: "lock the deck (log out)", cat: "everywhere", cmd: "lock" },
+  { keys: "ctrl+shift+e", what: "NEXUS, the vault as a place", cat: "everywhere", cmd: "nexus", global: true },
+  { keys: "ctrl+shift+a", what: "the action wheel (gamepad: hold RB)", cat: "everywhere", cmd: "wheel", global: true },
+  { keys: "ctrl+shift+backspace", what: "the TRASH page", cat: "everywhere", cmd: "trash open", global: true },
   { keys: "ctrl+= · ctrl+- · ctrl+0", what: "interface bigger · smaller · 100 %", cat: "everywhere" },
   { keys: "f11", what: "fullscreen", cat: "everywhere", cmd: "fullscreen" },
   { keys: "shift+esc", what: "close the tab and show the one before it (HOME stays)", cat: "everywhere" },
@@ -48,6 +53,8 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: IS_MAC ? "ctrl+1…9" : "alt+1…9 · ctrl+1…9", what: "go to tab 1…9", cat: "panes & tabs" },
   { keys: "ctrl+w", what: "close the tab", cat: "panes & tabs" },
   { keys: "ctrl+b", what: "show / hide the file tree", cat: "panes & tabs" },
+  { keys: "ctrl+shift+b", what: "show / hide the side panel (widgets on the right)", cat: "panes & tabs", cmd: "panel", global: true },
+  { keys: "ctrl+shift+u", what: "show / hide the macro buttons above the terminal", cat: "panes & tabs", cmd: "macro toggle", global: true },
   { keys: "ctrl+`", what: "show / focus the shell (again: hide it)", cat: "panes & tabs" },
   { keys: "f12", what: "shell tabs: ibsh → system terminal → history", cat: "panes & tabs" },
 
@@ -62,11 +69,13 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: "f2", what: "in the tree: rename", cat: "notes" },
   { keys: "delete · ctrl+backspace", what: "in the tree: move to the trash (asks first)", cat: "notes" },
   { keys: "p", what: "in the tree: pin / unpin", cat: "notes" },
+  { keys: "drag", what: "in the tree: onto a folder to move it there (files from the Finder / Explorer are copied in)", cat: "notes" },
+  { keys: "wheel", what: "over the tree: file by file, each one shown at once", cat: "notes" },
 
   // home
   { keys: "←↑↓→ · tab", what: "choose a widget", cat: "home" },
   { keys: "enter", what: "open the widget's pop-up", cat: "home" },
-  { keys: "e", what: "edit the layout (arrows move, shift+arrows resize, a add, x remove)", cat: "home", cmd: "home edit" },
+  { keys: "e · right-click", what: "edit mode (arrows move, shift+arrows resize, a add, x remove; drag a widget onto the side panel)", cat: "home", cmd: "home edit" },
   { keys: "[ · ]", what: "previous · next HOME page", cat: "home" },
   { keys: "m", what: "MODULES", cat: "home", cmd: "modules" },
 
@@ -88,6 +97,7 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: "A · B", what: "confirm · back", cat: "gamepad" },
   { keys: "Y · X", what: "palette · on-screen keyboard", cat: "gamepad" },
   { keys: "LB · RB", what: "previous · next tab", cat: "gamepad" },
+  { keys: "hold RB", what: "the action wheel: point a stick, let go to run it; LB turns the page", cat: "gamepad", cmd: "wheel" },
   { keys: "select · start", what: "next pane · HOME", cat: "gamepad" },
 ];
 

@@ -283,10 +283,11 @@ export class Renderer {
   }
 
   /** Mouse position (CSS px) → cell coordinates. */
-  cellAt(clientX: number, clientY: number): { x: number; y: number } {
-    const x = Math.floor(((clientX - this.left) * this.dpr) / this.cellW);
+  cellAt(clientX: number, clientY: number): { x: number; y: number; fx: number } {
+    const fx = ((clientX - this.left) * this.dpr) / this.cellW;
+    const x = Math.floor(fx);
     const y = Math.floor(((clientY - this.top) * this.dpr) / this.cellH);
-    return { x: Math.max(0, Math.min(this.cols - 1, x)), y: Math.max(0, Math.min(this.rows - 1, y)) };
+    return { x: Math.max(0, Math.min(this.cols - 1, x)), y: Math.max(0, Math.min(this.rows - 1, y)), fx: Math.max(0, Math.min(this.cols, fx)) };
   }
 
   /** Cell → CSS pixel position (used to place the IME popup under the text cursor). */
