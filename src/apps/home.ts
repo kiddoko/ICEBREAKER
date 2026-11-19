@@ -542,7 +542,8 @@ const hash = (x: number, y: number) => {
  */
 function drawEffects(ui: UI, rect: Rect, inner: Rect, index: number, selected: boolean, shownAt: number, selAt: number): void {
   const c = ui.c;
-  const t = (ui.now - shownAt - index * 70) / 450;
+  // widgets come in quickly (a quarter of a second, a slight stagger): a flourish, not a wait
+  const t = (ui.now - shownAt - index * 25) / 220;
   if (t < 1) {
     ui.animate(30);
     for (let y = inner.y; y < inner.y + inner.h; y++)

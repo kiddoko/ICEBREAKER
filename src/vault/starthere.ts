@@ -144,6 +144,7 @@ were on come back as you left them next time.
   setting says what it does, and shows the shell command that does the same.
 - **✦ fx** (status bar): a slider per effect — bloom, scanlines, vignette, RGB
   split, glow (bright things give off light), sharpness. 0 = off, up to 200 %.
+  Each theme remembers its own effects.
 - Status bar, right: **♪** mutes everything · **☾** the screensaver (each theme
   has its own: a neon city, an 80s mainframe, sonar, warp, an e-reader).
 - Too many tabs for the bar: they scroll around the one shown (‹ ›).
@@ -214,7 +215,7 @@ On a Mac, ⌘ plays the role of Ctrl.
 | click | does it — and shows the command in the shell |
 | double-click | open (one click is enough in the tree) |
 | back / forward buttons | the tab before / after |
-| two-finger swipe ← → (trackpad) | the tab after / before |
+| two-finger swipe → ← (trackpad) | the tab after / before |
 | pinch · ctrl+wheel | interface bigger / smaller |
 | right-click | a menu for what's under it: notes, folders, tabs, widgets, cards, the shell, the editor (copy, paste…) |
 | hover | the command and the shortcut |

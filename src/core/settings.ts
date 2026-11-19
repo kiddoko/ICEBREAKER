@@ -69,6 +69,8 @@ export interface Settings {
   keys: Record<string, string>;
   /** module settings values (ib.settings), per module id */
   moduleSettings: Record<string, Record<string, unknown>>;
+  /** your effects, per theme: switching theme brings back what you had set on it */
+  fxByTheme?: Record<string, Record<string, unknown>>;
   /** what was open when you quit, to come back to it: the tree's open folders, the tabs */
   session?: { tree?: string[]; tabs?: string[]; active?: number };
   /** pinned notes, folders, modules (`pin`): top of the tree and the pinned widget */
@@ -144,6 +146,7 @@ export const DEFAULT_SETTINGS: Settings = {
   keys: {},
   favorites: [],
   session: {},
+  fxByTheme: {},
   moduleSettings: {},
   shell: {
     mode: "system",

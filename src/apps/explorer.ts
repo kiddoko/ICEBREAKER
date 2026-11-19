@@ -314,7 +314,7 @@ export class ExplorerApp implements App {
     // the wheel turns the ring wherever the mouse is
     ui.hit(r, { onWheel: (dir) => this.turn(dir > 0 ? 1 : -1) });
     // diving into a folder: the lockers come out of the vanishing point, frames rush past
-    const dv = Math.min(1, (performance.now() - this.diveAt) / 420);
+    const dv = Math.min(1, (performance.now() - this.diveAt) / 300);
     if (dv < 1) {
       ui.animate(16);
       const ease = 1 - (1 - dv) ** 3;

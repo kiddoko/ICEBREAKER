@@ -273,7 +273,8 @@ export class InputManager {
           if (!this.swipeFired && Math.abs(this.swipePx) > 120) {
             this.swipeFired = true;
             this.swipeFiredAt = t0;
-            this.onGesture(this.swipePx > 0 ? "forward" : "back");
+            // fingers moving right (negative deltaX with natural scrolling) = the next tab, like turning a page
+            this.onGesture(this.swipePx > 0 ? "back" : "forward");
           }
           return;
         }

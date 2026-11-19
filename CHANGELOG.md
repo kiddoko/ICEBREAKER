@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.2.1 — 2026-11-19
+
+- Effects are per theme: each theme keeps the effects you last set on it
+  (bloom, scanlines, vignette, RGB split, glow, sharpness, background, glitch, flicker).
+- Bloom lowered or off no longer dims the screen: the picture gets that light back.
+- Snappier: theme switch, page transitions (fade 100 ms, wipe 120 ms, e-ink 200 ms),
+  HOME widgets coming in (220 ms, light stagger) and the NEXUS dive are all shorter.
+- Reminders: ✓ on every line of the HOME widget (and right-click), no pop-up needed.
+- Two-finger swipes go the right way (fingers to the right = the next tab).
+
 ## 0.2.0 — 2026-11-19
 
 - MODULES is a ring of floppy disks, like NEXUS: an endless ring (5 in front),

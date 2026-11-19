@@ -588,10 +588,43 @@ export class Deck implements InputSink {
 
   setTheme(name: string): boolean {
     if (!this.themes.get(name)) return false;
-    if (this.settings.data.appearance.theme !== name) this.settings.set("appearance.theme", name);
+    const prev = this.settings.data.appearance.theme;
+    if (prev !== name) {
+      // effects are per theme: keep this one's, bring back the next one's
+      this.rememberFx(prev);
+      this.fxSwitching = true;
+      this.settings.set("appearance.theme", name);
+      this.recallFx(name);
+      this.fxSwitching = false;
+    }
     this.refreshTheme();
-    this.glitch(300);
+    this.applyFx();
+    this.glitch(160);
     return true;
+  }
+
+  /** the effects keys that belong to a theme (the screensaver delay stays global) */
+  private static readonly FX_PER_THEME = ["bloom", "scanlines", "vignette", "ambient", "flicker", "glitch"] as const;
+  private fxSwitching = false;
+
+  /** Save the current effects as this theme's. */
+  private rememberFx(theme = this.settings.data.appearance.theme): void {
+    if (this.fxSwitching || !theme) return;
+    const fx = this.settings.data.fx;
+    const snap: Record<string, unknown> = { levels: { ...fx.levels } };
+    for (const k of Deck.FX_PER_THEME) snap[k] = fx[k];
+    const all = { ...(this.settings.data.fxByTheme ?? {}) };
+    if (JSON.stringify(all[theme]) === JSON.stringify(snap)) return;
+    all[theme] = snap;
+    this.settings.set("fxByTheme", all);
+  }
+
+  /** Put back the effects last used with this theme (first time on it: keep the current ones). */
+  private recallFx(theme: string): void {
+    const snap = this.settings.data.fxByTheme?.[theme] as { levels?: Record<string, number> } & Record<string, unknown> | undefined;
+    if (!snap) return;
+    for (const k of Deck.FX_PER_THEME) if (typeof snap[k] === "boolean") this.settings.set(`fx.${k}`, snap[k]);
+    for (const [k, v] of Object.entries(snap.levels ?? {})) if (typeof v === "number" && k in this.settings.data.fx.levels) this.settings.set(`fx.levels.${k}`, v);
   }
 
   /**
@@ -624,12 +657,20 @@ export class Deck implements InputSink {
 
   /** Push theme + fx settings to the CSS post-effect layers. */
   applyFx(): void {
+    // whatever changed is now this theme's own setting
+    this.rememberFx();
     const fx = this.settings.data.fx;
     const t = this.theme;
     const root = document.documentElement.style;
     root.setProperty("--deck-bg", css(t.c.bg));
     const lv = { ...DEFAULT_SETTINGS.fx.levels, ...fx.levels };
     root.setProperty("--bloom", String(fx.bloom ? (t.fx.bloom * lv.bloom) / 100 : 0));
+    // the bloom adds light, and each theme is tuned with it: lowered or off, the
+    // picture itself gets that light back (no dimmer screen)
+    const bloomNow = fx.bloom ? (t.fx.bloom * lv.bloom) / 100 : 0;
+    const boost = Math.min(1.35, 1 + Math.max(0, t.fx.bloom - bloomNow) * 0.6);
+    const screenEl = document.getElementById("screen");
+    if (screenEl) screenEl.style.filter = boost > 1.005 ? `brightness(${boost.toFixed(3)})` : "";
     root.setProperty("--scanlines", String(fx.scanlines ? (t.fx.scanlines * lv.scanlines) / 100 : 0));
     root.setProperty("--vignette", String(fx.vignette ? (t.fx.vignette * lv.vignette) / 100 : 0));
     document.getElementById("deck")!.classList.toggle("crt", fx.scanlines && t.fx.scanlines * lv.scanlines > 0);
@@ -751,7 +792,8 @@ export class Deck implements InputSink {
   pageTurn(big = false): void {
     const page = this.theme.anim.page;
     if (!this.settings.data.fx.glitch || page === "none" || (page === "glitch" && !big)) return;
-    this.transitions.run(page, page === "eink" ? 320 : page === "wipe" ? 180 : 140);
+    // short: a touch of motion, never a wait
+    this.transitions.run(page, page === "eink" ? 200 : page === "wipe" ? 120 : 100);
     this.requestFrame();
   }
 

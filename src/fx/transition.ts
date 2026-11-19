@@ -31,14 +31,14 @@ export class Transitions {
     const bg = theme.c.bg, ink = theme.c.fg;
     const n = g.cols * g.rows;
     if (this.kind === "eink") {
-      // 0–18 %: black · 18–36 %: white · then the page, its ink still settling
-      if (p < 0.36) {
-        const fill = p < 0.18 ? ink : bg;
+      // 0–12 %: black · 12–24 %: white · then the page, its ink still settling
+      if (p < 0.24) {
+        const fill = p < 0.12 ? ink : bg;
         g.ch.fill(32);
         g.bg.fill(fill);
         return true;
       }
-      const k = 1 - (p - 0.36) / 0.64;
+      const k = 1 - (p - 0.24) / 0.76;
       for (let i = 0; i < n; i++) g.fg[i] = mix(g.fg[i] === NONE ? ink : g.fg[i], bg, k * 0.55);
       return true;
     }

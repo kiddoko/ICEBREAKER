@@ -1,6 +1,6 @@
 [package]
 name = "icebreaker"
-version = "0.2.0"
+version = "0.2.1"
 description = "ICEBREAKER — open-source terminal-styled cyberdeck for notes, journaling and AI plugins"
 license = "MIT"
 edition = "2021"

@@ -315,9 +315,15 @@ export function activate(ib: IcebreakerAPI): void {
       if (!up.length) return void ui.text(r.x + 1, r.y, t("nothing to remember"), { fg: c.muted }, r.w - 2);
       up.slice(0, r.h).forEach((rem, i) => {
         const late = new Date(rem.due).getTime() < Date.now();
-        const end = ui.textRight(r.x + r.w - 1, r.y + i, left(rem), { fg: late ? c.error : c.warning });
+        // ✓ on every line, right here on HOME: one click and it's done
+        const dn = { x: r.x + r.w - 3, y: r.y + i, w: 3, h: 1 };
+        const hot = ui.hovered(dn);
+        ui.text(dn.x, dn.y, " ✓ ", { fg: hot ? c.panel : c.success, bg: hot ? c.success : c.highlight, attrs: BOLD });
+        ui.hit(dn, { cmd: `remind done ${rem.id}`, tip: t("done (d)") });
+        const end = ui.textRight(dn.x - 1, r.y + i, left(rem), { fg: late ? c.error : c.warning });
         ui.text(r.x + 1, r.y + i, "⏰", { fg: c.accent });
         ui.text(r.x + 4, r.y + i, rem.title, { fg: c.fg }, end - r.x - 5);
+        ui.hit({ x: r.x, y: r.y + i, w: dn.x - r.x, h: 1 }, { tip: `${rem.title}\n✓ = ${t("done")} · ${t("right-click: more")}`, menu: () => remMenu(rem) });
       });
     },
     popup: {
@@ -380,6 +386,8 @@ export function activate(ib: IcebreakerAPI): void {
     "done ✓": "fait ✓",
     remove: "retirer",
     "done (d)": "fait (d)",
+    done: "fait",
+    "right-click: more": "clic droit : plus",
     "remove (x)": "retirer (x)",
     "what you asked to remember (REMINDERS module)": "ce que tu as demandé de te rappeler (module RAPPELS)",
   });
