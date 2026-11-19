@@ -21,8 +21,30 @@ export interface SliderOptions {
  * steps by 5; the caller handles ← → (also by 5). Double-click the number to
  * type one (`onEdit`).
  */
+/**
+ * The slider being dragged, if any: where it is on screen (its identity from one
+ * frame to the next — sliders are redrawn every frame), the value it shows, and
+ * when the setting was last applied. While you drag, the bar follows the pointer
+ * at once and the (sometimes costly) setting is applied at most every 40 ms; the
+ * last value is always applied when you let go.
+ */
+let live: { x: number; y: number; v: number; sentAt: number; sent: number } | null = null;
+const APPLY_MS = 40;
+
 export function slider(ui: UI, r: Rect, value: number, min: number, max: number, onSet: (v: number) => void, o: SliderOptions = {}): void {
   const c = ui.c;
+  if (live && live.x === r.x && live.y === r.y) value = live.v;
+  const push = (v: number, force = false) => {
+    if (!live || live.x !== r.x || live.y !== r.y) live = { x: r.x, y: r.y, v, sentAt: 0, sent: NaN };
+    live.v = v;
+    const now = performance.now();
+    if ((force || now - live.sentAt >= APPLY_MS) && v !== live.sent) {
+      live.sentAt = now;
+      live.sent = v;
+      onSet(v);
+    }
+    ui.animate(16);
+  };
   const show = o.show ?? ((v: number) => (o.zeroIsOff && v === 0 ? "off" : `${v}%`));
   const text = show(value);
   const textW = Math.max(5, strWidth(show(max)), strWidth(text));
@@ -45,8 +67,12 @@ export function slider(ui: UI, r: Rect, value: number, min: number, max: number,
   const num = { x: r.x + r.w - strWidth(text), y: r.y, w: strWidth(text), h: 1 };
   if (o.onEdit) ui.hit(num, { onDouble: () => o.onEdit?.(), tip: "double-click: type a value" });
   ui.hit(track, {
-    onClick: (m) => onSet(at(m)),
-    onDrag: (m) => onSet(at(m)),
+    onClick: (m) => push(at(m), true),
+    onDrag: (m) => push(at(m)),
+    onUp: () => {
+      if (live && live.x === r.x && live.y === r.y && live.v !== live.sent) onSet(live.v);
+      live = null;
+    },
     onWheel: (d) => onSet(Math.max(min, Math.min(max, value - Math.sign(d) * step))),
     tip: o.tip ?? "drag, click, wheel · ←→ by 5",
   });

@@ -17,8 +17,8 @@ export class LockScreen {
   private field: "user" | "pass" | "remember";
   /** fill in the account name next time (off by default: nothing is shown before you type it) */
   private remember: boolean;
-  /** the account came remembered: then (only then) your icon shows before you log in */
-  private readonly prefilled: boolean;
+  /** the account's name: your icon shows while the field says exactly that */
+  private readonly account: string;
   private busy = false;
   private fails = 0;
   private error = "";
@@ -32,7 +32,7 @@ export class LockScreen {
   ) {
     this.remember = deck.settings.data.user.rememberAccount === true;
     this.user = this.remember ? account : "";
-    this.prefilled = !!this.user;
+    this.account = account;
     this.field = this.user ? "pass" : "user";
   }
 
@@ -128,8 +128,11 @@ export class LockScreen {
     const w = Math.min(44, W - 4);
     const shake = performance.now() - this.shakeAt < 300 ? Math.round(Math.sin((performance.now() - this.shakeAt) / 25) * 2) : 0;
     if (shake) ui.animate(16);
-    const showIcon = this.prefilled && H >= 28;
-    const cardH = 11 + (showIcon ? 4 : 0);
+    // room for your icon is always kept (the card doesn't jump); the icon itself shows
+    // only while the account field holds your account's name (remembered, or typed)
+    const iconRoom = H >= 28;
+    const showIcon = iconRoom && !!this.account && this.user === this.account;
+    const cardH = 11 + (iconRoom ? 4 : 0);
     const x = Math.floor((W - w) / 2) + shake;
     let y = Math.max(1, Math.floor((H - cardH - 4) / 2));
     const p = Math.min(1, (ui.now - this.shownAt) / 600);
@@ -145,9 +148,10 @@ export class LockScreen {
     const card = ui.box({ x, y, w, h: cardH }, { title: "ACCESS", focused: true, bg: c.panel });
     const ix = card.x + 2, iw = card.w - 4;
     let cy = card.y;
-    if (showIcon) {
+    if (iconRoom) {
       const av = this.deck.settings.data.user.avatar;
-      drawAvatar(ui, { x: card.x, y: cy, w: card.w, h: 3 }, avatarOf(av?.id), avatarRGB(ui, av?.color), { dim: p < 1, bg: c.panel });
+      if (showIcon) drawAvatar(ui, { x: card.x, y: cy, w: card.w, h: 3 }, avatarOf(av?.id), avatarRGB(ui, av?.color), { dim: p < 1, bg: c.panel });
+      else ui.textCenter(card, cy + 1, "· · ·", { fg: c.faint, bg: c.panel });
       cy += 4;
     }
     this.input(ui, { x: ix, y: cy, w: iw, h: 2 }, "ACCOUNT", this.user, false, this.field === "user", () => (this.field = "user"));

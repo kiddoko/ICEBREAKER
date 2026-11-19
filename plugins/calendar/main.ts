@@ -866,7 +866,8 @@ export function activate(ib: IcebreakerAPI): void {
       // ── layout: the month grid on the left, the agenda on the right (stacked when narrow)
       const wide = r.w >= 78;
       const gutter = r.w >= 60 ? 4 : 0; // week numbers
-      const gridW = wide ? Math.min(r.w - 36, Math.max(43, Math.floor(r.w * 0.62))) : r.w - 2;
+      // the month gets most of the width (the agenda keeps 32 columns at least): event names need room
+      const gridW = wide ? Math.min(r.w - 32, Math.max(43, Math.floor(r.w * 0.68))) : r.w - 2;
       const cw = Math.max(3, Math.floor((gridW - gutter - 1) / 7) - 1); // inside a cell
       const gx = r.x + 1 + gutter; // left grid line
       const gy = r.y + 2; // weekday names
@@ -915,22 +916,30 @@ export function activate(ib: IcebreakerAPI): void {
           if (isSel) selCell = cell;
           const evs = between(d, addDays(d, 1));
           if (ch >= 2 && cw >= 6) {
-            // inside the cell: all-day events as a tinted bar, timed ones with their hour
+            // inside the cell, each event on a tinted strip with a bar of its calendar's
+            // colour; an event gets two lines (its name wrapped) when the cell has room
             const room = ch - 1;
             // too many: the last line says how many more (but always show at least one)
-            const shown = evs.length > room ? Math.max(1, room - 1) : room;
+            const shown = evs.length > room ? Math.max(1, room - 1) : evs.length;
+            const per = shown > 0 && shown * 2 <= room ? 2 : 1;
             evs.slice(0, shown).forEach((e, k) => {
-              const ey = cell.y + 1 + k;
+              const ey = cell.y + 1 + k * per;
               const col = colorOf(ui, e.cal);
-              if (e.allDay) {
-                const tb = mix(col, c.bg, other ? 0.85 : 0.7);
-                ui.fill({ x: cell.x, y: ey, w: cell.w, h: 1 }, { bg: tb });
-                ui.text(cell.x + 1, ey, e.title, { fg: other ? c.muted : c.fg, bg: tb }, cell.w - 1);
-              } else {
-                // the hour in the calendar's colour, then the title — aligned with the day number
-                const tx = cw >= 14 ? ui.text(cell.x + 1, ey, hm(dayOf(e.start)), { fg: mix(col, c.bg, 0.15), ...st }) + 1 : (ui.text(cell.x + 1, ey, "•", { fg: col, ...st }), cell.x + 3);
-                ui.text(tx, ey, e.title, { fg: other ? c.muted : c.fg, ...st }, cell.x + cell.w - tx);
-              }
+              const tb = mix(col, c.bg, e.allDay ? (other ? 0.85 : 0.7) : other ? 0.92 : 0.86);
+              ui.fill({ x: cell.x, y: ey, w: cell.w, h: per }, { bg: tb });
+              ui.text(cell.x, ey, "▌", { fg: col, bg: tb });
+              if (per === 2) ui.text(cell.x, ey + 1, "▌", { fg: col, bg: tb });
+              // the hour first when there's room for it, then the name
+              const time = !e.allDay && cw >= 14 ? `${hm(dayOf(e.start))} ` : "";
+              const text = `${time}${e.title}`;
+              const w = cell.w - 1;
+              const fg = other ? c.muted : c.fg;
+              if (per === 2 && strWidth(text) > w) {
+                const cut = text.lastIndexOf(" ", w) > w / 2 ? text.lastIndexOf(" ", w) : w;
+                ui.text(cell.x + 1, ey, text.slice(0, cut), { fg, bg: tb }, w);
+                ui.text(cell.x + 1, ey + 1, text.slice(cut).trimStart(), { fg, bg: tb }, w);
+              } else ui.text(cell.x + 1, ey, text, { fg, bg: tb }, w);
+              if (time) ui.text(cell.x + 1, ey, time.trim(), { fg: mix(col, c.fg, 0.3), bg: tb });
             });
             if (evs.length > shown) {
               const more = `+${evs.length - shown}`;

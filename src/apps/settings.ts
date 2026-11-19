@@ -529,7 +529,14 @@ export class SettingsApp implements App {
         arrow(rx2, "›");
       }
       if (ui.hovered(line)) hoverRow = row;
-      ui.hit(line, { onClick: () => ((this.sel = i), (this.pane = "rows")), onDouble: () => void row.change?.(1) });
+      // a choice (‹ ›) is selected by a click and changed with the arrows; anything
+      // else that does something (a picker, a text box, an action) opens on one click
+      const oneClick = !!row.change && !steps && raw !== "on" && raw !== "off";
+      ui.hit(line, {
+        onClick: () => ((this.sel = i), (this.pane = "rows"), oneClick && void row.change?.(1)),
+        onDouble: () => !oneClick && void row.change?.(1),
+        tip: oneClick ? t("click: open") : steps ? t("‹ › or ←→: change") : undefined,
+      });
       const cmd = row.cmd?.();
       if (row.change) ui.hit({ x: vx - vw, y, w: vw, h: 1 }, cmd ? { cmd, tip: t("←→ / enter change it too") } : { onClick: () => void row.change?.(1) });
       if (steps) {

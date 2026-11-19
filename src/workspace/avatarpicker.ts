@@ -84,8 +84,9 @@ export class AvatarPicker implements Overlay {
 
     // the preview, big, on the right: you
     const pv = { x: inner.x + inner.w - 18, y: inner.y + 1, w: 16, h: 7 };
-    ui.box(pv, { border: "double", bg: mix(c.panel, col, 0.08), fill: true });
-    drawAvatar(ui, { x: pv.x, y: pv.y, w: pv.w, h: pv.h - 1 }, AVATARS[this.sel], col, { bg: mix(c.panel, col, 0.08) });
+    // centred in the frame's inside (not in the frame itself)
+    const pvIn = ui.box(pv, { border: "double", bg: mix(c.panel, col, 0.08), fill: true });
+    drawAvatar(ui, pvIn, AVATARS[this.sel], col, { bg: mix(c.panel, col, 0.08) });
     ui.textCenter({ x: pv.x, y: pv.y, w: pv.w, h: 1 }, pv.y + pv.h, this.deck.settings.data.user.handle, { fg: col, attrs: BOLD });
     ui.textCenter({ x: pv.x, y: pv.y, w: pv.w, h: 1 }, pv.y + pv.h + 1, AVATARS[this.sel].name, { fg: c.subtle });
 

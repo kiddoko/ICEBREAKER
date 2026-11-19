@@ -411,6 +411,14 @@ const streakWidget: WidgetSpec = {
 
 /* ─────────── AI core: which model is wired in, as a breathing node ─────────── */
 
+/**
+ * The mouse over UPLINK: its core turns into an eye that follows the pointer,
+ * blinks once when you arrive, and the state line says something (one line per
+ * visit). Cheap: a few dots more, no extra frames beyond the widget's own.
+ */
+const QUIPS = ["oh. hi.", "I see you.", "ping?", "careful, I bite… bits.", "need a hand?", "scanning you…", "hello, {name}.", "don't poke the core.", "still here. always.", "boop."];
+let hover: { since: number; quip: string } | null = null;
+
 const aiWidget: WidgetSpec = {
   id: "ai",
   title: "uplink",
@@ -435,7 +443,27 @@ const aiWidget: WidgetSpec = {
     const R = rows / 2 - 0.2, ox = (cols * ui.cellAspect) / 2, oy = rows / 2;
     const head = (ui.now / (thinking ? 500 : 1600)) % 1; // fraction of a turn
     const breath = (Math.sin(ui.now / (thinking ? 160 : 700)) + 1) / 2;
+    // the pointer over the widget: the core looks at it (a pupil pulled toward the mouse)
+    const over = ui.hovered(r);
+    if (over && !hover) hover = { since: ui.now, quip: QUIPS[Math.floor(Math.random() * QUIPS.length)].replace("{name}", deck.settings.data.user.handle) };
+    if (!over) hover = null;
+    const blink = hover && ui.now - hover.since < 140;
+    let look = { x: 0, y: 0 };
+    if (hover) {
+      const mx = (ui.mouse.x - box.x + 0.5) * ui.cellAspect - ox, my = ui.mouse.y - box.y + 0.5 - oy;
+      const len = Math.hypot(mx, my) || 1;
+      look = { x: (mx / len) * R * 0.32, y: (my / len) * R * 0.32 };
+    }
     dots(ui, box, [c.faint, mix(col, c.bg, 0.55), col, mix(col, 0xffffff, 0.45)], (x, y) => {
+      if (hover) {
+        // an eye: the white of it, then the pupil where you are (closed for a blink)
+        const ex = x - ox, ey = y - oy, de = Math.hypot(ex, ey);
+        if (blink) return Math.abs(ey) < 0.06 && Math.abs(ex) < R * 0.55 ? 4 : Math.abs(de - R) < 0.07 ? 1 : 0;
+        if (Math.hypot(ex - look.x, ey - look.y) < R * 0.2) return 4;
+        if (Math.abs(de - R * 0.55) < 0.06) return 3;
+        if (Math.abs(de - R) < 0.07) return 1;
+        return 0;
+      }
       const dx = x - ox, dy = y - oy, d = Math.hypot(dx, dy);
       if (speaking && Math.abs(dx) < R * 0.75 && d < R * 0.85) {
         // a voice waveform across the core
@@ -459,7 +487,7 @@ const aiWidget: WidgetSpec = {
     });
     const y = top + rows + 1;
     if (y < r.y + r.h) ui.textCenter(r, y, label, { fg: c.fg, attrs: BOLD });
-    const state = !ok ? "○ offline" : thinking ? "◌ processing" : speaking ? "◖ speaking" : "● uplink up";
+    const state = hover ? `“${hover.quip}”` : !ok ? "○ offline" : thinking ? "◌ processing" : speaking ? "◖ speaking" : "● uplink up";
     if (y + 1 < r.y + r.h) ui.textCenter(r, y + 1, state, { fg: !ok ? c.error : thinking ? c.accentAlt : speaking ? c.info : c.success });
     if (!ok && y + 2 < r.y + r.h) ui.textCenter(r, y + 2, deck.settings.data.privacy.stealth ? "stealth: local model only" : "enter: settings", { fg: c.faint });
     ui.animate(ok ? (thinking || speaking ? 33 : 50) : 1000);

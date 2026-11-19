@@ -60,6 +60,22 @@ export class Sidebar {
       return !(row.entry.isDir && (dest === row.entry.path || dest.startsWith(`${row.entry.path}/`)));
     };
     this.list.onDrop = (row, target) => void this.moveInto(row.entry, destOf(target));
+    // where it lands, as the tree sorts it (folders first, then by name): a gap opens there
+    this.list.dropGap = (row, target) => {
+      const dest = destOf(target);
+      const items = this.list.items;
+      const folderAt = dest ? items.findIndex((r) => r.entry.path === dest) : -1;
+      const depth = dest ? (items[folderAt]?.depth ?? 0) + 1 : 0;
+      if (dest && folderAt < 0) return null; // the folder isn't in view
+      if (dest && !this.open.has(dest)) return { before: folderAt + 1, indent: depth * 2 + 1 }; // closed: right under it
+      const before = (a: VaultEntry, b: VaultEntry) => Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name, undefined, { numeric: true });
+      let i = folderAt + 1;
+      for (; i < items.length && (items[i].depth ?? 0) >= depth; i++) {
+        const r = items[i];
+        if ((r.depth ?? 0) === depth && r.entry.path !== row.entry.path && before(row.entry, r.entry) < 0) break;
+      }
+      return { before: i, indent: depth * 2 + 1 };
+    };
     this.list.dragLabel = (row) => `${row.entry.isDir ? "▸" : "≡"} ${row.entry.name}`;
     this.list.dropEndLabel = ` ↳ ${t("to the vault's root")} `;
     // the wheel walks the tree file by file and shows each one at once (Settings → VAULT)

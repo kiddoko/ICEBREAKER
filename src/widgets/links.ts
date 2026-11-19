@@ -1,4 +1,5 @@
 import { mix } from "../core/color";
+import { truncate } from "../core/unicode";
 import { BOLD } from "../core/grid";
 import { t } from "../core/i18n";
 import type { Deck } from "../deck";
@@ -66,9 +67,14 @@ function linkSpec(l: HomeLink): WidgetSpec {
       const hot = ui.hovered(r);
       if (hot || focused) ui.fill(r, { bg: mix(c.panel, c.accent, focused ? 0.18 : 0.1) });
       const st = hot || focused ? { bg: mix(c.panel, c.accent, focused ? 0.18 : 0.1) } : {};
-      const mid = r.y + Math.max(0, Math.floor((r.h - (r.h >= 3 ? 2 : 1)) / 2));
-      ui.textCenter(r, mid, l.icon, { fg: c.accent, attrs: BOLD, ...st });
-      if (r.h >= 3) ui.textCenter(r, mid + 1, l.label, { fg: hot || focused ? c.fg : c.muted, ...st });
+      if (r.h < 3) {
+        // a flat chip (rows not stretched): icon and name on one line
+        ui.textCenter(r, r.y + Math.floor((r.h - 1) / 2), truncate(`${l.icon} ${l.label}`, r.w), { fg: hot || focused ? c.fg : c.accent, attrs: BOLD, ...st });
+      } else {
+        const mid = r.y + Math.max(0, Math.floor((r.h - 2) / 2));
+        ui.textCenter(r, mid, l.icon, { fg: c.accent, attrs: BOLD, ...st });
+        ui.textCenter(r, mid + 1, truncate(l.label, r.w), { fg: hot || focused ? c.fg : c.muted, ...st });
+      }
       ui.hit(r, { cmd: l.cmd, tip: `${l.label}\n${l.cmd}` });
       void deck;
     },

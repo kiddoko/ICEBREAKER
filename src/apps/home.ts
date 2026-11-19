@@ -440,14 +440,19 @@ export class HomeApp implements App {
     for (const { p, i } of this.placed()) {
       const spec = this.deck.widgets.get(p.id)!;
       const rect = toRect(p);
-      if (rect.y >= area.y + area.h || rect.y + rect.h <= area.y || rect.h < 2) continue;
+      if (rect.y >= area.y + area.h || rect.y + rect.h <= area.y || rect.h < 1) continue;
       const sel = focused && i === this.selected;
-      const inner = ui.box(rect, {
-        title: t(spec.title).toUpperCase(),
-        info: this.editing && sel ? `${p.w}×${p.h}` : undefined,
-        focused: sel,
-        border: this.editing && sel ? "heavy" : ui.theme.widgetFrame,
-      });
+      // a widget one row high (a shortcut square when rows don't stretch) has no room
+      // for a frame: it's drawn as a flat chip instead, so it never just disappears
+      const flat = rect.h < 3;
+      const inner = flat
+        ? (ui.fill(rect, { bg: sel ? mix(c.panel, c.accent, 0.3) : this.editing ? c.highlight : mix(c.panel, c.fg, 0.06) }), rect)
+        : ui.box(rect, {
+            title: t(spec.title).toUpperCase(),
+            info: this.editing && sel ? `${p.w}×${p.h}` : undefined,
+            focused: sel,
+            border: this.editing && sel ? "heavy" : ui.theme.widgetFrame,
+          });
       const frameHit = {
         onClick: (m: { x: number; y: number }) => {
           this.selected = i;

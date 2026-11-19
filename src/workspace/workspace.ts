@@ -1114,56 +1114,66 @@ export class Workspace {
     ui.hit({ x: rx, y: r.y, w: strWidth(ai) + 2, h: 1 }, d.ai.ready ? { cmd: "link", tip: "ctrl+space · or `chat` right here in the shell" } : { cmd: "settings", tip: `AI offline: ${d.ai.problem ?? ""}` });
 
     // the button-pages (NEXUS, STORE…) have no tab: their button lights up instead
-    // Not enough room for every tab: the row scrolls around the one shown (‹ › go further),
-    // and the shown one is always there, its name cut if it must be.
+    this.renderTabs(ui, { x, y: r.y, w: Math.max(0, nx - x - 1), h: 1 });
+  }
+
+  /**
+   * The tabs, like a browser's: wide when there are few, narrower as more open
+   * (never below a minimum). When even that doesn't fit, the last chip is
+   * "▾ +N": a menu of the tabs that didn't fit. The tab shown is always visible.
+   * Each tab: its number, its name (cut with … if needed), and × to close it.
+   */
+  private renderTabs(ui: UI, r: Rect): void {
+    const c = ui.c;
     const n = this.tabCount;
-    const labelOf = (i: number) => ` ${i + 1}:${this.tabs[i].title().toLowerCase()}${this.tabs[i].dirty?.() ? " ●" : ""} `;
-    const widthOf = (i: number) => strWidth(labelOf(i)) + 2;
-    const avail = nx - x - 2;
-    let from = 0, to = n; // [from, to)
-    const total = Array.from({ length: n }, (_, i) => widthOf(i)).reduce((a, b) => a + b, 0);
-    const act = Math.min(this.active, n - 1);
-    if (total > avail && n > 0 && act >= 0) {
-      const room = avail - 4; // ‹ and ›
-      from = act;
-      to = act + 1;
-      let used = widthOf(act);
-      while (from > 0 && used + widthOf(from - 1) <= room) used += widthOf(--from);
-      while (to < n && used + widthOf(to) <= room) used += widthOf(to++);
-      if (from > 0) {
-        ui.text(x, r.y, "‹", { fg: c.accent, bg: c.panelAlt, attrs: BOLD });
-        ui.hit({ x, y: r.y, w: 1, h: 1 }, { onClick: () => this.switchTab(from - 1), tip: t("more tabs") });
-      }
-      x += 2;
+    const MAXW = 26, MINW = 12;
+    const plusW = 3; // "+" (open anything) at the end
+    const avail = r.w - plusW;
+    let tabW = n ? Math.max(MINW, Math.min(MAXW, Math.floor(avail / n) - 1)) : MAXW;
+    // which tabs get a chip: all of them, or as many as fit (the shown one always among them)
+    let shown = Array.from({ length: n }, (_, i) => i);
+    const moreW = 7;
+    if (n * (tabW + 1) > avail) {
+      tabW = MINW;
+      const fit = Math.max(1, Math.floor((avail - moreW) / (tabW + 1)));
+      shown = shown.slice(0, fit);
+      const act = Math.min(this.active, n - 1);
+      if (act >= fit) shown[fit - 1] = act;
     }
-    this.tabs.slice(0, n).forEach((_tab, i) => {
-      if (i < from || i >= to) return;
-      let label = labelOf(i);
-      if (i === act && x + strWidth(label) + 4 > nx) label = ` ${truncate(label.trim(), Math.max(3, nx - x - 6))} `;
-      const w = strWidth(label);
-      if (i !== act && x + w + 2 > nx) return;
-      const rect = { x, y: r.y, w: w + 1, h: 1 };
+    const hidden = Array.from({ length: n }, (_, i) => i).filter((i) => !shown.includes(i));
+    const nameOf = (i: number) => `${i + 1}:${this.tabs[i].title().toLowerCase()}${this.tabs[i].dirty?.() ? " ●" : ""}`;
+    let x = r.x;
+    for (const i of shown) {
+      const rect = { x, y: r.y, w: tabW, h: 1 };
       const isActive = i === this.active;
       const hot = ui.hovered(rect);
-      const style = isActive
-        ? { fg: c.panel, bg: c.accent, attrs: BOLD }
-        : { fg: hot ? c.fg : c.muted, bg: hot ? c.highlight : c.panelAlt };
-      x = ui.text(x, r.y, label, style);
-      // close button
-      const closeX = x;
-      ui.text(closeX, r.y, isActive || hot ? "×" : " ", { fg: isActive ? c.panel : c.subtle, bg: style.bg });
-      ui.hit(rect, { cmd: `tab ${i + 1}`, tip: `${IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`} · right-click: close others…`, menu: () => this.tabMenu(i) });
-      ui.hit({ x: closeX, y: r.y, w: 1, h: 1 }, { cmd: `tab close ${i + 1}`, tip: "ctrl+w · shift+esc closes it" });
-      x += 2;
-    });
-    if (to < n && x + 1 < nx) {
-      ui.text(x, r.y, "›", { fg: c.accent, bg: c.panelAlt, attrs: BOLD });
-      ui.hit({ x, y: r.y, w: 1, h: 1 }, { onClick: () => this.switchTab(to), tip: t("more tabs") });
-      x += 2;
+      const style = isActive ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: hot ? c.fg : c.muted, bg: hot ? c.highlight : mix(c.panelAlt, c.fg, 0.05) };
+      // " 3:name…   × " — the × keeps a space on each side, away from the edge
+      ui.fill(rect, { bg: style.bg });
+      ui.text(x + 1, r.y, truncate(nameOf(i), tabW - 5), style);
+      const closeX = x + tabW - 3;
+      const closeHot = ui.hovered({ x: closeX, y: r.y, w: 2, h: 1 });
+      ui.text(closeX, r.y, isActive || hot ? "×" : " ", { fg: closeHot ? c.error : isActive ? c.panel : c.subtle, bg: style.bg, attrs: closeHot ? BOLD : 0 });
+      ui.hit(rect, { cmd: `tab ${i + 1}`, tip: `${this.tabs[i].title()}\n${IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`} · ${t("right-click: close others…")}`, menu: () => this.tabMenu(i) });
+      ui.hit({ x: closeX - 1, y: r.y, w: 3, h: 1 }, { cmd: `tab close ${i + 1}`, tip: t("close · ctrl+w · shift+esc") });
+      x += tabW + 1;
     }
-    if (x + 3 < gx) {
-      ui.text(x, r.y, "+", { fg: c.subtle, bg: c.panelAlt, attrs: BOLD });
-      ui.hit({ x, y: r.y, w: 1, h: 1 }, { cmd: "palette", tip: "ctrl+k: open anything" });
+    // the tabs that didn't fit: a menu
+    if (hidden.length) {
+      const label = ` ▾ +${hidden.length} `;
+      const rect = { x, y: r.y, w: strWidth(label), h: 1 };
+      const hot = ui.hovered(rect);
+      ui.text(x, r.y, label, { fg: hot ? c.panel : c.accent, bg: hot ? c.accent : c.highlight, attrs: BOLD });
+      ui.hit(rect, {
+        onClick: () => this.openMenu(hidden.map((i) => ({ label: nameOf(i), cmd: `tab ${i + 1}`, hint: i < 9 ? (IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`) : "" })), rect.x, r.y + 1, t("more tabs")),
+        tip: t("{n} more tabs: click for the list", { n: hidden.length }),
+      });
+      x += rect.w + 1;
+    }
+    if (x + 1 < r.x + r.w + plusW) {
+      const pr = { x, y: r.y, w: 1, h: 1 };
+      ui.text(x, r.y, "+", { fg: ui.hovered(pr) ? c.accent : c.subtle, bg: c.panelAlt, attrs: BOLD });
+      ui.hit(pr, { cmd: "palette", tip: t("open anything · ctrl+k") });
     }
   }
 

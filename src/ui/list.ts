@@ -57,6 +57,14 @@ export class ListView<T> {
   private drag: { idx: number; x: number; y: number; over: number; active: boolean; outside: boolean; px: number; py: number } | null = null;
   /** what the ghost under the pointer says while a row is dragged */
   dragLabel?: (item: T) => string;
+  /**
+   * Where the dragged row would land, shown as a gap that opens in the list:
+   * `before` = the index of the row it lands before (items.length: at the end),
+   * `indent` = how far in the marker starts. null: no gap.
+   */
+  dropGap?: (item: T, target: T | undefined) => { before: number; indent: number } | null;
+  /** the screen row of the gap this frame (-1: none) — the pointer maps around it */
+  private gapY = -1;
   /** a one-click activation waiting for the button to come up (drag-enabled lists) */
   private pending: number | null = null;
 
@@ -119,9 +127,9 @@ export class ListView<T> {
     this.scrollTop = Math.max(0, Math.min(this.scrollTop, Math.max(0, this.items.length - this.viewH)));
     if (this.selected >= this.items.length) this.selected = Math.max(0, this.items.length - 1);
     // smooth scroll: the view eases toward its target, a few rows per frame
-    const gap = this.scrollTop - this.shownTop;
-    if (Math.abs(gap) > 0.5 && Math.abs(gap) < this.viewH * 3) {
-      this.shownTop += gap * 0.45;
+    const lag = this.scrollTop - this.shownTop;
+    if (Math.abs(lag) > 0.5 && Math.abs(lag) < this.viewH * 3) {
+      this.shownTop += lag * 0.45;
       ui.animate(16);
     } else this.shownTop = this.scrollTop;
     const top = Math.round(this.shownTop);
@@ -130,11 +138,35 @@ export class ListView<T> {
     if (age < 160) ui.animate(16);
     const selBg = focused ? ui.c.selection : ui.c.highlight;
 
-    for (let i = 0; i < this.viewH; i++) {
+    // dragging: where it would land opens a gap in the list (the rows after it move down one)
+    const dgNow = this.drag?.active && !this.drag.outside ? this.drag : null;
+    let gap: { before: number; indent: number } | null = null;
+    if (dgNow && this.dropGap) {
+      const it = this.items[dgNow.idx];
+      const target = dgNow.over >= 0 && dgNow.over < this.items.length ? this.items[dgNow.over] : undefined;
+      if (it !== undefined && dgNow.over !== dgNow.idx && (this.canDrop?.(it, target) ?? true)) gap = this.dropGap(it, target);
+    }
+    const drawGap = (y: number, indent: number) => {
+      const c = ui.c;
+      const it = this.items[dgNow!.idx];
+      const label = ` ▸ ${this.dragLabel?.(it) ?? ""} `;
+      ui.text(r.x + indent, y, "━".repeat(Math.max(0, r.w - indent)), { fg: mix(c.accent, c.panel, 0.4) });
+      ui.text(r.x + indent + 1, y, label, { fg: c.panel, bg: c.accent, attrs: BOLD }, Math.max(0, r.w - indent - 1));
+      this.gapY = y;
+    };
+    this.gapY = -1;
+    let line = 0;
+    for (let i = 0; line < this.viewH; i++) {
       const idx = top + i;
+      if (gap && idx === gap.before) {
+        drawGap(r.y + line, gap.indent);
+        line++;
+        if (line >= this.viewH) break;
+      }
       const item = this.items[idx];
       if (item === undefined) break;
-      const row = { x: r.x, y: r.y + i, w: r.w, h: 1 };
+      const row = { x: r.x, y: r.y + line, w: r.w, h: 1 };
+      line++;
       const isSel = idx === this.selected;
       const dragOn = this.drag?.active ? this.drag : null;
       const dropHere = dragOn && !dragOn.outside && dragOn.over === idx && idx !== dragOn.idx && (this.canDrop?.(this.items[dragOn.idx], item) ?? true);
@@ -165,7 +197,8 @@ export class ListView<T> {
               // near the top / bottom edge: the list scrolls
               if (d.active && m.y <= r.y && this.scrollTop > 0) this.scrollTop--;
               else if (d.active && m.y >= r.y + r.h - 1 && this.scrollTop < this.items.length - this.viewH) this.scrollTop++;
-              d.over = Math.round(this.shownTop) + (m.y - r.y);
+              // the gap shifts the rows under it: count around it (on the gap itself: no change)
+              if (m.y !== this.gapY) d.over = Math.round(this.shownTop) + (m.y - r.y) - (this.gapY >= 0 && m.y > this.gapY ? 1 : 0);
               ui.animate(16);
             }
           : undefined,
@@ -194,7 +227,7 @@ export class ListView<T> {
 
     // dragging below the last row: it lands at the root (or wherever the list says)
     const dg = this.drag?.active ? this.drag : null;
-    if ((this.hoverDrop !== null && this.hoverDrop >= this.items.length && this.dropEndLabel) || (dg && !dg.outside && dg.over >= this.items.length && this.dropEndLabel && (this.canDrop?.(this.items[dg.idx], undefined) ?? true))) {
+    if ((this.hoverDrop !== null && this.hoverDrop >= this.items.length && this.dropEndLabel) || (dg && !this.dropGap && !dg.outside && dg.over >= this.items.length && this.dropEndLabel && (this.canDrop?.(this.items[dg.idx], undefined) ?? true))) {
       const y = r.y + this.items.length - top;
       if (y < r.y + r.h) ui.text(r.x + 1, y, this.dropEndLabel, { fg: ui.c.panel, bg: ui.c.accent });
     }
