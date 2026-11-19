@@ -676,6 +676,8 @@ export const FR: Record<string, string> = {
   "click: open / fold · → ←": "clic : ouvrir / replier · → ←",
   "none yet — F2 binds a key": "aucun pour l'instant — F2 en assigne un",
   wheel: "molette",
+  "RGB split (colour fringes)": "séparation RVB (franges de couleur)",
+  "drag, click, wheel · ←→ by 5": "glisser, cliquer, molette · ←→ par 5",
   "more tabs": "plus d'onglets",
   "errors": "erreurs",
   "errors clear empties this list · errors <code> explains one": "errors clear vide la liste · errors <code> en explique un",

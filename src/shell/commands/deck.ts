@@ -13,6 +13,7 @@ import { knob, KNOBS, parseKnobValue } from "../../core/tweaks";
 import { account, lock, selfDestruct } from "./account";
 import { chat, daily } from "./daily";
 import { errorsCommand, mute, sound } from "./sound";
+import { FX_LEVELS, fxMax, getFx, setFx, type FxLevel } from "../../core/fxlevels";
 import { uiCommands } from "./ui";
 import { devCommands } from "./dev"; // DEV ONLY
 import { newsCommand } from "../../widgets/news";
@@ -353,7 +354,7 @@ const fx: Command = {
     ["fx potato", "everything off, for old laptops"],
   ],
   summary: "toggle visual effects (bloom, scanlines, ambient…)",
-  usage: "fx                      show current state\nfx <effect> on|off      bloom scanlines vignette ambient flicker glitch\nfx minimal              default: ambient fog + glitch only\nfx max                  everything on\nfx potato               everything off, 30fps (weak laptops)\nfx panel                open the FX panel (also: ✦ fx in the status bar)\nfx <effect> <0-200>     strength: bloom scanlines vignette\nfx chroma <0-100>       red/blue fringes of an old tube (0 = off)\nfx sharpness <0-100>    100 = razor sharp, lower = a CRT's soft focus",
+  usage: "fx                      show current state\nfx <effect> on|off      bloom scanlines vignette ambient flicker glitch\nfx minimal              default: ambient fog + glitch only\nfx max                  everything on\nfx potato               everything off, 30fps (weak laptops)\nfx panel                open the FX panel (also: ✦ fx in the status bar)\nfx <effect> <0-200>     strength, 0 = off: bloom scanlines vignette chroma (RGB split)\nfx sharpness <0-100>    100 = razor sharp, lower = a CRT's soft focus",
   run(ctx) {
     const d = ctx.deck;
     const effects = ["bloom", "scanlines", "vignette", "ambient", "flicker", "glitch"] as const;
@@ -377,18 +378,14 @@ const fx: Command = {
     }
     // strengths: fx bloom 150 · fx chroma 30 · fx softness 40
     if (what === "softness") return ctx.err("fx: it's called sharpness now — fx sharpness 60 (100 = sharp)\n"), 1;
-    const levels = ["bloom", "scanlines", "vignette", "chroma", "sharpness"];
-    if (levels.includes(what) && state !== undefined && /^\d+$/.test(state)) {
-      const max = what === "chroma" || what === "sharpness" ? 100 : 200;
-      const v = Math.max(0, Math.min(max, Number(state)));
-      d.settings.set(`fx.levels.${what}`, v);
-      if (!["chroma", "sharpness"].includes(what) && v > 0) d.settings.set(`fx.${what}`, true);
-      d.applyFx();
-      ctx.out(`${what} ${v}%\n`);
+    // one number per effect: 0 = off, up to 200 % (sharpness 0-100)
+    if ((FX_LEVELS as readonly string[]).includes(what) && state !== undefined && /^\d+$/.test(state)) {
+      const v = setFx(d, what as FxLevel, Number(state));
+      ctx.out(`${what} ${v ? `${v}%` : "off"}\n`);
       return;
     }
     if (what === "chroma" || what === "sharpness") {
-      ctx.out(`${what} ${d.settings.data.fx.levels[what] ?? (what === "sharpness" ? 100 : 0)}% (fx ${what} <0-100>)\n`);
+      ctx.out(`${what} ${getFx(d, what)}% (fx ${what} <0-${fxMax(what)}>)\n`);
       return;
     }
     if (!(effects as readonly string[]).includes(what)) {

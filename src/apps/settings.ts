@@ -4,6 +4,8 @@ import { SETTINGS_HELP } from "./settings-help";
 import { focus } from "../widgets/focusstate";
 import { q } from "../ui/ui";
 import { strWidth, truncate } from "../core/unicode";
+import { slider } from "../ui/slider";
+import { fxMax, getFx, setFx, type FxLevel } from "../core/fxlevels";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import { mix } from "../core/color";
@@ -24,6 +26,8 @@ interface Row {
   isText?: boolean;
   /** The shell command for one click (next value). */
   cmd?: () => string;
+  /** a real slider instead of a value (drag / click / wheel; ←→ by 5) */
+  slider?: { min: number; max: number; get: () => number; set: (v: number) => void; zeroIsOff?: boolean; show?: (v: number) => string };
 }
 
 /**
@@ -92,21 +96,18 @@ export class SettingsApp implements App {
         set(key, options[(i + dir + options.length) % options.length]);
       },
     });
-    /** a percentage: ←→ by 5, stops at the ends (a click at the end goes back to the start) */
-    const pct = (key: string, label: string, min = 0, max = 100, show: (v: number) => string = (v) => `${v}%`): Row => {
-      const step = (v: number, dir: number) => {
-        const cur = Math.round(Number(v ?? min) / 5) * 5;
-        if (dir > 0 && cur >= max) return min;
-        return Math.max(min, Math.min(max, cur + dir * 5));
-      };
-      return {
-        key,
-        label,
-        cmd: () => `config set ${key} ${step(s.get(key) as number, 1)}`,
-        value: () => show(Number(s.get(key) ?? min)),
-        change: (dir) => set(key, step(s.get(key) as number, dir < 0 ? -1 : 1)),
-      };
-    };
+    /** a real slider row; ←→ step by 5 */
+    const slide = (key: string, label: string, min: number, max: number, get: () => number, put: (v: number) => void, extra: { zeroIsOff?: boolean; show?: (v: number) => string; cmd?: (v: number) => string } = {}): Row => ({
+      key,
+      label,
+      cmd: () => (extra.cmd ? extra.cmd(get()) : `config set ${key} ${get()}`),
+      value: () => (extra.show ? extra.show(get()) : extra.zeroIsOff && get() === 0 ? t("off") : `${get()}%`),
+      change: (dir) => put(Math.max(min, Math.min(max, Math.round(get() / 5) * 5 + dir * 5))),
+      slider: { min, max, get, set: put, zeroIsOff: extra.zeroIsOff, show: extra.show },
+    });
+    const fxSlide = (e: FxLevel, label: string, show?: (v: number) => string) =>
+      slide(`fx.levels.${e}`, label, 0, fxMax(e), () => getFx(d, e), (v) => void setFx(d, e, v), { zeroIsOff: e !== "sharpness", show, cmd: (v) => `fx ${e} ${v}` });
+    const num = (key: string) => Number(s.get(key) ?? 0);
     const text = (key: string, label: string, section?: string, placeholder = "", suggestions?: () => string[]): Row => ({
       section,
       key,
@@ -145,7 +146,7 @@ export class SettingsApp implements App {
       text("user.locale", "date language", undefined, "fr-FR, en-US… (empty = system)", () => ["fr-FR", "fr-CH", "fr-BE", "fr-CA", "en-US", "en-GB", "de-CH", "de-DE", "it-CH", "it-IT", "es-ES", "pt-BR", "ja-JP", "nb-NO"]),
       { section: "APPEARANCE", label: "", value: () => "" },
       cycle("appearance.theme", "theme", d.themes.list().map((t) => t.name)),
-      cycle("appearance.scale", "interface scale", [25, 50, 75, 80, 90, 100, 110, 125, 150, 175, 200], undefined, (v) => `${v}%`),
+      slide("appearance.scale", "interface scale", 50, 200, () => num("appearance.scale"), (v) => set("appearance.scale", v)),
       cycle("appearance.fontSize", "text size at 100%", [10, 11, 12, 13, 14, 15, 16, 18, 20], undefined, (v) => `${v}px`),
       cycle("appearance.fontWeight", "font weight", ["thin", "light", "regular"]),
       toggle("appearance.startFullscreen", "start fullscreen"),
@@ -155,9 +156,6 @@ export class SettingsApp implements App {
       toggle("appearance.backgroundSlow", "slow down in the background (energy)"),
 
       // (the effects are part of APPEARANCE)
-      toggle("fx.bloom", "bloom glow"),
-      toggle("fx.scanlines", "scanlines"),
-      toggle("fx.vignette", "vignette"),
       toggle("fx.ambient", "animated background"),
       toggle("fx.flicker", "crt flicker"),
       toggle("fx.glitch", "animations (glitch, page & typing motion)"),
@@ -166,25 +164,29 @@ export class SettingsApp implements App {
         value: () => "open",
         change: () => d.workspace.fxPanel(),
       },
-      pct("fx.levels.bloom", "bloom strength", 0, 200),
-      pct("fx.levels.scanlines", "scanlines strength", 0, 200),
-      pct("fx.levels.vignette", "vignette strength", 0, 200),
-      pct("fx.levels.chroma", "colour fringes (CRT)", 0, 100, (v) => (v ? `${v}%` : t("off"))),
-      pct("fx.levels.sharpness", "sharpness", 0, 100, (v) => (v === 100 ? t("razor sharp") : `${v}%`)),
+      // one slider per effect: 0 = off
+      fxSlide("bloom", "bloom glow"),
+      fxSlide("scanlines", "scanlines"),
+      fxSlide("vignette", "vignette"),
+      fxSlide("chroma", "RGB split (colour fringes)"),
+      fxSlide("sharpness", "sharpness", (v) => (v === 100 ? t("razor sharp") : `${v}%`)),
       cycle("fx.screensaverMinutes", "screensaver after", [0, 5, 10, 20, 30], undefined, (v) => (v ? `${v} min` : "never")),
       cycle("boot.mode", "boot sequence", ["full", "fast", "off"]),
       { section: "SOUND", label: "", value: () => "" },
-      toggle("sound.enabled", "ui sounds"),
-      pct("sound.volume", "volume", 0, 100),
+      // ui sounds: one slider, 0 = off
+      slide("sound.volume", "ui sounds", 0, 100, () => (s.data.sound.enabled ? num("sound.volume") : 0), (v) => {
+        set("sound.enabled", v > 0);
+        if (v > 0) set("sound.volume", v);
+      }, { zeroIsOff: true }),
       cycle("notifications.mode", "notifications", ["both", "sound", "visual", "none"], undefined, (v) => t(({ both: "sound + screen", sound: "sound only", visual: "screen only", none: "off" } as Record<string, string>)[String(v)] ?? String(v))),
       { section: "VOICE", label: "", value: () => "" },
       toggle("voice.enabled", "voice"),
       toggle("voice.readAI", "read LINK's answers aloud"),
       toggle("voice.subtitles", "subtitles (what the voice says, bottom-right)"),
       toggle("voice.greet", "greeting at start-up"),
-      pct("voice.robot", "robot filter", 0, 100),
+      slide("voice.robot", "robot filter", 0, 100, () => num("voice.robot"), (v) => set("voice.robot", v), { zeroIsOff: true }),
       cycle("voice.rate", "speed", [0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.5], undefined, (v) => `×${v}`),
-      pct("voice.volume", "voice volume", 0, 100),
+      slide("voice.volume", "voice volume", 0, 100, () => num("voice.volume"), (v) => set("voice.volume", v), { zeroIsOff: true }),
       cycle("voice.language", "voice language", ["en", "fr", "ja"], undefined, (v) => (v === "fr" ? "Français" : v === "ja" ? "日本語" : "English")),
       cycle("voice.engine", "engine", ["auto", "piper", "system"], undefined, (v) => (v === "auto" ? "auto (piper if installed)" : v)),
       {
@@ -446,6 +448,20 @@ export class SettingsApp implements App {
       const raw = row.value();
       const v = t(raw);
       const vx = rx + rw - 1;
+      // a slider: drawn in the value's place, dragged with the mouse
+      if (row.slider) {
+        const sw = Math.min(30, Math.max(10, Math.floor(rw * 0.45)));
+        ui.text(rx + 1, y, label, { fg: selected ? c.fg : c.muted, ...st }, Math.max(4, rw - sw - 3));
+        if (ui.hovered(line)) hoverRow = row;
+        ui.hit(line, { onClick: () => ((this.sel = i), (this.pane = "rows")) });
+        const sl = row.slider;
+        slider(ui, { x: rx + rw - sw - 1, y, w: sw, h: 1 }, sl.get(), sl.min, sl.max, (v) => {
+          this.sel = i;
+          this.pane = "rows";
+          sl.set(v);
+        }, { zeroIsOff: sl.zeroIsOff, show: sl.show, tip: `${row.cmd?.() ?? ""}\n${t("drag, click, wheel · ←→ by 5")}` });
+        return;
+      }
       // ◂ ▸ only on values you step through; an action just says what it does
       const shownV = truncate(selected && row.change && row.key && !row.isText ? `◂ ${v} ▸` : selected && row.change ? `${v} ›` : v, Math.max(4, Math.floor(rw / 2)));
       // the label gets what the value leaves (never a negative width: the line must never vanish)

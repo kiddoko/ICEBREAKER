@@ -146,7 +146,7 @@ export class Renderer {
   /** the theme background, taken out of the fringes so only the text casts them */
   private chromaBg = "#000000";
   setChroma(level: number, bg = "#000000"): void {
-    this.chroma = Math.max(0, Math.min(100, level));
+    this.chroma = Math.max(0, Math.min(200, level));
     this.chromaBg = bg;
     if (!this.chromaEl) {
       this.chromaEl = document.getElementById("chroma") as HTMLCanvasElement | null;
@@ -155,7 +155,8 @@ export class Renderer {
     }
     if (this.chromaEl) {
       this.chromaEl.style.display = this.chroma > 0 ? "block" : "none";
-      this.chromaEl.style.opacity = String(0.25 + (this.chroma / 100) * 0.55);
+      // a real RGB split: strong and saturated as it goes up (200 % = a badly misconverged tube)
+      this.chromaEl.style.opacity = String(Math.min(0.95, 0.35 + (this.chroma / 200) * 0.6));
     }
     this.sizeChroma();
     this.front = null;
@@ -204,7 +205,7 @@ export class Renderer {
     const el = this.chromaEl, ctx = this.chromaCtx, tmp = this.chromaTmp;
     if (!el || !ctx || !tmp || !el.width) return;
     const w = el.width, h = el.height;
-    const o = 0.35 + (this.chroma / 100) * 0.9; // half-res px
+    const o = 0.5 + (this.chroma / 100) * 1.7; // half-res px: up to ~4 (≈ 8 screen px) at 200 %
     const t = tmp.getContext("2d")!;
     t.globalCompositeOperation = "source-over";
     t.clearRect(0, 0, w, h);
