@@ -54,7 +54,9 @@ export function drawBackground(ui: UI, r: Rect, theme: Theme, intensity = 1): vo
     glyphs: b.glyphs,
     t: (ui.now / 1000) * b.speed,
   });
-  ui.animate(1000 / spec.fps);
+  // at most 12 fps: snow, rain, sonar stay smooth, and every frame drawn costs the
+  // effects (bloom, glow) a full-window redo on macOS
+  ui.animate(1000 / Math.min(12, spec.fps));
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────

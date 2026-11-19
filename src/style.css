@@ -30,9 +30,18 @@ body {
 
 #screen,
 #bloom,
-#chroma {
+#chroma,
+#glow {
   position: absolute;
   display: block;
+  pointer-events: none;
+  /* each effect is a layer of its own: updating one never repaints the others */
+  will-change: opacity;
+  contain: strict;
+}
+#glow {
+  mix-blend-mode: screen;
+  image-rendering: auto;
 }
 
 /* Glow: a half-resolution copy of the screen, blurred and added on top. */
@@ -70,6 +79,7 @@ body {
 /* and the slow roll of an old tube: one faint band drifting down every 9 s */
 #scanlines::after {
   content: "";
+  will-change: transform; /* the compositor moves it: no repaint of the window */
   position: absolute;
   left: 0;
   right: 0;

@@ -384,7 +384,22 @@ export class Renderer {
     front!.bg.set(g.bg);
     front!.attr.set(g.attr);
 
-    if (painted && this.bloomEnabled) {
+    if (painted && this.bloomEnabled) this.bloomFrame();
+    if (painted && this.chroma > 0) this.chromaFrame();
+    return painted;
+  }
+
+  /** the bloom copy: at most 20 times a second, with a catch-up pass once things settle */
+  private bloomAt = 0;
+  private bloomTimer: ReturnType<typeof setTimeout> | 0 = 0;
+  private bloomFrame(): void {
+    const wait = this.bloomAt + 50 - performance.now();
+    if (wait > 0) {
+      if (!this.bloomTimer) this.bloomTimer = setTimeout(() => ((this.bloomTimer = 0), this.bloomFrame()), wait);
+      return;
+    }
+    this.bloomAt = performance.now();
+    {
       // Bloom = blurred, downscaled copy of the screen added on top (CSS does the blur on the GPU).
       const b = this.bloomCtx;
       if (this.canvasBlur) {
@@ -395,8 +410,6 @@ export class Renderer {
       b.drawImage(this.canvas, 0, 0, this.bloom.width, this.bloom.height);
       if (this.canvasBlur) b.filter = "none";
     }
-    if (painted && this.chroma > 0) this.chromaFrame();
-    return painted;
   }
 }
 
