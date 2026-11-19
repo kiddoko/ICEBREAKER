@@ -131,6 +131,54 @@ export class Workspace {
     this.terminal.write(`${cmd}\r`);
   }
 
+  /** The side panel: its widgets stacked, each at its own height, as many as fit. */
+  private renderSidePanel(ui: UI, r: Rect): void {
+    const d = this.deck;
+    const c = ui.c;
+    const inner = ui.box(r, { title: t("PANEL"), info: "◧" });
+    ui.hit(inner, { menu: () => [{ label: t("add a widget…"), run: () => void this.panelAdd() }, { label: t("hide the panel"), cmd: "panel hide" }] });
+    const ids = (d.settings.data.panel?.widgets ?? []).filter((id) => d.widgets.get(id));
+    let y = inner.y;
+    for (const id of ids) {
+      const spec = d.widgets.get(id)!;
+      const h = Math.max(4, Math.min(14, spec.size.h * 2 + 2));
+      if (y + 3 > inner.y + inner.h) break;
+      const box = { x: inner.x, y, w: inner.w, h: Math.min(h, inner.y + inner.h - y) };
+      const wi = ui.box(box, { title: t(spec.title).toUpperCase(), border: ui.theme.widgetFrame });
+      ui.hit(box, {
+        onDouble: () => void d.act(`widget ${id}`),
+        tip: `${spec.description ?? spec.title}\n${t("double-click: its pop-up · right-click: move, remove")}`,
+        menu: () => [
+          ...(spec.popup || spec.activate || spec.open ? [{ label: t("open"), cmd: `widget ${id}` }] : []),
+          { label: t("move up"), cmd: `panel up ${id}` },
+          { label: t("move down"), cmd: `panel down ${id}` },
+          { label: t("add a widget…"), run: () => void this.panelAdd() },
+          "-",
+          { label: t("remove from the panel"), cmd: `panel rm ${id}`, danger: true },
+        ],
+      });
+      ui.clip(wi, () => {
+        try {
+          spec.render(ui, wi, { deck: d, focused: false });
+        } catch {
+          ui.text(wi.x, wi.y, "⚠", { fg: c.error });
+        }
+      });
+      y += box.h;
+    }
+    if (!ids.length) {
+      ui.textCenter(inner, inner.y + 1, t("empty"), { fg: c.muted });
+      ui.textCenter(inner, inner.y + 3, t("right-click → add a widget"), { fg: c.faint });
+    }
+  }
+
+  /** Pick a widget for the side panel. */
+  async panelAdd(): Promise<void> {
+    const list = this.deck.widgets.list().filter((w) => w.picker !== false && !w.id.startsWith("link."));
+    const i = await this.deck.choose(t("A widget for the panel"), list.map((w) => ({ label: t(w.title), hint: w.id })));
+    if (i !== null) void this.deck.act(`panel add ${list[i].id}`);
+  }
+
   /** Right-click on a macro button. */
   private macroMenu(i: number): MenuEntry[] {
     const m = this.deck.settings.data.shell.macros[i];
@@ -851,6 +899,13 @@ export class Workspace {
 
     // maximized shell: the page goes to the strip at the bottom
     const mainR = max ? { x: right.x, y: body.y + body.h - stripH, w: right.w, h: stripH } : { x: top.x + (sideW ? sideW + 1 : 0), y: top.y, w: top.w - (sideW ? sideW + 1 : 0), h: top.h };
+    // the side panel on the right: widgets that stay in view (panel show · ◧ in the status bar)
+    const panelW = Math.max(24, Math.min(36, Math.round(W * 0.2)));
+    if (d.settings.data.panel?.shown && mainR.w - panelW - 1 >= 40) {
+      mainR.w -= panelW + 1;
+      const pr = { x: mainR.x + mainR.w + 1, y: mainR.y, w: panelW, h: mainR.h };
+      this.renderSidePanel(ui, pr);
+    }
     this.rects.main = mainR;
     const app = this.activeApp;
     const mainFocused = this.focus === "main" && !this.topModal;
@@ -1181,6 +1236,7 @@ export class Workspace {
     if (d.voice.speaking) parts.push({ text: `◖ ${t("voice")}`, fg: c.accentAlt, cmd: "voice stop", tip: t("speaking · click to stop") });
     if (d.gamepad.connected) parts.push({ text: "◈ pad", fg: c.success });
     parts.push(this.shellVisible ? { text: "▾ shell", fg: c.muted, cmd: "term hide", tip: "fold the shell away · ctrl+`" } : { text: "▴ shell", fg: c.accent, cmd: "term show", tip: "bring the shell back · ctrl+`" });
+    parts.push({ text: "◧", fg: d.settings.data.panel?.shown ? c.accent : c.muted, cmd: "panel", tip: t("the side panel: widgets always in view · panel") });
     parts.push({ text: "⌨", fg: this.overlays.some((o) => o instanceof Osk) ? c.accent : c.muted, cmd: "osk", tip: "on-screen keyboard · pad: X" });
     parts.push({ text: "✦ fx", fg: c.accentAlt, cmd: "view fx", tip: "bloom, scanlines… · `fx` in the shell" });
     const muted = !!d.settings.data.sound.muted;

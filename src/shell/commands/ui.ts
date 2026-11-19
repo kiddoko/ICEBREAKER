@@ -381,8 +381,46 @@ const wheelCmd: Command = {
   },
 };
 
+const panelCmd: Command = {
+  name: "panel",
+  summary: "the side panel on the right: widgets always in view (◧ in the status bar)",
+  usage: "panel                show / hide it\npanel show | hide\npanel add [widget]   one more (no name: the list)\npanel rm <widget>\npanel up | down <widget>   reorder\npanel ls",
+  complete: () => ["show", "hide", "add", "rm", "up", "down", "ls"],
+  run(ctx) {
+    const d = ctx.deck;
+    const s = d.settings;
+    const cur = s.data.panel ?? { shown: false, widgets: [] };
+    const [a, id] = ctx.args;
+    const save = (p: Partial<typeof cur>) => s.set("panel", { ...cur, ...p });
+    if (!a) return save({ shown: !cur.shown }), 0;
+    if (a === "show" || a === "hide") return save({ shown: a === "show" }), 0;
+    if (a === "ls") {
+      for (const w of cur.widgets) ctx.out(`${w}\n`);
+      return 0;
+    }
+    if (a === "add") {
+      if (!id) return void d.workspace.panelAdd(), 0;
+      if (!d.widgets.get(id)) return ctx.err(`panel: no widget ${id} (home widgets)\n`), 1;
+      if (!cur.widgets.includes(id)) save({ shown: true, widgets: [...cur.widgets, id] });
+      else save({ shown: true });
+      return 0;
+    }
+    if (a === "rm") return save({ widgets: cur.widgets.filter((w) => w !== id) }), 0;
+    if (a === "up" || a === "down") {
+      const w = [...cur.widgets];
+      const i = w.indexOf(id ?? "");
+      const j = i + (a === "up" ? -1 : 1);
+      if (i < 0 || j < 0 || j >= w.length) return 0;
+      [w[i], w[j]] = [w[j], w[i]];
+      return save({ widgets: w }), 0;
+    }
+    return ctx.err("usage: panel [show | hide | add | rm | up | down | ls]\n"), 1;
+  },
+};
+
 export const uiCommands: Command[] = [
   wheelCmd,
+  panelCmd,
   worldclockCommand,
   quoteCommand,
   ...popupCommands,

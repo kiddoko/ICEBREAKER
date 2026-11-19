@@ -230,6 +230,7 @@ export class HomeApp implements App {
       ...(has ? [{ label: spec.popup ? t("open its pop-up") : t("open"), cmd: `widget ${p.id}`, hint: "enter" }] : []),
       ...(spec.open ? [{ label: t("open its module"), cmd: `widget ${p.id} open` }] : []),
       "-",
+      { label: t("pin to the side panel"), cmd: `panel add ${p.id}` },
       { label: this.editing ? t("done rearranging") : t("move / resize"), cmd: this.editing ? "home done" : "home edit", hint: "e" },
       { label: t("add a widget…"), run: () => this.add(), hint: "a" },
       "-",

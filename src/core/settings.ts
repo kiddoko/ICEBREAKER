@@ -76,6 +76,8 @@ export interface Settings {
   keys: Record<string, string>;
   /** module settings values (ib.settings), per module id */
   moduleSettings: Record<string, Record<string, unknown>>;
+  /** the side panel on the right: widgets always in view (panel show / add <widget>) */
+  panel: { shown: boolean; widgets: string[] };
   /** the gamepad's action wheel (hold RB): pages of 8 slots, each a shell command */
   gamepad: { wheel: { label: string; icon: string; cmd: string }[][] };
   /** MODULES: a colour per module (red, orange…), to sort and filter the ring */
@@ -163,6 +165,7 @@ export const DEFAULT_SETTINGS: Settings = {
   moduleSettings: {},
   moduleTags: {},
   gamepad: { wheel: [] },
+  panel: { shown: false, widgets: ["clock", "system"] },
   shell: {
     mode: "system",
     prompt: "icebreaker",

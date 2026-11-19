@@ -842,4 +842,15 @@ export const FR: Record<string, string> = {
   "tab page · enter · esc": "tab page · entrée · échap",
   "an empty slot: click to give it a command · wheel add": "une case vide : clique pour lui donner une commande · wheel add",
   "This slot runs… (a shell command)": "Cette case lance… (une commande du shell)",
+  // ── side panel (19 nov.)
+  "PANEL": "PANNEAU",
+  "hide the panel": "cacher le panneau",
+  "double-click: its pop-up · right-click: move, remove": "double-clic : sa pop-up · clic droit : déplacer, retirer",
+  "move up": "monter",
+  "move down": "descendre",
+  "remove from the panel": "retirer du panneau",
+  "right-click → add a widget": "clic droit → ajouter un widget",
+  "A widget for the panel": "Un widget pour le panneau",
+  "the side panel: widgets always in view · panel": "le panneau latéral : des widgets toujours visibles · panel",
+  "pin to the side panel": "épingler au panneau latéral",
 };

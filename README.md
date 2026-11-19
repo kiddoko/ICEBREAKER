@@ -38,6 +38,7 @@ scanlines — but works with the keyboard, the mouse, or a gamepad.
 - **Sounds** — UI blips synthesized on the fly, in 7 packs (retro, crystal, soft, industrial, paper, neon, sonar): each theme has its own, and you can pick another per theme (Settings → SOUND, `sound pack`). MODULES and NEXUS click like a notched wheel at each step. Drop your own `move.wav`, `open.wav`, `confirm.wav`, `back.wav`, `success.wav`, `error.wav`, `notify.wav`, `boot.wav`, `unlock.wav`, `denied.wav`, `alert.wav`, `tick.wav`, `select.wav` (or .ogg / .mp3) in `.icebreaker/sounds/` to replace them.
 - **Right-click everywhere** — a menu for the thing under the mouse (notes, folders, tabs, widgets, modules, the shell, the editor); the menu key or Shift+F10 on the keyboard.
 - **Colour tags and icons** — Ableton-style colours (small squares on the right of the tree, written out in grey themes) and a custom icon per file or folder; a click on a colour shows only that colour (`tag`, `icon`).
+- **Side panel** — ◧ in the status bar: widgets that stay in view on every page, on the right (`panel add clock`).
 - **Profile icon** — a pixel-art face or a glyph in your colour (`avatar`), on the login screen and in `whoami`.
 - **Shortcut squares** — 1×1 HOME widgets that open anything in one click (a module, a note, a folder, a page, a macro, a command): `home link new`, or right-click → square on HOME.
 - **Browse with the wheel** — the wheel over the tree walks file by file and shows each one at once (a preview tab the next file replaces).
