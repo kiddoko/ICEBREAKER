@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- MODULES is a ring of floppy disks, like NEXUS: an endless ring (5 in front),
+  each module a disk with its metal shutter, label and status light; ←→ ↑↓ and the
+  wheel turn it.
+- Smoother: page transitions never go dark any more (fade starts at 40 %, wipe rolls
+  a line over the new page, all shorter); sideways swipes don't bounce the page;
+  swipes chain while macOS's momentum still runs (no click needed to swipe again).
+- Glow is gentle at low levels (proportional); the RGB split bites early (a curve);
+  scanlines are softer with a slow roll; names line up in the tree whatever the icon;
+  the ICEBREAKER prompt re-asserts itself before every prompt (p10k can't come back).
+
 - Real sliders everywhere (settings, the ✦ fx panel): drag or click on the track
   (1 % steps), the wheel and ←→ step by 5. One setting per effect: 0 = off, up to
   200 % (bloom, scanlines, vignette, RGB split, glow; sharpness 0-100). `fx glow 120`.

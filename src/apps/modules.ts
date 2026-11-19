@@ -8,7 +8,7 @@ import { decrypt } from "../fx/glitch";
 import type { MenuEntry, UI } from "../ui/ui";
 import type { App, AppSpec } from "./types";
 
-/** One cartridge in the hive: a module, or one of the deck's own doors. */
+/** One floppy on the ring: a module, or one of the deck's own doors. */
 interface Cart {
   id: string;
   icon: string;
@@ -24,10 +24,10 @@ interface Cart {
 }
 
 /**
- * MODULES — the hive. Every module is a cartridge on a grid seen in
- * perspective: the row you're on sits in front, the rest recede toward the
- * vanishing point, dimmer and smaller. The chosen cartridge lifts out under a
- * scan beam; the bar below says what it is and what you can do with it.
+ * MODULES — a ring of floppy disks, like NEXUS: every module is a disk turning
+ * on an endless ring (5 in front), smaller and dimmer toward the back. The one
+ * in front sits under the drive's read beam; the bar below says what it is and
+ * what you can do with it.
  *
  *   ←↑↓→ choose · enter launch · space on/off · x remove · s store
  * Everything here is also a command: launch, plugin enable/disable, store remove.
@@ -36,11 +36,8 @@ export class ModulesApp implements App {
   readonly kind = "modules";
   readonly key = "modules";
   private sel = 0;
-  private cols = 4;
-  /** the row in front, eased (the hive slides toward you) */
+  /** where the ring is, eased toward sel (never reset: it keeps turning the short way) */
   private depth = 0;
-  /** the selected row, counted without wrapping: going past the last row keeps going forward */
-  private vrow = 0;
   private lastT = 0;
   private bornAt = performance.now();
 
@@ -132,16 +129,9 @@ export class ModulesApp implements App {
     switch (a) {
       case "left": this.sel = (this.sel - 1 + n) % n; return true;
       case "right": case "item-next": this.sel = (this.sel + 1) % n; return true;
-      // deeper into the hive / back toward you — and round again at the ends
-      case "up": this.sel = this.sel + this.cols < n ? this.sel + this.cols : this.sel % this.cols; return true;
-      case "down": {
-        if (this.sel - this.cols >= 0) this.sel -= this.cols;
-        else {
-          const lastRow = Math.floor((n - 1) / this.cols) * this.cols;
-          this.sel = Math.min(n - 1, lastRow + this.sel);
-        }
-        return true;
-      }
+      // the ring turns with ↑↓ too
+      case "up": this.sel = (this.sel - 1 + n) % n; return true;
+      case "down": this.sel = (this.sel + 1) % n; return true;
       case "confirm": this.run(this.carts()[this.sel]); return true;
       case "menu": return this.onText(" ");
       default: return false;
@@ -157,77 +147,57 @@ export class ModulesApp implements App {
     this.sel = Math.min(this.sel, carts.length - 1);
     ui.fill(r, { bg: c.bg });
 
-    // layout: cards per row from the width
+    // ── a ring of floppies, like NEXUS: never ends, 5 in front (3 for 3-4 modules) ──
     const panelH = 5;
     const field = { x: r.x, y: r.y + 1, w: r.w, h: r.h - panelH - 1 };
-    const baseW = Math.max(18, Math.min(30, Math.floor(r.w / 4)));
-    this.cols = Math.max(2, Math.min(6, Math.floor((r.w - 4) / (baseW + 2))));
-    const rows = Math.ceil(carts.length / this.cols);
-    // the wheel walks the hive a row at a time
-    ui.hit(field, { onWheel: (dw) => (this.sel = (((this.sel + Math.sign(dw) * this.cols) % carts.length) + carts.length) % carts.length) });
-    // with 3 rows or more the hive is a loop: after the last row comes the first again, still forward
-    const loop = rows >= 3;
-    const selRow = Math.floor(this.sel / this.cols);
-    if (loop) {
-      let delta = selRow - (((this.vrow % rows) + rows) % rows);
-      if (delta > rows / 2) delta -= rows;
-      if (delta < -rows / 2) delta += rows;
-      this.vrow += delta;
-    } else this.vrow = selRow;
-    this.depth += (this.vrow - this.depth) * Math.min(1, dt * 10);
-    if (Math.abs(this.vrow - this.depth) < 0.002) this.depth = this.vrow;
-    const moving = Math.abs(this.vrow - this.depth) > 0.002;
+    const n = carts.length;
+    // ease the ring the short way round (pos never resets: past the last comes the first)
+    const gap = ring(this.sel - this.depth, n);
+    this.depth += gap * Math.min(1, dt * 9);
+    if (Math.abs(ring(this.sel - this.depth, n)) < 0.002) this.depth += ring(this.sel - this.depth, n);
+    const moving = Math.abs(ring(this.sel - this.depth, n)) > 0.002;
     const age = now - this.bornAt;
-    // full speed only while gliding; idle, a slow tick is enough for the beam and the floor
-    ui.animate(moving || age < 900 ? 16 : focused ? 70 : 250);
+    ui.animate(moving || age < 900 ? 16 : focused ? 120 : 400);
+    ui.hit(field, { onWheel: (dw) => (this.sel = (((this.sel + Math.sign(dw)) % n) + n) % n) });
 
-    // the floor: a horizon glowing in the distance, rails and grid lines rolling toward you
-    const vx = r.x + r.w / 2;
-    const horizon = field.y + Math.floor(field.h * 0.2);
-    ui.hline(r.x, horizon, r.w, { fg: mix(c.bg, c.accent, 0.45) }, "─");
-    ui.hline(r.x + Math.floor(r.w * 0.3), horizon - 1, Math.floor(r.w * 0.4), { fg: mix(c.bg, c.accent, 0.18) }, "▁");
+    // the floor: a quiet perspective grid rolling toward you as the ring turns
+    const horizon = field.y + Math.max(2, Math.floor(field.h * 0.22));
     const bottom = field.y + field.h;
+    const vx = r.x + r.w / 2;
+    ui.hline(r.x, horizon, r.w, { fg: mix(c.bg, c.accent, 0.35) }, "─");
     for (let y = horizon + 1; y < bottom; y++) {
-      const k = (y - horizon) / (bottom - horizon); // 0 far → 1 near
-      const col = mix(c.bg, c.accent, 0.06 + k * 0.2);
+      const k = (y - horizon) / Math.max(1, bottom - horizon);
+      const col = mix(c.bg, c.accent, 0.05 + k * 0.14);
       for (let i = -6; i <= 6; i++) {
         const x = Math.round(vx + i * k * (r.w / 7));
         if (x >= r.x && x < r.x + r.w) ui.text(x, y, k > 0.45 ? (i < 0 ? "╱" : i > 0 ? "╲" : "│") : "·", { fg: col });
       }
-      // perspective: the lines bunch up near the horizon and spread toward you
-      const z = 1 / Math.max(0.04, k), roll = (now / 900) % 1;
-      if (Math.abs(((z + roll) % 1.6) - 0.8) < 0.8 * k * 0.5) ui.hline(r.x, y, r.w, { fg: mix(c.bg, c.accent, 0.04 + k * 0.12) }, k > 0.5 ? "─" : "╌");
+      const z = 1 / Math.max(0.04, k) + this.depth * 1.5;
+      if (Math.abs((z % 1.6) - 0.8) < 0.8 * k * 0.4) ui.hline(r.x, y, r.w, { fg: mix(c.bg, c.accent, 0.03 + k * 0.08) }, k > 0.5 ? "─" : "╌");
     }
 
-    // rows from the farthest to the nearest, so the near ones draw on top
-    const order: { row: number; d: number }[] = [];
-    const first = Math.floor(this.depth) - 1;
-    for (let v = loop ? first : 0; loop ? v <= first + 6 : v < rows; v++) {
-      const d = v - this.depth; // 0 = in front
-      if (d < -0.6 || d > 4.2) continue;
-      order.push({ row: ((v % rows) + rows) % rows, d });
+    const half = n >= 5 ? 2 : n >= 3 ? 1 : 0;
+    const step = half === 2 ? 0.62 : 0.9;
+    const radius = Math.min(r.w * 0.42, 64);
+    const shown: { cart: Cart; i: number; z: number; x: number }[] = [];
+    for (let i = 0; i < n; i++) {
+      const off = ring(i - this.depth, n);
+      if (Math.abs(off) > half + 0.5) continue;
+      const ang = off * step;
+      shown.push({ cart: carts[i], i, z: Math.cos(ang), x: vx + Math.sin(ang) * radius });
     }
-    order.sort((a, b) => b.d - a.d);
-    for (const { row, d } of order) {
-      const s = Math.max(0.3, 1 - d * 0.24); // scale with depth
-      const cw = Math.max(8, Math.round(baseW * s));
-      const ch = Math.max(3, Math.round(5 * s));
-      const gap = Math.max(1, Math.round(2 * s));
-      const y = Math.round(field.y + field.h - ch - 1 - d * (field.h * 0.19));
-      const inRow = carts.slice(row * this.cols, row * this.cols + this.cols);
-      const total = inRow.length * cw + (inRow.length - 1) * gap;
-      let x = Math.round(vx - total / 2);
-      // far away, the cards sink into the dark fast: only the near rows are readable
-      const fade = Math.min(0.93, Math.max(0, d * 0.42));
-      inRow.forEach((cart, k) => {
-        const i = row * this.cols + k;
-        const isSel = i === this.sel;
-        const lift = isSel ? 1 : 0;
-        const rect = { x, y: y - lift, w: cw, h: ch };
-        if (rect.y >= field.y && rect.y + rect.h <= field.y + field.h + 1) this.drawCart(ui, rect, cart, isSel && focused, fade, age - i * 40);
-        ui.hit(rect, { onClick: () => (this.sel = i), onDouble: () => this.run(cart), tip: cart.description, menu: () => ((this.sel = i), this.cartMenu(cart)) });
-        x += cw + gap;
-      });
+    shown.sort((p, q) => p.z - q.z);
+    for (const v of shown) {
+      const near = (v.z + 1) / 2;
+      const big = near > 0.93, mid = near > 0.7;
+      const w = big ? 26 : mid ? 20 : 14;
+      const h = big ? 12 : mid ? 9 : 7;
+      const y = Math.round(horizon + 1 + near * near * Math.max(0, bottom - horizon - h - 1)) - (big ? 1 : 0);
+      const rect = { x: Math.round(v.x - w / 2), y, w, h };
+      if (rect.x + rect.w < r.x || rect.x >= r.x + r.w) continue;
+      const isSel = v.i === this.sel;
+      this.drawFloppy(ui, rect, v.cart, isSel && focused, Math.max(0, 0.85 - near) * 0.9, age - Math.abs(ring(v.i - this.sel, n)) * 60);
+      ui.hit(rect, { onClick: () => (this.sel = v.i), onDouble: () => this.run(v.cart), tip: v.cart.description, menu: () => ((this.sel = v.i), this.cartMenu(v.cart)) });
     }
 
     // the bar: what it is, what you can do
@@ -251,45 +221,59 @@ export class ModulesApp implements App {
     btn(t("store  s"), () => void this.deck.act("store"), "s");
   }
 
-  private drawCart(ui: UI, r: Rect, cart: Cart, sel: boolean, fade: number, age: number): void {
+  /**
+   * A floppy disk in characters: the metal shutter on top (with its window),
+   * a write-protect notch, the label with the module's name, icon and what it
+   * does, a status light. Far ones are smaller and fade into the dark.
+   */
+  private drawFloppy(ui: UI, r: Rect, cart: Cart, sel: boolean, fade: number, age: number): void {
     const c = ui.c;
     const dim = (col: number) => mix(col, c.bg, fade);
-    const bg = sel ? mix(c.accent, c.bg, 0.8) : dim(cart.on ? c.panel : c.bg);
-    ui.fill(r, { bg });
-    // the cartridge: a heavy top edge, a notch, a status light
-    const edge = sel ? c.accent : dim(cart.on ? mix(c.accent, c.border, 0.5) : c.faint);
-    ui.box(r, { fill: false, border: sel ? "heavy" : "single", bg, focused: sel });
-    ui.text(r.x, r.y, sel ? "┏" : "┌", { fg: edge, bg });
-    ui.text(r.x + r.w - 3, r.y, cart.on ? "●" : "○", { fg: cart.on ? (sel ? c.success : dim(c.success)) : dim(c.subtle), bg });
-    if (r.h >= 3) {
-      const name = r.w >= 14 ? cart.name.toUpperCase() : cart.icon;
-      const shown = age < 600 ? decrypt(name, Math.max(0, age / 600), ui.now) : name;
-      ui.text(r.x + 2, r.y + 1, r.w >= 14 ? `${cart.icon} ${shown}` : shown, { fg: sel ? c.fg : dim(cart.on ? c.fg : c.muted), bg, attrs: sel ? BOLD : 0 }, r.w - 3);
+    const body = sel ? mix(c.accent, c.bg, 0.78) : dim(cart.on ? mix(c.panel, c.accent, 0.08) : c.panel);
+    const edge = sel ? c.accent : dim(cart.on ? mix(c.accent, c.border, 0.4) : c.faint);
+    ui.fill(r, { bg: body });
+    ui.box(r, { fill: false, border: sel ? "heavy" : "single", bg: body, focused: sel });
+    // the shutter: a metal strip with its window, slid to one side
+    const sw = Math.max(4, Math.floor(r.w * 0.55)), sx = r.x + Math.floor((r.w - sw) / 2);
+    if (r.h >= 5) {
+      const metal = dim(mix(c.subtle, c.fg, 0.35));
+      ui.text(sx, r.y + 1, "▐" + "█".repeat(sw - 2) + "▌", { fg: metal, bg: body });
+      const win = Math.max(2, Math.floor(sw * 0.3));
+      ui.text(sx + Math.floor(sw * 0.55), r.y + 1, "▒".repeat(win), { fg: dim(c.bg), bg: metal });
+      if (r.h >= 9) ui.text(sx, r.y + 2, "▐" + "█".repeat(sw - 2) + "▌", { fg: metal, bg: body });
     }
-    if (r.h >= 4 && r.w >= 16 && fade < 0.5) {
-      // the description on as many lines as the card has (the bar below shows it all)
-      const room = r.w - 4, lines: string[] = [];
+    // the write-protect notch and the status light
+    ui.text(r.x + r.w - 2, r.y + 1, cart.on ? "●" : "○", { fg: cart.on ? (sel ? c.success : dim(c.success)) : dim(c.subtle), bg: body });
+    ui.text(r.x + 1, r.y + r.h - 2, "▪", { fg: edge, bg: body });
+    // the label: a lighter sticker with the name, the icon, a line of what it does
+    const top = r.h >= 9 ? r.y + 4 : r.h >= 5 ? r.y + 3 : r.y + 1;
+    const lh = Math.max(1, r.y + r.h - 1 - top);
+    const label = { x: r.x + 2, y: top, w: r.w - 4, h: lh };
+    const paper = sel ? mix(c.panelAlt, c.accent, 0.12) : dim(c.panelAlt);
+    ui.fill(label, { bg: paper });
+    const name = r.w >= 16 ? cart.name.toUpperCase() : cart.icon;
+    const shownName = age < 600 ? decrypt(name, Math.max(0, age / 600), ui.now) : name;
+    ui.text(label.x + 1, label.y, r.w >= 16 ? `${cart.icon} ${shownName}` : shownName, { fg: sel ? c.fg : dim(cart.on ? c.fg : c.muted), bg: paper, attrs: BOLD }, label.w - 2);
+    if (lh >= 2) ui.hline(label.x + 1, label.y + 1, label.w - 2, { fg: dim(c.faint), bg: paper }, "┈");
+    if (lh >= 3 && fade < 0.45) {
+      const room = label.w - 2, lines: string[] = [];
       let line = "";
       for (const w of cart.description.split(" ")) {
         if ((line + " " + w).length > room && line) (lines.push(line), (line = w));
         else line = line ? `${line} ${w}` : w;
       }
       lines.push(line);
-      const max = Math.max(1, r.h - 3);
-      lines.slice(0, max).forEach((l, i) => ui.text(r.x + 2, r.y + 2 + i, i === max - 1 && lines.length > max ? `${l.slice(0, room - 1)}…` : l, { fg: sel ? c.muted : dim(c.subtle), bg }, room));
+      const max = lh - 2;
+      lines.slice(0, max).forEach((l, i) => ui.text(label.x + 1, label.y + 2 + i, i === max - 1 && lines.length > max ? `${l.slice(0, room - 1)}…` : l, { fg: sel ? c.muted : dim(c.subtle), bg: paper }, room));
     }
-    // the scan beam over the chosen one
     if (sel) {
-      // a soft beam: a bright row with a dimmer one on each side, gliding down
-      const span = Math.max(1, r.h - 2), pos = (ui.now / 160) % span;
-      for (let k = -1; k <= 1; k++) {
-        const row = Math.floor(pos) + k;
-        if (row < 0 || row >= span) continue;
-        ui.tint({ x: r.x + 1, y: r.y + 1 + row, w: r.w - 2, h: 1 }, -1, mix(bg, c.accent, k === 0 ? 0.28 : 0.12));
-      }
+      // the drive's read beam gliding over the chosen one
+      const span = Math.max(1, r.h - 2), pos = Math.floor((ui.now / 160) % span);
+      ui.tint({ x: r.x + 1, y: r.y + 1 + pos, w: r.w - 2, h: 1 }, -1, mix(body, c.accent, 0.22));
     }
-    if (strWidth(cart.icon) && r.h < 3) ui.text(r.x + 1, r.y + Math.floor(r.h / 2), cart.icon, { fg: c.accent, bg });
+    void strWidth;
   }
+
 }
 
 export const modulesSpec: AppSpec = {
@@ -299,3 +283,10 @@ export const modulesSpec: AppSpec = {
   icon: "▦",
   create: (deck) => new ModulesApp(deck),
 };
+
+/** The shortest way round a ring of n: a signed distance in (-n/2, n/2]. */
+function ring(d: number, n: number): number {
+  if (n <= 0) return 0;
+  const m = ((d % n) + n) % n;
+  return m > n / 2 ? m - n : m;
+}
