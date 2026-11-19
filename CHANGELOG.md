@@ -8,10 +8,11 @@
   more racing), the ring glides and slows down little by little; MODULES sits in
   the middle when the shell is hidden. Each step clicks like a notched wheel
   (a `tick` sound per theme pack), choosing plays a `select`.
-- MODULES: thicker, more colourful floppies (each its own accent, or the colour
-  you give it: right-click → colour, `modules tag todo cyan`), a colour filter
-  (squares top right, `modules view cyan`), a glow under the chosen one and a
-  quick insert-into-the-drive animation. NEXUS follows the tree's colour filter.
+- MODULES: every module is a shard now — the chips netrunners slot in: gold
+  contacts, a chamfered corner, a glowing stripe in its colour (its own accent,
+  or the colour you give it: right-click → colour, `modules tag todo cyan`), a
+  serial; enter plugs it UP into its socket. A colour filter (squares top right,
+  `modules view cyan`). NEXUS follows the tree's colour filter.
 - Sound packs per theme: Settings → SOUND → sound pack (this theme), `sound pack`;
   the theme's own shows as "(default)".
 - Tree: drag & drop notes and folders onto folders (below the rows = the root);
@@ -40,6 +41,19 @@
   a tap on RB still turns the tab. `wheel` opens it with the mouse; right-click →
   add to the wheel.
 - Swipes and mouse side buttons switch tabs with an even shorter transition.
+- Login: a centred card, labels above the fields; your icon shows only when the
+  account is remembered. `logout` logs out of ICEBREAKER (also in the system terminal).
+- Settings: ‹ › on every choice (click either side), sliders follow the pointer to
+  the pixel (1 % steps), double-click a slider's number to type it (digits only).
+- HOME: right-click → edit mode / stop edit mode; a widget with no room on the
+  page goes to the next page with room (never off screen). The side panel takes
+  HOME widgets dragged onto it in edit mode, and has its own edit controls
+  (▲ ▼ ×, drag to reorder or back to HOME); ◧ is the last thing on the status bar.
+- Tree: dragged things show a ghost under the pointer; the wheel wraps around.
+- New default keys: ⌘⇧B side panel, ⌘⇧U macros, ⌘⇧E NEXUS, ⌘⇧A action wheel,
+  ⌘⇧⌫ trash (Ctrl on Windows / Linux).
+- For developers: docs/ARCHITECTURE.md is a full map of the code now; small cleanups
+  (one `ago()`, one `ring()`, the side panel in its own file).
 
 ## 0.2.1 — 2026-11-19
 
