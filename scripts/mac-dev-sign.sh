@@ -7,6 +7,7 @@
 # time, the app keeps its permissions: macOS asks once, the first time.
 #
 #   sh scripts/mac-dev-sign.sh setup   # once: make the "ICEBREAKER Dev" certificate
+#   sh scripts/mac-dev-sign.sh allow   # once: let codesign use it without asking your password
 #   npm run app:mac                     # build + sign (or: sh scripts/mac-dev-sign.sh)
 #
 # The certificate stays in your login keychain and only exists on your Mac.
@@ -19,6 +20,20 @@ KEYCHAIN="$HOME/Library/Keychains/login.keychain-db"
 has_identity() {
   security find-identity -p codesigning "$KEYCHAIN" 2>/dev/null | grep -q "\"$NAME\""
 }
+
+# codesign may use the key without the keychain asking for your password each time
+# (asks for your Mac password once, here in the terminal)
+allow_codesign() {
+  echo "Your Mac password (once): it lets codesign use the \"$NAME\" key without asking again."
+  security set-key-partition-list -S apple-tool:,apple:,codesign: -s -D "$NAME" -t private "$KEYCHAIN" >/dev/null
+  echo "✓ codesign can sign with \"$NAME\" without asking"
+}
+
+if [ "$1" = "allow" ]; then
+  has_identity || { echo "no \"$NAME\" certificate yet: sh scripts/mac-dev-sign.sh setup"; exit 1; }
+  allow_codesign
+  exit 0
+fi
 
 if [ "$1" = "setup" ]; then
   if has_identity; then
@@ -51,6 +66,7 @@ EOF
     echo "macOS will ask for your password to trust the certificate for code signing…"
     security add-trusted-cert -p codeSign -k "$KEYCHAIN" "$tmp/cert.pem"
   fi
+  allow_codesign
   echo "✓ \"$NAME\" created. Now build with: npm run app:mac"
   exit 0
 fi
