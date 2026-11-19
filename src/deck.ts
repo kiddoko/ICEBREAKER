@@ -804,6 +804,8 @@ export class Deck implements InputSink {
 
   reboot(): void {
     this.boot = this.lastBoot?.replay() ?? new BootScreen("full", [{ text: `Vault ${basename(this.vault.root)} remounted`, status: "OK" }, { text: "Reached target: Cyberspace.", status: "OK" }]);
+    // the start-up sound, like a real start
+    this.sound.play("boot");
     this.requestFrame();
   }
 

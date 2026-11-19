@@ -36,6 +36,8 @@ export class SystemTerminal {
   name: string;
   private static count = 0;
   private started = false;
+  /** the native shell is really running (pty_spawn answered) */
+  private spawned = false;
   private exited = false;
   private error = "";
   private cols = 0;
@@ -54,7 +56,7 @@ export class SystemTerminal {
     // the shell. Windows' ConPTY asks where the cursor is at start-up and shows
     // nothing until it hears back: without this, PowerShell stayed blank.
     this.term.onData((d) => {
-      if (this.alive) void this.deck.platform.pty?.write(this.id, d);
+      if (this.alive && this.spawned) void this.deck.platform.pty?.write(this.id, d)?.catch(() => {});
     });
   }
 
@@ -79,7 +81,10 @@ export class SystemTerminal {
         }
         this.term.write(data, () => this.deck.requestFrame());
       }, this.moduleCommands(), this.deck.settings.data.shell.prompt ?? "icebreaker")
-      .then((name) => (this.shellName = name))
+      .then((name) => {
+        this.shellName = name;
+        this.spawned = true;
+      })
       .catch((e) => {
         this.error = String(e);
         this.exited = true;
@@ -101,6 +106,7 @@ export class SystemTerminal {
     void this.deck.platform.pty?.kill(this.id);
     this.term.reset();
     this.started = false;
+    this.spawned = false;
     this.deck.requestFrame();
   }
 
@@ -113,7 +119,8 @@ export class SystemTerminal {
     this.lastInputAt = performance.now();
     // typing jumps back to the live screen
     this.term.scrollToBottom();
-    void this.deck.platform.pty?.write(this.id, data);
+    // the native shell may not be there yet (just opened, or shown again): never an error for that
+    if (this.spawned) void this.deck.platform.pty?.write(this.id, data)?.catch(() => {});
   }
 
   // ── input ────────────────────────────────────────────────────────────────
@@ -252,7 +259,7 @@ export class SystemTerminal {
       this.cols = r.w;
       this.rows = r.h;
       this.term.resize(r.w, r.h);
-      if (this.alive) void this.deck.platform.pty?.resize(this.id, r.w, r.h);
+      if (this.alive && this.spawned) void this.deck.platform.pty?.resize(this.id, r.w, r.h)?.catch(() => {});
     }
     const buf = this.term.buffer.active;
     const ansi = ui.theme.ansi;
