@@ -4,14 +4,14 @@ import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import { drawBackground } from "../fx/backgrounds";
 import { dots } from "../ui/dots";
-import { WheelSpin } from "../ui/wheelspin";
+import { ring, WheelSpin } from "../ui/wheelspin";
 import { drawTagBar } from "../ui/tagbar";
 import { tagRGB, type TagColor } from "../vault/marks";
 import { decrypt } from "../fx/glitch";
 import type { VaultEntry } from "../platform/types";
 import { q, type UI } from "../ui/ui";
 import { basename, dirname } from "../vault/paths";
-import { ago } from "../widgets/builtin";
+import { ago } from "../core/time";
 import type { App, AppSpec } from "./types";
 
 /**
@@ -314,7 +314,7 @@ export class ExplorerApp implements App {
     const radius = Math.min(r.w * 0.42, 60);
     const visible: { e: VaultEntry; i: number; z: number; x: number }[] = [];
     for (let i = 0; i < items.length; i++) {
-      const off = ringDelta(i - this.spin.pos, items.length);
+      const off = ring(i - this.spin.pos, items.length);
       if (Math.abs(off) > half + 0.5) continue; // (+0.5: the next one slides in while the ring turns)
       const a = off * step;
       visible.push({ e: items[i], i, z: Math.cos(a), x: cx + Math.sin(a) * radius });
@@ -442,9 +442,3 @@ export const explorerSpec: AppSpec = {
   launcher: true,
   create: (deck, args) => new ExplorerApp(deck, typeof args === "string" ? args : ""),
 };
-
-/** The shortest way round a ring of n: a signed distance in (-n/2, n/2]. */
-function ringDelta(d: number, n: number): number {
-  const m = ((d % n) + n) % n;
-  return m > n / 2 ? m - n : m;
-}

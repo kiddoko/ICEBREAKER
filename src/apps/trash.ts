@@ -1,3 +1,4 @@
+import { ago } from "../core/time";
 import { mix } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
@@ -133,7 +134,6 @@ export class TrashApp implements App {
         ui.textCenter(listR, listR.y + Math.floor(listR.h / 3) + 1, t("rm, Delete in the tree or right-click → trash put things here"), { fg: c.faint });
       }
     } else {
-      const now = Date.now();
       this.list.render(ui, listR, focused, (it, row, sel, i) => {
         const bg = sel ? mix(c.accent, c.bg, focused ? 0.8 : 0.88) : ui.hovered(row) ? c.highlight : -1;
         const st = bg !== -1 ? { bg } : {};
@@ -143,7 +143,7 @@ export class TrashApp implements App {
         if (late) return;
         const icon = it.isDir ? "▸" : fileIcon(it.name);
         ui.text(row.x + 1, row.y, icon, { fg: sel ? c.accent : c.subtle, ...st });
-        const when = ago(now - it.at.getTime());
+        const when = ago(it.at.getTime(), true);
         const right = `${it.from ? `/${it.from}  ` : ""}${when}`;
         const rw = Math.min(Math.floor(row.w * 0.55), right.length);
         ui.text(row.x + 4, row.y, it.isDir ? `${it.name}/` : it.name, { fg: sel ? c.fg : c.muted, attrs: sel ? BOLD : 0, ...st }, row.w - rw - 7);
@@ -186,10 +186,6 @@ export class TrashApp implements App {
   }
 }
 
-function ago(ms: number): string {
-  const s = ms / 1000;
-  return s < 3600 ? `${Math.max(1, Math.round(s / 60))} min` : s < 86400 ? `${Math.round(s / 3600)} h` : `${Math.round(s / 86400)} d`;
-}
 
 export const trashSpec: AppSpec = {
   kind: "trash",

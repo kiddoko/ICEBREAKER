@@ -1,3 +1,4 @@
+import { ago } from "../core/time";
 import { q } from "../ui/ui";
 import { mix, type RGB } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
@@ -472,13 +473,6 @@ const recent: WidgetSpec = {
   },
 };
 
-export function ago(ms: number): string {
-  const s = (Date.now() - ms) / 1000;
-  if (s < 60) return "now";
-  if (s < 3600) return `${Math.floor(s / 60)}m`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h`;
-  return `${Math.floor(s / 86400)}d`;
-}
 
 /* ═══════════════════════ modules ═══════════════════════ */
 

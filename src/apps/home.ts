@@ -5,7 +5,7 @@ import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import { drawBackground } from "../fx/backgrounds";
-import type { MenuEntry, UI } from "../ui/ui";
+import { inside, type MenuEntry, type UI } from "../ui/ui";
 import { DEFAULT_LAYOUT } from "../widgets/builtin";
 import type { WidgetPlacement } from "../widgets/types";
 import type { App, AppSpec } from "./types";
@@ -239,7 +239,7 @@ export class HomeApp implements App {
   /** The pointer is over the side panel (a widget dragged there goes to it). */
   private overPanel(m: { x: number; y: number }): boolean {
     const r = this.deck.workspace.panelArea;
-    return !!r && m.x >= r.x && m.x < r.x + r.w && m.y >= r.y && m.y < r.y + r.h;
+    return !!r && inside(r, m.x, m.y);
   }
 
   /** Right-click on a widget. */

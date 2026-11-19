@@ -1,3 +1,4 @@
+import { ago } from "../../core/time";
 import { fmt } from "../../core/ansi";
 import type { Deck } from "../../deck";
 import { q } from "../../ui/ui";
@@ -33,16 +34,12 @@ export async function trashItems(deck: Deck): Promise<TrashItem[]> {
     .sort((a, b) => b.at.getTime() - a.at.getTime());
 }
 
-const ago = (d: Date) => {
-  const s = (Date.now() - d.getTime()) / 1000;
-  return s < 3600 ? `${Math.max(1, Math.round(s / 60))} min` : s < 86400 ? `${Math.round(s / 3600)} h` : `${Math.round(s / 86400)} d`;
-};
 
 /** The trash as a list: pick something, then restore it (or open it). */
 export async function trashMenu(deck: Deck): Promise<void> {
   const items = await trashItems(deck);
   if (!items.length) return deck.notify("the trash is empty");
-  const i = await deck.choose(`Trash · ${items.length}`, items.map((it) => ({ label: `${it.isDir ? "▸ " : ""}${it.name}`, hint: `${it.from ? `from /${it.from} · ` : ""}${ago(it.at)} ago` })));
+  const i = await deck.choose(`Trash · ${items.length}`, items.map((it) => ({ label: `${it.isDir ? "▸ " : ""}${it.name}`, hint: `${it.from ? `from /${it.from} · ` : ""}${ago(it.at.getTime(), true)} ago` })));
   if (i === null) return;
   const it = items[i];
   const a = await deck.choose(it.name, [{ label: `restore${it.from ? ` → /${it.from}` : ""}` }, { label: "restore somewhere else…" }, ...(it.isDir ? [] : [{ label: "open it (read only)" }])]);
@@ -65,7 +62,7 @@ export const trashCommand: Command = {
     const items = await trashItems(d);
     if (!sub || sub === "ls") {
       if (!items.length) return ctx.out(fmt.dim("the trash is empty\n")), 0;
-      items.forEach((it, i) => ctx.out(`${fmt.dim(String(i + 1).padStart(3))}  ${it.isDir ? fmt.bold(`${it.name}/`) : it.name}  ${fmt.dim(`${it.from ? `from /${it.from} · ` : ""}${ago(it.at)} ago`)}\n`));
+      items.forEach((it, i) => ctx.out(`${fmt.dim(String(i + 1).padStart(3))}  ${it.isDir ? fmt.bold(`${it.name}/`) : it.name}  ${fmt.dim(`${it.from ? `from /${it.from} · ` : ""}${ago(it.at.getTime(), true)} ago`)}\n`));
       ctx.out(fmt.dim("trash restore <n> puts one back\n"));
       return 0;
     }

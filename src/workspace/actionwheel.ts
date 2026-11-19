@@ -173,7 +173,8 @@ export function setWheelSlot(deck: Deck, page: number, index: number, slot: Whee
   while (p.length < index) p.push({ label: "", icon: "", cmd: "" });
   if (slot) p[index] = slot;
   else p.splice(index, 1);
-  deck.settings.set("gamepad", { ...(deck.settings.data.gamepad ?? {}), wheel: pages.map((q) => q.filter((s) => s.cmd)) });
+  // blank slots and pages that ended up empty go away (the wheel always offers one empty page to fill)
+  deck.settings.set("gamepad", { ...(deck.settings.data.gamepad ?? {}), wheel: pages.map((q) => q.filter((s) => s.cmd)).filter((q) => q.length) });
 }
 
 /** The first free slot (a new page when they're all full). */
