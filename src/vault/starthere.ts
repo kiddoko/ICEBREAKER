@@ -73,7 +73,7 @@ reinstalled** (MODULES → space / x, or the STORE) — the built-in ones too.
 
 \`\`\`
    ┌──┐ ┌──┐ ┌──┐ ┌──┐
-   │▦ │ │◆ │ │☂ │ │◷ │   MODULES (⌘⇧M): a pseudo-3D hive of cartridges
+   │▦ │ │◆ │ │☂ │ │◷ │   MODULES (⌘⇧M): a ring of floppy disks, like NEXUS
    └──┘ └──┘ └──┘ └──┘   ←↑↓→ choose · enter launch · space on/off · p pin
 \`\`\`
 
