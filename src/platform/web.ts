@@ -74,6 +74,7 @@ export function createWebPlatform(): Platform {
           if (k === p || k.startsWith(p + "/")) {
             files.delete(k);
             files.set(dest + k.slice(p.length), v);
+            addParents(dest + k.slice(p.length));
           }
         }
         for (const d of [...dirs]) if (d === p || d.startsWith(p + "/")) dirs.delete(d);

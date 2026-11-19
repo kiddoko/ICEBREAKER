@@ -1,6 +1,7 @@
 import { q, type MenuEntry } from "../ui/ui";
 import { strWidth } from "../core/unicode";
 import { copyToClipboard } from "../core/clipboard";
+import { trashMenu } from "../shell/commands/trash";
 import { t } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
 import { mix } from "../core/color";
@@ -180,6 +181,7 @@ export class Sidebar {
       { label: t("new note"), run: () => this.deck.newNote("notes"), hint: "n" },
       { label: t("new folder"), run: () => this.deck.newFolder("") },
       { label: t("rescan the vault"), run: () => this.deck.vault.rescan(), hint: "r" },
+      { label: t("the trash…"), run: () => trashMenu(this.deck) },
     ];
   }
 
@@ -259,7 +261,9 @@ export class Sidebar {
     const here = this.here();
     let bx = r.x + 1;
     bx += ui.button(bx, r.y, "+ note", () => void this.deck.newNote(here || "notes"), { tip: `new note in /${here || "notes"}\nctrl+n · n` }) + 1;
-    ui.button(bx, r.y, "+ dir", () => void this.deck.newFolder(here), { tip: `new folder in /${here}\nctrl+shift+n` });
+    bx += ui.button(bx, r.y, "+ dir", () => void this.deck.newFolder(here), { tip: `new folder in /${here}\nctrl+shift+n` }) + 1;
+    // the trash, one click away (see it, put things back)
+    if (bx + 3 < r.x + r.w) ui.button(r.x + r.w - 4, r.y, "⌫", () => void trashMenu(this.deck), { tip: t("the trash: see it, put things back · trash") });
     // colour tags, on a row of their own: ● has some, ○ none yet, ◉ the one shown
     // (click = see only that colour)
     const counts = this.deck.marks.counts();

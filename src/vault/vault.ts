@@ -113,9 +113,43 @@ export class Vault {
     const p = normalize(path);
     const dest = await this.backend.trash(p);
     this.entries = this.entries.filter((e) => e.path !== p && !e.path.startsWith(p + "/"));
+    // where it came from, so `trash restore` can put it back in its folder
+    await this.noteTrashed(dest, p).catch(() => {});
     this.events.emit("trashed", { path: p });
     this.events.emit("changed", { path: p });
     return dest;
+  }
+
+  static readonly TRASH_LOG = ".icebreaker/trash.json";
+
+  /** The trash ledger: what's in .trash and where each thing lived. */
+  async trashLog(): Promise<{ dest: string; from: string; at: number }[]> {
+    try {
+      if (!(await this.exists(Vault.TRASH_LOG))) return [];
+      return JSON.parse(await this.read(Vault.TRASH_LOG)) as { dest: string; from: string; at: number }[];
+    } catch {
+      return [];
+    }
+  }
+
+  private async noteTrashed(dest: string, from: string): Promise<void> {
+    const log = await this.trashLog();
+    log.push({ dest: normalize(dest), from, at: Date.now() });
+    await this.backend.write(Vault.TRASH_LOG, JSON.stringify(log.slice(-500), null, 1));
+  }
+
+  /** Put something from the trash back where it was (or in `to`). Returns where it went. */
+  async restore(dest: string, to?: string): Promise<string> {
+    const log = await this.trashLog();
+    const item = log.find((l) => l.dest === normalize(dest));
+    let target = normalize(to ?? item?.from ?? dest.replace(/^\.trash\/\d+-/, ""));
+    // already something there: "name (restored)"
+    if (await this.exists(target)) target = target.replace(/(\.[^./]+)?$/, (ext) => ` (restored)${ext}`);
+    const dir = target.includes("/") ? target.slice(0, target.lastIndexOf("/")) : "";
+    if (dir && !(await this.exists(dir))) await this.mkdir(dir);
+    await this.rename(dest, target);
+    await this.backend.write(Vault.TRASH_LOG, JSON.stringify(log.filter((l) => l !== item), null, 1));
+    return target;
   }
 
   async rename(from: string, to: string): Promise<void> {

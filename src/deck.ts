@@ -39,6 +39,7 @@ import { PluginHost } from "./plugins/host";
 import { deckCommands } from "./shell/commands/deck";
 import { fileCommands } from "./shell/commands/files";
 import { iconCommand, tagCommand } from "./shell/commands/marks";
+import { trashCommand } from "./shell/commands/trash";
 import { Marks } from "./vault/marks";
 import { ErrorLog } from "./core/errors";
 import { systemCommands } from "./shell/commands/system";
@@ -297,7 +298,7 @@ export class Deck implements InputSink {
   }
 
   private registerCore(): void {
-    for (const c of [...fileCommands, ...systemCommands, ...deckCommands, storeCommand, ...shortcutCommands, scriptCommand, pinCommand, unpinCommand, tagCommand, iconCommand, weatherCommand, startHereCommand]) this.commands.register({ ...c, source: "core" });
+    for (const c of [...fileCommands, ...systemCommands, ...deckCommands, storeCommand, ...shortcutCommands, scriptCommand, pinCommand, unpinCommand, tagCommand, iconCommand, trashCommand, weatherCommand, startHereCommand]) this.commands.register({ ...c, source: "core" });
     for (const w of [...BUILTIN_WIDGETS, pinnedWidget]) this.widgets.register(w);
     for (const a of [homeSpec, modulesSpec, storeSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec, shortcutsSpec, terminalSpec, weatherSpec, clocksSpec, focusSpec]) this.apps.register(a);
 
