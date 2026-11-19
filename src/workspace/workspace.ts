@@ -1,3 +1,4 @@
+import { mix } from "../core/color";
 import { drawScreensaver } from "../fx/screensaver";
 import { IbshApp, TerminalApp } from "../apps/terminal";
 import { t } from "../core/i18n";
@@ -818,8 +819,9 @@ export class Workspace {
       const c = ui.c;
       if (!this.shellTabChosen && this.termAvailable) this.shellTab = "term";
       if (this.shellTab === "term" && !this.termAvailable) this.shellTab = "ibsh";
-      const si = ui.box(r, { focused: shellFocused, info: t("F12 tabs · ctrl+` toggle") });
-      // tabs on the top border: your shell · ibsh · history
+      const si = ui.box(r, { focused: shellFocused });
+      // tabs on the top border, drawn as chips: your terminals │ ibsh · history · errors.
+      // The panel's buttons (scripts, hide, maximize) sit apart, on the right.
       if (this.termAvailable && !this.terms.length) this.terms.push(new SystemTerminal(d));
       const tabs: [ShellTab, string, number][] = [
         ...(this.termAvailable ? this.terms.map((tm, i) => ["term", tm.name, i] as [ShellTab, string, number]) : []),
@@ -828,22 +830,49 @@ export class Workspace {
         // errors: only once there are some; blinks red while some are unread
         ...(d.errors.list.length ? [["errors", d.errors.unseen ? `⚠ ${t("errors")} ${d.errors.unseen}` : t("errors"), -1] as [ShellTab, string, number]] : []),
       ];
+      // the right side first, so the tabs know where to stop
+      const buttons: [string, string, string][] = [
+        [`≡ ${t("scripts")}`, "script menu", "your scripts (.icebreaker/scripts) · script new <name>"],
+        [`▾ ${t("hide")}`, "term hide", "fold the shell away · ctrl+` brings it back"],
+        [`⤢ ${t("maximize")}`, "term max", "this shell becomes a big tab (term dock puts it back)"],
+      ];
+      let bxr = r.x + r.w - 2;
+      for (const [label, cmd, tip] of [...buttons].reverse()) {
+        const text = ` ${label} `;
+        const br = { x: bxr - strWidth(text), y: r.y, w: strWidth(text), h: 1 };
+        if (br.x < r.x + r.w / 2) break;
+        ui.text(br.x, r.y, text, { fg: ui.hovered(br) ? c.accent : c.subtle, bg: c.panel });
+        ui.hit(br, { cmd, tip });
+        bxr = br.x - 1;
+      }
+      const chipBg = mix(c.panel, c.accent, 0.1);
       let tx = r.x + 2;
+      let lastGroup = "";
       for (const [id, label, ti] of tabs) {
+        // a bar between your terminals and the deck's own panes
+        const group = id === "term" ? "term" : "deck";
+        if (lastGroup && group !== lastGroup) (ui.text(tx, r.y, "│", { fg: c.faint, bg: c.panel }), (tx += 2));
+        lastGroup = group;
         const on = id === this.shellTab && (ti < 0 || ti === this.termIndex);
-        const text = on ? ` ${ui.theme.glyphs.mark} ${label} ` : ` ${label} `;
+        const icon = id === "term" ? "❯" : id === "ibsh" ? ui.theme.glyphs.mark : id === "history" ? "↺" : "";
+        const text = ` ${icon && !label.startsWith("⚠") ? `${icon} ` : ""}${label} `;
         const rect = { x: tx, y: r.y, w: strWidth(text), h: 1 };
+        if (rect.x + rect.w > bxr) break;
         const alarm = id === "errors" && d.errors.unseen > 0;
         if (alarm) ui.animate(400);
         const blink = alarm && Math.floor(ui.now / 400) % 2 === 0;
-        const style = alarm ? { fg: blink ? c.panel : c.error, bg: blink ? c.error : c.panel, attrs: BOLD } : on ? (shellFocused ? { fg: c.titleFocus, bg: c.panel, attrs: BOLD } : { fg: c.fg, bg: c.panel, attrs: BOLD }) : { fg: ui.hovered(rect) ? c.accent : c.title, bg: c.panel };
+        const style = alarm
+          ? { fg: blink ? c.panel : c.error, bg: blink ? c.error : chipBg, attrs: BOLD }
+          : on
+            ? { fg: c.bg, bg: shellFocused ? c.accent : mix(c.accent, c.panel, 0.35), attrs: BOLD }
+            : { fg: ui.hovered(rect) ? c.accent : c.fg, bg: chipBg };
         ui.text(tx, r.y, text, style);
-        ui.hit(rect, { onClick: () => (ti >= 0 && (this.termIndex = ti), this.showShellTab(id)), menu: ti >= 0 ? () => this.termTabMenu(ti) : undefined, tip: id === "term" ? `right-click: rename, close… · term rename <name>\n${this.terms[ti]?.shellName ?? ""}: your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)` : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash" : id === "errors" ? "what went wrong, with a code (docs/ERRORS.md) · errors clear" : "what clicks ran, with their output" });
+        ui.hit(rect, { onClick: () => (ti >= 0 && (this.termIndex = ti), this.showShellTab(id)), menu: ti >= 0 ? () => this.termTabMenu(ti) : undefined, tip: id === "term" ? `right-click: rename, close… · term rename <name> · F12 next tab\n${this.terms[ti]?.shellName ?? ""}: your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)` : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash · F12 next tab" : id === "errors" ? "what went wrong, with a code (docs/ERRORS.md) · errors clear" : "what clicks ran, with their output" });
         tx += rect.w + 1;
-        // + a new terminal, after the last one · × close the one shown (when there are several)
+        // × close the one shown (when there are several) · + a new terminal, after the last one
         if (id === "term" && ti === this.terms.length - 1) {
           if (this.terms.length > 1 && this.shellTab === "term") {
-            const xr = { x: tx - 1, y: r.y, w: 3, h: 1 };
+            const xr = { x: tx, y: r.y, w: 3, h: 1 };
             ui.text(xr.x, r.y, " × ", { fg: ui.hovered(xr) ? c.error : c.subtle, bg: c.panel });
             ui.hit(xr, { cmd: "term close", tip: "close this terminal" });
             tx += 3;
@@ -854,24 +883,6 @@ export class Workspace {
           tx += 4;
         }
       }
-      // ≡ scripts: your saved shell scripts, one click to run
-      const slabel = ` ≡ ${t("scripts")} `;
-      const sr = { x: tx, y: r.y, w: strWidth(slabel), h: 1 };
-      ui.text(sr.x, r.y, slabel, { fg: ui.hovered(sr) ? c.accent : c.title, bg: c.panel });
-      ui.hit(sr, { cmd: "script menu", tip: "your scripts (.icebreaker/scripts) · script new <name>" });
-      tx += sr.w + 1;
-      // ▾ fold the panel away (ctrl+` brings it back)
-      const hlabel = ` ▾ ${t("hide")} `;
-      const hr = { x: tx, y: r.y, w: strWidth(hlabel), h: 1 };
-      ui.text(hr.x, r.y, hlabel, { fg: ui.hovered(hr) ? c.accent : c.title, bg: c.panel });
-      ui.hit(hr, { cmd: "term hide", tip: "fold the shell away · ctrl+` brings it back" });
-      tx += hr.w + 1;
-      // ⤢ maximize / ⤡ restore: drawn like the tabs next to it
-      const mlabel = ` ⤢ ${t("maximize")} `;
-      const mx = { x: tx, y: r.y, w: strWidth(mlabel), h: 1 };
-      ui.text(mx.x, r.y, mlabel, { fg: ui.hovered(mx) ? c.accent : c.title, bg: c.panel });
-      ui.hit(mx, { cmd: "term max", tip: "this shell becomes a big tab (term dock puts it back)" });
-      tx += mx.w + 1;
       // macro bar above the system terminal (one free row under the tabs)
       let termR = si;
       if (this.shellTab === "term" && this.termAvailable && si.h > 6) {
