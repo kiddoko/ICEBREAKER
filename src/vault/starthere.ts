@@ -98,7 +98,7 @@ time (\`modules view cyan\`). NEXUS follows the tree's colour (\`tag view red\`)
 | **UPLINK** | the AI: LINK chat, the chatbox widget | ⌘Space |
 | **NEXUS** | the vault in pseudo-3D | \`explore\` |
 | **SYSMON** | the machine's vitals | \`sysmon\` |
-| **VOICE** | the deck speaks (local voices) | \`voice test\` |
+| **VOICE** | the deck speaks (local voices) — you pick what it says: errors, reminders, events, the time… | \`voice test\` |
 
 Each module's own settings: ⚙ → the ◇ sections at the bottom.
 Modules talk to each other (\`modules api\` lists what they share).
@@ -164,9 +164,13 @@ were on come back as you left them next time.
 - Status bar, right: **♪** mutes everything · **☾** the screensaver (each theme
   has its own: a neon city, an 80s mainframe, sonar, warp, an e-reader).
 - Too many tabs for the bar: they scroll around the one shown (‹ ›).
-- **◧ side panel** (status bar, or \`panel\`): a column on the right whose widgets
-  stay in view on every page. Right-click a HOME widget → *pin to the side
-  panel*; right-click in the panel to add, reorder, remove.
+- **◧ side panel** (status bar, ⌘⇧B, or \`panel\`): a column on the right whose
+  widgets stay in view on every page. Click it and press **a** to add one (the
+  same list as HOME); in HOME's edit mode, drag widgets between HOME and the panel.
+- **Tabs** are wide when there are few and get narrower as you open more; when
+  they don't fit any more, **▾ +N** lists the others.
+- **PULSE** (a HOME widget): what's happening in your modules, one line each —
+  the next event, tasks due, the next reminder, the music, the focus timer…
 - **Your profile icon**: Settings → YOU → profile icon (or \`avatar\`): a little
   pixel-art face or a glyph, in the colour you like. It's on the login screen
   and in \`whoami\`; the chat will use it.
@@ -426,6 +430,10 @@ export function activate(ib) {
 | \`ai\` · \`media\` · \`google\` · \`storage\` | the rest |
 
 Right-click menus: give a clickable area a \`menu\`: \`ui.hit(rect, { cmd, menu: () => [{ label: "done", cmd: "todo done 3" }] })\`.
+Call anything — another module or the deck's own parts — in one line:
+\`await ib.use("tree").reveal("notes/ideas.md")\`, \`ib.use("theme").colors()\`,
+\`ib.use("terminal").run("git status")\` (permission "terminal"), \`ib.use("todo").add("…")\`.
+\`modules api\` in the shell lists every function.
 Settings rows: \`ib.settings.register([{ key, label, type: "toggle" | "choice" | "text" | "number" | "action", … }])\`
 — an \`action\` row runs a \`cmd\` (or \`run()\`) and shows a \`value()\` ("connected"…).
 Widgets: \`size\`, \`min\`, \`max\` (a 1×1 square: \`max: { w: 1, h: 1 }\`), \`popup\` or

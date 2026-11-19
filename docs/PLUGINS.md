@@ -43,6 +43,7 @@ MODULES hive, and `"icon"` to give it a glyph there.
 | `media`       | `ib.media.status / control` (the system player), `ib.media.player.*` (local files) |
 | `google-calendar` | `ib.google.*`: the user's Google Calendar, through their own OAuth client |
 | `stats:read` | `ib.stats.get/series/list` on *other* modules' stats (your own need no permission) |
+| `terminal` | `ib.use("terminal").run / write`: type commands in the user's real shell |
 
 Plugins from the vault are **off** until the user runs `plugin enable <id>`,
 which shows the permissions and asks for confirmation. Calling an API you
@@ -125,6 +126,40 @@ an "open <module>" button (enter) and closes with esc / B. Give the pop-up keys
 button a command (`ui.button(x, y, label, () => {}, { cmd: "hello quote" })`).
 `widget <id>`, `widget <id> open` and `widget <id> do` drive the same from the shell.
 
+## Calling anything: `ib.use()`
+
+Other modules **and the deck itself** are objects you call, one line each:
+
+```js
+await ib.use("todo").add("walk the dog");          // another module
+await ib.use("tree").reveal("notes/ideas.md");     // the file tree
+await ib.use("terminal").run("git status");        // the user's real shell (permission "terminal")
+const { accent, bg } = await ib.use("theme").colors(); // the theme's colours, #rrggbb
+await ib.use("home").link("deploy", "macro run deploy", "⚡"); // a shortcut square on HOME
+await ib.use("deck").say("build finished", "modules");   // the voice, if the user lets modules speak
+```
+
+Every function returns a Promise. `modules api` in the shell lists them all with
+one line of doc; `modules call tree reveal notes/ideas.md` runs one by hand.
+Publish your own with `ib.modules.expose("name", { doc, fn, needs })` — then
+anybody can `ib.use("<your id>").name(…)`.
+
+| `ib.use(…)` | functions |
+|---|---|
+| `tree` | `reveal(path)` · `filter(colour \| null)` · `selected()` · `toggle()` |
+| `terminal` | `run(cmd)` · `write(text)` (permission `terminal`) · `open()` · `new()` |
+| `shell` | `run(line)` (any ICEBREAKER command) · `show()` · `hide()` |
+| `theme` | `current()` · `list()` · `set(name)` · `colors()` · `mix(a, b, k)` |
+| `home` | `add(widget)` · `remove(widget)` · `page(n)` · `edit(on)` · `link(label, cmd, icon)` |
+| `panel` | `add(widget)` · `remove(widget)` · `show(on)` |
+| `tabs` | `list()` · `go(n)` · `open(app)` |
+| `notes` | `open(path)` · `current()` · `new(folder)` |
+| `sound` | `play(name)` (move, open, confirm, back, success, error, notify, alert, tick, select…) |
+| `deck` | `notify(text, kind)` · `say(text, topic)` · `setting(key)` |
+| modules | `todo.list/add/done` · `calendar.events/today/add` · `reminders.list/add` · `habits.list/check` · `music.status/control` · `journal.today/append` · `uplink.ask/ready` · `sysmon.stats` · `weather.now` · `news.headlines` · `clocks.timer/stopwatch` · `focus.status/start/stop` · `voice.say` |
+
+Inside the deck's own code it's the same: `deck.use("todo").add("…")` (with every permission).
+
 The user adds it from HOME: `e` (edit layout) then `a`. Widgets render every
 frame they're visible: keep `render` cheap, cache anything slow (network, AI)
 in a variable, and call `ui.animate(ms)` only if something moves.
@@ -139,6 +174,7 @@ The full surface is typed and commented in
 - `ib.shell.run(line)` → run a command, echoed in the shell (what your clicks should do).
 - `ib.ui.notify / confirm / prompt / choose` → talk to the user (`choose` = pick one option from a filtered list; `prompt(title, { suggestions })` adds a ▾ list, a grey completion and Tab to complete). `notify(text, "error")` also lands in the error log with a code — see [ERRORS.md](ERRORS.md).
 - `ib.ui.alert(title, body)` → get the user's attention even in the background: a system notification, the alert sound, the voice if it's on (see the REMINDERS module).
+- `ib.ui.say(text, topic?)` → the voice says it, only if the user lets that topic speak (Settings → VOICE → say aloud: `calendar`, `reminders`, `timers`, `weather`, `system`; anything else is `modules`).
 - `ib.stats` → numbers kept over time, shown by the STATS module and its widget. `define("left", { label: "budget left", unit: "€" })`, `set("left", 412.5)` for a level, `add("pages", 12)` for a counter (adds up per day), `series(id, 30)` → one point per day, `onChange(fn)`. Names without a dot are yours (`left` → `budget.left`); you write only your own, reading another module's stats needs `stats:read`. The deck itself keeps `deck.commands` and `deck.notes`. Stored in the vault (`.icebreaker/stats.json`); recording works even while STATS is switched off.
 - `ib.modules` → modules talk to each other. `expose("add", { doc, fn, needs })` publishes a function under your id; `call("todo", "add", "walk the dog")` calls another module's (built-in or downloaded); `has(id, fn)`, `list()`, `installed()`. A function can require a permission from its callers (`needs: "vault:write"`), so calling it is no way around permissions. In the shell: `modules api` lists everything, `modules call <module> <fn> [args…]` calls it. Built-in today: `journal.today/append`, `uplink.ask/ready`, `sysmon.stats`, `weather.now`, `news.headlines`, `clocks.timer/stopwatch`, `focus.status/start/stop`, `voice.say`, `todo.list/add/done`, `reminders.list/add`, `calendar.events/today/add`, `music.status/control`.
 - `ib.settings` → your module's settings, shown in Settings under MODULES with your name: `register([{ key, label, type: "toggle" | "choice" | "text" | "number", options, default, help }])`, `get(key)`, `set(key, value)`, `onChange(fn)`. Shell: `modules set <id> <key> <value>`.

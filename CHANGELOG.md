@@ -52,6 +52,15 @@
 - Tree: dragged things show a ghost under the pointer; the wheel wraps around.
 - New default keys: ⌘⇧B side panel, ⌘⇧U macros, ⌘⇧E NEXUS, ⌘⇧A action wheel,
   ⌘⇧⌫ trash (Ctrl on Windows / Linux).
+- Tabs like a browser's: wide when few, narrower as more open, `▾ +N` for the rest; × away from the edge.
+- Voice: choose what it says aloud (errors, reminders, timers & focus, events 30 min before, weather changes, the time every half hour, CPU/memory overload, modules) — one `Deck.speak`, `ib.ui.say` for modules.
+- PULSE widget (instead of the module launcher): the next event, tasks due, the next reminder, habits left, the music, focus, weather, errors.
+- Everything callable: `ib.use("tree" | "terminal" | "shell" | "theme" | "home" | "panel" | "tabs" | "notes" | "sound" | "deck" | any module)`, `deck.use(…)` in the core; new `terminal` permission.
+- Side panel: a focusable pane; `a` opens HOME's widget picker and adds at the end.
+- Tree: a gap opens where the dragged thing will land. Sliders: smooth while dragging.
+  Calendar month: events on tinted strips, two lines when there's room. UPLINK widget:
+  an eye that follows the pointer. One-row widgets (shortcut squares) are drawn as flat
+  chips instead of vanishing. Login: your icon shows while the account field holds your name.
 - For developers: docs/ARCHITECTURE.md is a full map of the code now; small cleanups
   (one `ago()`, one `ring()`, the side panel in its own file).
 

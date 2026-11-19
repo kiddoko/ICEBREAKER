@@ -175,6 +175,17 @@ same name, add it to `CORE_IN_TERMINAL` (`shell/systerm.ts`), like `reboot` and 
 `onKey` / `onText` / `onAction` / `menu`), export an `AppSpec`, register it in
 `Deck.registerCore()`. Make it a page (no tab) by adding its kind to `Workspace.PAGES`.
 
+**Calling another part** — modules and the deck's own parts expose functions
+(`plugins/services.ts`, `plugins/core-services.ts`, `plugins/frame-services.ts`):
+`deck.use("tree").reveal(path)`, `deck.use("todo").add("…")` — in a module,
+`ib.use(…)`. Add a function to the frame in `frame-services.ts` (one line: `doc`
++ `fn`, and `needs` if it touches the user's machine); it appears in `modules api`.
+
+**Making the deck talk** — `deck.speak(topic, text)`: one place decides whether
+the voice may say it (Settings → VOICE → say aloud). Add a topic to `VoiceTopic`
+(`deck.ts`), its default in `voice.speak` (`core/settings.ts`), a toggle in
+`apps/settings.ts`.
+
 **A widget** — a `WidgetSpec` (`widgets/types.ts`): `size`, `min`, optional `max`,
 `render`, and `popup` / `activate` / `open` for what Enter does. `clickActivates`
 makes one click run `activate` (the 1×1 squares).
