@@ -109,6 +109,16 @@ export class InputManager {
   private wheelAt = 0;
   /** Called on any input — used for idle detection and to wake the frame loop. */
   onActivity: () => void = () => {};
+  /**
+   * Gestures: the mouse's back / forward buttons, a two-finger swipe left / right
+   * on a trackpad (one per swipe), a pinch (or ctrl+wheel). Up / down two-finger
+   * swipes stay what they are: scrolling.
+   */
+  onGesture: (g: "back" | "forward" | "zoom-in" | "zoom-out") => void = () => {};
+  private swipePx = 0;
+  private swipeAt = 0;
+  private swipeFired = false;
+  private pinch = 0;
   private buttons = 0;
   private composing = false;
 
@@ -201,7 +211,16 @@ export class InputManager {
       const c = this.renderer.cellAt(e.clientX, e.clientY);
       return { kind, x: c.x, y: c.y, button: e.button, delta, ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey };
     };
+    // back / forward mouse buttons: tabs (and never the webview's own history)
+    const sideButton = (e: MouseEvent) => {
+      if (e.button !== 3 && e.button !== 4) return false;
+      e.preventDefault();
+      return true;
+    };
+    window.addEventListener("mouseup", (e) => void sideButton(e));
+    window.addEventListener("auxclick", (e) => void sideButton(e));
     host.addEventListener("mousedown", (e) => {
+      if (sideButton(e)) return this.onGesture(e.button === 3 ? "back" : "forward");
       e.preventDefault();
       this.onActivity();
       this.buttons = e.buttons;
@@ -229,6 +248,27 @@ export class InputManager {
       (e) => {
         e.preventDefault();
         this.onActivity();
+        const t0 = performance.now();
+        // a pinch (Chromium / WebView2 send it as ctrl+wheel) or ctrl+wheel: zoom
+        if (e.ctrlKey) {
+          this.pinch += -e.deltaY;
+          if (Math.abs(this.pinch) > 40) {
+            this.onGesture(this.pinch > 0 ? "zoom-in" : "zoom-out");
+            this.pinch = 0;
+          }
+          return;
+        }
+        // a two-finger swipe sideways: one tab per swipe (left → next, right → previous)
+        if (Math.abs(e.deltaX) > Math.abs(e.deltaY) * 1.5) {
+          if (t0 - this.swipeAt > 300) (this.swipePx = 0), (this.swipeFired = false);
+          this.swipeAt = t0;
+          this.swipePx += e.deltaX;
+          if (!this.swipeFired && Math.abs(this.swipePx) > 140) {
+            this.swipeFired = true;
+            this.onGesture(this.swipePx > 0 ? "forward" : "back");
+          }
+          return;
+        }
         // Trackpads send many tiny events: add up the pixels and report whole lines
         // (one line = one cell). A lone notch of a slow mouse wheel still moves one line.
         const cellH = this.renderer.cellH || 16;
@@ -247,5 +287,19 @@ export class InputManager {
       { passive: false },
     );
     host.addEventListener("contextmenu", (e) => e.preventDefault());
+    // Safari / WKWebView (macOS) pinch: gesture events with a scale
+    let scale = 1;
+    const ge = (name: string, fn: (s: number) => void) =>
+      host.addEventListener(name, (e) => {
+        e.preventDefault();
+        fn((e as unknown as { scale: number }).scale ?? 1);
+      }, { passive: false } as AddEventListenerOptions);
+    ge("gesturestart", () => (scale = 1));
+    ge("gesturechange", (s) => (scale = s));
+    ge("gestureend", () => {
+      if (scale > 1.12) this.onGesture("zoom-in");
+      else if (scale < 0.9) this.onGesture("zoom-out");
+      scale = 1;
+    });
   }
 }

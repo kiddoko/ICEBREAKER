@@ -144,6 +144,15 @@ export class Deck implements InputSink {
     this.renderer = new Renderer(el("screen") as HTMLCanvasElement, el("bloom") as HTMLCanvasElement, settings.data.appearance.fontSize);
     this.loop = new FrameLoop(this.frame, settings.data.appearance.maxFps);
     this.input = new InputManager(this, this.renderer, el("deck"), el("keyboard-sink") as HTMLTextAreaElement);
+    this.input.onGesture = (g) => {
+      const ws = this.workspace;
+      if (g === "back" || g === "forward") {
+        if (ws.topModal) return;
+        this.sound.play("move");
+        ws.switchTab(ws.active + (g === "forward" ? 1 : -1));
+      } else this.zoom(g === "zoom-in" ? 1 : -1);
+      this.requestFrame();
+    };
     this.input.onActivity = () => {
       this.lastActivity = performance.now();
       this.loop.idle = false;
