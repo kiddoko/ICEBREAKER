@@ -54,7 +54,8 @@ use **no account** and **no AI**, and the deck works the same.
 
 Download the latest build for your system from the **Releases** page (or from the
 latest successful **Actions → build** run): `.zip` for macOS, `.exe` installer
-for Windows, `.AppImage` / `.deb` for Linux.
+for Windows, `.AppImage` / `.deb` for Linux. Builds run for release tags and on
+demand (`gh workflow run build.yml`), not on every push.
 
 - **macOS**: the app isn't notarized yet. The first time, right-click it → *Open*
   (or run `xattr -dr com.apple.quarantine ICEBREAKER.app`).

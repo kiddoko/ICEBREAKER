@@ -84,6 +84,13 @@ class FocusApp implements App {
     const total = (focus.phase === "focus" ? focus.work : focus.rest) * 60_000;
     const done = 1 - Math.max(0, focus.left) / total;
 
+    // too small for the ring (a tiny window, a huge interface scale): just the time
+    if (r.w < 14 || r.h < 8) {
+      const secs = Math.ceil(Math.max(0, focus.left) / 1000);
+      const time = `${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(secs % 60).padStart(2, "0")}`;
+      ui.textCenter(r, r.y + Math.floor((r.h - 1) / 2), `${focus.running ? "▶" : "❚❚"} ${time}`, { fg: col, attrs: BOLD });
+      return;
+    }
     // the ring: braille dots around, lit for the time left
     const rows = Math.max(6, Math.min(r.h - 12, 18));
     const asp = 2 * ui.cellAspect || 1;

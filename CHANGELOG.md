@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Fixed: your own shortcuts (`bind`), module settings and theme tweaks were lost at
+  every restart (settings records were dropped when loading). Now kept.
+- The deck reopens as you left it: the tabs (and which one was shown), and the
+  tree's open folders.
+- Tree: one click opens or folds a folder. Colour tags are small squares at the right
+  edge (they used to touch the name); icons always have a space before the name.
+- Reminders: ✓ done and ✕ remove on every line (and right-click), and "When?" asks
+  again with an example when it doesn't understand the time (it failed silently).
+- Music widget: nothing playing still shows the whole widget with its buttons.
+- Terminal: selection covers real text only; the ICEBREAKER prompt holds (p10k is
+  taken out of the deck's terminals when you use it); `reboot` is the deck's.
+- Settings never lose their lines at a big interface scale; FOCUS no longer crashes
+  in a tiny window; `launch note` without a file opens a new note.
+- CI builds on demand or for release tags, not on every push (Actions minutes).
+
 - Error system: every error gets a code (E101 vault … E901 unexpected) with what to
   do. The shell panel grows an "errors" tab that blinks red with an error sound
   while some are unread; `errors`, `errors E102`, `errors codes`, `errors clear`.

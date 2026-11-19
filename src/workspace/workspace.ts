@@ -742,7 +742,7 @@ export class Workspace {
   /** nothing is saved before the last session has been reopened (it would be overwritten by HOME alone) */
   private sessionReady = false;
   private saveSession(): void {
-    const tabs = this.tabs.slice(0, this.tabCount).map((a) => a.key).filter((k) => !["setup", "terminal", "ibsh"].includes(k));
+    const tabs = this.tabs.slice(0, this.tabCount).filter((a) => !["setup", "terminal", "ibsh"].includes(a.kind)).map((a) => a.key);
     const sig = `${tabs.join("|")}#${Math.min(this.active, this.tabCount - 1)}`;
     if (!this.sessionReady || sig === this.savedTabs) return;
     this.savedTabs = sig;

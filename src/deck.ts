@@ -516,6 +516,8 @@ export class Deck implements InputSink {
   }
 
   openApp(kind: string, args?: unknown): App | null {
+    // a note needs a file: without one (`launch note`), a new note — never a file called "undefined"
+    if (kind === "note" && (args === undefined || args === null || args === "")) return void this.newNote(), null;
     const spec = this.apps.get(kind);
     if (!spec) {
       this.notify(`unknown app: ${kind}`, "error");
