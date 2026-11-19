@@ -78,6 +78,10 @@ reinstalled** (MODULES → space / x, or the STORE) — the built-in ones too.
    └──┘ └──┘ └──┘ └──┘   ←↑↓→ choose · enter launch · space on/off · p pin
 \`\`\`
 
+Give a module a **colour** (right-click a floppy → colour, or \`modules tag todo cyan\`):
+its label turns that colour, and the squares top right show one colour at a
+time (\`modules view cyan\`). NEXUS follows the tree's colour (\`tag view red\`).
+
 | Module | What it does | Try |
 |---|---|---|
 | **TODO** | tasks with priorities, due dates, tags, **recurring** | \`todo add "gym" --every mon,wed,sat\` |

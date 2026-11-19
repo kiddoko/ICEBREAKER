@@ -783,4 +783,8 @@ export const FR: Record<string, string> = {
   // ── sound packs per theme (19 nov.)
   "sound pack (this theme)": "pack de sons (ce thème)",
   "(default)": "(défaut)",
+  // ── MODULES colours (19 nov.)
+  "no module of this colour": "aucun module de cette couleur",
+  "right-click a floppy → colour · × shows them all": "clic droit sur une disquette → couleur · × les montre toutes",
+  "only": "seulement",
 };

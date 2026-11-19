@@ -1,4 +1,4 @@
-import { mix } from "../core/color";
+import { mix, type RGB } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
@@ -7,6 +7,8 @@ import type { Deck } from "../deck";
 import { decrypt } from "../fx/glitch";
 import type { MenuEntry, UI } from "../ui/ui";
 import { ring, WheelSpin } from "../ui/wheelspin";
+import { drawTagBar } from "../ui/tagbar";
+import { isTagColor, TAG_NAMES, tagRGB, type TagColor } from "../vault/marks";
 import type { App, AppSpec } from "./types";
 
 /** One floppy on the ring: a module, or one of the deck's own doors. */
@@ -22,6 +24,8 @@ interface Cart {
   /** what enter does */
   launch?: string;
   widgetsOnly?: boolean;
+  /** its colour (MODULES → right-click → colour) */
+  tag?: TagColor;
 }
 
 /**
@@ -42,6 +46,10 @@ export class ModulesApp implements App {
   /** spin.pos, read by the floor and the ring this frame */
   private depth = 0;
   private lastT = 0;
+  /** only the modules of this colour (modules view <colour>) */
+  filter: TagColor | null = null;
+  /** a floppy going into the drive (enter): it launches once it's in */
+  private inserting: { at: number; id: string } | null = null;
   private bornAt = performance.now();
 
   constructor(private readonly deck: Deck) {}
@@ -79,12 +87,36 @@ export class ModulesApp implements App {
       { id: "shell", icon: "❯", name: t("Shell"), description: t("your terminal, with every command of the deck"), module: false, on: true, builtin: true },
       { id: "store", icon: "⇣", name: t("Store"), description: t("more modules and themes"), module: false, on: true, builtin: true, launch: "store" },
     ];
-    return [...doors, ...mods];
+    const tags = d.settings.data.moduleTags ?? {};
+    for (const m of mods) {
+      const tg = tags[m.id];
+      if (tg && isTagColor(tg)) m.tag = tg;
+    }
+    const all = [...doors, ...mods];
+    return this.filter ? all.filter((c) => c.tag === this.filter) : all;
+  }
+
+  /** how many modules wear each colour (the squares at the top) */
+  private tagCounts(): Partial<Record<TagColor, number>> {
+    const out: Partial<Record<TagColor, number>> = {};
+    for (const v of Object.values(this.deck.settings.data.moduleTags ?? {})) if (isTagColor(v)) out[v] = (out[v] ?? 0) + 1;
+    return out;
   }
 
   private run(c: Cart | undefined): void {
-    if (!c) return;
+    if (!c || this.inserting) return;
     this.deck.sound.play("select");
+    // the floppy slides into the drive first (a blink: 180 ms), then it launches
+    this.inserting = { at: performance.now(), id: c.id };
+    this.deck.requestFrame();
+    setTimeout(() => {
+      this.inserting = null;
+      this.launch(c);
+      this.deck.requestFrame();
+    }, 180);
+  }
+
+  private launch(c: Cart): void {
     if (c.id === "shell") return this.deck.workspace.focusShell();
     if (c.id === "note") return void this.deck.newNote();
     if (c.module && !c.on) return void this.deck.act(`plugin enable ${c.id}`);
@@ -99,7 +131,20 @@ export class ModulesApp implements App {
     else if (c.launch || !c.module) items.push({ label: t("launch"), run: () => this.run(c), hint: "enter" });
     if (c.module) {
       if (c.on) items.push({ label: t("switch off"), cmd: `plugin disable ${c.id}`, hint: "space" });
-      items.push({ label: t("pin"), cmd: `pin ${c.id}`, hint: "p" }, "-", { label: t("remove…"), run: () => void this.onText("x"), danger: true, hint: "x" });
+      items.push(
+        { label: t("pin"), cmd: `pin ${c.id}`, hint: "p" },
+        {
+          label: t("colour"),
+          sub: () => [
+            ...TAG_NAMES.map((tc) => ({ label: t(tc), color: tagRGB(tc), hint: c.tag === tc ? "✓" : "", cmd: `modules tag ${c.id} ${tc}` })),
+            "-" as const,
+            { label: t("no colour"), cmd: `modules tag ${c.id} rm`, disabled: !c.tag },
+            { label: t("see this colour only"), cmd: `modules view ${c.tag}`, disabled: !c.tag },
+          ],
+        },
+        "-",
+        { label: t("remove…"), run: () => void this.onText("x"), danger: true, hint: "x" },
+      );
     }
     items.push("-", { label: t("store"), cmd: "store", hint: "s" });
     return items;
@@ -156,6 +201,14 @@ export class ModulesApp implements App {
     const top = r.y + Math.max(0, Math.floor((r.h - panelH - 1 - sceneH) / 2));
     const field = { x: r.x, y: top + 1, w: r.w, h: sceneH };
     const n = carts.length;
+    // the colour squares, top right: only one colour's modules (modules view <colour>)
+    const tagBar = () => drawTagBar(ui, r.x + r.w - 1, top, this.filter, this.tagCounts(), (tc) => `modules view ${tc ?? "off"}`);
+    if (!n) {
+      tagBar();
+      ui.textCenter(field, field.y + Math.floor(field.h / 2), t("no module of this colour"), { fg: c.muted });
+      ui.textCenter(field, field.y + Math.floor(field.h / 2) + 1, t("right-click a floppy → colour · × shows them all"), { fg: c.faint });
+      return;
+    }
     // ease the ring the short way round (pos never resets: past the last comes the first)
     const moving = this.spin.ease(this.sel, n, dt) > 0.002;
     this.depth = this.spin.pos;
@@ -195,18 +248,43 @@ export class ModulesApp implements App {
       shown.push({ cart: carts[i], i, z: Math.cos(ang), x: vx + Math.sin(ang) * radius });
     }
     shown.sort((p, q) => p.z - q.z);
+    const roomy = bottom - horizon >= 16;
     for (const v of shown) {
       const near = (v.z + 1) / 2;
       const big = near > 0.93, mid = near > 0.7;
-      const w = big ? 26 : mid ? 20 : 14;
-      const h = big ? 12 : mid ? 9 : 7;
+      const w = big ? (roomy ? 30 : 26) : mid ? 20 : 14;
+      const h = big ? (roomy ? 14 : 12) : mid ? 9 : 7;
       const y = Math.round(horizon + 1 + near * near * Math.max(0, bottom - horizon - h - 1)) - (big ? 1 : 0);
       const rect = { x: Math.round(v.x - w / 2), y, w, h };
       if (rect.x + rect.w < r.x || rect.x >= r.x + r.w) continue;
       const isSel = v.i === this.sel;
-      this.drawFloppy(ui, rect, v.cart, isSel && focused, Math.max(0, 0.85 - near) * 0.9, age - Math.abs(ring(v.i - this.sel, n)) * 60);
+      const hue = this.hueOf(ui, v.cart);
+      // the one in front glows on the floor under it
+      if (isSel && rect.y + rect.h < bottom) ui.hline(rect.x - 1, rect.y + rect.h, rect.w + 2, { fg: mix(c.bg, hue, focused ? 0.45 : 0.25) }, "▀");
+      // its thickness: the back of the disk, offset toward the middle of the ring and up
+      const side = Math.sign(Math.round(v.x - vx));
+      const d = big ? 2 : 1;
+      const back = { x: rect.x - side * d * 2, y: rect.y - 1, w: rect.w, h: rect.h };
+      const fadeK = Math.max(0, 0.85 - near) * 0.9;
+      ui.fill(back, { bg: mix(mix(c.bg, hue, 0.22), c.bg, fadeK) });
+      ui.hline(back.x, back.y, back.w, { fg: mix(mix(c.bg, hue, 0.55), c.bg, fadeK), bg: mix(mix(c.bg, hue, 0.22), c.bg, fadeK) }, "▔");
+      // enter: the floppy slides down into the drive's slot, then the module opens
+      const ins = this.inserting?.id === v.cart.id ? Math.min(1, (now - this.inserting.at) / 180) : 0;
+      if (ins) ui.animate(16);
+      const dy = Math.round(ins * ins * rect.h * 0.8);
+      const drawn = { ...rect, y: rect.y + dy };
+      this.drawFloppy(ui, drawn, v.cart, isSel && focused, fadeK, age - Math.abs(ring(v.i - this.sel, n)) * 60, hue);
+      if (ins) {
+        // what went into the drive is hidden; the slot is a bright line
+        const slot = rect.y + rect.h;
+        ui.fill({ x: rect.x - 1, y: slot, w: rect.w + 2, h: Math.max(0, Math.min(dy, bottom - slot)) }, { bg: c.bg });
+        ui.hline(rect.x - 2, slot, rect.w + 4, { fg: hue }, "▀");
+      }
       ui.hit(rect, { onClick: () => (this.sel = v.i), onDouble: () => this.run(v.cart), tip: v.cart.description, menu: () => ((this.sel = v.i), this.cartMenu(v.cart)) });
     }
+
+    tagBar();
+    if (this.filter) ui.text(r.x + 2, top, `${t("only")} ■ ${t(this.filter)} · ${n}`, { fg: tagRGB(this.filter) });
 
     // the bar: what it is, what you can do
     const cur = carts[this.sel];
@@ -234,11 +312,21 @@ export class ModulesApp implements App {
    * a write-protect notch, the label with the module's name, icon and what it
    * does, a status light. Far ones are smaller and fade into the dark.
    */
-  private drawFloppy(ui: UI, r: Rect, cart: Cart, sel: boolean, fade: number, age: number): void {
+  /** A floppy's colour: its tag, else one of the theme's accents (each disk keeps its own). */
+  private hueOf(ui: UI, cart: Cart): RGB {
+    if (cart.tag) return tagRGB(cart.tag);
+    const c = ui.c;
+    const pal = [c.accent, c.accentAlt, mix(c.accent, c.accentAlt, 0.5), c.success, c.warning];
+    let h = 0;
+    for (const ch of cart.id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return pal[h % pal.length];
+  }
+
+  private drawFloppy(ui: UI, r: Rect, cart: Cart, sel: boolean, fade: number, age: number, hue: RGB): void {
     const c = ui.c;
     const dim = (col: number) => mix(col, c.bg, fade);
-    const body = sel ? mix(c.accent, c.bg, 0.78) : dim(cart.on ? mix(c.panel, c.accent, 0.08) : c.panel);
-    const edge = sel ? c.accent : dim(cart.on ? mix(c.accent, c.border, 0.4) : c.faint);
+    const body = sel ? mix(hue, c.bg, 0.78) : dim(cart.on ? mix(c.panel, hue, 0.12) : c.panel);
+    const edge = sel ? hue : dim(cart.on ? mix(hue, c.border, 0.4) : c.faint);
     ui.fill(r, { bg: body });
     ui.box(r, { fill: false, border: sel ? "heavy" : "single", bg: body, focused: sel });
     // the shutter: a metal strip with its window, slid to one side
@@ -257,7 +345,8 @@ export class ModulesApp implements App {
     const top = r.h >= 9 ? r.y + 4 : r.h >= 5 ? r.y + 3 : r.y + 1;
     const lh = Math.max(1, r.y + r.h - 1 - top);
     const label = { x: r.x + 2, y: top, w: r.w - 4, h: lh };
-    const paper = sel ? mix(c.panelAlt, c.accent, 0.12) : dim(c.panelAlt);
+    // the label sticker: coloured when the module has a colour, like real disks
+    const paper = cart.tag ? (sel ? mix(c.panelAlt, hue, 0.35) : dim(mix(c.panelAlt, hue, 0.25))) : sel ? mix(c.panelAlt, hue, 0.12) : dim(c.panelAlt);
     ui.fill(label, { bg: paper });
     const name = r.w >= 16 ? cart.name.toUpperCase() : cart.icon;
     const shownName = age < 600 ? decrypt(name, Math.max(0, age / 600), ui.now) : name;
@@ -277,7 +366,7 @@ export class ModulesApp implements App {
     if (sel) {
       // the drive's read beam gliding over the chosen one
       const span = Math.max(1, r.h - 2), pos = Math.floor((ui.now / 160) % span);
-      ui.tint({ x: r.x + 1, y: r.y + 1 + pos, w: r.w - 2, h: 1 }, -1, mix(body, c.accent, 0.22));
+      ui.tint({ x: r.x + 1, y: r.y + 1 + pos, w: r.w - 2, h: 1 }, -1, mix(body, hue, 0.22));
     }
     void strWidth;
   }

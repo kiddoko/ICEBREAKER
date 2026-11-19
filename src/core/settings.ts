@@ -65,13 +65,15 @@ export interface Settings {
   /** UI sounds (core/sound.ts). Volume 0–100. */
   /** muted: everything silent (ui sounds, voice, alerts) — the 🔇 button, `mute` */
   /** packByTheme: the sound pack chosen for a theme (else the theme's own) */
-  sound: { enabled: boolean; volume: number; muted?: boolean; packByTheme?: Record<string, string> };
+  sound: { enabled: boolean; volume: number; muted?: boolean; packByTheme: Record<string, string> };
   /** How alerts (reminders, modules' ib.ui.alert) reach you: sound (+ voice), visual (system notification + toast), both, or none. */
   notifications: { mode: "both" | "sound" | "visual" | "none" };
   /** Your own shortcuts: key combo → shell command (`bind ctrl+shift+1 "open notes/ideas.md"`). */
   keys: Record<string, string>;
   /** module settings values (ib.settings), per module id */
   moduleSettings: Record<string, Record<string, unknown>>;
+  /** MODULES: a colour per module (red, orange…), to sort and filter the ring */
+  moduleTags: Record<string, string>;
   /** your effects, per theme: switching theme brings back what you had set on it */
   fxByTheme?: Record<string, Record<string, unknown>>;
   /** what was open when you quit, to come back to it: the tree's open folders, the tabs */
@@ -144,13 +146,14 @@ export const DEFAULT_SETTINGS: Settings = {
   // The heavy CRT stuff (bloom, scanlines, vignette, flicker) is one click away in the FX panel.
   fx: { bloom: false, scanlines: false, vignette: false, ambient: true, flicker: false, glitch: true, screensaverMinutes: 0, levels: { bloom: 100, scanlines: 100, vignette: 100, chroma: 0, sharpness: 80, glow: 0 } },
   boot: { mode: "full" },
-  sound: { enabled: true, volume: 50 },
+  sound: { enabled: true, volume: 50, packByTheme: {} },
   notifications: { mode: "both" },
   keys: {},
   favorites: [],
   session: {},
   fxByTheme: {},
   moduleSettings: {},
+  moduleTags: {},
   shell: {
     mode: "system",
     prompt: "icebreaker",

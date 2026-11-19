@@ -5,6 +5,8 @@ import type { Deck } from "../deck";
 import { drawBackground } from "../fx/backgrounds";
 import { dots } from "../ui/dots";
 import { WheelSpin } from "../ui/wheelspin";
+import { drawTagBar } from "../ui/tagbar";
+import { tagRGB, type TagColor } from "../vault/marks";
 import { decrypt } from "../fx/glitch";
 import type { VaultEntry } from "../platform/types";
 import { q, type UI } from "../ui/ui";
@@ -59,8 +61,13 @@ export class ExplorerApp implements App {
   }
 
   private items(): VaultEntry[] {
+    // a colour shown (tag view red, the squares top right): what has it, and the folders that hold some
+    const tag = this.deck.workspace.sidebar.filter;
+    const marks = this.deck.marks;
+    const tagged = tag ? marks.tagged(tag) : [];
+    const keep = (e: VaultEntry) => !tag || marks.tagOf(e.path) === tag || (e.isDir && tagged.some((p) => p.startsWith(`${e.path}/`)));
     return this.deck.vault.entries
-      .filter((e) => dirname(e.path) === this.dir)
+      .filter((e) => dirname(e.path) === this.dir && keep(e))
       .sort(
         (a, b) =>
           Number(b.isDir) - Number(a.isDir) ||
@@ -293,8 +300,10 @@ export class ExplorerApp implements App {
     if (tx - 12 > bx) ui.textRight(tx - 1, r.y, `${items.length} node${items.length === 1 ? "" : "s"} `, { fg: c.subtle });
 
     if (!items.length) {
-      ui.textCenter(r, horizon + 2, "empty sector", { fg: c.muted, attrs: BOLD });
-      ui.textCenter(r, horizon + 3, "⌫ to back up", { fg: c.faint });
+      const tag = this.deck.workspace.sidebar.filter;
+      ui.textCenter(r, horizon + 2, tag ? `nothing ${tag} here` : "empty sector", { fg: c.muted, attrs: BOLD });
+      ui.textCenter(r, horizon + 3, tag ? "tag view off shows everything · ⌫ to back up" : "⌫ to back up", { fg: c.faint });
+      if (tag) drawTagBar(ui, r.x + r.w - 1, r.y + 1, tag, {}, (tc) => `tag view ${tc ?? "off"}`);
       return;
     }
 
@@ -333,6 +342,11 @@ export class ExplorerApp implements App {
     }
     for (const v of visible) this.drawNode(ui, r, v, horizon, floorBottom, focused);
 
+    // the colour squares, top right (the same filter as the tree: tag view <colour>)
+    const counts: Partial<Record<TagColor, number>> = {};
+    for (const tc of Object.values(this.deck.marks.tags)) counts[tc] = (counts[tc] ?? 0) + 1;
+    drawTagBar(ui, r.x + r.w - 1, r.y + 1, this.deck.workspace.sidebar.filter, counts, (tc) => `tag view ${tc ?? "off"}`);
+
     // ── data panel: the one in front ──
     if (previewH) this.drawData(ui, { x: r.x + 1, y: floorBottom + 1, w: r.w - 2, h: previewH }, items[this.sel]);
   }
@@ -347,7 +361,8 @@ export class ExplorerApp implements App {
     const baseY = Math.round(horizon + 1 + near * near * (floor - horizon - h - 1));
     const x = Math.round(v.x - w / 2);
     const fade = (col: RGB) => mix(c.bg, col, 0.25 + near * 0.75);
-    const edge = front ? (focused ? c.accent : c.accentAlt) : fade(c.border);
+    const tag = this.deck.marks.tagOf(v.e.path);
+    const edge = tag ? (front ? tagRGB(tag) : fade(mix(tagRGB(tag), c.border, 0.35))) : front ? (focused ? c.accent : c.accentAlt) : fade(c.border);
     if (x + w < r.x || x >= r.x + r.w) return;
 
     // the cube: a back edge offset up-right, then the front face over it

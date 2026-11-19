@@ -1,3 +1,4 @@
+import { isTagColor, TAG_NAMES } from "../../vault/marks";
 import { popupCommands } from "../../widgets/popups";
 import { quoteCommand, worldclockCommand } from "../../widgets/extra";
 import { WidgetPopup } from "../../workspace/widgetpopup";
@@ -329,17 +330,36 @@ export const uiCommands: Command[] = [
   {
     name: "modules",
     summary: "all apps and plugins (key on HOME: m); what they expose to each other",
-    usage: "modules                         the MODULES hive\nmodules api [module]            functions modules expose to each other (ib.modules)\nmodules call <module> <fn> [args…]   call one (args: text, numbers or JSON)",
+    usage: "modules                         the MODULES ring\nmodules tag <module> <colour>   give it a colour (red, orange, yellow, green, cyan, blue, purple, pink) · modules tag <module> rm\nmodules view <colour> | off     MODULES shows only that colour\nmodules api [module]            functions modules expose to each other (ib.modules)\nmodules call <module> <fn> [args…]   call one (args: text, numbers or JSON)",
     examples: [
       ["modules api", "every function a module can call"],
       ['modules call todo add "walk the dog"', "add a task through the TODO module's API"],
       ["modules call sysmon stats", "the machine's vitals as JSON"],
     ],
-    complete: () => ["api", "call"],
+    complete: () => ["api", "call", "tag", "view", "set"],
     async run(ctx) {
       const d = ctx.deck;
       const [sub, mod, fn, ...rest] = ctx.args;
       if (!sub) return void d.openApp("modules"), 0;
+      if (sub === "tag") {
+        if (!mod || !fn) return ctx.err(`usage: modules tag <module> <colour|rm>   (${TAG_NAMES.join(", ")})\n`), 1;
+        if (!d.plugins.list().some((p) => p.manifest.id === mod)) return ctx.err(`modules: no module ${mod}\n`), 1;
+        const tags = { ...(d.settings.data.moduleTags ?? {}) };
+        if (fn === "rm" || fn === "none" || fn === "off") delete tags[mod];
+        else if (isTagColor(fn)) tags[mod] = fn;
+        else return ctx.err(`modules: ${fn} isn't a colour (${TAG_NAMES.join(", ")})\n`), 1;
+        d.settings.set("moduleTags", tags);
+        return ctx.out(`${mod}: ${tags[mod] ?? "no colour"}\n`), 0;
+      }
+      if (sub === "view") {
+        const app = (d.workspace.findTab("modules") ?? d.openApp("modules")) as { filter?: unknown } | null;
+        if (!app) return 1;
+        if (!mod || mod === "off" || mod === "all") app.filter = null;
+        else if (isTagColor(mod)) app.filter = mod;
+        else return ctx.err(`usage: modules view <colour> | off   (${TAG_NAMES.join(", ")})\n`), 1;
+        d.requestFrame();
+        return 0;
+      }
       if (sub === "api") {
         const list = d.services.list(mod);
         if (!list.length) return ctx.out(fmt.dim(mod ? `${mod} exposes nothing (or is off)\n` : "nothing exposed\n")), 0;
