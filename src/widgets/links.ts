@@ -1,5 +1,8 @@
 import { mix } from "../core/color";
-import { truncate } from "../core/unicode";
+import type { Rect } from "../core/grid";
+import { FolderPopup } from "../workspace/folderpopup";
+import type { UI } from "../ui/ui";
+import { strWidth, truncate } from "../core/unicode";
 import { BOLD } from "../core/grid";
 import { t } from "../core/i18n";
 import type { Deck } from "../deck";
@@ -23,6 +26,38 @@ export interface HomeLink {
   cmd: string;
 }
 
+/** What a square opens — shown on it, so you know before you click. */
+export type LinkKind = "module" | "folder" | "file" | "page" | "macro" | "command";
+
+/** A square's kind, from the command it runs. */
+export function kindOf(l: HomeLink): LinkKind {
+  const c = l.cmd.trim();
+  if (/^explore\b/.test(c)) return "folder";
+  if (/^open\b/.test(c)) return "file";
+  if (/^launch\b/.test(c) || / open$/.test(c)) return "module";
+  if (/^macro run\b/.test(c)) return "macro";
+  if (/^(home|nexus|modules|store|settings|shortcuts|trash open|journal)$/.test(c)) return "page";
+  return "command";
+}
+
+const KIND: Record<LinkKind, { word: string; short: string; color: (c: UI["c"]) => number }> = {
+  module: { word: "MODULE", short: "MOD", color: (c) => c.accent },
+  folder: { word: "FOLDER", short: "DIR", color: (c) => c.warning },
+  file: { word: "FILE", short: "FILE", color: (c) => c.accentAlt },
+  page: { word: "PAGE", short: "PAGE", color: (c) => c.info },
+  macro: { word: "MACRO", short: "MAC", color: (c) => c.success },
+  command: { word: "COMMAND", short: "CMD", color: (c) => c.subtle },
+};
+
+/** The folder a folder square opens ("explore notes/projects" → "notes/projects"). */
+const folderOf = (l: HomeLink) => l.cmd.replace(/^explore\s+/, "").replace(/^"(.*)"$/, "$1").replace(/^\//, "");
+
+/** where each square was drawn last (its folder browser opens under it) */
+const drawnAt = new Map<string, Rect>();
+
+/** A square's size in HOME units: 1 column wide, 2 rows high — about square on screen. */
+const SQUARE = { w: 1, h: 2 };
+
 /** The entry of the widget picker: choosing it asks what to link (it's never placed itself). */
 export const NEW_LINK = "link.new";
 
@@ -39,11 +74,14 @@ export function syncLinkWidgets(deck: Deck): void {
       id: NEW_LINK,
       title: "Shortcut",
       description: "one square that opens anything: a module, a note, a folder, a page, a macro, a command",
-      size: { w: 1, h: 1 },
-      min: { w: 1, h: 1 },
-      max: { w: 1, h: 1 },
+      size: SQUARE,
+      min: SQUARE,
+      max: SQUARE,
       render: () => {},
     });
+  // squares made before they were square (1×1): 1×2 now
+  const placed = deck.settings.data.home.widgets;
+  if (placed.some((p) => p.id.startsWith("link.") && p.h < SQUARE.h)) deck.settings.set("home.widgets", placed.map((p) => (p.id.startsWith("link.") && p.h < SQUARE.h ? { ...p, h: SQUARE.h } : p)));
   for (const l of links(deck)) {
     const id = `link.${l.id}`;
     unregister.get(id)?.();
@@ -52,31 +90,46 @@ export function syncLinkWidgets(deck: Deck): void {
 }
 
 function linkSpec(l: HomeLink): WidgetSpec {
+  const kind = kindOf(l);
   return {
     id: `link.${l.id}`,
     title: l.label,
-    description: l.cmd,
-    size: { w: 1, h: 1 },
-    min: { w: 1, h: 1 },
-    max: { w: 1, h: 1 },
+    description: `${KIND[kind].word.toLowerCase()} · ${l.cmd}`,
+    size: SQUARE,
+    min: SQUARE,
+    max: SQUARE,
     picker: false,
     clickActivates: true,
-    activate: ({ deck }) => void deck.act(l.cmd),
-    render(ui, r, { deck, focused }) {
+    frameless: true,
+    // a folder opens its little browser under the square; the rest run their command
+    activate: ({ deck }) => {
+      if (kind === "folder") deck.workspace.push(new FolderPopup(deck, folderOf(l), drawnAt.get(l.id) ?? { x: 10, y: 5, w: 10, h: 3 }));
+      else void deck.act(l.cmd);
+    },
+    render(ui, r, { focused }) {
       const c = ui.c;
+      drawnAt.set(l.id, r);
       const hot = ui.hovered(r);
-      if (hot || focused) ui.fill(r, { bg: mix(c.panel, c.accent, focused ? 0.18 : 0.1) });
-      const st = hot || focused ? { bg: mix(c.panel, c.accent, focused ? 0.18 : 0.1) } : {};
+      const col = KIND[kind].color(c);
+      const bg = focused ? mix(c.panel, col, 0.2) : hot ? mix(c.panel, col, 0.12) : mix(c.panel, col, 0.05);
+      ui.fill(r, { bg });
+      const st = { bg };
+      const tip = `${l.label} — ${t(KIND[kind].word.toLowerCase())}\n${kind === "folder" ? t("click: browse it here") : l.cmd}`;
       if (r.h < 3) {
-        // a flat chip (rows not stretched): icon and name on one line
-        ui.textCenter(r, r.y + Math.floor((r.h - 1) / 2), truncate(`${l.icon} ${l.label}`, r.w), { fg: hot || focused ? c.fg : c.accent, attrs: BOLD, ...st });
+        // a flat chip (rows not stretched): the kind, the icon and the name on one line
+        ui.text(r.x, r.y, "▌", { fg: col, ...st });
+        ui.text(r.x + 1, r.y, truncate(`${l.icon} ${l.label}`, r.w - 1), { fg: hot || focused ? c.fg : col, attrs: BOLD, ...st });
       } else {
-        const mid = r.y + Math.max(0, Math.floor((r.h - 2) / 2));
-        ui.textCenter(r, mid, l.icon, { fg: c.accent, attrs: BOLD, ...st });
-        ui.textCenter(r, mid + 1, truncate(l.label, r.w), { fg: hot || focused ? c.fg : c.muted, ...st });
+        // the kind on top, the icon in the middle, the name at the bottom
+        // the kind on a band of its colour across the top
+        ui.fill({ x: r.x, y: r.y, w: r.w, h: 1 }, { bg: mix(bg, col, 0.35) });
+        const word = strWidth(t(KIND[kind].word)) <= r.w - 2 ? t(KIND[kind].word) : KIND[kind].short;
+        ui.textCenter(r, r.y, truncate(word, r.w), { fg: c.fg, bg: mix(bg, col, 0.35), attrs: BOLD });
+        const mid = r.y + Math.max(1, Math.floor((r.h - 1) / 2));
+        ui.textCenter(r, mid, kind === "folder" ? `${l.icon}▾` : l.icon, { fg: hot || focused ? c.fg : col, attrs: BOLD, ...st });
+        ui.textCenter(r, r.y + r.h - 1, truncate(l.label, r.w), { fg: hot || focused ? c.fg : c.muted, ...st });
       }
-      ui.hit(r, { cmd: l.cmd, tip: `${l.label}\n${l.cmd}` });
-      void deck;
+      ui.hit(r, kind === "folder" ? { tip } : { cmd: l.cmd, tip });
     },
   };
 }

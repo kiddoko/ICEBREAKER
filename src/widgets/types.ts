@@ -22,6 +22,8 @@ export interface WidgetSpec {
   size: { w: number; h: number };
   /** Smallest size that still makes sense. */
   min?: { w: number; h: number };
+  /** No frame or title: it draws its whole rectangle itself (a shortcut square, a tile). */
+  frameless?: boolean;
   /** One click anywhere on it runs `activate` (a shortcut square), instead of just selecting it. */
   clickActivates?: boolean;
   /** Biggest size it may take (a shortcut square: 1×1). */

@@ -444,7 +444,7 @@ export class HomeApp implements App {
       const sel = focused && i === this.selected;
       // a widget one row high (a shortcut square when rows don't stretch) has no room
       // for a frame: it's drawn as a flat chip instead, so it never just disappears
-      const flat = rect.h < 3;
+      const flat = rect.h < 3 || !!spec.frameless;
       const inner = flat
         ? (ui.fill(rect, { bg: sel ? mix(c.panel, c.accent, 0.3) : this.editing ? c.highlight : mix(c.panel, c.fg, 0.06) }), rect)
         : ui.box(rect, {
