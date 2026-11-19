@@ -2,7 +2,9 @@ import { avatarGlyph, avatarOf } from "../core/avatar";
 import { AvatarPicker } from "../workspace/avatarpicker";
 import { SOUND_PACKS } from "../core/sound";
 import { t } from "../core/i18n";
-import { displayKeys, SHORTCUTS } from "../core/shortcuts";
+import { DECK_KEYS, displayKeys, keysOf, SHORTCUTS } from "../core/shortcuts";
+import { rebind } from "./shortcuts";
+import { DEFAULT_SETTINGS } from "../core/settings";
 import { SETTINGS_HELP } from "./settings-help";
 import { focus } from "../widgets/focusstate";
 import { q } from "../ui/ui";
@@ -275,7 +277,9 @@ export class SettingsApp implements App {
         if (cmd?.trim()) void d.act(`bind ${keys.trim()} ${q(cmd.trim())}`);
       } },
       ...Object.entries(s.data.keys ?? {}).map(([k, cmd]): Row => ({ label: `★ ${cmd}`, value: () => displayKeys(k), cmd: () => `unbind ${k}`, change: () => void d.act(`unbind ${k}`) })),
-      ...SHORTCUTS.map((sc): Row => ({ label: `${t(sc.what)}  · ${t(sc.cat)}`, value: () => displayKeys(sc.keys), cmd: sc.cmd ? () => sc.cmd! : undefined, change: sc.cmd ? () => void d.act(sc.cmd!) : undefined })),
+      // the deck's shortcuts: a click changes the keys, ↺ puts the default back
+      ...DECK_KEYS.map((sc): Row => ({ key: `keys.${sc.id}`, label: `${t(sc.what)}  · ${t(sc.cat)}`, value: () => displayKeys(keysOf(sc, s.data.keyOverrides)) || t("(off)"), cmd: () => `keys set ${sc.id} …`, change: () => rebind(d, sc) })),
+      ...SHORTCUTS.filter((sc) => !sc.id).map((sc): Row => ({ label: `${t(sc.what)}  · ${t(sc.cat)}`, value: () => displayKeys(sc.keys), cmd: sc.cmd ? () => sc.cmd! : undefined, change: sc.cmd ? () => void d.act(sc.cmd!) : undefined })),
       { section: "OVERVIEW", label: "", value: () => "" },
       { label: "modules on", value: () => `${d.plugins.active().length} / ${d.plugins.list().length}`, cmd: () => "modules", change: () => void d.openApp("modules") },
       { label: "store", value: () => "open", cmd: () => "store", change: () => void d.act("store") },
@@ -319,12 +323,70 @@ export class SettingsApp implements App {
   private shown(): { row: Row; from: string }[] {
     const secs = this.sections();
     const q = this.query.toLowerCase().trim();
-    if (!q) return (secs[this.cat]?.rows ?? []).map((row) => ({ row, from: secs[this.cat].name }));
+    if (!q) {
+      const sec = secs[this.cat];
+      if (!sec) return [];
+      const rows = sec.rows.map((row) => ({ row, from: sec.name }));
+      // the big button at the bottom: the whole category back to its defaults (asks first)
+      if (sec.rows.some((r) => r.key) && sec.group !== "DANGER") rows.push({ row: { label: `↺ ${t("everything in {cat} back to default", { cat: t(sec.name) })}`, value: () => "", change: () => void this.resetSection(sec.name, sec.rows) }, from: sec.name });
+      return rows;
+    }
     return secs.flatMap((sec) =>
       sec.rows
         .filter((row) => `${row.label} ${t(row.label)} ${row.key ?? ""} ${sec.name} ${t(sec.name)} ${row.value()}`.toLowerCase().includes(q))
         .map((row) => ({ row, from: sec.name })),
     );
+  }
+
+  // ── back to default ──────────────────────────────────────────────────────
+
+  /** A setting's default value (module settings: what the module registered; shortcuts: the table). */
+  private defaultOf(key: string): unknown {
+    if (key.startsWith("plugin.")) {
+      const [, id, k] = key.split(".");
+      return this.deck.moduleSettings.get(id)?.find((m) => m.key === k)?.default;
+    }
+    return key.split(".").reduce<unknown>((o, k) => (o as Record<string, unknown> | undefined)?.[k], DEFAULT_SETTINGS);
+  }
+
+  /** Is this row at its default? (rows without a key: always) */
+  private isDefault(key: string | undefined): boolean {
+    if (!key) return true;
+    const d = this.deck;
+    if (key.startsWith("keys.")) return !(key.slice(5) in (d.settings.data.keyOverrides ?? {}));
+    if (key.startsWith("plugin.")) {
+      const [, id, k] = key.split(".");
+      return JSON.stringify(d.moduleSettingValue(id, k) ?? null) === JSON.stringify(this.defaultOf(key) ?? null);
+    }
+    const def = this.defaultOf(key);
+    return def === undefined || JSON.stringify(d.settings.get(key) ?? null) === JSON.stringify(def);
+  }
+
+  /** Put one setting back to its default (no question: the caller asked). */
+  private resetKey(key: string): void {
+    const d = this.deck;
+    if (key.startsWith("keys.")) return void d.act(`keys reset ${key.slice(5)}`);
+    if (key.startsWith("plugin.")) {
+      const [, id, k] = key.split(".");
+      return d.setModuleSetting(id, k, this.defaultOf(key));
+    }
+    const def = this.defaultOf(key);
+    if (def === undefined) return;
+    d.settings.set(key, structuredClone(def));
+    d.applySettings(key);
+  }
+
+  private async resetOne(row: Row): Promise<void> {
+    if (!row.key || !(await this.deck.confirm(t("Back to the default?"), t(row.label)))) return;
+    this.resetKey(row.key);
+  }
+
+  private async resetSection(name: string, rows: Row[]): Promise<void> {
+    const changed = rows.filter((r) => r.key && !this.isDefault(r.key));
+    if (!changed.length) return this.deck.notify(t("everything here is already at its default"));
+    if (!(await this.deck.confirm(t("Everything in {cat} back to default?", { cat: t(name) }), t("{n} settings change back: {list}", { n: changed.length, list: changed.map((r) => t(r.label)).slice(0, 6).join(", ") })))) return;
+    for (const r of changed) this.resetKey(r.key!);
+    this.deck.notify(t("{cat}: back to default", { cat: t(name) }), "success");
   }
 
   /** A section per module: the built-in ones here, the others from ib.settings.register. */
@@ -518,6 +580,11 @@ export class SettingsApp implements App {
         ui.hit(line, { onClick: () => ((this.sel = i), (this.pane = "rows")) });
         const sl = row.slider;
         const off = row.disabled?.() ?? false;
+        if (row.key && !this.isDefault(row.key)) {
+          const ur = { x: rx + rw - sw - 3, y, w: 1, h: 1 };
+          ui.text(ur.x, y, "↺", { fg: ui.hovered(ur) ? c.warning : c.subtle });
+          ui.hit(ur, { onClick: () => void this.resetOne(row), tip: t("back to the default") });
+        }
         slider(ui, { x: rx + rw - sw - 1, y, w: sw, h: 1 }, sl.get(), sl.min, sl.max, (v) => {
           this.sel = i;
           this.pane = "rows";
@@ -542,6 +609,13 @@ export class SettingsApp implements App {
       const color = raw === "on" ? c.success : raw === "off" ? c.subtle : from === "DANGER ZONE" ? c.error : c.accent;
       ui.textRight(vx, y, shownV, { fg: color, attrs: selected ? BOLD : 0, ...st });
       const vw = strWidth(shownV);
+      // ↺ next to a setting you changed: back to its default (asks first)
+      if (row.key && !this.isDefault(row.key)) {
+        const ux = vx - vw - 2;
+        const ur = { x: ux, y, w: 1, h: 1 };
+        ui.text(ux, y, "↺", { fg: ui.hovered(ur) ? c.warning : c.subtle, ...st });
+        ui.hit(ur, { onClick: () => void this.resetOne(row), tip: t("back to the default") });
+      }
       if (steps) {
         // the arrows: dim until the row is chosen, bright under the mouse
         const lx2 = vx - vw, rx2 = vx - 1;

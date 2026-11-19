@@ -1,4 +1,4 @@
-import { SHORTCUTS } from "../core/shortcuts";
+import { shortcutFor } from "../core/shortcuts";
 import { mix } from "../core/color";
 import { KeyCapture } from "./keycapture";
 import { SidePanel } from "./sidepanel";
@@ -711,35 +711,36 @@ export class Workspace {
     }
   }
 
+  /**
+   * The deck's own shortcuts that aren't shell commands (the rest run their `cmd`).
+   * Keyed by the shortcut's id in core/shortcuts.ts.
+   */
+  private readonly keyActions: Record<string, () => void> = {
+    "new-note": () => void this.deck.newNote(),
+    "new-folder": () => void this.deck.newFolder(),
+    tree: () => this.toggleSidebar(),
+    shell: () => this.focusShell(),
+    "shell-tabs": () => (this.focus === "shell" && this.shellVisible ? this.cycleShellTab() : this.focusShell()),
+    back: () => void this.closeAndGoBack(),
+  };
+
   /** App-wide shortcuts. Uses physical key codes where layouts differ (AZERTY…). */
   private globalKey(k: KeyInput): boolean {
     const d = this.deck;
-    const c = k.combo;
+    // ⌘/ on any layout (AZERTY types it with shift): the physical key counts
+    const c = k.ctrl && !k.alt && (k.key === "/" || k.code === "Slash") ? "ctrl+/" : k.code === "Backquote" && k.ctrl && !k.shift ? "ctrl+`" : k.combo;
     // your own shortcuts first (bind / the SHORTCUTS page)
     const mine = d.settings.data.keys?.[c];
     if (mine) return void d.act(mine), true;
-    if (c === "ctrl+k" || c === "ctrl+p") return this.palette(), true;
-    if (k.ctrl && !k.alt && (k.key === "/" || k.code === "Slash")) return void d.openApp("shortcuts"), true;
-    if (c === "ctrl+shift+h") return void d.openApp("home"), true;
-    if (c === "ctrl+shift+m") return void d.openApp("modules"), true;
-    // keys marked `global` in SHORTCUTS (core/shortcuts.ts) run their command: the table is the binding
-    const own = SHORTCUTS.find((s) => s.global && s.keys === c);
-    if (own?.cmd) return void d.act(own.cmd), true;
-    if (c === "ctrl+shift+n") return void d.newFolder(), true;
-    if (c === "ctrl+shift+l") return void d.act("lock"), true;
-    if (c === "ctrl+j") return void d.openJournal(new Date()), true;
-    if (c === "ctrl+n") return void d.newNote(), true;
-    if (c === "ctrl+space") return void d.openApp("link"), true;
-    if (c === "ctrl+b") return this.toggleSidebar(), true;
-    if (c === "ctrl+w") return void this.closeTab(), true;
-    if (c === "shift+esc") return void this.closeAndGoBack(), true;
-    if (c === "ctrl+tab") return this.switchTab(this.active + 1), true;
-    if (c === "ctrl+shift+tab") return this.switchTab(this.active - 1), true;
-    if (c === "ctrl+," ) return void d.openApp("settings"), true;
-    if (c === "f1") return void d.openApp("help"), true;
-    if (c === "f11") return void d.toggleFullscreen(), true;
-    if (c === "f12") return this.focus === "shell" && this.shellVisible ? this.cycleShellTab() : this.focusShell(), true;
-    if (k.ctrl && !k.shift && k.code === "Backquote") return this.focusShell(), true;
+    if (c === "ctrl+p") return this.palette(), true;
+    // the deck's shortcuts: one table (core/shortcuts.ts), with your changes (Settings → KEYS)
+    const own = shortcutFor(c, d.settings.data.keyOverrides);
+    if (own) {
+      const act = own.id ? this.keyActions[own.id] : undefined;
+      if (act) act();
+      else if (own.cmd) void d.act(own.cmd);
+      return true;
+    }
     // Pane focus: Alt+arrows (macOS: ⌘⌥+arrows, since ⌥+arrows jumps words there)
     const paneMod = IS_MAC ? k.ctrl && k.alt : k.alt && !k.ctrl;
     if (paneMod && ["left", "right", "up", "down"].includes(k.key)) return this.moveFocus(k.key as "left"), true;

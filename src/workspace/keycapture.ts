@@ -2,7 +2,7 @@ import { mix } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
 import type { KeyInput } from "../core/input";
-import { displayKeys, normalizeCombo, SHORTCUTS } from "../core/shortcuts";
+import { displayKeys, keysOf, normalizeCombo, SHORTCUTS } from "../core/shortcuts";
 import { strWidth } from "../core/unicode";
 import type { Deck } from "../deck";
 import { q, type UI } from "../ui/ui";
@@ -25,18 +25,27 @@ export class KeyCapture implements Overlay {
     private readonly deck: Deck,
     private readonly title: string,
     private readonly actions: string[],
+    /** rebinding one of the deck's own shortcuts: OK hands the keys here instead of `bind` */
+    private readonly onPick?: (combo: string) => void,
+    /** the deck shortcut being rebound (not a conflict with itself) */
+    private readonly self?: string,
   ) {}
 
   /** What a combo would take over: a built-in shortcut or one of yours. */
   private conflict(combo: string): string {
     const mine = this.deck.settings.data.keys?.[combo];
     if (mine) return t("already yours: {cmd} (OK replaces it)", { cmd: mine });
-    const built = SHORTCUTS.find((s) => s.keys.split(" · ").includes(combo));
+    const built = SHORTCUTS.find((s) => s.id !== this.self && keysOf(s, this.deck.settings.data.keyOverrides).split(" · ").includes(combo));
     return built ? t("the deck uses it for: {what} (OK replaces it)", { what: t(built.what) }) : "";
   }
 
   private async ok(): Promise<void> {
     if (!this.combo) return;
+    if (this.onPick) {
+      this.done = true;
+      this.onPick(this.combo);
+      return;
+    }
     if (!this.actions.length) await this.addAction();
     if (!this.actions.length) return;
     this.done = true;
@@ -89,6 +98,11 @@ export class KeyCapture implements Overlay {
     y += 1;
     if (this.warn) ui.textCenter(inner, y, this.warn, { fg: c.warning, bg: c.panel });
     y += 2;
+    if (this.onPick) {
+      // rebinding a deck shortcut: what it does is already known
+      ui.text(inner.x + 1, y++, t("one combo: it replaces this shortcut's keys"), { fg: c.subtle, bg: c.panel });
+      y += this.actions.length + 2;
+    } else {
     // what the key does, in order
     ui.text(inner.x + 1, y++, this.actions.length ? t("it will:") : t("it will: (OK asks what)"), { fg: c.subtle, bg: c.panel });
     this.actions.forEach((a, i) => {
@@ -102,6 +116,7 @@ export class KeyCapture implements Overlay {
     });
     ui.button(inner.x + 2, y, t("+ another action"), () => void this.addAction(), { tip: t("one key, several things, one after the other") });
     y += 2;
+    }
     let bx = inner.x + inner.w - 2;
     const cancel = t("cancel  esc");
     bx -= strWidth(cancel) + 2;

@@ -1,3 +1,4 @@
+import { DEFAULT_SETTINGS } from "../../core/settings";
 import { stealthCommand, voiceCommand } from "./voice";
 import { fmt } from "../../core/ansi";
 import { padEnd } from "../../core/unicode";
@@ -408,7 +409,7 @@ const config: Command = {
   ],
   aliases: ["set"],
   summary: "read and change settings",
-  usage: "config [list]\nconfig get <key>\nconfig set <key> <value>\nconfig key              set the Anthropic API key (hidden input)\nconfig path",
+  usage: "config [list]\nconfig get <key>\nconfig set <key> <value>\nconfig reset <key>      back to its default (Settings: ↺ next to it)\nconfig key              set the Anthropic API key (hidden input)\nconfig path",
   man: "Keys look like fx.bloom, ai.model, user.handle — `config list` shows them all.\nSettings are stored in the OS config folder (settings.json); the API key in secrets.json.",
   async run(ctx) {
     const s = ctx.deck.settings;
@@ -421,6 +422,14 @@ const config: Command = {
     if (sub === "get") {
       ctx.out(JSON.stringify(s.get(key ?? "")) + "\n");
       return;
+    }
+    if (sub === "reset") {
+      const def = (key ?? "").split(".").reduce<unknown>((o, k) => (o as Record<string, unknown> | undefined)?.[k], DEFAULT_SETTINGS);
+      if (!key || def === undefined) return ctx.err(`config: no default for "${key ?? ""}" (config list)\n`), 1;
+      s.set(key, structuredClone(def));
+      ctx.deck.applySettings(key);
+      ctx.out(`${key} = ${JSON.stringify(def)}\n`);
+      return 0;
     }
     if (sub === "set") {
       if (!key || rest.length === 0) {

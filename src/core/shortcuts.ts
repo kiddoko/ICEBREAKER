@@ -13,6 +13,8 @@ import { IS_MAC } from "./input";
 
 export interface Shortcut {
   keys: string;
+  /** a deck shortcut you can rebind (Settings → KEYS, SHORTCUTS page): its stable name */
+  id?: string;
   what: string;
   cat: string;
   /** what a click on the line runs */
@@ -24,23 +26,24 @@ export interface Shortcut {
 export const SHORTCUT_CATEGORIES = ["everywhere", "panes & tabs", "notes", "home", "shell", "lists & pages", "gamepad", "yours"] as const;
 
 export const SHORTCUTS: Shortcut[] = [
-  // everywhere
-  { keys: "ctrl+k", what: "command palette: search everything", cat: "everywhere", cmd: "palette" },
-  { keys: "ctrl+/", what: "this page: every shortcut", cat: "everywhere", cmd: "shortcuts" },
-  { keys: "f1", what: "the manual", cat: "everywhere", cmd: "launch help" },
-  { keys: "ctrl+,", what: "settings", cat: "everywhere", cmd: "settings" },
-  { keys: "ctrl+shift+h", what: "HOME", cat: "everywhere", cmd: "home" },
+  // everywhere — the letter says what it does (H home, M modules, E explore, U uplink, L lock…)
+  { id: "palette", keys: "ctrl+k", what: "command palette: search everything", cat: "everywhere", cmd: "palette", global: true },
+  { id: "shortcuts", keys: "ctrl+/", what: "this page: every shortcut", cat: "everywhere", cmd: "shortcuts", global: true },
+  { id: "help", keys: "f1", what: "the manual", cat: "everywhere", cmd: "launch help", global: true },
+  { id: "settings", keys: "ctrl+,", what: "settings", cat: "everywhere", cmd: "settings", global: true },
+  { id: "home", keys: "ctrl+shift+h", what: "HOME", cat: "everywhere", cmd: "home", global: true },
   { keys: "h", what: "HOME, when you're not typing", cat: "everywhere" },
-  { keys: "ctrl+shift+m", what: "MODULES, every module", cat: "everywhere", cmd: "modules" },
-  { keys: "ctrl+space", what: "LINK, the AI chat (UPLINK)", cat: "everywhere", cmd: "launch link" },
-  { keys: "ctrl+j", what: "today's journal", cat: "everywhere", cmd: "today" },
-  { keys: "ctrl+shift+l", what: "lock the deck (log out)", cat: "everywhere", cmd: "lock" },
-  { keys: "ctrl+shift+e", what: "NEXUS, the vault as a place", cat: "everywhere", cmd: "nexus", global: true },
-  { keys: "ctrl+shift+a", what: "the action wheel (gamepad: hold RB)", cat: "everywhere", cmd: "wheel", global: true },
-  { keys: "ctrl+shift+backspace", what: "the TRASH page", cat: "everywhere", cmd: "trash open", global: true },
+  { id: "modules", keys: "ctrl+shift+m", what: "MODULES, every module", cat: "everywhere", cmd: "modules", global: true },
+  { id: "nexus", keys: "ctrl+shift+e", what: "NEXUS: explore the vault", cat: "everywhere", cmd: "nexus", global: true },
+  { id: "uplink", keys: "ctrl+shift+u · ctrl+space", what: "UPLINK: the AI chat", cat: "everywhere", cmd: "launch link", global: true },
+  { id: "journal", keys: "ctrl+j", what: "today's journal", cat: "everywhere", cmd: "today", global: true },
+  { id: "wheel", keys: "ctrl+shift+a", what: "the action wheel (gamepad: hold RB)", cat: "everywhere", cmd: "wheel", global: true },
+  { id: "fx", keys: "ctrl+shift+f", what: "the effects panel (bloom, scanlines…)", cat: "everywhere", cmd: "view fx", global: true },
+  { id: "trash", keys: "ctrl+shift+backspace", what: "the TRASH page", cat: "everywhere", cmd: "trash open", global: true },
+  { id: "lock", keys: "ctrl+shift+l", what: "lock the deck (log out)", cat: "everywhere", cmd: "lock", global: true },
   { keys: "ctrl+= · ctrl+- · ctrl+0", what: "interface bigger · smaller · 100 %", cat: "everywhere" },
-  { keys: "f11", what: "fullscreen", cat: "everywhere", cmd: "fullscreen" },
-  { keys: "shift+esc", what: "close the tab and show the one before it (HOME stays)", cat: "everywhere" },
+  { id: "fullscreen", keys: "f11", what: "fullscreen", cat: "everywhere", cmd: "fullscreen", global: true },
+  { id: "back", keys: "shift+esc", what: "close the tab and show the one before it (HOME stays)", cat: "everywhere", global: true },
   { keys: "esc", what: "back to the page (from the tree or the shell); closes NEXUS, STORE, MODULES, settings", cat: "everywhere" },
   { keys: "1…9", what: "go to that tab (when you're not typing)", cat: "panes & tabs" },
   { keys: "right-click · menu key · shift+f10", what: "the menu of the thing under the mouse (or the selected one): rename, pin, colour, copy, paste…", cat: "everywhere" },
@@ -49,18 +52,19 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: "tab", what: "next thing on the screen: widget, card, line", cat: "panes & tabs" },
   { keys: "shift+tab", what: "next part of the screen: tree → deck → shell", cat: "panes & tabs" },
   { keys: IS_MAC ? "ctrl+alt+←↑↓→" : "alt+←↑↓→", what: "move to the pane in that direction", cat: "panes & tabs" },
-  { keys: "ctrl+tab · ctrl+shift+tab", what: "next · previous tab", cat: "panes & tabs" },
+  { id: "tab-next", keys: "ctrl+tab", what: "next tab", cat: "panes & tabs", cmd: "tab next", global: true },
+  { id: "tab-prev", keys: "ctrl+shift+tab", what: "previous tab", cat: "panes & tabs", cmd: "tab prev", global: true },
   { keys: IS_MAC ? "ctrl+1…9" : "alt+1…9 · ctrl+1…9", what: "go to tab 1…9", cat: "panes & tabs" },
-  { keys: "ctrl+w", what: "close the tab", cat: "panes & tabs" },
-  { keys: "ctrl+b", what: "show / hide the file tree", cat: "panes & tabs" },
-  { keys: "ctrl+shift+b", what: "show / hide the side panel (widgets on the right)", cat: "panes & tabs", cmd: "panel", global: true },
-  { keys: "ctrl+shift+u", what: "show / hide the macro buttons above the terminal", cat: "panes & tabs", cmd: "macro toggle", global: true },
-  { keys: "ctrl+`", what: "show / focus the shell (again: hide it)", cat: "panes & tabs" },
-  { keys: "f12", what: "shell tabs: ibsh → system terminal → history", cat: "panes & tabs" },
+  { id: "tab-close", keys: "ctrl+w", what: "close the tab", cat: "panes & tabs", cmd: "tab close", global: true },
+  { id: "tree", keys: "ctrl+shift+t · ctrl+b", what: "show / hide the file tree", cat: "panes & tabs", global: true },
+  { id: "panel", keys: "ctrl+shift+p", what: "show / hide the side panel (widgets on the right)", cat: "panes & tabs", cmd: "panel", global: true },
+  { id: "shell", keys: "ctrl+` · ctrl+shift+s", what: "show / focus the shell (again: hide it)", cat: "panes & tabs", global: true },
+  { id: "shell-tabs", keys: "f12", what: "shell tabs: your terminals → ibsh → history", cat: "panes & tabs", global: true },
+  { id: "macros", keys: "ctrl+shift+k", what: "show / hide the macro buttons above the terminal", cat: "panes & tabs", cmd: "macro toggle", global: true },
 
   // notes
-  { keys: "ctrl+n", what: "new note", cat: "notes", },
-  { keys: "ctrl+shift+n", what: "new folder", cat: "notes" },
+  { id: "new-note", keys: "ctrl+n", what: "new note", cat: "notes", global: true },
+  { id: "new-folder", keys: "ctrl+shift+n", what: "new folder", cat: "notes", global: true },
   { keys: "ctrl+s", what: "save (notes also save themselves)", cat: "notes" },
   { keys: "ctrl+enter · ctrl+click", what: "follow the [[link]] under the cursor", cat: "notes" },
   { keys: "tab · shift+tab", what: "indent · unindent (shift+tab leaves the note when there's nothing to unindent)", cat: "notes" },
@@ -134,4 +138,17 @@ export function normalizeCombo(s: string): string | null {
   if (![...mods].every((m) => ["ctrl", "alt", "shift", "meta"].includes(m))) return null;
   if (!mods.size && key.length === 1) return null; // a bare letter would eat your typing
   return [...["ctrl", "alt", "shift", "meta"].filter((m) => mods.has(m)), key].join("+");
+}
+
+/** The deck's rebindable shortcuts (they have an id). */
+export const DECK_KEYS = SHORTCUTS.filter((s) => s.id);
+
+/** A shortcut's keys now: yours (Settings → KEYS) or its default. "" = switched off. */
+export function keysOf(s: Shortcut, overrides: Record<string, string> | undefined): string {
+  return s.id && overrides && s.id in overrides ? overrides[s.id] : s.keys;
+}
+
+/** The deck shortcut a key combo triggers (with your changes), if any. */
+export function shortcutFor(combo: string, overrides: Record<string, string> | undefined): Shortcut | undefined {
+  return DECK_KEYS.find((s) => s.global && keysOf(s, overrides).split(" · ").includes(combo));
 }

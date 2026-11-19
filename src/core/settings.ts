@@ -84,6 +84,8 @@ export interface Settings {
   keys: Record<string, string>;
   /** module settings values (ib.settings), per module id */
   moduleSettings: Record<string, Record<string, unknown>>;
+  /** the deck's shortcuts you changed: shortcut id → keys ("" = switched off); see core/shortcuts.ts */
+  keyOverrides: Record<string, string>;
   /** the side panel on the right: widgets always in view (panel show / add <widget>) */
   panel: { shown: boolean; widgets: string[] };
   /** the gamepad's action wheel (hold RB): pages of 8 slots, each a shell command */
@@ -180,6 +182,7 @@ export const DEFAULT_SETTINGS: Settings = {
   moduleSettings: {},
   moduleTags: {},
   gamepad: { wheel: [] },
+  keyOverrides: {},
   panel: { shown: false, widgets: ["clock", "system"] },
   shell: {
     mode: "system",

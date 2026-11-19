@@ -4,9 +4,9 @@ import { strWidth } from "../core/unicode";
 import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
-import { displayKeys, normalizeCombo, SHORTCUT_CATEGORIES, SHORTCUTS, type Shortcut } from "../core/shortcuts";
+import { DECK_KEYS, displayKeys, keysOf, normalizeCombo, SHORTCUT_CATEGORIES, SHORTCUTS, type Shortcut } from "../core/shortcuts";
 import type { Deck } from "../deck";
-import { q } from "../ui/ui";
+
 import type { Command } from "../shell/types";
 import type { UI } from "../ui/ui";
 import type { App, AppSpec } from "./types";
@@ -19,6 +19,19 @@ import { KeyCapture } from "../workspace/keycapture";
  */
 type Row = { kind: "head"; cat: string } | { kind: "key"; s: Shortcut };
 
+/** Rebind one of the deck's shortcuts: the dialog, then `keys set <id> <combo>`. */
+export function rebind(deck: Deck, s: Shortcut): void {
+  if (!s.id) return;
+  deck.workspace.push(new KeyCapture(deck, t("New keys for: {what}", { what: t(s.what) }), [], (combo) => void deck.act(`keys set ${s.id} ${combo}`), s.id));
+}
+
+/** Back to the default keys — one shortcut, or all of them (asks first). */
+export async function resetKeys(deck: Deck, id?: string): Promise<void> {
+  const what = id ? t(DECK_KEYS.find((s) => s.id === id)?.what ?? id) : t("every deck shortcut");
+  if (!(await deck.confirm(t("Back to the default keys?"), `${what}\n${t("your own shortcuts (bind) stay")}`))) return;
+  void deck.act(`keys reset ${id ?? "all"}`);
+}
+
 export function userShortcuts(deck: Deck): Shortcut[] {
   return Object.entries(deck.settings.data.keys ?? {}).map(([keys, cmd]) => ({ keys, what: cmd, cat: "yours", cmd }));
 }
@@ -30,7 +43,6 @@ class ShortcutsApp implements App {
   private sel = 0;
   private scroll = 0;
   /** waiting for the key combo to bind */
-  private capturing = false;
 
   constructor(private readonly deck: Deck) {}
 
@@ -38,12 +50,13 @@ class ShortcutsApp implements App {
     return "shortcuts";
   }
   status() {
-    return this.capturing ? t("press the keys to bind · esc cancel") : t("type to search · enter run · F2 bind a key · del unbind yours");
+    return t("type to search · enter run · F2 change the keys · del back to default / unbind yours");
   }
 
   private rows(): Row[] {
     const q = this.query.toLowerCase().trim();
-    const all = [...SHORTCUTS, ...userShortcuts(this.deck)];
+    const over = this.deck.settings.data.keyOverrides;
+    const all = [...SHORTCUTS.map((sc) => (sc.id ? { ...sc, keys: keysOf(sc, over) || t("(off)") } : sc)), ...userShortcuts(this.deck)];
     const match = (s: Shortcut) => !q || `${s.keys} ${displayKeys(s.keys)} ${s.what} ${t(s.what)} ${s.cat} ${t(s.cat)}`.toLowerCase().includes(q);
     const out: Row[] = [];
     for (const cat of SHORTCUT_CATEGORIES) {
@@ -64,29 +77,23 @@ class ShortcutsApp implements App {
   }
 
   onKey(k: KeyInput): boolean {
-    if (this.capturing) {
-      if (k.combo === "esc") return (this.capturing = false), true;
-      if (["ctrl", "alt", "shift", "meta", "control", "option", "command"].includes(k.key)) return true; // wait for the real key
-      const combo = normalizeCombo(k.combo);
-      if (!combo) return this.deck.notify(t("use a modifier: ctrl / alt / shift + a key"), "warning"), true;
-      this.capturing = false;
-      void this.deck.prompt(t("Run what? (a shell command)"), { placeholder: "open notes/ideas.md · launch todo · explore projects" }).then((cmd) => {
-        if (cmd?.trim()) void this.deck.act(`bind ${combo} ${q(cmd.trim())}`);
-      });
-      return true;
+    // F2: change the selected deck shortcut's keys (on one of yours / nothing: a new shortcut)
+    if (k.combo === "f2") {
+      const cur = this.keyRows()[this.sel];
+      const deckKey = cur?.id ? SHORTCUTS.find((x) => x.id === cur.id) : undefined;
+      return deckKey ? rebind(this.deck, deckKey) : this.bind(), true;
     }
-    if (k.combo === "f2") return this.bind(), true;
     if (k.combo === "backspace") return (this.query = this.query.slice(0, -1)), (this.sel = 0), true;
     if (k.combo === "delete") {
       const s = this.keyRows()[this.sel];
       if (s?.cat === "yours") void this.deck.act(`unbind ${s.keys}`);
+      else if (s?.id && s.id in (this.deck.settings.data.keyOverrides ?? {})) void resetKeys(this.deck, s.id);
       return true;
     }
     if (k.combo === "esc" && this.query) return (this.query = ""), (this.sel = 0), true;
     return false;
   }
   onText(s: string): boolean {
-    if (this.capturing) return true;
     this.query += s;
     this.sel = 0;
     return true;
@@ -110,15 +117,21 @@ class ShortcutsApp implements App {
     const w = Math.min(r.w - 4, 100), x = r.x + Math.floor((r.w - w) / 2);
     let y = r.y + 1;
     // the search field
-    const bindLabel = this.capturing ? t("press keys…") : t("+ bind a key");
+    const bindLabel = t("+ bind a key");
     const bx = x + w - strWidth(bindLabel) - 2;
     const field = { x, y, w: bx - x - 2, h: 1 };
     ui.fill(field, { bg: c.highlight });
     ui.text(x + 1, y, "⌕", { fg: c.accent, bg: c.highlight });
     if (this.query) ui.text(x + 3, y, this.query, { fg: c.fg, bg: c.highlight }, field.w - 4);
     else ui.text(x + 3, y, t("type to search: \"note\", \"tab\", \"ctrl+shift\"…"), { fg: c.muted, bg: c.highlight }, field.w - 4);
-    if (focused && !this.capturing) ui.cursor(x + 3 + this.query.length, y);
-    ui.button(bx, y, bindLabel, () => this.bind(), { tip: "F2 · bind <keys> <command>", selected: this.capturing });
+    if (focused) ui.cursor(x + 3 + this.query.length, y);
+    ui.button(bx, y, bindLabel, () => this.bind(), { tip: "F2 · bind <keys> <command>" });
+    // every deck shortcut back to its default keys (asks first)
+    const changed = Object.keys(this.deck.settings.data.keyOverrides ?? {}).length;
+    if (changed) {
+      const rl = `↺ ${t("defaults")} (${changed})`;
+      ui.button(bx - strWidth(rl) - 4, y, rl, () => void resetKeys(this.deck), { tip: t("every deck shortcut back to its default keys · keys reset all"), accent: c.warning });
+    }
     y += 2;
 
     const rows = this.rows();
@@ -196,7 +209,43 @@ export const shortcutsSpec: AppSpec = {
   create: (deck) => new ShortcutsApp(deck),
 };
 
+const keysCmd: Command = {
+  name: "keys",
+  summary: "the deck's own shortcuts: change them, switch them off, back to the defaults",
+  usage: "keys                    the ones you changed\nkeys list               every deck shortcut, with its id\nkeys set <id> <keys>    e.g. keys set panel ctrl+shift+b\nkeys off <id>           switch one off\nkeys reset <id> | all   back to the default keys",
+  complete: () => ["list", "set", "off", "reset", ...DECK_KEYS.map((s) => s.id!)],
+  run(ctx) {
+    const d = ctx.deck;
+    const over = { ...(d.settings.data.keyOverrides ?? {}) };
+    const [a, id, ...rest] = ctx.args;
+    const find = (i?: string) => DECK_KEYS.find((s) => s.id === i);
+    if (!a || a === "list") {
+      const list = a === "list" ? DECK_KEYS : DECK_KEYS.filter((s) => s.id! in over);
+      if (!list.length) return ctx.out(fmt.dim("all at their default keys · keys list shows them\n")), 0;
+      for (const s of list) ctx.out(`${fmt.bold(s.id!.padEnd(12))} ${displayKeys(keysOf(s, over) || "—").padEnd(22)} ${fmt.dim(t(s.what))}${s.id! in over ? fmt.yellow("  (changed)") : ""}\n`);
+      return 0;
+    }
+    if (a === "reset") {
+      if (id === "all") d.settings.set("keyOverrides", {});
+      else if (find(id)) (delete over[id!], d.settings.set("keyOverrides", over));
+      else return ctx.err(`keys: no shortcut ${id ?? ""} (keys list)\n`), 1;
+      return ctx.out(`${id === "all" ? "every shortcut" : id}: default keys\n`), 0;
+    }
+    const s = find(id);
+    if (!s) return ctx.err(`keys: no shortcut ${id ?? ""} (keys list)\n`), 1;
+    if (a === "off") return d.settings.set("keyOverrides", { ...over, [s.id!]: "" }), ctx.out(`${s.id}: off\n`), 0;
+    if (a === "set") {
+      const combo = normalizeCombo(rest.join(" "));
+      if (!combo) return ctx.err(`keys: "${rest.join(" ")}" — use a modifier (ctrl+shift+b) or an F key\n`), 1;
+      d.settings.set("keyOverrides", { ...over, [s.id!]: combo });
+      return ctx.out(`${s.id} → ${displayKeys(combo)}\n`), 0;
+    }
+    return ctx.err("usage: keys [list | set <id> <keys> | off <id> | reset <id>|all]\n"), 1;
+  },
+};
+
 export const shortcutCommands: Command[] = [
+  keysCmd,
   {
     name: "shortcuts",
     aliases: ["keys"],
