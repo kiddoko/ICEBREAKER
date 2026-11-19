@@ -61,6 +61,8 @@ export interface Settings {
     prompt: "icebreaker" | "mine";
     /** Buttons above the system terminal: a click types `cmd` + enter. {name} parts are asked for first. */
     macros: { label: string; cmd: string }[];
+    /** the macro row above the system terminal is shown (macro hide / show) */
+    macrosShown: boolean;
   };
   /** UI sounds (core/sound.ts). Volume 0–100. */
   /** muted: everything silent (ui sounds, voice, alerts) — the 🔇 button, `mute` */
@@ -157,6 +159,7 @@ export const DEFAULT_SETTINGS: Settings = {
   shell: {
     mode: "system",
     prompt: "icebreaker",
+    macrosShown: true,
     macros: [
       { label: "ls", cmd: "ls -la" },
       { label: "cd ..", cmd: "cd .." },

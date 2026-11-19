@@ -200,6 +200,10 @@ o opens it to read.
 
 ## Macros
 Buttons above your terminal that type a command: \`macro add deploy "git pull"\`.
+Right-click one → **shortcut…**: press the keys, see what they'd replace, OK.
+A shortcut can do several things in a row (+ another action). ▴ at the end of
+the row hides the macros, ⌗ macros on the panel brings them back
+(\`macro hide\` / \`macro show\`).
 `,
 
   "keys.md": `# Keys, mouse, gamepad

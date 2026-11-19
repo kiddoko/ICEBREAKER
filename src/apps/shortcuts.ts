@@ -10,6 +10,7 @@ import { q } from "../ui/ui";
 import type { Command } from "../shell/types";
 import type { UI } from "../ui/ui";
 import type { App, AppSpec } from "./types";
+import { KeyCapture } from "../workspace/keycapture";
 
 /**
  * SHORTCUTS (ctrl+/) — every shortcut by category, with a search field: just
@@ -58,7 +59,8 @@ class ShortcutsApp implements App {
   }
 
   private bind(): void {
-    this.capturing = true;
+    // the dialog: press the keys, see what they'd replace, say what they do
+    this.deck.workspace.push(new KeyCapture(this.deck, t("A new shortcut"), []));
   }
 
   onKey(k: KeyInput): boolean {
@@ -213,7 +215,7 @@ export const shortcutCommands: Command[] = [
   {
     name: "bind",
     summary: "your own shortcut: a key combo runs a shell command",
-    usage: 'bind                          list yours\nbind <keys> "<command>"       e.g. bind ctrl+shift+1 "open notes/ideas.md"',
+    usage: 'bind                          list yours\nbind <keys> "<command>"       e.g. bind ctrl+shift+1 "open notes/ideas.md"\nbind <keys> "<cmd 1>; <cmd 2>" several things, one after the other\nbind --pick ["<command>"]     a dialog: press the keys, see what they\'d replace',
     examples: [
       ['bind ctrl+shift+1 "open notes/ideas.md"', "a note one key away"],
       ['bind alt+t "launch todo"', "a module"],
@@ -223,6 +225,11 @@ export const shortcutCommands: Command[] = [
       const d = ctx.deck;
       const [keys, ...rest] = ctx.args;
       const mine = d.settings.data.keys ?? {};
+      // bind --pick ["command"]: the dialog that waits for the keys (and checks what they'd replace)
+      if (keys === "--pick") {
+        d.workspace.push(new KeyCapture(d, t("A new shortcut"), rest.length ? [rest.join(" ")] : []));
+        return 0;
+      }
       if (!keys) {
         const list = Object.entries(mine);
         if (!list.length) return ctx.out(fmt.dim('none yet — bind ctrl+shift+1 "open notes/ideas.md"\n')), 0;

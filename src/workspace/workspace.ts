@@ -1,4 +1,5 @@
 import { mix } from "../core/color";
+import { KeyCapture } from "./keycapture";
 import { drawScreensaver } from "../fx/screensaver";
 import { IbshApp, TerminalApp } from "../apps/terminal";
 import { t } from "../core/i18n";
@@ -127,6 +128,20 @@ export class Workspace {
     this.showShellTab("term");
     if (!this.terminal.alive) return this.deck.notify("the terminal isn't running", "error");
     this.terminal.write(`${cmd}\r`);
+  }
+
+  /** Right-click on a macro button. */
+  private macroMenu(i: number): MenuEntry[] {
+    const m = this.deck.settings.data.shell.macros[i];
+    if (!m) return [];
+    return [
+      { label: t("run"), run: () => void this.runMacro(m), hint: m.cmd },
+      { label: t("shortcut…"), run: () => this.push(new KeyCapture(this.deck, t("A key for the macro “{name}”", { name: m.label }), [`macro run ${q(m.label)}`])) },
+      { label: t("edit…"), run: () => void this.editMacro(i), hint: "shift+click" },
+      "-",
+      { label: t("hide the macros"), cmd: "macro hide" },
+      { label: t("remove"), cmd: `macro rm ${q(m.label)}`, danger: true },
+    ];
   }
 
   private async editMacro(i: number): Promise<void> {
@@ -832,6 +847,7 @@ export class Workspace {
       ];
       // the right side first, so the tabs know where to stop
       const buttons: [string, string, string][] = [
+        ...(this.shellTab === "term" && this.termAvailable && d.settings.data.shell.macrosShown === false ? [[`⌗ ${t("macros")}`, "macro show", "show the macro buttons · macro show"] as [string, string, string]] : []),
         [`≡ ${t("scripts")}`, "script menu", "your scripts (.icebreaker/scripts) · script new <name>"],
         [`▾ ${t("hide")}`, "term hide", "fold the shell away · ctrl+` brings it back"],
         [`⤢ ${t("maximize")}`, "term max", "this shell becomes a big tab (term dock puts it back)"],
@@ -885,22 +901,32 @@ export class Workspace {
       }
       // macro bar above the system terminal (one free row under the tabs)
       let termR = si;
-      if (this.shellTab === "term" && this.termAvailable && si.h > 6) {
+      const macrosShown = d.settings.data.shell.macrosShown !== false;
+      if (this.shellTab === "term" && this.termAvailable && si.h > 6 && macrosShown) {
         const my = si.y + 1;
         termR = { ...si, y: si.y + 3, h: si.h - 3 };
         let bx = si.x;
-        this.deck.settings.data.shell.macros.forEach((m, i) => {
+        d.settings.data.shell.macros.forEach((m, i) => {
           const label = ` ${m.label} `;
           const rect = { x: bx, y: my, w: strWidth(label), h: 1 };
-          if (bx + rect.w > si.x + si.w - 4) return;
+          if (bx + rect.w > si.x + si.w - 8) return;
           const hot = ui.hovered(rect);
+          const bound = Object.entries(d.settings.data.keys ?? {}).find(([, cmd]) => cmd.split(/\s*;\s*/).includes(`macro run ${q(m.label)}`))?.[0];
           ui.text(bx, my, label, hot ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: c.fg, bg: c.highlight });
-          ui.hit(rect, { onClick: (mi) => void (mi.shift ? this.editMacro(i) : this.runMacro(m)), tip: `${m.cmd}\nshift+click: edit · macro rm ${m.label}` });
+          ui.hit(rect, {
+            onClick: (mi) => void (mi.shift ? this.editMacro(i) : this.runMacro(m)),
+            tip: `${m.cmd}${bound ? `\n⌨ ${bound}` : ""}\n${t("right-click: shortcut, edit, remove")}`,
+            menu: () => this.macroMenu(i),
+          });
           bx += rect.w + 1;
         });
         const plus = { x: bx, y: my, w: 3, h: 1 };
         ui.text(bx, my, " + ", { fg: ui.hovered(plus) ? c.accent : c.subtle, bg: c.highlight, attrs: BOLD });
         ui.hit(plus, { onClick: () => void this.editMacro(-1), tip: "new macro · or: macro add <label> <command>" });
+        // ▴ fold the row away (the ⌗ macros button on the panel's top brings it back)
+        const fold = { x: si.x + si.w - 3, y: my, w: 3, h: 1 };
+        ui.text(fold.x, my, " ▴ ", { fg: ui.hovered(fold) ? c.accent : c.subtle });
+        ui.hit(fold, { cmd: "macro hide", tip: t("hide the macros · macro show brings them back") });
       }
       ui.hit(si, { menu: () => this.shellMenu() });
       ui.clip(si, () => {

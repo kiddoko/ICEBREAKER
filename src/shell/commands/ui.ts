@@ -275,17 +275,27 @@ const termCmd: Command = {
 const macro: Command = {
   name: "macro",
   summary: "the buttons above your terminal: list, add, remove",
-  usage: "macro                      list\nmacro add <label> <command>   {name} in the command is asked for on click\nmacro rm <label>\nmacro reset                the default buttons",
+  usage: "macro                      list\nmacro add <label> <command>   {name} in the command is asked for on click\nmacro rm <label>\nmacro run <label>           press it (bind a key to this: right-click a macro → shortcut)\nmacro show | hide | toggle the row of buttons\nmacro reset                the default buttons",
   examples: [
     ['macro add deploy "git pull && npm run build"', "a deploy button"],
     ['macro add ssh-box "ssh {user}@my-server"', "asks who you are, then connects"],
     ["macro rm clear", ""],
   ],
-  complete: () => ["add", "rm", "reset"],
+  complete: () => ["add", "rm", "run", "show", "hide", "toggle", "reset"],
   run(ctx) {
     const s = ctx.deck.settings;
     const list = [...s.data.shell.macros];
     const [a, label, ...rest] = ctx.args;
+    if (a === "show" || a === "hide" || a === "toggle") {
+      s.set("shell.macrosShown", a === "toggle" ? s.data.shell.macrosShown === false : a === "show");
+      return 0;
+    }
+    if (a === "run") {
+      const m = list.find((x) => x.label === label);
+      if (!m) return ctx.err(`macro: no "${label ?? ""}" (macro lists them)\n`), 1;
+      void ctx.deck.workspace.runMacro(m);
+      return 0;
+    }
     if (!a) {
       for (const m of list) ctx.out(`${fmt.bold(m.label.padEnd(12))} ${fmt.dim(m.cmd)}\n`);
       return 0;
