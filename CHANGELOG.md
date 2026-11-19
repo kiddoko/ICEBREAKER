@@ -61,6 +61,12 @@
   Calendar month: events on tinted strips, two lines when there's room. UPLINK widget:
   an eye that follows the pointer. One-row widgets (shortcut squares) are drawn as flat
   chips instead of vanishing. Login: your icon shows while the account field holds your name.
+- Graphics settings: vertical sync on/off (off: an fps slider 0-240, 0 = no animations),
+  brightness 50-150 %, reduce animations (slower machines). Animations follow the
+  screen's refresh rate (smoother at 120 Hz); backgrounds up to 20 fps; slider handles
+  move by eighths of a cell. Smaller tabs before they gather in ▾ +N.
+- Shortcut squares are square tiles with their kind on a coloured band; a folder
+  square opens a little browser under it (back / forward, new note / folder, trash, NEXUS).
 - For developers: docs/ARCHITECTURE.md is a full map of the code now; small cleanups
   (one `ago()`, one `ring()`, the side panel in its own file).
 

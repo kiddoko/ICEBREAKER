@@ -82,7 +82,14 @@ Deck.frame(now)
   blocks, braille and powerline separators are drawn as rectangles
   (`core/glyphs.ts`) so borders and graphs are seamless at any size.
 - **FrameLoop** (`core/loop.ts`) — renders on demand. Idle = 0 frames.
-  Animations ask for the next frame with `ui.animate(ms)`.
+  Animations ask for the next frame with `ui.animate(ms)`; anything ≤ 17 ms means
+  "the next frame", so animations run at the screen's rate (vsync) or the user's
+  cap (vsync off: timers pace frames, 0–240 fps; 0 = no animation frames at all).
+  *Reduce animations* caps them at 30 fps and drops transitions and the animated
+  background. Settings → APPEARANCE: `vsync`, `maxFps`, `brightness`, `reduceMotion`.
+- **Smoothness tricks** — the grid can't draw between cells, so motion is smooth
+  through frame rate and easing (rings, transitions follow `dt`), and through
+  partial blocks where it counts (a slider's handle moves by eighths of a cell).
 - **Post-effects** — bloom, scanlines, vignette, flicker, RGB split, glow are CSS
   layers / small canvases over the main canvas (`style.css`, `core/renderer.ts`),
   driven by the theme's `[fx]` and one number per effect (`core/fxlevels.ts`).

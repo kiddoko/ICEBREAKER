@@ -108,10 +108,11 @@ Modules talk to each other (\`modules api\` lists what they share).
 
 ## HOME
 Widgets on a 12-column grid, several pages (\`[\` \`]\`).
-**Shortcut squares** (1×1, always): e then a → *Shortcut 1×1*, or right-click a
-note / folder → *square on HOME*, or \`home link new\`. One opens anything — a
-module, a note, a folder, a page, a macro, any command — in one click, with the
-icon of what it opens.
+**Shortcut squares**: e then a → *Shortcut*, or right-click a note / folder →
+*square on HOME*, or \`home link new\`. A square opens anything in one click — a
+module, a note, a folder, a page, a macro, any command — and says which on its
+coloured band. A **folder** square opens a little browser under it: enter goes
+in, ← back, → forward, n a note, d a folder, del to the trash.
 
 | Key | On HOME |
 |---|---|
@@ -175,6 +176,9 @@ were on come back as you left them next time.
   pixel-art face or a glyph, in the colour you like. It's on the login screen
   and in \`whoami\`; the chat will use it.
 - **Sounds**: Settings → SOUND → sound pack — each theme keeps its own.
+- **Smoothness** (Settings → APPEARANCE): vertical sync (follows your screen,
+  120 Hz included) or your own frames per second (0-240; 0 = no animations),
+  brightness, and *reduce animations* for slower machines.
 `,
 
   "shell.md": `# The shell
