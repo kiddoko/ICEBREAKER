@@ -77,6 +77,8 @@ let notes: string[] | null = null;
 let notesError = "";
 let settings: Record<string, unknown> = {};
 let audio = false;
+/** what the module asked to hear when the user silences it */
+const audioStops = new Set<() => void>();
 let mod: { activate?: (ib: unknown) => unknown; deactivate?: () => unknown } | null = null;
 
 // ── what the module registers ──────────────────────────────────────────────
@@ -205,7 +207,7 @@ function makeIb(manifest: unknown, version: string): unknown {
     // functions can't cross into the deck: a sandboxed module's changes aren't ⌘Z steps (yet)
     history: { record: () => {} },
     // its sound is played by the deck (core/mixer.ts): this Worker has none of its own
-    audio: { available: () => audio, now: rpc("audio", "now"), sample: rpc("audio", "sample"), drop: rpc("audio", "drop"), schedule: rpc("audio", "schedule"), stop: rpc("audio", "stop"), decode: rpc("audio", "decode") },
+    audio: { available: () => audio, onStop: (fn: () => void) => (audioStops.add(fn), () => void audioStops.delete(fn)), now: rpc("audio", "now"), sample: rpc("audio", "sample"), drop: rpc("audio", "drop"), schedule: rpc("audio", "schedule"), stop: rpc("audio", "stop"), decode: rpc("audio", "decode") },
     lib,
   });
 }
@@ -433,6 +435,7 @@ scope.onmessage = async (ev: MessageEvent<ToModule>) => {
       case "readReply": runs.get(m.sid)?.reads.get(m.rid)?.(m.value); return;
       case "abort": runs.get(m.sid)?.abort.abort(); return;
       case "stop": await mod?.deactivate?.(); return;
+      case "audioStop": for (const fn of audioStops) await fn(); return post({ t: "redraw" });
     }
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);

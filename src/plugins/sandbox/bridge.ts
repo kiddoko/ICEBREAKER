@@ -104,6 +104,14 @@ class Sandbox {
 
   start(code: string): Promise<void> {
     const notes = this.notes();
+    // you silence it (`audio stop`, the ♪ in the status bar): it hears it, so its song stops too
+    if ((this.manifest.permissions ?? []).includes("audio")) {
+      try {
+        this.ib.audio.onStop(() => this.send({ t: "audioStop" }));
+      } catch {
+        /* not granted: it has no sound to stop */
+      }
+    }
     this.sentTheme = this.deck.theme;
     this.send({ t: "load", code, manifest: JSON.parse(JSON.stringify(this.manifest)), version: this.ib.version, audio: this.ib.audio.available(), theme: JSON.parse(JSON.stringify(this.deck.theme)), notes: notes.notes, notesError: notes.error, settings: { ...((this.deck.settings.data.moduleSettings ?? {})[this.manifest.id] ?? {}) } });
     return new Promise((ok, no) => {

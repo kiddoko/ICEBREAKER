@@ -98,4 +98,6 @@ export type ToModule =
   | { t: "run"; sid: number; name: string; args: string[]; stdin: string; isTTY: boolean; cwd: string }
   | { t: "readReply"; sid: number; rid: number; value: string | null }
   | { t: "abort"; sid: number }
-  | { t: "stop" };
+  | { t: "stop" }
+  /** the user silenced the module (ib.audio.onStop) */
+  | { t: "audioStop" };

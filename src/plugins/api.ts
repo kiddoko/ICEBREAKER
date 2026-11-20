@@ -136,6 +136,8 @@ export interface IcebreakerAPI {
     schedule(events: AudioEvent[]): Promise<void>;
     /** silence all your voices now and forget what was scheduled */
     stop(): Promise<void>;
+    /** called when the user silences you (`audio stop`, the ♪ in the status bar): stop your song too. Returns how to stop listening. */
+    onStop(fn: () => void): () => void;
     /** decode an audio file (wav, aiff, mp3, m4a, ogg… what the system reads) into floats, one array per channel */
     decode(bytes: Uint8Array | ArrayBuffer): Promise<{ rate: number; channels: Float32Array[] }>;
   };

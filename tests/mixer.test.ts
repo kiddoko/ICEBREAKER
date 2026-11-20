@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MixerDsp, toFloats } from "../src/core/mixer-dsp";
+import { Mixer } from "../src/core/mixer";
 
 /** one block (mono: left and right are the same array) */
 function block(dsp: MixerDsp, n: number, start = 0): Float32Array {
@@ -86,6 +87,25 @@ describe("the modules' sampler (core/mixer-dsp.ts)", () => {
     expect(dsp.voices[0].step).toBe(1); // Infinity isn't a speed: unchanged
     dsp.setSample(0, { data: new Float32Array(10), loopStart: 0, loopEnd: 0 });
     expect(dsp.active()).toEqual([]);
+  });
+
+  it("the user silencing a module tells it (onStop); the module stopping itself doesn't; switched off, it's forgotten", () => {
+    const m = new Mixer();
+    let told = 0;
+    const off = m.onStop("drums", () => told++);
+    m.stop("drums");
+    expect(told).toBe(0);
+    m.stop("drums", true);
+    expect(told).toBe(1);
+    m.stop("other", true);
+    expect(told).toBe(1);
+    off();
+    m.stop("drums", true);
+    expect(told).toBe(1);
+    m.onStop("drums", () => told++);
+    m.release("drums");
+    m.stop("drums", true);
+    expect(told).toBe(1);
   });
 
   it("8- and 16-bit samples become floats", () => {

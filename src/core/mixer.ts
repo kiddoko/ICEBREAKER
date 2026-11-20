@@ -74,6 +74,8 @@ export class Mixer {
   private nextVoice = 0;
   private freeVoices: number[] = [];
   private sounding = new Set<number>();
+  /** what each module asked to hear when you silence it (`audio stop`, the ♪ in the status bar) */
+  private stopListeners = new Map<string, Set<() => void>>();
   private gain = 0.5;
   /** the deck redraws the status bar when who's playing changes */
   onActive?: () => void;
@@ -167,20 +169,34 @@ export class Mixer {
     this.node?.port.postMessage({ t: "events", list });
   }
 
-  /** Silence the module's voices now, and forget what it had scheduled. */
-  stop(owner: string): void {
+  /**
+   * Silence the module's voices now, and forget what it had scheduled. `byUser`: you did it
+   * (`audio stop`, the ♪ in the status bar): the module is told (onStop), so its song stops too
+   * instead of starting the next notes again.
+   */
+  stop(owner: string, byUser = false): void {
     const o = this.owners.get(owner);
     if (o?.voices.size) this.node?.port.postMessage({ t: "stop", voices: [...o.voices.values()] });
+    if (byUser) for (const fn of this.stopListeners.get(owner) ?? []) try { fn(); } catch { /* the module's own problem */ }
+  }
+
+  /** Be told when the user silences this module. Returns how to stop listening. */
+  onStop(owner: string, fn: () => void): () => void {
+    let set = this.stopListeners.get(owner);
+    if (!set) this.stopListeners.set(owner, (set = new Set()));
+    set.add(fn);
+    return () => set!.delete(fn);
   }
 
   /** The module is switched off (or crashed): silence, and everything it had goes. */
   release(owner: string): void {
     const o = this.owners.get(owner);
-    if (!o) return;
+    if (!o) return void this.stopListeners.delete(owner);
     this.stop(owner);
     void this.drop(owner);
     for (const v of o.voices.values()) this.freeVoices.push(v);
     this.owners.delete(owner);
+    this.stopListeners.delete(owner);
     this.onActive?.();
   }
 

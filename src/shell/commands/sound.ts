@@ -58,7 +58,7 @@ export const audioCommand: Command = {
     const [sub, id] = ctx.args;
     if (sub === "stop") {
       const ids = id ? [id] : m.playing();
-      for (const x of ids) m.stop(x);
+      for (const x of ids) m.stop(x, true);
       ctx.out(ids.length ? `♪ ${ids.join(", ")}: silenced\n` : fmt.dim("no module is playing\n"));
       return 0;
     }

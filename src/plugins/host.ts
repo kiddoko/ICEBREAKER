@@ -528,6 +528,7 @@ export class PluginHost {
         drop: async (id) => (need("audio"), deck.mixer.drop(m.id, id)),
         schedule: async (events) => (need("audio"), deck.mixer.schedule(m.id, events)),
         stop: async () => (need("audio"), deck.mixer.stop(m.id)),
+        onStop: (fn) => (need("audio"), deck.mixer.onStop(m.id, fn)),
         decode: async (bytes) => (need("audio"), deck.mixer.decode(bytes)),
       },
       ai: {
