@@ -6,6 +6,7 @@ import type { IcebreakerAPI } from "../../../src/plugins/api";
 import type { ShellContext } from "../../../src/shell/types";
 import type { Engine } from "./engine";
 import { readSong, SONG_EXTS } from "./format";
+import { demoMod } from "./demo";
 import { songLength } from "./replayer";
 import { hex, noteName, type Song } from "./song";
 import type { State } from "./app";
@@ -48,8 +49,8 @@ export function registerCommands(ib: IcebreakerAPI, engine: Engine, st: State): 
     return out;
   };
 
-  const open = async (ctx: ShellContext, path: string) => {
-    const bytes = await ib.vault.readBytes(path);
+  const open = async (ctx: ShellContext, path: string, given?: Uint8Array) => {
+    const bytes = given ?? (await ib.vault.readBytes(path));
     const song = readSong(bytes, path);
     st.song = song;
     st.path = path;
@@ -59,7 +60,7 @@ export function registerCommands(ib: IcebreakerAPI, engine: Engine, st: State): 
     await engine.load(song);
     const len = songLength(song);
     ctx.out(`${fmt.green("♫")} ${song.title || path} · ${song.format} · ${song.tracks} tracks · ${song.blocks.length} blocks · ${song.sequence.length} positions · ${song.instruments.filter((i) => i.kind !== "empty").length} instruments · ${Math.floor(len.seconds / 60)}:${String(Math.floor(len.seconds % 60)).padStart(2, "0")}\n`);
-    await ib.storage.set("last", path);
+    if (!given) await ib.storage.set("last", path);
   };
 
   const need = (): Song => {
@@ -74,6 +75,7 @@ export function registerCommands(ib: IcebreakerAPI, engine: Engine, st: State): 
       "med                        what's loaded, where it is",
       "med open [file]            a .med / .mod of the vault (no file: choose one)",
       "med ls                     the songs in the vault",
+      "med demo                   a little song of ours, to try it right away",
       "med play [song|block] [position] [line]",
       "med stop",
       "med pos <position> [line]  move the cursor (and where play starts)",
@@ -83,7 +85,7 @@ export function registerCommands(ib: IcebreakerAPI, engine: Engine, st: State): 
       "med info                   the song's settings",
     ].join("\n"),
     examples: [["med open songs/axel.mod", "load a song"], ["med play", "play from the cursor"], ["med play block", "play this block again and again"], "med mute 2", "med effects"],
-    complete: () => ["open", "ls", "play", "stop", "pos", "mute", "solo", "paula", "effects", "info", "song", "block", "on", "off"],
+    complete: () => ["open", "ls", "demo", "play", "stop", "pos", "mute", "solo", "paula", "effects", "info", "song", "block", "on", "off"],
     async run(ctx: ShellContext) {
       const { rest: positional } = parseFlags(ctx.args);
       const [sub = "", ...rest] = positional;
@@ -113,6 +115,10 @@ export function registerCommands(ib: IcebreakerAPI, engine: Engine, st: State): 
             void ib.apps.open("breakermed");
             return 0;
           }
+          case "demo":
+            await open(ctx, "demo.mod", demoMod());
+            void ib.apps.open("breakermed");
+            return 0;
           case "play": {
             const s = need();
             const mode = rest[0] === "block" ? "block" : "song";

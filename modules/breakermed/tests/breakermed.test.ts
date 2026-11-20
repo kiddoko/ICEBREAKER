@@ -6,6 +6,7 @@ import { Player, songLength } from "../src/replayer";
 import { Engine, type AudioPort } from "../src/engine";
 import { NOTE_OFF, PAULA_CLOCK, noteName, ptBpmOf, tickSeconds } from "../src/song";
 import { pianoKey } from "../src/keys";
+import { demoMod } from "../src/demo";
 
 // ── little files made by hand ──────────────────────────────────────────────
 
@@ -260,6 +261,16 @@ describe("breakerMED: the engine", () => {
     expect((play[1].at as number) - (play[0].at as number)).toBeCloseTo(0.12, 5);
     expect(play[0].interp).toBe("none");
     clock = 11;
+  });
+});
+
+describe("breakerMED: the demo song", () => {
+  it("is a real .mod, read by the same reader, ~25 s long", () => {
+    const s = readSong(demoMod());
+    expect(s.format).toBe("MOD M.K.");
+    expect(s.instruments.map((i) => i.name)).toEqual(["square", "saw bass", "kick", "hat"]);
+    expect(s.blocks.length).toBe(3);
+    expect(songLength(s).seconds).toBeGreaterThan(20);
   });
 });
 

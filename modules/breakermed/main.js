@@ -556,6 +556,62 @@ function undelta8(raw) {
 	for (let i = 0; i < raw.length; i++) out[i] = acc = acc + raw[i] & 255;
 	return out;
 }
+var Writer = class {
+	constructor() {
+		_defineProperty(this, "buf", /* @__PURE__ */ new Uint8Array(1024));
+		_defineProperty(this, "pos", 0);
+	}
+	room(n) {
+		if (this.pos + n <= this.buf.length) return;
+		let size = this.buf.length * 2;
+		while (size < this.pos + n) size *= 2;
+		const next = new Uint8Array(size);
+		next.set(this.buf.subarray(0, this.pos));
+		this.buf = next;
+	}
+	u8(v) {
+		this.room(1);
+		this.buf[this.pos++] = v & 255;
+		return this;
+	}
+	u16(v) {
+		return this.u8(v >> 8).u8(v);
+	}
+	u32(v) {
+		return this.u16(v >>> 16 & 65535).u16(v & 65535);
+	}
+	bytes(b) {
+		this.room(b.length);
+		this.buf.set(b, this.pos);
+		this.pos += b.length;
+		return this;
+	}
+	/** a fixed-size text field, padded with zeros */
+	text(s, n) {
+		for (let i = 0; i < n; i++) this.u8(i < s.length ? Math.min(255, s.charCodeAt(i)) : 0);
+		return this;
+	}
+	zeros(n) {
+		this.room(n);
+		this.buf.fill(0, this.pos, this.pos + n);
+		this.pos += n;
+		return this;
+	}
+	/** go back and write a 32-bit value (a pointer known later) */
+	patch32(at, v) {
+		const here = this.pos;
+		this.pos = at;
+		this.u32(v);
+		this.pos = here;
+	}
+	align(n = 2) {
+		while (this.pos % n) this.u8(0);
+		return this;
+	}
+	done() {
+		return this.buf.slice(0, this.pos);
+	}
+};
 // modules/breakermed/src/format/med.ts
 /**
 * OctaMED .med files (MMD0, MMD1, MMD2, MMD3): reading. Writing comes with
@@ -1095,6 +1151,147 @@ function readSong(bytes, name = "") {
 	if (isMed(bytes)) return readMed(bytes);
 	if (isMod(bytes) || /\.mod$|(^|\/)mod\./i.test(name)) return readMod(bytes);
 	throw new Error("not a .med (MMD0–MMD3) or .mod file");
+}
+// modules/breakermed/src/demo.ts
+/**
+* breakerMED — a little song of our own (our samples, our notes: free to use),
+* made as a .mod file in memory so `med demo` plays something right away and
+* goes through the same reader as a real file.
+*/
+var PERIODS = [
+	856,
+	808,
+	762,
+	720,
+	678,
+	640,
+	604,
+	570,
+	538,
+	508,
+	480,
+	453,
+	428,
+	404,
+	381,
+	360,
+	339,
+	320,
+	302,
+	285,
+	269,
+	254,
+	240,
+	226,
+	214,
+	202,
+	190,
+	180,
+	170,
+	160,
+	151,
+	143,
+	135,
+	127,
+	120,
+	113
+];
+function demoMod() {
+	const sq = Array.from({ length: 64 }, (_, i) => i < 32 ? 90 : -90);
+	const saw = Array.from({ length: 64 }, (_, i) => Math.round(i * 3.5 - 112));
+	const kick = Array.from({ length: 3e3 }, (_, i) => Math.round(120 * Math.exp(-i / 700) * Math.sin(2 * Math.PI * i * (60 + 200 * Math.exp(-i / 150)) / 8287)));
+	let seed = 1;
+	const rnd = () => (seed = seed * 1103515245 + 12345 & 2147483647) / 2147483647 * 2 - 1;
+	const hat = Array.from({ length: 900 }, (_, i) => Math.round(90 * Math.exp(-i / 120) * rnd()));
+	const samples = [
+		[
+			"square",
+			sq,
+			true,
+			40
+		],
+		[
+			"saw bass",
+			saw,
+			true,
+			52
+		],
+		[
+			"kick",
+			kick,
+			false,
+			64
+		],
+		[
+			"hat",
+			hat,
+			false,
+			34
+		]
+	];
+	const w = new Writer();
+	w.text("breakerMED demo", 20);
+	for (let i = 0; i < 31; i++) {
+		const s = samples[i];
+		w.text(s ? s[0] : "", 22);
+		if (!s) w.u16(0).u8(0).u8(0).u16(0).u16(1);
+		else w.u16(s[1].length / 2).u8(0).u8(s[3]).u16(0).u16(s[2] ? s[1].length / 2 : 1);
+	}
+	const order = [
+		0,
+		1,
+		0,
+		2
+	];
+	w.u8(order.length).u8(127);
+	for (let i = 0; i < 128; i++) w.u8(order[i] ?? 0);
+	w.text("M.K.", 4);
+	const melody = [
+		24,
+		27,
+		31,
+		34,
+		31,
+		27,
+		24,
+		22,
+		24,
+		27,
+		31,
+		29,
+		27,
+		26,
+		24,
+		19
+	];
+	const bass = [
+		12,
+		12,
+		15,
+		15,
+		17,
+		17,
+		10,
+		10
+	];
+	for (const variant of [
+		0,
+		1,
+		2
+	]) for (let line = 0; line < 64; line++) for (let t = 0; t < 4; t++) {
+		let note = -1, inst = 0, e = 0, p = 0;
+		if (t === 0 && line % 4 === 0) note = melody[(line / 4 + variant * 3) % 16] - (variant === 2 ? 12 : 0), inst = 1, e = 10, p = 1;
+		if (t === 0 && line % 4 === 2 && variant === 1) note = melody[(line / 4 + 5) % 16], inst = 1, e = 4, p = 70;
+		if (t === 1 && line % 8 === 0) note = bass[line / 8 % 8], inst = 2;
+		if (t === 2 && line % 8 === 0) note = 12, inst = 3;
+		if (t === 2 && line % 16 === 12 && variant) note = 12, inst = 3, e = 12, p = 40;
+		if (t === 3 && line % 2 === 1) note = 24, inst = 4, e = 12, p = line % 4 === 3 ? 48 : 24;
+		if (t === 3 && line === 0 && variant === 0) e = 15, p = 5;
+		const per = note >= 0 ? PERIODS[Math.max(0, Math.min(35, note))] : 0;
+		w.u8(inst & 240 | per >> 8).u8(per & 255).u8((inst & 15) << 4 | e).u8(p);
+	}
+	for (const s of samples) for (const v of s[1]) w.u8(v);
+	return w.done();
 }
 // modules/breakermed/src/replayer.ts
 /**
@@ -1662,8 +1859,8 @@ function registerCommands(ib, engine, st) {
 		} else if (SONG_EXTS.some((x) => e.name.toLowerCase().endsWith(x) || e.name.toLowerCase().startsWith(x.slice(1) + "."))) out.push(e.path);
 		return out;
 	};
-	const open = async (ctx, path) => {
-		const song = readSong(await ib.vault.readBytes(path), path);
+	const open = async (ctx, path, given) => {
+		const song = readSong(given ?? await ib.vault.readBytes(path), path);
 		st.song = song;
 		st.path = path;
 		st.seq = st.line = st.track = 0;
@@ -1672,7 +1869,7 @@ function registerCommands(ib, engine, st) {
 		await engine.load(song);
 		const len = songLength(song);
 		ctx.out(`${fmt.green("♫")} ${song.title || path} · ${song.format} · ${song.tracks} tracks · ${song.blocks.length} blocks · ${song.sequence.length} positions · ${song.instruments.filter((i) => i.kind !== "empty").length} instruments · ${Math.floor(len.seconds / 60)}:${String(Math.floor(len.seconds % 60)).padStart(2, "0")}\n`);
-		await ib.storage.set("last", path);
+		if (!given) await ib.storage.set("last", path);
 	};
 	const need = () => {
 		if (!st.song) throw new Error("no song loaded (med open <file>)");
@@ -1685,6 +1882,7 @@ function registerCommands(ib, engine, st) {
 			"med                        what's loaded, where it is",
 			"med open [file]            a .med / .mod of the vault (no file: choose one)",
 			"med ls                     the songs in the vault",
+			"med demo                   a little song of ours, to try it right away",
 			"med play [song|block] [position] [line]",
 			"med stop",
 			"med pos <position> [line]  move the cursor (and where play starts)",
@@ -1703,6 +1901,7 @@ function registerCommands(ib, engine, st) {
 		complete: () => [
 			"open",
 			"ls",
+			"demo",
 			"play",
 			"stop",
 			"pos",
@@ -1745,6 +1944,10 @@ function registerCommands(ib, engine, st) {
 						ib.apps.open("breakermed");
 						return 0;
 					}
+					case "demo":
+						await open(ctx, "demo.mod", demoMod());
+						ib.apps.open("breakermed");
+						return 0;
 					case "play": {
 						const s = need();
 						const mode = rest[0] === "block" ? "block" : "song";
@@ -2030,6 +2233,7 @@ var Engine = class {
 // modules/breakermed/src/main.ts
 var engine = null;
 function activate(ib) {
+	if (!ib.audio || typeof ib.audio.schedule !== "function") throw new Error("breakerMED needs a newer ICEBREAKER (one with ib.audio, the modules' sound): update the deck");
 	ib.lib.addTranslations("fr", FR);
 	engine = new Engine(ib.audio);
 	const st = {

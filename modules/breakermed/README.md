@@ -13,7 +13,7 @@ keyboard, the mouse and a gamepad.
 
 - **`audio`**: it plays its sound through the deck's sampler (`ib.audio`).
 - **`vault:read`**: it reads your songs from the vault (`.med`, `.mod`, `mod.xxx`).
-- Nothing online, no account, no AI. ICEBREAKER 0.6.0 or later (`ib.audio`).
+- Nothing online, no account, no AI. An ICEBREAKER with `ib.audio` (the release after 0.5.0): on an older one it says so and stays off.
 
 ## The page
 
@@ -32,6 +32,7 @@ gamepad    the cross moves, A plays / stops
 med                         what's loaded, where it is
 med open [file]             a song of the vault (no file: choose one)
 med ls                      the songs in the vault
+med demo                    a little song of ours, to try it right away
 med play [song|block] [position] [line]
 med stop
 med pos <position> [line]

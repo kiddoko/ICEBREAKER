@@ -22,6 +22,8 @@ import { Engine } from "./engine";
 let engine: Engine | null = null;
 
 export function activate(ib: IcebreakerAPI): void {
+  // the deck's sampler came after 0.5.0: say so plainly on an older deck
+  if (!ib.audio || typeof ib.audio.schedule !== "function") throw new Error("breakerMED needs a newer ICEBREAKER (one with ib.audio, the modules' sound): update the deck");
   ib.lib.addTranslations("fr", FR);
   engine = new Engine(ib.audio);
   const st: State = { song: null, path: "", seq: 0, line: 0, track: 0, inst: 0, octave: 2, error: "" };
