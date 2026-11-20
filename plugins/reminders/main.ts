@@ -175,8 +175,13 @@ export function activate(ib: IcebreakerAPI): void {
     complete: () => ["ls", "done", "rm", "edit", "test", "open"],
     async run(ctx) {
       await ready;
-      const [sub, ...rest] = ctx.args;
-      if (!sub || sub === "ls" || sub === "list") {
+      const [first, ...rest] = ctx.args;
+      // a word is a sub-command only when the rest fits it: `remind "test" 19:00` is a
+      // reminder called "test" (the shell drops the quotes), `remind test` the sub-command
+      const bare = ["ls", "list", "open", "test"].includes(first) && rest.length === 0;
+      const byNumber = ["done", "rm", "remove", "edit"].includes(first) && (rest.length === 0 || /^\d+$/.test(rest[0]));
+      const sub = !first || bare || byNumber ? first : undefined;
+      if (!first || sub === "ls" || sub === "list") {
         const up = upcoming();
         if (!up.length) return ctx.out(fmt.dim("no reminders\n")), 0;
         for (const r of up) ctx.out(`${fmt.dim(String(r.id).padStart(3))}  ${fmt.bold(r.title)} ${fmt.dim(`· ${when(r)} · ${left(r)}${r.before ? ` · ${r.before} min before` : ""}`)}\n`);

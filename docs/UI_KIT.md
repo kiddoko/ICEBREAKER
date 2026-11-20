@@ -45,7 +45,7 @@ it: "you're typing here" for fields you enter with a key (`a` in TODO).
 
 **Searching a list is always `FilterBar`**, never a `Field` of its own (a test checks it):
 the same look, the same keys everywhere. **Space** on a box or a ‹ choice › ticks it / goes
-to the next value, on a slider it goes to 0 and back (mute / unmute) — on the row under
+to the next value, on a slider it goes to 0 and back (mute / unmute; a range with no 0: its default and back) — on the row under
 the mouse, else the one selected (once ↑↓ moved the selection, a mouse that stays still
 doesn't count). Space never types into an empty search and never scrolls the page.
 

@@ -195,7 +195,7 @@ were on come back as you left them next time.
   setting to see what it does and the shell command that does the same.
   **Space** acts on the line you're on (the one under the mouse, else the one chosen
   with ↑↓): it ticks a box, turns a ‹ choice ›, and puts a slider to 0 and back to
-  where it was (mute / unmute). Sliders always go **1 at a time** — drag the handle,
+  where it was (mute / unmute; with no 0, like brightness: its default and back). Sliders always go **1 at a time** — drag the handle,
   hold on the bar, the wheel or ←→; held, they go faster, still 1 by 1. A **greyed** line depends on another setting
   (the voice's lines while the voice is off, Vault key on a plain vault…).
 - **Settings → KEYS**: every shortcut on one page — click its keys to change them,

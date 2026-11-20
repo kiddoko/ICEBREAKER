@@ -114,7 +114,7 @@ export class SettingsApp implements App {
   onText(ch: string): boolean {
     // space, when nothing is being searched, acts on the row you're on (the one under the
     // mouse, else the one selected) and never types: a box ticks, a ‹ choice › goes to the
-    // next value, a slider goes to 0 and back to where it was (mute / unmute)
+    // next value, a slider goes to its rest and back (0 = mute / unmute; no 0: its default)
     if (ch === " " && !this.query) {
       const row = this.spaceRow();
       const kind = row ? kindOf(row) : undefined;
@@ -134,19 +134,24 @@ export class SettingsApp implements App {
   private spaceRow(): Row | undefined {
     return this.hoverRow ?? (this.pane === "rows" ? this.shown()[this.sel]?.row : undefined);
   }
-  /** each slider's last value that wasn't 0 (space: 0 ⇄ that value) */
+  /** each slider's last value away from its rest (space: rest ⇄ that value) */
   private readonly lastOn = new Map<string, number>();
+  /** space on a slider: to its rest and back — 0 when its range has one (mute / unmute),
+   *  else its default (brightness, zoom, text size: back to normal, then to your value) */
   private flipSlider(row: Row): void {
     const sl = row.slider!;
-    if (sl.min > 0 || sl.max <= 0) return; // no 0 in its range (zoom, font size…)
     const id = row.key ?? row.label;
+    const def = row.key ? Number(defaultOf(this.deck, row.key)) : NaN;
+    const hasZero = sl.min <= 0 && sl.max >= 0;
+    const rest = hasZero ? 0 : Number.isFinite(def) ? def : NaN;
+    if (!Number.isFinite(rest)) return;
     const v = sl.get();
-    if (v !== 0) {
+    if (v !== rest) {
       this.lastOn.set(id, v);
-      return sl.set(0);
+      return sl.set(rest);
     }
-    const def = row.key ? Number(defaultOf(this.deck, row.key)) : 0;
-    sl.set(Math.min(sl.max, this.lastOn.get(id) ?? (def > 0 ? def : 100)));
+    const back = this.lastOn.get(id) ?? (hasZero ? (def > 0 ? def : 100) : undefined);
+    if (back !== undefined) sl.set(Math.min(sl.max, Math.max(sl.min, back)));
   }
 
   /** on a shortcut row: 0 = its keys, 1 = its key on THE MENU */
