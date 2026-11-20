@@ -92,8 +92,26 @@ export function releaseHeld(): void {
  */
 let live: { x: number; y: number; v: number; sentAt: number; sent: number; hold?: { target: number; clock: HoldClock; startX: number }; grab?: number } | null = null;
 const APPLY_MS = 40;
-/** the wheel's last value on a slider, and the value drawn when it was sent (not redrawn yet: go on from it) */
-let wheel: { x: number; y: number; drawn: number; v: number } | null = null;
+/**
+ * The wheel on a slider: its last value and the value drawn when it was sent (not redrawn
+ * yet: go on from it), and the pixels gathered toward the next step.
+ */
+let wheel: { x: number; y: number; drawn: number; v: number; acc: number; at: number; sgn: number } | null = null;
+/** the pixels a trackpad (or a fast-spun Mac mouse) sends for one step */
+const WHEEL_PX = 4;
+/** One wheel event on the slider at `r`: -1 / 1 = a step up / down, 0 = not yet. */
+export function wheelStep(r: Rect, px: number, now = performance.now()): -1 | 0 | 1 {
+  if (!px) return 0;
+  if (!wheel || wheel.x !== r.x || wheel.y !== r.y) wheel = { x: r.x, y: r.y, drawn: NaN, v: NaN, acc: 0, at: 0, sgn: 0 };
+  const lone = now - wheel.at > 80 || Math.sign(px) !== wheel.sgn;
+  wheel.at = now;
+  wheel.sgn = Math.sign(px);
+  wheel.acc = lone ? px : wheel.acc + px;
+  if (!lone && Math.abs(wheel.acc) < WHEEL_PX) return 0;
+  const dir = Math.sign(wheel.acc) as -1 | 1;
+  wheel.acc = 0;
+  return dir;
+}
 
 export function slider(ui: UI, r: Rect, value: number, min: number, max: number, onSet: (v: number) => void, o: SliderOptions = {}): void {
   const c = ui.c;
@@ -178,12 +196,15 @@ export function slider(ui: UI, r: Rect, value: number, min: number, max: number,
       if (live && live.x === r.x && live.y === r.y && live.v !== live.sent) onSet(live.v);
       live = null;
     },
-    // the wheel: one step a notch (a trackpad sends many: it goes as fast as you spin);
-    // several notches before the next frame go on from the last one, not from the value drawn
-    onWheel: (d) => {
-      const base = wheel && wheel.x === r.x && wheel.y === r.y && wheel.drawn === value ? wheel.v : value;
-      const v = clamp(base - Math.sign(d) * step);
-      wheel = { x: r.x, y: r.y, drawn: value, v };
+    // the wheel: one step a notch, never more than one an event (a Windows notch is 100 px:
+    // still one step); a trackpad's stream: a step every few pixels — as fast as you swipe.
+    // Several notches before the next frame go on from the last one, not from the value drawn.
+    onWheel: (d, m) => {
+      const dir = wheelStep(r, m.px ?? d * 16);
+      if (!dir) return;
+      const base = wheel!.drawn === value ? wheel!.v : value; // (wheelStep made it this slider's)
+      const v = clamp(base - dir * step);
+      wheel = { ...wheel!, drawn: value, v };
       if (v !== base) onSet(v);
     },
     fine: true,

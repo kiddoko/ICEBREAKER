@@ -748,9 +748,12 @@ export class Workspace {
       case "dblclick":
         pick((x) => !!x.onDouble)?.onDouble?.(m);
         break;
-      case "wheel":
+      case "wheel": {
         this.tipHidden = true;
-        pick((x) => !!x.onWheel)?.onWheel?.(m.delta, m);
+        const h = pick((x) => !!x.onWheel);
+        if (!m.fine || h?.fine) h?.onWheel?.(m.delta, m); // less than a line: only sliders want it
+        break;
+      }
         break;
     }
   }

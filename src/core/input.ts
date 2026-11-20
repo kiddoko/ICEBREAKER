@@ -40,8 +40,13 @@ export interface MouseInput {
   delta: number;
   /** x with the part of a cell (2.5 = the middle of column 2): sliders use it for 1 % steps */
   fx?: number;
-  /** a drag that stayed in the same cell (only for the areas that ask: Hit.fine) */
+  /**
+   * a drag that stayed in the same cell, or a wheel event too small to make a line
+   * (only for the areas that ask: Hit.fine — sliders)
+   */
   fine?: boolean;
+  /** wheel: the raw pixels of this event (positive = down), for sliders */
+  px?: number;
   ctrl: boolean;
   shift: boolean;
 }
@@ -323,9 +328,10 @@ export class InputManager {
         this.wheelPx += px;
         let lines = Math.trunc(this.wheelPx / cellH);
         if (!lines && lone && px) lines = Math.sign(px);
-        if (!lines) return;
+        // not a whole line yet: only sliders hear it (each notch of a Mac mouse is a step there)
+        if (!lines) return px ? this.sink.mouse({ ...make("wheel", e, 0), fine: true, px }) : undefined;
         this.wheelPx = lone && Math.abs(this.wheelPx) < cellH ? 0 : this.wheelPx - lines * cellH;
-        this.sink.mouse(make("wheel", e, lines));
+        this.sink.mouse({ ...make("wheel", e, lines), px });
       },
       { passive: false },
     );
