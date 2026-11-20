@@ -5,7 +5,7 @@ line a step, each cell a note, an instrument and hex commands; a play sequence m
 It reads **.med** (MMD0–MMD3) and **.mod** files. In ASCII, in your theme's colours, with the
 keyboard, the mouse and a gamepad.
 
-> Work in progress. Step 1 (read and play) is here; editing, saving, the sampler come next.
+> Work in progress. Steps 1 (read and play) and 2 (edit) are here; saving and the sampler come next.
 > breakerMED is our own code: it works *like* OctaMED and reads its files, it isn't OctaMED
 > (no code, name, look or samples of it). Credits: [docs/CREDITS.md](../../docs/CREDITS.md).
 
@@ -17,13 +17,27 @@ keyboard, the mouse and a gamepad.
 
 ## The page
 
+The page **plays the keyboard**: while it's in front it keeps every key, letters, digits, space and
+every **alt** combination (alt + arrows too, on Mac, Windows and Linux), like an editor keeps the arrows.
+**Esc** gives the keys back to the deck (the tree takes them), a click on the page brings them back.
+
 ```
-enter      play the song from the cursor        ⇧ enter    play the block, again and again
-space      stop                                 ↑ ↓ PgUp PgDn   lines · ← → tracks
-the keys   a piano: Z S X D C V… an octave, Q 2 W 3 E… the next (by their place: AZERTY works)
-alt ↑ ↓    the piano's octave                   alt ← →    the instrument it plays
-mouse      click a cell, the wheel scrolls, a track's name mutes it, a position plays from it
-gamepad    the cross moves, A plays / stops
+enter        play the song from the cursor      ⇧ enter    play the block, again and again
+space        stop (playing) · edit mode on / off (stopped: a red ● EDIT, typing writes in the block)
+↑ ↓ ← →      the cursor (← → column by column)  PgUp PgDn Home End   jump
+the keys     a piano: Z S X D C V… an octave, Q 2 W 3 E… the next (by their place: AZERTY works)
+             in edit mode they write the note and the instrument; ` (left of 1) writes a note off
+0–9 A–F      the instrument / command columns, digit by digit (edit mode)
+alt ↑ ↓      the piano's octave                 alt ← →    the instrument it plays
+alt 0–9      the edit step: lines the cursor moves after a note
+delete       clear the column (or the selection)   ⌫ delete the line (⇧: in every track)
+alt enter    insert a line (⇧: in every track)
+⇧ + arrows   select (a drag with the mouse too) alt C / X / V   copy · cut · paste
+alt Q / A    transpose up / down a semitone (⇧: an octave)
+⌘Z · ⌘⇧Z     undo · redo (500 steps)
+mouse        click a cell, drag to select, the wheel scrolls, right-click: a menu (copy, paste,
+             transpose, lines, play from here); a track's name mutes it; a position plays from it
+gamepad      the cross moves, A plays / stops
 ```
 
 ## The `med` command
@@ -38,6 +52,12 @@ med stop
 med pos <position> [line]
 med mute <track> · med solo <track>
 med paula on|off            stepped like the Amiga (on, the default), or smooth
+med edit on|off · med step <0–9>
+med note <line> <track> <C-3|^^^|---> [instrument] [command]   (line in hex, track from 1)
+med block new [lines] · med block copy · med block lines <n>
+med seq new|copy|rm [position] · med seq set <position> <block> · med seq add <block>
+med tracks <n> · med tempo <n> · med speed <n> · med lpb <n>
+med undo · med redo
 med effects                 every command, one line each
 med info                    the song's settings and instruments
 ```

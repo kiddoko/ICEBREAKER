@@ -567,8 +567,11 @@ export class Workspace {
     const ta = this.activeApp;
     if (this.focus === "main" && ta instanceof TerminalApp && ta.term.wants(k)) return void ta.term.onKey(k);
     if (k.combo === "contextmenu" || k.combo === "shift+f10") return this.keyboardMenu();
-    // a raw key (a piano's) is the page's: no shortcut of the deck is a key without ⌘ / ctrl that types
-    if (!k.raw && this.globalKey(k)) return;
+    // a page that plays the keyboard (App.rawKeys) owns its keys, like an editor owns the arrows:
+    // the ones that type (a piano's) and every ⌥ / alt combination (⌥ arrows, ⌥ letters, ⌥ digits —
+    // on Windows and Linux the deck's pane and tab keys) are its own; ⌘ / ctrl ones stay the deck's
+    const owned = k.raw || (k.alt && !k.ctrl && !k.meta && this.rawKeys());
+    if (!owned && this.globalKey(k)) return;
     this.routeKey(k, false);
   }
 
@@ -638,7 +641,9 @@ export class Workspace {
       // esc: back to the page from the tree / shell; a button-page (NEXUS, STORE…) closes.
       // Tabs close with shift+esc (or ctrl+W), so a stray esc never loses one. The gamepad's B still closes.
       case "back":
-        if (this.focus !== "main") this.focus = "main";
+        // leaving a page that plays the keyboard (App.rawKeys): esc gives the keys back to the deck
+        if (this.focus === "main" && this.activeApp?.rawKeys && this.activeApp !== this.page && source !== "gamepad") this.focus = this.sidebarVisible ? "sidebar" : this.shellVisible ? "shell" : "main";
+        else if (this.focus !== "main") this.focus = "main";
         else if (this.activeApp === this.page || source === "gamepad") void this.closeAndGoBack();
         break;
     }

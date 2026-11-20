@@ -9,6 +9,7 @@ import { readSong, SONG_EXTS } from "./format";
 import { demoMod } from "./demo";
 import { songLength } from "./replayer";
 import { hex, noteName, type Song } from "./song";
+import { Editor, parseNote } from "./edit";
 import type { State } from "./app";
 
 const EFFECTS: [string, string][] = [
@@ -53,6 +54,10 @@ export function registerCommands(ib: IcebreakerAPI, engine: Engine, st: State): 
     const bytes = given ?? (await ib.vault.readBytes(path));
     const song = readSong(bytes, path);
     st.song = song;
+    st.editor = new Editor(song);
+    st.editor.onChange = () => ib.ui.redraw();
+    st.sel = null;
+    st.col = 0;
     st.path = path;
     st.seq = st.line = st.track = 0;
     st.inst = Math.max(0, song.instruments.findIndex((i) => i.kind !== "empty"));
@@ -81,11 +86,18 @@ export function registerCommands(ib: IcebreakerAPI, engine: Engine, st: State): 
       "med pos <position> [line]  move the cursor (and where play starts)",
       "med mute <track> · med solo <track>   (again: back)",
       "med paula on|off           stepped like the Amiga (on), or smooth",
+      "med edit on|off            typing writes in the block (space on the page)",
+      "med step <0–9>             lines the cursor moves after a note",
+      "med note <line> <track> <C-3|^^^|---> [instrument] [command]   write a cell (hex line, track from 1)",
+      "med block new [lines] · med block copy · med block lines <n>",
+      "med seq new|copy|rm [position] · med seq set <position> <block> · med seq add <block>",
+      "med tracks <n> · med tempo <n> · med speed <n> · med lpb <n>",
+      "med undo · med redo",
       "med effects                every command (00–2E) in one line each",
       "med info                   the song's settings",
     ].join("\n"),
     examples: [["med open songs/axel.mod", "load a song"], ["med play", "play from the cursor"], ["med play block", "play this block again and again"], "med mute 2", "med effects"],
-    complete: () => ["open", "ls", "demo", "play", "stop", "pos", "mute", "solo", "paula", "effects", "info", "song", "block", "on", "off"],
+    complete: () => ["open", "ls", "demo", "edit", "step", "note", "block", "seq", "tracks", "tempo", "speed", "lpb", "undo", "redo", "new", "copy", "rm", "set", "add", "lines", "play", "stop", "pos", "mute", "solo", "paula", "effects", "info", "song", "block", "on", "off"],
     async run(ctx: ShellContext) {
       const { rest: positional } = parseFlags(ctx.args);
       const [sub = "", ...rest] = positional;
@@ -161,6 +173,97 @@ export function registerCommands(ib: IcebreakerAPI, engine: Engine, st: State): 
             engine.paula = rest[0] === "on" ? true : rest[0] === "off" ? false : !engine.paula;
             await ib.storage.set("paula", engine.paula);
             ctx.out(engine.paula ? "PAULA: stepped, gritty, like the Amiga\n" : "SMOOTH: interpolated\n");
+            return 0;
+          }
+          case "edit": {
+            need();
+            st.edit = rest[0] === "on" ? true : rest[0] === "off" ? false : !st.edit;
+            if (st.edit) engine.stop();
+            ctx.out(st.edit ? "edit mode: typing writes in the block\n" : "edit mode off: the keys only play\n");
+            return 0;
+          }
+          case "step": {
+            const n = parseInt(rest[0] ?? "", 10);
+            if (!(n >= 0 && n <= 16)) return ctx.err("med step 0–16\n"), 1;
+            st.step = n;
+            return 0;
+          }
+          case "note": {
+            const s = need();
+            const [lineS, trackS, noteS, instS, cmdS] = rest;
+            const line = parseInt(lineS ?? "", 16), track = parseInt(trackS ?? "", 10) - 1;
+            const note = noteS ? parseNote(noteS) : null;
+            const b = s.blocks[s.sequence[st.seq]];
+            if (!b || !(line >= 0 && line < b.lines) || !(track >= 0 && track < s.tracks) || note === null) return ctx.err("med note <line (hex)> <track 1–n> <C-3|^^^|---> [instrument hex] [command 0C20]\n"), 1;
+            const e = st.editor!;
+            const bn = s.sequence[st.seq];
+            if (note) e.writeNote(bn, line, track, note, instS ? parseInt(instS, 16) || 0 : 0);
+            else e.clear(bn, line, track, 0);
+            if (cmdS && /^[0-9a-f]{4}$/i.test(cmdS)) [...cmdS].forEach((d, i) => e.writeHex(bn, line, track, 3 + i, parseInt(d, 16)));
+            return 0;
+          }
+          case "block": {
+            const s = need();
+            const e = st.editor!;
+            const what = rest[0];
+            if (what === "new") {
+              const n = e.newBlock(rest[1] ? parseInt(rest[1], 10) || 64 : s.blocks[s.sequence[st.seq]]?.lines ?? 64);
+              ctx.out(`block ${hex(n, 3)}\n`);
+            } else if (what === "copy") ctx.out(`block ${hex(e.cloneBlock(s.sequence[st.seq]), 3)}\n`);
+            else if (what === "lines") {
+              const n = parseInt(rest[1] ?? "", 10);
+              if (!(n >= 1 && n <= 3200)) return ctx.err("med block lines 1–3200\n"), 1;
+              e.setLines(s.sequence[st.seq], n);
+            } else return ctx.err("med block new [lines] | copy | lines <n>\n"), 1;
+            return 0;
+          }
+          case "seq": {
+            const s = need();
+            const e = st.editor!;
+            const [what, a, b] = rest;
+            const pos = a !== undefined ? parseInt(a, 16) : st.seq;
+            if (what === "new") {
+              const n = e.newBlock(s.blocks[s.sequence[st.seq]]?.lines ?? 64);
+              e.seqInsert(pos + 1, n);
+              st.seq = Math.min(s.sequence.length - 1, pos + 1);
+            } else if (what === "copy") {
+              const n = e.cloneBlock(s.sequence[pos] ?? 0);
+              e.seqInsert(pos + 1, n);
+              st.seq = Math.min(s.sequence.length - 1, pos + 1);
+            } else if (what === "rm") e.seqDelete(pos);
+            else if (what === "set") e.seqSet(pos, parseInt(b ?? "", 16));
+            else if (what === "add") e.seqInsert(s.sequence.length, parseInt(a ?? "", 16));
+            else return ctx.err("med seq new|copy|rm [position] · set <position> <block> · add <block>\n"), 1;
+            st.seq = Math.max(0, Math.min(s.sequence.length - 1, st.seq));
+            st.line = 0;
+            return 0;
+          }
+          case "tracks": {
+            need();
+            const n = parseInt(rest[0] ?? "", 10);
+            if (!(n >= 1 && n <= 60)) return ctx.err("med tracks 1–60\n"), 1;
+            engine.stop();
+            st.editor!.setTracks(n);
+            return 0;
+          }
+          case "tempo":
+          case "speed":
+          case "lpb": {
+            const s = need();
+            const n = parseInt(rest[0] ?? "", 10);
+            const [lo, hi] = sub === "tempo" ? [1, 255] : sub === "speed" ? [1, 32] : [1, 32];
+            if (!(n >= lo && n <= hi)) return ctx.err(`med ${sub} ${lo}–${hi}\n`), 1;
+            if (sub === "tempo") s.tempo = n;
+            else if (sub === "speed") s.speed = n;
+            else s.lpb = n;
+            st.editor!.dirty = true;
+            return 0;
+          }
+          case "undo":
+          case "redo": {
+            need();
+            const label = sub === "undo" ? st.editor!.undo() : st.editor!.redo();
+            ctx.out(label ? `${sub === "undo" ? "undone" : "redone"}: ${label}\n` : `nothing to ${sub}\n`);
             return 0;
           }
           case "effects":

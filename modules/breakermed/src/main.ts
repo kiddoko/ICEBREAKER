@@ -15,7 +15,7 @@
  * Built into one readable main.js: `node modules/breakermed/build.mjs`.
  */
 import type { IcebreakerAPI } from "../../../src/plugins/api";
-import { makeApp, type State } from "./app";
+import { makeApp, newState, type State } from "./app";
 import { registerCommands } from "./commands";
 import { Engine } from "./engine";
 
@@ -26,7 +26,7 @@ export function activate(ib: IcebreakerAPI): void {
   if (!ib.audio || typeof ib.audio.schedule !== "function") throw new Error("breakerMED needs a newer ICEBREAKER (one with ib.audio, the modules' sound): update the deck");
   ib.lib.addTranslations("fr", FR);
   engine = new Engine(ib.audio);
-  const st: State = { song: null, path: "", seq: 0, line: 0, track: 0, inst: 0, octave: 2, error: "" };
+  const st: State = newState();
   engine.onChange = () => ib.ui.redraw();
   void ib.storage.get("paula", true).then((v) => engine && (engine.paula = v !== false));
 
@@ -67,4 +67,42 @@ const FR: Record<string, string> = {
   line: "ligne",
   track: "piste",
   "mute / unmute this track": "couper / rétablir cette piste",
+  "med open <file.med|.mod> — or med demo": "med open <fichier.med|.mod> — ou med demo",
+  "play from here": "jouer d'ici",
+  "insert a new block here": "insérer un nouveau bloc ici",
+  "insert a copy of this block": "insérer une copie de ce bloc",
+  "remove this position": "retirer cette position",
+  copied: "copié",
+  copy: "copier",
+  cut: "couper",
+  paste: "coller",
+  clear: "effacer",
+  "transpose up": "transposer vers le haut",
+  "transpose down": "transposer vers le bas",
+  "an octave up": "une octave plus haut",
+  "an octave down": "une octave plus bas",
+  "insert a line": "insérer une ligne",
+  "delete the line": "supprimer la ligne",
+  EDIT: "ÉDITION",
+  space: "espace",
+  stop: "stop",
+  edit: "éditer",
+  step: "pas",
+  leave: "sortir",
+  oct: "oct",
+  "nothing to undo": "rien à annuler",
+  undone: "annulé",
+  redone: "rétabli",
+  note: "note",
+  digit: "chiffre",
+  "insert line": "insertion de ligne",
+  "delete line": "suppression de ligne",
+  transpose: "transposition",
+  "new block": "nouveau bloc",
+  "copy block": "copie de bloc",
+  "block length": "longueur du bloc",
+  tracks: "pistes",
+  sequence: "séquence",
+  "open a song…": "ouvrir un morceau…",
+  "the demo song": "le morceau de démo",
 };

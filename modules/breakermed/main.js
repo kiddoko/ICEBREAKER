@@ -1,54 +1,3 @@
-// modules/breakermed/src/keys.ts
-/**
-* The computer's keyboard as a piano, the way trackers have always done it:
-* the bottom row (Z S X D C V G B H N J M) is an octave, the row above it
-* (Q 2 W 3 E R 5 T 6 Y 7 U I 9 O 0 P) the next one and a bit. Read by the
-* key's PLACE (KeyboardEvent.code), never its letter: on an AZERTY keyboard
-* W X C… sit where Z X C… are on a QWERTY one, and play the same notes.
-*/
-var PIANO = {
-	KeyZ: 0,
-	KeyS: 1,
-	KeyX: 2,
-	KeyD: 3,
-	KeyC: 4,
-	KeyV: 5,
-	KeyG: 6,
-	KeyB: 7,
-	KeyH: 8,
-	KeyN: 9,
-	KeyJ: 10,
-	KeyM: 11,
-	Comma: 12,
-	KeyL: 13,
-	Period: 14,
-	Semicolon: 15,
-	Slash: 16,
-	KeyQ: 12,
-	Digit2: 13,
-	KeyW: 14,
-	Digit3: 15,
-	KeyE: 16,
-	KeyR: 17,
-	Digit5: 18,
-	KeyT: 19,
-	Digit6: 20,
-	KeyY: 21,
-	Digit7: 22,
-	KeyU: 23,
-	KeyI: 24,
-	Digit9: 25,
-	KeyO: 26,
-	Digit0: 27,
-	KeyP: 28,
-	BracketLeft: 29,
-	Equal: 30,
-	BracketRight: 31
-};
-/** The semitone above the octave's C a key plays (0–31), or null for a key that isn't on the piano. */
-function pianoKey(code) {
-	return code in PIANO ? PIANO[code] : null;
-}
 var NOTE_NAMES = [
 	"C-",
 	"C#",
@@ -188,21 +137,450 @@ function ptBpmOf(mode, tempo, lpb, eightChannel = false, hardwareMix = true) {
 	if (!hardwareMix && t < 8) return 157.86;
 	return t / .264;
 }
+// \0@oxc-project+runtime@0.156.0/helpers/esm/typeof.js
+function _typeof(o) {
+	"@babel/helpers - typeof";
+	return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(o) {
+		return typeof o;
+	} : function(o) {
+		return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o;
+	}, _typeof(o);
+}
+// \0@oxc-project+runtime@0.156.0/helpers/esm/toPrimitive.js
+function toPrimitive(t, r) {
+	if ("object" != _typeof(t) || !t) return t;
+	var e = t[Symbol.toPrimitive];
+	if (void 0 !== e) {
+		var i = e.call(t, r || "default");
+		if ("object" != _typeof(i)) return i;
+		throw new TypeError("@@toPrimitive must return a primitive value.");
+	}
+	return ("string" === r ? String : Number)(t);
+}
+// \0@oxc-project+runtime@0.156.0/helpers/esm/toPropertyKey.js
+function toPropertyKey(t) {
+	var i = toPrimitive(t, "string");
+	return "symbol" == _typeof(i) ? i : i + "";
+}
+// \0@oxc-project+runtime@0.156.0/helpers/esm/defineProperty.js
+function _defineProperty(e, r, t) {
+	return (r = toPropertyKey(r)) in e ? Object.defineProperty(e, r, {
+		value: t,
+		enumerable: !0,
+		configurable: !0,
+		writable: !0
+	}) : e[r] = t, e;
+}
+// modules/breakermed/src/edit.ts
+/**
+* breakerMED — editing a song: what the page's keys and the `med` commands
+* change, in one place, each change undoable. No UI here (tests/edit.test.ts).
+*
+* A cell has columns: 0 the note, 1–2 the instrument (two hex digits), then per
+* command page 4 more: the command's two digits, the parameter's two.
+*/
+/** how many columns a cell has */
+var colsOf = (pages) => 3 + 4 * pages;
+/** what a column is: the note, the instrument, or a page's command / parameter (and which digit) */
+function colKind(col) {
+	if (col === 0) return { kind: "note" };
+	if (col <= 2) return {
+		kind: "inst",
+		digit: col - 1
+	};
+	const k = col - 3;
+	const page = Math.floor(k / 4), r = k % 4;
+	return {
+		kind: r < 2 ? "cmd" : "val",
+		page,
+		digit: r % 2
+	};
+}
+var clone = (c) => ({
+	note: c.note,
+	inst: c.inst,
+	cmd: [...c.cmd],
+	val: [...c.val]
+});
+var cloneBlock = (b) => ({
+	...b,
+	cells: b.cells.map((row) => row.map(clone))
+});
+var setNibble = (v, digit, n) => digit === 0 ? (n & 15) << 4 | v & 15 : v & 240 | n & 15;
+var Editor = class {
+	constructor(song) {
+		_defineProperty(this, "song", void 0);
+		_defineProperty(this, "done", []);
+		_defineProperty(this, "undone", []);
+		_defineProperty(
+			this,
+			/** something changed (the title shows ●, `med save` clears it) */
+			"dirty",
+			false
+		);
+		_defineProperty(this, "onChange", void 0);
+		this.song = song;
+	}
+	get canUndo() {
+		return this.done.length > 0;
+	}
+	undo() {
+		const s = this.done.pop();
+		if (!s) return null;
+		s.undo();
+		this.undone.push(s);
+		this.changed();
+		return s.label;
+	}
+	redo() {
+		const s = this.undone.pop();
+		if (!s) return null;
+		s.redo();
+		this.done.push(s);
+		this.changed();
+		return s.label;
+	}
+	changed() {
+		this.dirty = true;
+		this.onChange?.();
+	}
+	/** change some cells of a block, undoably */
+	cells(label, block, at, fn) {
+		const b = this.song.blocks[block];
+		if (!b) return;
+		const spots = at.filter(([l, t]) => l >= 0 && l < b.lines && t >= 0 && t < this.song.tracks);
+		if (!spots.length) return;
+		const before = spots.map(([l, t]) => clone(b.cells[l][t]));
+		for (const [l, t] of spots) fn(b.cells[l][t], l, t);
+		const after = spots.map(([l, t]) => clone(b.cells[l][t]));
+		const put = (cells) => spots.forEach(([l, t], i) => b.cells[l][t] = clone(cells[i]));
+		this.record({
+			label,
+			undo: () => put(before),
+			redo: () => put(after)
+		});
+	}
+	/** change the song's shape (blocks, lines, the sequence, the tracks), undoably */
+	shape(label, fn) {
+		const take = () => ({
+			blocks: this.song.blocks.map(cloneBlock),
+			sequence: [...this.song.sequence],
+			tracks: this.song.tracks,
+			vol: [...this.song.trackVolume],
+			pan: [...this.song.trackPan]
+		});
+		const put = (s) => {
+			this.song.blocks = s.blocks.map(cloneBlock);
+			this.song.sequence = [...s.sequence];
+			this.song.tracks = s.tracks;
+			this.song.trackVolume = [...s.vol];
+			this.song.trackPan = [...s.pan];
+		};
+		const before = take();
+		fn();
+		const after = take();
+		this.record({
+			label,
+			undo: () => put(before),
+			redo: () => put(after)
+		});
+	}
+	record(s) {
+		this.done.push(s);
+		if (this.done.length > 500) this.done.shift();
+		this.undone = [];
+		this.changed();
+	}
+	/** a note (and the instrument, when one is given) */
+	writeNote(block, line, track, note, inst = 0) {
+		const n = note === 128 ? 128 : Math.max(1, Math.min(127, note));
+		this.cells("note", block, [[line, track]], (c) => {
+			c.note = n;
+			if (inst && n !== 128) c.inst = inst;
+		});
+	}
+	/** one hex digit in the instrument, a command or a parameter */
+	writeHex(block, line, track, col, digit) {
+		const k = colKind(col);
+		if (k.kind === "note") return;
+		this.cells("digit", block, [[line, track]], (c) => {
+			if (k.kind === "inst") c.inst = Math.min(63, setNibble(c.inst, k.digit, digit));
+			else {
+				while (c.cmd.length <= k.page) c.cmd.push(0), c.val.push(0);
+				if (k.kind === "cmd") c.cmd[k.page] = setNibble(c.cmd[k.page], k.digit, digit);
+				else c.val[k.page] = setNibble(c.val[k.page], k.digit, digit);
+			}
+		});
+	}
+	/** empty what a column holds: the note (and its instrument), the instrument, or a page's command */
+	clear(block, line, track, col) {
+		const k = colKind(col);
+		this.cells("clear", block, [[line, track]], (c) => {
+			if (k.kind === "note") c.note = 0, c.inst = 0;
+			else if (k.kind === "inst") c.inst = 0;
+			else c.cmd[k.page] = 0, c.val[k.page] = 0;
+		});
+	}
+	/** a selection's cells emptied */
+	clearSelection(sel) {
+		this.cells("clear", sel.block, spotsOf(sel), (c) => Object.assign(c, emptyCell(c.cmd.length)));
+	}
+	/** an empty line at `line` in these tracks: what's below moves down (the last line falls off) */
+	insertLine(block, line, tracks) {
+		const b = this.song.blocks[block];
+		if (!b) return;
+		const spots = [];
+		for (let l = line; l < b.lines; l++) for (const t of tracks) spots.push([l, t]);
+		const old = b.cells.map((r) => r.map(clone));
+		this.cells("insert line", block, spots, (c, l, t) => Object.assign(c, l === line ? emptyCell(b.pages) : clone(old[l - 1][t])));
+	}
+	/** the line at `line` goes in these tracks: what's below moves up (an empty line comes in at the bottom) */
+	deleteLine(block, line, tracks) {
+		const b = this.song.blocks[block];
+		if (!b) return;
+		const spots = [];
+		for (let l = line; l < b.lines; l++) for (const t of tracks) spots.push([l, t]);
+		const old = b.cells.map((r) => r.map(clone));
+		this.cells("delete line", block, spots, (c, l, t) => Object.assign(c, l === b.lines - 1 ? emptyCell(b.pages) : clone(old[l + 1][t])));
+	}
+	copy(sel) {
+		const b = this.song.blocks[sel.block];
+		const cells = [];
+		for (let l = sel.line0; l <= sel.line1; l++) {
+			const row = [];
+			for (let t = sel.track0; t <= sel.track1; t++) row.push(clone(b?.cells[l]?.[t] ?? emptyCell()));
+			cells.push(row);
+		}
+		return { cells };
+	}
+	cut(sel) {
+		const clip = this.copy(sel);
+		this.clearSelection(sel);
+		return clip;
+	}
+	/** a clip's cells from (line, track): what doesn't fit is left out */
+	paste(block, line, track, clip) {
+		const spots = [];
+		clip.cells.forEach((row, i) => row.forEach((_, j) => spots.push([line + i, track + j])));
+		this.cells("paste", block, spots, (c, l, t) => {
+			const src = clip.cells[l - line][t - track];
+			c.note = src.note;
+			c.inst = src.inst;
+			for (let p = 0; p < Math.max(c.cmd.length, src.cmd.length); p++) {
+				if (p >= c.cmd.length) break;
+				c.cmd[p] = src.cmd[p] ?? 0;
+				c.val[p] = src.val[p] ?? 0;
+			}
+		});
+	}
+	/** the notes of a selection, up or down (semitones); note offs and empty cells stay */
+	transpose(sel, semis) {
+		this.cells("transpose", sel.block, spotsOf(sel), (c) => {
+			if (c.note && c.note !== 128) c.note = Math.max(1, Math.min(127, c.note + semis));
+		});
+	}
+	/** a new empty block (returns its number) */
+	newBlock(lines = 64) {
+		let n = 0;
+		this.shape("new block", () => {
+			this.song.blocks.push(newBlock(this.song.tracks, Math.max(1, Math.min(3200, lines)), 1));
+			n = this.song.blocks.length - 1;
+		});
+		return n;
+	}
+	/** a copy of a block (returns the new one's number) */
+	cloneBlock(block) {
+		let n = block;
+		const b = this.song.blocks[block];
+		if (!b) return n;
+		this.shape("copy block", () => {
+			this.song.blocks.push({
+				...cloneBlock(b),
+				name: b.name
+			});
+			n = this.song.blocks.length - 1;
+		});
+		return n;
+	}
+	/** a block's length in lines (1–3200): new lines are empty, cut ones go */
+	setLines(block, lines) {
+		const b = this.song.blocks[block];
+		if (!b) return;
+		const n = Math.max(1, Math.min(3200, Math.floor(lines)));
+		this.shape("block length", () => {
+			if (n < b.lines) b.cells.length = n;
+			while (b.cells.length < n) b.cells.push(Array.from({ length: this.song.tracks }, () => emptyCell(b.pages)));
+			b.lines = n;
+		});
+	}
+	/** how many tracks every block has (1–64) */
+	setTracks(n) {
+		const tracks = Math.max(1, Math.min(64, Math.floor(n)));
+		this.shape("tracks", () => {
+			for (const b of this.song.blocks) for (const row of b.cells) {
+				if (row.length > tracks) row.length = tracks;
+				while (row.length < tracks) row.push(emptyCell(b.pages));
+			}
+			const s = this.song;
+			s.trackVolume = Array.from({ length: tracks }, (_, i) => s.trackVolume[i] ?? 64);
+			s.trackPan = Array.from({ length: tracks }, (_, i) => s.trackPan[i] ?? ((i & 3) === 0 || (i & 3) === 3 ? -.6 : .6));
+			s.tracks = tracks;
+		});
+	}
+	/** put a block in the sequence at `pos` (before what's there) */
+	seqInsert(pos, block) {
+		if (!this.song.blocks[block]) return;
+		this.shape("sequence", () => this.song.sequence.splice(Math.max(0, Math.min(this.song.sequence.length, pos)), 0, block));
+	}
+	/** take a position out of the sequence (one always stays) */
+	seqDelete(pos) {
+		if (this.song.sequence.length <= 1 || pos < 0 || pos >= this.song.sequence.length) return;
+		this.shape("sequence", () => this.song.sequence.splice(pos, 1));
+	}
+	/** which block a position plays */
+	seqSet(pos, block) {
+		if (!this.song.blocks[block] || pos < 0 || pos >= this.song.sequence.length) return;
+		this.shape("sequence", () => this.song.sequence[pos] = block);
+	}
+};
+function spotsOf(sel) {
+	const out = [];
+	for (let l = Math.min(sel.line0, sel.line1); l <= Math.max(sel.line0, sel.line1); l++) for (let t = Math.min(sel.track0, sel.track1); t <= Math.max(sel.track0, sel.track1); t++) out.push([l, t]);
+	return out;
+}
+/** "C-3" "c#2" "D3" → the note number (1 = C-1), "^^^" / "off" → note off, "---" → 0; null when it isn't a note */
+function parseNote(s) {
+	const t = s.trim().toUpperCase();
+	if (t === "---" || t === "0") return 0;
+	if (t === "^^^" || t === "OFF") return 128;
+	const m = /^([A-G])([#-]?)(\d)$/.exec(t);
+	if (!m) return null;
+	const base = {
+		C: 0,
+		D: 2,
+		E: 4,
+		F: 5,
+		G: 7,
+		A: 9,
+		B: 11
+	}[m[1]];
+	const n = (+m[3] - 1) * 12 + base + (m[2] === "#" ? 1 : 0) + 1;
+	return n >= 1 && n <= 127 ? n : null;
+}
+// modules/breakermed/src/keys.ts
+/**
+* The computer's keyboard as a piano, the way trackers have always done it:
+* the bottom row (Z S X D C V G B H N J M) is an octave, the row above it
+* (Q 2 W 3 E R 5 T 6 Y 7 U I 9 O 0 P) the next one and a bit. Read by the
+* key's PLACE (KeyboardEvent.code), never its letter: on an AZERTY keyboard
+* W X C… sit where Z X C… are on a QWERTY one, and play the same notes.
+*/
+var PIANO = {
+	KeyZ: 0,
+	KeyS: 1,
+	KeyX: 2,
+	KeyD: 3,
+	KeyC: 4,
+	KeyV: 5,
+	KeyG: 6,
+	KeyB: 7,
+	KeyH: 8,
+	KeyN: 9,
+	KeyJ: 10,
+	KeyM: 11,
+	Comma: 12,
+	KeyL: 13,
+	Period: 14,
+	Semicolon: 15,
+	Slash: 16,
+	KeyQ: 12,
+	Digit2: 13,
+	KeyW: 14,
+	Digit3: 15,
+	KeyE: 16,
+	KeyR: 17,
+	Digit5: 18,
+	KeyT: 19,
+	Digit6: 20,
+	KeyY: 21,
+	Digit7: 22,
+	KeyU: 23,
+	KeyI: 24,
+	Digit9: 25,
+	KeyO: 26,
+	Digit0: 27,
+	KeyP: 28,
+	BracketLeft: 29,
+	Equal: 30,
+	BracketRight: 31
+};
+/** The semitone above the octave's C a key plays (0–31), or null for a key that isn't on the piano. */
+function pianoKey(code) {
+	return code in PIANO ? PIANO[code] : null;
+}
 // modules/breakermed/src/app.ts
-/** a cell's width: "C-3 01 0C20" and 5 more a command page */
+function newState() {
+	return {
+		song: null,
+		editor: null,
+		path: "",
+		seq: 0,
+		line: 0,
+		track: 0,
+		col: 0,
+		inst: 0,
+		octave: 2,
+		edit: false,
+		step: 1,
+		sel: null,
+		clip: null,
+		error: ""
+	};
+}
+/** a cell's width: "C-3 01 0C20" and 5 more a command page; where each column starts in it */
 var cellW = (pages) => 6 + pages * 5;
+var colX = (col) => col === 0 ? 0 : col <= 2 ? 3 + col : 7 + Math.floor((col - 3) / 4) * 5 + (col - 3) % 4;
+var colW = (col) => col === 0 ? 3 : 1;
 var LEFT = 22;
+var HEX = "0123456789abcdef";
 function makeApp(ib, engine, st) {
 	const { BOLD, t, truncate, ListView, mix } = ib.lib;
 	const run = (line) => void ib.shell.run(line);
 	const seqList = new ListView();
 	const instList = new ListView();
-	seqList.cmdOf = (i) => `med pos ${i}`;
-	seqList.onActivate = (i) => run(`med play song ${i}`);
+	seqList.cmdOf = (i) => `med pos ${hex(i)}`;
+	seqList.onActivate = (i) => run(`med play song ${hex(i)}`);
+	seqList.menuOf = (i) => [
+		{
+			label: t("play from here"),
+			cmd: `med play song ${hex(i)}`
+		},
+		"-",
+		{
+			label: t("insert a new block here"),
+			cmd: `med seq new ${hex(i)}`
+		},
+		{
+			label: t("insert a copy of this block"),
+			cmd: `med seq copy ${hex(i)}`
+		},
+		{
+			label: t("remove this position"),
+			cmd: `med seq rm ${hex(i)}`,
+			danger: true
+		}
+	];
 	instList.onSelect = (i) => st.inst = i;
 	instList.onActivate = (i) => preview(st.octave * 12, i);
 	/** first track shown (the page scrolls sideways when they don't fit) */
 	let firstTrack = 0;
+	/** where the block was drawn (mouse → cell) */
+	let geo = null;
+	let anchor = null;
+	const song = () => st.song;
+	const blockNo = () => st.song?.sequence[st.seq] ?? 0;
+	const block = () => st.song?.blocks[blockNo()];
+	const ed = () => st.editor;
 	const preview = (semi, inst = st.inst) => {
 		const s = st.song;
 		const ins = s?.instruments[inst];
@@ -210,21 +588,160 @@ function makeApp(ib, engine, st) {
 		const rate = PAULA_CLOCK / periodOf(semi + ins.transpose + s.transpose, ins.finetune);
 		engine.preview(inst, rate).catch((e) => ib.ui.notify(String(e?.message ?? e), "error"));
 	};
-	const moveLine = (d) => {
-		const s = st.song;
-		if (!s) return;
-		const lines = s.blocks[s.sequence[st.seq]]?.lines ?? 64;
-		st.line = Math.max(0, Math.min(lines - 1, st.line + d));
+	const clampCursor = () => {
+		const s = song(), b = block();
+		if (!s || !b) return;
+		st.line = Math.max(0, Math.min(b.lines - 1, st.line));
+		st.track = Math.max(0, Math.min(s.tracks - 1, st.track));
+		st.col = Math.max(0, Math.min(colsOf(b.pages) - 1, st.col));
 	};
-	const moveTrack = (d) => {
-		if (st.song) st.track = Math.max(0, Math.min(st.song.tracks - 1, st.track + d));
+	const moveLine = (d) => (st.line += d, clampCursor());
+	/** ←→ go column by column, into the next track at a cell's edge */
+	const moveCol = (d) => {
+		const s = song(), b = block();
+		if (!s || !b) return;
+		const n = colsOf(b.pages);
+		let c = st.col + d, tr = st.track;
+		if (c < 0) tr = (tr - 1 + s.tracks) % s.tracks, c = n - 1;
+		else if (c >= n) tr = (tr + 1) % s.tracks, c = 0;
+		st.col = c;
+		st.track = tr;
+	};
+	/** ⇧ + arrows: the selection grows from where it started */
+	const extend = (dl, dt) => {
+		anchor ??= {
+			line: st.line,
+			track: st.track
+		};
+		st.line += dl;
+		st.track += dt;
+		clampCursor();
+		st.sel = {
+			block: blockNo(),
+			line0: Math.min(anchor.line, st.line),
+			line1: Math.max(anchor.line, st.line),
+			track0: Math.min(anchor.track, st.track),
+			track1: Math.max(anchor.track, st.track)
+		};
+	};
+	const unselect = () => (st.sel = null, anchor = null);
+	/** what an operation works on: the selection, or the cell under the cursor */
+	const target = () => st.sel && st.sel.block === blockNo() ? st.sel : {
+		block: blockNo(),
+		line0: st.line,
+		line1: st.line,
+		track0: st.track,
+		track1: st.track
+	};
+	const advance = () => moveLine(st.step);
+	const typeNote = (note) => {
+		const e = ed();
+		if (!e) return;
+		e.writeNote(blockNo(), st.line, st.track, note, note === 128 ? 0 : st.inst + 1);
+		advance();
+	};
+	const copy = () => {
+		const e = ed();
+		if (e) st.clip = e.copy(target()), ib.ui.notify(t("copied"));
+	};
+	const cut = () => {
+		const e = ed();
+		if (e) st.clip = e.cut(target()), unselect();
+	};
+	const paste = () => {
+		const e = ed();
+		if (e && st.clip) e.paste(blockNo(), st.line, st.track, st.clip);
+	};
+	const transpose = (semis) => ed()?.transpose(target(), semis);
+	const say = (label, what) => ib.ui.notify(label ? `${what}: ${t(label)}` : t("nothing to undo"));
+	/** the right-click menu on a cell */
+	const cellMenu = (line, track) => [
+		{
+			label: t("play from here"),
+			run: () => run(`med play song ${hex(st.seq)} ${hex(line)}`)
+		},
+		"-",
+		{
+			label: t("copy"),
+			hint: "alt C",
+			run: copy
+		},
+		{
+			label: t("cut"),
+			hint: "alt X",
+			run: cut
+		},
+		{
+			label: t("paste"),
+			hint: "alt V",
+			run: () => (st.line = line, st.track = track, paste()),
+			disabled: !st.clip
+		},
+		{
+			label: t("clear"),
+			hint: "del",
+			run: () => ed()?.clearSelection(target())
+		},
+		"-",
+		{
+			label: t("transpose up"),
+			hint: "alt Q",
+			run: () => transpose(1)
+		},
+		{
+			label: t("transpose down"),
+			hint: "alt A",
+			run: () => transpose(-1)
+		},
+		{
+			label: t("an octave up"),
+			hint: "⇧ alt Q",
+			run: () => transpose(12)
+		},
+		{
+			label: t("an octave down"),
+			hint: "⇧ alt A",
+			run: () => transpose(-12)
+		},
+		"-",
+		{
+			label: t("insert a line"),
+			hint: "alt ⏎",
+			run: () => ed()?.insertLine(blockNo(), line, [track])
+		},
+		{
+			label: t("delete the line"),
+			hint: "⌫",
+			run: () => ed()?.deleteLine(blockNo(), line, [track])
+		},
+		{
+			label: t("mute / unmute this track"),
+			cmd: `med mute ${track + 1}`
+		}
+	];
+	/** the cell (and column) under the mouse, from where the block was drawn */
+	const cellAt = (mx, my) => {
+		const g = geo, b = block();
+		if (!g || !b) return null;
+		const k = Math.floor((mx - g.x - g.numW) / g.cw);
+		const line = g.top + (my - g.y);
+		if (k < 0 || k >= g.fits || line < 0 || line >= b.lines) return null;
+		const inCell = mx - g.x - g.numW - k * g.cw;
+		let col = 0;
+		for (let c = 0; c < colsOf(b.pages); c++) if (inCell >= colX(c)) col = c;
+		return {
+			line,
+			track: firstTrack + k,
+			col
+		};
 	};
 	return {
 		kind: "breakermed",
 		key: "breakermed",
 		rawKeys: true,
-		title: () => st.song ? `♫ ${st.path.split("/").pop()}` : "breakerMED",
-		status: () => st.song ? `${t("enter play")} · ⇧enter ${t("block")} · ${t("space stop")} · ${t("keys: a piano")} · alt ↑↓ ${t("octave")} ${st.octave} · alt ←→ ${t("instrument")} ${hex(st.inst + 1)}` : t("med open <file.med|.mod> — or drop one in the vault"),
+		title: () => st.song ? `♫ ${st.path.split("/").pop()}${st.editor?.dirty ? " ●" : ""}` : "breakerMED",
+		dirty: () => !!st.editor?.dirty,
+		status: () => st.song ? `${st.edit ? t("EDIT") + " · " : ""}${t("enter play")} · ${t("space")} ${st.edit || engine.playing ? t("stop") : t("edit")} · alt ↑↓ ${t("octave")} ${st.octave + 1} · alt ←→ ${t("instrument")} ${hex(st.inst + 1)} · alt 0–9 ${t("step")} ${st.step} · esc ${t("leave")}` : t("med open <file.med|.mod> — or med demo"),
 		render(ui, r, focused) {
 			const c = ui.c;
 			const s = st.song;
@@ -239,18 +756,25 @@ function makeApp(ib, engine, st) {
 				fg: c.accent,
 				attrs: BOLD
 			});
-			if (s) x = ui.text(x + 2, r.y, truncate(name, Math.max(4, r.w - 60)), { fg: c.fg }, r.w - 60);
+			if (s) x = ui.text(x + 2, r.y, truncate(name, Math.max(4, r.w - 70)), { fg: c.fg }, r.w - 70);
 			if (s) {
 				const f = s.flags;
 				const bpm = ptBpmOf(s.tempoMode, s.tempo, s.lpb, f.eightChannel, f.hardwareMix);
-				const right = `${engine.playing ? engine.mode === "block" ? "▶ BLOCK" : "▶ SONG" : "■ STOP"}  ${s.tempoMode === "bpm" ? `${s.tempo} BPM` : s.tempoMode === "spd" ? `SPD ${s.tempo}` : `${s.tempo} BPM`} (${bpm.toFixed(0)})  ${t("speed")} ${hex(s.speed)}  ${s.format}  ${engine.paula ? "PAULA" : "SMOOTH"}`;
-				ui.textRight(r.x + r.w - 1, r.y, right, { fg: engine.playing ? c.success : c.muted });
+				const rest = `  ${s.tempoMode === "spd" ? `SPD ${s.tempo}` : `${s.tempo} BPM`} (${bpm.toFixed(0)})  ${t("speed")} ${hex(s.speed)}  ${t("oct")} ${st.octave + 1}  ${t("step")} ${st.step}  ${s.format}  ${engine.paula ? "PAULA" : "SMOOTH"}`;
+				const rx = ui.textRight(r.x + r.w - 1, r.y, rest, { fg: engine.playing ? c.success : c.muted });
+				const state = engine.playing ? engine.mode === "block" ? "▶ BLOCK" : "▶ SONG" : st.edit ? ` ● ${t("EDIT")} ` : "■ STOP";
+				ui.textRight(rx, r.y, state, st.edit && !engine.playing ? {
+					fg: c.bg,
+					bg: c.error,
+					attrs: BOLD
+				} : { fg: engine.playing ? c.success : c.muted });
 			}
 			if (!s) {
 				ui.textCenter(r, r.y + Math.floor(r.h / 2) - 1, t("no song loaded"), { fg: c.muted });
-				ui.textCenter(r, r.y + Math.floor(r.h / 2) + 1, st.error || "med open <file.med | file.mod>", { fg: st.error ? c.error : c.subtle });
+				ui.textCenter(r, r.y + Math.floor(r.h / 2) + 1, st.error || "med open <file.med | file.mod> · med demo", { fg: st.error ? c.error : c.subtle });
 				return;
 			}
+			clampCursor();
 			const body = {
 				x: r.x,
 				y: r.y + 1,
@@ -297,8 +821,8 @@ function makeApp(ib, engine, st) {
 					attrs: sel ? BOLD : 0
 				}, row.w);
 			});
-			const blockNo = s.sequence[st.seq] ?? 0;
-			const block = s.blocks[blockNo];
+			const bn = blockNo();
+			const b = s.blocks[bn];
 			const px = body.x + leftW;
 			const inner = ui.box({
 				x: px,
@@ -306,28 +830,28 @@ function makeApp(ib, engine, st) {
 				w: body.w - leftW,
 				h: body.h
 			}, {
-				title: `${t("BLOCK")} ${hex(blockNo, 3)}${block?.name ? ` · ${block.name}` : ""} · ${t("line")} ${hex(st.line)}/${hex((block?.lines ?? 1) - 1)}`,
+				title: `${t("BLOCK")} ${hex(bn, 3)}${b?.name ? ` · ${b.name}` : ""} · ${t("line")} ${hex(st.line)}/${hex((b?.lines ?? 1) - 1)}`,
 				focused
 			});
-			if (!block) return;
-			const cw = cellW(block.pages) + 1;
+			if (!b) return;
+			const cw = cellW(b.pages) + 1;
 			const numW = 4;
 			const fits = Math.max(1, Math.floor((inner.w - numW) / cw));
 			if (st.track < firstTrack) firstTrack = st.track;
 			if (st.track >= firstTrack + fits) firstTrack = st.track - fits + 1;
 			firstTrack = Math.max(0, Math.min(firstTrack, Math.max(0, s.tracks - fits)));
-			const hy = inner.y;
+			ui.hit(inner, { onWheel: (d) => moveLine(Math.sign(d) * 2) });
 			for (let k = 0; k < fits && firstTrack + k < s.tracks; k++) {
 				const tr = firstTrack + k;
 				const muted = engine.muted.has(tr);
 				const hx = inner.x + numW + k * cw;
-				ui.text(hx, hy, `${muted ? "×" : "▪"} ${t("track")} ${tr + 1}`, {
+				ui.text(hx, inner.y, `${muted ? "×" : "▪"} ${t("track")} ${tr + 1}`, {
 					fg: muted ? c.faint : tr === st.track ? c.accent : c.subtle,
 					attrs: tr === st.track ? BOLD : 0
 				}, cw - 1);
 				ui.hit({
 					x: hx,
-					y: hy,
+					y: inner.y,
 					w: cw - 1,
 					h: 1
 				}, {
@@ -337,13 +861,24 @@ function makeApp(ib, engine, st) {
 			}
 			const rows = inner.h - 1;
 			const mid = Math.floor(rows / 2);
+			geo = {
+				x: inner.x,
+				y: inner.y + 1,
+				w: inner.w,
+				h: rows,
+				numW,
+				cw,
+				top: st.line - mid,
+				fits
+			};
+			const sel = st.sel && st.sel.block === bn ? st.sel : null;
 			for (let k = 0; k < rows; k++) {
 				const line = st.line - mid + k;
 				const y = inner.y + 1 + k;
-				if (line < 0 || line >= block.lines) continue;
+				if (line < 0 || line >= b.lines) continue;
 				const here = line === st.line;
 				const beat = line % Math.max(1, s.lpb) === 0;
-				const bg = here ? engine.playing ? mix(c.panel, c.accent, .28) : c.highlight : beat ? c.panelAlt : void 0;
+				const bg = here ? engine.playing ? mix(c.panel, c.accent, .28) : st.edit ? mix(c.panel, c.error, .22) : c.highlight : beat ? c.panelAlt : void 0;
 				if (bg !== void 0) ui.fill({
 					x: inner.x,
 					y,
@@ -356,117 +891,166 @@ function makeApp(ib, engine, st) {
 				});
 				for (let j = 0; j < fits && firstTrack + j < s.tracks; j++) {
 					const tr = firstTrack + j;
-					const cell = block.cells[line][tr];
+					const cell = b.cells[line][tr];
 					const cx = inner.x + numW + j * cw;
 					const dim = engine.muted.has(tr);
+					const inSel = !!sel && line >= sel.line0 && line <= sel.line1 && tr >= sel.track0 && tr <= sel.track1;
+					const cbg = inSel ? mix(c.panel, c.accentAlt, .35) : bg;
+					if (inSel) ui.fill({
+						x: cx,
+						y,
+						w: cw - 1,
+						h: 1
+					}, { bg: cbg });
 					let xx = ui.text(cx, y, noteName(cell.note), {
 						fg: dim ? c.faint : cell.note === 128 ? c.warning : cell.note ? c.fg : c.faint,
-						bg,
+						bg: cbg,
 						attrs: cell.note ? BOLD : 0
 					});
 					xx = ui.text(xx + 1, y, cell.inst ? hex(cell.inst) : "..", {
 						fg: dim ? c.faint : cell.inst ? c.accent : c.faint,
-						bg
+						bg: cbg
 					});
-					for (let p = 0; p < block.pages; p++) {
+					for (let p = 0; p < b.pages; p++) {
 						const has = cell.cmd[p] || cell.val[p];
 						xx = ui.text(xx + 1, y, has ? `${hex(cell.cmd[p])}${hex(cell.val[p])}` : "....", {
 							fg: dim ? c.faint : has ? c.accentAlt : c.faint,
-							bg
+							bg: cbg
 						});
 					}
 					if (here && tr === st.track && focused) ui.tint({
-						x: cx,
+						x: cx + colX(st.col),
 						y,
-						w: 3,
+						w: colW(st.col),
 						h: 1
-					}, c.bg, c.accent);
+					}, c.bg, st.edit ? c.error : c.accent);
 					ui.hit({
 						x: cx,
 						y,
 						w: cw - 1,
 						h: 1
 					}, {
-						onClick: () => (st.line = line, st.track = tr),
-						onWheel: (d) => moveLine(Math.sign(d) * 2)
+						onClick: (m) => {
+							const at = cellAt(m.x, m.y);
+							unselect();
+							st.line = line;
+							st.track = tr;
+							if (at) st.col = at.col;
+							anchor = {
+								line,
+								track: tr
+							};
+						},
+						onDrag: (m) => {
+							const at = cellAt(m.x, m.y);
+							if (!at || !anchor) return;
+							st.line = at.line;
+							st.track = at.track;
+							st.sel = {
+								block: bn,
+								line0: Math.min(anchor.line, at.line),
+								line1: Math.max(anchor.line, at.line),
+								track0: Math.min(anchor.track, at.track),
+								track1: Math.max(anchor.track, at.track)
+							};
+						},
+						onWheel: (d) => moveLine(Math.sign(d) * 2),
+						menu: () => cellMenu(line, tr)
 					});
 				}
 			}
-			ui.hit(inner, { onWheel: (d) => moveLine(Math.sign(d) * 2) });
 		},
 		onKey(k) {
 			const s = st.song;
-			if (k.key === "enter") return run(k.shift ? `med play block ${st.seq} ${st.line}` : `med play song ${st.seq} ${st.line}`), true;
-			if (k.key === "space") return run("med stop"), true;
-			if (!s) return false;
+			const e = ed();
+			if (k.key === "enter" && !k.alt) return run(k.shift ? `med play block ${hex(st.seq)} ${hex(st.line)}` : `med play song ${hex(st.seq)} ${hex(st.line)}`), true;
+			if (k.key === "space") {
+				if (engine.playing) run("med stop");
+				else run(`med edit ${st.edit ? "off" : "on"}`);
+				return true;
+			}
+			if (!s || !e) return false;
+			if (k.ctrl && (k.key === "z" || k.code === "KeyZ")) return say(k.shift ? e.redo() : e.undo(), t(k.shift ? "redone" : "undone")), true;
 			if (k.alt) {
-				if (k.key === "up") return st.octave = Math.min(7, st.octave + 1), true;
-				if (k.key === "down") return st.octave = Math.max(0, st.octave - 1), true;
-				if (k.key === "left") return st.inst = Math.max(0, st.inst - 1), true;
-				if (k.key === "right") return st.inst = Math.min(Math.max(0, s.instruments.length - 1), st.inst + 1), true;
+				const digit = /^Digit(\d)$/.exec(k.code);
+				if (digit) return st.step = +digit[1], true;
+				switch (k.code) {
+					case "ArrowUp": return st.octave = Math.min(7, st.octave + 1), true;
+					case "ArrowDown": return st.octave = Math.max(0, st.octave - 1), true;
+					case "ArrowLeft": return st.inst = Math.max(0, st.inst - 1), true;
+					case "ArrowRight": return st.inst = Math.min(Math.max(0, s.instruments.length - 1), st.inst + 1), true;
+					case "KeyC": return copy(), true;
+					case "KeyX": return cut(), true;
+					case "KeyV": return paste(), true;
+					case "KeyQ": return transpose(k.shift ? 12 : 1), true;
+					case "KeyA": return transpose(k.shift ? -12 : -1), true;
+					case "Enter": return e.insertLine(blockNo(), st.line, k.shift ? [...Array(s.tracks).keys()] : [st.track]), true;
+				}
 				return false;
 			}
+			if (k.shift) switch (k.key) {
+				case "up": return extend(-1, 0), true;
+				case "down": return extend(1, 0), true;
+				case "left": return extend(0, -1), true;
+				case "right": return extend(0, 1), true;
+			}
 			switch (k.key) {
-				case "up": return moveLine(-1), true;
-				case "down": return moveLine(1), true;
+				case "up": return unselect(), moveLine(-1), true;
+				case "down": return unselect(), moveLine(1), true;
 				case "pageup": return moveLine(-16), true;
 				case "pagedown": return moveLine(16), true;
 				case "home": return st.line = 0, true;
 				case "end": return moveLine(9999), true;
-				case "left": return moveTrack(-1), true;
-				case "right": return moveTrack(1), true;
+				case "left": return unselect(), moveCol(-1), true;
+				case "right": return unselect(), moveCol(1), true;
+				case "delete":
+					if (st.sel) e.clearSelection(st.sel), unselect();
+					else e.clear(blockNo(), st.line, st.track, st.col), st.edit && advance();
+					return true;
+				case "backspace":
+					e.deleteLine(blockNo(), st.line, k.shift ? [...Array(s.tracks).keys()] : [st.track]);
+					return true;
 			}
+			if (k.ctrl || k.meta) return false;
+			const kind = colKind(st.col).kind;
+			if (st.edit && kind !== "note") {
+				const d = /^Digit(\d)$/.exec(k.code)?.[1] ?? (k.key.length === 1 && HEX.includes(k.key.toLowerCase()) ? k.key.toLowerCase() : null);
+				if (d !== null) {
+					e.writeHex(blockNo(), st.line, st.track, st.col, HEX.indexOf(d));
+					advance();
+					return true;
+				}
+			}
+			if (st.edit && kind === "note" && (k.code === "Backquote" || k.code === "IntlBackslash")) return typeNote(128), true;
 			const semi = pianoKey(k.code);
-			if (semi !== null && !k.ctrl && !k.meta) return k.repeat || preview(st.octave * 12 + semi), true;
+			if (semi !== null) {
+				if (k.repeat) return true;
+				preview(st.octave * 12 + semi);
+				if (st.edit && kind === "note") typeNote(st.octave * 12 + semi + 1);
+				return true;
+			}
 			return false;
 		},
 		onAction(a) {
 			switch (a) {
 				case "up": return moveLine(-1), true;
 				case "down": return moveLine(1), true;
-				case "left": return moveTrack(-1), true;
-				case "right": return moveTrack(1), true;
+				case "left": return moveCol(-1), true;
+				case "right": return moveCol(1), true;
 				case "page-up": return moveLine(-16), true;
 				case "page-down": return moveLine(16), true;
-				case "confirm": return run(engine.playing ? "med stop" : `med play song ${st.seq} ${st.line}`), true;
+				case "confirm": return run(engine.playing ? "med stop" : `med play song ${hex(st.seq)} ${hex(st.line)}`), true;
 			}
 			return false;
-		}
+		},
+		menu: () => st.song ? cellMenu(st.line, st.track) : [{
+			label: t("open a song…"),
+			cmd: "med open"
+		}, {
+			label: t("the demo song"),
+			cmd: "med demo"
+		}]
 	};
-}
-// \0@oxc-project+runtime@0.156.0/helpers/esm/typeof.js
-function _typeof(o) {
-	"@babel/helpers - typeof";
-	return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(o) {
-		return typeof o;
-	} : function(o) {
-		return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o;
-	}, _typeof(o);
-}
-// \0@oxc-project+runtime@0.156.0/helpers/esm/toPrimitive.js
-function toPrimitive(t, r) {
-	if ("object" != _typeof(t) || !t) return t;
-	var e = t[Symbol.toPrimitive];
-	if (void 0 !== e) {
-		var i = e.call(t, r || "default");
-		if ("object" != _typeof(i)) return i;
-		throw new TypeError("@@toPrimitive must return a primitive value.");
-	}
-	return ("string" === r ? String : Number)(t);
-}
-// \0@oxc-project+runtime@0.156.0/helpers/esm/toPropertyKey.js
-function toPropertyKey(t) {
-	var i = toPrimitive(t, "string");
-	return "symbol" == _typeof(i) ? i : i + "";
-}
-// \0@oxc-project+runtime@0.156.0/helpers/esm/defineProperty.js
-function _defineProperty(e, r, t) {
-	return (r = toPropertyKey(r)) in e ? Object.defineProperty(e, r, {
-		value: t,
-		enumerable: !0,
-		configurable: !0,
-		writable: !0
-	}) : e[r] = t, e;
 }
 // modules/breakermed/src/format/bytes.ts
 /**
@@ -1862,6 +2446,10 @@ function registerCommands(ib, engine, st) {
 	const open = async (ctx, path, given) => {
 		const song = readSong(given ?? await ib.vault.readBytes(path), path);
 		st.song = song;
+		st.editor = new Editor(song);
+		st.editor.onChange = () => ib.ui.redraw();
+		st.sel = null;
+		st.col = 0;
 		st.path = path;
 		st.seq = st.line = st.track = 0;
 		st.inst = Math.max(0, song.instruments.findIndex((i) => i.kind !== "empty"));
@@ -1888,6 +2476,13 @@ function registerCommands(ib, engine, st) {
 			"med pos <position> [line]  move the cursor (and where play starts)",
 			"med mute <track> · med solo <track>   (again: back)",
 			"med paula on|off           stepped like the Amiga (on), or smooth",
+			"med edit on|off            typing writes in the block (space on the page)",
+			"med step <0–9>             lines the cursor moves after a note",
+			"med note <line> <track> <C-3|^^^|---> [instrument] [command]   write a cell (hex line, track from 1)",
+			"med block new [lines] · med block copy · med block lines <n>",
+			"med seq new|copy|rm [position] · med seq set <position> <block> · med seq add <block>",
+			"med tracks <n> · med tempo <n> · med speed <n> · med lpb <n>",
+			"med undo · med redo",
 			"med effects                every command (00–2E) in one line each",
 			"med info                   the song's settings"
 		].join("\n"),
@@ -1902,6 +2497,23 @@ function registerCommands(ib, engine, st) {
 			"open",
 			"ls",
 			"demo",
+			"edit",
+			"step",
+			"note",
+			"block",
+			"seq",
+			"tracks",
+			"tempo",
+			"speed",
+			"lpb",
+			"undo",
+			"redo",
+			"new",
+			"copy",
+			"rm",
+			"set",
+			"add",
+			"lines",
 			"play",
 			"stop",
 			"pos",
@@ -1999,6 +2611,96 @@ function registerCommands(ib, engine, st) {
 						await ib.storage.set("paula", engine.paula);
 						ctx.out(engine.paula ? "PAULA: stepped, gritty, like the Amiga\n" : "SMOOTH: interpolated\n");
 						return 0;
+					case "edit":
+						need();
+						st.edit = rest[0] === "on" ? true : rest[0] === "off" ? false : !st.edit;
+						if (st.edit) engine.stop();
+						ctx.out(st.edit ? "edit mode: typing writes in the block\n" : "edit mode off: the keys only play\n");
+						return 0;
+					case "step": {
+						const n = parseInt(rest[0] ?? "", 10);
+						if (!(n >= 0 && n <= 16)) return ctx.err("med step 0–16\n"), 1;
+						st.step = n;
+						return 0;
+					}
+					case "note": {
+						const s = need();
+						const [lineS, trackS, noteS, instS, cmdS] = rest;
+						const line = parseInt(lineS ?? "", 16), track = parseInt(trackS ?? "", 10) - 1;
+						const note = noteS ? parseNote(noteS) : null;
+						const b = s.blocks[s.sequence[st.seq]];
+						if (!b || !(line >= 0 && line < b.lines) || !(track >= 0 && track < s.tracks) || note === null) return ctx.err("med note <line (hex)> <track 1–n> <C-3|^^^|---> [instrument hex] [command 0C20]\n"), 1;
+						const e = st.editor;
+						const bn = s.sequence[st.seq];
+						if (note) e.writeNote(bn, line, track, note, instS ? parseInt(instS, 16) || 0 : 0);
+						else e.clear(bn, line, track, 0);
+						if (cmdS && /^[0-9a-f]{4}$/i.test(cmdS)) [...cmdS].forEach((d, i) => e.writeHex(bn, line, track, 3 + i, parseInt(d, 16)));
+						return 0;
+					}
+					case "block": {
+						const s = need();
+						const e = st.editor;
+						const what = rest[0];
+						if (what === "new") {
+							const n = e.newBlock(rest[1] ? parseInt(rest[1], 10) || 64 : s.blocks[s.sequence[st.seq]]?.lines ?? 64);
+							ctx.out(`block ${hex(n, 3)}\n`);
+						} else if (what === "copy") ctx.out(`block ${hex(e.cloneBlock(s.sequence[st.seq]), 3)}\n`);
+						else if (what === "lines") {
+							const n = parseInt(rest[1] ?? "", 10);
+							if (!(n >= 1 && n <= 3200)) return ctx.err("med block lines 1–3200\n"), 1;
+							e.setLines(s.sequence[st.seq], n);
+						} else return ctx.err("med block new [lines] | copy | lines <n>\n"), 1;
+						return 0;
+					}
+					case "seq": {
+						const s = need();
+						const e = st.editor;
+						const [what, a, b] = rest;
+						const pos = a !== void 0 ? parseInt(a, 16) : st.seq;
+						if (what === "new") {
+							const n = e.newBlock(s.blocks[s.sequence[st.seq]]?.lines ?? 64);
+							e.seqInsert(pos + 1, n);
+							st.seq = Math.min(s.sequence.length - 1, pos + 1);
+						} else if (what === "copy") {
+							const n = e.cloneBlock(s.sequence[pos] ?? 0);
+							e.seqInsert(pos + 1, n);
+							st.seq = Math.min(s.sequence.length - 1, pos + 1);
+						} else if (what === "rm") e.seqDelete(pos);
+						else if (what === "set") e.seqSet(pos, parseInt(b ?? "", 16));
+						else if (what === "add") e.seqInsert(s.sequence.length, parseInt(a ?? "", 16));
+						else return ctx.err("med seq new|copy|rm [position] · set <position> <block> · add <block>\n"), 1;
+						st.seq = Math.max(0, Math.min(s.sequence.length - 1, st.seq));
+						st.line = 0;
+						return 0;
+					}
+					case "tracks": {
+						need();
+						const n = parseInt(rest[0] ?? "", 10);
+						if (!(n >= 1 && n <= 60)) return ctx.err("med tracks 1–60\n"), 1;
+						engine.stop();
+						st.editor.setTracks(n);
+						return 0;
+					}
+					case "tempo":
+					case "speed":
+					case "lpb": {
+						const s = need();
+						const n = parseInt(rest[0] ?? "", 10);
+						const [lo, hi] = sub === "tempo" ? [1, 255] : sub === "speed" ? [1, 32] : [1, 32];
+						if (!(n >= lo && n <= hi)) return ctx.err(`med ${sub} ${lo}–${hi}\n`), 1;
+						if (sub === "tempo") s.tempo = n;
+						else if (sub === "speed") s.speed = n;
+						else s.lpb = n;
+						st.editor.dirty = true;
+						return 0;
+					}
+					case "undo":
+					case "redo": {
+						need();
+						const label = sub === "undo" ? st.editor.undo() : st.editor.redo();
+						ctx.out(label ? `${sub === "undo" ? "undone" : "redone"}: ${label}\n` : `nothing to ${sub}\n`);
+						return 0;
+					}
 					case "effects":
 						for (const [k, v] of EFFECTS) ctx.out(`${fmt.cyan(k.padEnd(13))} ${v}\n`);
 						return 0;
@@ -2236,16 +2938,7 @@ function activate(ib) {
 	if (!ib.audio || typeof ib.audio.schedule !== "function") throw new Error("breakerMED needs a newer ICEBREAKER (one with ib.audio, the modules' sound): update the deck");
 	ib.lib.addTranslations("fr", FR);
 	engine = new Engine(ib.audio);
-	const st = {
-		song: null,
-		path: "",
-		seq: 0,
-		line: 0,
-		track: 0,
-		inst: 0,
-		octave: 2,
-		error: ""
-	};
+	const st = newState();
 	engine.onChange = () => ib.ui.redraw();
 	ib.storage.get("paula", true).then((v) => engine && (engine.paula = v !== false));
 	registerCommands(ib, engine, st);
@@ -2289,6 +2982,44 @@ var FR = {
 	BLOCK: "BLOC",
 	line: "ligne",
 	track: "piste",
-	"mute / unmute this track": "couper / rétablir cette piste"
+	"mute / unmute this track": "couper / rétablir cette piste",
+	"med open <file.med|.mod> — or med demo": "med open <fichier.med|.mod> — ou med demo",
+	"play from here": "jouer d'ici",
+	"insert a new block here": "insérer un nouveau bloc ici",
+	"insert a copy of this block": "insérer une copie de ce bloc",
+	"remove this position": "retirer cette position",
+	copied: "copié",
+	copy: "copier",
+	cut: "couper",
+	paste: "coller",
+	clear: "effacer",
+	"transpose up": "transposer vers le haut",
+	"transpose down": "transposer vers le bas",
+	"an octave up": "une octave plus haut",
+	"an octave down": "une octave plus bas",
+	"insert a line": "insérer une ligne",
+	"delete the line": "supprimer la ligne",
+	EDIT: "ÉDITION",
+	space: "espace",
+	stop: "stop",
+	edit: "éditer",
+	step: "pas",
+	leave: "sortir",
+	oct: "oct",
+	"nothing to undo": "rien à annuler",
+	undone: "annulé",
+	redone: "rétabli",
+	note: "note",
+	digit: "chiffre",
+	"insert line": "insertion de ligne",
+	"delete line": "suppression de ligne",
+	transpose: "transposition",
+	"new block": "nouveau bloc",
+	"copy block": "copie de bloc",
+	"block length": "longueur du bloc",
+	tracks: "pistes",
+	sequence: "séquence",
+	"open a song…": "ouvrir un morceau…",
+	"the demo song": "le morceau de démo"
 };
 export { activate, deactivate };

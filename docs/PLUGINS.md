@@ -234,8 +234,10 @@ The full surface is typed and commented in
   (say why in your README). While you write a module, `plugin reload` approves your new code.
 - **A page that plays the keyboard** (a piano, a game): `rawKeys: true` in `ib.apps.register({…})` (and on the
   page). While it's in front, letters, digits and space come to `onKey` as keys, never as text, with their
-  **place** in `code` (`KeyZ` is Z on QWERTY, W on AZERTY) and `repeat` when held; no deck shortcut takes a key
-  without ⌘ / ctrl then. The breakerMED tracker uses it.
+  **place** in `code` (`KeyZ` is Z on QWERTY, W on AZERTY) and `repeat` when held; every **alt** combination is
+  the page's too (alt + arrows included, the deck's pane keys on Windows / Linux), and ⌘Z / ⌘⇧Z reach it (its own
+  undo). ⌘ / ctrl shortcuts stay the deck's; **esc** leaves the page (the tree takes the keys back). The breakerMED
+  tracker uses it.
 - `ib.apps.open(kind, args)`: your own pages take any `args`; the deck's pages only a note,
   a folder or a day.
 - `ib.ui.confirm / prompt / choose / alert` are headed with your module's name; what your

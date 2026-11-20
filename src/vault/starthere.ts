@@ -258,7 +258,10 @@ were on come back as you left them next time.
   fader each for moving around, notifications, the text that types itself out,
   your keys, the start-up, and the sound **modules** play themselves (a module
   allowed to — permission "audio" — shows ♪ its name in the status bar while it
-  plays: a click, or \`audio stop\`, silences it). *A click on your keys* (off by default) gives your
+  plays: a click, or \`audio stop\`, silences it).
+- A page that **plays the keyboard** (the breakerMED tracker) keeps every key while
+  it's in front, alt + arrows too: **esc** gives them back to the deck (the tree takes
+  them), a click on the page brings them back. *A click on your keys* (off by default) gives your
   typing the theme's own key sound — another one when you erase — played the
   moment the key goes down.
 - **Text that types itself out** — the tour, notifications, dialogs, the setup,
