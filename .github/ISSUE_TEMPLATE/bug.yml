@@ -2,6 +2,9 @@ name: Bug
 description: Something doesn't work
 labels: [bug]
 body:
+  - type: markdown
+    attributes:
+      value: "English or French, as you like. A security problem? Not here: see SECURITY.md (privately)."
   - type: textarea
     id: what
     attributes:
@@ -18,7 +21,7 @@ body:
     id: version
     attributes:
       label: Version and system
-      placeholder: "0.1.0 · macOS 15 · Apple Silicon"
+      placeholder: "0.5.2 · macOS 15 · Apple Silicon"
     validations:
       required: true
   - type: textarea

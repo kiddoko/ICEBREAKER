@@ -73,6 +73,8 @@ const hidden = (path: string) => path.split("/").some((p) => p.startsWith("."));
 export class NoteTasks {
   private readonly files = new Map<string, { at: number; tasks: NoteTask[] }>();
   private running: Promise<boolean> | null = null;
+  /** list(), kept until a note's checkboxes change (it's drawn every frame) */
+  private sorted: NoteTask[] | null = null;
   /** when the notes were last looked at (ms) */
   checked = 0;
   /** read at least once */
@@ -82,9 +84,22 @@ export class NoteTasks {
 
   /** Every open checkbox, note by note (by path), in the note's order. */
   list(): NoteTask[] {
-    return [...this.files.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .flatMap(([, f]) => f.tasks);
+    this.sorted ??= [...this.files.entries()].sort((a, b) => a[0].localeCompare(b[0])).flatMap(([, f]) => f.tasks);
+    return this.sorted;
+  }
+
+  /** a look at the notes is running */
+  get busy(): boolean {
+    return this.running !== null;
+  }
+
+  private set(path: string, at: number, tasks: NoteTask[]): void {
+    this.files.set(path, { at, tasks });
+    this.sorted = null;
+  }
+
+  private forget(path: string): void {
+    if (this.files.delete(path)) this.sorted = null;
   }
 
   find(path: string, line: number): NoteTask | undefined {
@@ -108,7 +123,7 @@ export class NoteTasks {
     const times = await this.io.modified();
     let changed = false;
     for (const path of [...this.files.keys()]) {
-      if (!(path in times) || hidden(path)) (this.files.delete(path), (changed = true));
+      if (!(path in times) || hidden(path)) (this.forget(path), (changed = true));
     }
     const todo = Object.entries(times).filter(([path, at]) => !hidden(path) && this.files.get(path)?.at !== at);
     // a few reads at once: fast on a big vault, without flooding the native side
@@ -119,11 +134,11 @@ export class NoteTasks {
         try {
           const before = this.files.get(path)?.tasks ?? [];
           const tasks = openBoxes(path, await this.io.read(path));
-          this.files.set(path, { at, tasks });
+          this.set(path, at, tasks);
           if (tasks.length || before.length) changed = true;
         } catch {
           // unreadable right now (moved, locked): looked at again next time
-          this.files.delete(path);
+          this.forget(path);
         }
       }
     };
@@ -160,6 +175,6 @@ export class NoteTasks {
   /** what TODO knows of one note, from its content just read or written */
   private async reread(path: string, content: string): Promise<void> {
     const at = (await this.io.modified().catch(() => ({}) as Record<string, number>))[path] ?? Date.now();
-    this.files.set(path, { at, tasks: openBoxes(path, content) });
+    this.set(path, at, openBoxes(path, content));
   }
 }

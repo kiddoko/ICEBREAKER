@@ -365,7 +365,7 @@ export function activate(ib: IcebreakerAPI): void {
   const notes = new NoteTasks({ modified: () => ib.vault.modified(), read: (p) => ib.vault.read(p), write: (p, c) => ib.vault.write(p, c) });
   /** while TODO shows: the notes looked at again, every few seconds (only the changed ones are read) */
   const lookAtNotes = () => {
-    if (Date.now() - notes.checked > 3000) void notes.refresh().then((changed) => changed && ib.ui.redraw(), () => {});
+    if (!notes.busy && Date.now() - notes.checked > 3000) void notes.refresh().then((changed) => changed && ib.ui.redraw(), () => {});
   };
   void ready.then(() => notes.refresh()).then(() => ib.ui.redraw(), () => {});
   /** open the note a checkbox is in */

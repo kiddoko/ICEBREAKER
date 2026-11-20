@@ -4,7 +4,7 @@ labels: [idea]
 body:
   - type: markdown
     attributes:
-      value: "Most features belong in a **module** (one feature = one module). If yours could be one, say so — or build it: `plugin new <id>` and docs/PLUGINS.md."
+      value: "English or French, as you like. Most features belong in a **module** (one feature = one module). If yours could be one, say so — or build it: `plugin new <id>` and docs/PLUGINS.md."
   - type: textarea
     id: what
     attributes:

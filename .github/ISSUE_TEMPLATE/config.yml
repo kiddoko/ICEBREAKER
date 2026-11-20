@@ -2,7 +2,7 @@ blank_issues_enabled: true
 contact_links:
   - name: Share an idea, feedback, or how it went for you
     url: https://github.com/kiddoko/ICEBREAKER/discussions
-    about: Discussions — ideas, questions, what you built, what annoyed you. (Bugs go in an issue.)
+    about: Discussions — ideas, questions, what you built, what annoyed you, in English or French. (Bugs go in an issue.)
   - name: Report a security problem
     url: https://github.com/kiddoko/ICEBREAKER/security/advisories/new
     about: Privately, please — not in a public issue.
