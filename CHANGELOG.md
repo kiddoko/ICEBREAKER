@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 — 2026-11-20 (first public release)
 
 - **Test software, said everywhere**: a big warning at the top of the README and in
   DISCLAIMER.md (store nothing sensitive, back up your vault, no warranty, how to help:

@@ -194,20 +194,20 @@ themes/          built-in themes (nightshade.toml is the annotated reference)
 
 ## Roadmap
 
-- [x] Vault file watcher (pick up edits made in Obsidian/vim live)
-- [x] CALENDAR module (vault-local Markdown, optional Google Calendar) · local MUSIC player
-- [ ] Notarized macOS builds, signed Windows installer
-- [ ] Backlinks panel and a graph view in braille
-- [ ] Tool use for local models (Ollama), more providers (llama.cpp server, LM Studio)
-- [x] `plugin install` / `theme install` from GitHub + a community index
-- [x] Modules from the store in a sandboxed Worker ([docs/SANDBOX.md](docs/SANDBOX.md))
-- [ ] The built-in modules in the Worker too; the native bridge locked
-- [ ] Vim keybindings in the editor
-- [ ] Native gamepad backend (gilrs) for Linux WebKitGTK builds without the Gamepad API
-- [x] Vault encryption (`vault encrypt` / `decrypt` / `export`) — [docs/ENCRYPTION.md](docs/ENCRYPTION.md)
-- [x] The recovery key (24 words; login page → forgot password?)
-- [x] Encryption as an option (setup, Settings → PRIVACY), back and forth as often as you like
-- [x] Portable vaults: open yours on another computer (USB key, any system) with its name and password
+Done in 0.5.0: vault encryption with a recovery key, portable vaults, modules from the STORE
+in a sandbox, signed in-app updates, module dependencies. Next, in this order:
+
+1. **UI overhaul** — a fully modular interface (frames that hold tabs; move the shell, the
+   side panel, the tree anywhere; tab groups, terminals as tabs), perfect scaling on every
+   resolution and screen ratio, one spacing rule everywhere, an Ableton-style info panel
+   instead of hover tips, every module redrawn in ASCII — and moved into the Worker sandbox
+   on the way, then the native bridge locked ([docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md) O2–O4).
+2. **STORE and files** — filters and categories, install a module / theme / sound pack from a file, a fuller theme studio.
+3. **Voice and AI** — one voice path for everything, several AIs at once, tool use for local models (Ollama), an evening JOURNAL.
+4. **Automations** — an ALERTS module (your own rules → notifications), a more useful NEXUS.
+5. **Notes and editor** — file types, the code editor as a module, linked notes, backlinks and a braille graph, Vim keys.
+6. **Finishing touches** — shell output in French, palette commands that show their output without the TERMINAL.
+7. **Platforms** — notarized macOS, signed Windows installer, encryption tested on Windows and Linux, native gamepad on Linux, syncing one encrypted vault from two computers.
 
 ## License
 
