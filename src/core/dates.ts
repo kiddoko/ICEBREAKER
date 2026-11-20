@@ -120,6 +120,8 @@ export interface When {
   inMinutes: number | null;
   /** "tonight" / "ce soir" was said: with no time, 20:00 */
   evening: boolean;
+  /** today's weekday was named ("ven 18h" on a friday): today if that time is still to come, else next week */
+  todayToo?: boolean;
   /** the words that say no time (a reminder's title…), as written */
   rest: string[];
 }
@@ -146,6 +148,7 @@ export function readWhen(input: string | string[], from = new Date()): When {
   const isWhen = (s: string | undefined) =>
     !!s && (durationOf(s, false) !== null || parseTime(s) !== null || parseDay(s, from) !== null || IN.has(s) || NEXT.has(s));
   let ambiguous = false; // the time was a plain "1h"…"6h": maybe a length
+  let next = false; // "next thursday" on a thursday: next week, never today
   for (let i = 0; i < toks.length; i++) {
     const s = low[i];
     if (IN.has(s) && i + 1 < toks.length) {
@@ -163,7 +166,10 @@ export function readWhen(input: string | string[], from = new Date()): When {
       }
     }
     if (LEADS.has(s) && isWhen(low[i + 1])) continue;
-    if (NEXT.has(s) && ((low[i + 1] ?? "") in WEEKDAYS || (low[i - 1] ?? "") in WEEKDAYS)) continue;
+    if (NEXT.has(s) && ((low[i + 1] ?? "") in WEEKDAYS || (low[i - 1] ?? "") in WEEKDAYS)) {
+      next = true;
+      continue;
+    }
     const d = durationOf(s, false);
     if (d !== null && out.inMinutes === null) {
       out.inMinutes = d;
@@ -179,10 +185,12 @@ export function readWhen(input: string | string[], from = new Date()): When {
     if (day) {
       out.day = day;
       out.evening = EVENING.has(s);
+      out.todayToo = s in WEEKDAYS && WEEKDAYS[s] === from.getDay();
       continue;
     }
     out.rest.push(toks[i]);
   }
+  if (next) out.todayToo = false;
   // "1h" alone: in an hour (with a day, "demain 3h" is 3 a.m.)
   if (ambiguous && !out.day && out.inMinutes === null && out.time !== null) {
     out.inMinutes = out.time;
@@ -201,6 +209,7 @@ export function resolveWhen(w: When, from = new Date(), defaultTime = 9 * 60): D
   const d = w.day ?? startOfDay(from);
   const tm = w.time ?? (w.evening ? 20 * 60 : defaultTime);
   const at = (plus: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + plus, Math.floor(tm / 60), tm % 60);
+  if (w.todayToo && at(-7).getTime() > from.getTime()) return at(-7); // "ven 18h" on a friday morning: tonight
   return !w.day && at(0).getTime() <= from.getTime() ? at(1) : at(0);
 }
 

@@ -91,6 +91,11 @@ describe("when — reminders, todo --due, cal add (English and French)", () => {
     expect(when("fri 6pm")).toBe("2026-11-20 18:00");
     expect(when("vendredi 18:00")).toBe("2026-11-20 18:00");
     expect(when("lundi prochain 9h")).toBe("2026-11-23 09:00");
+    // today's weekday: today while the time is still to come, else next week
+    expect(when("jeu 18h")).toBe("2026-11-19 18:00");
+    expect(when("thursday 9am")).toBe("2026-11-26 09:00");
+    expect(when("jeudi")).toBe("2026-11-26 09:00");
+    expect(when("jeudi prochain 18h")).toBe("2026-11-26 18:00");
     expect(when("next monday 9am")).toBe("2026-11-23 09:00");
     expect(when("24/12 9:00")).toBe("2026-12-24 09:00");
     expect(when("le 24/12 à 9h")).toBe("2026-12-24 09:00");
