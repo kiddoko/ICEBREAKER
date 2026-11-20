@@ -3,6 +3,7 @@ import type { Command } from "../types";
 import { fmt } from "../../core/ansi";
 import { groupIssues, parseSize, PROBE_SIZES, type SizeReport } from "../../ui/probe";
 import type { Deck } from "../../deck";
+import { padIcon, type PadButton, type PadKind } from "../../core/padglyphs";
 
 /** The LOG tab by command: open it, choose what it shows, print the last lines, empty it. */
 export const logCommand: Command = {
@@ -64,9 +65,10 @@ export const debugCommand: Command = {
     "debug perf [seconds]    measure the frames while you use the deck (3 s): building, painting, cells, stutters\n" +
     "debug layout [WxH…]     draw this screen at many sizes (off screen) and list what is cut or overlaps (--json)\n" +
     "debug layout pages      the same for every page and module page, one after the other\n" +
-    "debug layout show       mark it on the screen as you go: red = cut, yellow = over another text — again to stop",
+    "debug layout show       mark it on the screen as you go: red = cut, yellow = over another text — again to stop\n" +
+    "debug pad               the gamepad's buttons in pixel art, for each kind of pad (and which one is plugged in)",
   examples: [["debug on", "then log show debug"], ["debug hits", "see what is clickable where"], ["debug layout", "what breaks at 14 screen sizes"], ["debug layout 100x30 300x60", "two sizes only"]],
-  complete: () => ["on", "off", "hits", "log", "state", "perf", "layout"],
+  complete: () => ["on", "off", "hits", "log", "state", "perf", "layout", "pad"],
   async run(ctx) {
     const d = ctx.deck;
     const [a, ...rest] = ctx.args;
@@ -127,6 +129,18 @@ export const debugCommand: Command = {
       return 0;
     }
     if (a === "layout") return layoutCheck(ctx.deck, rest, ctx.out);
+    if (a === "pad") {
+      // every button's icon (core/padglyphs.ts), pad by pad: two cells each, then its name
+      const order: PadButton[] = ["south", "east", "west", "north", "lb", "rb", "lt", "rt", "select", "start", "home", "ls", "rs", "dpad", "up", "down", "left", "right"];
+      const kinds: PadKind[] = ["xbox", "playstation", "nintendo", "generic"];
+      const plugged = d.gamepad.connected ? d.gamepad.kind : null;
+      for (const k of kinds) {
+        ctx.out(`${k === plugged ? fmt.green(`◈ ${k.padEnd(12)}`) : `  ${k.padEnd(12)}`}${order.map((b) => padIcon(b, k).text).join(" ")}\n`);
+        ctx.out(fmt.dim(`  ${"".padEnd(12)}${order.map((b) => padIcon(b, k).name.slice(0, 2).padEnd(2)).join(" ")}\n`));
+      }
+      ctx.out(fmt.dim(plugged ? `plugged in: ${d.gamepad.name}\n` : "no pad plugged in\n"));
+      return 0;
+    }
     if (a === "state") {
       const g = d.gridSize;
       const lines = [
@@ -142,7 +156,7 @@ export const debugCommand: Command = {
       for (const [k, v] of lines) ctx.out(`${fmt.dim(k.padEnd(8))} ${v}\n`);
       return 0;
     }
-    return ctx.err("usage: debug [on|off|hits|log <text>|state|perf|layout]\n"), 1;
+    return ctx.err("usage: debug [on|off|hits|log <text>|state|perf|layout|pad]\n"), 1;
   },
 };
 
