@@ -14,7 +14,8 @@ function walk(dir: string): string[] {
   });
 }
 
-const files = [...walk("src"), ...walk("plugins")];
+// forward slashes everywhere, so the allow-lists below match on Windows too
+const files = [...walk("src"), ...walk("plugins")].map((f) => f.replaceAll("\\", "/"));
 /** the kit itself, the two terminals (a real terminal's caret), the sandbox (it forwards a module's caret) */
 const KIT = ["src/ui/field.ts", "src/ui/editor.ts", "src/ui/controls.ts", "src/ui/ui.ts", "src/shell/shell.ts", "src/shell/systerm.ts", "src/shell/terminal.ts", "src/plugins/sandbox/bridge.ts"];
 
