@@ -161,7 +161,7 @@ export class NoteTasks {
       return new Error(`${where}: ${why} — the note changed since, nothing was written (open it: open ${path})`);
     };
     if (now === undefined) throw changed("there's no such line any more");
-    if (expect !== undefined && now !== expect) throw changed(`the line isn't “${(setBox(expect, false) ?? expect).trim()}” any more`);
+    if (expect !== undefined && now !== expect) throw changed(`that line isn't “${BOX.exec(expect)?.[4].trim() ?? expect.trim()}” any more`);
     const after = setBox(now, done);
     if (after === null) throw changed("that line isn't a checkbox");
     if (after === now) throw new Error(`${where}: already ${done ? "ticked" : "open"}`);
