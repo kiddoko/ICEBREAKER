@@ -783,6 +783,8 @@ export class Workspace {
       case "wheel": {
         this.tipHidden = true;
         const h = pick((x) => !!x.onWheel);
+        // shift + wheel walks the tree from anywhere (Settings → VAULT), but a slider keeps its wheel
+        if (m.shift && this.sidebarVisible && !h?.fine && !m.fine && this.sidebar.walkWheel(m.delta)) break;
         if (!m.fine || h?.fine) h?.onWheel?.(m.delta, m); // less than a line: only sliders want it
         break;
       }

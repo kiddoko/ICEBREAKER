@@ -80,24 +80,28 @@ export class Sidebar {
     };
     this.list.dragLabel = (row) => `${row.entry.isDir ? "▸" : "≡"} ${row.entry.name}`;
     this.list.dropEndLabel = ` ↳ ${t("to the vault's root")} `;
-    // the wheel walks the tree file by file and shows each one at once (Settings → VAULT)
     // the wheel scrolls the tree; shift + wheel walks it file by file and shows each one
-    this.list.wheel = (lines, m) => {
-      if (!m.shift || !deck.settings.data.editor.treeWheel || this.list.items.length === 0) return false;
-      const steps = this.spin.wheel(lines);
-      if (!steps) return true;
-      // past the last row comes the first again (and the other way)
-      const n = this.list.items.length;
-      this.list.select((((this.list.selected + steps) % n) + n) % n);
-      deck.sound.play("tick");
-      const row = this.list.current;
-      if (row && !row.entry.isDir) deck.workspace.previewNote(row.entry.path);
-      deck.requestFrame();
-      return true;
-    };
+    this.list.wheel = (lines, m) => (m.shift ? this.walkWheel(lines) : false);
     // the folders you had open last time
     const saved = deck.settings.data.session?.tree;
     if (saved) this.open = new Set(saved);
+  }
+
+  /** shift + wheel: walk the tree file by file, each one shown at once in a preview tab.
+   *  Wherever the pointer is (workspace.ts routes shift + wheel here), except over a slider. */
+  walkWheel(lines: number): boolean {
+    const deck = this.deck;
+    if (!deck.settings.data.editor.treeWheel || this.list.items.length === 0) return false;
+    const steps = this.spin.wheel(lines);
+    if (!steps) return true;
+    // past the last row comes the first again (and the other way)
+    const n = this.list.items.length;
+    this.list.select((((this.list.selected + steps) % n) + n) % n);
+    deck.sound.play("tick");
+    const row = this.list.current;
+    if (row && !row.entry.isDir) deck.workspace.previewNote(row.entry.path);
+    deck.requestFrame();
+    return true;
   }
 
   /** The path selected in the tree (null: nothing). */

@@ -26,6 +26,10 @@
 - **Google Calendar on Windows** connects (the sign-in no longer waits on one call); the
   setup's calendar choice is kept.
 - A note sent to the trash closes its tabs and leaves its pins (one ⌘Z brings it all back).
+- **shift + wheel walks the tree from anywhere** (not only over it; a slider keeps its wheel).
+- Small things: NEWS is labelled with the right country when the language has no region
+  ("fr" → FR, not US); no "settings save failed" in the console before login; the login
+  card's line saying what a step is for wraps instead of being cut.
 
 ## 0.5.0 — 2026-11-20 (first public release)
 

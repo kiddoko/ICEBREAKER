@@ -56,5 +56,13 @@ export function countryOf(deck: Deck): string {
   const loc = deck.settings.data.user.location;
   if (loc.country) return loc.country.toUpperCase();
   const region = (deck.settings.data.user.locale || navigator.language || "en-US").split("-")[1];
-  return (region ?? "US").toUpperCase();
+  if (region) return region.toUpperCase();
+  // a locale without a region ("fr"): the language's main country, so French headlines
+  // aren't labelled (and searched) as the US's
+  return LANG_COUNTRY[langOf(deck)] ?? "US";
 }
+
+const LANG_COUNTRY: Record<string, string> = {
+  en: "US", fr: "FR", de: "DE", es: "ES", it: "IT", pt: "PT", nl: "NL", ja: "JP", ko: "KR",
+  zh: "CN", ru: "RU", pl: "PL", sv: "SE", da: "DK", nb: "NO", fi: "FI", cs: "CZ", tr: "TR",
+};

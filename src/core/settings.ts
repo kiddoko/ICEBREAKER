@@ -460,7 +460,7 @@ export class SettingsStore {
   async flush(): Promise<void> {
     if (this.frozen || this.readOnly) return;
     clearTimeout(this.saveTimer);
-    await this.platform.config.write("settings.json", this.serialize()).catch((e) => console.error("settings save failed", e));
+    await this.platform.config.write("settings.json", this.serialize()).catch(saveFailed);
   }
 
   /** What's saved: the settings, over the keys this version doesn't know (a newer one wrote them: they stay). */
@@ -478,7 +478,7 @@ export class SettingsStore {
     if (this.frozen || this.readOnly) return;
     clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => {
-      this.platform.config.write("settings.json", this.serialize()).catch((e) => console.error("settings save failed", e));
+      this.platform.config.write("settings.json", this.serialize()).catch(saveFailed);
     }, 300);
   }
 }
@@ -547,4 +547,11 @@ function coerce(value: unknown, like: unknown): unknown {
   }
   if (Array.isArray(like)) return value.split(",").map((s) => s.trim()).filter(Boolean);
   return value;
+}
+
+/** Writing settings before anyone has logged in is refused by the native side ("locked"):
+ *  expected at boot, so only real failures are logged. */
+function saveFailed(e: unknown): void {
+  if (/locked/i.test(String(e))) return;
+  console.error("settings save failed", e);
 }

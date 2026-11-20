@@ -1,5 +1,5 @@
 import { Field } from "../ui/field";
-import { strWidth } from "../core/unicode";
+import { strWidth, wrapWords } from "../core/unicode";
 import { checkbox } from "../ui/controls";
 import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC, type KeyInput } from "../core/input";
@@ -316,7 +316,18 @@ export class LockScreen {
     const iconRoom = H >= 28 && this.mode === "login";
     const look = this.granted ? this.device.look[lookKey(this.granted.user)] : undefined;
     const fields = this.order.filter((f) => f !== "remember");
-    const cardH = 5 + fields.length * 3 + (this.mode === "login" ? 2 : 1) + (iconRoom ? 4 : 0) + (this.mode !== "login" ? 2 : 0);
+    // what this step is for (the card's first lines, wrapped to its inner width)
+    const why = this.mode === "login" ? "" : this.mode === "open"
+      ? "its account's name and password"
+      : this.mode === "recover"
+        ? "your vault's 24 words set a new password"
+        : this.first
+          ? "your settings, your theme, your vault — behind a password"
+          : this.mode === "approve"
+            ? "an account of this deck approves the new one"
+            : "the new account: its own settings and vault";
+    const whyLines = why ? wrapWords(why, w - 4) : [];
+    const cardH = 5 + fields.length * 3 + (this.mode === "login" ? 2 : 1) + (iconRoom ? 4 : 0) + (whyLines.length ? whyLines.length + 1 : 0);
     const x = Math.floor((W - w) / 2) + shake;
     let y = Math.max(1, Math.floor((H - cardH - 6) / 2));
     const p = Math.min(1, (ui.now - this.shownAt) / 600);
@@ -353,20 +364,9 @@ export class LockScreen {
       else ui.textCenter(card, cy + 1, "· · ·", { fg: c.faint, bg: c.panel });
       cy += 4;
     }
-    // what this step is for, in one line
-    if (this.mode !== "login") {
-      const why = this.mode === "open"
-        ? "its account's name and password"
-        : this.mode === "recover"
-          ? "your vault's 24 words set a new password"
-          : this.first
-        ? "your settings, your theme, your vault — behind a password"
-        : this.mode === "approve"
-          ? "an account of this deck approves the new one"
-          : "the new account: its own settings and vault";
-      ui.text(ix, cy, why, { fg: c.subtle, bg: c.panel }, iw);
-      cy += 2;
-    }
+    // what this step is for: wrapped, never cut (the card grew by its extra lines)
+    for (const line of whyLines) ui.text(ix, cy++, line, { fg: c.subtle, bg: c.panel }, iw);
+    if (whyLines.length) cy++;
     const labels: Record<string, string> = {
       path: "THE VAULT'S FOLDER (~/… or /Volumes/…)",
       user: this.mode === "new" ? "NEW ACCOUNT NAME" : this.mode === "approve" ? "AN ACCOUNT OF THIS DECK" : "ACCOUNT",
