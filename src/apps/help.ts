@@ -27,7 +27,7 @@ Everything works with **keyboard only**, **mouse only**, a **gamepad**, or any m
 - \`Tab\` — the next thing on the screen · \`Shift+Tab\` — the next part of the screen (tree → page → shell)
 - \`Ctrl+Shift+H / M / E / U\` — HOME · MODULES · NEXUS · UPLINK (the AI)
 - \`Ctrl+Shift+T / P / S\` — the tree · the side panel · the shell
-- \`Ctrl+N\` new note · \`Ctrl+Shift+N\` new folder · \`Ctrl+J\` today's journal · \`Ctrl+,\` settings
+- \`Ctrl+N\` new note · \`Ctrl+Shift+N\` new folder · \`Ctrl+J\` the journal (open at today) · \`Ctrl+,\` settings
 - \`Ctrl+Tab\` / \`Ctrl+Shift+Tab\` — next / previous tab · \`Ctrl+1…9\` — that tab · \`Ctrl+W\` / \`Shift+Esc\` — close it
 - \`Ctrl+S\` — save (notes also save themselves) · \`Ctrl+Enter\` — follow the [[link]] under the cursor
 - \`Ctrl+=\` / \`Ctrl+-\` / \`Ctrl+0\` — interface scale · \`F11\` — fullscreen · \`F1\` — this manual
@@ -54,6 +54,9 @@ On-screen keyboard: A types, B deletes, Y space, Start enter, LB/RB move the cur
 A small POSIX-like shell over your vault: pipes \`|\`, redirections \`> >> <\`, \`&&\` \`||\` \`;\`,
 quotes, \`$VARS\`, globs \`*.md\`, history (↑), fish-style suggestions (→), Tab completion.
 \`/\` and \`~\` are the vault root. \`<cmd> -h\` (or \`man <cmd>\`) shows a command's help with full examples: \`todo -h\`.
+- **Stop a command**: \`Ctrl+C\` (on a Mac \`⌘X\`, or the real Control key + C) stops what's running or the question it asks — it ends with ^C and the prompt comes back. \`Esc\` stops a question too. In your real terminal, \`⌘X\` on a Mac sends ctrl+C.
+- **Names with spaces**: Tab puts them between quotes — \`cd STA\` + Tab gives \`cd "START HERE/"\`.
+- \`say <text>\` — the deck's voice says it (the voice of UPLINK and the notifications; silent when the sound is muted or the voice is off).
 
 ${cmds}
 

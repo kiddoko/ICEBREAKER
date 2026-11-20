@@ -2,7 +2,7 @@ import { Field } from "../ui/field";
 import { strWidth } from "../core/unicode";
 import { checkbox } from "../ui/controls";
 import { BOLD, type Rect } from "../core/grid";
-import type { KeyInput } from "../core/input";
+import { IS_MAC, type KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import { decrypt } from "../fx/glitch";
 import { avatarOf, avatarRGB, drawAvatar } from "../core/avatar";
@@ -422,7 +422,7 @@ export class LockScreen {
     if (this.error) ui.textCenter({ x: 0, y, w: W, h: 1 }, y, `⚠ ${this.error}`, { fg: c.error });
     if (this.fails >= 5 && this.mode === "login")
       ui.textCenter({ x: 0, y: y + 1, w: W, h: 1 }, y + 1, "forgot it? forgot password? (an encrypted vault's recovery key) — or remove that account from accounts.json (see README)", { fg: c.faint });
-    const keys = this.mode === "login" ? "tab next field · enter unlock · ⌘Q / alt+F4 quit" : this.first ? "tab next field · enter create" : "tab next field · enter next · esc back";
+    const keys = this.mode === "login" ? `tab next field · enter unlock · ${IS_MAC ? "⌘Q" : "alt+F4"} quit` : this.first ? "tab next field · enter create" : "tab next field · enter next · esc back";
     ui.textCenter({ x: 0, y: H - 2, w: W, h: 1 }, H - 2, this.field === "path" ? `${keys} · ctrl+O browse` : keys, { fg: c.subtle });
     // always in sight, in both languages (nobody is logged in yet: no language to pick)
     ui.textCenter({ x: 0, y: H - 4, w: W, h: 1 }, H - 4, "⚠ test software, never audited · store nothing sensitive · back up your vault", { fg: c.warning });

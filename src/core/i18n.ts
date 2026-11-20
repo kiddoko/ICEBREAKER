@@ -6,10 +6,14 @@
  *   t("Let's go")                       → "C'est parti" in French
  *   t("{n} tracks", { n: 12 })          → "12 morceaux"
  *
+ * Key hints written the Mac way ("⌘K") come out as the OS reads them ("Ctrl+K"
+ * on Windows / Linux): core/keyhints.ts.
+ *
  * The UI calls t() while drawing, so switching language is instant. Plugins
  * get it as ib.lib.t (and can add their own strings with addTranslations).
  */
 import { FR } from "./i18n-fr";
+import { osKeys } from "./keyhints";
 
 export type Lang = "en" | "fr";
 export const LANGS: { id: Lang; name: string }[] = [
@@ -31,7 +35,7 @@ export function lang(): Lang {
 export function t(text: string, vars?: Record<string, string | number>): string {
   let s = tables[current][text] ?? text;
   if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v));
-  return s;
+  return osKeys(s);
 }
 
 /** Modules add their own strings: addTranslations("fr", { "Add": "Ajouter" }). */

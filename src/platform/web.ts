@@ -118,6 +118,8 @@ export function createWebPlatform(): Platform {
     envApiKey: async () => null,
     account: webAccount(),
     dev: {
+      // the browser preview while developing (npm run dev), never a built site
+      available: async () => !!import.meta.env?.DEV,
       factoryReset: async (_password: string) => {
         const keys = Object.keys(localStorage).filter((k) => k.startsWith("icebreaker"));
         keys.forEach((k) => localStorage.removeItem(k));

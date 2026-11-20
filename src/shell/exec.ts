@@ -25,7 +25,11 @@ export class ShellExecutor {
    */
   origin: Origin | null = null;
   /** Set by the shell panel: shows a question and resolves with the answer. */
-  readLine: ((label: string, opts: ReadOptions, signal: AbortSignal) => Promise<string | null>) | null = null;
+  readLine: ((label: string, opts: ReadOptions, signal: AbortSignal, interrupt: () => void) => Promise<string | null>) | null = null;
+  /** a question is on screen (it shows "^C" itself when cancelled) */
+  private asking = 0;
+  /** "^C" was said for this line (aliases and scripts run lines inside lines: once is enough) */
+  private stopShown = false;
 
   constructor(
     private readonly deck: Deck,
@@ -57,7 +61,7 @@ export class ShellExecutor {
       return (this.lastStatus = 2);
     }
     const outer = this.abort === null;
-    if (outer) this.abort = new AbortController();
+    if (outer) (this.abort = new AbortController()), (this.stopShown = false);
     try {
       let status = 0;
       let prevNext: string | null = null;
@@ -194,6 +198,8 @@ export class ShellExecutor {
       history: () => [...self.history],
       run: (line) => self.run(line, origin),
     };
+    const signal = this.abort!.signal;
+    if (signal.aborted) return (live.on = false), { status: 130, stdout: "" }; // stopped before its turn (a | b, a; b)
     const ctx: ShellContext = {
       args,
       stdin,
@@ -202,31 +208,47 @@ export class ShellExecutor {
       env: this.env,
       deck,
       shell: controls,
-      signal: this.abort!.signal,
+      signal,
       out: (t) => {
+        if (signal.aborted) return; // stopped (^C): like a killed program, it says nothing more
         if (isTTY) self.print(t, false);
         else stdout += t;
         self.deck.requestFrame();
       },
       err: (t) => {
+        if (signal.aborted) return;
         self.print(t, true);
         self.deck.requestFrame();
       },
       resolve: (p) => resolvePath(self.cwd, p),
-      read: (label, opts = {}) => (self.readLine && !self.abort!.signal.aborted ? self.readLine(label, opts, self.abort!.signal) : Promise.resolve(null)),
+      read: (label, opts = {}) => {
+        if (!self.readLine || signal.aborted) return Promise.resolve(null);
+        self.asking++;
+        return self.readLine(label, opts, signal, () => self.interrupt()).finally(() => self.asking--);
+      },
     };
     if (wantsHelp(args)) {
       ctx.out(helpText(cmd, isTTY));
       return { status: 0, stdout };
     }
+    // ^C stops the command at once, even one that doesn't listen to the signal:
+    // the prompt comes back, what it does after that is never shown
+    // (a question on screen when it's stopped already says "^C": shell/shell.ts readLine)
+    let asked = false;
+    const stopped = new Promise<"stopped">((res) => signal.addEventListener("abort", () => ((asked = this.asking > 0), res("stopped")), { once: true }));
+    const stop = () => {
+      if (!this.stopShown && !asked) this.print("^C\n", true);
+      this.stopShown = true;
+      return { status: 130, stdout };
+    };
     try {
-      const code = await cmd.run(ctx);
+      const running = Promise.resolve(cmd.run(ctx));
+      running.catch(() => {}); // stopped first: its later error isn't anyone's
+      const code = await Promise.race([running, stopped]);
+      if (code === "stopped" || signal.aborted) return stop();
       return { status: typeof code === "number" ? code : 0, stdout };
     } catch (e) {
-      if (this.abort?.signal.aborted) {
-        this.print("^C\n", true);
-        return { status: 130, stdout };
-      }
+      if (signal.aborted) return stop();
       this.print(`${name}: ${errMsg(e)}\n`, true);
       return { status: 1, stdout };
     } finally {

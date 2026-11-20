@@ -44,6 +44,7 @@ import type { Platform } from "./platform/types";
 import { PluginHost } from "./plugins/host";
 import { Updater } from "./core/updater";
 import { deckCommands } from "./shell/commands/deck";
+import { devCommands } from "./shell/commands/dev";
 import { fileCommands } from "./shell/commands/files";
 import { iconCommand, tagCommand } from "./shell/commands/marks";
 import { trashCommand } from "./shell/commands/trash";
@@ -424,6 +425,12 @@ export class Deck implements InputSink {
     // the settings rows: the deck's own (apps/settings-rows.ts, modules' rows included)
     this.prefs.register("core", () => coreSettingRows(this));
     for (const c of [...fileCommands, ...systemCommands, ...deckCommands, storeCommand, updateCommand, ...shortcutCommands, scriptCommand, pinCommand, unpinCommand, tagCommand, iconCommand, trashCommand, weatherCommand, startHereCommand]) this.commands.register({ ...c, source: "core" });
+    // developer tools (factory-reset): only in a build that has them (npm run app:mac, the
+    // web preview while developing). A release never registers them: not in help, man, Tab,
+    // THE MENU or BLOCKS — they don't exist there.
+    void this.platform.dev?.available().then((on) => {
+      if (on) for (const c of devCommands) this.commands.register({ ...c, source: "core" });
+    }, () => {});
     for (const w of [...BUILTIN_WIDGETS, pinnedWidget]) this.widgets.register(w);
     // the frame's own parts, callable like modules: deck.use("tree").reveal(…), ib.use("terminal")…
     for (const [id, fns] of Object.entries(frameServices(this))) this.services.exposeAll(id, fns);
@@ -619,22 +626,24 @@ export class Deck implements InputSink {
     // An encrypted vault's commands stay in ibsh (they'd read your notes decrypted);
     // a plain vault's run untrusted, like a module's (shell/privileged.ts).
     const crypt = await this.platform.vault.crypt?.status().catch(() => null);
-    if (crypt?.encrypted) return b.send(req.id, "\x1b[33mICEBREAKER: the vault is encrypted — its commands stay in ibsh (your terminal only sees noise)\x1b[0m\n", true, true);
+    if (crypt?.encrypted) return b.send(req.id, "\x1b[33mICEBREAKER: the vault is encrypted — its commands stay in ibsh (your terminal only sees noise)\x1b[0m\n", true, true, 1);
     const line = args.map((a, i) => (i === 0 ? a : q(a))).join(" ");
     if (cmd.interactive) {
       void this.shell.runUntrusted(line, { source: "terminal", grants: "all" });
       this.requestFrame();
-      return b.send(req.id, `\x1b[2m→ ${args[0]} asks questions: it's running in the ibsh tab\x1b[0m\n`, true, true);
+      return b.send(req.id, `\x1b[2m→ ${args[0]} asks questions: it's running in the ibsh tab\x1b[0m\n`, true, true, 0);
     }
-    const ex = new ShellExecutor(this, (text) => b.send(req.id, text, false, true), () => {});
+    // what goes wrong is said in red, and the exit code goes back with the end (the shell's $?, its ✕)
+    const ex = new ShellExecutor(this, (text, isError) => b.send(req.id, isError ? `\x1b[31m${text.replace(/\n$/, "")}\x1b[0m${text.endsWith("\n") ? "\n" : ""}` : text, false, true), () => {});
     ex.origin = { source: "terminal", grants: "all" };
     ex.env = this.shell.exec.env;
     const root = this.vault.root.replace(/\/$/, "");
     ex.cwd = req.cwd === root ? "" : req.cwd.startsWith(`${root}/`) ? req.cwd.slice(root.length + 1) : "";
+    let status = 1;
     try {
-      await ex.run(line);
+      status = await ex.run(line);
     } finally {
-      b.send(req.id, null, true, true);
+      b.send(req.id, null, true, true, status);
       this.requestFrame();
     }
   }

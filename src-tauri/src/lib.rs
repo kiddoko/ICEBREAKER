@@ -131,6 +131,7 @@ pub fn run() {
             screen::screen_fullscreen,
             screen::screen_is_fullscreen,
             screen::screen_notch,
+            dev::dev_tools_available,
             dev::dev_factory_reset, // DEV ONLY
             dev::dev_restart,       // DEV ONLY
         ])
