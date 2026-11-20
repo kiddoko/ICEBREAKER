@@ -907,6 +907,8 @@ export const FR: Record<string, string> = {
   "one key, several things, one after the other": "une touche, plusieurs choses, l'une après l'autre",
   "cancel  esc": "annuler  échap",
   "OK  ⏎": "OK  ⏎",
+  "[Y]es": "[O]ui",
+  "[N]o": "[N]on",
   "press the keys first": "appuie d'abord sur les touches",
   "shortcut…": "raccourci…",
   "edit…": "modifier…",

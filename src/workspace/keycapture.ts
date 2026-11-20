@@ -8,6 +8,7 @@ import type { Deck } from "../deck";
 import { q, type UI } from "../ui/ui";
 import type { Overlay } from "./overlays";
 import { commandNames } from "../core/suggest";
+import { CANCEL, dialogButtons, OK } from "../ui/dialog";
 
 /**
  * "A shortcut for this": waits for a key combo, shows what it would replace
@@ -132,12 +133,9 @@ export class KeyCapture implements Overlay {
     ui.button(inner.x + 2, y, t("+ another action"), () => void this.addAction(), { tip: t("one key, several things, one after the other") });
     y += 2;
     }
-    let bx = inner.x + inner.w - 2;
-    const cancel = t("cancel  esc");
-    bx -= strWidth(cancel) + 2;
-    ui.button(bx, y, cancel, () => (this.done = true));
-    const ok = t("OK  ⏎");
-    bx -= strWidth(ok) + 4;
-    ui.button(bx, y, ok, () => void this.ok(), { selected: !!this.combo, tip: this.combo ? `bind ${this.combo} …` : t("press the keys first") });
+    dialogButtons(ui, inner, [
+      { label: CANCEL(), run: () => (this.done = true) },
+      { label: OK(), run: () => void this.ok(), selected: !!this.combo, tip: this.combo ? `bind ${this.combo} …` : t("press the keys first") },
+    ], y);
   }
 }

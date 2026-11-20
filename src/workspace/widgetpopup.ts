@@ -1,5 +1,4 @@
 import { t } from "../core/i18n";
-import { strWidth } from "../core/unicode";
 import type { Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
@@ -7,6 +6,7 @@ import type { UI } from "../ui/ui";
 import type { WidgetSpec } from "../widgets/types";
 import type { Overlay } from "./overlays";
 import { focusWidget } from "../widgets/instances";
+import { CLOSE, dialogButtons } from "../ui/dialog";
 
 /**
  * A widget's pop-up (enter or double-click on HOME, or `widget <id>`): more
@@ -72,16 +72,12 @@ export class WidgetPopup implements Overlay {
     // footer: open the module · close
     const fy = inner.y + inner.h - 1;
     ui.hline(inner.x, fy - 1, inner.w, { fg: c.border });
-    let x = inner.x + inner.w;
-    x -= 13;
-    const close = t("close  esc");
-    x = inner.x + inner.w - close.length - 4;
-    ui.button(x, fy, close, () => (this.done = true), { accent: c.subtle });
-    if (this.spec.open) {
-      const words = this.spec.open.split(" ");
-      const label = `${t("open")} ${words[0] === "launch" ? words[1] : words[0]}  ⏎`;
-      ui.button(x - strWidth(label) - 4, fy, label, () => this.open(), { tip: this.spec.open });
-    }
-    if (p.hint) ui.text(inner.x + 1, fy, t(p.hint), { fg: c.faint, attrs: 0 }, Math.max(0, x - inner.x - 30));
+    // bottom right: close (the way out) on the left, open (the way forward) on the right (ui/dialog.ts)
+    const words = this.spec.open?.split(" ") ?? [];
+    const x = dialogButtons(ui, inner, [
+      { label: CLOSE(), run: () => (this.done = true), accent: c.subtle },
+      ...(this.spec.open ? [{ label: `${t("open")} ${words[0] === "launch" ? words[1] : words[0]}  ⏎`, run: () => this.open(), tip: this.spec.open }] : []),
+    ], fy);
+    if (p.hint) ui.text(inner.x + 1, fy, t(p.hint), { fg: c.faint, attrs: 0 }, Math.max(0, x - inner.x - 3));
   }
 }

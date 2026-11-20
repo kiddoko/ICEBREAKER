@@ -35,3 +35,5 @@ export { t, lang, addTranslations } from "../core/i18n";
 export { sparkline, formatStat, dayKey } from "../core/stats";
 /** the one way to read a day ("tomorrow", "fri", "24/12"…) and a time ("18:00", "9h"): parseDay, parseTime, ymd, addDays, startOfDay, WEEKDAYS */
 export * as dates from "../core/dates";
+/** a dialog's buttons (a widget's pop-up, a page's own box): bottom right, the way out on the left, Yes / OK on the right */
+export { dialogButtons, YES, NO, OK, CANCEL, CLOSE, type DialogButton } from "../ui/dialog";
