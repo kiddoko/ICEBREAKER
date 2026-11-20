@@ -9,6 +9,13 @@
   and 32 MB per module, silenced when it's switched off. Settings → SOUND → mixer gets a
   **Modules** fader, the status bar shows **♪ the module** while it plays (a click, or the new
   `audio stop`, silences it). docs/PLUGINS.md, SANDBOX.md, SECURITY_AUDIT.md (O21).
+- **breakerMED, step 1** (`modules/breakermed/`, a module for the STORE, not in the app): reads
+  `.med` (MMD0–MMD3) and `.mod`, plays them through `ib.audio` with OctaMED's commands (arpeggio,
+  slides, vibrato, volume, tempo, breaks, loops, delays…), shows the block scrolling with the song, the
+  sequence and the instruments; the keyboard plays the instrument like a piano; the `med` command
+  (open, ls, play, stop, pos, mute, solo, paula, effects, info). `ib.vault.list(dir)` for modules
+  (every kind of file, `vault:read`). **Pages that play the keyboard**: `rawKeys` on a page gives it
+  letters, digits and space as keys with their place (`code`), not as text — a piano works on AZERTY.
 - **Binary files for modules**: `ib.vault.readBytes / writeBytes` (16 MB, the same permissions
   and walls as notes); natively `vault_write_bytes`. Tested from the sandbox
   (`tests/sandbox/sbx-audio`, and the escape tests try the new doors: closed).

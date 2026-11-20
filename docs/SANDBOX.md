@@ -49,7 +49,7 @@ the deck and still run inside it.
   notes, write, append, mkdir — by permission), `shell.run`, `ui` (notify, alert,
   say, confirm, prompt, choose, pickFolder, pickFile, theme, redraw), `storage`,
   `settings.get / set`, `stats` (not `onChange`), `modules.call`, `ai.ask`, `media`,
-  `google`, `vault.readBytes / writeBytes`, `audio` (by permission), and all of `lib`.
+  `google`, `vault.readBytes / writeBytes / list`, `audio` (by permission), and all of `lib`.
 - **Sound**: a Worker has none. A module with the `audio` permission loads samples and sends
   dated events; the deck plays them (`src/core/mixer.ts`, an AudioWorklet of the deck's own):
   its samples and voices are its own, within limits, silenced when it's switched off. Bytes

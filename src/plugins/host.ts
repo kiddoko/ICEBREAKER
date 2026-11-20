@@ -505,6 +505,13 @@ export class PluginHost {
         append: (p, t) => (need("vault:write"), notDeck(p), deck.vault.append(p, t)),
         mkdir: (p) => (need("vault:write"), notDeck(p), deck.vault.mkdir(p)),
         readBytes: async (p) => (need("vault:read"), thirdParty && notDeck(p), deck.vault.readBytes(p)),
+        // never the deck's own folders' contents (other modules' code, the trash's log…) for a STORE / vault module
+        list: async (dir) => {
+          need("vault:read");
+          if (thirdParty) notDeck(dir);
+          const all = await deck.vault.list(String(dir ?? ""));
+          return all.filter((e) => !thirdParty || !isDeckPath(e.path)).map((e) => ({ path: e.path, name: e.name, isDir: e.isDir, size: e.size, modified: e.modified }));
+        },
         writeBytes: async (p, data) => {
           need("vault:write");
           notDeck(p);

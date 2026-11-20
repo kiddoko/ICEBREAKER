@@ -232,6 +232,10 @@ The full surface is typed and commented in
   module's. **Your permissions are the ones the person approved** when switching you on, for the
   code they approved: a later version asking for more stays off until they approve again
   (say why in your README). While you write a module, `plugin reload` approves your new code.
+- **A page that plays the keyboard** (a piano, a game): `rawKeys: true` in `ib.apps.register({…})` (and on the
+  page). While it's in front, letters, digits and space come to `onKey` as keys, never as text, with their
+  **place** in `code` (`KeyZ` is Z on QWERTY, W on AZERTY) and `repeat` when held; no deck shortcut takes a key
+  without ⌘ / ctrl then. The breakerMED tracker uses it.
 - `ib.apps.open(kind, args)`: your own pages take any `args`; the deck's pages only a note,
   a folder or a day.
 - `ib.ui.confirm / prompt / choose / alert` are headed with your module's name; what your
@@ -252,7 +256,7 @@ The full surface is typed and commented in
 - `ib.modules` → modules talk to each other. `expose("add", { doc, fn, needs })` publishes a function under your id; `call("todo", "add", "walk the dog")` calls another module's (built-in or downloaded); `has(id, fn)`, `list()`, `installed()`. A function can require a permission from its callers (`needs: "vault:write"`), so calling it is no way around permissions. In the shell: `modules api` lists everything, `modules call <module> <fn> [args…]` calls it. Built-in today: `journal.today/append`, `uplink.ask/ready`, `sysmon.stats`, `weather.now`, `news.headlines`, `clocks.timer/stopwatch`, `focus.status/start/stop`, `voice.say`, `todo.list/add/done`, `reminders.list/add`, `calendar.events/today/add`, `music.status/control`.
 - `ib.settings` → your module's settings, shown in Settings under MODULES with your name: `register([{ key, label, type: "toggle" | "choice" | "text" | "number", options, default, help }])`, `get(key)`, `set(key, value)`, `onChange(fn)`. Shell: `modules set <id> <key> <value>`.
 - `ib.ai` is the UPLINK module's AI: when the user switches UPLINK off, there's no AI for anyone.
-- `ib.vault.readBytes(path)` / `writeBytes(path, bytes)` → binary files (a song, a sample), 16 MB at most, with `vault:read` / `vault:write` like the rest of `ib.vault`.
+- `ib.vault.readBytes(path)` / `writeBytes(path, bytes)` → binary files (a song, a sample), 16 MB at most, with `vault:read` / `vault:write` like the rest of `ib.vault`; `ib.vault.list(dir)` → a folder's files of every kind (`{ path, name, isDir, size, modified }`, `vault:read`; never inside `.icebreaker/`).
 - `ib.audio` → **sound of your own** (permission `audio`), for a tracker, a drum machine, a game. Your module has no
   sound in its sandbox: the deck mixes for you (an AudioWorklet, `src/core/mixer.ts`). Load a mono sample once —
   `await ib.audio.sample("kick", data, { loopStart, loopLength })` (floats -1…1, `Int8Array` like an Amiga, `Int16Array`,

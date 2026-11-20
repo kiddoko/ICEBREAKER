@@ -104,6 +104,8 @@ export interface IcebreakerAPI {
     write(path: string, content: string): Promise<void>;
     append(path: string, text: string): Promise<void>;
     mkdir(path: string): Promise<void>;
+    /** A folder's files and folders ("" = the vault's top), any kind of file (permission "vault:read"). */
+    list(dir: string): Promise<{ path: string; name: string; isDir: boolean; size: number; modified: number }[]>;
     /** A binary file's bytes (a song, a sample), at most 16 MB (permission "vault:read"). */
     readBytes(path: string): Promise<Uint8Array>;
     /** Write a binary file, at most 16 MB (permission "vault:write"). */

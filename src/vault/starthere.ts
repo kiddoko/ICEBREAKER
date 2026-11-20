@@ -648,6 +648,7 @@ export function activate(ib) {
 |---|---|
 | \`commands\` · \`apps\` · \`widgets\` · \`palette\` | add things to the deck (\`palette\` = THE MENU; \`key: "g"\` gives it a menu key if free) |
 | \`vault\` | read / write notes (permissions); \`readBytes\` / \`writeBytes\` for binary files (a song, a sample: 16 MB at most) |
+| \`apps\` + \`rawKeys: true\` | a page that plays the keyboard (a piano, a game): every key with its place (\`code\`), never as text |
 | \`audio\` | sound of your own (permission "audio"): \`sample(id, data, { loopStart, loopLength })\`, then \`schedule([{ at, voice, play, rate, volume, pan, interp }])\` on the clock of \`now()\`; \`decode(bytes)\` reads wav, mp3, m4a… |
 | \`stats\` | numbers over time, shown by STATS |
 | \`modules\` | call other modules (\`todo.add\`, \`journal.append\`…), expose yours |

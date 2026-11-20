@@ -534,6 +534,11 @@ export class Workspace {
     return this.activeApp;
   }
 
+  /** The page in front plays the keyboard (App.rawKeys) and nothing covers it: its keys come as keys. */
+  rawKeys(): boolean {
+    return !this.topModal && this.focus === "main" && !!this.activeApp?.rawKeys;
+  }
+
   handleKey(k: KeyInput): void {
     this.tipHidden = true;
     const modal = this.topModal;
@@ -562,7 +567,8 @@ export class Workspace {
     const ta = this.activeApp;
     if (this.focus === "main" && ta instanceof TerminalApp && ta.term.wants(k)) return void ta.term.onKey(k);
     if (k.combo === "contextmenu" || k.combo === "shift+f10") return this.keyboardMenu();
-    if (this.globalKey(k)) return;
+    // a raw key (a piano's) is the page's: no shortcut of the deck is a key without ⌘ / ctrl that types
+    if (!k.raw && this.globalKey(k)) return;
     this.routeKey(k, false);
   }
 

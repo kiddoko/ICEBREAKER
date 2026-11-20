@@ -127,7 +127,7 @@ function makeIb(manifest: unknown, version: string): unknown {
     apps: {
       register(spec: Record<string, unknown>) {
         appSpecs.set(String(spec.kind), spec as { create(deck: unknown, args?: unknown): AppLike });
-        post({ t: "register", what: "app", spec: plain(spec, ["kind", "title", "description", "icon", "launcher"]) });
+        post({ t: "register", what: "app", spec: plain(spec, ["kind", "title", "description", "icon", "launcher", "rawKeys"]) });
       },
       open: rpc("apps", "open"),
     },
@@ -154,6 +154,7 @@ function makeIb(manifest: unknown, version: string): unknown {
       append: rpc("vault", "append"),
       mkdir: rpc("vault", "mkdir"),
       readBytes: rpc("vault", "readBytes"),
+      list: rpc("vault", "list"),
       writeBytes: rpc("vault", "writeBytes"),
       notes: () => {
         if (notes === null) throw new Error(notesError || "needs the vault:read permission");

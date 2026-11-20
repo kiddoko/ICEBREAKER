@@ -585,6 +585,11 @@ export class Deck implements InputSink {
     this.requestFrame();
   }
 
+  /** the page in front plays the keyboard (App.rawKeys): its keys come as keys, not text */
+  rawKeys(): boolean {
+    return !this.boot && !this.lock && this.workspace.rawKeys();
+  }
+
   text(t: string): void {
     if (this.boot) return this.boot.skip();
     if (this.lock) return this.lock.onText(t), this.requestFrame();

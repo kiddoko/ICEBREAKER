@@ -39,7 +39,7 @@ export function sandboxed(deck: Deck, code: string, manifest: PluginManifest): P
 /** What the module may call on its `ib` (data in, data out). Everything else stays in its Worker or isn't there yet. */
 const CALLS = new Set([
   "apps.open",
-  "vault.read", "vault.exists", "vault.write", "vault.append", "vault.mkdir", "vault.readBytes", "vault.writeBytes",
+  "vault.read", "vault.exists", "vault.write", "vault.append", "vault.mkdir", "vault.readBytes", "vault.writeBytes", "vault.list",
   "shell.run",
   "ui.notify", "ui.alert", "ui.say", "ui.confirm", "ui.prompt", "ui.choose", "ui.pickFolder", "ui.pickFile",
   "storage.get", "storage.set",
@@ -241,7 +241,7 @@ class Sandbox {
         this.ib.commands.register(cmd);
       } else if (what === "app") {
         const kind = String(s.kind);
-        this.ib.apps.register({ kind, title: String(s.title ?? kind), description: s.description as string | undefined, icon: s.icon as string | undefined, launcher: s.launcher as boolean | undefined, create: (_d, args) => new ModuleApp(this, kind, args) });
+        this.ib.apps.register({ kind, title: String(s.title ?? kind), description: s.description as string | undefined, icon: s.icon as string | undefined, launcher: s.launcher as boolean | undefined, rawKeys: s.rawKeys === true, create: (_d, args) => new ModuleApp(this, kind, args, s.rawKeys === true) });
       } else if (what === "action") {
         const id = String(s.id);
         this.ib.palette.register({ id, title: String(s.title ?? id), hint: s.hint as string | undefined, group: s.group as string | undefined, key: s.key as string | undefined, run: () => this.send({ t: "paletteRun", id }) });
@@ -381,6 +381,8 @@ class ModuleApp implements App {
     private readonly box: Sandbox,
     readonly kind: string,
     args?: unknown,
+    /** its page plays the keyboard (App.rawKeys) */
+    readonly rawKeys = false,
   ) {
     this.key = kind;
     this.inst = box.newInst();
