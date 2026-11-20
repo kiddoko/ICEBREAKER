@@ -25,12 +25,20 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 The user works mainly on the **Mac**. A **Windows PC** runs the same project
 and acts as the Windows test bench. Code moves between them only through
-GitHub (`origin/master`), never through a shared folder.
+GitHub, never through a shared folder.
 
-- Before working: `git pull --rebase`. When done: commit and `git push`.
-- Unfinished work that the other machine must see goes on a branch, pushed.
-- Never assume the other machine has your local changes: push first, then say
-  which branch and commit to test.
+**`master` is what users get: never push to it.** It must always build and
+work (in-app updates and releases come from it). Every change goes:
+
+1. on a **branch** (`fix-sliders`, `breakermed`…), pushed to GitHub;
+2. tested (the checks, the app; on Windows by the test bench when it matters);
+3. into `master` through a **pull request**, merged only when the user says so.
+
+- Before working: `git fetch` and start your branch from `origin/master`.
+- Never assume the other machine has your local changes: push the branch
+  first, then say which branch and commit to test.
+- A release is a tag on `master` (`docs/UPDATES.md`), made only when the user
+  says so.
 
 ### Asking the PC to test something (from a Mac session)
 
@@ -44,7 +52,8 @@ open with Remote Control. To use it:
    computer use, and replies with what it saw (pass/fail, errors, screenshots).
 
 The test bench only tests and reports. It does not commit or push fixes unless
-the user asks it to. Fixes go back to the session that asked.
+the user asks it to — and then on a branch, never on `master`. Fixes go back to
+the session that asked.
 
 ### Windows pitfalls already met
 
