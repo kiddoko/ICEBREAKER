@@ -2,6 +2,7 @@
 // "How to repeat the test"). `sbxaudio` plays a little 8-bit tune on 4 voices,
 // smooth then stepped (Paula), writes and reads back a binary file, and tries the limits.
 // `sbxaudio key` plays one note now (the latency of a key).
+// `sbxaudio stream` computes a 440 Hz sine here and streams it for 1.5 s (ib.audio.stream).
 export async function activate(ib) {
   // one cycle of a square wave, 8 bits like an Amiga sample, looped
   const square = new Int8Array(32).map((_, i) => (i < 16 ? 100 : -100));
@@ -17,6 +18,25 @@ export async function activate(ib) {
       if (!ib.audio.available()) return ctx.out("no sound output here\n"), 1;
       await ib.audio.sample("sq", square, { loopStart: 0, loopLength: 32 });
       await ib.audio.sample("saw", saw, { loopStart: 0, loopLength: 64 });
+      if (ctx.args[0] === "stream") {
+        const s = await ib.audio.stream();
+        let phase = 0, sent = 0, pulls = 0;
+        const total = Math.round(s.rate * 1.5);
+        await new Promise((done) => {
+          s.onPull = (frames) => {
+            pulls++;
+            const n = Math.min(frames, total - sent);
+            if (n <= 0) return done();
+            const l = new Float32Array(n), r = new Float32Array(n);
+            for (let i = 0; i < n; i++) (l[i] = r[i] = 0.2 * Math.sin(phase)), (phase += (2 * Math.PI * 440) / s.rate);
+            s.write(l, r);
+            sent += n;
+          };
+        });
+        ctx.out("  ok  streamed " + sent + " frames at " + s.rate + " Hz in " + pulls + " pulls (asks below " + s.low + ", up to " + s.high + ")\n");
+        s.close();
+        return 0;
+      }
       if (ctx.args[0] === "key") {
         await ib.audio.schedule([{ voice: 0, play: "sq", rate: 440 * 32, volume: 0.4 }, { at: (await ib.audio.now()) + 0.15, voice: 0, stop: true }]);
         return 0;

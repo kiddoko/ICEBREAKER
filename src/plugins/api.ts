@@ -136,6 +136,13 @@ export interface IcebreakerAPI {
     schedule(events: AudioEvent[]): Promise<void>;
     /** silence all your voices now and forget what was scheduled */
     stop(): Promise<void>;
+    /**
+     * Your own sound, computed by you (a whole mix: samples, synths, effects), played as it
+     * comes: `const s = await ib.audio.stream(); s.onPull = (frames) => s.write(left, right)`.
+     * The deck asks for `frames` more whenever fewer than ~16 ms wait (so ~30 ms from a key
+     * to the sound); compute at `s.rate`. Under the user's "Modules" fader, the ♪ and `audio stop`.
+     */
+    stream(): Promise<import("../core/audiostream").AudioStream>;
     /** called when the user silences you (`audio stop`, the ♪ in the status bar): stop your song too. Returns how to stop listening. */
     onStop(fn: () => void): () => void;
     /** decode an audio file (wav, aiff, mp3, m4a, ogg… what the system reads) into floats, one array per channel */

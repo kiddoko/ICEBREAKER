@@ -115,6 +115,10 @@ Severity: 🔴 critical (your notes, keys or computer) · 🟠 high · 🟡 medi
   `vault.readBytes / writeBytes` follow `vault:read` / `vault:write`, never `.icebreaker/`, 16 MB at
   most; the native `vault_write_bytes` goes through the same path guard and atomic write as
   `vault_write` (`../` stops at the vault's root). `sbx-evil` and `sbx-bare` try them: closed.
+  `ib.audio.stream()` (a module computing its own sound): one MessagePort to its own AudioWorklet
+  node, only with `audio`; the node reads blocks of frames and nothing else (types, sizes, values
+  checked, two seconds at most queued), its output goes through the "Modules" fader; `audio stop`
+  flushes it.
 - **ICEBREAKER's own updates**: signature checked before installing, https only.
 
 ## How to repeat the test

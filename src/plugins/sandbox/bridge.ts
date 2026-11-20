@@ -184,6 +184,18 @@ class Sandbox {
         return;
       }
       case "register": return this.register(m.what, m.spec);
+      case "streamReq": {
+        // its own audio node in the deck, and a port to it handed to its Worker (core/audiostream.ts):
+        // only with the "audio" permission; what the port carries is checked by the node
+        try {
+          if (!(this.manifest.permissions ?? []).includes("audio")) throw new Error(`plugin "${this.manifest.id}" needs the "audio" permission in its plugin.json`);
+          const port = await this.deck.mixer.openStream(this.manifest.id);
+          this.worker.postMessage({ t: "stream", id: m.id, port } satisfies ToModule, [port]);
+        } catch (e) {
+          this.send({ t: "stream", id: m.id, error: e instanceof Error ? e.message : String(e) });
+        }
+        return;
+      }
       case "frame": {
         // a frame is cells for a rectangle: sizes that are numbers, arrays that hold them
         const cells = m.w * m.h;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MixerDsp, toFloats } from "../src/core/mixer-dsp";
+import { MixerDsp, StreamBuffer, toFloats } from "../src/core/mixer-dsp";
 import { Mixer } from "../src/core/mixer";
 
 /** one block (mono: left and right are the same array) */
@@ -113,5 +113,26 @@ describe("the modules' sampler (core/mixer-dsp.ts)", () => {
     expect([...toFloats(Int16Array.from([-32768, 16384]))]).toEqual([-1, 0.5]);
     expect([...toFloats(Uint8Array.from([0, 128, 192]))]).toEqual([-1, 0, 0.5]);
     expect([...toFloats(Float32Array.from([2, NaN, -0.25]))]).toEqual([1, 0, -0.25]);
+  });
+});
+
+describe("a module's stream (StreamBuffer)", () => {
+  it("keeps the order, wraps around, says what was real, pads with silence", () => {
+    const b = new StreamBuffer(4);
+    expect(b.push(Float32Array.from([0.1, 0.2, 0.3]), Float32Array.from([-1, -2, -3]))).toBe(3);
+    const l = new Float32Array(2), r = new Float32Array(2);
+    expect(b.pull(l, r)).toBe(2);
+    expect([...l, ...r].map((x) => +x.toFixed(2))).toEqual([0.1, 0.2, -1, -2]);
+    expect(b.push(Float32Array.from([0.4, 0.5, 0.6, 0.7]), Float32Array.from([0, 0, 0, 0]))).toBe(3); // one doesn't fit
+    const l2 = new Float32Array(6), r2 = new Float32Array(6);
+    expect(b.pull(l2, r2)).toBe(4);
+    expect([...l2].map((x) => +x.toFixed(2))).toEqual([0.3, 0.4, 0.5, 0.6, 0, 0]);
+  });
+  it("checks every value", () => {
+    const b = new StreamBuffer(8);
+    b.push(Float32Array.from([NaN, 99, -99]), Float32Array.from([0, 0, 0]));
+    const l = new Float32Array(3), r = new Float32Array(3);
+    b.pull(l, r);
+    expect([...l]).toEqual([0, 4, -4]);
   });
 });

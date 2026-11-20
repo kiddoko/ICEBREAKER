@@ -75,7 +75,9 @@ export type FromModule =
   | { t: "read"; sid: number; rid: number; label: string; opts: Record<string, unknown> }
   | { t: "done"; sid: number; code: number; error?: string }
   | { t: "menu"; rid: number; lines: MenuLine[] }
-  | { t: "log"; text: string };
+  | { t: "log"; text: string }
+  /** ib.audio.stream(): a line for its own sound, please (permission "audio") */
+  | { t: "streamReq"; id: number };
 
 /** Deck → worker */
 export type ToModule =
@@ -100,4 +102,6 @@ export type ToModule =
   | { t: "abort"; sid: number }
   | { t: "stop" }
   /** the user silenced the module (ib.audio.onStop) */
-  | { t: "audioStop" };
+  | { t: "audioStop" }
+  /** the line asked for (transferred), or why not */
+  | { t: "stream"; id: number; port?: MessagePort; error?: string };

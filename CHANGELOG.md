@@ -9,6 +9,8 @@
   and 32 MB per module, silenced when it's switched off. Settings → SOUND → mixer gets a
   **Modules** fader, the status bar shows **♪ the module** while it plays (a click, or the new
   `audio stop`, silences it — and tells the module, `ib.audio.onStop`, so its song stops too).
+  A module can also compute its own sound and stream it (`ib.audio.stream()`: one line to an
+  audio node of its own, ~30 ms from a key to the sound) — synths, effects, any instrument.
   docs/PLUGINS.md, SANDBOX.md, SECURITY_AUDIT.md (O21).
 - **Binary files for modules**: `ib.vault.readBytes / writeBytes` (16 MB, the same permissions
   and walls as notes); natively `vault_write_bytes`. `ib.vault.list(dir)`: a folder's files of

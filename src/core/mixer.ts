@@ -74,6 +74,8 @@ export class Mixer {
   private nextVoice = 0;
   private freeVoices: number[] = [];
   private sounding = new Set<number>();
+  /** each module's own sound (ib.audio.stream): its node, and whether it made sound lately */
+  private streams = new Map<string, { node: AudioWorkletNode; loud: boolean }>();
   /** what each module asked to hear when you silence it (`audio stop`, the ♪ in the status bar) */
   private stopListeners = new Map<string, Set<() => void>>();
   private gain = 0.5;
@@ -95,6 +97,7 @@ export class Mixer {
   playing(): string[] {
     const out: string[] = [];
     for (const [id, o] of this.owners) if ([...o.voices.values()].some((v) => this.sounding.has(v))) out.push(id);
+    for (const [id, s] of this.streams) if (s.loud && !out.includes(id)) out.push(id);
     return out;
   }
 
@@ -170,6 +173,38 @@ export class Mixer {
   }
 
   /**
+   * A line for the module's own sound (ib.audio.stream): a node of its own under the
+   * "Modules" fader, and the port the module writes its frames to (core/audiostream.ts).
+   * A second call replaces the first.
+   */
+  async openStream(owner: string): Promise<MessagePort> {
+    if (!(await this.start()) || !this.ctx || !this.out) throw new Error("no sound output here");
+    this.closeStream(owner);
+    const node = new AudioWorkletNode(this.ctx, "ib-stream", { numberOfInputs: 0, outputChannelCount: [2] });
+    node.connect(this.out);
+    const entry = { node, loud: false };
+    node.port.onmessage = (ev: MessageEvent<{ t: string; on?: boolean }>) => {
+      if (ev.data?.t !== "active" || entry.loud === !!ev.data.on) return;
+      entry.loud = !!ev.data.on;
+      this.onActive?.();
+    };
+    const ch = new MessageChannel();
+    node.port.postMessage({ t: "port", port: ch.port1 }, [ch.port1]);
+    this.streams.set(owner, entry);
+    if (this.ctx.state !== "running") void this.ctx.resume().catch(() => {});
+    return ch.port2;
+  }
+
+  private closeStream(owner: string): void {
+    const s = this.streams.get(owner);
+    if (!s) return;
+    s.node.port.postMessage({ t: "close" });
+    s.node.disconnect();
+    this.streams.delete(owner);
+    if (s.loud) this.onActive?.();
+  }
+
+  /**
    * Silence the module's voices now, and forget what it had scheduled. `byUser`: you did it
    * (`audio stop`, the ♪ in the status bar): the module is told (onStop), so its song stops too
    * instead of starting the next notes again.
@@ -177,6 +212,7 @@ export class Mixer {
   stop(owner: string, byUser = false): void {
     const o = this.owners.get(owner);
     if (o?.voices.size) this.node?.port.postMessage({ t: "stop", voices: [...o.voices.values()] });
+    this.streams.get(owner)?.node.port.postMessage({ t: "flush" });
     if (byUser) for (const fn of this.stopListeners.get(owner) ?? []) try { fn(); } catch { /* the module's own problem */ }
   }
 
@@ -190,6 +226,7 @@ export class Mixer {
 
   /** The module is switched off (or crashed): silence, and everything it had goes. */
   release(owner: string): void {
+    this.closeStream(owner);
     const o = this.owners.get(owner);
     if (!o) return void this.stopListeners.delete(owner);
     this.stop(owner);

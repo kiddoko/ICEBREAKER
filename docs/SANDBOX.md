@@ -53,7 +53,11 @@ the deck and still run inside it.
 - **Sound**: a Worker has none. A module with the `audio` permission loads samples and sends
   dated events; the deck plays them (`src/core/mixer.ts`, an AudioWorklet of the deck's own):
   its samples and voices are its own, within limits, silenced when it's switched off. Bytes
-  and sound cross as typed arrays (copied), never as handles.
+  and sound cross as typed arrays (copied), never as handles. A module that computes its own
+  sound (`ib.audio.stream`) gets **one port**, to an audio node of its own in the deck: what it
+  sends there is only blocks of frames, checked (two `Float32Array`s of the same length, 16384
+  frames at most, every value finite and within ±4) and bounded (two seconds wait at most);
+  nothing else is read from it.
 - What isn't yet (a clear error says so): `settings.register`, `settings.onChange`,
   `stats.onChange`, `modules.expose / has / list / installed`, `catalog`,
   `ai.session` / `vaultTools` / `ready` / `problem`, `backgrounds`,

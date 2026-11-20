@@ -267,7 +267,11 @@ The full surface is typed and commented in
   plays it stepped, with the grit of the Amiga's Paula chip; `{ voice, stop: true }` silences a voice; an event without
   `at` happens now (a key played live). Compute a song ~100 ms ahead and it never stutters. `stop()` silences all your
   voices; `onStop(fn)` tells you when the **user** silences you (`audio stop`, the ♪ in the status bar) — stop your
-  song there too, or the next notes start again; `drop(id?)` forgets samples, `decode(bytes)` turns an audio file (wav, aiff, mp3, m4a, ogg — what the system
+  song there too, or the next notes start again; **`stream()`** gives you a line for sound **you compute yourself**
+  (a whole mix: samples, synths, effects — any instrument): `const s = await ib.audio.stream(); s.onPull = (frames) =>
+  s.write(left, right)` (two `Float32Array`s of `frames` frames at `s.rate`). The deck asks whenever fewer than ~16 ms
+  wait, so a key played on your piano is heard ~30 ms later; a song is computed as it plays, an export the same code
+  faster than real time. Example: `sbxaudio stream` in `tests/sandbox/sbx-audio/`; `drop(id?)` forgets samples, `decode(bytes)` turns an audio file (wav, aiff, mp3, m4a, ogg — what the system
   reads) into `{ rate, channels }`. Limits: 64 voices, 32 MB of samples, events 30 s ahead at most, 8192 per call.
   Everything stops when your module is switched off; the volume is the user's (Settings → SOUND → Modules) and the
   status bar shows ♪ your name while you play (a click silences you). Example: `tests/sandbox/sbx-audio/`.

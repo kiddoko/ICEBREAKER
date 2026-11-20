@@ -3,6 +3,7 @@ import type { Origin } from "../shell/origin";
 import { isDeckPath } from "../vault/paths";
 import { FRAME_PARTS, frameServices } from "./frame-services";
 import { sandboxed } from "./sandbox/bridge";
+import { AudioStream } from "../core/audiostream";
 import { pickFile, pickFolder } from "../workspace/filebrowser";
 import { auditCode, auditReport, type AuditFinding } from "./audit";
 import { moduleSettingRows } from "../apps/settings-rows";
@@ -529,6 +530,7 @@ export class PluginHost {
         schedule: async (events) => (need("audio"), deck.mixer.schedule(m.id, events)),
         stop: async () => (need("audio"), deck.mixer.stop(m.id)),
         onStop: (fn) => (need("audio"), deck.mixer.onStop(m.id, fn)),
+        stream: async () => (need("audio"), AudioStream.open(await deck.mixer.openStream(m.id))),
         decode: async (bytes) => (need("audio"), deck.mixer.decode(bytes)),
       },
       ai: {

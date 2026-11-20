@@ -197,3 +197,62 @@ export function toFloats(data: Float32Array | Int8Array | Int16Array | Uint8Arra
   }
   return out;
 }
+
+/**
+ * A module's own sound (ib.audio.stream): the blocks it computes, waiting to be
+ * played. A ring of stereo frames, bounded (what doesn't fit is dropped), every
+ * value checked (NaN → 0, kept in -4…4: the gain after it does the rest).
+ */
+export class StreamBuffer {
+  declare left: Float32Array;
+  declare right: Float32Array;
+  declare start: number;
+  declare size: number;
+
+  constructor(capacity: number) {
+    this.left = new Float32Array(Math.max(1, capacity));
+    this.right = new Float32Array(Math.max(1, capacity));
+    this.start = 0;
+    this.size = 0;
+  }
+
+  get capacity(): number {
+    return this.left.length;
+  }
+
+  clear(): void {
+    this.start = 0;
+    this.size = 0;
+  }
+
+  /** add frames at the end (as many as fit); returns how many were taken */
+  push(l: Float32Array, r: Float32Array): number {
+    const cap = this.left.length;
+    const n = Math.min(l.length, r.length, cap - this.size);
+    let at = (this.start + this.size) % cap;
+    for (let i = 0; i < n; i++) {
+      const a = l[i], b = r[i];
+      this.left[at] = a > 4 ? 4 : a < -4 ? -4 : a === a ? a : 0;
+      this.right[at] = b > 4 ? 4 : b < -4 ? -4 : b === b ? b : 0;
+      if (++at === cap) at = 0;
+    }
+    this.size += n;
+    return n;
+  }
+
+  /** fill `l` / `r` from the front; silence for what's missing. Returns how many frames were real. */
+  pull(l: Float32Array, r: Float32Array): number {
+    const cap = this.left.length;
+    const n = Math.min(l.length, this.size);
+    let at = this.start;
+    for (let i = 0; i < n; i++) {
+      l[i] = this.left[at];
+      r[i] = this.right[at];
+      if (++at === cap) at = 0;
+    }
+    for (let i = n; i < l.length; i++) l[i] = r[i] = 0;
+    this.start = at;
+    this.size -= n;
+    return n;
+  }
+}
