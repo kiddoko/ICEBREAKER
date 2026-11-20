@@ -23,6 +23,12 @@ export class DeckVoice {
 
   constructor(private readonly deck: Deck) {}
 
+  /**
+   * Silent until the session is ready (Deck.sessionReady): nothing is said on the
+   * login screen or while the deck loads — then the greeting comes first.
+   */
+  open = false;
+
   get available(): boolean {
     return !!this.deck.platform.voice;
   }
@@ -65,7 +71,7 @@ export class DeckVoice {
    * AI answers first).
    */
   say(text: string, lang?: string): void {
-    if (!this.available || this.deck.settings.data.sound.muted) return;
+    if (!this.open || !this.available || this.deck.settings.data.sound.muted) return;
     const clean = speakable(text);
     if (!clean) return;
     const v = this.deck.settings.data.voice.language;
@@ -375,4 +381,16 @@ function chunks(list: string[], size: number): string[] {
   }
   if (cur) out.push(cur);
   return out;
+}
+
+/**
+ * What the voice says for an alert: its content. The app's name and symbols are
+ * dropped from the title; a title left with nothing of its own ("◷ ICEBREAKER",
+ * "Test") isn't read at all — only the body.
+ */
+export function spokenAlert(title: string, body = ""): string {
+  const own = title.replace(/\bICEBREAKER\b/gi, "").replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "").trim();
+  const generic = !own || /^(test|essai|notification|alert|alerte)$/i.test(own);
+  if (generic) return body || own;
+  return body ? `${own}. ${body}` : own;
 }

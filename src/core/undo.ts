@@ -13,6 +13,10 @@
  *
  * Things done while undoing aren't recorded (no loops). Changes to the same
  * thing in a quick row (a slider dragged, a widget dragged) are one step.
+ *
+ * A step marked `lastOnly` (uninstalling a module) can be undone only while it's
+ * the last thing done: the next step recorded drops it, so a later ⌘Z never
+ * brings it back by surprise.
  */
 
 export interface UndoStep {
@@ -22,6 +26,8 @@ export interface UndoStep {
   redo?(): void | Promise<void>;
   /** same key within `mergeMs` of the last step: merged into it (the first undo stays) */
   key?: string;
+  /** undoable only as the very last thing done (anything recorded after it drops it) */
+  lastOnly?: boolean;
 }
 
 interface Entry extends UndoStep {
@@ -53,6 +59,8 @@ export class UndoHistory {
       last.redo = step.redo;
       last.at = now;
     } else {
+      // a step that is only undoable as the last thing done: something else came, it goes
+      if (last?.lastOnly) this.done.pop();
       this.done.push({ ...step, at: now });
       if (this.done.length > this.max) this.done.shift();
     }

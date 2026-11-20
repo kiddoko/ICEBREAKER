@@ -23,7 +23,7 @@ Everything works with **keyboard only**, **mouse only**, a **gamepad**, or any m
 ## Keyboard
 **Every shortcut, searchable: \`Ctrl+/\` (the SHORTCUTS page).** Change any of them in Settings → KEYS; bind your own with \`bind\`. On a Mac, ⌘ plays the role of Ctrl.
 - \`Ctrl+K\` or **Shift twice** — THE MENU: type to search everything, or a menu key + Enter
-- \`Ctrl+Z\` / \`Ctrl+Shift+Z\` — undo / redo anything (settings, widgets, trash, renames, new notes)
+- \`Ctrl+Z\` / \`Ctrl+Shift+Z\` — undo / redo the last thing done (settings, widgets, trash, renames, new notes, tasks, reminders, habits, events; a module uninstalled, right after)
 - \`Tab\` — the next thing on the screen · \`Shift+Tab\` — the next part of the screen (tree → page → shell)
 - \`Ctrl+Shift+H / M / E / U\` — HOME · MODULES · NEXUS · UPLINK (the AI)
 - \`Ctrl+Shift+T / P / S\` — the tree · the side panel · the shell
@@ -68,7 +68,12 @@ ${cmds}
 - \`.icebreaker/themes/*.toml\` — your themes (\`theme new <name>\`)
 - \`.icebreaker/plugins/<id>/\` — your plugins (\`plugin new <id>\`) · they run in a sandbox: only what their permissions allow, in the shell too, never more than you approved (docs/SANDBOX.md)
 - \`.icebreaker/templates/journal.md\` — your journal template
-- \`.trash/\` — where \`rm\` puts things (\`trash open\` to see it, restore). Nothing is ever deleted for good, apart from \`self-destruct\` (it asks four times).
+- \`.trash/\` — where \`rm\` puts things (\`trash open\` to see it, restore). Nothing is ever deleted for good, apart from \`self-destruct\` (it asks four times). A note sent there closes its tabs and leaves the pins; ⌘Z brings it back.
+
+## Days and times
+The same words everywhere (reminders, \`todo add … --due\`, \`cal add\`), in English or French:
+\`+1h\` · \`1h\` · \`30min\` · \`19:00\` · \`19h\` · \`19h30\` · \`demain 9h\` · \`tomorrow 9am\` · \`ven 18h\` · \`fri 6pm\` · \`24/12 9:00\` · \`dans 1h\` · \`à 19h\` · \`ce soir\`.
+"1h"… "6h" alone mean "in that long"; with a day ("demain 6h"), or from 7h on, a time of day. A reminder with no time: in an hour.
 `;
 }
 

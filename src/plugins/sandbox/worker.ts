@@ -198,6 +198,8 @@ function makeIb(manifest: unknown, version: string): unknown {
     },
     google: { available: notYet("ib.google.available"), status: rpc("google", "status"), setup: notYet("ib.google.setup"), connect: rpc("google", "connect"), disconnect: rpc("google", "disconnect"), calendar: rpc("google", "calendar"), cache: { read: rpc("google", "cache", "read"), write: rpc("google", "cache", "write") } },
     backgrounds: { register: notYet("ib.backgrounds") },
+    // functions can't cross into the deck: a sandboxed module's changes aren't ⌘Z steps (yet)
+    history: { record: () => {} },
     lib,
   });
 }

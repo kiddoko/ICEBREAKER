@@ -460,19 +460,33 @@ export const storeCommand: Command = {
         if (!p) return ctx.err(`store: "${arg}" isn't installed\n`), 1;
         // others need it: they go off with it, after asking (plugins/deps.ts)
         const needers = d.plugins.dependentsOf(arg);
-        if (needers.length) {
-          if (!(await asker(ctx, window)(`${arg} is needed by ${needers.join(", ")}`, `Removing it switches ${needers.length > 1 ? "them" : "it"} off.`))) return ctx.out(`${arg}: kept\n`), 1;
-          for (const x of [...needers].reverse()) await d.plugins.disable(x);
-        }
-        if (p.source === "builtin") {
-          await d.plugins.removeBuiltin(arg);
-          ctx.out(`${arg}: removed · store install ${arg} brings it back\n`);
-          return 0;
-        }
-        if (p.active) await d.plugins.disable(arg);
-        await d.vault.trash(`.icebreaker/plugins/${arg}`);
-        await d.plugins.reload();
-        ctx.out(`${arg}: removed (in .trash)\n`);
+        if (needers.length && !(await asker(ctx, window)(`${arg} is needed by ${needers.join(", ")}`, `Removing it switches ${needers.length > 1 ? "them" : "it"} off.`))) return ctx.out(`${arg}: kept\n`), 1;
+        // ⌘Z right after brings back a working module (its files, switched on, approved as
+        // before, what needed it on again) — as ONE step, and only while it's the last thing
+        // done: never stray files restored from the trash later (core/undo.ts lastOnly)
+        const dir = `.icebreaker/plugins/${arg}`;
+        const pl = d.settings.data.plugins;
+        const before = JSON.parse(JSON.stringify({ enabled: pl.enabled, disabled: pl.disabled, removed: pl.removed ?? [], granted: pl.granted ?? {}, pinned: pl.pinned ?? {} })) as Record<string, unknown>;
+        let inTrash = "";
+        const remove = async () => {
+          for (const x of [...needers].reverse()) await d.plugins.disable(x).catch(() => false);
+          if (p.source === "builtin") return d.plugins.removeBuiltin(arg);
+          if (d.plugins.list().some((x) => x.manifest.id === arg && x.active)) await d.plugins.disable(arg);
+          inTrash = await d.vault.trash(dir);
+          await d.plugins.reload();
+        };
+        await d.history.quietAsync(remove);
+        d.history.record({
+          label: `uninstall ${arg}`,
+          lastOnly: true,
+          undo: async () => {
+            if (inTrash) await d.vault.restore(inTrash, dir);
+            for (const [k, v] of Object.entries(before)) d.settings.set(`plugins.${k}`, v);
+            await d.plugins.reload();
+          },
+          redo: remove,
+        });
+        ctx.out(p.source === "builtin" ? `${arg}: removed · store install ${arg} brings it back (⌘Z too, right now)\n` : `${arg}: removed (in .trash · ⌘Z right now brings it back)\n`);
         return 0;
       }
       case "sources": {

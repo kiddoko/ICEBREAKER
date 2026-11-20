@@ -70,4 +70,18 @@ describe("UndoHistory", () => {
     await h.undo();
     expect(log).toEqual(["-b", "-a"]);
   });
+
+  it("a lastOnly step (an uninstall) is undoable only while it's the last thing done", async () => {
+    const h = new UndoHistory();
+    const done: string[] = [];
+    h.record({ label: "theme", undo: () => void done.push("theme") });
+    h.record({ label: "uninstall hello", lastOnly: true, undo: () => void done.push("hello back") });
+    // right after: ⌘Z brings the module back
+    expect(h.list()[0].label).toBe("uninstall hello");
+    // something else happens: the uninstall can't come back by surprise any more
+    h.record({ label: "todo add milk", undo: () => void done.push("milk gone") });
+    expect(await h.undo()).toBe("todo add milk");
+    expect(await h.undo()).toBe("theme");
+    expect(done).toEqual(["milk gone", "theme"]);
+  });
 });

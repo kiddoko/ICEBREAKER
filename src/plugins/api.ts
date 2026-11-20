@@ -162,7 +162,8 @@ export interface IcebreakerAPI {
     /** configured: a client is available (the user's, or ICEBREAKER's built-in one) */
     status(): Promise<{ configured: boolean; custom: boolean; connected: boolean }>;
     setup(clientId: string, clientSecret: string): Promise<void>;
-    connect(): Promise<void>;
+    /** Sign in in the browser (resolves once connected, up to 5 min); `onPhase`: "browser", then "token". */
+    connect(onPhase?: (phase: string) => void): Promise<void>;
     disconnect(): Promise<void>;
     calendar<T = any>(method: string, path: string, opts?: { query?: Record<string, string | number | boolean | undefined>; body?: unknown }): Promise<T>;
     /**
@@ -266,6 +267,19 @@ export interface IcebreakerAPI {
     get<T = unknown>(key: string): T;
     set(key: string, value: unknown): void;
     onChange(fn: (key: string, value: unknown) => void): void;
+  };
+
+  /**
+   * ⌘Z: whatever your module changes for the user (a task added, a reminder done…)
+   * records how to take it back, so ⌘Z undoes the last thing done — not something
+   * older elsewhere. `undo` / `redo` run with recording paused (no loops).
+   *
+   *   const before = snapshot();  …change…  ib.history.record({ label: "todo add milk", undo: () => restore(before), redo: () => restore(after) });
+   *
+   * (Modules in the sandbox can't record yet: their changes aren't undoable.)
+   */
+  history: {
+    record(step: { label: string; undo(): void | Promise<void>; redo?(): void | Promise<void>; key?: string }): void;
   };
 
   /** Small JSON key/value store private to this plugin (.icebreaker/plugin-data/<id>.json). */

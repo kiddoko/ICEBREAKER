@@ -3,8 +3,12 @@
 //! - Official builds carry ICEBREAKER's own OAuth client (baked in by build.rs
 //!   from the git-ignored google-client.json). Anyone can still use their own
 //!   client instead (`google_setup`), and builds without one require it.
-//! - `google_connect` opens Google's consent page in your browser and waits for
-//!   it to come back on http://127.0.0.1:<random port> (loopback + PKCE).
+//! - `google_connect` opens Google's consent page in your browser and returns at
+//!   once; a thread waits for the browser to come back on http://127.0.0.1:<random
+//!   port> (loopback + PKCE), trades the code for a token and saves it. The UI asks
+//!   `google_connect_result` every second until it's done. (One IPC call left
+//!   waiting for minutes, while you sign in, is what didn't come back on Windows:
+//!   the sign-in worked in the browser, the deck never heard of it.)
 //! - The refresh token stays here, in the app config dir (google.json, never in
 //!   the vault). The UI never sees it: it calls `google_calendar`, which only
 //!   reaches https://www.googleapis.com/calendar/v3/ with a fresh access token.
@@ -50,6 +54,22 @@ impl Creds {
 #[derive(Default)]
 pub struct GoogleState {
     token: Mutex<Option<(String, Instant)>>,
+    /// the sign-in under way (google_connect → google_connect_result)
+    flow: std::sync::Arc<Mutex<Flow>>,
+}
+
+/// Where the sign-in is. A new `google_connect` starts a new one (`id`); the older
+/// one's thread sees it and stops waiting.
+#[derive(Default, Clone, Serialize)]
+pub struct Flow {
+    id: u64,
+    /// "browser" (waiting for you in the browser) · "token" (the browser came back:
+    /// trading the code for a token) · "done" · "failed" · "" (none yet)
+    phase: String,
+    /// why it failed, in words
+    error: Option<String>,
+    /// the loopback port it listens on (for the Windows checks: `netstat -ano | findstr <port>`)
+    port: u16,
 }
 
 #[derive(Serialize)]
@@ -207,74 +227,112 @@ pub fn google_setup(app: AppHandle, state: State<GoogleState>, client_id: String
     save(&app, &Creds { client_id: id, client_secret: secret, refresh_token: None })
 }
 
-/// Browser consent → loopback redirect → refresh token. Waits up to 5 minutes.
+/// Browser consent → loopback redirect → refresh token. Opens the browser and returns
+/// at once: a thread waits (up to 5 minutes) — ask `google_connect_result`.
 #[tauri::command]
-pub async fn google_connect(app: AppHandle) -> Result<(), String> {
+pub fn google_connect(app: AppHandle, state: State<GoogleState>) -> Result<u64, String> {
     let c = load(&app)?.unwrap_or_default();
     let (client_id, client_secret) = c.client()?;
+    // listening before the browser opens, so it can't come back to a closed port
+    let server = tiny_http::Server::http("127.0.0.1:0").map_err(|e| format!("google: can't listen on 127.0.0.1 ({e})"))?;
+    let port = server.server_addr().to_ip().map(|a| a.port()).ok_or("google: no port")?;
+    let flow = state.flow.clone();
+    let id = {
+        let mut f = flow.lock().unwrap();
+        *f = Flow { id: f.id + 1, phase: "browser".into(), error: None, port };
+        f.id
+    };
     let app2 = app.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let mut rnd = [0u8; 64];
-        getrandom::getrandom(&mut rnd).map_err(|e| e.to_string())?;
-        let verifier: String = rnd.iter().map(|b| b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"[(*b as usize) % 66] as char).collect();
-        let challenge = b64url(&Sha256::digest(verifier.as_bytes()));
-        // its own random value: never a piece of the verifier (it travels in the address bar)
-        let mut srnd = [0u8; 24];
-        getrandom::getrandom(&mut srnd).map_err(|e| e.to_string())?;
-        let st: String = srnd.iter().map(|b| b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"[(*b as usize) % 64] as char).collect();
-
-        let server = tiny_http::Server::http("127.0.0.1:0").map_err(|e| e.to_string())?;
-        let port = server.server_addr().to_ip().map(|a| a.port()).ok_or("no port")?;
-        let redirect = format!("http://127.0.0.1:{port}");
-        let url = format!(
-            "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope={}&code_challenge={}&code_challenge_method=S256&access_type=offline&prompt=consent&state={}",
-            enc(&client_id), enc(&redirect), enc(SCOPES), challenge, enc(&st)
-        );
-        crate::net::open_url(url)?;
-
-        let deadline = Instant::now() + Duration::from_secs(300);
-        let code = loop {
-            let left = deadline.checked_duration_since(Instant::now()).ok_or("google: no answer from the browser after 5 minutes")?;
-            let Some(req) = server.recv_timeout(left).map_err(|e| e.to_string())? else { continue };
-            let query = req.url().split_once('?').map(|(_, q)| q.to_string()).unwrap_or_default();
-            let get = |k: &str| query.split('&').find_map(|kv| kv.strip_prefix(&format!("{k}="))).map(|v| v.to_string());
-            if get("code").is_none() && get("error").is_none() {
-                let _ = req.respond(tiny_http::Response::empty(404)); // favicon…
-                continue;
+    let flow2 = flow.clone();
+    std::thread::spawn(move || {
+        let res = sign_in(&app2, server, port, id, &flow2, &c, &client_id, &client_secret);
+        let mut f = flow2.lock().unwrap();
+        if f.id == id {
+            match res {
+                Ok(()) => f.phase = "done".into(),
+                Err(e) => {
+                    f.phase = "failed".into();
+                    f.error = Some(e);
+                }
             }
-            let ok = get("code").is_some() && get("state").as_deref() == Some(st.as_str());
-            let page = format!(
-                "<!doctype html><meta charset=utf-8><title>ICEBREAKER</title><body style=\"background:#0b0b12;color:#cdd6f4;font:16px monospace;display:grid;place-items:center;height:90vh\"><div>{}</div>",
-                if ok { "◆ ICEBREAKER is linked to your Google calendar.<br><br>You can close this tab." } else { "✕ Google didn't give access. Back in ICEBREAKER: cal google connect" }
-            );
-            let header = tiny_http::Header::from_bytes("Content-Type", "text/html; charset=utf-8").unwrap();
-            let _ = req.respond(tiny_http::Response::from_string(page).with_header(header));
-            if !ok {
-                return Err(format!("google: {}", get("error").unwrap_or_else(|| "state mismatch".into())));
-            }
-            break get("code").unwrap();
-        };
-        let code = percent_decode(&code);
-        let v = token_request(&[
-            ("client_id", &client_id),
-            ("client_secret", &client_secret),
-            ("code", &code),
-            ("code_verifier", &verifier),
-            ("redirect_uri", &redirect),
-            ("grant_type", "authorization_code"),
-        ])?;
-        let rt = v["refresh_token"].as_str().ok_or("google: no refresh token in the answer")?.to_string();
-        let mut c2 = c.clone();
-        c2.refresh_token = Some(rt);
-        save(&app2, &c2)?;
-        if let (Some(t), Some(state)) = (v["access_token"].as_str(), app2.try_state::<GoogleState>()) {
-            let ttl = v["expires_in"].as_u64().unwrap_or(3600).saturating_sub(120);
-            *state.token.lock().unwrap() = Some((t.to_string(), Instant::now() + Duration::from_secs(ttl)));
         }
-        Ok(())
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    });
+    Ok(id)
+}
+
+/// How the sign-in `google_connect` started is going (phase "done" / "failed" at the end).
+#[tauri::command]
+pub fn google_connect_result(state: State<GoogleState>) -> Flow {
+    state.flow.lock().unwrap().clone()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn sign_in(app: &AppHandle, server: tiny_http::Server, port: u16, id: u64, flow: &Mutex<Flow>, c: &Creds, client_id: &str, client_secret: &str) -> Result<(), String> {
+    let mut rnd = [0u8; 64];
+    getrandom::getrandom(&mut rnd).map_err(|e| e.to_string())?;
+    let verifier: String = rnd.iter().map(|b| b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"[(*b as usize) % 66] as char).collect();
+    let challenge = b64url(&Sha256::digest(verifier.as_bytes()));
+    // its own random value: never a piece of the verifier (it travels in the address bar)
+    let mut srnd = [0u8; 24];
+    getrandom::getrandom(&mut srnd).map_err(|e| e.to_string())?;
+    let st: String = srnd.iter().map(|b| b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"[(*b as usize) % 64] as char).collect();
+
+    let redirect = format!("http://127.0.0.1:{port}");
+    let url = format!(
+        "https://accounts.google.com/o/oauth2/v2/auth?client_id={}&redirect_uri={}&response_type=code&scope={}&code_challenge={}&code_challenge_method=S256&access_type=offline&prompt=consent&state={}",
+        enc(client_id), enc(&redirect), enc(SCOPES), challenge, enc(&st)
+    );
+    crate::net::open_url(url)?;
+
+    let current = || flow.lock().unwrap().id == id;
+    let deadline = Instant::now() + Duration::from_secs(300);
+    let code = loop {
+        if !current() {
+            return Err("google: a newer sign-in started".into());
+        }
+        if Instant::now() >= deadline {
+            return Err("google: no answer from the browser after 5 minutes (did the page end on \"ICEBREAKER is linked\"?)".into());
+        }
+        // short waits: a newer sign-in (or the deadline) is noticed within a second
+        let Some(req) = server.recv_timeout(Duration::from_secs(1)).map_err(|e| e.to_string())? else { continue };
+        let query = req.url().split_once('?').map(|(_, q)| q.to_string()).unwrap_or_default();
+        let get = |k: &str| query.split('&').find_map(|kv| kv.strip_prefix(&format!("{k}="))).map(percent_decode);
+        if get("code").is_none() && get("error").is_none() {
+            let _ = req.respond(tiny_http::Response::empty(404)); // favicon, a browser's pre-connection…
+            continue;
+        }
+        let ok = get("code").is_some() && get("state").as_deref() == Some(st.as_str());
+        let page = format!(
+            "<!doctype html><meta charset=utf-8><title>ICEBREAKER</title><body style=\"background:#0b0b12;color:#cdd6f4;font:16px monospace;display:grid;place-items:center;height:90vh\"><div>{}</div>",
+            if ok { "◆ ICEBREAKER got the answer from Google.<br><br>You can close this tab and go back to the deck." } else { "✕ Google didn't give access. Back in ICEBREAKER: cal google connect" }
+        );
+        let header = tiny_http::Header::from_bytes("Content-Type", "text/html; charset=utf-8").unwrap();
+        let _ = req.respond(tiny_http::Response::from_string(page).with_header(header));
+        if !ok {
+            return Err(format!("google: {}", get("error").unwrap_or_else(|| "the answer didn't match this sign-in (state)".into())));
+        }
+        break get("code").unwrap();
+    };
+    drop(server);
+    flow.lock().unwrap().phase = "token".into();
+    let v = token_request(&[
+        ("client_id", client_id),
+        ("client_secret", client_secret),
+        ("code", &code),
+        ("code_verifier", &verifier),
+        ("redirect_uri", &redirect),
+        ("grant_type", "authorization_code"),
+    ])
+    .map_err(|e| format!("{e} (while trading Google's code for a token)"))?;
+    let rt = v["refresh_token"].as_str().ok_or("google: no refresh token in the answer")?.to_string();
+    let mut c2 = c.clone();
+    c2.refresh_token = Some(rt);
+    save(app, &c2).map_err(|e| format!("google: couldn't save the token ({e})"))?;
+    if let (Some(t), Some(state)) = (v["access_token"].as_str(), app.try_state::<GoogleState>()) {
+        let ttl = v["expires_in"].as_u64().unwrap_or(3600).saturating_sub(120);
+        *state.token.lock().unwrap() = Some((t.to_string(), Instant::now() + Duration::from_secs(ttl)));
+    }
+    Ok(())
 }
 
 /// The CALENDAR module's offline copy of your Google calendars. It lives in the
