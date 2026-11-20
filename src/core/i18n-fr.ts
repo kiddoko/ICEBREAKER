@@ -426,7 +426,6 @@ export const FR: Record<string, string> = {
   "type, enter to send": "écris, entrée pour envoyer",
   "type to search every setting…": "tape pour chercher un réglage…",
   "KEYS": "CLAVIER",
-  "DANGER ZONE": "ZONE DANGER",
   "nothing matches — esc clears the search": "rien ne correspond — échap efface la recherche",
   "type to search · ↑↓ choose · ←→ / enter change · tab categories ⇄ settings · every setting: `config set`": "tape pour chercher · ↑↓ choisir · ←→ / entrée changer · tab catégories ⇄ réglages · chaque réglage : `config set`",
   "slow down in the background (energy)": "ralentir en arrière-plan (énergie)",

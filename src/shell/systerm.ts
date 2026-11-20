@@ -56,6 +56,8 @@ export class SystemTerminal {
   /** the native shell is really running (pty_spawn answered) */
   private spawned = false;
   private exited = false;
+  /** which start this is: what an older shell still sends (its end, after a restart) is dropped */
+  private generation = 0;
   private error = "";
   private cols = 0;
   private rows = 0;
@@ -92,18 +94,21 @@ export class SystemTerminal {
     }
     this.started = true;
     this.exited = false;
+    const gen = ++this.generation;
     this.term.resize(cols, rows);
     this.ptySize = `${cols}x${rows}`;
     pty
       .spawn(this.id, cols, rows, (data) => {
+        if (gen !== this.generation) return;
         // output means the native side has this terminal: it can take our answers now. Windows'
         // ConPTY asks where the cursor is the moment it starts, often before pty_spawn has
         // answered: that answer used to be dropped, and ConPTY waited 3 s for it before
         // showing anything (a new PowerShell took ages to show its prompt)
         this.spawned = true;
         if (data.includes(EXIT_MARK)) {
+          // said once, even if the native side says it twice (Windows: its watcher and its reader)
+          data = data.replace(EXIT_MARK, this.exited ? "" : "\r\n\x1b[2m[process exited — press enter to start a new shell]\x1b[0m\r\n").replaceAll(EXIT_MARK, "");
           this.exited = true;
-          data = data.replace(EXIT_MARK, "\r\n\x1b[2m[process exited — press enter to start a new shell]\x1b[0m\r\n");
         }
         this.term.write(data, () => this.deck.requestFrame());
       }, this.moduleCommands(), this.deck.settings.data.shell.prompt ?? "icebreaker")
@@ -129,6 +134,7 @@ export class SystemTerminal {
   }
 
   restart(): void {
+    this.generation++; // what the old shell still sends is dropped
     void this.deck.platform.pty?.kill(this.id);
     this.term.reset();
     this.started = false;

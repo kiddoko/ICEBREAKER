@@ -19,6 +19,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::ipc::Channel;
@@ -32,7 +33,12 @@ struct Session {
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
     child: Box<dyn Child + Send + Sync>,
+    /// which start this is: a terminal restarted keeps its id, its old watcher must let go
+    serial: u64,
 }
+
+/// one number per shell started (see `Session::serial`)
+static SERIAL: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Default)]
 pub struct PtyState {
@@ -312,7 +318,43 @@ pub fn pty_spawn(
     drop(pair.slave);
     let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
-    ptys.sessions.lock().unwrap().insert(id, Session { master: pair.master, writer, child });
+    let serial = SERIAL.fetch_add(1, Ordering::SeqCst);
+    ptys.sessions.lock().unwrap().insert(id.clone(), Session { master: pair.master, writer, child, serial });
+
+    // The shell ended (`exit`): on Windows, ConPTY keeps its output pipe open after the shell
+    // is gone, so the reader below never hears the end — the tab stayed dead, without its
+    // "process exited" line. A watcher sees the shell end and closes the pseudo-console
+    // (dropping the session), which ends the reader; if even that doesn't, it says so itself.
+    let read_done = Arc::new(AtomicBool::new(false));
+    {
+        let (app, id, done, on_data) = (app.clone(), id.clone(), read_done.clone(), on_data.clone());
+        std::thread::spawn(move || loop {
+            std::thread::sleep(Duration::from_millis(300));
+            let state = app.state::<PtyState>();
+            let ended = {
+                let mut map = state.sessions.lock().unwrap();
+                match map.get_mut(&id) {
+                    // killed or restarted: not ours any more
+                    Some(s) if s.serial == serial => match s.child.try_wait() {
+                        Ok(Some(_)) => {
+                            map.remove(&id);
+                            true
+                        }
+                        Ok(None) => false,
+                        Err(_) => break,
+                    },
+                    _ => break,
+                }
+            };
+            if ended {
+                std::thread::sleep(Duration::from_millis(1500));
+                if !done.swap(true, Ordering::SeqCst) {
+                    let _ = on_data.send(EXIT_MARK.into());
+                }
+                break;
+            }
+        });
+    }
 
     std::thread::spawn(move || {
         let mut buf = [0u8; 16384];
@@ -336,7 +378,9 @@ pub fn pty_spawn(
                 }
             }
         }
-        let _ = on_data.send(EXIT_MARK.into());
+        if !read_done.swap(true, Ordering::SeqCst) {
+            let _ = on_data.send(EXIT_MARK.into());
+        }
     });
     Ok(std::path::Path::new(&shell).file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or(shell))
 }

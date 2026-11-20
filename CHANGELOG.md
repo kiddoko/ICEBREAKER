@@ -18,6 +18,10 @@
   stays its own list. Modules get `ib.vault.modified()` for the same.
 - **`self-destruct` is gone**: the command, its setting (DANGER ZONE) and its native side.
   Nothing in the deck deletes your vault for good; to get rid of one, delete its folder.
+- **The real terminal on Windows**: `exit` in PowerShell now ends that tab properly ("process
+  exited — press enter to start a new shell"); it used to stay dead.
+- **⌘A / Ctrl+A** selects the text of the search fields of Settings, SHORTCUTS, BLOCKS and the
+  STORE (what you type next replaces it).
 - **`plugin reload`**: a module's page that was open switches to the new code (a sandboxed
   module's tab no longer stays frozen on its last frame until reopened); its widget's pop-up too.
 - **Releases**: the installers' signatures (`.sig`) are attached to the release too; the CI's

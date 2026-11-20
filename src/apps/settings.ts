@@ -100,7 +100,7 @@ export class SettingsApp implements App {
   /** the category shown: everything back to default (asks first) */
   private resetCategory(): void {
     const sec = this.sections()[this.cat];
-    if (sec && sec.group !== "DANGER") void this.resetSection(sec.name, sec.rows);
+    if (sec) void this.resetSection(sec.name, sec.rows);
   }
 
   private async resetSection(name: string, rows: Row[]): Promise<void> {
@@ -232,8 +232,7 @@ export class SettingsApp implements App {
     secs.forEach((sec, i) => {
       if (i === 0 || sec.group !== secs[i - 1].group) {
         const hy = top + i + extra + (i ? 1 : 0);
-        if (hy < r.y + r.h - 2 && sec.group !== "DANGER") ui.text(sx, hy, t(sec.group), { fg: c.subtle, attrs: BOLD });
-        else if (hy < r.y + r.h - 2) ui.hline(sx, hy, catW, { fg: c.faint }, "┄");
+        if (hy < r.y + r.h - 2) ui.text(sx, hy, t(sec.group), { fg: c.subtle, attrs: BOLD });
         extra += i ? 2 : 1;
       }
       const y = top + i + extra;
@@ -243,7 +242,7 @@ export class SettingsApp implements App {
       const bg = on ? (focused && this.pane === "cats" ? c.accent : mix(c.accent, c.bg, 0.75)) : ui.hovered(line) ? c.highlight : undefined;
       if (bg !== undefined) ui.fill(line, { bg });
       const name = t(sec.name);
-      ui.text(sx + 1, y, `${on ? "▸" : " "} ${name}`, { fg: on && focused && this.pane === "cats" ? c.panel : sec.name === "DANGER ZONE" ? c.error : on ? c.fg : c.muted, attrs: on ? BOLD : 0, ...(bg !== undefined ? { bg } : {}) }, catW - 1);
+      ui.text(sx + 1, y, `${on ? "▸" : " "} ${name}`, { fg: on && focused && this.pane === "cats" ? c.panel : on ? c.fg : c.muted, attrs: on ? BOLD : 0, ...(bg !== undefined ? { bg } : {}) }, catW - 1);
       ui.hit(line, { onClick: () => ((this.cat = i), this.search.clear(), (this.sel = 0), (this.pane = "rows")), tip: `${sec.rows.length} settings` });
     });
     ui.vline(sx + catW + 1, top, r.y + r.h - top - 2, { fg: c.faint });
@@ -330,7 +329,7 @@ export class SettingsApp implements App {
       // the whole line: choose it; a box ticks, text and actions open, at once
       ui.hit(line, { onClick: () => (kind === "toggle" || kind === "text" || kind === "action" ? act() : pick()), tip });
 
-      const valFg = disabled ? c.faint : from === "DANGER ZONE" ? c.error : kind === "info" ? c.subtle : kind === "text" ? c.fg : c.accent;
+      const valFg = disabled ? c.faint : kind === "info" ? c.subtle : kind === "text" ? c.fg : c.accent;
       if (kind === "slider") {
         const sl = row.slider!;
         slider(ui, { x: ve - sliderW + 1, y, w: sliderW, h: 1 }, sl.get(), sl.min, sl.max, (nv) => (pick(), sl.set(nv)), {
@@ -371,7 +370,7 @@ export class SettingsApp implements App {
     const by = r.y + r.h - 1;
     let helpRoom = rw - 2;
     const sec = secs[this.cat];
-    if (!this.query && sec && sec.group !== "DANGER" && sec.rows.some((x) => this.resettable(x))) {
+    if (!this.query && sec && sec.rows.some((x) => this.resettable(x))) {
       const nChanged = sec.rows.filter((x) => this.resettable(x) && !this.rowDefault(x)).length;
       if (nChanged) {
         const label = `↺ ${t("all back to default")}`;
