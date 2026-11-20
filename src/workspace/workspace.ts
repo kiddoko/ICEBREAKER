@@ -738,6 +738,7 @@ export class Workspace {
         break;
       }
       case "drag":
+        if (m.fine && !this.dragging?.fine) break; // a move inside one cell: only sliders want it
         this.dragging?.onDrag?.(m);
         break;
       case "up":

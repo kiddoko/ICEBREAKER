@@ -40,6 +40,8 @@ export interface Hit {
   onDrag?: (m: MouseInput) => void;
   /** The button is released after a click on this area (end of a drag). */
   onUp?: (m: MouseInput) => void;
+  /** onDrag also gets the moves inside one cell (`m.fine`): sliders, to reach every value */
+  fine?: boolean;
   /** the wheel over it: lines (positive = down), and the mouse event (shift held…) */
   onWheel?: (delta: number, m: MouseInput) => void;
   /** Right click: a custom handler. Most places give a `menu` instead. */

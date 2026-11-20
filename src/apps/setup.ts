@@ -1,4 +1,4 @@
-import { accelerated, slider } from "../ui/slider";
+import { heldStep, slider } from "../ui/slider";
 import { Field } from "../ui/field";
 import { mix } from "../core/color";
 import { LANGS, setLang, t } from "../core/i18n";
@@ -471,7 +471,7 @@ export class SetupApp implements App {
 
   onAction(a: Action): boolean {
     const st = this.cur;
-    if (st.slider && (a === "left" || a === "right")) return this.setSound(Number(this.a[st.id]) + (a === "left" ? -1 : 1) * accelerated("setup:sound")), true;
+    if (st.slider && (a === "left" || a === "right")) return heldStep("setup:sound", a === "left" ? -1 : 1, (d) => (this.setSound(Number(this.a[st.id]) + d), this.deck.requestFrame())), true;
     const n = this.options().length;
     switch (a) {
       case "up": this.sel = (this.sel - 1 + Math.max(1, n)) % Math.max(1, n); this.preview(); return true;

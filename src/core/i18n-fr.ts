@@ -707,7 +707,8 @@ export const FR: Record<string, string> = {
   "It asks for": "Il demande",
   "nothing special": "rien de particulier",
   "Read its code in .icebreaker/plugins/ first if you don't know its author.": "Lis son code dans .icebreaker/plugins/ d'abord si tu ne connais pas son auteur.",
-  "tab: sections · / search · enter: install / use · x: remove · a: add a source · r: refresh": "tab : sections · / chercher · entrée : installer / utiliser · x : retirer · a : ajouter une source · r : rafraîchir",
+  "type to search · tab: sections · enter: install / use · del: remove": "tape pour chercher · tab : sections · entrée : installer / utiliser · suppr : retirer",
+  "type to search a module, a theme…": "tape pour chercher un module, un thème…",
   "nexus": "nexus",
   // ── right-click menus
   "copy": "copier",
@@ -969,7 +970,7 @@ export const FR: Record<string, string> = {
   "maximize: the shell becomes a big tab (term dock puts it back)": "agrandir : le shell devient un grand onglet (term dock le remet)",
   "close this terminal": "fermer ce terminal",
   "another terminal · term new": "un autre terminal · term new",
-  "drag the handle · hold on the track · wheel · ←→ (1 at a time, faster when held) · double-click the number to type it": "glisse la poignée · reste appuyé sur la barre · molette · ←→ (1 par 1, plus vite si tu restes appuyé) · double-clic sur le nombre pour le taper",
+  "drag the handle · hold on the track · wheel · ←→ (1 at a time, faster when held) · space: 0 and back · double-click the number to type it": "glisse la poignée · reste appuyé sur la barre · molette · ←→ (1 par 1, plus vite si tu restes appuyé) · espace : 0 et retour · double-clic sur le nombre pour le taper",
   "lock the deck (log out)": "verrouiller le deck (déconnexion)",
   "NEXUS, the vault as a place": "NEXUS, le vault comme un lieu",
   "the action wheel (gamepad: hold RB)": "la roue d'actions (manette : maintenir RB)",

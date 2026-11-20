@@ -17,16 +17,64 @@ export interface SliderOptions {
 }
 
 /**
- * Held keys and a spinning wheel speed up: 1 at a time, then 2, 5, 10 the longer it
- * lasts (the same for ←→ in Settings, the wheel and a held mouse button on a slider).
- * `id` = what is being changed; a pause of 300 ms starts again from 1.
+ * A held control (a key held on a slider, the mouse held on its track) moves ONE step
+ * at a time, always — what speeds up is the pace: 8 steps a second at first, eased up
+ * to 60 a second after 1.5 s (one a frame). The first repeat waits HOLD_DELAY, like a key.
  */
-const streaks = new Map<string, { at: number; n: number }>();
-export function accelerated(id: string, now = performance.now()): number {
-  const s = streaks.get(id);
-  const n = s && now - s.at < 300 ? s.n + 1 : 0;
-  streaks.set(id, { at: now, n });
-  return n < 8 ? 1 : n < 20 ? 2 : n < 40 ? 5 : 10;
+export const HOLD_DELAY = 350;
+export function holdRate(heldMs: number): number {
+  const k = Math.max(0, Math.min(1, heldMs / 1500));
+  return 8 + 52 * k * k * (3 - 2 * k);
+}
+
+/** The clock of one hold: `due(now)` = how many single steps are due now (0, 1, at most 2 on a slow frame). */
+export class HoldClock {
+  private next: number;
+  constructor(private readonly t0: number) {
+    this.next = t0 + HOLD_DELAY;
+  }
+  due(now: number): number {
+    let n = 0;
+    while (now >= this.next && n < 2) {
+      n++;
+      this.next += 1000 / holdRate(this.next - this.t0 - HOLD_DELAY);
+    }
+    if (now >= this.next) this.next = now + 1000 / holdRate(now - this.t0 - HOLD_DELAY); // after a stall: no burst
+    return n;
+  }
+}
+
+/**
+ * ←→ on a slider (Settings, ✦ fx, the setup): one step at once, then — while the key
+ * stays down — single steps paced by the HoldClock, until the key goes up. The key's own
+ * repeats (the OS's) are ignored: their pace isn't ours, and it differs from one computer
+ * to the next. `id` = what is being changed.
+ */
+let held: { id: string; dir: 1 | -1; timer?: ReturnType<typeof setInterval> } | null = null;
+let listening = false;
+export function heldStep(id: string, dir: 1 | -1, step: (dir: 1 | -1) => void, now = performance.now()): void {
+  if (held && held.id === id && held.dir === dir) return; // the key's own repeat: the clock paces it
+  releaseHeld();
+  step(dir);
+  held = { id, dir };
+  if (typeof window === "undefined") return; // (tests: no clock, no key-up)
+  if (!listening) {
+    listening = true;
+    window.addEventListener("keyup", releaseHeld, true);
+    window.addEventListener("blur", releaseHeld);
+  }
+  const clock = new HoldClock(now);
+  const timer = setInterval(() => {
+    const t = performance.now();
+    if (t - now > 60_000) return releaseHeld(); // a key-up we never heard
+    for (let n = clock.due(t); n > 0; n--) step(dir);
+  }, 8);
+  held.timer = timer;
+}
+/** the key went up (or the window lost focus): the hold stops */
+export function releaseHeld(): void {
+  if (held?.timer) clearInterval(held.timer);
+  held = null;
 }
 
 /**
@@ -34,16 +82,18 @@ export function accelerated(id: string, now = performance.now()): number {
  * - grab the handle ■ and drag: it follows the pointer (to the pixel);
  * - press anywhere else on the track and hold: it steps toward the pointer 1 by 1,
  *   faster the longer you hold (like a scrollbar) — so the mouse reaches every value;
- * - the wheel and ←→ (the caller) step 1 by 1, faster when held;
+ * - the wheel steps 1 a notch, ←→ (the caller, with heldStep) 1 by 1, faster when held;
  * - double-click the number to type one (`onEdit`).
  *
  * The slider being changed, if any: where it is on screen (its identity from one
  * frame to the next — sliders are redrawn every frame), the value it shows, and
  * when the setting was last applied. The bar moves at once; the (sometimes costly)
- * setting is applied at most every 40 ms, and always when you let go.
+ * setting is applied at most every 40 ms while dragging (every step while held), and always when you let go.
  */
-let live: { x: number; y: number; v: number; sentAt: number; sent: number; hold?: { target: number; next: number; startX: number } } | null = null;
+let live: { x: number; y: number; v: number; sentAt: number; sent: number; hold?: { target: number; clock: HoldClock; startX: number }; grab?: number } | null = null;
 const APPLY_MS = 40;
+/** the wheel's last value on a slider, and the value drawn when it was sent (not redrawn yet: go on from it) */
+let wheel: { x: number; y: number; drawn: number; v: number } | null = null;
 
 export function slider(ui: UI, r: Rect, value: number, min: number, max: number, onSet: (v: number) => void, o: SliderOptions = {}): void {
   const c = ui.c;
@@ -78,14 +128,14 @@ export function slider(ui: UI, r: Rect, value: number, min: number, max: number,
     return;
   }
   const step = o.step ?? 1;
-  // held on the track (not on the handle): one step toward the pointer, then faster
+  // held on the track (not on the handle): one step toward the pointer, then more, one at a time
   if (mine && live!.hold) {
     const h = live!.hold;
-    const now = performance.now();
-    if (now >= h.next && value !== h.target) {
-      const by = step * accelerated(`hold:${r.x}:${r.y}`, now);
-      push(h.target > value ? Math.min(h.target, value + by) : Math.max(h.target, value - by));
-      h.next = now + (h.next === 0 ? 350 : 45);
+    // every step applied, one by one (not at the drag's 40 ms pace: the setting would skip values)
+    let v = value;
+    for (let n = h.clock.due(performance.now()); n > 0 && v !== h.target; n--) {
+      v = h.target > v ? Math.min(h.target, v + step) : Math.max(h.target, v - step);
+      push(v, true);
     }
     ui.animate(16);
   }
@@ -109,24 +159,34 @@ export function slider(ui: UI, r: Rect, value: number, min: number, max: number,
   if (o.onEdit) ui.hit(num, { onDouble: () => o.onEdit?.(), tip: "double-click: type a value" });
   ui.hit(track, {
     onClick: (m) => {
-      if (Math.abs(m.x - (r.x + at0)) <= 1) return push(value, true); // the handle: a drag starts
+      // the handle: a drag starts, the value moving with the pointer from where it is (no jump on the grab)
+      if (Math.abs(m.x - (r.x + at0)) <= 1) return push(value, true), void (live!.grab = value - at(m));
       // the track: one step now, more while it's held
-      const by = step * accelerated(`hold:${r.x}:${r.y}`);
       const target = at(m);
-      push(target > value ? Math.min(target, value + by) : Math.max(target, value - by), true);
-      live!.hold = { target, next: performance.now() + 350, startX: m.fx ?? m.x };
+      push(target > value ? Math.min(target, value + step) : Math.max(target, value - step), true);
+      live!.hold = { target, clock: new HoldClock(performance.now()), startX: m.fx ?? m.x };
     },
     onDrag: (m) => {
       // moving the pointer: the handle follows it (a hold that moves becomes a drag)
       if (live?.hold && Math.abs((m.fx ?? m.x) - live.hold.startX) < 1) return void (live.hold.target = at(m));
       if (live) live.hold = undefined;
-      push(at(m));
+      // (the ends of the track are always the min and the max, whatever the grab)
+      const a = at(m);
+      push(a <= min || a >= max ? a : clamp(a + (live?.grab ?? 0)));
     },
     onUp: () => {
       if (live && live.x === r.x && live.y === r.y && live.v !== live.sent) onSet(live.v);
       live = null;
     },
-    onWheel: (d) => onSet(clamp(value - Math.sign(d) * step * accelerated(`wheel:${r.x}:${r.y}`))),
+    // the wheel: one step a notch (a trackpad sends many: it goes as fast as you spin);
+    // several notches before the next frame go on from the last one, not from the value drawn
+    onWheel: (d) => {
+      const base = wheel && wheel.x === r.x && wheel.y === r.y && wheel.drawn === value ? wheel.v : value;
+      const v = clamp(base - Math.sign(d) * step);
+      wheel = { x: r.x, y: r.y, drawn: value, v };
+      if (v !== base) onSet(v);
+    },
+    fine: true,
     tip: o.tip ?? "drag the handle · hold on the track · wheel · ←→ (1 at a time, faster when held)",
   });
 }
