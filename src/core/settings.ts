@@ -137,6 +137,12 @@ export interface Settings {
    * (a local model with Ollama, a vault on your own server).
    */
   privacy: { stealth: boolean };
+  /**
+   * Updates of ICEBREAKER and of the modules (core/updater.ts): when to look, download by
+   * itself, install by itself or ask first. `endpoint`: where ICEBREAKER's releases are
+   * (empty = the official one). Stealth mode looks for nothing.
+   */
+  updates: { check: "daily" | "start" | "never"; download: boolean; install: "ask" | "auto"; endpoint: string };
   /** The deck's voice (core/voice.ts): local text-to-speech through a robot filter. */
   voice: {
     /** what the voice says, in a small box bottom-right */
@@ -169,7 +175,11 @@ export interface Settings {
   editor: { autosave: boolean; tabSize: number; treeWheel: boolean };
   /** registry: the official index · sources: your own (URLs or user/repo of an index.json) */
   /** removed: built-in modules the user uninstalled (the STORE reinstalls them) */
-  plugins: { enabled: string[]; disabled: string[]; removed: string[]; registry: string; sources: string[] };
+  plugins: { enabled: string[]; disabled: string[]; removed: string[]; registry: string; sources: string[];
+    /** the permissions you approved for each STORE / vault module when you switched it on (it never runs with more) */
+    granted: Record<string, string[]>;
+    /** the fingerprint (SHA-256) of each STORE / vault module's code when you switched it on: changed since, it stays off until you approve again */
+    pinned: Record<string, string> };
   /** links: the 1×1 shortcut widgets (widgets/links.ts) */
   home: { widgets: WidgetPlacement[]; links: { id: string; label: string; icon: string; cmd: string }[]; weatherCity: string; worldClocks: string[]; newsTopic: string;
     /** news interests: categories (tech, politics…) and free words, mixed with your area's news */
@@ -234,10 +244,11 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   journal: { folder: "journal" },
   privacy: { stealth: false },
+  updates: { check: "daily", download: true, install: "ask", endpoint: "" },
   voice: { subtitles: true, enabled: false, engine: "auto", name: "", rate: 1.1, robot: 100, volume: 50, readAI: false, greet: true, language: "en", speak: { errors: true, reminders: true, timers: true, calendar: true, weather: false, time: false, system: true, modules: true } },
   editor: { autosave: true, tabSize: 2, treeWheel: true },
   // the community index: a JSON list of plugins/themes (see docs/COMMUNITY.md)
-  plugins: { enabled: [], disabled: [], removed: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json", sources: [] },
+  plugins: { enabled: [], disabled: [], removed: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json", sources: [], granted: {}, pinned: {} },
   // empty = the default layout (widgets/builtin.ts)
   home: { widgets: [], links: [], weatherCity: "Paris", worldClocks: ["America/New_York", "Europe/London", "Asia/Tokyo"], newsTopic: "", newsInterests: [], weatherPlaces: [], clockStyle: "dots", clockSeconds: false, widgetConfig: {} },
 };
@@ -251,9 +262,94 @@ function clone<T>(v: T): T {
   return v === undefined ? v : (JSON.parse(JSON.stringify(v)) as T);
 }
 
+/**
+ * What a setting may hold, wherever the value comes from (`config set`, a module, a file
+ * edited by hand, a vault from another computer): a number stays in its range, a choice is
+ * one of its words, a name has no control characters. A text size of 0, an interface at
+ * 1 000 000 % or a journal folder "../.." would leave a deck nobody can use — or reach —
+ * until the file is fixed by hand.
+ */
+const RANGES: Record<string, [number, number]> = {
+  "appearance.fontSize": [8, 40],
+  "appearance.scale": [25, 200],
+  "appearance.maxFps": [0, 240],
+  "appearance.brightness": [50, 150],
+  "appearance.textSpeed": [0, 100],
+  "fx.screensaverMinutes": [0, 600],
+  "fx.levels.bloom": [0, 200],
+  "fx.levels.scanlines": [0, 200],
+  "fx.levels.vignette": [0, 200],
+  "fx.levels.chroma": [0, 100],
+  "fx.levels.sharpness": [0, 100],
+  "fx.levels.glow": [0, 200],
+  "sound.volume": [0, 100],
+  "voice.rate": [0.5, 2],
+  "voice.robot": [0, 100],
+  "voice.volume": [0, 100],
+  "editor.tabSize": [1, 8],
+};
+const CHOICES: Record<string, string[]> = {
+  "appearance.fontWeight": ["thin", "light", "regular"],
+  "boot.mode": ["full", "fast", "off"],
+  "shell.mode": ["system", "ibsh"],
+  "shell.prompt": ["icebreaker", "mine"],
+  "voice.engine": ["auto", "piper", "system"],
+  "voice.language": ["en", "fr", "ja"],
+  "updates.check": ["daily", "start", "never"],
+  "updates.install": ["ask", "auto"],
+  "user.language": ["en", "fr"],
+};
+/** a folder of the vault for the deck's own use: inside it, never the deck's or the system's own */
+function safeFolder(v: string, fallback: string): string {
+  const parts = v.replace(/\\/g, "/").split("/").map((x) => x.trim()).filter((x) => x && x !== "." && x !== "..");
+  const out = parts.join("/").replace(/[\u0000-\u001f\u007f]/g, "");
+  return !out || out.length > 200 || /^\.(icebreaker|trash|git|obsidian)(\/|$|-)/i.test(out) ? fallback : out;
+}
+
+/** The value a setting really takes (`fallback`: what it has now, or its default). Throws on a choice that doesn't exist. */
+export function limitSetting(path: string, value: unknown, fallback: unknown, strict = true): unknown {
+  const range = RANGES[path] ?? (path.startsWith("sound.mix.") ? [0, 100] : undefined);
+  if (range) {
+    if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+    return Math.min(range[1], Math.max(range[0], value));
+  }
+  const choices = CHOICES[path];
+  if (choices) {
+    if (typeof value === "string" && choices.includes(value)) return value;
+    if (strict) throw new Error(`${path}: one of ${choices.join(", ")}`);
+    return fallback;
+  }
+  if (typeof value === "number" && !Number.isFinite(value)) return fallback;
+  if (typeof value === "string") {
+    if (path === "journal.folder") return safeFolder(value, typeof fallback === "string" && fallback ? fallback : "journal");
+    // a name shown everywhere (the prompt, the status bar, the files it signs): no control characters, a sane length
+    if (path === "user.handle") return value.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, "").trim().slice(0, 32) || (typeof fallback === "string" && fallback ? fallback : "netrunner");
+  }
+  return value;
+}
+
+/** Every limited setting of a whole settings object, put right in place (what a file or a vault brought). */
+export function limitAll(data: Settings): void {
+  const paths = [...Object.keys(RANGES), ...Object.keys(CHOICES), "journal.folder", "user.handle", ...Object.keys((data.sound?.mix ?? {}) as object).map((k) => `sound.mix.${k}`)];
+  for (const path of paths) {
+    const keys = path.split(".");
+    const last = keys.pop()!;
+    let o = data as unknown as Record<string, unknown>;
+    let def = DEFAULT_SETTINGS as unknown as Record<string, unknown>;
+    for (const k of keys) {
+      o = (o?.[k] ?? undefined) as Record<string, unknown>;
+      def = (def?.[k] ?? {}) as Record<string, unknown>;
+    }
+    if (!o || typeof o !== "object" || !(last in o)) continue;
+    o[last] = limitSetting(path, o[last], def[last], false);
+  }
+}
+
 export class SettingsStore {
   data: Settings;
   secrets: Secrets;
+  /** the file as it was read: keys a newer ICEBREAKER wrote are kept when this one saves */
+  private raw: Record<string, unknown> = {};
   private listeners = new Set<Listener>();
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -271,24 +367,14 @@ export class SettingsStore {
     const rawSecrets = await platform.config.read("secrets.json").catch(() => null);
     // (JSON copy rather than structuredClone: works on older macOS WebKit too)
     const data = deepMerge(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), safeJson(raw)) as Settings;
-    // notifications were one choice (both / sound / visual / none) before 0.3.2: now one box each
-    // (the merge only keeps known keys, so the old choice is read from the file itself)
-    const saved = (safeJson(raw) as { notifications?: { mode?: string; screen?: boolean } }).notifications;
-    const oldMode = saved?.mode;
-    if (oldMode && saved?.screen === undefined) {
-      const hear = oldMode === "both" || oldMode === "sound", see = oldMode === "both" || oldMode === "visual";
-      Object.assign(data.notifications, { screen: see, system: see, sound: hear, voice: hear });
-    }
-    // THE MENU's keys were "space <key>" (settings.leader) before 0.3.2
-    const old = safeJson(raw) as { leader?: { keys?: Record<string, string> } };
-    if (old.leader?.keys && !Object.keys(data.menu.keys).length) data.menu.keys = { ...old.leader.keys };
-    // text speed: the first default (85) was far too fast to see the text typing — 50 now
-    if (data.appearance.textSpeed === 85) data.appearance.textSpeed = 50;
-    for (const k of Object.keys(data.keys)) if (k.startsWith("space ")) (data.keys[`menu ${k.slice(6)}`] = data.keys[k]), delete data.keys[k];
+    // (migrations from before 0.4.0 are gone: update through 0.4.x first)
     // the community index moved to icebreaker-modules
     if (data.plugins.registry === "https://raw.githubusercontent.com/kiddoko/icebreaker-community/main/index.json") data.plugins.registry = DEFAULT_SETTINGS.plugins.registry;
+    limitAll(data); // whatever the file holds: every value in its range
     const secrets = { anthropicApiKey: "", ...(safeJson(rawSecrets) as Partial<Secrets>) };
-    return new SettingsStore(platform, data, secrets);
+    const store = new SettingsStore(platform, data, secrets);
+    store.raw = safeJson(raw);
+    return store;
   }
 
   onChange(fn: Listener): () => void {
@@ -317,7 +403,11 @@ export class SettingsStore {
     }
     if (!(last in target)) throw new Error(`unknown setting: ${path}`);
     const before = target[last];
-    target[last] = coerce(value, defaults[last] ?? target[last]);
+    const like = defaults[last] ?? target[last];
+    const next = coerce(value, like);
+    // a section isn't a value: `config set fx.levels x` would replace the whole section by a word
+    if (like !== null && like !== undefined && next !== null && !sameKind(like, next)) throw new Error(`${path}: expected ${Array.isArray(like) ? "a list" : typeof like === "object" ? "its own keys (config list shows them)" : `a ${typeof like}`}`);
+    target[last] = limitSetting(path, next, before);
     const after = target[last];
     if (this.history && !NOT_UNDONE.some((k) => path === k || path.startsWith(k + ".")) && JSON.stringify(before) !== JSON.stringify(after)) {
       const was = clone(before);
@@ -370,7 +460,12 @@ export class SettingsStore {
   async flush(): Promise<void> {
     if (this.frozen || this.readOnly) return;
     clearTimeout(this.saveTimer);
-    await this.platform.config.write("settings.json", JSON.stringify(this.data, null, 2)).catch((e) => console.error("settings save failed", e));
+    await this.platform.config.write("settings.json", this.serialize()).catch((e) => console.error("settings save failed", e));
+  }
+
+  /** What's saved: the settings, over the keys this version doesn't know (a newer one wrote them: they stay). */
+  serialize(): string {
+    return JSON.stringify(keepUnknown(this.raw, this.data as unknown as Record<string, unknown>), null, 2);
   }
 
   /** Stop writing settings.json (before a factory reset moves the folder away). */
@@ -383,7 +478,7 @@ export class SettingsStore {
     if (this.frozen || this.readOnly) return;
     clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => {
-      this.platform.config.write("settings.json", JSON.stringify(this.data, null, 2)).catch((e) => console.error("settings save failed", e));
+      this.platform.config.write("settings.json", this.serialize()).catch((e) => console.error("settings save failed", e));
     }, 300);
   }
 }
@@ -398,16 +493,44 @@ function safeJson(raw: string | null): Record<string, unknown> {
   }
 }
 
-function deepMerge(base: Record<string, unknown> | object, extra: Record<string, unknown>): object {
+export function deepMerge(base: Record<string, unknown> | object, extra: Record<string, unknown>): object {
   const b = base as Record<string, unknown>;
   // an empty default ({}) is a free-form record (your keys, module settings, the session):
   // everything saved in it is kept, not only the keys the defaults know about
   const record = Object.keys(b).length === 0;
   for (const [k, v] of Object.entries(extra)) {
-    if (v && typeof v === "object" && !Array.isArray(v) && b[k] && typeof b[k] === "object") deepMerge(b[k] as object, v as Record<string, unknown>);
-    else if (k in b || record) b[k] = v;
+    if (v && typeof v === "object" && !Array.isArray(v) && b[k] && typeof b[k] === "object" && !Array.isArray(b[k])) deepMerge(b[k] as object, v as Record<string, unknown>);
+    else if (record) b[k] = v;
+    else if (k in b && (b[k] === null || sameKind(b[k], v))) b[k] = v;
+    // unknown keys are left out (kept in the file, see keepUnknown); a value of another
+    // kind (another ICEBREAKER changed what this setting is) leaves the default
   }
   return b;
+}
+
+/** Same JSON kind (number, text, list, object…): a setting can be taken as it is. */
+function sameKind(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) || Array.isArray(b)) return Array.isArray(a) && Array.isArray(b);
+  if (a === null || b === null) return true;
+  return typeof a === typeof b;
+}
+
+/**
+ * `data` over `raw`, deeply: keys this version doesn't know (a newer one wrote them)
+ * are kept, so going back and forth between versions loses nothing. Free-form
+ * records (empty defaults: your keys, module settings) are `data`'s alone — what
+ * you deleted there stays deleted.
+ */
+export function keepUnknown(raw: Record<string, unknown>, data: Record<string, unknown>, defaults: unknown = DEFAULT_SETTINGS): Record<string, unknown> {
+  const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x);
+  const def = isObj(defaults) ? defaults : {};
+  const out: Record<string, unknown> = {};
+  if (Object.keys(def).length) for (const [k, v] of Object.entries(raw)) if (!(k in def) && !(k in data)) out[k] = v;
+  for (const [k, v] of Object.entries(data)) {
+    const r = raw[k];
+    out[k] = isObj(v) && isObj(r) && isObj(def[k]) && Object.keys(def[k] as object).length ? keepUnknown(r, v, def[k]) : v;
+  }
+  return out;
 }
 
 function coerce(value: unknown, like: unknown): unknown {

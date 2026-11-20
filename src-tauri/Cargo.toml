@@ -14,7 +14,14 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-argon2 = { version = "0.5", features = ["std"] }
+argon2 = { version = "0.5", features = ["std", "zeroize"] }
+# vault encryption (crypto.rs): XChaCha20-Poly1305 per file, keys wiped from memory
+chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc", "getrandom"] }
+zeroize = { version = "1", features = ["derive"] }
+# vault names in one Unicode form (NFC) on every system (store.rs)
+unicode-normalization = "0.1"
+# the plain backup `vault encrypt` makes first (store.rs): deflate only, pure Rust
+zip = { version = "2", default-features = false, features = ["deflate"] }
 # PKCE for the Google sign-in (google.rs)
 getrandom = "0.2"
 sha2 = "0.10"
@@ -31,6 +38,20 @@ tauri = { version = "2", features = [] }
 tiny_http = "0.12"
 tauri-plugin-notification = "2"
 tauri-plugin-clipboard-manager = "2"
+# the recovery key's 24 words (recovery.rs)
+bip39 = { version = "2", default-features = false, features = ["std", "zeroize"] }
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+
+# Argon2 (64 MiB) and the cipher are very slow unoptimised: optimise them in dev and test builds too
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
+opt-level = 3
+[profile.dev.package.chacha20]
+opt-level = 3
+[profile.dev.package.poly1305]
+opt-level = 3
 
 [profile.release]
 # Small, fast binary: important for the "runs on a potato laptop" goal.
@@ -43,3 +64,8 @@ strip = true
 [target.'cfg(target_os = "macos")'.dependencies]
 # ProMotion: lift WebKit's 60 fps preference (lib.rs, mod promotion)
 objc2 = "0.6"
+
+[features]
+# developer tools (factory-reset, dev restart): only in builds made with --features dev-tools
+# (npm run app:mac, for testing) — never in the releases people download
+dev-tools = []

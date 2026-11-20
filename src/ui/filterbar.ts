@@ -1,8 +1,8 @@
-import { mix } from "../core/color";
+import { mix, type RGB } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
 import type { KeyInput } from "../core/input";
-import { strWidth, truncate } from "../core/unicode";
+import { Field } from "./field";
 import { TAG_NAMES, tagRGB, type TagColor } from "../vault/marks";
 import type { UI } from "./ui";
 
@@ -21,8 +21,50 @@ import type { UI } from "./ui";
  * `bar.render(ui, rect, counts)` where it should show — on a full page, let
  * `pageBar` (ui/pagebar.ts) draw it, so every page has it in the same place.
  */
+export interface FilterBarOptions {
+  /** a letter or a digit starts the search at once (MODULES, NEXUS: pages without letter shortcuts) */
+  typeToSearch?: boolean;
+  /**
+   * the search always has the keyboard (Settings, BLOCKS, SHORTCUTS): every key types,
+   * the caret shows whenever the page is focused — ←→ home end stay the page's
+   */
+  always?: boolean;
+  /** the colour squares (default true): off where things wear no colour */
+  colours?: boolean;
+  /** after each change of the search */
+  onChange?: (query: string) => void;
+}
+
+/** What a page tells the bar when drawing it. */
+export interface FilterBarDraw {
+  /** the page has the keyboard (`always` bars show their caret then) */
+  focused?: boolean;
+  /** the empty field's text (translated) */
+  placeholder?: string;
+  /** the field's background when not typing */
+  bg?: RGB;
+  /** the field's widest (default 28 with colours, the whole line without) */
+  maxW?: number;
+}
+
+/**
+ * THE search bar of the deck — every page that filters a list uses it (MODULES, NEXUS,
+ * the file browser, Settings, BLOCKS, SHORTCUTS, the STORE), so searching works and
+ * looks the same everywhere. Options choose how it takes the keyboard.
+ */
 export class FilterBar {
-  query = "";
+  /** the search: THE one-line field (ui/field.ts) */
+  private readonly field: Field;
+  constructor(private readonly o: FilterBarOptions = {}) {
+    this.field = new Field({ icon: "⌕", keys: o.always ? "basic" : "full", onChange: o.onChange });
+    if (o.always) this.typing = true;
+  }
+  get query(): string {
+    return this.field.text;
+  }
+  set query(v: string) {
+    this.field.text = v;
+  }
   colours = new Set<TagColor>();
   /** the search field has the keyboard */
   typing = false;
@@ -45,48 +87,53 @@ export class FilterBar {
   clear(): void {
     this.query = "";
     this.colours.clear();
-    this.typing = false;
+    this.typing = !!this.o.always;
+    this.o.onChange?.("");
   }
 
-  /** Text first goes here: "/" starts typing; then letters build the search. */
+  /** Text first goes here: "/" starts typing (or any letter, with typeToSearch); then letters build the search. */
   onText(s: string): boolean {
+    if (this.o.always) return this.field.onText(s);
     if (!this.typing) {
+      if (this.o.typeToSearch && /^[\p{L}\p{N}]$/u.test(s)) {
+        this.typing = true;
+        return this.field.onText(s);
+      }
       if (s !== "/") return false;
       this.typing = true;
       return true;
     }
-    if (s === "\n") return (this.typing = false), true;
-    this.query += s;
-    return true;
+    if (/^[\r\n]+$/.test(s)) return (this.typing = false), true;
+    return this.field.onText(s);
   }
 
   /** While typing: backspace, enter (keep the search, give the keys back), esc (clear it). */
   onKey(k: KeyInput): boolean {
+    // always typing: the field's own keys (⌫, ctrl+U); enter and esc stay the page's
+    if (this.o.always) return k.combo !== "enter" && k.combo !== "esc" && this.field.onKey(k);
     if (!this.typing) return false;
-    if (k.combo === "backspace") return (this.query = this.query.slice(0, -1)), true;
     if (k.combo === "enter" || k.combo === "down" || k.combo === "tab") return (this.typing = false), true;
     if (k.combo === "esc") return (this.query = ""), (this.typing = false), true;
-    return false;
+    return this.field.onKey(k);
   }
 
   /**
    * One line: the search field on the left (as wide as it can), the squares on
    * the right. `counts` says how many things wear each colour (□ none yet).
    */
-  render(ui: UI, r: Rect, counts: Partial<Record<TagColor, number>> = {}): void {
+  render(ui: UI, r: Rect, counts: Partial<Record<TagColor, number>> = {}, d: FilterBarDraw = {}): void {
     const c = ui.c;
+    const colours = this.o.colours !== false;
     // the squares end on the rect's last cell (under the last button of a page bar);
     // the × that clears everything sits just left of them
-    const squaresW = TAG_NAMES.length * 2 - 1;
-    const fw = Math.max(8, Math.min(28, r.w - squaresW - 5));
+    const squaresW = colours ? TAG_NAMES.length * 2 - 1 : 0;
+    const fw = colours ? Math.max(8, Math.min(d.maxW ?? 28, r.w - squaresW - 5)) : Math.min(d.maxW ?? r.w, r.w);
     const field = { x: r.x, y: r.y, w: fw, h: 1 };
-    const fbg = this.typing ? mix(c.accent, c.bg, 0.82) : c.highlight;
-    ui.fill(field, { bg: fbg });
-    ui.text(field.x + 1, r.y, "⌕", { fg: c.accent, bg: fbg });
-    if (this.query || this.typing) ui.text(field.x + 3, r.y, truncate(this.query, fw - 4), { fg: c.fg, bg: fbg });
-    else ui.text(field.x + 3, r.y, t("/ search"), { fg: c.faint, bg: fbg }, fw - 4);
-    if (this.typing) ui.cursor(field.x + 3 + Math.min(strWidth(this.query), fw - 4), r.y);
-    ui.hit(field, { onClick: () => (this.typing = true), tip: t("type to filter · / · esc clears") });
+    const placeholder = d.placeholder ?? t(this.o.typeToSearch || this.o.always ? "type to search" : "/ search");
+    if (this.o.always) this.field.render(ui, field, { focused: d.focused ?? true, bg: d.bg, placeholder });
+    else this.field.render(ui, field, { focused: this.typing && d.focused !== false, active: this.typing, bg: d.bg, placeholder: this.typing ? "" : placeholder });
+    if (!this.o.always) ui.hit(field, { onClick: () => (this.typing = true), tip: t("type to filter · / · esc clears") });
+    if (!colours) return;
     // the colours, several at once
     const x = r.x + r.w - squaresW;
     if (this.active) {

@@ -63,8 +63,7 @@ class FocusApp implements App {
     if (p) return act(`focus set ${p[0]} ${p[1]}`), true;
     return false;
   }
-  onKey(k: KeyInput): boolean {
-    void k;
+  onKey(_k: KeyInput): boolean {
     return false;
   }
   onAction(a: Action): boolean {
@@ -72,9 +71,8 @@ class FocusApp implements App {
     return false;
   }
 
-  render(ui: UI, r: Rect, focused: boolean): void {
+  render(ui: UI, r: Rect, _focused: boolean): void {
     const c = ui.c;
-    void focused;
     tickFocus(this.deck);
     ui.animate(focus.running ? 200 : 1000);
     const col = focus.phase === "focus" ? c.accent : c.success;

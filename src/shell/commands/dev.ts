@@ -7,8 +7,9 @@ import type { Command } from "../types";
 
 export const factoryReset: Command = {
   name: "factory-reset",
+  interactive: true,
   summary: "[dev] back to a brand-new ICEBREAKER (vault + settings moved to backups)",
-  usage: "factory-reset          asks first\nfactory-reset --yes    no question",
+  usage: "factory-reset          asks first, then your account's password\nfactory-reset --yes    no question (still your password)",
   man: "Testing helper, removed before release.\nRenames the vault folder and the config folder (settings, API key, login) with a -backup-<timestamp> suffix — nothing is deleted — then restarts: you get the first-run setup again.\nTo go back: quit, delete the new folders, rename the backups.",
   async run(ctx) {
     const { deck } = ctx;
@@ -21,6 +22,9 @@ export const factoryReset: Command = {
       );
       if (!ok) return ctx.out("cancelled\n"), 1;
     }
+    if (!ctx.isTTY) return ctx.err("factory-reset: needs the terminal (it asks for your password)\n"), 1;
+    const password = await ctx.read("your account's password", { mask: true });
+    if (password === null) return ctx.out("cancelled\n"), 1;
     // let open notes save, then stop writing settings before the folders move
     for (const t of deck.workspace.tabs) await t.close?.();
     deck.settings.freeze();
@@ -29,7 +33,7 @@ export const factoryReset: Command = {
     ctx.out(fmt.dim("saving…\n"));
     await new Promise((r) => setTimeout(r, 1500));
     try {
-      const moved = await dev.factoryReset();
+      const moved = await dev.factoryReset(password);
       for (const m of moved) ctx.out(`${fmt.dim("moved →")} ${m}\n`);
       ctx.out(fmt.magenta("restarting as new…\n"));
       deck.requestFrame();

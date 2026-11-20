@@ -45,6 +45,14 @@ export class LinkApp implements App {
   ) {
     this.open();
     if (initialPrompt) void this.handle(initialPrompt);
+    // said plainly: Claude Code reads files on the disk, and an encrypted vault has none it can read
+    void this.deck.platform.vault.crypt
+      ?.status()
+      .then((st) => {
+        if (st.encrypted && this.deck.ai.provider.id === "claude-code")
+          this.c.chat.push("info", t("This vault is encrypted: Claude Code can't read or write its notes — it only gets what you type.\nGive it a note from the shell (cat notes/x.md | ask \"summarize\"), or use an API key or a local model (Settings → UPLINK): those read notes through the deck."));
+      })
+      .catch(() => {});
   }
 
   private get c(): Conversation {

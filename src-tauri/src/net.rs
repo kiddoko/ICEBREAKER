@@ -36,7 +36,7 @@ pub async fn news_rss(query: String, lang: String, country: String, provider: Op
     };
     tauri::async_runtime::spawn_blocking(move || {
         let mut cmd = Command::new("curl");
-        cmd.args(["-sSL", "--max-time", "12", "--proto", "=https", &url]);
+        cmd.args(["-q", "-g", "-sSL", "--max-time", "12", "--max-filesize", "8388608", "--proto", "=https", "--", &url]);
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -77,20 +77,26 @@ pub fn open_url(url: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn net_get(url: String) -> Result<String, String> {
     let u = url.trim().to_string();
-    let host = u.split("://").nth(1).unwrap_or("").split(['/', ':', '?']).next().unwrap_or("").to_lowercase();
+    // the host as curl will read it: what's between "://" and the first / ? or #, a port
+    // dropped. An address with "user@" in it is refused ("http://10.0.0.1@evil.example" is
+    // evil.example), and a local address is four numbers, not a name that starts like one.
+    let authority = u.split("://").nth(1).unwrap_or("").split(['/', '?', '#']).next().unwrap_or("");
+    let host = authority.rsplit_once(':').filter(|(_, p)| p.bytes().all(|b| b.is_ascii_digit())).map(|(h, _)| h).unwrap_or(authority).to_lowercase();
+    let ip: Vec<u8> = host.split('.').filter_map(|x| x.parse::<u8>().ok()).collect();
+    let is_ip = ip.len() == 4 && host.split('.').count() == 4;
     let local = host == "localhost"
         || host.ends_with(".local")
         || host.ends_with(".lan")
-        || host.starts_with("127.")
-        || host.starts_with("10.")
-        || host.starts_with("192.168.")
-        || (host.starts_with("172.") && host.split('.').nth(1).and_then(|b| b.parse::<u8>().ok()).is_some_and(|b| (16..=31).contains(&b)));
-    if !(u.starts_with("https://") || (u.starts_with("http://") && local)) || u.chars().any(|c| c.is_whitespace() || c == '"') {
+        || (is_ip && (ip[0] == 127 || ip[0] == 10 || (ip[0] == 192 && ip[1] == 168) || (ip[0] == 172 && (16..=31).contains(&ip[1]))));
+    let odd = authority.is_empty() || authority.contains('@') || authority.contains('\\') || u.chars().any(|c| c.is_whitespace() || c.is_control() || matches!(c, '"' | '{' | '}' | '[' | ']'));
+    if odd || !(u.starts_with("https://") || (u.starts_with("http://") && local)) {
         return Err("only https:// (or http:// on your local network)".into());
     }
     tauri::async_runtime::spawn_blocking(move || {
         let mut cmd = Command::new("curl");
-        cmd.args(["-sSLf", "--max-time", "30", "--max-filesize", "4194304", "--proto", "=https,http", &u]);
+        // a redirect may only go to https (never from an https address to your network or your machine)
+        // -q: your ~/.curlrc isn't read · -g: no {a,b} / [1-9] expansion of the address
+        cmd.args(["-q", "-g", "-sSLf", "--max-time", "30", "--max-filesize", "4194304", "--max-redirs", "5", "--proto", "=https,http", "--proto-redir", "=https", "--", &u]);
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -99,6 +105,10 @@ pub async fn net_get(url: String) -> Result<String, String> {
         let out = cmd.output().map_err(|e| format!("curl: {e}"))?;
         if !out.status.success() {
             return Err(format!("{u}: {}", String::from_utf8_lossy(&out.stderr).trim()));
+        }
+        // --max-filesize only works when the server says the size first: counted again here
+        if out.stdout.len() > 4 * 1024 * 1024 {
+            return Err(format!("{u}: larger than 4 MB"));
         }
         String::from_utf8(out.stdout).map_err(|_| format!("{u}: not text"))
     })

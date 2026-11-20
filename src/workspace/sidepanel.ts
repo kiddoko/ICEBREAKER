@@ -1,4 +1,5 @@
 import { BOLD, type Rect } from "../core/grid";
+import { strWidth } from "../core/unicode";
 import { t } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
 import { mix } from "../core/color";
@@ -254,7 +255,7 @@ export class SidePanel {
     const pd = this.drag;
     if (pd?.moved) {
       const label = ` ${t(d.widgets.get(widgetIdOf(pd.key))?.title ?? pd.key).toUpperCase()} `;
-      ui.text(Math.max(0, pd.x - Math.floor(label.length / 2)), pd.y, label, { fg: c.bg, bg: mix(c.accent, c.bg, 0.1), attrs: BOLD });
+      ui.text(Math.max(0, pd.x - Math.floor(strWidth(label) / 2)), pd.y, label, { fg: c.bg, bg: mix(c.accent, c.bg, 0.1), attrs: BOLD });
       ui.animate(16);
     }
   }

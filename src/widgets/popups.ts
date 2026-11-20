@@ -1,4 +1,5 @@
 import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
+import { BOX_OFF, BOX_ON, checkbox, choice } from "../ui/controls";
 import { clockState, dur, soonestTimer, swNow, type ClockTimer } from "./clockstate";
 import { NEWS_CATEGORIES } from "./news";
 import { clockCommand } from "./clockfaces";
@@ -15,16 +16,16 @@ import { fmt } from "../core/ansi";
 import { mix } from "../core/color";
 import { BOLD } from "../core/grid";
 import { fuzzyFilter } from "../core/fuzzy";
-import { strWidth } from "../core/unicode";
+import { wrapWords } from "../core/unicode";
 import type { Deck } from "../deck";
 import type { Command } from "../shell/types";
 import { q } from "../ui/ui";
 import { basename } from "../vault/paths";
 import { currentWeather, sky } from "./builtin";
 import { isoDay, mmss, streakOf } from "../core/time";
-import { focus, MATRIX_SETS, matrixLook, openTasks, tickFocus } from "./extra";
+import { focus, MATRIX_SETS, matrixLook, tickFocus } from "./extra";
 import type { PopupContext, WidgetPopupSpec, WidgetSpec } from "./types";
-import { Field } from "./field";
+import { Field } from "../ui/field";
 import { chatPopup } from "./chatbox";
 import { DURATIONS, NEWS_TOPICS, places } from "../core/suggest";
 
@@ -35,7 +36,7 @@ const focusPopup: WidgetPopupSpec = {
   title: t("focus"),
   size: { w: 50, h: 9 },
   hint: "space start/pause · r reset · ←→ focus · ↑↓ break",
-  render(ui, r, { deck }) {
+  render(ui, r) {
     const c = ui.c;
     if (focus.running) ui.animate(250);
     const col = focus.phase === "focus" ? c.accent : c.success;
@@ -55,7 +56,6 @@ const focusPopup: WidgetPopupSpec = {
     };
     dur(r.y + 6, t("focus"), focus.work, "work");
     dur(r.y + 7, t("break"), focus.rest, "rest");
-    void deck;
   },
   onText: (t, { deck }) => {
     const cmd = t === " " ? "focus toggle" : t === "r" ? "focus reset" : t === "s" ? "focus skip" : "";
@@ -158,7 +158,7 @@ export const moonCommand: Command = {
 
 /* ─────────── recent notes: search them ─────────── */
 
-const recentField = new Field();
+const recentField = new Field({ icon: "❯" });
 let recentSel = 0;
 const recentList = (deck: Deck) => {
   const notes = [...deck.vault.markdown()].sort((a, b) => b.modified - a.modified);
@@ -170,7 +170,7 @@ const recentPopup: WidgetPopupSpec = {
   hint: "type to search · ↑↓ · enter opens",
   render(ui, r, { deck }) {
     const c = ui.c;
-    recentField.render(ui, r.x + 1, r.y, r.w - 2, t("search your notes"));
+    recentField.render(ui, { x: r.x + 1, y: r.y, w: r.w - 2, h: 1 }, { focused: true, placeholder: t("search your notes") });
     const list = recentList(deck);
     recentSel = Math.max(0, Math.min(recentSel, list.length - 1));
     list.slice(0, r.h - 2).forEach((n, i) => {
@@ -267,7 +267,6 @@ const weatherPopup: WidgetPopupSpec = {
       ui.text(r.x + 21 + a, y, "━".repeat(b - a), { fg: mix(c.info, c.warning, (d.max - lo) / span) });
       ui.text(r.x + 22 + barW, y, `${Math.round(d.max)}°`, { fg: c.warning });
     });
-    void deck;
   },
   onText: (t, { deck, key }) => {
     if (t !== "c") return false;
@@ -327,7 +326,7 @@ async function pickInterests(deck: Deck): Promise<void> {
     const mine = deck.settings.data.home.newsInterests ?? [];
     const cats = Object.entries(NEWS_CATEGORIES);
     const opts = [
-      ...cats.map(([id, c]) => ({ label: `${mine.includes(id) ? "☑" : "☐"} ${t(c.label)}`, hint: id })),
+      ...cats.map(([id, c]) => ({ label: `${mine.includes(id) ? BOX_ON : BOX_OFF} ${t(c.label)}`, hint: id })),
       ...mine.filter((m) => !NEWS_CATEGORIES[m]).map((m) => ({ label: `☑ ${m}`, hint: t("your words") })),
       { label: t("+ your own words…"), hint: "formula 1, linux, Lyon…" },
     ];
@@ -385,13 +384,9 @@ const clockPopup: WidgetPopupSpec = {
     // this copy's face (each clock on HOME / the panel has its own)
     const style = widgetConfig(deck, key, "style", h.clockStyle), seconds = widgetConfig(deck, key, "seconds", h.clockSeconds);
     x = ui.text(x, r.y + 11, `${t("FACE")} `, { fg: c.subtle, attrs: BOLD }) + 1;
-    // ‹ face ›: the left half goes back, the right half forward
-    const faceW = ui.button(x, r.y + 11, `‹ ${t(style || "dots")} ›`, () => {}, { cmd: "clock style next", tip: "f" });
-    const half = Math.floor(faceW / 2);
-    ui.hit({ x, y: r.y + 11, w: half, h: 1 }, { cmd: "clock style prev", tip: t("the face before") });
-    ui.hit({ x: x + half, y: r.y + 11, w: faceW - half, h: 1 }, { cmd: "clock style next", tip: t("the next face · f") });
-    x += faceW + 2;
-    ui.button(x, r.y + 11, seconds ? t("seconds ✓") : t("seconds ✗"), () => {}, { cmd: "clock seconds", tip: "s" });
+    // ‹ face › (ui/controls.ts): the left half goes back, the right half forward
+    x = choice(ui, x + 2, r.y + 11, t(style || "dots"), { arrows: true, onStep: (dir) => void deck.act(`clock style ${dir < 0 ? "prev" : "next"}`), tip: t("the next face · f") }) + 2;
+    checkbox(ui, x, r.y + 11, !!seconds, { label: t("seconds"), onClick: () => void deck.act("clock seconds"), tip: "s" });
   },
   onText: (t, { deck }) => {
     if (t === " ") return void deck.act("stopwatch toggle"), true;
@@ -518,7 +513,7 @@ const systemPopup: WidgetPopupSpec = {
 
 /* ─────────── modules: launch anything ─────────── */
 
-const launchField = new Field();
+const launchField = new Field({ icon: "❯" });
 let launchSel = 0;
 const launchList = (deck: Deck) => {
   const apps = deck.apps.list().filter((a) => a.launcher);
@@ -530,7 +525,7 @@ const modulesPopup: WidgetPopupSpec = {
   hint: "type to filter · ↑↓ · enter launches",
   render(ui, r, { deck }) {
     const c = ui.c;
-    launchField.render(ui, r.x + 1, r.y, r.w - 2, t("launch…"));
+    launchField.render(ui, { x: r.x + 1, y: r.y, w: r.w - 2, h: 1 }, { focused: true, placeholder: t("launch…") });
     const list = launchList(deck);
     launchSel = Math.max(0, Math.min(launchSel, list.length - 1));
     list.slice(0, r.h - 2).forEach((a, i) => {
@@ -614,49 +609,10 @@ export const matrixCommand: Command = {
   },
 };
 
-/* ─────────── checkboxes: every open one, open its note ─────────── */
-
-let taskSel = 0;
-const tasksPopup: WidgetPopupSpec = {
-  title: "checkboxes",
-  size: { w: 70, h: 15 },
-  hint: "↑↓ · enter opens the note",
-  render(ui, r) {
-    const c = ui.c;
-    const list = openTasks();
-    taskSel = Math.max(0, Math.min(taskSel, list.length - 1));
-    if (!list.length) ui.text(r.x + 2, r.y + 1, t("no open - [ ] in your notes"), { fg: c.muted });
-    list.slice(0, r.h).forEach((t, i) => {
-      const y = r.y + i;
-      const row = { x: r.x, y, w: r.w, h: 1 };
-      const sel = i === taskSel;
-      if (sel) ui.fill(row, { bg: mix(c.accent, c.bg, 0.8) });
-      const st = sel ? { bg: mix(c.accent, c.bg, 0.8) } : {};
-      ui.text(r.x + 2, y, ui.theme.glyphs.todo, { fg: c.subtle, ...st });
-      ui.text(r.x + 5, y, t.text, { fg: c.fg, attrs: sel ? BOLD : 0, ...st }, r.w - 24);
-      ui.textRight(r.x + r.w - 2, y, basename(t.path, ".md").slice(0, 16), { fg: c.faint, ...st });
-      ui.hit(row, { cmd: `open ${q(t.path)}`, tip: t.path });
-    });
-  },
-  onKey: (k, { deck, close }) => {
-    if (k.combo !== "enter") return false;
-    const t = openTasks()[taskSel];
-    if (t) {
-      close();
-      void deck.act(`open ${q(t.path)}`);
-    }
-    return true;
-  },
-  onAction: (a) => {
-    if (a === "up") return (taskSel = Math.max(0, taskSel - 1)), true;
-    if (a === "down") return (taskSel += 1), true;
-    return false;
-  },
-};
 
 /* ─────────── uplink: a quick question ─────────── */
 
-const askField = new Field();
+const askField = new Field({ icon: "❯" });
 const asked = { q: "", a: "", busy: false, error: "" };
 const aiPopup: WidgetPopupSpec = {
   title: "uplink",
@@ -667,21 +623,11 @@ const aiPopup: WidgetPopupSpec = {
     const ok = deck.ai.ready;
     ui.text(r.x + 2, r.y, `${ok ? "●" : "○"} ${deck.ai.provider.label}`, { fg: ok ? c.success : c.error, attrs: BOLD });
     if (!ok) ui.text(r.x + 2, r.y + 1, deck.ai.problem ?? "", { fg: c.muted }, r.w - 4);
-    askField.render(ui, r.x + 1, r.y + 2, r.w - 2, ok ? t("ask anything — your vault is in reach") : t("uplink offline"));
+    askField.render(ui, { x: r.x + 1, y: r.y + 2, w: r.w - 2, h: 1 }, { focused: true, placeholder: ok ? t("ask anything — your vault is in reach") : t("uplink offline") });
     if (asked.busy) ui.animate(80);
     const body = asked.error ? asked.error : asked.a || (asked.busy ? `${ui.spinner()} ${t("processing…")}` : asked.q ? "" : t("a quick question here; the full conversation lives in LINK"));
     // word-wrap the answer
-    const lines: string[] = [];
-    for (const para of body.split("\n")) {
-      let line = "";
-      for (const w of para.split(" ")) {
-        if (strWidth(line + " " + w) > r.w - 6 && line) {
-          lines.push(line);
-          line = w;
-        } else line = line ? `${line} ${w}` : w;
-      }
-      lines.push(line);
-    }
+    const lines = wrapWords(body, r.w - 6);
     lines.slice(-(r.h - 6)).forEach((l, i) => ui.text(r.x + 3, r.y + 4 + i, l, { fg: asked.error ? c.error : asked.a ? c.fg : c.faint }));
     if (asked.a) ui.button(r.x + 2, r.y + r.h - 1, t("◖ say it"), () => {}, { cmd: `voice say ${q(asked.a.slice(0, 1500))}`, tip: "ctrl+s" });
   },
@@ -743,7 +689,6 @@ const POPUPS: Record<string, { popup?: WidgetPopupSpec; open?: string }> = {
   chat: { popup: chatPopup, open: "launch link" },
   clock: { popup: clockPopup, open: "launch clocks" },
   matrix: { popup: matrixPopup },
-  tasks: { popup: tasksPopup },
 };
 
 /** Give the built-in widgets their pop-ups and modules. */

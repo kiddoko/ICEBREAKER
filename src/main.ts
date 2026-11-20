@@ -32,5 +32,9 @@ async function main(): Promise<void> {
 
 main().catch((err) => {
   console.error(err);
-  document.body.innerHTML = `<pre style="color:#f38ba8;background:#0b0b12;padding:2em;font:14px monospace;white-space:pre-wrap">ICEBREAKER failed to boot:\n\n${String(err?.stack ?? err)}</pre>`;
+  // as text, never as HTML (the error may quote a file's content)
+  const pre = document.createElement("pre");
+  pre.style.cssText = "color:#f38ba8;background:#0b0b12;padding:2em;font:14px monospace;white-space:pre-wrap";
+  pre.textContent = `ICEBREAKER failed to boot:\n\n${String(err?.stack ?? err)}`;
+  document.body.replaceChildren(pre);
 });

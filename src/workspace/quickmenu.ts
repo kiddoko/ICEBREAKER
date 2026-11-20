@@ -1,4 +1,5 @@
 import type { PaletteAction } from "../apps/types";
+import { Field } from "../ui/field";
 import { mix } from "../core/color";
 import { fuzzyFilter } from "../core/fuzzy";
 import { BOLD, type Rect } from "../core/grid";
@@ -7,7 +8,6 @@ import type { Action, KeyInput } from "../core/input";
 import { DECK_KEYS, menuKeyOf, MENU, shortcutFor } from "../core/shortcuts";
 import { strWidth, truncate } from "../core/unicode";
 import type { Deck } from "../deck";
-import { TextEditor } from "../ui/editor";
 import { ListView } from "../ui/list";
 import { q, type UI } from "../ui/ui";
 import { KeyCapture } from "./keycapture";
@@ -68,7 +68,7 @@ const CELL = 22;
 export class QuickMenu implements Overlay {
   modal = true;
   done = false;
-  private readonly input = new TextEditor("", { singleLine: true, placeholder: t("search everything, or a key + enter") });
+  private readonly input = new Field({ icon: "❯", onSubmit: () => this.runSelected() });
   private readonly list = new ListView<PaletteAction>();
   private lastQuery = "\0";
   /** empty search: the chosen key in the grid (arrows, stick), -1 none */
@@ -85,7 +85,6 @@ export class QuickMenu implements Overlay {
   ) {
     this.items = quickItems(deck);
     if (o.pad) this.cell = 0;
-    this.input.onSubmit = () => this.runSelected();
     this.list.onActivate = () => this.runSelected();
     deck.sound.play("tick");
   }
@@ -158,12 +157,12 @@ export class QuickMenu implements Overlay {
   }
 
   onKey(k: KeyInput): boolean {
-    if (k.combo === "esc") return this.query ? this.input.setText("") : (this.done = true), true;
+    if (k.combo === "esc") return this.query ? this.input.clear() : (this.done = true), true;
     if (shortcutFor(k.combo, this.deck.settings.data.keyOverrides)?.id === "menu" || k.combo === "ctrl+p") return (this.done = true), true;
     const arrows: Record<string, [number, number]> = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
     if (!this.query && arrows[k.key] && !k.ctrl) return this.move(...arrows[k.key]), true;
     if (this.query && ["up", "down", "pageup", "pagedown"].includes(k.key)) {
-      this.list.onAction(k.key === "up" ? "up" : k.key === "down" ? "down" : k.key === "pageup" ? "page-up" : "page-down");
+      this.list.onNavKey(k);
       return true;
     }
     if (k.combo === "enter") return this.runSelected(), true;
@@ -202,8 +201,7 @@ export class QuickMenu implements Overlay {
     const inner = ui.box(box, { title: "MENU", focused: true, bg: c.panelAlt, info: this.query ? `${this.list.items.length}` : "esc" });
 
     // the search line
-    ui.text(inner.x + 1, inner.y, "❯", { fg: c.accent, attrs: BOLD, bg: c.panelAlt });
-    this.input.render(ui, { x: inner.x + 3, y: inner.y, w: inner.w - 4, h: 1 }, true);
+    this.input.render(ui, { x: inner.x, y: inner.y, w: inner.w, h: 1 }, { focused: true, placeholder: t("search everything, or a key + enter") });
     ui.hline(inner.x, inner.y + 1, inner.w, { fg: c.border });
     const body = { x: inner.x, y: inner.y + 2, w: inner.w, h: inner.h - 2 };
 

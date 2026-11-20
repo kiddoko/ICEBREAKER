@@ -1,10 +1,9 @@
 /**
- * READ A MODULE BEFORE IT RUNS. Modules from the vault or the store run in the
- * deck's own JavaScript (docs/SANDBOX.md explains why, and the plan to put them
- * in a sandbox). Until then, this looks through a module's code for what a
- * well-behaved module never needs — reaching the native side around the
- * permissions, building code at run time, touching the page or the network
- * directly — and the deck shows what it found before you switch it on.
+ * READ A MODULE BEFORE IT RUNS. Modules from the vault or the STORE run in a sandbox
+ * (docs/SANDBOX.md). This is a second look, before you switch one on: it searches the
+ * module's code for what a well-behaved module never needs — reaching for the native
+ * side, building code at run time, touching the page or the network directly — and
+ * the deck shows what it found.
  *
  *   plugin audit <id>      the same report in the shell
  *
@@ -51,6 +50,6 @@ export function auditCode(code: string): AuditFinding[] {
 
 /** The report as lines of text (the enable dialog, `plugin audit`). */
 export function auditReport(findings: AuditFinding[]): string {
-  if (!findings.length) return "✓ nothing unusual in its code (it only uses ib.*)";
+  if (!findings.length) return "✓ this quick look found nothing unusual in its code (a look, not a proof)";
   return findings.map((f) => `${f.level === "danger" ? "✕" : "!"} it ${f.what} (line ${f.line})`).join("\n");
 }

@@ -235,6 +235,30 @@ export class Renderer {
     this.release();
   }
 
+  /**
+   * The picture's brightness (the bloom's light given back, Settings → Brightness), in
+   * the colours themselves: each colour is scaled once (cached) — never a CSS filter on
+   * the screen, which the compositor would redo over the whole window on every frame.
+   */
+  private light = 1;
+  private lit = new Map<number, number>();
+  setLight(k: number): void {
+    if (Math.abs(k - this.light) < 0.005) return;
+    this.light = k;
+    this.lit.clear();
+    this.release();
+  }
+  private L(c: number): number {
+    if (this.light === 1 || c < 0) return c;
+    let v = this.lit.get(c);
+    if (v === undefined) {
+      const ch = (s: number) => Math.min(255, Math.round(((c >> s) & 255) * this.light));
+      v = (ch(16) << 16) | (ch(8) << 8) | ch(0);
+      this.lit.set(c, v);
+    }
+    return v;
+  }
+
   /** 0–100: chromatic aberration (red and blue fringes, an old tube's misconvergence). */
   chroma = 0;
   private chromaEl: HTMLCanvasElement | null = null;
@@ -393,8 +417,16 @@ export class Renderer {
   }
 
   /** Paint the cells of `g` that differ from what's on screen. Returns true if anything was painted. */
+  /** cells repainted by the last draw (`debug perf`) */
+  lastCells = 0;
+  /** glyphs rasterized since the last call (`debug perf`) */
+  takeAtlasMisses(): number {
+    return this.atlas?.takeMisses() ?? 0;
+  }
+
   draw(g: Grid): boolean {
     const { cellW: cw, cellH: ch, ctx } = this;
+    let cellsPainted = 0;
     let front = this.front;
     const full = !front || front.cols !== g.cols || front.rows !== g.rows;
     if (full) front = this.front = new Grid(g.cols, g.rows);
@@ -402,6 +434,7 @@ export class Renderer {
     const dirty = this.dirty;
     let painted = false;
     const now = performance.now();
+    this.lastCells = 0;
     const fade = this.fadeMs;
     if (this.born.length !== g.cols * g.rows) this.born = new Float64Array(g.cols * g.rows);
     const born = this.born;
@@ -452,7 +485,7 @@ export class Renderer {
           }
         } else born[i] = 0;
         dirty[x] = d ? 1 : 0;
-        if (d) rowDirty = true;
+        if (d) (rowDirty = true), cellsPainted++;
       }
       if (!rowDirty) continue;
       painted = true;
@@ -474,7 +507,7 @@ export class Renderer {
         const bg = g.bg[base + x];
         let end = x + 1;
         while (end < g.cols && dirty[end] && g.bg[base + end] === bg) end++;
-        ctx.fillStyle = css(bg);
+        ctx.fillStyle = css(this.L(bg));
         ctx.fillRect(x * cw, y * ch, (end - x) * cw, ch);
         x = end;
       }
@@ -493,7 +526,7 @@ export class Renderer {
             ctx.globalAlpha = 0.15 + 0.85 * age * age * (3 - 2 * age);
             this.fading = true;
           } else born[i] = 0;
-          this.atlas.draw(ctx, cp, g.fg[i], attrs, x * cw, y * ch, charWidth(cp) === 2 ? 2 : 1);
+          this.atlas.draw(ctx, cp, this.L(g.fg[i]), attrs, x * cw, y * ch, charWidth(cp) === 2 ? 2 : 1);
           ctx.globalAlpha = 1;
         }
         if (gctx) {
@@ -511,7 +544,7 @@ export class Renderer {
           }
         }
         if (attrs & (UNDERLINE | STRIKE)) {
-          ctx.fillStyle = css(g.fg[i]);
+          ctx.fillStyle = css(this.L(g.fg[i]));
           const t = Math.max(1, Math.round(ch / 16));
           if (attrs & UNDERLINE) ctx.fillRect(x * cw, y * ch + this.baseline + t, cw, t);
           if (attrs & STRIKE) ctx.fillRect(x * cw, y * ch + Math.round(ch * 0.55), cw, t);
@@ -526,6 +559,7 @@ export class Renderer {
 
     if (painted && this.bloomEnabled) this.bloomFrame();
     if (painted && this.chroma > 0) this.chromaFrame();
+    this.lastCells = cellsPainted;
     return painted;
   }
 

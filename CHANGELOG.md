@@ -2,6 +2,176 @@
 
 ## Unreleased
 
+- **Test software, said everywhere**: a big warning at the top of the README and in
+  DISCLAIMER.md (store nothing sensitive, back up your vault, no warranty, how to help:
+  Issues, Discussions, modules and themes); the same on the **login page**, at **start-up**,
+  on a **READ THIS FIRST screen of the setup nobody can skip**, in the Welcome note, START
+  HERE, the F1 manual and the site. The docs were checked again against the code (no broken
+  link, no command or file named that doesn't exist; what was tested where is said plainly:
+  macOS only for the encryption, the sandbox and the security fixes).
+- **From a tour of the interface**: the F1 manual is a page to read (no Markdown symbols);
+  a page opened from ibsh no longer takes the keyboard away from the shell; `open START
+  HERE/README` works without quotes; the start-up shows the real version; hints that were
+  too pale or cut are readable; the question a plain vault's newer settings ask answers
+  "no" on enter; UPLINK says plainly that Claude Code can't read an encrypted vault.
+
+- **A full security review, and what it fixed** (docs/SECURITY_AUDIT.md #32–52). The sandbox
+  had ways round: `ib.modules.call("shell", "run", …)` ran any command as you, pipes and `>`
+  in the shell ignored the `vault:read` / `vault:write` permissions, `.ICEBREAKER/` in
+  capitals reached the protected files on a Mac or on Windows. Now **what a module has the
+  deck do runs as that module** for its whole run (`src/shell/origin.ts`), the refused list
+  is "what's allowed" (`src/shell/privileged.ts`), names are compared the way disks read
+  them, a module never runs with more permissions than you approved (an update asking for
+  more stays off), says who it is when it asks you something, and can't take a built-in
+  module's id or another module's commands. **A plain vault can no longer change your
+  password or your keys**: from a vault that isn't encrypted, never a password, never the
+  settings that hold commands, the rest only after a yes; "open a vault" can't take an
+  account over. Claude Code loads only your own settings (no hook from the vault) and can't
+  write its own set-up. `voice install` checks each download's SHA-256. `vault export` and
+  self-destruct check your password natively. Settings stay in their ranges (a text size
+  of 0 no longer leaves a deck nobody can use); new file names can't hold control
+  characters; a big note no longer slows every frame. `npm run app:mac:release` builds the
+  macOS release without the developer tools. A module's approval is for its code too
+  (a fingerprint): changed without you, it stays off. Tested for real in the macOS app:
+  both escape modules, a forged plain vault, a planted Claude Code hook, 2 000 notes.
+  New tests: `tests/origin.test.ts`,
+  `tests/sandbox/sbx-bare/` (a module with no permission at all).
+
+- **Modules from the STORE and the vault run in a sandbox** (a Worker, `src/plugins/sandbox/`):
+  no page, no native bridge, no network of their own; every `ib` call is a message checked
+  with their permissions; their pages and widgets are drawn in the Worker with the same kit
+  and copied by the deck. A module written to escape found every door closed
+  (`tests/sandbox/`, docs/SANDBOX.md).
+- **One UI kit** (`src/ui/kit.ts`, docs/UI_KIT.md): one text field (`Field`) for every search,
+  prompt, password and "add…" line — 16 hand-made ones replaced; one checkbox, one ‹ choice ›,
+  one row of tabs, one button (now with `quiet` / `disabled`), the file browser for modules
+  too (`ib.ui.pickFolder / pickFile`); word wrapping through `wrapWords` everywhere. A test
+  keeps it that way. Modules get it all as `ib.lib.*`.
+- **Getting ready to be public**: [DISCLAIMER.md](DISCLAIMER.md) (English and French: a hobby
+  project, vibe-coded by someone who isn't a developer, never audited, no warranty), the same
+  warning in the README, the setup, START HERE and the F1 manual; SECURITY.md, CONTRIBUTING.md
+  (how a change gets in, who decides), CODEOWNERS, templates, docs/CREDITS.md (licenses),
+  docs/REVIEWING.md (how to review the project). The STORE says **✓ verified** (reviewed in the
+  official STORE, its code there) or **⚠ not verified** — with a warning to accept before
+  installing — and `plugin install user/repo` warns too. Updates now come from this
+  repository's releases. Fixed (SECURITY_AUDIT #26–31): a module's `main` could write anywhere
+  in the vault; text read aloud and a Claude Code model name could pass as options; developer
+  tools only in `--features dev-tools` builds; the dev server out of the published CSP; the
+  Google agenda cache written `0600` from the start. WEATHER credits Open-Meteo.
+- **Updates in the app** (docs/UPDATES.md): Settings → UPDATES and `update` — look every day /
+  at start / never, download by itself, install by itself (modules at once, ICEBREAKER when
+  you quit) or ask first; `update install`, `update download`, `store update [id | --all]`.
+  ICEBREAKER's updates are signed (tauri-plugin-updater, the key in `~/.tauri/`): an
+  unsigned one is refused. `scripts/release-update.mjs` signs and writes `latest.json`;
+  CI signs Windows / Linux when the secret is there. Stealth mode looks for nothing.
+- **Modules can need other modules** (`requires` in plugin.json, src/plugins/deps.ts):
+  installed first, switched on first, woken first; switching off / removing one others need
+  asks and takes them along; a need not met keeps a module off and says what's missing.
+- **The STORE in the shell**: `store info <id>`, `store update`, install / remove / enable ask
+  in the shell (with `--window`: in dialogs, what the buttons use); `plugin search` = `store
+  search`; `store`, `update` and `config set updates.*` are refused to modules.
+- **Settings read better**: small headings inside each category (APPEARANCE: Screen, Motion,
+  Text, Performance, Effects, Screensaver and start…) with a line of air above each.
+- **The TERMINAL is a module** (`core-packages.ts`): the shell panel, your real terminals,
+  `term`, `script` and the terminal tab. Off: no panel at all, commands still run from THE
+  MENU / BLOCKS / macros and what they ask comes as dialogs; the shell settings grey out.
+- **Every built-in module is in the STORE** (official index, `"builtin": true`): the six
+  bundled ones with their source in `modules/<id>/`, the 13 core packages as entries.
+  Installing one puts the deck's own copy back (nothing downloaded). `scripts/pack-store.mjs`
+  writes those entries; the STORE shows a removed built-in once.
+- **From your tests (20 nov.)**: sliders go **1 at a time** (drag the handle, hold on the
+  track, the wheel, ←→) and faster the longer you hold; **space** ticks a box / turns a
+  ‹ choice › (under the mouse or selected); a setting that depends on another is **greyed**
+  (voice, sounds, the AI's provider, Vault key / Recovery key on a plain vault…) instead of a
+  sentence; MODULES and NEXUS: **typing searches** at once (no letter shortcuts there: space,
+  del, enter, the menu); **one search bar** everywhere (Settings, BLOCKS, SHORTCUTS and the
+  STORE now use `FilterBar`); the prompt's ▾ suggestions are the kit's list.
+  Vault commands **typed** stay in the shell (y/N there); with `--window` (Settings, THE
+  MENU, the setup) everything is a dialog — and the result too: where the plain backup went,
+  "Wrong password" in a window. The setup encrypts **during** the setup (the tour waits).
+  `vault move` into a folder that holds things puts the vault **inside it** (under its name).
+  Fixed: MUSIC → f opened on "~/Music: No such file" (the browser starts at home when the
+  folder isn't there); installing a module said "it asks for nothing special" then listed
+  its permissions (one dialog now, the module's own list); adding a reminder / habit / event /
+  stat from a pop-up closed it. THE MENU gains: open checkboxes, find a file, shell history,
+  redo. Performance: `debug perf [s]` measures frames (building, painting, cells, new glyphs,
+  stutters); depth tints in MODULES and NEXUS come in 12 steps and the glyph cache keeps
+  colours to 5 bits a channel (8 pages): moving scenes stop redrawing letters every frame.
+- **Security pass** (docs/SECURITY_AUDIT.md, #14–24): programs in your real terminal no
+  longer get the deck's powers through the bridge (an encrypted vault refuses them all, a
+  plain one treats them as untrusted, like a module); `secrets.json`, `config.json`,
+  `accounts.json` and the key files are written `0600` from the start; dictation's sound and
+  text no longer go through `/tmp`; `net_get` refuses non-web schemes and redirects away from
+  https; the native file reader only reads text and script files outside system folders;
+  `factory-reset` asks the account's password; the password hash costs 64 MiB (old ones are
+  redone at the next login); the slow-down after wrong passwords survives a restart; lines
+  that look like a key (or start with a space) aren't kept in the shell history; the
+  recovery window warns before "copy all".
+- **`vault rekey`** (Settings → PRIVACY → Vault key): a new vault key — every file encrypted
+  again and checked, a new recovery key; the old key file, password and words open nothing.
+  An interrupted rekey leaves the vault as it was.
+- **Spacing rules** (docs/LAYOUT.md, `src/ui/layout.ts`): `INSET`, `GAP`, `LABEL`, `SECTION`
+  and `Row`, which lays things out and drops what doesn't fit instead of overlapping.
+- **Security pass, first round** (docs/SECURITY_AUDIT.md, #1–13): modules can't run scripts in your
+  terminal, factory-reset, plant shortcuts / macros / key settings, take the deck's names,
+  read the account's files, or write into `.icebreaker/`; the boot error screen is text.
+- **Fixed**: HABITS and REMINDERS lists didn't scroll (past the window, items were cut and
+  the selection vanished); REMINDERS pop-up: ✓ only selected the row; the shortcuts page put
+  Enter into its search; text measured by characters instead of width in 6 places and in
+  two word wrappings (emoji, Japanese); the music folder asked for a typed path (now the
+  file browser); the store's own word wrapping and list scrolling (now the kit's).
+- **Removed** (dead or from before 0.4.0): the CHECKBOXES widget and its pop-up (the
+  `checkboxes` command stays), migrations of settings and accounts from before 0.4.0
+  (update through 0.4.x first), the text-speed "85 → 50" fix-up that reset a speed you chose,
+  unused helpers, `void x;` tricks that hid unused code.
+
+- **Vault encryption** (`docs/ENCRYPTION.md`): `vault encrypt` turns the vault into one
+  `.icebreaker-vault/` folder of encrypted files — notes, names, folders, the deck's own
+  files — after a plain backup zip next to the vault and a check of every file; `vault
+  decrypt` gives plain files back, `vault export <folder>` a plain copy, `vault status`
+  says which. Your account's password opens it at login; lock, logout and quit wipe its
+  key from memory; a new password re-wraps it. A random vault key wrapped by Argon2id
+  (64 MiB) from the password, XChaCha20-Poly1305 per file; writes are whole-or-nothing
+  and a crash never loses a note (unknown files come back in `.trash/recovered-…`).
+  Claude Code gets no file access to an encrypted vault. Not yet: encryption by
+  default for new accounts. Plain writes are now flushed to disk too.
+- **The recovery key in a window** from the menus (Settings, THE MENU, the setup): the 24
+  words, *copy all* (the clipboard is emptied a minute later), one word typed back to close;
+  `vault encrypt --window` / `vault recovery --window` in the shell.
+- **Choose folders instead of typing them**: the login page (open a vault, forgot its
+  password), *Move vault*, *Vault folder*: the deck's file browser, *choose this folder*, ⏏ drives.
+- **`vault move [folder]`** (Settings → VAULT → *Move vault*): the whole vault elsewhere,
+  every file copied and checked, then used; the old folder goes only if you say so.
+- **Modules can't touch the encryption**: `ib.shell.run` refuses the vault's encryption and
+  place, accounts, self-destruct, installing modules; no module can take the names `vault`,
+  `account`…; a STORE / vault module can't replace the deck's commands, pages or actions;
+  the account's files in the vault are refused to everything but the native side; Claude
+  Code can't read `.icebreaker/`.
+- **THE MENU**: *Vault: encrypt / decrypt / a new recovery key / encrypted or plain? / a plain
+  copy / move it*, *Guided tour*, *UPLINK's context page*, *Mute everything* (they had no
+  button before).
+- **Fixed**: after `vault mount` typed in the shell, the keys went to HOME instead of the shell;
+  a module with `vault:write` could rewrite another module's code in `.icebreaker/plugins/`
+  (now `.icebreaker/` is closed to `ib.vault` writes, and to the AI's `write_note`); the login
+  page's caret showed through the file browser; *Vault folder* asked for a typed path.
+- **Encryption is an option**: the setup asks (plain first), Settings → PRIVACY has *Vault
+  encryption* and *Recovery key*; encrypt ↔ decrypt as often as you like.
+- **Portable vaults**: the vault carries its account (`.icebreaker/account.json`: uid,
+  name, password hash) and its settings (secrets only when encrypted). Login page → *open a
+  vault*: a folder (USB key, another computer), the name and password — or *forgot its
+  password?* with the 24 words; a new account there is approved like *+ new account*.
+  Settings changed on another computer come back at mount.
+- **Every system, every version**: names in one Unicode form (NFC) inside an encrypted
+  vault; names Windows can't hold are said before decrypt / export writes anything; a vault
+  from a newer ICEBREAKER is refused, never repaired; settings keep what a newer version
+  wrote and survive a changed kind; `vault adopt` takes in plain files an older version
+  wrote next to an encrypted vault. Found while testing: a Mac file name with separate
+  accents stopped `vault encrypt` (safely: nothing was deleted) — fixed.
+- **Recovery key**: 24 words (BIP39 list, with a checksum) made by `vault encrypt`,
+  shown once, one of them asked back (no way around it), then the screen is cleared. Forgot the password:
+  login page → *forgot password?* (name + the 24 words + a new password, for the
+  account and its vault). `vault recovery` makes a new one (the old one stops working);
+  `vault unlock` also takes the words.
 - **Full screen**: leaving it no longer leaves the notch band behind (a second
   "ICEBREAKER" over the top bar): the band goes at once and is measured again once
   the window has settled; it has no text any more (the theme's background), and it

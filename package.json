@@ -13,7 +13,8 @@
     "tauri": "tauri",
     "app": "tauri dev",
     "app:build": "tauri build",
-    "app:mac": "tauri build --bundles app && sh scripts/mac-dev-sign.sh",
+    "app:mac": "tauri build --bundles app --features dev-tools && sh scripts/mac-dev-sign.sh",
+    "app:mac:release": "tauri build --bundles app && sh scripts/mac-dev-sign.sh",
     "test": "vitest run"
   },
   "dependencies": {

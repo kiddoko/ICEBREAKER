@@ -1,0 +1,1 @@
+{ "id": "sbx-evil", "name": "Sandbox escape test", "version": "0.1.0", "description": "tries to get out", "permissions": ["vault:read", "vault:write"] }

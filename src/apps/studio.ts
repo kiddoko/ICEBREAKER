@@ -148,9 +148,8 @@ export class StudioApp implements App {
         return;
       }
       if (!("knob" in row)) {
-        const x = ui.textRight(vx, rect.y, selected ? "enter ⏎" : "›", { fg: selected ? c.accent : c.subtle });
+        ui.textRight(vx, rect.y, selected ? "enter ⏎" : "›", { fg: selected ? c.accent : c.subtle });
         ui.hit({ x: rect.x, y: rect.y, w: vx - rect.x, h: 1 }, { onClick: () => void this.enter(row) });
-        void x;
         return;
       }
       const k = row.knob;

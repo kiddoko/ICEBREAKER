@@ -7,3 +7,4 @@ src-tauri/gen/
 
 # ICEBREAKER's Google OAuth client (see docs/GOOGLE.md) — never committed
 src-tauri/google-client.json
+dist-update/

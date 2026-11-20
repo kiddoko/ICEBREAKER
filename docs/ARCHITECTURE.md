@@ -19,13 +19,19 @@ src/
   deck.ts          THE object: settings, vault, themes, sound, voice, AI, plugins,
                    workspace, frame loop; start-up (boot steps), act("command")
   core/            no UI here — the engine and shared state
-  ui/              drawing building blocks (immediate mode)
+  ui/              drawing building blocks (immediate mode) — THE UI KIT (ui/kit.ts, docs/UI_KIT.md):
+                   one field, one checkbox, one list… and the spacing rules (ui/layout.ts, docs/LAYOUT.md)
   workspace/       the screen: panes, tabs, overlays, input routing
   apps/            what lives in a tab (or a page): HOME, notes, settings…
   widgets/         HOME widgets (and their pop-ups)
-  shell/           ibsh (the deck's shell), its commands, the system-terminal bridge
+  shell/           ibsh (the deck's shell), its commands, the system-terminal bridge;
+                   origin.ts = who a line comes from (you, a module, your real terminal) and what it may
+                   read and write; privileged.ts = the commands only you may run
   vault/           the notes folder: files, journal, tags & icons, START HERE
-  plugins/         the module system: host, API given to modules, core packages
+  plugins/         the module system: host, API given to modules, core packages (TERMINAL among them:
+                   workspace.terminalOn hides the shell panel; shell.readLine asks in dialogs then);
+                   sandbox/ = STORE and vault modules in a Worker (docs/SANDBOX.md); deps.ts = what a module
+                   `requires`; updates.ts = module updates; install.ts = the STORE's indexes, verified or not
   fx/              backgrounds, transitions, glitch, screensavers
   ai/              chat providers (Anthropic, Claude Code, Ollama) and tools
   platform/        desktop (Tauri invoke) vs browser (demo vault) back ends
@@ -35,7 +41,7 @@ src-tauri/src/     the native side, one file per area (see §8)
 
 | Folder | Files worth knowing |
 |---|---|
-| `core/` | `grid.ts` cells · `renderer.ts` paints them · `loop.ts` frames on demand · `input.ts` keys/mouse/gestures · `gamepad.ts` pad (hold RB: THE MENU) · `settings.ts` **every setting and its default** · `theme.ts` TOML themes · `shortcuts.ts` the shortcut table (some keys are bound right there: `global`) · `sound.ts` synthesized UI sounds, packs · `voice.ts` · `errors.ts` error codes · `i18n.ts` + `i18n-fr.ts` · `avatar.ts` profile icons · `time.ts` `ago()` · `dates.ts` day / time parsing (`ib.lib.dates`) · `undo.ts` the ⌘Z history · `eventlog.ts` what the LOG tab shows · `fxlevels.ts` effect strengths · `stealth.ts` the offline guard · `prefs.ts` **the settings registry** (every row, the deck's and the modules', with its kind and its way back to default) · `catalog.ts` **the catalog**: everything the deck can do as blocks (commands, actions, shortcuts, settings, functions, widgets, apps, themes, modules) |
+| `core/` | `grid.ts` cells · `renderer.ts` paints them · `loop.ts` frames on demand · `input.ts` keys/mouse/gestures · `gamepad.ts` pad (hold RB: THE MENU) · `settings.ts` **every setting and its default** · `theme.ts` TOML themes · `shortcuts.ts` the shortcut table (some keys are bound right there: `global`) · `sound.ts` synthesized UI sounds, packs · `voice.ts` · `errors.ts` error codes · `i18n.ts` + `i18n-fr.ts` · `avatar.ts` profile icons · `time.ts` `ago()` · `dates.ts` day / time parsing (`ib.lib.dates`) · `undo.ts` the ⌘Z history · `eventlog.ts` what the LOG tab shows · `fxlevels.ts` effect strengths · `stealth.ts` the offline guard · `updater.ts` ICEBREAKER's and the modules' updates (Settings → UPDATES, docs/UPDATES.md) · `prefs.ts` **the settings registry** (every row, the deck's and the modules', with its kind and its way back to default) · `catalog.ts` **the catalog**: everything the deck can do as blocks (commands, actions, shortcuts, settings, functions, widgets, apps, themes, modules) |
 | `ui/` | `ui.ts` the `UI` class (text, box, fill, button, **hit**) · `list.ts` `ListView` (selection, scroll, drag & drop, wheel hook) · `editor.ts` text editing · `slider.ts` sliders + `askNumber` · `wheelspin.ts` the wheel/trackpad feel of rings (`WheelSpin`: a critically damped spring, `ring()`) · `filterbar.ts` **the** search + colours bar (`FilterBar`) every list of things uses · `keycaps.ts` keys drawn as keycaps · `typewriter.ts` text that types itself out · `uplinkcore.ts` UPLINK's face (widget and tour) · `pagebar.ts`, `floor.ts`, `glide.ts`, `markdown.ts`, `chatview.ts`, `bigtext.ts`, `dots.ts` |
 | `workspace/` | `workspace.ts` layout, tabs, focus, input routing · `chrome.ts` the frame around the page: top bar, tabs, status bar, shell panel, tips, subtitles · `sidebar.ts` the tree · `sidepanel.ts` the right panel · `overlays.ts` prompt, choose, confirm, toasts, on-screen keyboard · `quickmenu.ts` **THE MENU** (⌘K / shift twice: search everything, or a key + enter) · `contextmenu.ts` right-click menus · `keycapture.ts` "press the keys" dialog · `avatarpicker.ts` · `widgetpicker.ts`, `widgetpopup.ts` · `fxpanel.ts` · `filebrowser.ts` **the** little file browser (a vault folder, or picking a file on the computer) · `lock.ts` login · `boot.ts` · `favorites.ts` pins |
 | `apps/` | `types.ts` the `App` interface · `home.ts` the widget grid · `note.ts` editor · `settings.ts` draws the settings (its rows come from `settings-rows.ts` through `deck.prefs`; `settings-help.ts` one sentence per setting) · `blocks.ts` the BLOCKS page (the catalog) · `modules.ts` the shard ring · `explorer.ts` NEXUS · `trash.ts` · `shortcuts.ts` · `store.ts` · `setup.ts` · `terminal.ts` · weather / clocks / focus / journal / sysmon / studio / link / help |
@@ -224,7 +230,7 @@ how to call it. The BLOCKS page, `catalog <kind> [words] [--json]` and
 `case` in `Catalog.of()`.
 
 **Calling another part** — modules and the deck's own parts expose functions
-(`plugins/services.ts`, `plugins/core-services.ts`, `plugins/frame-services.ts`):
+(`src/plugins/services.ts`, `src/plugins/core-services.ts`, `src/plugins/frame-services.ts`):
 `deck.use("tree").reveal(path)`, `deck.use("todo").add("…")` — in a module,
 `ib.use(…)`. Add a function to the frame in `frame-services.ts` (one line: `doc`
 + `fn`, and `needs` if it touches the user's machine); it appears in `modules api`.
@@ -302,17 +308,49 @@ pieces through `ib.lib` (`FilterBar`, `WheelSpin`, `ListView`…).
 
 ---
 
+## 8 bis. Who is asking: the rule behind every safety check
+
+Three things can ask the deck to do something, and they aren't trusted the same:
+
+| who | how it's known | what it may do |
+|---|---|---|
+| **you** — typing in ibsh, clicking, a key, THE MENU | no origin | everything |
+| **a module** — `ib.shell.run`, a click on one of its areas, a function it calls (`ib.modules.call`, `ib.use`) | an `Origin { source, grants }` that travels with the line for its whole run (`src/shell/origin.ts`) | never the privileged commands (`src/shell/privileged.ts`); a STORE / vault module reads, pipes and writes notes only with its permissions, never `.icebreaker/` |
+| **a program in your real terminal** (the bridge, `term.rs`) | origin `"terminal"` | never the privileged commands; nothing at all on an encrypted vault |
+
+Rules to keep when you add code:
+
+- A command never calls `deck.act()` or `deck.shell.runLine()` blindly for someone else: it gets a
+  `ctx.deck` that already keeps the origin, and `ctx.shell.run()`. A new command that plants
+  something for later (a key, a button, a setting that holds a command) goes in `privileged.ts`.
+- A function exposed to modules (`ib.modules.expose`, `frame-services.ts`, `core-services.ts`) that
+  runs a command line uses `line(…)`: the line runs as its caller, and every argument is quoted.
+  One that gives or changes your data says which permission it `needs`.
+- The native side (`vault.rs` `guard`) compares names the way disks read them (`store::fold`):
+  never `==` on a path that must not be one of the deck's own files.
+- Anything a file brings (a vault from elsewhere, a settings file, a module's `plugin.json`) is
+  checked as if someone else wrote it: `core/settings.ts` `limitSetting`, `account.rs`
+  `plain_safe`, `plugins/host.ts` (id, permissions approved, code fingerprint).
+
+`tests/origin.test.ts`, `tests/privileged.test.ts` and the Rust tests keep these; the three
+modules in `tests/sandbox/` replay the attacks in the app ([SECURITY_AUDIT.md](SECURITY_AUDIT.md)).
+
 ## 9. The native side (`src-tauri/src`)
 
 | File | What |
 |---|---|
 | `lib.rs` | the Tauri builder: plugins, every command registered; on macOS lifts WebKit's 60 fps preference (ProMotion) |
-| `vault.rs` | the vault: list, read, write, rename, trash, import; the path guard |
+| `vault.rs` | the vault: list, read, write, rename, trash, import; the path guard; the same commands on an encrypted vault (through `store.rs`), unlock / lock, `vault encrypt` / `decrypt` / `export` |
+| `store.rs` | an encrypted vault on disk: `.icebreaker-vault/` = key file, encrypted index, encrypted blobs; recovery after a crash; encrypt / decrypt / export with backup and checks |
 | `term.rs` | the PTY (your shell) and the bridge that lets it run deck commands; shell hooks for zsh, bash, fish, PowerShell |
 | `files.rs` | read-only access to the computer for the deck's file picker |
 | `config.rs` | settings and secrets files |
-| `account.rs` | the accounts: Argon2id hashes, the unlocked one (session), each one's folder of settings |
+| `crypto.rs` | vault encryption: vault key, Argon2id-wrapped `vault.key`, the `IBX1` file format (XChaCha20-Poly1305), atomic writes — see `docs/ENCRYPTION.md` |
+| `recovery.rs` | the recovery key: 24 words (BIP39 list) ↔ 256 bits, forgiving to type back |
+| `account.rs` | the accounts: Argon2id hashes, the unlocked one (session), each one's folder of settings; portable vaults (the vault's account card and settings copy, *open a vault*, recovery from another computer) |
 | `voice.rs` | text to speech (sherpa-onnx / piper, system voices) |
+| `appupdate.rs` | ICEBREAKER updating itself (tauri-plugin-updater): check, download, install — signed updates only (docs/UPDATES.md) |
+| `dev.rs` | developer tools (`factory-reset`): only in builds with `--features dev-tools` |
 | `media.rs`, `audio.rs` | what's playing (Spotify…), local music |
 | `google.rs` | Google OAuth (PKCE) and the Calendar API |
 | `net.rs` | `net_get` for the STORE and modules (https, LAN http) |
@@ -346,7 +384,8 @@ npm run dev            # the UI in a browser, demo vault, window.deck to poke at
 npm run app            # the desktop app, hot reload
 cargo check --manifest-path src-tauri/Cargo.toml
 cargo test  --manifest-path src-tauri/Cargo.toml
-npm run app:mac        # a signed .app for your own Mac (scripts/mac-dev-sign.sh)
+npm run app:mac        # a signed .app for your own Mac, WITH the developer tools: testing only
+npm run app:mac:release  # the macOS app to publish (no developer tools) — docs/UPDATES.md
 ```
 
 A release: bump the version in `package.json`, `package-lock.json`,

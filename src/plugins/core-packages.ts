@@ -29,6 +29,8 @@ export interface CorePackage {
   actions?: string[];
   /** false: widget-only, not shown in the MODULES hive (still in STORE → installed, and `plugin ls`) */
   launcher?: boolean;
+  /** what else switches with it (the deck's own pieces that aren't a command, a page or a widget) */
+  onSwitch?: (deck: Deck, on: boolean) => void;
 }
 
 export const CORE_PACKAGES: CorePackage[] = [
@@ -45,6 +47,18 @@ export const CORE_PACKAGES: CorePackage[] = [
   { id: "moon", name: "MOON", icon: "◑", description: "tonight's moon and the next phases", commands: ["moon"], widgets: ["moon"], launcher: false },
   { id: "matrix", name: "MATRIX", icon: "ﾑ", description: "digital rain on HOME: does nothing, looks great", commands: ["matrix"], widgets: ["matrix"], launcher: false },
   { id: "quotes", name: "QUOTES", icon: "❝", description: "a line to think about, every hour", commands: ["quote"], widgets: ["quote"], launcher: false },
+  {
+    id: "terminal",
+    name: "TERMINAL",
+    icon: "❯",
+    description: "the shell panel: your real terminals, ibsh and the log, a terminal as a tab, your scripts",
+    commands: ["term", "script"],
+    apps: ["terminal"],
+    actions: ["terminal.open", "shell.focus", "shell.history", "scripts.menu"],
+    // off: no shell panel at all; commands still run (THE MENU, BLOCKS, macros) and what
+    // they ask comes as dialogs (shell/shell.ts readLine)
+    onSwitch: (deck, on) => deck.workspace.setTerminalModule(on),
+  },
 ];
 
 interface Stash {
@@ -97,6 +111,10 @@ export function corePackageEntries(deck: Deck, version: string): { manifest: Plu
         for (const w of st.widgets) deck.widgets.register(w, p.id);
         for (const x of st.actions) deck.actions.register(x, p.id);
         deck.services.exposeAll(p.id, coreServices(deck)[p.id] ?? {});
+        p.onSwitch?.(deck, true);
+      },
+      deactivate() {
+        p.onSwitch?.(deck, false);
       },
     }),
   }));

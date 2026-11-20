@@ -1,5 +1,5 @@
 import type { Vault } from "../vault/vault";
-import { normalize } from "../vault/paths";
+import { isDeckPath, normalize } from "../vault/paths";
 import type { ToolSpec } from "./types";
 
 /**
@@ -60,6 +60,8 @@ export function vaultTools(vault: Vault, confirm: (title: string, detail: string
         required: ["path"],
       },
       run: async (input) => {
+        // the deck's own folder (other modules' data, the shell history…) isn't notes
+        if (isDeckPath(String(input.path))) throw new Error(".icebreaker/ is the deck's own folder, not notes");
         const text = await vault.read(String(input.path));
         return text.length > 100_000 ? text.slice(0, 100_000) + "\n…[truncated]" : text;
       },
@@ -82,9 +84,13 @@ export function vaultTools(vault: Vault, confirm: (title: string, detail: string
         const content = String(input.content);
         const mode = String(input.mode);
         if (!path.endsWith(".md")) throw new Error("only .md notes can be written");
+        // however it's written (".ICEBREAKER" is the same folder on a Mac or on Windows)
+        if (isDeckPath(path)) throw new Error(".icebreaker/ is the deck's own folder, not notes");
         const exists = await vault.exists(path);
         if (mode === "create" && exists) throw new Error(`${path} already exists — use append or overwrite`);
-        const preview = content.split("\n").slice(0, 12).join("\n") + (content.split("\n").length > 12 ? "\n…" : "");
+        // what you approve is what's written: the start, and how much more there is
+        const all = content.split("\n");
+        const preview = all.slice(0, 12).join("\n") + (all.length > 12 ? `\n… ${all.length - 12} more lines (${content.length} characters in all)` : "");
         const ok = await confirm(`AI wants to ${mode} ${path}`, preview);
         if (!ok) return "The user declined this write.";
         if (mode === "append") await vault.append(path, content);

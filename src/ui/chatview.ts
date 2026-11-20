@@ -157,7 +157,7 @@ export class ChatView {
       ui.text(r.x + 2, sepY, ` ${ui.spinner()} ${this.busyLabel}… `, { fg: ui.c.accent, attrs: BOLD });
       ui.textRight(r.x + r.w - 2, sepY, " esc to abort ", { fg: ui.c.subtle });
     } else {
-      ui.textRight(r.x + r.w - 2, sepY, " enter send · shift+enter newline · pgup/pgdn scroll ", { fg: ui.c.faint });
+      ui.textRight(r.x + r.w - 2, sepY, " enter send · shift+enter newline · pgup/pgdn scroll ", { fg: ui.c.subtle });
     }
 
     // input

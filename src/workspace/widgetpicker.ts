@@ -1,9 +1,9 @@
 import { t } from "../core/i18n";
+import { Field } from "../ui/field";
 import { fuzzyFilter } from "../core/fuzzy";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
-import { TextEditor } from "../ui/editor";
 import { ListView } from "../ui/list";
 import type { UI } from "../ui/ui";
 import type { WidgetSpec } from "../widgets/types";
@@ -21,7 +21,7 @@ type Line = { group: string; label: string; count: number } | { w: WidgetSpec & 
 export class WidgetPicker implements Overlay {
   modal = true;
   done = false;
-  private input = new TextEditor("", { singleLine: true, placeholder: "search: weather, music, todo…" });
+  private readonly input = new Field({ icon: "❯", onSubmit: () => this.pick() });
   private list = new ListView<Line>();
   /** the groups that are open (all folded at first: a short list of modules) */
   private openGroups = new Set<string>();
@@ -32,7 +32,6 @@ export class WidgetPicker implements Overlay {
     /** where the chosen widget goes: HOME's grid, or the side panel (at the end) */
     private readonly target: "home" | "panel" = "home",
   ) {
-    this.input.onSubmit = () => this.pick();
     this.list.onActivate = () => this.pick();
   }
 
@@ -65,7 +64,7 @@ export class WidgetPicker implements Overlay {
       return true;
     }
     if (["up", "down", "pageup", "pagedown"].includes(k.key)) {
-      this.list.onAction(k.key === "up" ? "up" : k.key === "down" ? "down" : k.key === "pageup" ? "page-up" : "page-down");
+      this.list.onNavKey(k);
       return true;
     }
     this.input.onKey(k);
@@ -117,8 +116,7 @@ export class WidgetPicker implements Overlay {
     const box = { x: Math.floor((screen.w - W) / 2), y: Math.max(1, Math.floor((screen.h - H) / 2)), w: W, h: H };
     const inner = ui.box(box, { title: this.target === "panel" ? t("ADD A WIDGET · SIDE PANEL") : t("ADD A WIDGET"), focused: true, bg: c.panelAlt, info: `${this.list.items.length} · ${t("enter adds · esc")}` });
     ui.hit(box, { onClick: () => {} });
-    ui.text(inner.x + 1, inner.y, "❯", { fg: c.accent, attrs: BOLD });
-    this.input.render(ui, { x: inner.x + 3, y: inner.y, w: inner.w - 4, h: 1 }, true);
+    this.input.render(ui, { x: inner.x, y: inner.y, w: inner.w, h: 1 }, { focused: true, placeholder: t("search: weather, music, todo…") });
     ui.hline(inner.x, inner.y + 1, inner.w, { fg: c.border });
 
     const listW = inner.w >= 90 ? Math.floor(inner.w * 0.48) : inner.w;

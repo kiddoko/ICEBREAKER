@@ -37,10 +37,14 @@ pub fn config_read(app: AppHandle, state: State<AccountState>, name: String) -> 
     }
 }
 
+/// An account's settings.json and secrets.json also go into its vault (account.rs:
+/// the vault carries its account to another computer).
 #[tauri::command]
-pub fn config_write(app: AppHandle, state: State<AccountState>, name: String, content: String) -> Result<(), String> {
+pub fn config_write(app: AppHandle, state: State<AccountState>, vault: State<crate::vault::VaultState>, name: String, content: String) -> Result<(), String> {
     let path = config_path(&app, &state, &name)?.ok_or("locked: log in first")?;
-    fs::write(path, content).map_err(|e| e.to_string())
+    let content = if name == "device.json" { content } else { crate::account::mirror_to_vault(&app, &state, &vault, &name, &content) };
+    // settings and secrets (your API key): readable by your user only, written whole or not at all
+    crate::crypto::write_private(&path, content.as_bytes()).map_err(|e| e.to_string())
 }
 
 /// Lets users keep their key in the environment instead of secrets.json.

@@ -16,14 +16,33 @@ opens `main.js`. Edit, save, `plugin reload`.
 
 ## Everything is a module
 
-Only the frame is core: HOME, notes and the editor, the file tree, the shell,
-settings, setup and the STORE. Everything else is a module — the ones that ship
-with the deck too (`plugins/core-packages.ts` packages the features written in
+Only the frame is core: HOME, notes and the editor, the file tree, the command
+engine (ibsh runs every command, even with no terminal on screen), settings, setup
+and the STORE. **The terminal itself is a module** (TERMINAL: the shell panel, your
+real terminals, `term`, `script`): switched off, there's no panel, and what a command
+asks comes as a dialog. Everything else is a module — the ones that ship
+with the deck too (`src/plugins/core-packages.ts` packages the features written in
 the core; `/plugins` holds the bundled plugins). They all go through the same
 host: `plugin enable / disable`, `store remove / install`. Your module can be
 an app, a command, a widget, a theme background, or one small tweak: set
 `"launcher": false` in `plugin.json` to keep a widget-only module out of the
 MODULES hive, and `"icon"` to give it a glyph there.
+
+**In the STORE**: every module that ships with the deck is listed in the official index
+with `"builtin": true` — installing one puts the deck's own copy back (nothing is
+downloaded; an older deck is told to update). The bundled ones' source is in the index's
+`modules/<id>/`. After changing a bundled module or a core package, refresh the index:
+`node scripts/pack-store.mjs <checkout of icebreaker-modules>`, then `node
+scripts/check-index.mjs` there, commit, push.
+
+## Where your module runs
+
+A module from the STORE or a vault runs in a **sandbox** (a Worker): it reaches the deck
+only through `ib`, call by call, checked against its permissions — no page, no native
+side, no network functions of its own. You write it exactly the same way; the few calls
+not there yet say so clearly (list: [SANDBOX.md](SANDBOX.md)). Draw with the deck's own
+pieces (`ib.lib.Field`, `ib.lib.checkbox`, `ib.lib.ListView`, `ib.lib.Row`…:
+[UI_KIT.md](UI_KIT.md)) and its spacing rules ([LAYOUT.md](LAYOUT.md)).
 
 ## plugin.json
 
@@ -34,9 +53,22 @@ MODULES hive, and `"icon"` to give it a glyph there.
   "version": "0.1.0",
   "description": "What it does, in one line",
   "author": "you",
-  "permissions": ["vault:read", "vault:write", "ai"]
+  "permissions": ["vault:read", "vault:write", "ai"],
+  "requires": { "todo": ">=0.1.0", "icebreaker": ">=0.4.0" }
 }
 ```
+
+**`requires`** — what your module needs: other modules by id with the lowest version that
+works (`"*"`: any), and `icebreaker` for the deck itself. `store install` installs them
+first (after asking), `plugin enable` switches them on first, they wake up before yours
+(so `ib.modules.call` works in `activate`), and switching off or removing one of them
+asks first and takes yours along. Not met: your module stays off, and `plugin ls` / `store
+info <id>` say what's missing (src/plugins/deps.ts). The index entry can carry the same
+`requires`, so the STORE says it before downloading.
+
+**Updates**: a module installed from a repo remembers where (`source`); `store update`
+compares versions there, Settings → UPDATES does it by itself (docs/UPDATES.md). Raise
+`version` in plugin.json when you publish a new one.
 
 | permission    | allows                                              |
 |---------------|-----------------------------------------------------|
@@ -52,12 +84,12 @@ Plugins from the vault are **off** until the user runs `plugin enable <id>`,
 which shows the permissions and asks for confirmation. Calling an API you
 didn't declare throws an error.
 
-> Honesty note: plugins run in the app's JavaScript context. Permissions
-> govern the API object, and the app's Content-Security-Policy blocks network
-> access except to the AI endpoints — but a malicious plugin could still misbehave.
-> Read the code before enabling something (it's one `main.js`): the deck shows
-> what it found in it first (`plugin audit <id>`). Where safety stands and the
-> plan to run modules in a sandbox: [SANDBOX.md](SANDBOX.md).
+> Honesty note: modules from the STORE and the vault run in a **sandbox** (a Worker: no page,
+> no native access, no network of their own; every `ib` call checked against the permissions —
+> [SANDBOX.md](SANDBOX.md)). Within their permissions they can still do damage (a module
+> allowed to write notes can overwrite them). Read the code before enabling something (it's
+> one `main.js`): the deck shows what it found in it first (`plugin audit <id>`). Modules not
+> reviewed in the official STORE are marked **not verified** ([COMMUNITY.md](COMMUNITY.md)).
 
 ## main.js
 
@@ -179,6 +211,38 @@ The full surface is typed and commented in
 - `ib.storage.get/set` → a private JSON file per plugin (`.icebreaker/plugin-data/<id>.json`).
 - `ib.settings.register([...])` → your section in Settings (◇ YOUR MODULE, after the normal ones). Row types: `toggle`, `choice` (`options`), `text`, `number`, and `action` — a row that does something when chosen: `cmd` (a shell command, shown under the row like every setting) or `run()` (a picker, a confirmation…), plus `value()` for the status on the right ("connected", a name…). Read with `ib.settings.get(key)`, react with `onChange`; shell: `modules set <id> <key> <value>`. Example: the CALENDAR module (`plugins/calendar/main.ts`).
 - `ib.shell.run(line)` → run a command, shown in the shell's LOG tab (what your clicks should do).
+  The line runs **as your module** (`src/shell/origin.ts`), with your permissions: it reads,
+  pipes (`|`) and `<` notes only with `vault:read`, writes (`>`, `touch`, `mv`, `rm`, `note`…)
+  only with `vault:write`, never touches `.icebreaker/`, and needs `ai` for `ask` / `chat`.
+  Never allowed from a module (refused, aliases and `;` / `&&` chains included,
+  `src/shell/privileged.ts`): `vault` beyond `status` and `rescan`, `account`, `lock`,
+  `self-destruct`, `script`, `macro` (but show / hide), `bind` / `unbind`, `keys`, `menu add`,
+  `pin`, `home link`, `plugin` and `store` beyond listing and searching, `update` beyond
+  looking, `modules call` / `set`, `stealth off`, `theme install`, `voice install`, `exit`,
+  `reboot`, and `config set` of the settings that hold commands or decide what runs
+  (`keys`, `menu`, `shell`, `plugins`, `ai`, `privacy`, `updates`, `vault`, `home`, `favorites`…).
+- The functions you call (`ib.modules.call`, `ib.use`) follow the same rule: one that runs a
+  command (`shell.run`, `home.add`, `clocks.timer`…) runs it as your module; the built-in
+  modules' functions ask for a permission (`todo.list`, `reminders.list`, `habits.list`:
+  `vault:read`; `todo.add`, `journal.append`…: `vault:write`; `calendar.today / events`:
+  `google-calendar`; `music.*`: `media`; `uplink.ask`: `ai`; `terminal.run`: `terminal`).
+  `deck.setting(key)` gives a module the look and sound settings only.
+- **Your id** is your folder's name: lowercase letters, digits and dashes, never a built-in
+  module's. **Your permissions are the ones the person approved** when switching you on, for the
+  code they approved: a later version asking for more stays off until they approve again
+  (say why in your README). While you write a module, `plugin reload` approves your new code.
+- `ib.apps.open(kind, args)`: your own pages take any `args`; the deck's pages only a note,
+  a folder or a day.
+- `ib.ui.confirm / prompt / choose / alert` are headed with your module's name; what your
+  command asks in the shell (`ctx.read`) starts with `[your-id]`.
+- A module **can't take the deck's own names**: `vault`, `account`, `lock`, `plugin`, `config`,
+  `menu`, `keys`, `modules`, `store`, `update`… for its commands; and a module from the STORE
+  or the vault can't replace any command, page or THE MENU action of the deck **or of another
+  module** (built-in modules still can replace the deck's).
+- `ib.vault` can't read or write ICEBREAKER's own files in the vault: `.icebreaker/account.json`,
+  `settings.json`, `secrets.json` (the native side refuses them to everyone but itself); and
+  `ib.vault.write / append / mkdir` never touch `.icebreaker/` at all (other modules' code,
+  themes…): a module's own data goes through `ib.storage`.
 - `ib.catalog.list(kind?, words?)` → everything the deck can do, as plain data: commands, actions, shortcuts, settings (with their value), functions (`ib.use`), widgets, apps, themes, modules — each with `name`, `doc`, `from` and `call` (how to call it). `get(kind, id)` for one. The BLOCKS page and `catalog … --json` show the same.
 - `ib.ui.notify / confirm / prompt / choose` → talk to the user (`choose` = pick one option from a filtered list; `prompt(title, { suggestions })` adds a ▾ list, a grey completion and Tab to complete). `notify(text, "error")` also lands in the error log with a code — see [ERRORS.md](ERRORS.md).
 - `ib.ui.alert(title, body)` → get the user's attention, the way they chose in Settings → NOTIFICATIONS (on screen, sound, the system's notification center — by default only when the deck isn't in front —, read aloud). See the REMINDERS module. The shell: `notify --alert "<title>" [body]`.

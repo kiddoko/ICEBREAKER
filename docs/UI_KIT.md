@@ -1,0 +1,54 @@
+# The UI kit — one of each
+
+Every piece of ICEBREAKER's interface that comes back more than once exists **once**,
+in `src/ui/` (one entry point: `src/ui/kit.ts`). The deck's pages use it, and every
+module gets the very same pieces as `ib.lib.*` (and the dialogs as `ib.ui.*`).
+So a module's slider is the deck's slider, its search box is the deck's search box —
+unless it really wants its own, it never draws one.
+
+A test (`tests/kit.test.ts`) fails if a page or a module draws its own text field,
+checkbox or word wrapping again.
+
+| what | the piece | for a module | looks like |
+|---|---|---|---|
+| a button | `ui.button(x, y, label, onClick, { cmd, tip, accent, selected, quiet, disabled })` | the same (`ui` in `render`) | ` install ` lit when hovered; `quiet`: muted until hovered; `disabled`: faint |
+| a one-line text field | `Field` (`src/ui/field.ts`) | `new ib.lib.Field({…})` | `⌕ search…▌` — icon, placeholder, mask (passwords), `onSubmit`, `onChange` |
+| a multi-line editor | `TextEditor` | `ib.lib.TextEditor` | the notes' editor |
+| a box you tick | `checkbox(ui, x, y, on, { label, hot, onClick })` | `ib.lib.checkbox` | `[■] remember me` · `[▪]` some · `[ ]` |
+| in plain text (shell, a menu label) | `BOX_ON` / `BOX_OFF` | `ib.lib.BOX_ON` | `☑` / `☐` |
+| one choice among several | `choice(ui, x, y, value, { arrows, onStep })` | `ib.lib.choice` | `‹ dots ›`: ←→, a click on its left / right half |
+| tabs | `tabs(ui, x, y, list, current, onPick)` | `ib.lib.tabs` | ` modules  themes  installed ` |
+| a number in a range | `slider(ui, rect, value, min, max, onSet, …)` · `askNumber` · `accelerated` | `ib.lib.slider` | `━━━━■── 80%` — drag the handle; hold on the track, the wheel or ←→: **1 at a time, faster the longer you hold** (`accelerated(id)`: 1, 2, 5, 10); double-click the number to type it |
+| a list | `ListView<T>` (`onNavKey(k)` for ↑↓ page keys under a field) | `new ib.lib.ListView<T>()` | selection, scrolling (with glide), mouse, keys, gamepad, right-click, drag |
+| **the search bar** (any list you filter) | `FilterBar` · `colourSquares` | `ib.lib.FilterBar` | `⌕ type to search      ■ ■ □ □ ■ □ □ □` — options: `typeToSearch` (a letter starts it: MODULES, NEXUS), `always` (every key types: Settings, BLOCKS, SHORTCUTS), `colours: false` (no squares: the STORE), `onChange` |
+| a page's header line | `pageBar` | — | where you are · tools · its filter |
+| choose a file / a folder | `FileBrowser` · `pickFile` · `pickFolder` | `ib.ui.pickFile` · `ib.ui.pickFolder` (you get the path the user chose) | the deck's browser: ‹ › ↑ ⌂, ⏏ drives, *choose this folder* |
+| yes / no · a value · one of a list · a message | `deck.confirm` · `deck.prompt` · `deck.choose` · `workspace.message` | `ib.ui.confirm` · `ib.ui.prompt` · `ib.ui.choose` · `ib.ui.alert` | the dialogs (a message: one *ok*, red for a problem — "Wrong password") |
+| a setting that depends on another | `disabled: () => …` on the row (`needs(ok, row)` in settings-rows.ts) | — | **greyed and still** — never a sentence saying what to switch on |
+| a notification | `deck.notify` | `ib.ui.notify` | a toast |
+| text that fits | `wrapWords` · `truncate` · `strWidth` · `padEnd` | `ib.lib.*` | width-aware (emoji, Japanese, accents) |
+| things in a row | `Row` + `INSET` `GAP` `LABEL` `SECTION` | `ib.lib.Row` | see [LAYOUT.md](LAYOUT.md) |
+
+## How to use a field
+
+```js
+const search = new ib.lib.Field({ icon: "⌕", placeholder: "search…", onChange: (q) => filter(q) });
+// in your app / widget:
+onText(t)  { return search.onText(t); }
+onKey(k)   { return search.onKey(k) || myOwnKeys(k); }   // the field leaves esc, ↑↓, tab (and enter without onSubmit) to you
+render(ui, r, focused) { search.render(ui, { x: r.x, y: r.y, w: r.w, h: 1 }, { focused }); }
+```
+
+`keys: "basic"` makes a field that only takes typing, ⌫, ⌘V and ctrl+U — for a page you
+search by just typing, whose ←→ belong to its list. `active: true` (in `render`) tints
+it: "you're typing here" for fields you enter with a key (`a` in TODO).
+
+**Searching a list is always `FilterBar`**, never a `Field` of its own (a test checks it):
+the same look, the same keys everywhere. **Space** on a box or a ‹ choice › ticks it / goes
+to the next value — on the row under the mouse, else the one selected.
+
+## Changing a piece
+
+Change it in `src/ui/` and every page and module changes with it. A variant that's
+really needed becomes an option of the piece (like `quiet` and `disabled` on the
+button), not a copy.

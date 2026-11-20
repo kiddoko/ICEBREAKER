@@ -1,4 +1,5 @@
-import { slider } from "../ui/slider";
+import { accelerated, slider } from "../ui/slider";
+import { Field } from "../ui/field";
 import { mix } from "../core/color";
 import { LANGS, setLang, t } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
@@ -26,9 +27,9 @@ interface Step {
 
 /** The questions come in chapters (the bar at the top): the step ids of each. */
 const CHAPTERS: { name: string; steps: string[] }[] = [
-  { name: "SIGNAL", steps: ["language", "intro", "mode"] },
+  { name: "SIGNAL", steps: ["language", "warning", "intro", "mode"] },
   { name: "IDENTITY", steps: ["handle", "gender", "gender-other"] },
-  { name: "SYSTEM", steps: ["terminal", "vault", "vault-path"] },
+  { name: "SYSTEM", steps: ["terminal", "vault", "vault-path", "encrypt"] },
   { name: "WORLD", steps: ["locale", "precision", "place", "ai", "calendar"] },
   { name: "LOOK", steps: ["voice", "theme", "fx", "sound", "notifications"] },
   { name: "READY", steps: ["done"] },
@@ -54,7 +55,17 @@ export class SetupApp implements App {
   readonly key = "setup";
   private step = 0;
   private sel = 0;
-  private input = "";
+  /** the READ THIS FIRST screen was read (nothing skips it) */
+  private warned = false;
+  /** the typed answers (ui/field.ts): one plain, one for a secret */
+  private readonly plain = new Field({ icon: "❯", onChange: () => (this.error = "") });
+  private readonly secret = new Field({ icon: "❯", mask: true, onChange: () => (this.error = "") });
+  private get field(): Field {
+    return this.cur.text?.mask ? this.secret : this.plain;
+  }
+  private get input(): string {
+    return this.field.text;
+  }
   private stepAt = 0;
   private busy = false;
   private error = "";
@@ -78,6 +89,8 @@ export class SetupApp implements App {
         question: "Language of the deck · Langue du deck",
         options: () => LANGS.map((l) => ({ value: l.id, label: l.name })),
       },
+      // READ THIS FIRST: one screen nobody can skip (tab, ctrl+enter and the "finish" button wait for it)
+      { id: "warning", title: "⚠ READ THIS FIRST", question: "TEST SOFTWARE — not ready for heavy, secure or professional use.\n\nICEBREAKER is a hobby project made by one person who isn't a developer, with an AI writing most of the code. It has never been audited.\n\n· Store nothing sensitive in it: no passwords, banking, medical, legal or confidential documents — encrypted vault or not.\n· Back up your vault often (copy its folder): a bug can lose notes.\n· No warranty, no support: you use it at your own risk.\n\nYou can help: report bugs, say how it went, share ideas, make modules and themes — github.com/kiddoko/ICEBREAKER (Issues and Discussions).", options: () => [{ value: "ok", label: "I've read it — I understand" }] },
       { id: "intro", title: "JACK IN", question: "A few questions to set up your deck. Takes a minute, every one can be skipped — and everything can be changed later.", options: () => [{ value: "go", label: "Let's go" }, { value: "skip", label: "Skip — use the defaults" }] },
       {
         id: "mode", title: "CONNECTION",
@@ -118,6 +131,16 @@ export class SetupApp implements App {
         ],
       },
       { id: "vault-path", title: "VAULT", question: "Folder path (created if missing):", text: { placeholder: "/Volumes/nas/icebreaker" }, skip: () => this.a.vault !== "other" },
+      {
+        // an option, never the default: plain files stay readable by everything
+        id: "encrypt", title: "ENCRYPTION",
+        question: "Encrypt the vault? Encrypted, the folder holds only noise: your password opens it, here or on another computer (a USB key works), and 24 words written on paper get you back in if you forget it. Plain, any app (Obsidian, git, your terminal) reads your notes. You can switch either way later, as often as you like (Settings → PRIVACY).",
+        options: () => [
+          { value: "plain", label: "Plain files", hint: "readable by any app — the default" },
+          { value: "encrypted", label: "Encrypted", hint: "have paper and a pen ready: 24 words to write down" },
+        ],
+        skip: () => !this.deck.platform.vault.crypt,
+      },
       { id: "locale", title: "LANGUAGE", question: "Dates, calendar and news language.", options: () => [{ value: "fr-FR", label: "Français" }, { value: "en-US", label: "English (US)" }, { value: "en-GB", label: "English (UK)" }, { value: "", label: "Same as the system" }] },
       {
         skip: () => this.a.mode === "stealth",
@@ -248,7 +271,8 @@ export class SetupApp implements App {
     this.error = "";
     this.places = [];
     const st = this.cur;
-    this.input = "";
+    this.plain.clear();
+    this.secret.clear();
     const opts = this.options();
     if (st.slider) this.a[st.id] ??= String(st.id === "sound" && this.deck.settings.data.sound.enabled ? this.deck.settings.data.sound.volume : st.slider.start);
     this.sel = Math.max(0, opts.findIndex((o) => o.value === (this.a[st.id] ?? (st.id === "theme" ? this.deck.theme.name : undefined))));
@@ -272,6 +296,7 @@ export class SetupApp implements App {
       this.deck.settings.set("user.language", o.value);
       if (!this.a.locale) this.a.locale = o.value === "fr" ? "fr-FR" : "";
     }
+    if (st.id === "warning") this.warned = true;
     if (st.id === "intro" && o.value === "skip") return this.finish(true);
     if (st.id === "done") return this.finish(false);
     this.go(1);
@@ -312,6 +337,12 @@ export class SetupApp implements App {
   }
 
   private finish(skipped: boolean): void {
+    if (this.busy) return;
+    // nothing finishes before the warning was read (ctrl+enter on the first screen, the button)
+    if (!this.warned) {
+      const w = this.steps.findIndex((x) => x.id === "warning");
+      if (w >= 0) return void ((this.step = w), (this.sel = 0), this.deck.requestFrame());
+    }
     const set = (k: string, v: unknown) => this.deck.settings.set(k, v);
     this.fxBack();
     if (!skipped) {
@@ -346,8 +377,28 @@ export class SetupApp implements App {
           await this.deck.act("voice test");
         })();
       } else if (this.a.voice === "off") void this.deck.act("voice off");
-      if (this.a.vault === "other" && this.a["vault-path"]) void this.deck.act(`vault mount ${q(this.a["vault-path"])}`);
+      const path = this.a.vault === "other" ? this.a["vault-path"] : "";
+      const encrypt = this.a.encrypt === "encrypted";
+      if (encrypt) {
+        // the encryption happens here, over the setup (its dialogs: confirm, password, the
+        // recovery key, where the backup went) — the deck, the tour and UPLINK wait for it
+        this.busy = true;
+        void (async () => {
+          if (path) await this.deck.act(`vault mount ${q(path)}`);
+          await this.deck.act("vault encrypt --window");
+          this.busy = false;
+          this.leave(skipped);
+        })();
+        return;
+      }
+      if (path) void this.deck.act(`vault mount ${q(path)}`);
     }
+    this.leave(skipped);
+  }
+
+  /** The setup is done: HOME, then the tour and the Welcome note. */
+  private leave(skipped: boolean): void {
+    const set = (k: string, v: unknown) => this.deck.settings.set(k, v);
     set("setup.done", true);
     // the answers aren't something to ⌘Z (the acts above finish a moment later)
     setTimeout(() => this.deck.history.clear(), 1500);
@@ -385,23 +436,20 @@ export class SetupApp implements App {
       return true;
     }
     if (t.includes("\n")) {
-      this.input += t.replace(/[\r\n]+/g, "");
+      const rest = t.replace(/[\r\n]+/g, "");
+      if (rest) this.field.onText(rest);
       void this.next();
       return true;
     }
-    this.input += t;
-    this.error = "";
-    return true;
+    return this.field.onText(t);
   }
 
   onKey(k: KeyInput): boolean {
     // fast: tab skips the question (its default stays), ctrl+enter finishes with the defaults
+    if (k.combo === "tab" && this.cur.id === "warning") return true; // read it, then enter
     if (k.combo === "tab" && this.cur.id !== "done") return this.go(1), true;
     if (k.combo === "ctrl+enter" && !this.busy) return this.finish(false), true;
-    if (this.cur.text && !this.places.length && k.combo === "backspace") {
-      this.input = this.input.slice(0, -1);
-      return true;
-    }
+    if (this.cur.text && !this.places.length) return this.field.onKey(k);
     return false;
   }
 
@@ -423,7 +471,7 @@ export class SetupApp implements App {
 
   onAction(a: Action): boolean {
     const st = this.cur;
-    if (st.slider && (a === "left" || a === "right")) return this.setSound(Number(this.a[st.id]) + (a === "left" ? -5 : 5)), true;
+    if (st.slider && (a === "left" || a === "right")) return this.setSound(Number(this.a[st.id]) + (a === "left" ? -1 : 1) * accelerated("setup:sound")), true;
     const n = this.options().length;
     switch (a) {
       case "up": this.sel = (this.sel - 1 + Math.max(1, n)) % Math.max(1, n); this.preview(); return true;
@@ -502,7 +550,8 @@ export class SetupApp implements App {
 
     // ── right: the question, sliding in ─────────────────────────────────────
     const area = { x: r.x + (logW ? logW + 6 : 2), w: r.w - (logW ? logW + 8 : 4) };
-    const w = Math.min(76, area.w);
+    // the warning uses all the width there is: it must fit, button included, in a small window
+    const w = st.id === "warning" ? Math.min(110, area.w) : Math.min(76, area.w);
     const slide = Math.round((1 - easeOut(age / 220)) * 6);
     const x = area.x + Math.floor((area.w - w) / 2) + slide;
     const box = { x, y, w, h: Math.max(8, r.y + r.h - y - 2) };
@@ -511,29 +560,33 @@ export class SetupApp implements App {
     let qText = t(st.question, { vault: this.deck.vault.root });
     if (st.id === "place") qText = this.places.length ? t("Which one?") : this.a.precision === "precise" ? t("Coordinates (lat, lon):") : this.a.precision === "country" ? t("Which country?") : t("Which city?");
     // the question types itself in, with its blips (ui/typewriter.ts: the text speed setting)
-    const qLines = wrapWords(qText, inner.w - 4);
+    let qLines = wrapWords(qText, inner.w - 4);
+    // the warning never pushes its own button out of the box: blank lines go first, then the end
+    if (st.id === "warning") {
+      const room = inner.h - 4;
+      if (qLines.length > room) qLines = qLines.filter((l) => l.trim());
+      if (qLines.length > room) qLines = qLines.slice(0, Math.max(1, room));
+    }
     const shownChars = typed(ui, `setup:${st.id}`, qText);
     let used = 0;
+    let first = true;
     for (const line of qLines) {
       const part = line.slice(0, Math.max(0, shownChars - used));
       used += line.length + 1;
-      ui.text(inner.x + 2, iy++, part, { fg: c.fg, bg: c.panel });
+      // the warning's first line stands out
+      ui.text(inner.x + 2, iy++, part, st.id === "warning" && first ? { fg: c.warning, bg: c.panel, attrs: BOLD } : { fg: c.fg, bg: c.panel });
+      if (line.trim()) first = false;
     }
     iy++;
     if (st.text && !this.places.length) {
-      const fb = { x: inner.x + 2, y: iy, w: inner.w - 4, h: 1 };
-      ui.fill(fb, { bg: c.highlight });
-      const shown = st.text.mask && this.input ? "•".repeat(this.input.length) : this.input || this.placeholder(st);
-      ui.text(fb.x + 1, iy, "❯", { fg: c.accent, bg: c.highlight, attrs: BOLD });
-      ui.text(fb.x + 3, iy, shown, { fg: this.input ? c.fg : c.faint, bg: c.highlight }, fb.w - 4);
-      if (focused) ui.cursor(fb.x + 3 + Math.min(strWidth(st.text.mask ? "•".repeat(this.input.length) : this.input), fb.w - 5), iy);
+      this.field.render(ui, { x: inner.x + 2, y: iy, w: inner.w - 4, h: 1 }, { focused, placeholder: this.placeholder(st) });
       iy += 2;
       if (this.busy) ui.text(inner.x + 2, iy, `${ui.spinner()} ${t("locating…")}`, { fg: c.muted, bg: c.panel });
       else ui.text(inner.x + 2, iy, t("enter: keep the grey suggestion · type to replace it"), { fg: c.faint, bg: c.panel }, inner.w - 4);
     } else if (st.slider) {
-      // a real slider: drag, click, ←→ by 5 — you hear the level as it moves
+      // a real slider: drag, hold, ←→ one at a time (faster when held) — you hear the level as it moves
       const v = Number(this.a[st.id] ?? st.slider.start);
-      slider(ui, { x: inner.x + 2, y: iy, w: inner.w - 4, h: 1 }, v, st.slider.min, st.slider.max, (nv) => this.setSound(nv), { zeroIsOff: true, tip: t("drag, click · ←→ by 5") });
+      slider(ui, { x: inner.x + 2, y: iy, w: inner.w - 4, h: 1 }, v, st.slider.min, st.slider.max, (nv) => this.setSound(nv), { zeroIsOff: true });
       iy += 2;
       ui.text(inner.x + 2, iy, t("enter: keep it"), { fg: c.faint, bg: c.panel }, inner.w - 4);
     } else {
@@ -583,16 +636,16 @@ export class SetupApp implements App {
     }
     if (this.error) ui.text(inner.x + 2, inner.y + inner.h - 2, `⚠ ${this.error}`, { fg: c.error, bg: c.panel }, inner.w - 4);
     // the way out, always in the same place
-    const keys = st.text ? t("enter next · tab skip · esc back") : st.slider ? t("←→ · enter next · tab skip · esc back") : t("a number or a click chooses · enter (or a 2nd click) keeps · esc back");
+    const keys = st.text ? t("enter next · tab skip · esc back") : st.slider ? t("←→ · enter next · tab skip · esc back") : t("↑↓ or a number · enter keeps · esc back");
     // the button on the right, the keys in the room left of it
     let keysRoom = inner.w - 4;
-    if (st.id !== "done") {
+    if (st.id !== "done" && this.warned) {
       const fin = `${t("finish with the defaults")} ⌃⏎`;
       const bx = inner.x + inner.w - strWidth(fin) - 3;
       ui.button(bx, inner.y + inner.h - 1, fin, () => this.finish(false), { accent: c.subtle });
       keysRoom = bx - inner.x - 4;
     }
-    ui.text(inner.x + 2, inner.y + inner.h - 1, keys, { fg: c.faint, bg: c.panel }, keysRoom);
+    ui.text(inner.x + 2, inner.y + inner.h - 1, keys, { fg: c.subtle, bg: c.panel }, keysRoom);
   }
 }
 

@@ -29,7 +29,7 @@ export const account: Command = {
   aliases: ["passwd"],
   summary: "your account: its name, its password, delete it · lock (log out)",
   usage: "account            who you're logged in as\naccount passwd     a new name / password\naccount delete     delete this account and its settings (its vault, your notes, stays)\nlock               log out: back to the login page",
-  man: "Each account is its own deck: its settings, its theme, its vault. Accounts are made on the login page (+ new account, approved by an account of this deck).\nThe password is hashed with Argon2id on the native side and never stored or shown.\nForgot it? Quit, and remove that account from accounts.json in the app's config folder.",
+  man: "Each account is its own deck: its settings, its theme, its vault. Accounts are made on the login page (+ new account, approved by an account of this deck).\nThe password is hashed with Argon2id on the native side and never stored or shown. It also opens your vault if it's encrypted (vault encrypt): a new password re-wraps the vault's key.\nForgot it? If your vault is encrypted: login page → forgot password?, with its recovery key (24 words). Otherwise: quit, and remove that account from accounts.json in the app's config folder.",
   complete: () => ["passwd", "delete"],
   async run(ctx) {
     const { deck } = ctx;
@@ -105,11 +105,9 @@ export const selfDestruct: Command = {
     // 3 — DESTROY
     const word = await ctx.read("last chance. type DESTROY (capitals) to arm it:");
     if (word?.trim() !== "DESTROY") return ctx.out("aborted. nothing happened.\n"), 1;
-    // 4 — the account's password
-    if (d.account) {
-      const pw = await d.prompt("Your password", { mask: true });
-      if (!pw || !(await d.platform.account?.verify(d.account, pw).catch(() => false))) return ctx.out("wrong password. aborted, nothing happened.\n"), 1;
-    }
+    // 4 — the account's password (checked again by the native side when it destroys)
+    const pw = (await d.prompt("Your password", { mask: true })) ?? "";
+    if (!pw) return ctx.out("no password. aborted, nothing happened.\n"), 1;
     // 5 — the countdown (ctrl+c stops it)
     ctx.out(fmt.red("armed. ctrl+c to abort.\n"));
     for (let n = 10; n > 0; n--) {
@@ -120,7 +118,7 @@ export const selfDestruct: Command = {
     }
     ctx.out("\n");
     try {
-      const gone = await d.vault.destroy(name);
+      const gone = await d.vault.destroy(name, pw);
       ctx.out(`${fmt.red("☢")} vault destroyed: ${gone} items deleted. the folder ${root} is empty.\n`);
       d.requestFrame();
       return 0;

@@ -11,7 +11,14 @@ import { BOLD, DIM, ITALIC } from "./grid";
  */
 export class GlyphAtlas {
   private static readonly PAGE = 1024;
-  private static readonly MAX_PAGES = 4;
+  private static readonly MAX_PAGES = 8;
+  /** glyphs drawn for the first time since the last `takeMisses()` (`debug perf`: high = colours that never repeat) */
+  private misses = 0;
+  takeMisses(): number {
+    const m = this.misses;
+    this.misses = 0;
+    return m;
+  }
 
   private pages: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D }[] = [];
   private slots = new Map<string, number>();
@@ -33,13 +40,15 @@ export class GlyphAtlas {
 
   /** Stamp one glyph onto `dst` at pixel position (dx, dy). */
   draw(dst: CanvasRenderingContext2D, cp: number, fg: RGB, attrs: number, dx: number, dy: number, cells: number): void {
-    // colours rounded to 6 bits a channel: fades and gradients reuse glyphs
-    // instead of filling the cache with a thousand near-identical tints
-    if (fg >= 0) fg = (fg & 0xfcfcfc) as RGB;
+    // colours rounded to 5 bits a channel: fades and gradients reuse glyphs instead of
+    // filling the cache with thousands of near-identical tints (a new glyph = fillText,
+    // the slowest thing in a frame — with the CRT blur, much slower still)
+    if (fg >= 0) fg = (fg & 0xf8f8f8) as RGB;
     const key = `${cp}:${fg}:${attrs & (BOLD | ITALIC | DIM)}`;
     let slot = this.slots.get(key);
     if (slot === undefined) {
       slot = this.allocate();
+      this.misses++;
       this.slots.set(key, slot);
       this.rasterize(slot, cp, fg, attrs, cells);
     }

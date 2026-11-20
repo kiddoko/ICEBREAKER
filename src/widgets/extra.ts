@@ -1,15 +1,13 @@
-import { strWidth } from "../core/unicode";
+import { strWidth, wrapWords } from "../core/unicode";
 import { typed } from "../ui/typewriter";
 import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
 import { chatWidget } from "./chatbox";
 import { t } from "../core/i18n";
-import { q } from "../ui/ui";
 import { mix } from "../core/color";
 import { BOLD } from "../core/grid";
 import type { Deck } from "../deck";
 import { decrypt } from "../fx/glitch";
 import { Rain } from "../fx/rain";
-import { basename } from "../vault/paths";
 import { cellsFor, dots, fitMatrix, matrixSize, matrixText } from "../ui/dots";
 import { drawUplinkCore } from "../ui/uplinkcore";
 import { isoDay, streakOf } from "../core/time";
@@ -19,51 +17,6 @@ import type { Command } from "../shell/types";
 import { fmt } from "../core/ansi";
 
 /* Extra cards shipped with the deck: not all on the default HOME, all one `a` away. */
-
-/* ─────────── tasks: every "- [ ]" in the vault ─────────── */
-
-let tasks: { text: string; path: string }[] = [];
-let tasksAt = 0;
-
-async function scanTasks(deck: Deck): Promise<void> {
-  const files = [...deck.vault.markdown()].sort((a, b) => b.modified - a.modified).slice(0, 200);
-  const found: { text: string; path: string }[] = [];
-  for (const f of files) {
-    const text = await deck.vault.read(f.path).catch(() => "");
-    for (const m of text.matchAll(/^\s*[-*] \[ \] (.+)$/gm)) found.push({ text: m[1].trim(), path: f.path });
-  }
-  tasks = found;
-}
-
-/** open checkboxes found in the notes (the widget and its pop-up) */
-export const openTasks = () => tasks;
-
-/** (the old CHECKBOXES widget — HABITS took its place; `checkboxes` stays a shell command) */
-export const tasksWidget: WidgetSpec = {
-  id: "tasks",
-  title: "checkboxes",
-  description: "open checkboxes (- [ ]) from all your notes",
-  size: { w: 4, h: 6 },
-  min: { w: 2, h: 2 },
-  render(ui, r, { deck }) {
-    const c = ui.c;
-    if (Date.now() - tasksAt > 30_000) {
-      tasksAt = Date.now();
-      void scanTasks(deck).then(() => deck.requestFrame());
-    }
-    ui.text(r.x + 1, r.y, `${tasks.length} open`, { fg: tasks.length ? c.accent : c.success, attrs: BOLD });
-    if (!tasks.length) return void ui.text(r.x + 1, r.y + 1, "nothing to do. suspicious.", { fg: c.muted });
-    tasks.slice(0, r.h - 1).forEach((t, i) => {
-      const row = { x: r.x, y: r.y + 1 + i, w: r.w, h: 1 };
-      const hot = ui.hovered(row);
-      const g = ui.theme.glyphs;
-      const tx = ui.text(r.x + 1, row.y, hot ? g.done : g.todo, { fg: hot ? c.accent : c.subtle }) + 1;
-      ui.text(tx, row.y, t.text, { fg: hot ? c.accent : c.fg }, r.x + r.w - 1 - tx - (r.w > 40 ? 14 : 0));
-      if (r.w > 40) ui.textRight(r.x + r.w - 1, row.y, basename(t.path, ".md").slice(0, 12), { fg: c.faint });
-      ui.hit(row, { cmd: `open ${q(t.path)}`, tip: "checkboxes in the shell lists them all" });
-    });
-  },
-};
 
 /* ─────────── focus: a 25/5 pomodoro ─────────── */
 
@@ -333,15 +286,7 @@ const quoteWidget: WidgetSpec = {
     const p = Math.min(1, (ui.now - quoteShownAt) / 900);
     if (p < 1) ui.animate(40);
     // word-wrap
-    const lines: string[] = [];
-    let line = "";
-    for (const w of text.split(" ")) {
-      if ((line + " " + w).trim().length > r.w - 4) {
-        lines.push(line);
-        line = w;
-      } else line = (line + " " + w).trim();
-    }
-    lines.push(line);
+    const lines = wrapWords(text, r.w - 4);
     const top = r.y + Math.max(0, Math.floor((r.h - lines.length - 1) / 2));
     lines.slice(0, r.h - 1).forEach((l, i) => ui.textCenter(r, top + i, p < 1 ? decrypt(l, p, ui.now) : l, { fg: c.fg }));
     ui.textCenter(r, Math.min(r.y + r.h - 1, top + lines.length), `— ${who}`, { fg: c.subtle });
@@ -354,15 +299,7 @@ const quoteWidget: WidgetSpec = {
       const c = ui.c;
       if (popupQuote < 0) popupQuote = Math.floor(Date.now() / 3_600_000) % QUOTES.length;
       const [text, who] = QUOTES[popupQuote];
-      const lines: string[] = [];
-      let line = "";
-      for (const w of text.split(" ")) {
-        if ((line + " " + w).trim().length > r.w - 8) {
-          lines.push(line);
-          line = w;
-        } else line = (line + " " + w).trim();
-      }
-      lines.push(line);
+      const lines = wrapWords(text, r.w - 8);
       const top = r.y + Math.max(1, Math.floor((r.h - lines.length - 3) / 2));
       lines.forEach((l, i) => ui.textCenter(r, top + i, l, { fg: c.fg, attrs: BOLD }));
       ui.textCenter(r, top + lines.length + 1, `— ${who}`, { fg: c.subtle });

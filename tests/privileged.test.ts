@@ -1,0 +1,92 @@
+import { describe, expect, it } from "vitest";
+import { isPrivileged, PRIVILEGED_NAMES } from "../src/shell/privileged";
+import { keepUnknown } from "../src/core/settings";
+import { keepInHistory } from "../src/shell/shell";
+
+describe("what modules may never do", () => {
+  it("refuses the vault's encryption, place and accounts", () => {
+    for (const sub of ["encrypt", "decrypt", "export", "recovery", "rekey", "unlock", "adopt", "mount", "move"]) expect(isPrivileged("vault", [sub])).toBe(true);
+    expect(isPrivileged("vault", ["--window", "decrypt"])).toBe(true);
+    expect(isPrivileged("account", [])).toBe(true);
+    expect(isPrivileged("self-destruct", [])).toBe(true);
+    expect(isPrivileged("plugin", ["install", "x/y"])).toBe(true);
+    expect(isPrivileged("config", ["set", "plugins.registry", "https://evil"])).toBe(true);
+    // what would run a program, or plant a command you'd run later
+    expect(isPrivileged("script", ["evil"])).toBe(true);
+    expect(isPrivileged("factory-reset", ["--yes"])).toBe(true);
+    expect(isPrivileged("bind", ["ctrl+s", "factory-reset --yes"])).toBe(true);
+    expect(isPrivileged("macro", ["add", "notes", "factory-reset --yes"])).toBe(true);
+    expect(isPrivileged("config", ["set", "keys.ctrl+s", "x"])).toBe(true);
+  });
+  it("lets modules do their usual things", () => {
+    expect(isPrivileged("vault", [])).toBe(false);
+    expect(isPrivileged("vault", ["status"])).toBe(false);
+    expect(isPrivileged("todo", ["add", "milk"])).toBe(false);
+    expect(isPrivileged("config", ["set", "appearance.theme", "x"])).toBe(false);
+    expect(isPrivileged("config", ["get", "keys"])).toBe(false);
+    expect(isPrivileged("plugin", ["list"])).toBe(false);
+    expect(isPrivileged("macro", ["show"])).toBe(false);
+    expect(isPrivileged("home", ["add", "clock"])).toBe(false);
+    expect(isPrivileged("menu", [])).toBe(false);
+    expect(isPrivileged("stealth", ["on"])).toBe(false);
+    expect(isPrivileged("theme", ["set", "e-ink"])).toBe(false);
+    expect(isPrivileged("open", ["notes/a.md"])).toBe(false);
+  });
+  it("refuses every way round: a function with every permission, a planted key, a square, your macros", () => {
+    // `modules call shell run "…"` ran anything as you (found in the 2026-11-20 review)
+    expect(isPrivileged("modules", ["call", "shell", "run", "script x"])).toBe(true);
+    expect(isPrivileged("modules", ["set", "todo", "x", "y"])).toBe(true);
+    expect(isPrivileged("modules", ["api"])).toBe(false);
+    // `menu add` is `bind` under another name; `keys set` moves the deck's own shortcuts
+    expect(isPrivileged("menu", ["add", "k", "script x"])).toBe(true);
+    expect(isPrivileged("menu", ["rm", "k"])).toBe(true);
+    expect(isPrivileged("keys", ["set", "home", "ctrl+h"])).toBe(true);
+    expect(isPrivileged("home", ["link", "add", "x", "script x"])).toBe(true);
+    expect(isPrivileged("pin", ["command", "script x"])).toBe(true);
+    // a macro types in your real terminal
+    expect(isPrivileged("macro", ["run", "deploy"])).toBe(true);
+    // settings that hold commands or say where things are, a whole section too
+    for (const k of ["vault.path", "home.links", "favorites", "gamepad.wheel", "shell.macros", "KEYS.ctrl+s", "menu", "moduleSettings.todo.x"]) expect(isPrivileged("config", ["set", k, "x"])).toBe(true);
+    expect(isPrivileged("config", ["reset", "keys"])).toBe(true);
+    expect(isPrivileged("config", ["key"])).toBe(true);
+    expect(isPrivileged("config", ["--window", "set", "keys.x", "y"])).toBe(true);
+    // modules: switching others off, removing, reloading
+    for (const sub of ["disable", "enable", "reload", "new", "remove", "update", "install"]) expect(isPrivileged("plugin", [sub, "todo"])).toBe(true);
+    // the deck itself
+    for (const n of ["exit", "reboot", "logout", "starthere", "undo", "redo"]) expect(isPrivileged(n, [])).toBe(true);
+    expect(isPrivileged("stealth", ["off"])).toBe(true);
+    expect(isPrivileged("theme", ["install", "x/y"])).toBe(true);
+    expect(isPrivileged("voice", ["install", "fr"])).toBe(true);
+    expect(isPrivileged("vault", ["anything-new"])).toBe(true);
+    // a flag in front never makes the check and the command read different words
+    expect(isPrivileged("macro", ["--x", "run", "deploy"])).toBe(true);
+    expect(isPrivileged("config", ["set", "--x", "keys.y", "z"])).toBe(true);
+    expect(isPrivileged("config", ["set", "appearance.theme", "keys.y"])).toBe(false);
+    expect(isPrivileged("home", ["--x", "link", "add", "a", "b"])).toBe(true);
+    expect(isPrivileged("home", ["links"])).toBe(true);
+  });
+  it("keeps the sensitive names for the deck", () => {
+    for (const n of ["vault", "account", "self-destruct", "plugin", "lock"]) expect(PRIVILEGED_NAMES.has(n)).toBe(true);
+  });
+  it("settings: keeps keys a newer version wrote, not deleted record entries", () => {
+    const out = keepUnknown({ future: 1, keys: { a: "x" } }, { keys: {} } as Record<string, unknown>);
+    expect(out.future).toBe(1);
+    expect(out.keys).toEqual({});
+  });
+  it("the shell history keeps no secret", () => {
+    expect(keepInHistory("todo add milk")).toBe(true);
+    expect(keepInHistory(" todo add secret plan")).toBe(false);
+    expect(keepInHistory("curl -H 'x-api-key: sk-ant-abcdefgh123456'")).toBe(false);
+    expect(keepInHistory("export GITHUB=ghp_abcdefghijkl")).toBe(false);
+    expect(keepInHistory("login password=hunter2")).toBe(false);
+    expect(keepInHistory("grep password notes")).toBe(true);
+  });
+  it("installing, removing and updating modules or ICEBREAKER stays yours", () => {
+    for (const sub of ["install", "remove", "update", "sources"]) expect(isPrivileged("store", [sub, "x"])).toBe(true);
+    expect(isPrivileged("store", ["search", "x"])).toBe(false);
+    expect(isPrivileged("store", ["info", "x"])).toBe(false);
+    for (const sub of ["install", "download", "modules"]) expect(isPrivileged("update", [sub])).toBe(true);
+    expect(isPrivileged("update", [])).toBe(false);
+    expect(isPrivileged("config", ["set", "updates.endpoint", "https://evil"])).toBe(true);
+  });
+});

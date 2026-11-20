@@ -1,4 +1,5 @@
 import { Glide } from "../ui/glide";
+import { FilterBar } from "../ui/filterbar";
 import { fmt } from "../core/ansi";
 import { mix } from "../core/color";
 import { strWidth } from "../core/unicode";
@@ -47,7 +48,11 @@ export function userShortcuts(deck: Deck): Shortcut[] {
 class ShortcutsApp implements App {
   readonly kind = "shortcuts";
   readonly key = "shortcuts";
-  private query = "";
+  /** type anywhere: it searches every shortcut */
+  private readonly search = new FilterBar({ always: true, colours: false, onChange: () => (this.sel = 0) });
+  private get query(): string {
+    return this.search.query;
+  }
   private sel = 0;
   private scroll = 0;
   /** the wheel's glide (ui/glide.ts) */
@@ -93,20 +98,18 @@ class ShortcutsApp implements App {
       const deckKey = cur?.id ? SHORTCUTS.find((x) => x.id === cur.id) : undefined;
       return deckKey ? rebind(this.deck, deckKey) : this.bind(), true;
     }
-    if (k.combo === "backspace") return (this.query = this.query.slice(0, -1)), (this.sel = 0), true;
+    if (k.combo !== "enter" && this.search.onKey(k)) return true;
     if (k.combo === "delete") {
       const s = this.keyRows()[this.sel];
       if (s?.cat === "yours") void this.deck.act(`unbind ${s.keys}`);
       else if (s?.id && s.id in (this.deck.settings.data.keyOverrides ?? {})) void resetKeys(this.deck, s.id);
       return true;
     }
-    if (k.combo === "esc" && this.query) return (this.query = ""), (this.sel = 0), true;
+    if (k.combo === "esc" && this.query) return this.search.clear(), true;
     return false;
   }
   onText(s: string): boolean {
-    this.query += s;
-    this.sel = 0;
-    return true;
+    return this.search.onText(s);
   }
   onAction(a: Action): boolean {
     const n = this.keyRows().length;
@@ -130,11 +133,7 @@ class ShortcutsApp implements App {
     const bindLabel = t("+ bind a key");
     const bx = x + w - strWidth(bindLabel) - 2;
     const field = { x, y, w: bx - x - 2, h: 1 };
-    ui.fill(field, { bg: c.highlight });
-    ui.text(x + 1, y, "⌕", { fg: c.accent, bg: c.highlight });
-    if (this.query) ui.text(x + 3, y, this.query, { fg: c.fg, bg: c.highlight }, field.w - 4);
-    else ui.text(x + 3, y, t("type to search: \"note\", \"tab\", \"ctrl+shift\"…"), { fg: c.muted, bg: c.highlight }, field.w - 4);
-    if (focused) ui.cursor(x + 3 + this.query.length, y);
+    this.search.render(ui, field, {}, { focused, placeholder: t("type to search: \"note\", \"tab\", \"ctrl+shift\"…") });
     ui.button(bx, y, bindLabel, () => this.bind(), { tip: "F2 · bind <keys> <command>" });
     // every deck shortcut back to its default keys (asks first)
     const changed = Object.keys(this.deck.settings.data.keyOverrides ?? {}).length;

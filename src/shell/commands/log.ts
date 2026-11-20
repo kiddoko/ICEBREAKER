@@ -58,10 +58,11 @@ export const debugCommand: Command = {
     "debug on|off            the deck logs its own events (slow frames, pages opened, settings changed)\n" +
     "debug hits              outline every clickable area (green: a command, yellow: a menu) — again to stop\n" +
     "debug log <text>        write a debug line (modules: ib.debug)\n" +
-    "debug state             where things are: page, focus, panes, frame rate, grid, modules",
+    "debug state             where things are: page, focus, panes, frame rate, grid, modules\n" +
+    "debug perf [seconds]    measure the frames while you use the deck (3 s): building, painting, cells, stutters",
   examples: [["debug on", "then log show debug"], ["debug hits", "see what is clickable where"]],
-  complete: () => ["on", "off", "hits", "log", "state"],
-  run(ctx) {
+  complete: () => ["on", "off", "hits", "log", "state", "perf"],
+  async run(ctx) {
     const d = ctx.deck;
     const [a, ...rest] = ctx.args;
     const ws = d.workspace;
@@ -83,6 +84,41 @@ export const debugCommand: Command = {
       const text = rest.join(" ").trim();
       if (!text) return ctx.err("usage: debug log <text>\n"), 1;
       d.debug(text, "shell");
+      return 0;
+    }
+    if (a === "perf") {
+      const secs = Math.max(1, Math.min(30, Number(rest[0]) || 3));
+      ctx.out(fmt.dim(`measuring for ${secs} s — use the deck now (scroll, turn the ring…)\n`));
+      d.renderer.takeAtlasMisses();
+      d.perfRec = { until: performance.now() + secs * 1000, frames: [] };
+      await new Promise((r) => setTimeout(r, secs * 1000 + 50));
+      const f = d.perfRec.frames;
+      d.perfRec = null;
+      if (f.length < 2) return ctx.out("no frames drawn (nothing moved)\n"), 0;
+      const stat = (xs: number[]) => {
+        const s = [...xs].sort((p, q) => p - q);
+        return `avg ${(xs.reduce((p, q) => p + q, 0) / xs.length).toFixed(1)} · p95 ${s[Math.floor(s.length * 0.95)].toFixed(1)} · max ${s[s.length - 1].toFixed(1)}`;
+      };
+      // a frame is late when it comes much later than the one before asked (an animation at
+      // 12 fps on purpose isn't a stutter; a ring that asked for the next frame now and got it 80 ms later is)
+      const gaps = f.slice(1).map((x, i) => x.at - f[i].at);
+      const late = f.slice(1).map((x, i) => x.at - f[i].at - Math.max(0, Math.min(1000, f[i].wanted)));
+      const moving = f.slice(1).filter((_, i) => f[i].wanted <= 17).length;
+      const janks = late.filter((g) => g > 12).length;
+      const fx = d.settings.data.fx;
+      ctx.out(
+        [
+          `${fmt.bold("frames")}   ${f.length} in ${secs} s (${Math.round(f.length / secs)} fps while something moved) · ${d.renderer.cols}×${d.renderer.rows} cells`,
+          `${fmt.bold("build")}    ${stat(f.map((x) => x.build))} ms  ${fmt.dim("(the page drawn into the grid: JavaScript)")}`,
+          `${fmt.bold("paint")}    ${stat(f.map((x) => x.paint))} ms  ${fmt.dim("(changed cells onto the canvas)")}`,
+          `${fmt.bold("cells")}    ${stat(f.map((x) => x.cells))} repainted a frame`,
+          `${fmt.bold("glyphs")}   ${stat(f.map((x) => x.glyphs))} new a frame  ${fmt.dim("(drawn for the first time: should be ~0 once things move)")}`,
+          `${fmt.bold("gaps")}     ${stat(gaps)} ms between frames · ${moving} frames asked for at once`,
+          `${fmt.bold("late")}     ${stat(late)} ms after they were asked for · ${janks ? fmt.yellow(`${janks} late frame(s) > 12 ms — the screen's work (effects, compositing), not JavaScript`) : fmt.green("none late")}`,
+          `${fmt.bold("fx")}       ${Object.entries(fx.levels ?? {}).filter(([, v]) => Number(v) > 0).map(([k, v]) => `${k} ${v}`).join(" · ") || "none"}${fx.ambient ? " · ambient" : ""}${fx.flicker ? " · flicker" : ""}${fx.glitch ? " · glitch" : ""} · theme ${d.theme.name}`,
+          "",
+        ].join("\n"),
+      );
       return 0;
     }
     if (a === "state") {

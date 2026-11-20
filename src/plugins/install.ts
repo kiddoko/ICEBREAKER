@@ -27,6 +27,13 @@ export interface IndexEntry {
   index?: string;
   version?: string;
   permissions?: string[];
+  /** what it needs (its plugin.json `requires`, copied into the index so the STORE can say it before downloading) */
+  requires?: Record<string, string>;
+  /**
+   * Ships with the deck (TODO, CALENDAR, NEXUS…): installing it puts the deck's own copy
+   * back — nothing is downloaded; `repo` is where its source can be read.
+   */
+  builtin?: boolean;
 }
 
 /** "user/repo[/tree/<branch>/<path>]", a github.com URL or a raw URL → raw base URL (ends with "/"). */
@@ -43,6 +50,12 @@ export function rawBase(src: string): string {
 }
 
 let deckRef: Deck | null = null;
+
+/** A text file from the network, the way the STORE reads it (native on the desktop). */
+export function fetchText(deck: Deck, url: string): Promise<string> {
+  deckRef = deck;
+  return get(url);
+}
 
 async function get(url: string): Promise<string> {
   // desktop: through the native side (any https host, http on the local network)
@@ -62,6 +75,45 @@ export function indexUrl(src: string): string {
   const s = src.trim();
   if (/^https?:\/\//.test(s)) return s;
   return `${rawBase(s)}index.json`;
+}
+
+/** THE official STORE: its index, and the repository its reviewed modules live in. */
+export const OFFICIAL_INDEX = "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json";
+export const OFFICIAL_REPO = "kiddoko/icebreaker-modules/";
+
+/**
+ * Verified = listed in the official STORE **and** its code lives in the official repository
+ * (modules/<id>/, where every change goes through a review) — or it ships with the deck.
+ * Anything else (another index, a repo of its own, `plugin install user/repo`) is not:
+ * the STORE warns before installing it (docs/COMMUNITY.md).
+ */
+export function isVerified(e: Pick<IndexEntry, "index" | "repo" | "builtin">): boolean {
+  return !!e.builtin || (e.index === OFFICIAL_INDEX && isOfficialSource(e.repo));
+}
+
+/**
+ * Does this source really point into the official repository? Decided on the address the
+ * download will use (never on what the text contains: "https://evil.example/github.com/kiddoko/
+ * icebreaker-modules/" is not it), and only on its default branch's modules/ folder.
+ */
+export function isOfficialSource(src: string): boolean {
+  try {
+    const base = rawBase(src);
+    return base.startsWith(`https://raw.githubusercontent.com/${OFFICIAL_REPO}`) && !base.includes("..") && /^https:\/\/raw\.githubusercontent\.com\/kiddoko\/icebreaker-modules\/(HEAD|main)\//.test(base);
+  } catch {
+    return false;
+  }
+}
+
+/** What the person reads before installing a module nobody from ICEBREAKER checked. */
+export function unverifiedWarning(source: string): string {
+  return [
+    `Nobody from ICEBREAKER has checked this module's code. It comes from: ${source}`,
+    "",
+    "It runs in a sandbox, but with the permissions you give it, it can read or change your notes —",
+    "and it can be buggy, or written to do harm. Install only what you trust; read its code first",
+    "(.icebreaker/plugins/<id>/ after the download, plugin audit <id>).",
+  ].join("\n");
 }
 
 /** Every index: the official one, then yours. Entries know which index they came from. */
@@ -108,8 +160,13 @@ export async function installPlugin(deck: Deck, src: string): Promise<{ id: stri
   const base = rawBase(repo);
   const manifest = JSON.parse(await get(`${base}plugin.json`));
   const id = slugify(String(manifest.id ?? ""));
-  if (!id || id !== manifest.id) throw new Error("plugin.json needs an \"id\" made of lowercase letters, digits and dashes");
+  if (!id || id !== manifest.id || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(id)) throw new Error("plugin.json needs an \"id\" made of lowercase letters, digits and dashes");
+  // never the id of a module that ships with the deck (it would pass for it)
+  if (deck.plugins.allBuiltins().some((p) => p.manifest.id === id)) throw new Error(`"${id}" is the id of a module that ships with the deck: this one can't take it`);
+  if (manifest.permissions !== undefined && (!Array.isArray(manifest.permissions) || manifest.permissions.some((x: unknown) => typeof x !== "string"))) throw new Error("plugin.json: \"permissions\" must be a list of names");
   if (!manifest.name) throw new Error("plugin.json needs a \"name\"");
+  // its code is one file next to plugin.json: a "main" with a folder in it could write anywhere in the vault
+  if (manifest.main !== undefined && !/^[\w.-]+\.m?js$/.test(manifest.main)) throw new Error(`plugin.json: "main" must be a file name like main.js (got "${manifest.main}")`);
   const main = await get(`${base}${manifest.main ?? "main.js"}`);
   const dir = `.icebreaker/plugins/${id}`;
   await deck.vault.mkdir(dir);

@@ -7,6 +7,10 @@ import type { App } from "../apps/types";
 import type { Deck } from "../deck";
 import { basename, dirname, display, resolvePath } from "../vault/paths";
 import type { UI } from "../ui/ui";
+import pkg from "../../package.json";
+import type { Origin } from "./origin";
+
+const APP_VERSION: string = pkg.version;
 import { ShellExecutor } from "./exec";
 import { TerminalBuffer } from "./terminal";
 import type { ReadOptions } from "./types";
@@ -24,6 +28,16 @@ const HISTORY_FILE = ".icebreaker/shell_history";
  * The shell panel: scrollback + a prompt with fish-style niceties
  * (live syntax coloring, history autosuggestions, Tab completion).
  */
+
+/**
+ * What the shell history (.icebreaker/shell_history, in the vault) keeps: not a line
+ * that starts with a space (like bash's ignorespace: type " cmd" to leave no trace),
+ * nor one that holds what looks like a secret (an API key, a token, a password=).
+ */
+export function keepInHistory(line: string): boolean {
+  if (!line.trim() || line.startsWith(" ")) return false;
+  return !/\b(sk-[a-z0-9_-]{8,}|ghp_[a-z0-9]{8,}|gh[ousr]_[a-z0-9]{8,}|xox[abp]-[a-z0-9-]{8,}|AKIA[0-9A-Z]{12,}|eyJ[a-z0-9_-]{10,}\.[a-z0-9_-]{10,})|\b(password|passwd|token|secret|api[_-]?key)\s*[=:]\s*\S/i.test(line);
+}
 export class ShellApp implements App {
   readonly kind = "shell";
   readonly key = "shell";
@@ -55,6 +69,12 @@ export class ShellApp implements App {
   }
 
   private readLine(label: string, opts: ReadOptions, signal: AbortSignal): Promise<string | null> {
+    // no shell panel (the TERMINAL module is off): what a command asks comes as a dialog
+    if (!this.deck.workspace.terminalOn) {
+      const ch = opts.choices ?? [];
+      if (ch.length && !opts.allowText) return this.deck.choose(label, ch.map((c) => ({ label: c }))).then((i) => (i === null ? null : ch[i]));
+      return this.deck.prompt(label, { mask: opts.mask, placeholder: opts.placeholder, suggestions: ch.length ? ch : undefined });
+    }
     return new Promise((resolve) => {
       this.input = "";
       this.cursor = 0;
@@ -106,14 +126,14 @@ export class ShellApp implements App {
   motd(): void {
     void this.loadHistory();
     const handle = this.deck.settings.data.user.handle;
-    this.term.write(`\x1b[2mICEBREAKER shell · ibsh 0.1 · type \x1b[0m\x1b[35mhelp\x1b[0m\x1b[2m to list commands, \x1b[0m\x1b[35mman <cmd>\x1b[0m\x1b[2m for details\x1b[0m\n`);
+    this.term.write(`\x1b[2mICEBREAKER shell · ibsh ${APP_VERSION} · type \x1b[0m\x1b[35mhelp\x1b[0m\x1b[2m to list commands, \x1b[0m\x1b[35mman <cmd>\x1b[0m\x1b[2m for details\x1b[0m\n`);
     this.term.write(`\x1b[2mlast login: ${new Date().toLocaleString()} on deck as \x1b[0m\x1b[95m${handle}\x1b[0m\n`);
   }
 
   /** Run a command line as if typed (used by the palette and buttons). */
   async runLine(line: string, echo = true): Promise<number> {
     if (echo) this.echoPrompt(line);
-    if (line.trim() && this.exec.history[this.exec.history.length - 1] !== line) {
+    if (keepInHistory(line) && this.exec.history[this.exec.history.length - 1] !== line) {
       this.exec.history.push(line);
       this.saveHistory();
     }
@@ -125,9 +145,10 @@ export class ShellApp implements App {
     return code;
   }
 
-  private echoPrompt(line: string, fromClick = false): void {
+  /** `from`: who ran it when it isn't you typing (a module's id, "terminal") — said next to the line */
+  private echoPrompt(line: string, from = ""): void {
     this.term.ensureNewline();
-    this.term.write(`\x1b[35m${display(this.exec.cwd)}\x1b[0m \x1b[95m❯\x1b[0m ${line}${fromClick ? "  \x1b[2m◂ ui\x1b[0m" : ""}\n`);
+    this.term.write(`\x1b[35m${display(this.exec.cwd)}\x1b[0m \x1b[95m❯\x1b[0m ${line}${from ? `  \x1b[2m◂ ${from}\x1b[0m` : ""}\n`);
   }
 
   /**
@@ -135,6 +156,38 @@ export class ShellApp implements App {
    * command line). If the shell is busy (a chat, a question), it runs on the
    * side without disturbing it.
    */
+  /**
+   * A line that isn't yours — a module's (ib.shell.run, a click on one of its areas) or
+   * a program's in your real terminal: on the side like a click, with its origin
+   * (shell/origin.ts) for its whole run. Privileged commands are refused
+   * (shell/privileged.ts); a module's line reads and writes only what its permissions allow.
+   */
+  async runUntrusted(line: string, origin: Origin): Promise<number> {
+    const cmd = this.deck.commands.get(line.trim().split(/\s+/)[0] ?? "");
+    // a line that will be refused never opens your shell or writes in it: it goes to the LOG
+    if (cmd?.interactive && !this.exec.refuses(line)) {
+      // it asks questions: in the ibsh tab like a click. The origin goes with THIS run only
+      // (never a flag on the shared shell: another line finishing must not lift it)
+      this.deck.workspace.showShellTab("ibsh");
+      this.echoPrompt(line, origin.source);
+      const code = await this.exec.run(line, origin);
+      if (line.trim()) this.deck.log.add("cmd", line, { failed: code !== 0, source: origin.source });
+      this.term.ensureNewline();
+      this.deck.requestFrame();
+      return code;
+    }
+    const entry = this.deck.log.add("action", line, { source: origin.source });
+    const side = new ShellExecutor(this.deck, (text) => this.deck.log.append(entry, text), () => {});
+    side.origin = origin;
+    side.cwd = this.exec.cwd;
+    side.env = { ...this.exec.env };
+    side.readLine = (label, opts, signal) => this.exec.readLine?.(`[${origin.source}] ${label}`, opts, signal) ?? Promise.resolve(null);
+    const code = await side.run(line);
+    if (code !== 0) entry.failed = true;
+    this.deck.requestFrame();
+    return code;
+  }
+
   async runAction(line: string): Promise<number> {
     const cmd = this.deck.commands.get(line.trim().split(/\s+/)[0] ?? "");
     // commands that ask questions run where you can answer them
@@ -142,7 +195,7 @@ export class ShellApp implements App {
       this.deck.workspace.showShellTab("ibsh");
       return this.runLine(line);
     }
-    if (this.exec.history[this.exec.history.length - 1] !== line) {
+    if (keepInHistory(line) && this.exec.history[this.exec.history.length - 1] !== line) {
       this.exec.history.push(line);
       this.saveHistory();
     }
@@ -310,7 +363,12 @@ export class ShellApp implements App {
     this.input = "";
     this.cursor = 0;
     this.histIndex = -1;
+    // you're typing commands: the page one of them opens (launch, open, explore…) doesn't take
+    // the keyboard away — the next line you type is still a command (tab or a click goes to the page)
+    const ws = this.deck.workspace;
+    const typing = ws.focus === "shell";
     await this.runLine(line);
+    if (typing && ws.focus !== "shell" && ws.shellVisible && !this.deck.locked) ws.focusShell();
   }
 
   private historyStep(dir: -1 | 1): void {
@@ -461,15 +519,12 @@ export class ShellApp implements App {
     const offset = Math.max(0, cursorW - room + 1);
     const colored = this.highlight(ui);
     let cx = startX - offset;
-    let cellPos = 0;
     for (const part of colored) {
       for (const ch of part.text) {
         if (cx >= startX && cx < x0 + w) ui.text(cx, y, ch, part.style);
         cx += strWidth(ch);
-        cellPos++;
       }
     }
-    void cellPos;
     const ghost = this.suggestion();
     if (ghost && focused) ui.text(cx, y, ghost, { fg: c.subtle, attrs: DIM }, Math.max(0, x0 + w - cx));
     if (focused) ui.cursor(startX + cursorW - offset, y, this.lastInputAt);

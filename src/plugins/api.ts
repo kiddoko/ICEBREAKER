@@ -57,6 +57,13 @@ export interface PluginManifest {
   launcher?: boolean;
   /** (internal) a feature that ships with the deck, packaged as a module */
   core?: boolean;
+  /**
+   * What it needs to work: other modules by id with their lowest version ("*": any), and
+   * `icebreaker` for the deck itself — `{ "todo": ">=0.1.0", "icebreaker": ">=0.4.0" }`.
+   * Installing it installs them first (after asking); switching it on switches them on
+   * first; it wakes up after them (plugins/deps.ts).
+   */
+  requires?: Record<string, string>;
 }
 
 export interface IcebreakerAPI {
@@ -282,6 +289,13 @@ export interface IcebreakerAPI {
     say(text: string, topic?: string): void;
     /** Pick one option (type to filter). Resolves with its index, or null. */
     choose(title: string, options: ChoiceOption[], opts?: { selected?: number }): Promise<number | null>;
+    /**
+     * THE file browser (the deck's own): the user chooses a folder / a file on the
+     * computer; you get its path (or null), nothing else — reading it is up to your
+     * permissions (desktop only; null elsewhere).
+     */
+    pickFolder(title: string, start?: string): Promise<string | null>;
+    pickFile(title: string, exts?: string[], start?: string): Promise<string | null>;
     theme(): Theme;
     /** Ask for a redraw (after changing state outside an input handler). */
     redraw(): void;

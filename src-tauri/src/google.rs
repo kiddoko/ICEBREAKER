@@ -87,12 +87,8 @@ fn load(app: &AppHandle) -> Result<Option<Creds>, String> {
 
 fn save(app: &AppHandle, c: &Creds) -> Result<(), String> {
     let path = creds_path(app)?;
-    std::fs::write(&path, serde_json::to_string_pretty(c).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
-    }
+    // the refresh token and the client secret: readable by your user only, from the first byte
+    crate::crypto::write_private(&path, serde_json::to_string_pretty(c).map_err(|e| e.to_string())?.as_bytes()).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -125,7 +121,8 @@ fn enc(s: &str) -> String {
 /// Runs curl with a config fed on stdin. Returns (HTTP status, body).
 fn curl(config: String) -> Result<(u16, String), String> {
     let mut cmd = Command::new("curl");
-    cmd.args(["-sS", "--max-time", "20", "--proto", "=https", "-K", "-", "-w", "\n%{http_code}"]);
+    // -q: your ~/.curlrc isn't read (only the config given here)
+    cmd.args(["-q", "-sS", "--max-time", "20", "--proto", "=https", "-K", "-", "-w", "\n%{http_code}"]);
     cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
     #[cfg(windows)]
     {
@@ -221,7 +218,10 @@ pub async fn google_connect(app: AppHandle) -> Result<(), String> {
         getrandom::getrandom(&mut rnd).map_err(|e| e.to_string())?;
         let verifier: String = rnd.iter().map(|b| b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"[(*b as usize) % 66] as char).collect();
         let challenge = b64url(&Sha256::digest(verifier.as_bytes()));
-        let st: String = verifier.chars().rev().take(24).collect();
+        // its own random value: never a piece of the verifier (it travels in the address bar)
+        let mut srnd = [0u8; 24];
+        getrandom::getrandom(&mut srnd).map_err(|e| e.to_string())?;
+        let st: String = srnd.iter().map(|b| b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"[(*b as usize) % 64] as char).collect();
 
         let server = tiny_http::Server::http("127.0.0.1:0").map_err(|e| e.to_string())?;
         let port = server.server_addr().to_ip().map(|a| a.port()).ok_or("no port")?;
@@ -285,12 +285,8 @@ pub fn google_cache(app: AppHandle, content: Option<String>) -> Result<Option<St
     let path = creds_path(&app)?.with_file_name("google-cache.json");
     match content {
         Some(c) => {
-            std::fs::write(&path, c).map_err(|e| e.to_string())?;
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
-            }
+            // your agenda: readable by you only, from the moment it's written
+            crate::crypto::write_private(&path, c.as_bytes()).map_err(|e| e.to_string())?;
             Ok(None)
         }
         None => match std::fs::read_to_string(&path) {
@@ -332,6 +328,10 @@ pub async fn google_calendar(app: AppHandle, method: String, path: String, query
         let call = |token: &str| {
             let mut cfg = format!("url = {}\nrequest = {}\nheader = {}\n", q(&url), q(&method), q(&format!("Authorization: Bearer {token}")));
             if let Some(b) = &body {
+                // JSON only: for curl a body that starts with "@" is "send this FILE"
+                if !b.trim_start().starts_with(['{', '[']) {
+                    return Err("google: the body must be JSON".to_string());
+                }
                 cfg.push_str(&format!("header = \"Content-Type: application/json\"\ndata-binary = {}\n", q(b)));
             }
             curl(cfg)

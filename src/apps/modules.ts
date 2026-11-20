@@ -37,7 +37,7 @@ interface Cart {
  * after the other when the page opens. The panel below says what the one in front
  * is and what you can do with it.
  *
- *   ←↑↓→ choose · enter launch · space on/off · x remove · s store
+ *   ←↑↓→ choose · enter launch · space on/off · del remove · type to search
  * Everything here is also a command: launch, plugin enable/disable, store remove.
  */
 export class ModulesApp implements App {
@@ -52,7 +52,8 @@ export class ModulesApp implements App {
   /** when the page was first drawn (the modules power up one after the other) */
   private shownAt = 0;
   /** search + colours (the same bar as NEXUS): / types, squares tick colours (modules view <colour…>) */
-  readonly filter = new FilterBar();
+  /** typing a letter searches at once (no letter shortcuts here: space, del, enter and the menu) */
+  readonly filter = new FilterBar({ typeToSearch: true });
   /** a shard going into its socket (enter): it launches once it's in */
   private inserting: { at: number; id: string } | null = null;
   constructor(private readonly deck: Deck) {
@@ -63,7 +64,7 @@ export class ModulesApp implements App {
     return "modules";
   }
   status(): string {
-    return t("←↑↓→ choose · enter launch · space on/off · x remove · s store");
+    return t("←↑↓→ choose · enter launch · space on/off · del remove · type to search");
   }
 
   private carts(): Cart[] {
@@ -89,7 +90,6 @@ export class ModulesApp implements App {
       });
     const doors: Cart[] = [
       { id: "note", icon: "✚", name: t("New note"), description: t("a blank page, any title"), module: false, on: true, builtin: true },
-      { id: "shell", icon: "❯", name: t("Shell"), description: t("your terminal, with every command of the deck"), module: false, on: true, builtin: true },
       { id: "store", icon: "⇣", name: t("Store"), description: t("more modules and themes"), module: false, on: true, builtin: true, launch: "store" },
     ];
     const tags = d.settings.data.moduleTags ?? {};
@@ -122,9 +122,8 @@ export class ModulesApp implements App {
   }
 
   private launch(c: Cart): void {
-    if (c.id === "shell") return this.deck.workspace.focusShell();
     if (c.id === "note") return void this.deck.newNote();
-    if (c.module && !c.on) return void this.deck.act(`plugin enable ${c.id}`);
+    if (c.module && !c.on) return void this.deck.act(`plugin enable ${c.id} --window`);
     if (c.launch) return void this.deck.act(c.launch);
     if (c.widgetsOnly) this.deck.notify(t("{name} adds widgets: on HOME, e then a", { name: c.name }));
   }
@@ -135,9 +134,9 @@ export class ModulesApp implements App {
     if (c.module && !c.on) items.push({ label: t("Turn on"), run: () => this.run(c), hint: "enter" });
     else if (c.launch || !c.module) items.push({ label: t("Open"), run: () => this.run(c), hint: "enter" });
     if (c.module) {
-      if (c.on) items.push({ label: t("Turn off"), cmd: `plugin disable ${c.id}`, hint: "space" });
+      if (c.on) items.push({ label: t("Turn off"), cmd: `plugin disable ${c.id} --window`, hint: "space" });
       items.push(
-        { label: t("Pin"), tip: t("at the top of the tree and in the pinned widget"), cmd: `pin ${c.id}`, hint: "p" },
+        { label: t("Pin"), tip: t("at the top of the tree and in the pinned widget"), cmd: `pin ${c.id}` },
         ...(c.launch ? [{ label: t("Add to THE MENU…"), tip: t("give it a key on THE MENU (⌘K)"), run: () => addToMenu(this.deck, c.name, c.launch!) }] : []),
         {
           label: t("Colour"), tip: t("a colour tag, like Ableton"),
@@ -149,10 +148,10 @@ export class ModulesApp implements App {
           ],
         },
         "-",
-        { label: t("Uninstall…"), tip: t("remove the module (the STORE can put it back)"), run: () => void this.onText("x"), danger: true, hint: "x" },
+        { label: t("Uninstall…"), tip: t("remove the module (the STORE can put it back)"), run: () => this.remove(c), danger: true, hint: "del" },
       );
     }
-    items.push("-", { label: t("store"), cmd: "store", hint: "s" });
+    items.push("-", { label: t("store"), cmd: "store" });
     return items;
   }
 
@@ -165,20 +164,18 @@ export class ModulesApp implements App {
   onText(s: string): boolean {
     if (this.filter.onText(s)) return (this.sel = 0), true;
     const c = this.carts()[this.sel];
-    if (s === " " && c?.module) return void this.deck.act(`plugin ${c.on ? "disable" : "enable"} ${c.id}`), true;
-    if (s === "x" && c?.module) {
-      void this.deck.confirm(t("Remove {name}?", { name: c.name }), c.builtin ? t("It ships with the deck: the STORE can reinstall it any time.") : t("Its files go to .trash in your vault.")).then((ok) => {
-        if (ok) void this.deck.act(`store remove ${c.id}`);
-      });
-      return true;
-    }
-    if (s === "s") return void this.deck.act("store"), true;
-    if (s === "p" && c?.module) return void this.deck.act(`pin ${c.id}`), true;
+    if (s === " " && c?.module) return void this.deck.act(`plugin ${c.on ? "disable" : "enable"} ${c.id} --window`), true;
     return false;
+  }
+  private remove(c: ReturnType<ModulesApp["carts"]>[number] | undefined): void {
+    if (!c?.module) return;
+    void this.deck.confirm(t("Remove {name}?", { name: c.name }), c.builtin ? t("It ships with the deck: the STORE can reinstall it any time.") : t("Its files go to .trash in your vault.")).then((ok) => {
+      if (ok) void this.deck.act(`store remove ${c.id} --window`);
+    });
   }
   onKey(k: KeyInput): boolean {
     if (this.filter.onKey(k)) return (this.sel = 0), true;
-    if (k.combo === "delete") return this.onText("x");
+    if (k.combo === "delete" || k.combo === "backspace") return this.remove(this.carts()[this.sel]), true;
     return false;
   }
   onAction(a: Action): boolean {
@@ -291,7 +288,8 @@ export class ModulesApp implements App {
     const c = ui.c;
     const cart = v.cart;
     const front = v.i === this.sel;
-    const near = (v.z + 1) / 2;
+    // in 12 steps: depth tints repeat from frame to frame (a new tint = a glyph drawn again, core/atlas.ts)
+    const near = Math.round(((v.z + 1) / 2) * 12) / 12;
     const k = near * near;
     // NEXUS's sizes, kept to the page's width (a narrow page: narrower shards, less overlap)
     const frontW = Math.max(16, Math.min(26, Math.round(r.w * 0.3)));
@@ -372,13 +370,13 @@ export class ModulesApp implements App {
     const by = r.y + 3;
     const btn = (label: string, run: () => void, tip: string, accent?: number) => (bx += ui.button(bx, by, label, run, { tip, accent }) + 2);
     if (cur.module && !cur.on) btn(t("switch on  ⏎"), () => this.run(cur), "enter · plugin enable");
-    else if (cur.launch || cur.id === "shell" || cur.id === "note") btn(t("launch  ⏎"), () => this.run(cur), cur.launch ?? "ctrl+`");
+    else if (cur.launch || cur.id === "note") btn(t("launch  ⏎"), () => this.run(cur), cur.launch ?? "enter");
     else if (cur.widgetsOnly) btn(t("its widgets: HOME → e → a"), () => this.run(cur), "e then a on HOME");
     if (cur.module) {
-      if (cur.on) btn(t("switch off  space"), () => void this.deck.act(`plugin disable ${cur.id}`), "space · plugin disable");
-      btn(t("remove  x"), () => this.onText("x"), "x · store remove", c.error);
+      if (cur.on) btn(t("switch off  space"), () => void this.deck.act(`plugin disable ${cur.id} --window`), "space · plugin disable");
+      btn(t("remove  del"), () => this.remove(cur), "del · store remove", c.error);
     }
-    btn(t("store  s"), () => void this.deck.act("store"), "s");
+    btn(t("store"), () => void this.deck.act("store"), "store");
   }
 }
 

@@ -2,7 +2,16 @@
  * Everything exposed to plugins as `ib.lib`. Plugins written in plain JS
  * can't `import` from the app, so the useful building blocks are passed in.
  */
+// ── THE UI KIT (docs/UI_KIT.md): use these, don't redraw your own — every module then looks
+// and behaves like the deck (one field, one checkbox, one slider…)
+/** THE one-line text field: search, prompt, password, "add…" (icon, placeholder, mask, onSubmit / onChange) */
+export { Field } from "../ui/field";
+/** checkbox [■] · choice ‹ value › · tabs · BOX_ON / BOX_OFF (☑ ☐ in plain text) */
+export { checkbox, choice, tabs, BOX_ON, BOX_OFF } from "../ui/controls";
+/** the spacing rules (docs/LAYOUT.md): Row lays things out GAP apart and never past its end */
+export { Row, INSET, GAP, LABEL, SECTION } from "../ui/layout";
 export { ChatView } from "../ui/chatview";
+/** the multi-line editor (notes); for one line, Field */
 export { TextEditor } from "../ui/editor";
 export { ListView } from "../ui/list";
 /** the search + colours bar every list of things uses (MODULES, NEXUS, the file browser) */

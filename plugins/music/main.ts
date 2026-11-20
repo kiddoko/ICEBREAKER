@@ -32,7 +32,7 @@ let tick: ReturnType<typeof setInterval> | null = null;
 export function activate(ib: IcebreakerAPI): void {
   ib.settings.register([
     { key: "folder", label: "music folder", type: "action", value: () => folder.split(/[\\/]/).filter(Boolean).pop() ?? "—", run: async () => {
-      const p = await ib.ui.prompt("Your music folder (a full path)", { initial: folder });
+      const p = await ib.ui.pickFolder("YOUR MUSIC FOLDER", folder || undefined);
       if (p?.trim()) await ib.shell.run(`music folder ${ib.lib.q(p.trim())}`);
     }, help: "Where your music files are (mp3, flac, m4a…): the library is read from there." },
     { key: "shuffle", label: "shuffle", type: "action", value: () => (shuffle ? "on" : "off"), cmd: "music shuffle", help: "Play the queue in a random order." },
@@ -206,8 +206,12 @@ export function activate(ib: IcebreakerAPI): void {
   };
   /** What the widget and `music` show: the local player first. */
   const shown = (): MediaStatus | null => localStatus() ?? status;
-  ib.modules.expose("status", { doc: "status() → what's playing { title, artist, playing, position, duration } or null", fn: () => shown() });
-  ib.modules.expose("control", { doc: 'control("play" | "pause" | "toggle" | "next" | "prev")', fn: (a: string) => ib.shell.run(`music ${a}`) });
+  ib.modules.expose("status", { doc: "status() → what's playing { title, artist, playing, position, duration } or null", needs: "media", fn: () => shown() });
+  ib.modules.expose("control", {
+    doc: 'control("play" | "pause" | "toggle" | "next" | "prev")',
+    needs: "media",
+    fn: (a: string) => (["play", "pause", "toggle", "next", "prev"].includes(String(a)) ? ib.shell.run(`music ${a}`) : Promise.reject(new Error(`music.control: "${a}" isn't play, pause, toggle, next or prev`))),
+  });
   const position = () => {
     const s = shown();
     if (!s) return 0;
@@ -427,7 +431,11 @@ export function activate(ib: IcebreakerAPI): void {
     private col: Col = 0;
     private sel = [0, 0, 0];
     private scroll = [0, 0, 0];
-    private query = "";
+    /** "/" searches: THE field (ib.lib.Field) */
+    private readonly search = new ib.lib.Field({ icon: "⌕", onChange: () => ((this.col = 2), (this.sel[2] = 0)) });
+    private get query(): string {
+      return this.search.text;
+    }
     private typing = false;
 
     title() {
@@ -471,14 +479,11 @@ export function activate(ib: IcebreakerAPI): void {
 
     onText(t: string): boolean {
       if (this.typing) {
-        if (t.includes("\n")) this.typing = false;
-        else this.query += t;
-        this.col = 2;
-        this.sel[2] = 0;
-        return true;
+        if (/^[\r\n]+$/.test(t)) return (this.typing = false), true;
+        return this.search.onText(t);
       }
       switch (t) {
-        case "/": this.typing = true; this.query = ""; return true;
+        case "/": this.typing = true; this.search.clear(); return true;
         case " ": run("music toggle"); return true;
         case "n": run("music next"); return true;
         case "p": run("music prev"); return true;
@@ -493,12 +498,11 @@ export function activate(ib: IcebreakerAPI): void {
     }
     onKey(k: KeyInput): boolean {
       if (this.typing) {
-        if (k.combo === "esc") return (this.typing = false), (this.query = ""), true;
-        if (k.combo === "backspace") return (this.query = this.query.slice(0, -1)), true;
+        if (k.combo === "esc") return (this.typing = false), this.search.clear(), true;
         if (k.combo === "enter") return (this.typing = false), true;
-        return k.combo.length === 1;
+        return this.search.onKey(k) || k.combo.length === 1;
       }
-      if (k.combo === "esc" && this.query) return (this.query = ""), true;
+      if (k.combo === "esc" && this.query) return this.search.clear(), true;
       if (k.combo === "tab") return (this.col = ((this.col + 1) % 3) as Col), true;
       if (k.combo === "shift+tab") return (this.col = ((this.col + 2) % 3) as Col), true;
       if (k.combo === "left" && this.col > 0) return (this.col = (this.col - 1) as Col), true;
@@ -522,7 +526,8 @@ export function activate(ib: IcebreakerAPI): void {
       }
     }
     private async pickFolder(): Promise<void> {
-      const v = await ib.ui.prompt("Music folder", { initial: folder, placeholder: "~/Music" });
+      // the deck's file browser (cancelled: nothing changes; `music folder <path>` types it)
+      const v = await ib.ui.pickFolder("YOUR MUSIC FOLDER", folder || undefined);
       if (v?.trim()) run(`music folder ${q(v.trim())}`);
     }
 
@@ -541,12 +546,10 @@ export function activate(ib: IcebreakerAPI): void {
       }
       // search line
       const sy = r.y;
-      const sbg = this.typing ? mix(c.accent, c.bg, 0.86) : c.panelAlt;
+      const sbg = c.panelAlt;
       ui.fill({ x: r.x + 1, y: sy, w: r.w - 2, h: 1 }, { bg: sbg });
-      ui.text(r.x + 2, sy, "/", { fg: c.accent, bg: sbg, attrs: BOLD });
-      ui.text(r.x + 4, sy, this.query || (this.typing ? "" : "search  (/)"), { fg: this.query ? c.fg : c.faint, bg: sbg }, r.w - 30);
-      if (this.typing && focused) ui.cursor(r.x + 4 + strWidth(this.query), sy);
-      ui.hit({ x: r.x + 1, y: sy, w: r.w - 30, h: 1 }, { onClick: () => ((this.typing = true), (this.query = "")), tip: "search titles, artists, albums" });
+      this.search.render(ui, { x: r.x + 1, y: sy, w: r.w - 30, h: 1 }, { focused: this.typing && focused, active: this.typing, bg: sbg, placeholder: this.typing ? "" : "search  (/)" });
+      ui.hit({ x: r.x + 1, y: sy, w: r.w - 30, h: 1 }, { onClick: () => ((this.typing = true), this.search.clear()), tip: "search titles, artists, albums" });
       ui.textRight(r.x + r.w - 2, sy, `${lib.length} tracks · ${scanning ? "scanning…" : folder}`, { fg: c.faint, bg: sbg });
 
       // three columns + now playing bar
@@ -625,20 +628,15 @@ export function activate(ib: IcebreakerAPI): void {
       } else ui.text(r.x + 2, by + 1, "nothing playing · enter plays the selection", { fg: c.faint });
       // controls
       let cx = r.x + r.w - 46;
-      const ctl = (label: string, cmd: string, tip: string, on = false) => {
-        const rect = { x: cx, y: by + 2, w: strWidth(label), h: 1 };
-        const hot = ui.hovered(rect);
-        ui.text(cx, by + 2, label, hot ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: on ? c.accent : c.fg, bg: c.highlight, attrs: on ? BOLD : 0 });
-        ui.hit(rect, { cmd, tip });
-        cx += rect.w + 1;
-      };
-      ctl(" |◀◀ ", "music prev", "p");
-      ctl(s?.playing ? " ❚❚ " : " ▶ ", "music toggle", "space");
-      ctl(" ▶▶| ", "music next", "n");
-      ctl(" shuffle ", "music shuffle", "s", shuffle);
-      ctl(` repeat ${repeat} `, "music repeat", "r", repeat !== "off");
-      ctl(" − ", "music vol -", "-");
-      ctl(" + ", "music vol +", `+ · volume ${Math.round(local?.volume ?? 80)}%`);
+      // THE button; a mode that's on (shuffle, repeat) in the accent, the rest quiet
+      const ctl = (label: string, cmd: string, tip: string, on = false) => (cx += ui.button(cx, by + 2, label, () => {}, { cmd, tip, quiet: !on }) + 1);
+      ctl("|◀◀", "music prev", "p");
+      ctl(s?.playing ? "❚❚" : "▶", "music toggle", "space");
+      ctl("▶▶|", "music next", "n");
+      ctl("shuffle", "music shuffle", "s", shuffle);
+      ctl(`repeat ${repeat}`, "music repeat", "r", repeat !== "off");
+      ctl("−", "music vol -", "-");
+      ctl("+", "music vol +", `+ · volume ${Math.round(local?.volume ?? 80)}%`);
     }
   }
 

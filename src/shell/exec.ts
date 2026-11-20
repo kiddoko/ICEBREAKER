@@ -2,6 +2,8 @@ import { fmt, stripAnsi } from "../core/ansi";
 import { levenshtein } from "../core/fuzzy";
 import type { Deck } from "../deck";
 import { basename, dirname, globToRegex, resolvePath } from "../vault/paths";
+import { AI_COMMANDS, allows, guardedDeck, guardedVault, type Origin } from "./origin";
+import { isPrivileged } from "./privileged";
 import { parse, ParseError, type SimpleCommand, type Word } from "./parser";
 import { helpText, wantsHelp } from "./help";
 import type { ReadOptions, ShellContext, ShellControls } from "./types";
@@ -16,6 +18,12 @@ export class ShellExecutor {
   history: string[] = [];
   lastStatus = 0;
   private abort: AbortController | null = null;
+  /**
+   * Who this shell's lines come from when they aren't yours (shell/origin.ts): a side
+   * shell made for one module's line. The main shell has none; a line that isn't yours
+   * run there passes its origin to `run`.
+   */
+  origin: Origin | null = null;
   /** Set by the shell panel: shows a question and resolves with the answer. */
   readLine: ((label: string, opts: ReadOptions, signal: AbortSignal) => Promise<string | null>) | null = null;
 
@@ -38,7 +46,7 @@ export class ShellExecutor {
     this.abort?.abort();
   }
 
-  async run(line: string): Promise<number> {
+  async run(line: string, origin: Origin | null = this.origin): Promise<number> {
     const trimmed = line.trim();
     if (!trimmed) return 0;
     let pipelines;
@@ -56,7 +64,7 @@ export class ShellExecutor {
       for (const p of pipelines) {
         if (prevNext === "&&" && status !== 0) break;
         if (prevNext === "||" && status === 0) break;
-        status = await this.runPipeline(p.commands);
+        status = await this.runPipeline(p.commands, origin);
         prevNext = p.next;
         if (this.abort?.signal.aborted) break;
       }
@@ -66,30 +74,53 @@ export class ShellExecutor {
     }
   }
 
-  private async runPipeline(cmds: SimpleCommand[]): Promise<number> {
+  /** Would any command of this line be refused to a module or your real terminal? (a line that doesn't parse: yes) */
+  refuses(line: string): boolean {
+    try {
+      return parse(line.trim(), { ...this.env, "?": String(this.lastStatus) }).some((p) =>
+        p.commands.some((c) => {
+          const [name, ...args] = c.words.map((w) => w.value);
+          const cmd = this.deck.commands.get(name ?? "");
+          return !!cmd && isPrivileged(cmd.name, args);
+        }),
+      );
+    } catch {
+      return true;
+    }
+  }
+
+  private async runPipeline(cmds: SimpleCommand[], origin: Origin | null): Promise<number> {
     let input = "";
     let status = 0;
+    // a module's line: what it captures (a pipe, `<`) is reading, what it redirects (`>`) is writing
+    if (origin) {
+      const captures = cmds.length > 1 || cmds.some((c) => c.input !== undefined);
+      if (captures && !allows(origin, "vault:read")) return this.print(`ibsh: ${origin.source} needs the "vault:read" permission to pipe or read (| <)\n`, true), 126;
+      if (cmds.some((c) => c.output) && !allows(origin, "vault:write")) return this.print(`ibsh: ${origin.source} needs the "vault:write" permission to write (>)\n`, true), 126;
+    }
+    const vault = origin ? guardedVault(this.deck.vault, origin) : this.deck.vault;
     for (let i = 0; i < cmds.length; i++) {
       const c = cmds[i];
       const last = i === cmds.length - 1;
       if (c.input !== undefined) {
         try {
-          input = await this.deck.vault.read(resolvePath(this.cwd, c.input));
+          input = await vault.read(resolvePath(this.cwd, c.input));
         } catch (e) {
           this.print(`ibsh: ${c.input}: ${errMsg(e)}\n`, true);
           return 1;
         }
       }
       const toScreen = last && !c.output;
-      const res = await this.runCommand(this.expand(c.words), input, toScreen);
+      // file names are the vault's too: no * for a line without "vault:read"
+      const res = await this.runCommand(this.expand(c.words, allows(origin, "vault:read")), input, toScreen, origin);
       status = res.status;
       input = res.stdout;
       if (c.output) {
         const path = resolvePath(this.cwd, c.output.path);
         const text = stripAnsi(res.stdout);
         try {
-          if (c.output.append) await this.deck.vault.append(path, text);
-          else await this.deck.vault.write(path, text);
+          if (c.output.append) await vault.append(path, text);
+          else await vault.write(path, text);
         } catch (e) {
           this.print(`ibsh: ${c.output.path}: ${errMsg(e)}\n`, true);
           return 1;
@@ -100,10 +131,10 @@ export class ShellExecutor {
   }
 
   /** Expand globs like *.md against the vault index. Unmatched globs stay literal (like bash). */
-  private expand(words: Word[]): string[] {
+  private expand(words: Word[], globs = true): string[] {
     const out: string[] = [];
     for (const w of words) {
-      if (!w.glob) {
+      if (!w.glob || !globs) {
         out.push(w.value);
         continue;
       }
@@ -119,7 +150,7 @@ export class ShellExecutor {
     return out;
   }
 
-  private async runCommand(argv: string[], stdin: string, isTTY: boolean): Promise<{ status: number; stdout: string }> {
+  private async runCommand(argv: string[], stdin: string, isTTY: boolean, origin: Origin | null): Promise<{ status: number; stdout: string }> {
     const [name, ...args] = argv;
     const cmd = this.deck.commands.get(name);
     if (!cmd) {
@@ -132,13 +163,36 @@ export class ShellExecutor {
       return { status: 127, stdout: "" };
     }
 
+    if (origin && isPrivileged(cmd.name, args)) {
+      this.print(`${name}: not allowed from a module or your real terminal — type it in ibsh\n`, true);
+      return { status: 126, stdout: "" };
+    }
+    if (origin && AI_COMMANDS.has(cmd.name) && !allows(origin, "ai")) {
+      this.print(`${name}: ${origin.source} needs the "ai" permission\n`, true);
+      return { status: 126, stdout: "" };
+    }
+    // Another module's command (`todo add`, `remind`, `cal add`…) keeps that module's own data,
+    // out of reach of the vault's guard: a STORE / vault module changes your data through
+    // them only with "vault:write" (as through their functions: `todo.add`). The deck's own
+    // commands and the features packaged with it go through the guarded vault below.
+    if (origin && origin.grants !== "all" && cmd.source && cmd.source !== "core" && cmd.source !== origin.source && !allows(origin, "vault:write")) {
+      const owner = this.deck.plugins.list().find((p) => p.manifest.id === cmd.source);
+      // (a module from the vault can write "core" in its plugin.json: only one that ships with the deck counts)
+      if (!(owner?.source === "builtin" && owner.manifest.core)) {
+        this.print(`${name}: ${origin.source} needs the "vault:write" permission to run ${cmd.source}'s commands\n`, true);
+        return { status: 126, stdout: "" };
+      }
+    }
+    // while this command runs, the deck it sees keeps the origin: its vault, and what it runs in turn
+    const live = { on: true };
+    const deck = origin ? guardedDeck(this.deck, origin, (l) => self.run(l, origin), live) : this.deck;
     let stdout = "";
     const self = this;
     const controls: ShellControls = {
       cd: (p) => (self.cwd = p),
       clear: () => self.clearScreen(),
       history: () => [...self.history],
-      run: (line) => self.run(line),
+      run: (line) => self.run(line, origin),
     };
     const ctx: ShellContext = {
       args,
@@ -146,7 +200,7 @@ export class ShellExecutor {
       isTTY,
       cwd: this.cwd,
       env: this.env,
-      deck: this.deck,
+      deck,
       shell: controls,
       signal: this.abort!.signal,
       out: (t) => {
@@ -175,6 +229,9 @@ export class ShellExecutor {
       }
       this.print(`${name}: ${errMsg(e)}\n`, true);
       return { status: 1, stdout };
+    } finally {
+      // what happens later in what the command opened (a pop-up, a page) is you
+      live.on = false;
     }
   }
 }

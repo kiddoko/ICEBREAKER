@@ -1,10 +1,11 @@
 import { copyToClipboard } from "../core/clipboard";
+import { FilterBar } from "../ui/filterbar";
 import { BLOCK_KINDS, type Block, type BlockKind } from "../core/catalog";
 import { mix } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
-import { strWidth, truncate } from "../core/unicode";
+import { strWidth, truncate, wrapWords } from "../core/unicode";
 import type { Deck } from "../deck";
 import { ListView } from "../ui/list";
 import type { UI } from "../ui/ui";
@@ -21,7 +22,11 @@ class BlocksApp implements App {
   readonly kind = "blocks";
   readonly key = "blocks";
   private readonly list = new ListView<Block>();
-  private query = "";
+  /** type anywhere: it searches every block */
+  private readonly search = new FilterBar({ always: true, colours: false });
+  private get query(): string {
+    return this.search.query;
+  }
   /** -1 = every kind */
   private kindAt = -1;
   private builtFor = "";
@@ -61,14 +66,12 @@ class BlocksApp implements App {
   }
 
   onText(s: string): boolean {
-    if (s === "\n") return false;
-    this.query += s;
-    return true;
+    return this.search.onText(s);
   }
 
   onKey(k: KeyInput): boolean {
-    if (k.combo === "backspace" && this.query) return (this.query = this.query.slice(0, -1)), true;
-    if (k.combo === "esc" && this.query) return (this.query = ""), true;
+    if (this.query && this.search.onKey(k)) return true;
+    if (k.combo === "esc" && this.query) return this.search.clear(), true;
     if (k.combo === "ctrl+c") {
       const b = this.list.current;
       if (b?.call) copyToClipboard(b.call), this.deck.notify(`${t("copied")}: ${b.call}`, "success");
@@ -92,10 +95,7 @@ class BlocksApp implements App {
     const x = r.x + 2, w = r.w - 4;
     let y = r.y + 1;
     // the search
-    ui.fill({ x, y, w, h: 1 }, { bg: c.highlight });
-    ui.text(x + 1, y, "⌕", { fg: c.accent, bg: c.highlight });
-    ui.text(x + 3, y, this.query || t("search every block: a name, a module, a word of its doc…"), { fg: this.query ? c.fg : c.muted, bg: c.highlight }, w - 4);
-    if (focused) ui.cursor(x + 3 + strWidth(this.query), y);
+    this.search.render(ui, { x, y, w, h: 1 }, {}, { focused, placeholder: t("search every block: a name, a module, a word of its doc…") });
     ui.textRight(x + w - 1, y, `${this.list.items.length}`, { fg: c.subtle, bg: c.highlight });
     y += 2;
     // the kinds: all · command · action…
@@ -143,15 +143,7 @@ class BlocksApp implements App {
     if (b.id !== b.name) ui.text(dx, dy++, b.id, { fg: c.faint }, dw);
     dy += 1;
     // the doc, wrapped
-    const words = (b.doc || "—").split(" ");
-    let line = "";
-    const lines: string[] = [];
-    for (const wd of words) {
-      if (strWidth(`${line} ${wd}`) > dw && line) (lines.push(line), (line = wd));
-      else line = line ? `${line} ${wd}` : wd;
-    }
-    lines.push(line);
-    for (const l of lines.slice(0, 6)) ui.text(dx, dy++, l, { fg: c.fg }, dw);
+    for (const l of wrapWords(b.doc || "—", dw).slice(0, 6)) ui.text(dx, dy++, l, { fg: c.fg }, dw);
     dy += 1;
     if (b.value) {
       ui.text(dx, dy, t("now"), { fg: c.subtle });

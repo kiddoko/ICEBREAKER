@@ -70,13 +70,6 @@ const KEY_NAMES: Record<string, string> = {
   PageUp: "pageup", PageDown: "pagedown", Insert: "insert",
 };
 
-/** Keys that become actions when nothing else handled them. */
-export const KEY_ACTIONS: Record<string, Action> = {
-  up: "up", down: "down", left: "left", right: "right",
-  enter: "confirm", esc: "back", pageup: "page-up", pagedown: "page-down",
-  home: "home", end: "end",
-};
-
 /** macOS: Cmd plays the role Ctrl has elsewhere, and Option types characters. */
 export const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform) || /Mac OS X/.test(navigator.userAgent);
 

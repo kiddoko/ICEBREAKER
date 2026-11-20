@@ -76,8 +76,10 @@ body {
     transparent 3px
   );
 }
-/* and the slow roll of an old tube: one faint band drifting down every 9 s */
-#scanlines::after {
+/* and the slow roll of an old tube: one faint band drifting down every 9 s — only with
+   CRT flicker on: a never-ending animation makes the compositor redo the whole stack of
+   layers (glow, bloom, scanlines…) 60 times a second, even when nothing else moves */
+#deck.flicker #scanlines::after {
   content: "";
   will-change: transform; /* the compositor moves it: no repaint of the window */
   position: absolute;

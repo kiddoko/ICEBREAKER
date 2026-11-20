@@ -1,18 +1,22 @@
 import { contextCommand } from "../../ai/context";
+import { BOX_OFF, BOX_ON } from "../../ui/controls";
 import { parseDay } from "../../core/dates";
 import { redoCommand, tourCommand, undoCommand } from "./undo";
 import { auditReport } from "../../plugins/audit";
 import { DEFAULT_SETTINGS } from "../../core/settings";
 import { stealthCommand, voiceCommand } from "./voice";
 import { fmt } from "../../core/ansi";
+import { askInShell, asker } from "../ask";
 import { padEnd } from "../../core/unicode";
 import { ASK_SYSTEM_PROMPT } from "../../ai/prompts";
 import { appendLog, ensureEntry } from "../../vault/journal";
 import { join, slugify } from "../../vault/paths";
 import { applyFxPreset, FX_PRESET_ALIASES, FX_PRESET_NAMES, FX_PRESETS } from "../../workspace/fxpanel";
-import { fetchIndex, installPlugin, installTheme } from "../../plugins/install";
+import { installPlugin, installTheme, isOfficialSource, unverifiedWarning } from "../../plugins/install";
+import { storeCommand } from "../../apps/store";
+import { pickFolder } from "../../workspace/filebrowser";
 import { parseFlags } from "../parser";
-import type { Command } from "../types";
+import type { Command, ShellContext } from "../types";
 import { applyTweaks, tweaksToToml, type Theme } from "../../core/theme";
 import { knob, KNOBS, parseKnobValue } from "../../core/tweaks";
 import { account, lock, selfDestruct } from "./account";
@@ -40,7 +44,8 @@ const open: Command = {
       ctx.err("usage: open path\n");
       return 1;
     }
-    let p = ctx.resolve(ctx.args[0]);
+    // a name with spaces typed without quotes (open START HERE/README): the whole of it is the path
+    let p = ctx.resolve(ctx.args.join(" "));
     if (!/\.\w+$/.test(p)) p += ".md";
     if (ctx.deck.vault.isDir(p)) {
       ctx.err(`open: ${ctx.args[0]} is a directory\n`);
@@ -133,7 +138,7 @@ const checkboxes: Command = {
         const m = line.match(/^\s*[-*+] \[( |x|X)\] (.*)$/);
         if (!m || (!all && m[1] !== " ")) return;
         n++;
-        const box = m[1] === " " ? "☐" : "☑";
+        const box = m[1] === " " ? BOX_OFF : BOX_ON;
         ctx.out(ctx.isTTY ? `${fmt.green(box)} ${m[2]}  ${fmt.gray(`${path}:${ln + 1}`)}\n` : `${box} ${m[2]}  ${path}:${ln + 1}\n`);
       });
     });
@@ -459,13 +464,239 @@ const config: Command = {
   },
 };
 
+/** "2026-11-20-1432": the local date and time, for the backup's name. */
+function localStamp(d = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
+function sizeText(bytes: number): string {
+  return bytes < 1024 ? `${bytes} B` : bytes < 1 << 20 ? `${(bytes / 1024).toFixed(0)} KB` : `${(bytes / (1 << 20)).toFixed(1)} MB`;
+}
+
+/**
+ * The recovery key, shown once: 24 numbered words to write on paper. One of them
+ * is asked back — you can't go on without it (esc shows the words again): that's
+ * the proof they're written down somewhere. Then the screen is cleared: the words
+ * stay nowhere, not even in the scrollback.
+ */
+async function showRecovery(ctx: ShellContext, words: string): Promise<void> {
+  const list = words.trim().split(/\s+/);
+  const show = () => {
+    // compact (5 lines), so it fits a small shell panel: 3 rows of 8, read left to right
+    ctx.out(`${fmt.bold(fmt.yellow("RECOVERY KEY"))} · write these 24 words on paper, in order · ${fmt.bold("shown only now")}\n`);
+    for (let r = 0; r < 3; r++) ctx.out(` ${list.slice(r * 8, r * 8 + 8).map((w, i) => `${fmt.dim(String(r * 8 + i + 1).padStart(2))} ${padEnd(w, 10)}`).join("")}\n`);
+    ctx.out(fmt.dim("they open your vault if you forget your password (login page: forgot password?) · ICEBREAKER keeps no copy · whoever has them can open it\n"));
+  };
+  show();
+  const i = Math.floor(Math.random() * 24);
+  for (;;) {
+    const typed = await ctx.read(`written down? type word ${i + 1}`, { placeholder: "from your paper" });
+    const w = (typed ?? "").trim().toLowerCase();
+    if (w && (w.length >= 4 ? list[i].startsWith(w) : w === list[i])) break;
+    ctx.shell.clear();
+    ctx.err(typed === null || !w ? "write the words down first — they're the only way back if you forget your password\n" : `that's not word ${i + 1} — look at your paper again\n`);
+    show();
+  }
+  ctx.shell.clear();
+  ctx.out(`${fmt.green("✓")} recovery key written down · the screen is cleared, the words are nowhere else\n`);
+}
+
+/** vault encrypt / decrypt / export / unlock / recovery / status (docs/ENCRYPTION.md). */
+async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window = false): Promise<number> {
+  const { deck } = ctx;
+  const crypt = deck.platform.vault.crypt;
+  // --window (Settings, the setup): the password in a dialog, the recovery key in its window (copy all)
+  const words = async (w: string): Promise<void> => {
+    if (!window) return showRecovery(ctx, w);
+    await deck.workspace.recoveryWords(w);
+    ctx.out(`${fmt.green("✓")} recovery key kept · the words are nowhere else\n`);
+  };
+  if (!crypt) return ctx.err("vault: encryption needs the desktop app\n"), 1;
+  const st = await crypt.status();
+  if (sub === "status") {
+    ctx.out(
+      st.encrypted
+        ? `${fmt.green("encrypted")} · ${st.unlocked ? "unlocked" : fmt.yellow("locked")} · ${st.recovery ? "recovery key: yes" : fmt.yellow("no recovery key (vault recovery)")}${st.busy ? " · busy" : ""}\n`
+        : `${fmt.yellow("plain")} · not encrypted ${fmt.dim("(vault encrypt)")}\n`,
+    );
+    for (const n of st.notes) ctx.out(fmt.dim(`  ${n}\n`));
+    if (st.leftovers) ctx.out(fmt.yellow(`  ${st.leftovers} plain file(s) next to the encrypted vault (an older ICEBREAKER or another app wrote them): vault adopt\n`));
+    return 0;
+  }
+  if (sub === "adopt") {
+    if (!st.encrypted) return ctx.err("this vault isn't encrypted: nothing to adopt\n"), 1;
+    if (!st.leftovers) return ctx.out("no plain file next to the encrypted vault\n"), 0;
+    const r = await crypt.adopt();
+    await deck.vault.rescan();
+    ctx.out(`${fmt.green("✓")} ${r.files} plain file(s) encrypted into the vault (a name already taken: in .trash/from-plain-…), each checked, the plain ones removed\n`);
+    return 0;
+  }
+  if (!ctx.isTTY) return ctx.err(`vault ${sub}: needs the terminal\n`), 1;
+  const password = async (label = "your password"): Promise<string | null> => (window ? deck.prompt(label, { mask: true }) : ctx.read(label, { mask: true }));
+  // typed in the shell: everything stays in the shell; --window (Settings, THE MENU, the setup): dialogs
+  const ask = (title: string, detail: string): Promise<boolean> => (window ? deck.confirm(title, detail) : askInShell(ctx, title, detail));
+  const tell = async (title: string, detail: string, tone: "info" | "success" | "error" = "success"): Promise<void> => {
+    if (window) await deck.workspace.message(title, detail, { frame: tone === "error" ? "PROBLEM" : "DONE", tone });
+  };
+  try {
+    if (sub === "unlock") {
+      if (!st.encrypted) return ctx.out("this vault isn't encrypted\n"), 0;
+      if (st.unlocked) return ctx.out("already unlocked\n"), 0;
+      const pw = await password("your password (or the 24 words of the recovery key)");
+      if (pw === null) return 130;
+      if (pw.trim().split(/\s+/).length >= 20) {
+        // the recovery key: it opens the vault, then your account's password opens it from now on
+        const mine = await password("your account's password (it opens this vault from now on)");
+        if (mine === null) return 130;
+        await crypt.recover(pw, mine);
+      } else await crypt.unlock(pw);
+      await deck.vault.rescan();
+      ctx.out(`${fmt.green("✓")} unlocked · ${deck.vault.markdown().length} notes\n`);
+      return 0;
+    }
+    if (sub === "encrypt") {
+      if (st.encrypted) return ctx.out("this vault is already encrypted\n"), 0;
+      if (!deck.account) return ctx.err("vault encrypt: log in first (the vault is encrypted with your account's password)\n"), 1;
+      ctx.out(
+        [
+          `${fmt.bold("vault encrypt")} ${deck.vault.root}`,
+          "  1. a plain backup zip next to the vault (delete it once you're sure)",
+          "  2. every file encrypted — notes, names, folders — and checked before its plain copy is removed",
+          "  3. ICEBREAKER and ibsh work as always; your real terminal, Obsidian and git only see noise",
+          "  4. a recovery key — 24 words to write on paper — opens it if you forget your password",
+          "",
+        ].join("\n"),
+      );
+      const ok = await ask("Encrypt this vault?", "Have paper and a pen ready: 24 words to write down at the end.");
+      if (!ok) return 1;
+      const pw = await password("your account's password");
+      if (pw === null) return 130;
+      ctx.out(fmt.dim("backup, encryption, check… (don't quit)\n"));
+      const r = await crypt.encrypt(pw, localStamp());
+      await deck.vault.rescan();
+      if (r.recovery) await words(r.recovery);
+      ctx.out(`${fmt.green("✓")} encrypted: ${r.files} files, ${r.folders} folders, ${sizeText(r.bytes)} · each one checked\n`);
+      if (r.backup) ctx.out(`  plain backup: ${r.backup}\n  ${fmt.dim("delete it once you're sure: it's your notes in plain")}\n`);
+      if (r.left.length) ctx.err(`  couldn't remove ${r.left.length} plain file(s), remove them yourself:\n${r.left.map((l) => `    ${l}\n`).join("")}`);
+      await tell(
+        "The vault is encrypted",
+        [
+          `${r.files} files, ${r.folders} folders, ${sizeText(r.bytes)} · each one checked`,
+          ...(r.backup ? ["", "A plain backup was made first:", r.backup, "Delete it once you're sure: it's your notes in plain."] : []),
+          ...(r.left.length ? ["", `${r.left.length} plain file(s) couldn't be removed — the shell lists them.`] : []),
+        ].join("\n"),
+      );
+      return 0;
+    }
+    if (sub === "rekey") {
+      if (!st.encrypted) return ctx.err("this vault isn't encrypted: there's no key to change\n"), 1;
+      if (!st.unlocked) return ctx.err("unlock the vault first (vault unlock)\n"), 1;
+      ctx.out("a new vault key: every file encrypted again (checked), and a new recovery key — the old key file, password or recovery key open nothing any more\n");
+      if (!(await ask("Change the vault's key?", "Have paper and a pen ready: new recovery words at the end."))) return 1;
+      const pw = await password("your account's password");
+      if (pw === null) return 130;
+      ctx.out(fmt.dim("checking the password, then encrypting everything again and checking every file… (don't quit)\n"));
+      const r = await crypt.rekey(pw);
+      if (r.recovery) await words(r.recovery);
+      ctx.out(`${fmt.green("✓")} a new vault key: ${r.files} files encrypted again, each checked · the old recovery key is gone\n`);
+      await tell("The vault has a new key", `${r.files} files encrypted again, each checked.\nThe old key, the old recovery words and copies made before open nothing new.`);
+      return 0;
+    }
+    if (sub === "recovery") {
+      if (!st.encrypted) return ctx.err("this vault isn't encrypted: no recovery key needed\n"), 1;
+      if (!st.unlocked) return ctx.err("unlock the vault first (vault unlock)\n"), 1;
+      if (st.recovery && !(await ask("Make a new recovery key?", "The old one stops working: throw its paper away."))) return 1;
+      const pw = await password("your account's password");
+      if (pw === null) return 130;
+      await words(await crypt.newRecovery(pw));
+      return 0;
+    }
+    if (sub === "decrypt") {
+      if (!st.encrypted) return ctx.out("this vault isn't encrypted\n"), 0;
+      ctx.out("every file goes back to plain on the disk (readable by any app, Obsidian, git…), each one checked before the encrypted copy is removed\n");
+      const ok = await ask("Decrypt this vault?", "Its files become readable by any app again.");
+      if (!ok) return 1;
+      const pw = await password();
+      if (pw === null) return 130;
+      const r = await crypt.decrypt(pw);
+      await deck.vault.rescan();
+      ctx.out(`${fmt.green("✓")} plain again: ${r.files} files, ${r.folders} folders, ${sizeText(r.bytes)} · each one checked\n`);
+      await tell("The vault is plain again", `${r.files} files, ${r.folders} folders, ${sizeText(r.bytes)} · each one checked`);
+      return 0;
+    }
+    if (sub === "export") {
+      const dest = rest.join(" ").trim();
+      if (!dest) return ctx.err("usage: vault export <folder>   (a new or empty folder outside the vault, e.g. ~/Desktop/notes-copy)\n"), 1;
+      if (!st.encrypted) return ctx.err("this vault isn't encrypted: its files are already plain\n"), 1;
+      // a plain copy of everything: the password again, whoever sits at the deck
+      const pw = await password();
+      if (pw === null) return 130;
+      // the native side checks it before it writes anything
+      const r = await crypt.export(dest, pw);
+      ctx.out(`${fmt.green("✓")} plain copy: ${r.files} files, ${r.folders} folders, ${sizeText(r.bytes)} in ${dest} ${fmt.dim("· delete it when you're done")}\n`);
+      await tell("A plain copy is ready", `${r.files} files, ${r.folders} folders, ${sizeText(r.bytes)} in\n${dest}\nDelete it when you're done: it's your notes in plain.`);
+      return 0;
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    ctx.err(`vault ${sub}: ${msg}\n`);
+    await tell(/wrong password|wrong recovery/i.test(msg) ? "Wrong password" : `vault ${sub}: it didn't work`, /wrong password/i.test(msg) ? "Nothing was changed. Try again." : `${msg}\nNothing was changed.`, "error");
+    return 1;
+  }
+  return 1;
+}
+
+
+
+/** `vault move [folder]`: the whole vault elsewhere (a USB key, another disk), nothing lost on the way. */
+async function vaultMove(ctx: ShellContext, rest: string[], window = false): Promise<number> {
+  const { deck } = ctx;
+  const v = deck.platform.vault;
+  if (!v.move || !v.moveCleanup) return ctx.err("vault move: needs the desktop app\n"), 1;
+  const ask = (title: string, detail: string): Promise<boolean> => (window ? deck.confirm(title, detail) : askInShell(ctx, title, detail));
+  const typed = rest.join(" ").trim();
+  const dest = typed || (window ? await pickFolder(deck, "MOVE THE VAULT TO…") : await ctx.read("move the vault to (a folder)", { placeholder: "~/Documents or /Volumes/KEY" })) || "";
+  if (!dest.trim()) return 130;
+  const from = deck.vault.root;
+  // a folder that already holds things: the vault goes inside it, under its own name (vault.rs does the same)
+  const name = from.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || "Icebreaker";
+  const full = await (deck.platform.files?.list(dest).then((es) => (es.length ? `${dest.replace(/[\\/]+$/, "")}/${name}` : dest)).catch(() => dest) ?? dest);
+  if (!(await ask("Move the vault?", `${from}\n→ ${full}\n\nEverything is copied there and checked (encrypted or not), then ICEBREAKER uses the new place.\nThe old folder stays until you say it can go.`))) return 1;
+  ctx.out(fmt.dim("copying and checking every file… (don't quit)\n"));
+  try {
+    const root = await v.move(dest);
+    await deck.vault.mount(root);
+    deck.settings.set("vault.path", deck.vault.root);
+    await deck.settings.flush();
+    await deck.vault.rescan();
+    ctx.out(`${fmt.green("✓")} the vault is now in ${root} · every file checked\n`);
+    if (await ask("Remove the old folder?", `${from}\n\nEverything in it is now in ${root} (checked). Keep it as a copy if you like.`)) {
+      await v.moveCleanup();
+      ctx.out(`${fmt.green("✓")} the old folder is gone\n`);
+    } else ctx.out(`the old folder stays: ${from} ${fmt.dim("(a copy — delete it yourself when you're sure)")}\n`);
+    return 0;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    ctx.err(`vault move: ${msg}\n`);
+    if (window) await deck.workspace.message("The vault didn't move", `${msg}\nNothing was changed.`, { frame: "PROBLEM", tone: "error" });
+    return 1;
+  }
+}
+
 const vaultCmd: Command = {
   name: "vault",
-  summary: "show or switch the vault folder",
-  usage: "vault                 show path and stats\nvault mount <abs path>  use another folder (e.g. your Obsidian vault)\nvault rescan",
+  interactive: true,
+  summary: "show or switch the vault folder · encrypt it",
+  usage:
+    "vault                 show path and stats\nvault mount <abs path>  use another folder (e.g. your Obsidian vault)\nvault move [folder]   move the whole vault there (copied, checked, then used; no folder: choose one)\nvault rescan\nvault status          encrypted or plain, recovery key or not\nvault encrypt         encrypt it (a plain backup zip first, a recovery key at the end)\nvault decrypt         back to plain files\nvault export <folder> a plain copy, the vault stays encrypted\nvault recovery        a new recovery key (24 words; the old one stops working)\nvault rekey           a new vault key: everything encrypted again, a new recovery key\nvault unlock          open it with your password or the recovery key (the login does it)\nvault adopt           plain files written next to the encrypted vault go inside it\n  --window            (encrypt, decrypt, recovery, rekey, unlock, export, move) dialogs and windows instead of the shell: the password, the recovery key (copy all), the result",
+  man: "An encrypted vault is one folder of encrypted files (.icebreaker-vault): names, folders and notes. Your account's password opens it at login; lock wipes its key from memory.\nThe recovery key (24 words, shown once at vault encrypt or vault recovery) opens it if you forget the password: login page → forgot password?.\nICEBREAKER and ibsh read it as always; your real terminal, Obsidian and git only see noise. vault export makes a plain copy.\nSee docs/ENCRYPTION.md.",
+  complete: () => ["mount", "move", "rescan", "status", "encrypt", "decrypt", "export", "recovery", "rekey", "unlock", "adopt"],
   async run(ctx) {
     const v = ctx.deck.vault;
-    const [sub, ...rest] = ctx.args;
+    const [sub, ...rest] = ctx.args.filter((a) => a !== "--window");
+    if (sub && ["status", "encrypt", "decrypt", "export", "recovery", "rekey", "unlock", "adopt"].includes(sub)) return vaultCrypt(ctx, sub, rest, ctx.args.includes("--window"));
+    if (sub === "move") return vaultMove(ctx, rest, ctx.args.includes("--window"));
     if (sub === "rescan") {
       await v.rescan();
       ctx.out(`${v.entries.length} entries indexed\n`);
@@ -482,7 +713,13 @@ const vaultCmd: Command = {
       ctx.shell.cd("");
       return;
     }
-    ctx.out(`${fmt.bold("path")}     ${v.root}\n${fmt.bold("notes")}    ${v.markdown().length}\n${fmt.bold("files")}    ${v.files().length}\n${fmt.bold("journal")}  ${v.journalDates().size} days\n`);
+    const st = await ctx.deck.platform.vault.crypt?.status().catch(() => null);
+    const enc = !st
+      ? ""
+      : st.encrypted
+        ? `${fmt.bold("encrypted")} ${fmt.green("yes")}${st.unlocked ? "" : fmt.yellow(" · locked (vault unlock)")}${st.recovery ? "" : fmt.yellow(" · no recovery key (vault recovery)")}\n`
+        : `${fmt.bold("encrypted")} no ${fmt.dim("· vault encrypt")}\n`;
+    ctx.out(`${fmt.bold("path")}     ${v.root}\n${enc}${fmt.bold("notes")}    ${v.markdown().length}\n${fmt.bold("files")}    ${v.files().length}\n${fmt.bold("journal")}  ${v.journalDates().size} days\n`);
   },
 };
 
@@ -490,11 +727,11 @@ const plugin: Command = {
   name: "plugin",
   aliases: ["plugins"],
   summary: "list, enable, disable, scaffold plugins",
-  usage: "plugin [ls]\nplugin enable <id>\nplugin disable <id>\nplugin reload\nplugin new <id>     (scaffold a plugin in .icebreaker/plugins/<id>)\nplugin install <user/repo | id>   (download from GitHub / the community index)\nplugin update <id>  (re-download an installed plugin)\nplugin search [words]  (browse the community index)\nplugin audit <id>   (what its code does that a module shouldn't need)",
+  usage: "plugin [ls]\nplugin enable <id>   (what it needs and is off comes on first)\nplugin disable <id>  (what needs it goes off too, after asking)\nplugin reload\nplugin new <id>     (scaffold a plugin in .icebreaker/plugins/<id>)\nplugin install <user/repo | id>   (download from GitHub / the community index)\nplugin update <id>  (re-download an installed plugin — store update shows what's new)\nplugin search [words]  (= store search)\nplugin audit <id>   (what its code does that a module shouldn't need)\n  --window          (enable, disable) ask in dialogs instead of the shell",
   man: "Plugins live in <vault>/.icebreaker/plugins/<id>/ with a plugin.json and a main.js.\nVault plugins are disabled until you enable them; you'll see the permissions they ask for first.\nSee docs/PLUGINS.md.",
   async run(ctx) {
     const host = ctx.deck.plugins;
-    const [sub, id] = ctx.args;
+    const [sub, id] = ctx.args.filter((a) => a !== "--window");
     if (sub === "audit") {
       if (!id) return ctx.err("usage: plugin audit <id>\n"), 1;
       const found = await host.audit(id);
@@ -512,15 +749,34 @@ const plugin: Command = {
     }
     if (sub === "enable" || sub === "disable") {
       if (!id) {
-        ctx.err(`usage: plugin ${sub} <id>\n`);
+        ctx.err(`usage: plugin ${sub} <id> [--window]\n`);
         return 1;
       }
-      const ok = sub === "enable" ? await host.enable(id) : await host.disable(id);
-      ctx.out(ok ? `${id}: ${sub}d\n` : `${id}: unchanged\n`);
-      return;
+      const ask = asker(ctx, ctx.args.includes("--window"));
+      try {
+        if (sub === "enable") {
+          const before = new Set(host.active().map((p) => p.manifest.id));
+          const ok = await host.enable(id, ask);
+          // what it needed and was off came on with it (plugins/deps.ts)
+          const along = host.active().map((p) => p.manifest.id).filter((x) => x !== id && !before.has(x));
+          ctx.out(ok ? `${id}: enabled${along.length ? fmt.dim(` · with what it needs: ${along.join(", ")}`) : ""}\n` : `${id}: unchanged\n`);
+          return ok || host.active().some((p) => p.manifest.id === id) ? 0 : 1;
+        }
+        // others need it: they go off with it — after asking
+        const deps = host.dependentsOf(id);
+        if (deps.length && !(await ask(`${id} is needed by ${deps.join(", ")}`, `Switch ${deps.length > 1 ? "them" : "it"} off too?`))) return ctx.out(`${id}: unchanged\n`), 1;
+        for (const x of deps.reverse()) await host.disable(x);
+        const ok = await host.disable(id);
+        ctx.out(ok ? `${id}: disabled${deps.length ? fmt.dim(` · and ${deps.join(", ")}`) : ""}\n` : `${id}: unchanged\n`);
+        return 0;
+      } catch (e) {
+        ctx.err(`plugin ${sub}: ${e instanceof Error ? e.message : e}\n`);
+        return 1;
+      }
     }
     if (sub === "reload") {
-      await host.reload();
+      // you ask for it yourself (modules can't run this): the code as it is now is the code you approve
+      await host.reload(true);
       ctx.out(`${host.active().length} plugins active\n`);
       return;
     }
@@ -542,10 +798,15 @@ const plugin: Command = {
         if (!src) return ctx.err(`${id}: not installed from a repo (no "source" in its plugin.json)\n`), 1;
       }
       if (!src) return ctx.err(`usage: plugin ${sub} <user/repo | id>\n`), 1;
+      // straight from a repo: not reviewed by ICEBREAKER (the official STORE's own repo is)
+      if (sub === "install" && !isOfficialSource(src)) {
+        ctx.out(fmt.yellow(`⚠ not verified — ${src}\n`));
+        if (!(await asker(ctx, ctx.args.includes("--window"))("Install a module nobody has checked?", unverifiedWarning(src)))) return ctx.out("not installed\n"), 1;
+      }
       ctx.out(fmt.dim(`fetching ${src}…\n`));
       try {
         const p = await installPlugin(ctx.deck, src);
-        await host.reload();
+        await host.reload(sub === "update");
         ctx.out(`${fmt.green("✓")} ${p.name} (${p.id}) ${sub === "update" ? "updated" : "installed"} — permissions: ${p.permissions.join(", ") || "none"}\n`);
         if (sub === "install") ctx.out(`read its code in .icebreaker/plugins/${p.id}/, then: ${fmt.magenta(`plugin enable ${p.id}`)}\n`);
       } catch (e) {
@@ -554,18 +815,8 @@ const plugin: Command = {
       }
       return;
     }
-    if (sub === "search") {
-      const q = ctx.args.slice(1).join(" ").toLowerCase();
-      try {
-        const hits = (await fetchIndex(ctx.deck)).filter((e) => !q || `${e.id} ${e.name} ${e.description}`.toLowerCase().includes(q));
-        if (!hits.length) ctx.out("nothing found\n");
-        for (const e of hits) ctx.out(`${fmt.magenta(padEnd(e.id, 18))} ${padEnd(e.kind, 7)} ${e.description} ${fmt.dim(`— ${e.author}`)}\n`);
-      } catch (e) {
-        ctx.err(`plugin search: ${e instanceof Error ? e.message : e}\n`);
-        return 1;
-      }
-      return;
-    }
+    // one search, one catalog: the STORE's (with built-ins, states and what each needs)
+    if (sub === "search") return storeCommand.run({ ...ctx, args: ["search", ...ctx.args.slice(1)] });
     ctx.err(`plugin: unknown subcommand ${sub}\n`);
     return 1;
   },

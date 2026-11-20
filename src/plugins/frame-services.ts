@@ -20,7 +20,7 @@ import { mix } from "../core/color";
 import type { Deck } from "../deck";
 import { q } from "../ui/ui";
 import { isTagColor } from "../vault/marks";
-import type { ServiceSpec } from "./services";
+import type { Caller, ServiceSpec } from "./services";
 import { DECK_KEYS, keysOf, menuKeyOf } from "../core/shortcuts";
 import { quickItems } from "../workspace/quickmenu";
 
@@ -31,6 +31,18 @@ export const FRAME_PARTS = new Set(["tree", "terminal", "shell", "theme", "home"
 
 export function frameServices(deck: Deck): Record<string, Record<string, ServiceSpec>> {
   const ws = () => deck.workspace;
+  const settingOf = (key: string) => key.split(".").reduce<unknown>((o, k) => (o !== null && typeof o === "object" && Object.prototype.hasOwnProperty.call(o, k) ? (o as Record<string, unknown>)[k] : undefined), deck.settings.data);
+  // A function that runs a command line: called by a module, the line runs as that module
+  // (its origin: privileged commands refused, its permissions — shell/origin.ts); called by
+  // the deck's own code or your `modules call`, as you. Every argument is quoted: a ";" in
+  // one can never start another command.
+  const run = (c: Caller | undefined, l: string) => (!l ? 0 : c?.origin ? deck.shell.runUntrusted(l, c.origin) : deck.act(l));
+  const line = (doc: string, make: (...a: any[]) => string, needs?: ServiceSpec["needs"]): ServiceSpec => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+    doc,
+    needs,
+    fn: (...a) => run(undefined, make(...a)),
+    by: (c: Caller) => (...a) => run(c, make(...a)),
+  });
   return {
     tree: {
       reveal: { doc: "reveal(path) → opens its folders and selects it in the tree", fn: (path: string) => ws().sidebar.reveal(String(path)) },
@@ -45,7 +57,7 @@ export function frameServices(deck: Deck): Record<string, Record<string, Service
       new: { doc: "new() → one more terminal tab", fn: () => ws().newTerminal() },
     },
     shell: {
-      run: { doc: "run(line) → runs an ICEBREAKER command (any: `open notes/a.md`, `theme e-ink`…)", fn: (line: string) => deck.act(String(line)) },
+      run: line("run(line) → runs an ICEBREAKER command (`open notes/a.md`, `theme e-ink`…) — as the module that calls it: what modules may not run stays refused", (l: string) => String(l)),
       show: { doc: "show() → opens the shell panel", fn: () => ws().toggleShell(true) },
       hide: { doc: "hide() → folds the shell panel away", fn: () => ws().toggleShell(false) },
     },
@@ -57,16 +69,16 @@ export function frameServices(deck: Deck): Record<string, Record<string, Service
       mix: { doc: 'mix("#ff0000", "#0000ff", 0.5) → a colour between two (#rrggbb)', fn: (a: string, b: string, k: number) => hexOf(mix(parseInt(String(a).slice(1), 16), parseInt(String(b).slice(1), 16), Number(k))) },
     },
     home: {
-      add: { doc: "add(widgetId) → puts a widget on HOME (a page with room)", fn: (id: string) => deck.act(`home add ${String(id)}`) },
-      remove: { doc: "remove(widgetId) → takes it off HOME", fn: (id: string) => deck.act(`home rm ${String(id)}`) },
-      page: { doc: "page(n) → shows HOME page n (1, 2…)", fn: (n: number) => deck.act(`home page ${Number(n)}`) },
-      edit: { doc: "edit(on) → edit mode on / off", fn: (on = true) => deck.act(on ? "home edit" : "home done") },
-      link: { doc: 'link(label, command, icon?) → a 1×1 shortcut square on HOME', fn: (label: string, cmd: string, icon = "◆") => deck.act(`home link add ${q(String(label))} ${q(String(cmd))} ${q(String(icon))}`) },
+      add: line("add(widgetId) → puts a widget on HOME (a page with room)", (id: string) => `home add ${q(String(id))}`),
+      remove: line("remove(widgetId) → takes it off HOME", (id: string) => `home rm ${q(String(id))}`),
+      page: line("page(n) → shows HOME page n (1, 2…)", (n: number) => `home page ${Number(n) || 1}`),
+      edit: line("edit(on) → edit mode on / off", (on = true) => (on ? "home edit" : "home done")),
+      link: line("link(label, command, icon?) → a 1×1 shortcut square on HOME (the deck's own code only: a module can't plant a command)", (label: string, cmd: string, icon = "◆") => `home link add ${q(String(label))} ${q(String(cmd))} ${q(String(icon))}`),
     },
     panel: {
-      add: { doc: "add(widgetId) → a widget in the side panel (at the end)", fn: (id: string) => deck.act(`panel add ${String(id)}`) },
-      remove: { doc: "remove(widgetId) → out of the side panel", fn: (id: string) => deck.act(`panel rm ${String(id)}`) },
-      show: { doc: "show(on) → the side panel shown / hidden", fn: (on = true) => deck.act(on ? "panel show" : "panel hide") },
+      add: line("add(widgetId) → a widget in the side panel (at the end)", (id: string) => `panel add ${q(String(id))}`),
+      remove: line("remove(widgetId) → out of the side panel", (id: string) => `panel rm ${q(String(id))}`),
+      show: line("show(on) → the side panel shown / hidden", (on = true) => (on ? "panel show" : "panel hide")),
     },
     tabs: {
       list: { doc: "list() → [{ n, title, kind }] the open tabs", fn: () => ws().tabs.slice(0, ws().tabCount).map((t, i) => ({ n: i + 1, title: t.title(), kind: t.kind })) },
@@ -84,18 +96,26 @@ export function frameServices(deck: Deck): Record<string, Record<string, Service
     menu: {
       open: { doc: "open() → THE MENU (search everything, menu keys)", fn: () => void ws().menu() },
       items: { doc: "items() → [{ key, label, from }] every quick key on THE MENU", fn: () => quickItems(deck).map(({ key, label, from }) => ({ key, label, from })) },
-      add: { doc: 'add(key, command) → space, then key runs the command (one of the user\'s: Settings → KEYS shows it)', fn: (key: string, cmd: string) => deck.act(`menu add ${q(String(key))} ${q(String(cmd))}`) },
+      add: line("add(key, command) → ⌘K, then key runs the command (the deck's own code only: a module can't plant a command)", (key: string, cmd: string) => `menu add ${q(String(key))} ${q(String(cmd))}`),
     },
     keys: {
       list: { doc: "list() → [{ id, keys, menuKey, what }] every deck shortcut, with the user's changes", fn: () => DECK_KEYS.map((s) => ({ id: s.id, keys: keysOf(s, deck.settings.data.keyOverrides), menuKey: menuKeyOf(s, deck.settings.data.menu?.keys), what: s.what })) },
       run: { doc: 'run(id) → does what a deck shortcut does ("tree", "home", "menu"…)', fn: (id: string) => { const s = DECK_KEYS.find((x) => x.id === String(id)); if (s) ws().runShortcut(s); return !!s; } },
-      bind: { doc: 'bind(keys, command) → one of the user\'s shortcuts ("ctrl+shift+1", "space g")', fn: (keys: string, cmd: string) => deck.act(`bind ${q(String(keys))} ${q(String(cmd))}`) },
+      bind: line('bind(keys, command) → one of the user\'s shortcuts ("ctrl+shift+1") (the deck\'s own code only: a module can\'t plant a command)', (keys: string, cmd: string) => `bind ${q(String(keys))} ${q(String(cmd))}`),
     },
     deck: {
       alert: { doc: "alert(title, body?) → calls the user the way they chose (Settings → NOTIFICATIONS: screen, sound, notification center, voice)", fn: (title: string, body = "") => deck.alert(String(title), String(body)) },
       notify: { doc: 'notify(text, kind?) → a toast ("info" · "success" · "warning" · "error")', fn: (text: string, kind?: "info" | "success" | "warning" | "error") => deck.notify(String(text), kind) },
       say: { doc: "say(text, topic?) → the voice says it, if that topic may speak (Settings → VOICE)", fn: (text: string, topic = "modules") => deck.speak(topic as never, String(text)) },
-      setting: { doc: 'setting(key) → a setting\'s value ("appearance.theme", "user.handle"…)', fn: (key: string) => String(key).split(".").reduce<unknown>((o, k) => (o as Record<string, unknown> | undefined)?.[k], deck.settings.data) },
+      setting: {
+        doc: 'setting(key) → a setting\'s value ("appearance.theme", "user.handle"…) — a STORE / vault module reads how the deck looks and sounds, not where you are, your vault\'s place, your keys or your module list',
+        fn: (key: string) => settingOf(String(key)),
+        by: (c: Caller) => (key: string) => {
+          const k = String(key);
+          if (c.origin && c.origin.grants !== "all" && !/^(appearance|fx|sound|editor|journal|boot|notifications|voice|user\.(handle|language|locale))(\.|$)/.test(k)) throw new Error(`deck.setting: "${k}" isn't for modules`);
+          return settingOf(k);
+        },
+      },
     },
   };
 }

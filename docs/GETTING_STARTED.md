@@ -1,5 +1,10 @@
 # Getting started
 
+> **⚠ Test software.** ICEBREAKER is a hobby project, never audited, not ready for heavy,
+> secure or professional use: **store nothing sensitive in it, back up your vault
+> regularly**, and tell us what breaks ([../DISCLAIMER.md](../DISCLAIMER.md)). The deck says
+> so too: on the login page, at start-up and on the first screen of the setup.
+
 A ten-minute tour of the deck. Everything here also works with a gamepad.
 
 ## 1. The first launch
@@ -60,7 +65,8 @@ help                                      # every command · man <cmd> for detai
 
 One feature = one module, each with its **command**, its **app** and its **HOME
 widget**: TODO, CALENDAR, MUSIC, STATS… `Ctrl+K` → *Modules* lists them, and you
-can switch any of them off. More from the community: `plugin search`.
+can switch any of them off. More from the community: the **STORE** (`store`, `store search`);
+modules marked ⚠ *not verified* weren't reviewed by the project — read [DISCLAIMER.md](../DISCLAIMER.md).
 
 ## 5. Staying offline: stealth mode
 

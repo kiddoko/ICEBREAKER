@@ -216,10 +216,7 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
     const label = compact ? full.split(" ")[0] : full;
     const lw = strWidth(label) + 2;
     nx -= lw;
-    const rect = { x: nx, y: r.y, w: lw, h: 1 };
-    const on = ui.hovered(rect) || ws.activeApp?.kind === kind;
-    ui.text(nx, r.y, ` ${label} `, { fg: on ? c.panel : c.muted, bg: on ? c.accent : c.highlight });
-    ui.hit(rect, { cmd, tip: compact ? `${full.slice(2)} · ${tip}` : tip });
+    ui.button(nx, r.y, label, () => {}, { quiet: true, selected: ws.activeApp?.kind === kind, cmd, tip: compact ? `${full.slice(2)} · ${tip}` : tip });
     nx -= 1;
   }
   ui.text(rx, r.y, right, { fg: c.muted, bg: c.panelAlt });
@@ -360,7 +357,7 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
   if (d.settings.data.privacy.stealth) parts.push({ text: `◉ ${t("stealth")}`, fg: c.success, cmd: "stealth", tip: t("100 % local: no internet · stealth off") });
   if (d.voice.speaking) parts.push({ text: `◖ ${t("voice")}`, fg: c.accentAlt, cmd: "voice stop", tip: t("speaking · click to stop") });
   if (d.gamepad.connected) parts.push({ text: "◈ pad", fg: c.success });
-  parts.push(ws.shellVisible ? { text: "▾ shell", fg: c.muted, cmd: "term hide", tip: "fold the shell away · ctrl+`" } : { text: "▴ shell", fg: c.accent, cmd: "term show", tip: "bring the shell back · ctrl+`" });
+  if (ws.terminalOn) parts.push(ws.shellVisible ? { text: "▾ shell", fg: c.muted, cmd: "term hide", tip: "fold the shell away · ctrl+`" } : { text: "▴ shell", fg: c.accent, cmd: "term show", tip: "bring the shell back · ctrl+`" });
   parts.push({ text: "⌨", fg: ws.overlays.some((o) => o instanceof Osk) ? c.accent : c.muted, cmd: "osk", tip: "on-screen keyboard · pad: X" });
   parts.push({ text: "✦ fx", fg: c.accentAlt, cmd: "view fx", tip: "bloom, scanlines… · `fx` in the shell" });
   const muted = !!d.settings.data.sound.muted;

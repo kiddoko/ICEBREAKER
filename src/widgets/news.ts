@@ -218,23 +218,21 @@ export const newsWidget: WidgetSpec = {
     // this copy: its categories (else the shared feed: your area + interests), list or "à la une"
     const cats = catsOf(deck, key);
     const mode = widgetConfig<string>(deck, key, "mode", "list");
-    let items: Headline[], error: string | null, header: string;
+    let items: Headline[], header: string;
     if (cats.length) {
       const f = feedOf(cats);
       if ((!f.at || Date.now() - f.at > 20 * 60_000) && !f.loading && !f.error) void loadCats(deck, cats);
       items = f.items;
-      error = f.error;
+      const error = f.error;
       header = `◉ ${cats.map((x) => NEWS_CATEGORIES[x]?.label ?? x).join(" · ")}`;
       if (!f.at) return void ui.text(r.x + 1, r.y, error ? `⚠ ${error}` : `${ui.spinner()} pulling the feed…`, { fg: error ? c.error : c.muted }, r.w - 2);
     } else {
       if (stale(deck) && !state.loading && !state.error) void loadNews(deck);
       if (!state.loaded) return void ui.text(r.x + 1, r.y, state.error ? `⚠ ${state.error}` : `${ui.spinner()} pulling the feed…`, { fg: state.error ? c.error : c.muted }, r.w - 2);
       items = state.items;
-      error = state.error;
       const q = query(deck);
       header = q ? `◉ ${q}${state.widened ? ` + ${countryOf(deck)}` : ""}` : `◉ top stories · ${countryOf(deck)}`;
     }
-    void error;
     const open = (i: number) => (cats.length ? showCard(deck, items, i + 1) : void deck.act(`news ${i + 1}`));
 
     if (mode === "featured" && items.length) {

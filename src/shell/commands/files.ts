@@ -215,7 +215,7 @@ const grep: Command = {
     try {
       re = new RegExp(pattern, flags.i ? "i" : "");
     } catch (e) {
-      ctx.err(`grep: invalid pattern: ${(e as Error).message}\n`);
+      ctx.err(`grep: invalid pattern: ${(e instanceof Error ? e.message : String(e))}\n`);
       return 2;
     }
     const hl = (line: string) =>
@@ -341,7 +341,7 @@ const rm: Command = {
         const dest = await ctx.deck.vault.trash(p);
         if (flags.v) ctx.out(`moved ${f} → ${dest}\n`);
       } catch (e) {
-        ctx.err(`rm: ${f}: ${(e as Error).message}\n`);
+        ctx.err(`rm: ${f}: ${(e instanceof Error ? e.message : String(e))}\n`);
         status = 1;
       }
     }

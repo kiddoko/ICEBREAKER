@@ -1,9 +1,11 @@
+import { t } from "../core/i18n";
 import { BOLD, DIM, type Rect } from "../core/grid";
+import { Field } from "../ui/field";
 import type { Action, ActionSource, KeyInput } from "../core/input";
 import { fuzzyFilter } from "../core/fuzzy";
 import { strWidth, truncate } from "../core/unicode";
 import type { ChoiceOption } from "../plugins/api";
-import { hex, mix } from "../core/color";
+import { hex } from "../core/color";
 import { TextEditor } from "../ui/editor";
 import { ListView } from "../ui/list";
 import { typed } from "../ui/typewriter";
@@ -40,6 +42,13 @@ function backdrop(ui: UI, screen: Rect, onOutside?: () => void): void {
 
 let typewriterIds = 0;
 
+/** A message instead of a question: one "ok" button (wrong password, where the backup went…). */
+export interface MessageOptions {
+  /** the frame's title (default MESSAGE) */
+  frame?: string;
+  tone?: "info" | "error" | "success";
+}
+
 export class ConfirmDialog implements Overlay {
   modal = true;
   done = false;
@@ -51,7 +60,13 @@ export class ConfirmDialog implements Overlay {
     private readonly title: string,
     private readonly detail: string,
     private readonly resolve: (ok: boolean) => void,
-  ) {}
+    /** set: a message (one ok button), not a question */
+    private readonly message?: MessageOptions,
+    /** the answer enter gives when nothing was chosen (a question whose safe answer is no: false) */
+    preselected = true,
+  ) {
+    this.choice = preselected;
+  }
 
   private finish(ok: boolean): void {
     if (this.done) return;
@@ -60,6 +75,10 @@ export class ConfirmDialog implements Overlay {
   }
 
   onKey(k: KeyInput): boolean {
+    if (this.message) {
+      if (k.key === "enter" || k.key === "esc" || k.key === "space") this.finish(true);
+      return true;
+    }
     if (k.key === "esc" || k.key === "n") this.finish(false);
     else if (k.key === "y") this.finish(true);
     else if (k.key === "enter") this.finish(this.choice);
@@ -68,12 +87,17 @@ export class ConfirmDialog implements Overlay {
   }
 
   onText(t: string): boolean {
+    if (this.message) return true;
     if (/^[yYoO]$/.test(t)) this.finish(true);
     else if (/^[nN]$/.test(t)) this.finish(false);
     return true;
   }
 
   onAction(a: Action): boolean {
+    if (this.message) {
+      if (a === "back" || a === "confirm") this.finish(true);
+      return true;
+    }
     if (a === "back") this.finish(false);
     else if (a === "confirm") this.finish(this.choice);
     else if (a === "left" || a === "right") this.choice = !this.choice;
@@ -86,7 +110,8 @@ export class ConfirmDialog implements Overlay {
     const lines = this.detail ? this.detail.split("\n") : [];
     const w = Math.max(44, strWidth(this.title) + 8, ...lines.map((l) => Math.min(90, strWidth(l) + 6)));
     const box = centered(screen, w, lines.length + 6);
-    const inner = ui.box(box, { title: "CONFIRM", focused: true, bg: c.panelAlt });
+    const tone = this.message?.tone === "error" ? c.error : this.message?.tone === "success" ? c.success : undefined;
+    const inner = ui.box(box, { title: this.message ? t(this.message.frame ?? "MESSAGE") : "CONFIRM", focused: true, bg: c.panelAlt });
     // the question types itself out (ui/typewriter.ts), then the details
     const all = [this.title, ...lines].join("\n");
     let left = typed(ui, this.tw, all);
@@ -96,12 +121,16 @@ export class ConfirmDialog implements Overlay {
       left -= chars.length + 1;
       return part;
     };
-    ui.text(inner.x + 1, inner.y, shown(this.title), { fg: c.fg, attrs: BOLD }, inner.w - 2);
+    ui.text(inner.x + 1, inner.y, shown(this.title), { fg: tone ?? c.fg, attrs: BOLD }, inner.w - 2);
     lines.forEach((l, i) => {
       const part = shown(l);
       if (inner.y + 2 + i < inner.y + inner.h - 2) ui.text(inner.x + 1, inner.y + 2 + i, part, { fg: c.muted }, inner.w - 2);
     });
     const by = inner.y + inner.h - 1;
+    if (this.message) {
+      ui.button(inner.x + inner.w - 8, by, "ok ⏎", () => this.finish(true), { selected: true, ...(tone ? { accent: tone } : {}) });
+      return;
+    }
     let x = inner.x + inner.w - 22;
     x += ui.button(x, by, "[Y]es", () => this.finish(true), { selected: this.choice }) + 2;
     ui.button(x, by, "[N]o", () => this.finish(false), { selected: !this.choice, accent: c.error });
@@ -120,8 +149,14 @@ export interface PromptOptions {
 export class PromptDialog implements Overlay {
   modal = true;
   done = false;
-  private editor: TextEditor;
+  /** THE field (ui/field.ts); its editor for the completion */
+  private readonly field: Field;
+  private get editor(): TextEditor {
+    return this.field.editor;
+  }
   private readonly suggestions: string[];
+  /** the ▾ list (ui/list.ts) */
+  private readonly drop = new ListView<string>();
   /** the ▾ list is open; `pick` = the highlighted suggestion */
   private open = false;
   private pick = -1;
@@ -134,10 +169,10 @@ export class PromptDialog implements Overlay {
     private readonly resolve: (value: string | null) => void,
   ) {
     this.digits = !!opts.digits;
+    this.drop.clickActivates = () => true;
+    this.drop.onActivate = (s) => this.accept(s);
     this.suggestions = opts.suggestions ?? [];
-    this.editor = new TextEditor(opts.initial ?? "", { singleLine: true, placeholder: opts.placeholder, mask: opts.mask });
-    this.editor.setText(opts.initial ?? "", true);
-    this.editor.onSubmit = (v) => (this.open && this.pick >= 0 ? this.accept(this.matches()[this.pick]) : this.finish(v));
+    this.field = new Field({ initial: opts.initial, placeholder: opts.placeholder, mask: opts.mask, onSubmit: (v) => (this.open && this.pick >= 0 ? this.accept(this.matches()[this.pick]) : this.finish(v)) });
   }
 
   /** what fits what's typed: starts-with first, then contains (all of them when empty or the list is open) */
@@ -183,14 +218,14 @@ export class PromptDialog implements Overlay {
     } else if ((k.key === "down" || k.key === "up") && n) {
       if (!this.open) ((this.open = true), (this.pick = 0));
       else this.pick = (this.pick + (k.key === "down" ? 1 : -1) + n) % n;
-    } else this.editor.onKey(k);
+    } else this.field.onKey(k);
     return true;
   }
 
   onText(t: string): boolean {
     if (this.digits) t = t.replace(/[^0-9]/g, "");
     if (!t) return true;
-    this.editor.onText(t);
+    this.field.onText(t);
     if (this.suggestions.length) this.pick = this.open ? 0 : -1;
     return true;
   }
@@ -212,8 +247,7 @@ export class PromptDialog implements Overlay {
     const inner = ui.box(box, { title: "INPUT", focused: true, bg: c.panelAlt });
     ui.text(inner.x + 1, inner.y, this.title, { fg: c.fg, attrs: BOLD }, inner.w - 2);
     const fw = inner.w - 2 - (sugg ? 3 : 0);
-    ui.fill({ x: inner.x + 1, y: inner.y + 2, w: fw, h: 1 }, { bg: c.highlight });
-    this.editor.render(ui, { x: inner.x + 2, y: inner.y + 2, w: fw - 2, h: 1 }, true);
+    this.field.render(ui, { x: inner.x + 1, y: inner.y + 2, w: fw, h: 1 }, { focused: true });
     if (sugg) {
       // what Tab would complete, in grey after what you typed
       const g = this.ghost();
@@ -223,13 +257,12 @@ export class PromptDialog implements Overlay {
       const ar = { x: inner.x + 1 + fw + 1, y: inner.y + 2, w: 1, h: 1 };
       ui.text(ar.x, ar.y, this.open ? "▴" : "▾", { fg: ui.hovered(ar) || this.open ? c.accent : c.muted, attrs: BOLD });
       ui.hit({ x: ar.x - 1, y: ar.y, w: 3, h: 1 }, { onClick: () => ((this.open = !this.open), (this.pick = this.open ? 0 : -1)), tip: "↓ · tab completes" });
-      list.slice(0, shown).forEach((s, i) => {
-        const row = { x: inner.x + 1, y: inner.y + 3 + i, w: fw, h: 1 };
-        const on = i === this.pick;
-        if (on || ui.hovered(row)) ui.fill(row, { bg: on ? mixBg(c) : c.highlight });
-        ui.text(row.x + 1, row.y, s, { fg: on ? c.fg : c.muted, attrs: on ? BOLD : 0 }, row.w - 2);
-        ui.hit(row, { onClick: () => this.accept(s) });
-      });
+      // the suggestions: THE list of the kit (ui/list.ts) — a click takes one
+      if (shown) {
+        this.drop.items = list;
+        if (this.pick >= 0 && this.drop.selected !== this.pick) this.drop.select(this.pick);
+        this.drop.render(ui, { x: inner.x + 1, y: inner.y + 3, w: fw, h: shown }, true, (s, row, on) => void ui.text(row.x + 1, row.y, s, { fg: on ? c.fg : c.muted, attrs: on ? BOLD : 0 }, row.w - 2));
+      }
     }
     const by = inner.y + 3 + (shown ? shown + 1 : 0);
     let x = inner.x + inner.w - 20;
@@ -242,7 +275,7 @@ export class PromptDialog implements Overlay {
 export class ChooseDialog implements Overlay {
   modal = true;
   done = false;
-  private input = new TextEditor("", { singleLine: true, placeholder: "type to filter" });
+  private readonly input = new Field({ icon: "❯", onSubmit: () => this.finish(this.list.current?.i ?? null) });
   private list = new ListView<{ o: ChoiceOption; i: number }>();
   private lastQuery = "\0";
 
@@ -252,7 +285,6 @@ export class ChooseDialog implements Overlay {
     private readonly selected: number,
     private readonly resolve: (i: number | null) => void,
   ) {
-    this.input.onSubmit = () => this.finish(this.list.current?.i ?? null);
     this.list.onActivate = () => this.finish(this.list.current?.i ?? null);
   }
 
@@ -264,7 +296,7 @@ export class ChooseDialog implements Overlay {
 
   onKey(k: KeyInput): boolean {
     if (k.key === "esc") this.finish(null);
-    else if (["up", "down", "pageup", "pagedown"].includes(k.key)) this.list.onAction(k.key === "up" ? "up" : k.key === "down" ? "down" : k.key === "pageup" ? "page-up" : "page-down");
+    else if (this.list.onNavKey(k)) return true;
     else this.input.onKey(k);
     return true;
   }
@@ -296,8 +328,7 @@ export class ChooseDialog implements Overlay {
     const box = centered(screen, Math.min(80, w), Math.min(this.options.length, 14) + 5);
     const inner = ui.box(box, { title: "CHOOSE", focused: true, bg: c.panelAlt, info: `${this.list.items.length}` });
     ui.text(inner.x + 1, inner.y, this.title, { fg: c.fg, attrs: BOLD }, inner.w - 2);
-    ui.text(inner.x + 1, inner.y + 1, "❯", { fg: c.accent, attrs: BOLD });
-    this.input.render(ui, { x: inner.x + 3, y: inner.y + 1, w: inner.w - 4, h: 1 }, true);
+    this.input.render(ui, { x: inner.x, y: inner.y + 1, w: inner.w, h: 1 }, { focused: true, placeholder: t("type to filter") });
     const listRect = { x: inner.x, y: inner.y + 2, w: inner.w, h: inner.h - 2 };
     this.list.render(ui, listRect, true, (x, row, sel) => {
       let lx = row.x + 1;
@@ -433,9 +464,4 @@ export class Osk implements Overlay {
     });
     ui.text(inner.x + 1, inner.y + inner.h - 1, "typing into the focused pane", { fg: c.subtle, attrs: DIM });
   }
-}
-
-/** the highlighted line of a list inside a dialog */
-function mixBg(c: UI["c"]): number {
-  return mix(c.panelAlt, c.accent, 0.25);
 }

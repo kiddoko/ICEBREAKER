@@ -2,7 +2,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import type { LocalTrack, MediaStatus, Platform, PlayerStatus, SystemStats, VaultEntry } from "./types";
+import type { AppUpdateInfo, LocalTrack, MediaStatus, Platform, PlayerStatus, SystemStats, VaultCryptReport, VaultCryptStatus, VaultEntry } from "./types";
 
 /**
  * Desktop platform: thin wrappers around the Rust commands defined in
@@ -23,10 +23,23 @@ export function createTauriPlatform(): Platform {
       write: (path, content) => invoke<void>("vault_write", { path, content }),
       mkdir: (path) => invoke<void>("vault_mkdir", { path }),
       trash: (path) => invoke<string>("vault_trash", { path }),
-      destroy: (confirm) => invoke<number>("vault_destroy", { confirm }),
+      destroy: (confirm, password) => invoke<number>("vault_destroy", { confirm, password }),
       rename: (from, to) => invoke<void>("vault_rename", { from, to }),
       exists: (path) => invoke<boolean>("vault_exists", { path }),
       readBytes: (path) => invoke<ArrayBuffer>("vault_read_bytes", { path }),
+      move: (dest) => invoke<string>("vault_move", { dest }),
+      moveCleanup: () => invoke<void>("vault_move_cleanup"),
+      crypt: {
+        status: () => invoke<VaultCryptStatus>("vault_crypt_status"),
+        encrypt: (password, stamp) => invoke<VaultCryptReport>("vault_encrypt", { password, stamp }),
+        decrypt: (password) => invoke<VaultCryptReport>("vault_decrypt", { password }),
+        export: (dest, password) => invoke<VaultCryptReport>("vault_export", { dest, password }),
+        unlock: (password) => invoke<void>("vault_unlock", { password }),
+        newRecovery: (password) => invoke<string>("vault_recovery_new", { password }),
+        recover: (words, password) => invoke<void>("vault_recover", { words, password }),
+        adopt: () => invoke<VaultCryptReport>("vault_adopt"),
+        rekey: (password) => invoke<VaultCryptReport>("vault_rekey", { password }),
+      },
     },
     config: {
       read: (name) => invoke<string | null>("config_read", { name }),
@@ -41,6 +54,18 @@ export function createTauriPlatform(): Platform {
       n.sendNotification({ title, body });
     },
     netGet: (url) => invoke<string>("net_get", { url }),
+    appUpdate: {
+      check: (endpoint) => invoke<AppUpdateInfo | null>("app_update_check", { endpoint: endpoint || null }),
+      download: async (onProgress) => {
+        const off = onProgress ? await listen<{ done: number; total: number | null }>("app-update-progress", (e) => onProgress(e.payload.done, e.payload.total)) : null;
+        try {
+          return await invoke<AppUpdateInfo>("app_update_download");
+        } finally {
+          off?.();
+        }
+      },
+      install: (restart = true) => invoke<void>("app_update_install", { restart }),
+    },
     openUrl: (url) => invoke<void>("open_url", { url }),
     claudeCode: {
       detect: () => invoke<string | null>("claude_code_detect"),
@@ -60,6 +85,11 @@ export function createTauriPlatform(): Platform {
       lock: () => invoke<void>("account_lock"),
       change: (password, newUser, newPassword) => invoke<void>("account_change", { password, newUser, newPassword }),
       remove: (password) => invoke<void>("account_remove", { password }),
+      recover: (user, words, newPassword, path, approver, approverPassword) =>
+        invoke<{ id: string; user: string }>("account_recover", { user, words, newPassword, path: path ?? null, approver: approver ?? null, approverPassword: approverPassword ?? null }),
+      openVault: (path, user, password, approver, approverPassword) =>
+        invoke<{ id: string; user: string }>("account_open_vault", { path, user, password, approver: approver ?? null, approverPassword: approverPassword ?? null }),
+      syncVault: (accept) => invoke<"none" | "ask" | "taken">("account_vault_sync", { accept: accept ?? null }),
     },
     onVaultChange: (cb) => void listen("vault-fs", () => cb()),
     files: {
@@ -126,7 +156,7 @@ export function createTauriPlatform(): Platform {
       cache: (content) => invoke<string | null>("google_cache", { content: content ?? null }),
     },
     dev: {
-      factoryReset: () => invoke<string[]>("dev_factory_reset"),
+      factoryReset: (password) => invoke<string[]>("dev_factory_reset", { password }),
       restart: () => invoke<void>("dev_restart"),
     },
     window: {

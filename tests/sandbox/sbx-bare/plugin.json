@@ -1,0 +1,1 @@
+{ "id": "sbx-bare", "name": "Sandbox: no permission", "version": "0.1.0", "description": "a module with no permission at all: it must read and write nothing", "permissions": [] }

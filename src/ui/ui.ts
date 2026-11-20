@@ -72,7 +72,6 @@ const BORDERS: Record<string, { tl: string; tr: string; bl: string; br: string; 
   corners: { tl: "┌", tr: "┐", bl: "└", br: "┘", h: " ", v: " " },
   line: { tl: "─", tr: "─", bl: " ", br: " ", h: "─", v: " ", hb: " " },
 };
-export const BORDER_STYLES = Object.keys(BORDERS);
 
 export interface BoxOptions {
   title?: string;
@@ -311,14 +310,22 @@ export class UI {
     return { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 2 };
   }
 
-  /** Clickable "[ label ]" button. Returns its width. */
-  button(x: number, y: number, label: string, onClick: () => void, o: { selected?: boolean; accent?: RGB; cmd?: string; tip?: string } = {}): number {
+  /**
+   * THE button: " label " on the highlight, lit when hovered or selected. Returns
+   * its width. `quiet`: muted until hovered (a bar of many, the top bar); `disabled`:
+   * faint, not clickable (‹ with nothing before). docs/UI_KIT.md.
+   */
+  button(x: number, y: number, label: string, onClick: () => void, o: { selected?: boolean; accent?: RGB; cmd?: string; tip?: string; quiet?: boolean; disabled?: boolean } = {}): number {
     const s = ` ${label} `;
     const w = strWidth(s);
     const rect = { x, y, w, h: 1 };
-    const hot = o.selected || this.hovered(rect);
     const accent = o.accent ?? this.c.accent;
-    this.text(x, y, s, hot ? { fg: this.c.panel, bg: accent, attrs: BOLD } : { fg: accent, bg: this.c.highlight });
+    if (o.disabled) {
+      this.text(x, y, s, { fg: this.c.faint, bg: this.c.highlight });
+      return w;
+    }
+    const hot = o.selected || this.hovered(rect);
+    this.text(x, y, s, hot ? { fg: this.c.panel, bg: accent, attrs: BOLD } : { fg: o.quiet ? this.c.muted : accent, bg: this.c.highlight });
     this.hit(rect, o.cmd ? { cmd: o.cmd, tip: o.tip } : { onClick: () => onClick(), tip: o.tip });
     return w;
   }

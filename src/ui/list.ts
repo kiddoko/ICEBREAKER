@@ -99,6 +99,12 @@ export class ListView<T> {
   }
 
   /** Navigation shared by keyboard and gamepad. Returns true if handled. */
+  /** ↑ ↓ page-up page-down from the keyboard (a list under a field: the field keeps the other keys). */
+  onNavKey(k: { key: string }): boolean {
+    const a = ({ up: "up", down: "down", pageup: "page-up", pagedown: "page-down" } as const)[k.key as "up"];
+    return a ? this.onAction(a) || true : false;
+  }
+
   onAction(a: Action): boolean {
     switch (a) {
       // round at the ends: the last row is one step above the first

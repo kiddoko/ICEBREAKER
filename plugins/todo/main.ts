@@ -396,8 +396,9 @@ export function activate(ib: IcebreakerAPI): void {
   }
 
   // ── what other modules can do with tasks (ib.modules.call("todo", …)) ──
-  ib.modules.expose("list", { doc: "list() → every task { id, text, prio, due, tags, done }", fn: async () => (await ready, tasks.map((t) => ({ ...t }))) });
+  ib.modules.expose("list", { needs: "vault:read", doc: "list() → every task { id, text, prio, due, tags, done }", fn: async () => (await ready, tasks.map((t) => ({ ...t }))) });
   ib.modules.expose("add", {
+    needs: "vault:write",
     doc: 'add(text, { due: "YYYY-MM-DD", prio: "urgent|high|moderate|low", tags: [] }) → the new task',
     fn: async (text: string, o: { due?: string; prio?: Prio; tags?: string[] } = {}) => {
       await ready;
@@ -409,6 +410,7 @@ export function activate(ib: IcebreakerAPI): void {
     },
   });
   ib.modules.expose("done", {
+    needs: "vault:write",
     doc: "done(id) → marks a task done (true if found)",
     fn: async (id: number) => {
       await ready;
@@ -437,7 +439,7 @@ export function activate(ib: IcebreakerAPI): void {
   const prioAnsi = (p: Prio, s: string) => (p === "urgent" ? fmt.red(s) : p === "high" ? fmt.yellow(s) : p === "moderate" ? fmt.cyan(s) : fmt.gray(s));
 
   function line(t: Task): string {
-    const box = t.done ? fmt.green("☑") : "☐";
+    const box = t.done ? fmt.green(ib.lib.BOX_ON) : ib.lib.BOX_OFF;
     const due = t.due ? (daysUntil(t.due) < 0 && !t.done ? fmt.red(dueLabel(t.due)) : daysUntil(t.due) === 0 ? fmt.yellow("today") : fmt.dim(dueLabel(t.due))) : "";
     const tags = t.tags.map((g) => fmt.magenta(`+${g}`)).join(" ");
     const text = t.done ? fmt.dim(t.text) : t.text;
@@ -554,12 +556,12 @@ export function activate(ib: IcebreakerAPI): void {
           for (const t of list) {
             if (sub === "done" && t.repeat && !t.done) {
               const r = complete(t);
-              ctx.out(`${fmt.green("☑")} ${t.text}${r === "again" ? fmt.dim(`  (${t.repeat.todayCount}/${t.repeat.times} today)`) : r === "next" ? fmt.dim(`  ↻ next: ${t.due}`) : fmt.dim("  ↻ the last one")}\n`);
+              ctx.out(`${fmt.green(ib.lib.BOX_ON)} ${t.text}${r === "again" ? fmt.dim(`  (${t.repeat.todayCount}/${t.repeat.times} today)`) : r === "next" ? fmt.dim(`  ↻ next: ${t.due}`) : fmt.dim("  ↻ the last one")}\n`);
               continue;
             }
             t.done = sub === "done";
             t.doneAt = t.done ? new Date().toISOString() : null;
-            ctx.out(`${t.done ? fmt.green("☑") : "☐"} ${t.text}\n`);
+            ctx.out(`${t.done ? fmt.green(ib.lib.BOX_ON) : ib.lib.BOX_OFF} ${t.text}\n`);
           }
           if (sub === "done") void ib.stats.add("done", list.length, { label: "tasks done", kind: "counter" }).catch(() => {});
           await save();
@@ -663,8 +665,11 @@ export function activate(ib: IcebreakerAPI): void {
     private sel = 0;
     private scroll = 0;
     private typing = false;
-    private input = "";
-    private inputAt = 0;
+    /** "add a task": THE field (ib.lib.Field), same syntax as `todo add` */
+    private readonly add = new ib.lib.Field({ icon: "+", onChange: () => (this.hint = ""), onSubmit: () => this.submit() });
+    private get input(): string {
+      return this.add.text;
+    }
     private hint = "";
 
     title(): string {
@@ -679,7 +684,6 @@ export function activate(ib: IcebreakerAPI): void {
 
     startTyping(): void {
       this.typing = true;
-      this.inputAt = performance.now();
     }
 
     private get list(): Task[] {
@@ -697,7 +701,7 @@ export function activate(ib: IcebreakerAPI): void {
       // the clean, quoted command that does it — so the shell shows how to type it
       const flags = [p.prio && p.prio !== "moderate" ? `--${p.prio}` : "", p.due !== undefined && p.dueRaw ? `--due ${q(p.dueRaw)}` : "", p.repeatRaw ? `--every ${q(p.repeatRaw)}` : "", p.times ? `--times ${p.times}` : "", p.cyclesRaw ? `--cycles ${q(p.cyclesRaw)}` : "", ...p.tags.map((t) => `+${t}`)].filter(Boolean);
       run(`todo add ${q(p.text)}${flags.length ? ` ${flags.join(" ")}` : ""}`);
-      this.input = "";
+      this.add.clear();
       this.hint = "";
       if (this.filter === "done") this.filter = "open";
     }
@@ -715,12 +719,12 @@ export function activate(ib: IcebreakerAPI): void {
     onText(t: string): boolean {
       if (this.typing) {
         if (t.includes("\n")) {
-          this.input += t.replace(/[\r\n]+/g, " ").trimEnd();
+          const rest = t.replace(/[\r\n]+/g, " ").trimEnd();
+          if (rest) this.add.onText(rest);
           this.submit();
-        } else this.input += t;
-        this.hint = "";
-        this.inputAt = performance.now();
-        return true;
+          return true;
+        }
+        return this.add.onText(t);
       }
       const cur = this.current;
       switch (t) {
@@ -740,12 +744,9 @@ export function activate(ib: IcebreakerAPI): void {
     onKey(k: KeyInput): boolean {
       if (this.typing) {
         switch (k.combo) {
-          case "enter": this.submit(); return true;
-          case "esc": this.typing = false; this.input = ""; this.hint = ""; return true;
-          case "backspace": this.input = this.input.slice(0, -1); this.inputAt = performance.now(); return true;
-          case "ctrl+u": this.input = ""; return true;
+          case "esc": this.typing = false; this.add.clear(); this.hint = ""; return true;
           case "down": case "tab": this.typing = false; return true;
-          default: return k.combo.length === 1; // letters arrive as text
+          default: return this.add.onKey(k) || k.combo.length === 1; // letters arrive as text
         }
       }
       if (k.combo === "tab" || k.combo === "shift+tab") {
@@ -781,12 +782,7 @@ export function activate(ib: IcebreakerAPI): void {
 
       // ── input line ──
       const inRect = { x: x0, y, w, h: 1 };
-      const bg = this.typing ? mix(c.accent, c.bg, 0.86) : c.panelAlt;
-      ui.fill(inRect, { bg });
-      ui.text(x0 + 1, y, "+", { fg: c.accent, bg, attrs: BOLD });
-      if (this.input) ui.text(x0 + 3, y, this.input.slice(-(w - 5)), { fg: c.fg, bg });
-      else ui.text(x0 + 3, y, this.typing ? "walk the dog --urgent --due tomorrow +home" : "add a task  (a)", { fg: c.faint, bg }, w - 4);
-      if (this.typing && focused) ui.cursor(x0 + 3 + Math.min(strWidth(this.input), w - 5), y, this.inputAt);
+      this.add.render(ui, inRect, { focused: this.typing && focused, active: this.typing, bg: c.panelAlt, placeholder: this.typing ? "walk the dog --urgent --due tomorrow +home" : "add a task  (a)" });
       ui.hit(inRect, { onClick: () => this.startTyping(), tip: "type, enter adds · same syntax as `todo add`" });
       y++;
       if (this.hint) ui.text(x0 + 1, y, `⚠ ${this.hint}`, { fg: c.error }, w - 2);
@@ -897,7 +893,8 @@ export function activate(ib: IcebreakerAPI): void {
   ib.palette.register({ id: "todo.add", title: "Todo: add a task", group: "todo", run: () => run("todo open --add") });
 
   // ── the HOME widget (and its pop-up: quick add) ──
-  let quick = "";
+  /** the pop-up's "add a task": THE field */
+  const quickField = new ib.lib.Field({ icon: "+" });
   let quickSel = 0;
   /** the task under the mouse in the HOME widget (Delete / ⌘⌫ removes it) */
   let hoverId: number | null = null;
@@ -973,10 +970,8 @@ export function activate(ib: IcebreakerAPI): void {
       hint: "type + enter: add · ↑↓ · space: done · del: remove · right-click: edit",
       render(ui, r) {
         const c = ui.c;
-        ui.fill({ x: r.x + 1, y: r.y, w: r.w - 2, h: 1 }, { bg: c.highlight });
-        ui.text(r.x + 2, r.y, "+", { fg: c.accent, bg: c.highlight, attrs: BOLD });
-        ui.text(r.x + 4, r.y, quick || "walk the dog --urgent --due tomorrow +home", { fg: quick ? c.fg : c.faint, bg: c.highlight }, r.w - 6);
-        ui.cursor(r.x + 4 + Math.min(strWidth(quick), r.w - 7), r.y);
+        const quick = quickField.text;
+        quickField.render(ui, { x: r.x + 1, y: r.y, w: r.w - 2, h: 1 }, { focused: true, placeholder: "walk the dog --urgent --due tomorrow +home" });
         const open = pick("open");
         quickSel = Math.max(0, Math.min(quickSel, open.length - 1));
         open.slice(0, r.h - 2).forEach((t, i) => {
@@ -993,28 +988,26 @@ export function activate(ib: IcebreakerAPI): void {
         if (!open.length) ui.text(r.x + 2, r.y + 2, "nothing to do. suspicious.", { fg: c.muted });
       },
       onText: (t) => {
-        if (t === " " && !quick) {
+        if (t === " " && !quickField.text) {
           const cur = pick("open")[quickSel];
           if (cur) run(`todo done ${cur.id}`);
           return true;
         }
-        quick += t.replace(/[\r\n]/g, "");
-        return true;
+        return quickField.onText(t) || true;
       },
       onKey: (k) => {
         // nothing typed: Delete (⌘⌫) removes the chosen task
-        if (!quick && isDelete(k)) {
+        if (!quickField.text && isDelete(k)) {
           const cur = pick("open")[quickSel];
           if (cur) run(`todo rm ${cur.id}`);
           return true;
         }
-        if (k.combo === "backspace") return (quick = quick.slice(0, -1)), true;
-        if (k.combo === "enter" && quick.trim()) {
-          run(`todo add ${quick.trim()}`); // same syntax as typing it in the shell
-          quick = "";
+        if (k.combo === "enter" && quickField.text.trim()) {
+          run(`todo add ${quickField.text.trim()}`); // same syntax as typing it in the shell
+          quickField.clear();
           return true;
         }
-        return false;
+        return quickField.onKey(k);
       },
       onAction: (a) => {
         if (a === "up") return (quickSel = Math.max(0, quickSel - 1)), true;

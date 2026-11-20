@@ -25,6 +25,44 @@ export function resolvePath(cwd: string, p: string): string {
   return normalize(cwd ? `${cwd}/${p}` : p);
 }
 
+/**
+ * A name as the disk may see it: macOS and Windows hold ".ICEBREAKER" and ".icebreaker"
+ * as ONE folder, Windows drops trailing dots and spaces, some disks ignore invisible
+ * characters. Two names with the same fold may be the same file — compare folds, never
+ * the names as typed, when a path must NOT be one of the deck's own.
+ */
+export function foldName(name: string): string {
+  return name
+    .normalize("NFC")
+    .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, "")
+    .toLowerCase()
+    .replace(/:.*$/, "") // Windows: "name:stream" is the file "name"
+    .replace(/[. ]+$/, "");
+}
+
+/**
+ * Why a NEW file or folder can't have this name (null: it can): control characters (an
+ * escape sequence in a name repaints a terminal that lists it), characters that reverse
+ * the reading direction ("‮gnp.exe" shows as "exe.png"), line breaks. Names that already
+ * exist on the disk are still read, moved and trashed.
+ */
+export function newNameProblem(path: string): string | null {
+  for (const part of normalize(path).split("/")) {
+    if (/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(part)) return "a name can't hold control characters or line breaks";
+    if (/[\u202a-\u202e\u2066-\u2069]/.test(part)) return "a name can't hold characters that reverse the reading direction";
+    if (part.length > 255) return "a name can't be longer than 255 characters";
+  }
+  return null;
+}
+
+/** Is this path in the deck's own folder (.icebreaker/: modules' code, scripts, themes, settings)? */
+export function isDeckPath(p: string): boolean {
+  const first = normalize(p).split("/")[0] ?? "";
+  const f = foldName(first);
+  // "ICEBRE~1": the short name Windows may give that folder
+  return f === ".icebreaker" || /^\.?icebre~\d+$/.test(f);
+}
+
 export function join(...parts: string[]): string {
   return normalize(parts.filter(Boolean).join("/"));
 }
@@ -37,12 +75,6 @@ export function dirname(p: string): string {
 export function basename(p: string, ext?: string): string {
   const b = p.slice(p.lastIndexOf("/") + 1);
   return ext && b.endsWith(ext) ? b.slice(0, -ext.length) : b;
-}
-
-export function extname(p: string): string {
-  const b = basename(p);
-  const i = b.lastIndexOf(".");
-  return i <= 0 ? "" : b.slice(i);
 }
 
 /** How the shell shows a path: "~" for the root, "~/journal" for a folder. */

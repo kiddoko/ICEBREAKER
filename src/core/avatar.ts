@@ -51,12 +51,6 @@ export const AVATAR_COLORS: Record<string, string> = {
 export const avatarOf = (id: string | undefined): Avatar => AVATARS.find((a) => a.id === id) ?? AVATARS[0];
 export const avatarRGB = (ui: UI, color: string | undefined): RGB => (color && AVATAR_COLORS[color] ? hex(AVATAR_COLORS[color]) : ui.c.accent);
 
-/** One character: for a line of text (the chat, a list). */
-export function avatarGlyph(a: Avatar): string {
-  if (typeof a.art === "string") return a.art;
-  return { visor: "▣", netrunner: "▓", hood: "▲", robot: "◉", skull: "☠", alien: "◣", cat: "▾", ghost: "▪", mask: "▼", oni: "◥", drone: "◎", eye: "◉" }[a.id] ?? "◆";
-}
-
 /** The 5×3 picture, centred in `r` (a glyph sits in a little frame). */
 export function drawAvatar(ui: UI, r: Rect, a: Avatar, color: RGB, opts: { bg?: RGB; dim?: boolean } = {}): void {
   const c = ui.c;

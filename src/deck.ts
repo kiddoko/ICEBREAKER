@@ -42,6 +42,7 @@ import { applyTweaks, ThemeManager, type Theme } from "./core/theme";
 import { glitch } from "./fx/glitch";
 import type { Platform } from "./platform/types";
 import { PluginHost } from "./plugins/host";
+import { Updater } from "./core/updater";
 import { deckCommands } from "./shell/commands/deck";
 import { fileCommands } from "./shell/commands/files";
 import { iconCommand, tagCommand } from "./shell/commands/marks";
@@ -62,6 +63,7 @@ import { BootScreen, type BootLine } from "./workspace/boot";
 import { CellFx, Transitions } from "./fx/transition";
 import { DeckVoice, phrase } from "./core/voice";
 import { storeCommand, storeSpec } from "./apps/store";
+import { updateCommand } from "./shell/commands/update";
 import { detachCorePackages } from "./plugins/core-packages";
 import { installStealth } from "./core/stealth";
 import { setLang, t } from "./core/i18n";
@@ -136,6 +138,8 @@ export class Deck implements InputSink {
   /** what modules expose to each other (ib.modules) */
   readonly services = new ServiceRegistry();
   readonly plugins: PluginHost;
+  /** ICEBREAKER's and the modules' updates (core/updater.ts) */
+  readonly updater: Updater;
   readonly workspace: Workspace;
   readonly shell: ShellApp;
   readonly renderer: Renderer;
@@ -191,6 +195,7 @@ export class Deck implements InputSink {
     this.ai.onVaultWrite = () => void this.vault.rescan().then(() => this.requestFrame());
     this.ai.onMessage = () => void this.stats.add("uplink.messages", 1, "uplink", { label: "messages to the AI", kind: "counter" }).catch(() => {});
     this.plugins = new PluginHost(this);
+    this.updater = new Updater(this);
     this.renderer = new Renderer(el("screen") as HTMLCanvasElement, el("bloom") as HTMLCanvasElement, settings.data.appearance.fontSize);
     this.loop = new FrameLoop(this.frame, settings.data.appearance.maxFps);
     this.input = new InputManager(this, this.renderer, el("deck"), el("keyboard-sink") as HTMLTextAreaElement);
@@ -293,7 +298,10 @@ export class Deck implements InputSink {
     // a new account (not the first) gets a folder of its own next to the default one
     let vaultPath = s.vault.path;
     if (!vaultPath && (await this.platform.account.count().catch(() => 1)) > 1) vaultPath = `${await this.vault.defaultPath()}-${session.id}`;
-    await step(() => this.vault.mount(vaultPath).then(() => this.recordVaultStats()), () => ({ text: `Mounted vault at ${this.vault.root} (${this.vault.markdown().length} notes, ${this.vault.journalDates().size} journal entries)${this.vault.docsYours.length ? ` · START HERE: ${this.vault.docsYours.length} notes you edited kept (starthere --force updates them)` : ""}`, status: "OK" }));
+    await step(() => this.vault.mount(vaultPath), () => null);
+    // the vault carries its account's settings: newer ones (changed on another computer) → start again with them
+    if (await this.syncVaultAccount()) return;
+    await step(() => this.recordVaultStats(), () => ({ text: `Mounted vault at ${this.vault.root} (${this.vault.markdown().length} notes, ${this.vault.journalDates().size} journal entries)${this.vault.docsYours.length ? ` · START HERE: ${this.vault.docsYours.length} notes you edited kept (starthere --force updates them)` : ""}`, status: "OK" }));
     if (!s.vault.path) this.settings.set("vault.path", this.vault.root);
     const fontOf = () => `${this.theme.font.family}|${this.theme.font.scale}|${this.theme.font.weights}`;
     const font = fontOf();
@@ -323,6 +331,7 @@ export class Deck implements InputSink {
     // no AI at all while the UPLINK module is off (modules can't reach it either)
     this.ai.gate = () => (this.plugins.list().some((p) => p.manifest.id === "uplink" && p.active) ? null : "the UPLINK module is off (MODULES → UPLINK)");
     migrateWheel(this); // the old gamepad wheel's slots → keys on THE MENU (once)
+    this.updater.start();
     await step(() => this.plugins.init(), () => ({ text: `Plugins: ${this.plugins.active().map((p) => p.manifest.id).join(", ") || "none"}`, status: this.plugins.list().some((p) => p.error) ? "WARN" : "OK" }));
     this.platform.bridge?.onRun((req) => void this.runBridged(req));
     // files changed in the terminal, Obsidian, Finder…: refresh the tree, search, widgets
@@ -335,6 +344,7 @@ export class Deck implements InputSink {
     this.shell.motd();
     this.openApp("home");
     if (!s.setup.done) this.openApp("setup");
+    void this.askVaultSettings();
     // the tabs you had open last time
     await step(() => this.workspace.restoreSession(!s.setup.done).catch(() => {}), () => (s.setup.done && s.session?.tabs?.length ? { text: `Session restored: ${s.session.tabs.length} tab(s)`, status: "OK" } : null));
     boot?.log({ text: `Reached target: Cyberspace. (startup took ${Math.round(performance.now() - t0)} ms)`, status: "OK" });
@@ -413,7 +423,7 @@ export class Deck implements InputSink {
   private registerCore(): void {
     // the settings rows: the deck's own (apps/settings-rows.ts, modules' rows included)
     this.prefs.register("core", () => coreSettingRows(this));
-    for (const c of [...fileCommands, ...systemCommands, ...deckCommands, storeCommand, ...shortcutCommands, scriptCommand, pinCommand, unpinCommand, tagCommand, iconCommand, trashCommand, weatherCommand, startHereCommand]) this.commands.register({ ...c, source: "core" });
+    for (const c of [...fileCommands, ...systemCommands, ...deckCommands, storeCommand, updateCommand, ...shortcutCommands, scriptCommand, pinCommand, unpinCommand, tagCommand, iconCommand, trashCommand, weatherCommand, startHereCommand]) this.commands.register({ ...c, source: "core" });
     for (const w of [...BUILTIN_WIDGETS, pinnedWidget]) this.widgets.register(w);
     // the frame's own parts, callable like modules: deck.use("tree").reveal(…), ib.use("terminal")…
     for (const [id, fns] of Object.entries(frameServices(this))) this.services.exposeAll(id, fns);
@@ -425,7 +435,11 @@ export class Deck implements InputSink {
 
   // ── the frame ────────────────────────────────────────────────────────────
 
+  /** `debug perf`: every frame's cost while it records (shell/commands/log.ts) */
+  perfRec: { until: number; frames: { at: number; build: number; paint: number; cells: number; glyphs: number; wanted: number }[] } | null = null;
+
   private frame = (now: number): number => {
+    const t0 = performance.now();
     if (this.grid.cols !== this.renderer.cols || this.grid.rows !== this.renderer.rows) this.grid = new Grid(this.renderer.cols, this.renderer.rows);
     const ui = this.ui;
     ui.begin(this.grid, this.theme, now, this.input.mouseCell);
@@ -465,7 +479,12 @@ export class Deck implements InputSink {
           for (let x = Math.max(0, h.rect.x); x < Math.min(g.cols, h.rect.x + h.rect.w); x++) g.bg[y * g.cols + x] = mix(g.bg[y * g.cols + x], col, 0.25);
       }
     }
+    const t1 = performance.now();
     this.renderer.draw(this.grid);
+    if (this.perfRec) {
+      const t2 = performance.now();
+      if (t2 < this.perfRec.until) this.perfRec.frames.push({ at: t0, build: t1 - t0, paint: t2 - t1, cells: this.renderer.lastCells, glyphs: this.renderer.takeAtlasMisses(), wanted: this.loop.wanted });
+    }
     if (this.renderer.fading) ui.animate(0); // letters still fading in (renderer.fadeMs)
     if (ui.caret) this.input.placeCaret(ui.caret.x, ui.caret.y);
     this.renderer.setCaret(ui.softCaret ? ui.caret : null, css(ui.c.cursor), ui.caretTyped, !!this.settings.data.appearance.reduceMotion);
@@ -596,14 +615,19 @@ export class Deck implements InputSink {
     if (args[args.length - 1] === "") args.pop();
     const cmd = this.commands.get(args[0] ?? "");
     if (!cmd) return b.send(req.id, null, true, false);
+    // any program started in your real terminal has its token: it isn't you typing.
+    // An encrypted vault's commands stay in ibsh (they'd read your notes decrypted);
+    // a plain vault's run untrusted, like a module's (shell/privileged.ts).
+    const crypt = await this.platform.vault.crypt?.status().catch(() => null);
+    if (crypt?.encrypted) return b.send(req.id, "\x1b[33mICEBREAKER: the vault is encrypted — its commands stay in ibsh (your terminal only sees noise)\x1b[0m\n", true, true);
     const line = args.map((a, i) => (i === 0 ? a : q(a))).join(" ");
     if (cmd.interactive) {
-      this.workspace.showShellTab("ibsh");
-      void this.shell.runLine(line);
+      void this.shell.runUntrusted(line, { source: "terminal", grants: "all" });
       this.requestFrame();
       return b.send(req.id, `\x1b[2m→ ${args[0]} asks questions: it's running in the ibsh tab\x1b[0m\n`, true, true);
     }
     const ex = new ShellExecutor(this, (text) => b.send(req.id, text, false, true), () => {});
+    ex.origin = { source: "terminal", grants: "all" };
     ex.env = this.shell.exec.env;
     const root = this.vault.root.replace(/\/$/, "");
     ex.cwd = req.cwd === root ? "" : req.cwd.startsWith(`${root}/`) ? req.cwd.slice(root.length + 1) : "";
@@ -648,8 +672,8 @@ export class Deck implements InputSink {
     this.requestFrame();
   }
 
-  confirm(title: string, detail = ""): Promise<boolean> {
-    const p = this.workspace.confirm(title, detail);
+  confirm(title: string, detail = "", preselected = true): Promise<boolean> {
+    const p = this.workspace.confirm(title, detail, preselected);
     this.requestFrame();
     return p;
   }
@@ -813,7 +837,9 @@ export class Deck implements InputSink {
     const screenEl = document.getElementById("screen");
     // and the user's brightness (Settings → APPEARANCE), on top
     const light = boost * ((this.settings.data.appearance.brightness ?? 100) / 100);
-    if (screenEl) screenEl.style.filter = Math.abs(light - 1) > 0.005 ? `brightness(${light.toFixed(3)})` : "";
+    // in the renderer's colours, not a CSS filter on the screen (redone by the compositor every frame)
+    if (screenEl) screenEl.style.filter = "";
+    this.renderer.setLight(light);
     root.setProperty("--scanlines", String(fx.scanlines ? (t.fx.scanlines * lv.scanlines) / 100 : 0));
     root.setProperty("--vignette", String(fx.vignette ? (t.fx.vignette * lv.vignette) / 100 : 0));
     document.getElementById("deck")!.classList.toggle("crt", fx.scanlines && t.fx.scanlines * lv.scanlines > 0);
@@ -953,14 +979,82 @@ export class Deck implements InputSink {
     setTimeout(() => this.resize(), 300);
   }
 
+  /**
+   * After mounting: the vault is this account's and brings newer settings (changed
+   * on another computer, docs/ENCRYPTION.md "portable vaults") → the deck starts
+   * again with them. Settings are frozen first so the old ones aren't saved over them.
+   */
+  private async syncVaultAccount(canAsk = false): Promise<boolean> {
+    const sync = this.platform.account.syncVault;
+    if (!sync) return false;
+    let r = await sync().catch(() => "none" as const);
+    if (r === "ask") {
+      // a plain vault is a folder anyone with access can write in: nothing comes from it
+      // without your yes. At start there's no window yet: asked once the deck is up.
+      if (!canAsk) return (this.vaultSettingsWait = true), false;
+      r = await this.answerVaultSettings();
+    }
+    if (r !== "taken") return false;
+    this.settings.freeze();
+    location.reload();
+    return true;
+  }
+
+  /** a plain vault brought newer settings at start: asked once the deck is up */
+  private vaultSettingsWait = false;
+
+  private async answerVaultSettings(): Promise<"none" | "ask" | "taken"> {
+    this.vaultSettingsWait = false;
+    const yes = await this.confirm(
+      t("This vault brings newer settings"),
+      t("They were changed on another computer — or by something else\nthat writes in this folder. Take them?\n\nYour keys, THE MENU, macros, pins, modules, AI, privacy and\nupdate settings stay this computer's: a vault that isn't\nencrypted never brings those, nor a password."),
+      false, // enter alone answers no
+    );
+    return (await this.platform.account.syncVault?.(yes).catch(() => "none" as const)) ?? "none";
+  }
+
+  /** After start: the question a plain vault's newer settings wait for. */
+  private async askVaultSettings(): Promise<void> {
+    if (!this.vaultSettingsWait) return;
+    if ((await this.answerVaultSettings()) !== "taken") return;
+    this.settings.freeze();
+    location.reload();
+  }
+
   async mountVault(path: string): Promise<void> {
+    // typed in the shell (`vault mount`): the keys stay there afterwards, not on HOME
+    const inShell = this.workspace.focus === "shell";
     for (const t of [...this.workspace.tabs]) await t.close?.();
     this.workspace.tabs = [];
-    await this.vault.mount(path);
+    try {
+      await this.vault.mount(path);
+    } catch (e) {
+      // an encrypted vault the login's password didn't open: ask for its password here,
+      // rather than leaving an empty deck with the other vault's tree
+      if (!/encrypted and locked/.test(e instanceof Error ? e.message : String(e)) || !this.platform.vault.crypt) throw e;
+      this.vault.entries = [];
+      this.vault.events.emit("rescanned", undefined);
+      for (;;) {
+        const pw = await this.prompt(t("This vault is encrypted: its password"), { mask: true });
+        if (pw === null) {
+          this.openApp("home");
+          throw new Error("the vault is encrypted and locked (vault unlock)");
+        }
+        try {
+          await this.platform.vault.crypt.unlock(pw);
+          break;
+        } catch (err) {
+          this.notify(err instanceof Error ? err.message : String(err), "error");
+        }
+      }
+      await this.vault.mount(path);
+    }
+    if (await this.syncVaultAccount(true)) return;
     this.settings.set("vault.path", this.vault.root);
     await this.reloadUserThemes();
     await this.plugins.reload();
     this.openApp("home");
+    if (inShell) this.workspace.focusShell();
     this.notify(`vault: ${this.vault.root}`, "success");
   }
 
@@ -1075,6 +1169,7 @@ export class Deck implements InputSink {
 
   async quit(): Promise<void> {
     for (const t of this.workspace.tabs) await t.close?.();
+    await this.updater.onQuit();
     await this.platform.window.quit();
   }
 

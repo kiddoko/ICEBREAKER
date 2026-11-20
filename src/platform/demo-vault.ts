@@ -15,6 +15,11 @@ export const WELCOME_NOTE = `# Welcome to ICEBREAKER
 You just jacked into your deck. Everything here is a plain **Markdown** file
 in your vault — open it with Obsidian, vim, anything. Nothing is locked in.
 
+> **⚠ Test software.** ICEBREAKER is a hobby project, never audited, not ready for heavy,
+> secure or professional use. **Store nothing sensitive here** (encrypted vault or not) and
+> **back up this folder regularly**. Bugs, ideas, modules and themes are welcome:
+> github.com/kiddoko/ICEBREAKER. More in **START HERE/README**.
+
 ## First moves
 - \`Ctrl+K\` (or shift twice) opens THE MENU — everything is in there
 - \`Ctrl+Z\` undoes anything; \`tour\` in the shell shows you around

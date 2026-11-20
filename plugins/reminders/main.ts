@@ -51,7 +51,7 @@ let timer: ReturnType<typeof setInterval> | null = null;
 
 export function activate(ib: IcebreakerAPI): void {
   D = ib.lib.dates;
-  const { BOLD, mix, strWidth, q, fmt, parseFlags, t } = ib.lib;
+  const { BOLD, mix, q, fmt, parseFlags, t } = ib.lib;
   const run = (line: string) => void ib.shell.run(line);
   let list: Reminder[] = [];
   let next = 1;
@@ -66,8 +66,9 @@ export function activate(ib: IcebreakerAPI): void {
     void ib.stats.set("pending", list.filter((r) => !r.done && !r.fired).length, { label: "reminders pending" }).catch(() => {});
     return ib.storage.set("reminders", list).then(() => ib.ui.redraw());
   };
-  ib.modules.expose("list", { doc: "list() → the reminders still to come { id, title, due (ISO), before }", fn: async () => (await ready, list.filter((r) => !r.done && !r.fired).map((r) => ({ ...r }))) });
+  ib.modules.expose("list", { needs: "vault:read", doc: "list() → the reminders still to come { id, title, due (ISO), before }", fn: async () => (await ready, list.filter((r) => !r.done && !r.fired).map((r) => ({ ...r }))) });
   ib.modules.expose("add", {
+    needs: "vault:write",
     doc: "add(title, dueISO, beforeMinutes = 15) → the new reminder",
     fn: async (title: string, due: string, before = 15) => {
       await ready;
@@ -272,7 +273,13 @@ export function activate(ib: IcebreakerAPI): void {
   class RemindersApp implements App {
     readonly kind = "reminders";
     readonly key = "reminders";
-    private sel = 0;
+    /** THE list (ib.lib.ListView): selection, scrolling, mouse, right-click */
+    private readonly list = new ib.lib.ListView<Reminder>();
+    constructor() {
+      this.list.onActivate = (rem) => void editFlow(rem);
+      this.list.tipOf = (rem) => `remind done ${rem.id} · remind rm ${rem.id}`;
+      this.list.menuOf = (rem) => remMenu(rem);
+    }
     title() {
       return "Reminders";
     }
@@ -280,7 +287,7 @@ export function activate(ib: IcebreakerAPI): void {
       return t("a add · e edit · d done · x remove · t test the notification");
     }
     onText(s: string): boolean {
-      const r = upcoming()[this.sel];
+      const r = this.list.current;
       if (s === "a" || s === "+") return void addFlow(), true;
       if (s === "e" && r) return void editFlow(r), true;
       if (s === "d" && r) return run(`remind done ${r.id}`), true;
@@ -292,11 +299,8 @@ export function activate(ib: IcebreakerAPI): void {
       return isDelete(k) ? this.onText("x") : false;
     }
     onAction(a: Action): boolean {
-      const n = upcoming().length;
-      if (a === "up") return (this.sel = n ? (this.sel - 1 + n) % n : 0), true;
-      if (a === "down") return (this.sel = n ? (this.sel + 1) % n : 0), true;
-      if (a === "confirm") return void addFlow(), true;
-      return false;
+      if (a === "confirm" && !this.list.current) return void addFlow(), true;
+      return this.list.onAction(a);
     }
     render(ui: UI, r: Rect, focused: boolean): void {
       const c = ui.c;
@@ -304,37 +308,25 @@ export function activate(ib: IcebreakerAPI): void {
       ui.animate(30_000);
       const w = Math.min(r.w - 4, 90), x = r.x + Math.floor((r.w - w) / 2);
       let y = r.y + 1;
-      x0Button(ui, x, y, t("+ add a reminder"), () => void addFlow());
-      ui.button(x + 22, y, t("test the notification"), () => {}, { cmd: "remind test" });
+      const bar = new ib.lib.Row(ui, x, y, x + w);
+      bar.button(t("+ add a reminder"), () => void addFlow(), { tip: "a" });
+      bar.button(t("test the notification"), () => {}, { cmd: "remind test" });
       y += 2;
-      const up = upcoming();
-      this.sel = Math.min(this.sel, Math.max(0, up.length - 1));
-      if (!up.length) ui.text(x, y, t("nothing to remember — a adds a reminder"), { fg: c.muted });
-      up.forEach((rem, i) => {
-        if (y >= r.y + r.h - 1) return;
-        const row = { x, y, w, h: 1 };
-        const sel = i === this.sel && focused;
+      this.list.items = upcoming();
+      if (!this.list.items.length) return void ui.text(x, y, t("nothing to remember — a adds a reminder"), { fg: c.muted });
+      this.list.render(ui, { x, y, w, h: r.y + r.h - 1 - y }, focused, (rem, row, sel) => {
         const late = new Date(rem.due).getTime() < Date.now();
-        if (sel || ui.hovered(row)) ui.fill(row, { bg: sel ? mix(c.accent, c.bg, 0.78) : c.highlight });
-        const st = sel || ui.hovered(row) ? { bg: sel ? mix(c.accent, c.bg, 0.78) : c.highlight } : {};
-        ui.text(x + 1, y, "◷", { fg: late ? c.error : c.accent, ...st });
-        ui.text(x + 4, y, rem.title, { fg: c.fg, attrs: sel ? BOLD : 0, ...st }, w - 44);
-        ui.textRight(x + w - 20, y, when(rem), { fg: c.subtle, ...st });
-        ui.textRight(x + w - 10, y, left(rem), { fg: late ? c.error : c.warning, ...st });
-        ui.hit(row, { onClick: () => (this.sel = i), tip: `remind done ${rem.id} · remind rm ${rem.id}`, menu: () => remMenu(rem) });
-        // the obvious way: ✓ done and ✕ remove on every line
-        const dn = { x: x + w - 8, y, w: 4, h: 1 }, rm = { x: x + w - 3, y, w: 3, h: 1 };
-        ui.text(dn.x, y, " ✓ ", { fg: ui.hovered(dn) ? c.panel : c.success, bg: ui.hovered(dn) ? c.success : c.highlight, attrs: BOLD });
-        ui.hit(dn, { cmd: `remind done ${rem.id}`, tip: t("done (d)") });
-        ui.text(rm.x, y, " ✕ ", { fg: ui.hovered(rm) ? c.panel : c.error, bg: ui.hovered(rm) ? c.error : c.highlight });
-        ui.hit(rm, { cmd: `remind rm ${rem.id}`, tip: t("remove (x)") });
-        y++;
+        // (the list paints the row's background: the text keeps it)
+        ui.text(row.x + 1, row.y, "◷", { fg: late ? c.error : c.accent });
+        ui.text(row.x + 4, row.y, rem.title, { fg: c.fg, attrs: sel ? BOLD : 0 }, row.w - 44);
+        ui.textRight(row.x + row.w - 20, row.y, when(rem), { fg: c.subtle });
+        ui.textRight(row.x + row.w - 10, row.y, left(rem), { fg: late ? c.error : c.warning });
+        // the obvious way: ✓ done and ✕ remove on every line (THE button)
+        ui.button(row.x + row.w - 8, row.y, "✓", () => {}, { cmd: `remind done ${rem.id}`, tip: t("done (d)"), accent: c.success });
+        ui.button(row.x + row.w - 4, row.y, "✕", () => {}, { cmd: `remind rm ${rem.id}`, tip: t("remove (x)"), accent: c.error });
       });
-      void strWidth;
     }
   }
-  const x0Button = (ui: UI, x: number, y: number, label: string, onClick: () => void) => ui.button(x, y, label, onClick, { tip: "a" });
-
   ib.apps.register({ kind: "reminders", title: "Reminders", description: "local reminders with notifications", icon: "◷", launcher: true, create: () => new RemindersApp() });
   ib.palette.register({ id: "reminders.add", title: "Reminders: remind me of…", group: "reminders", run: () => void addFlow() });
 
@@ -363,15 +355,13 @@ export function activate(ib: IcebreakerAPI): void {
         const late = new Date(rem.due).getTime() < Date.now();
         // ✓ on every line, right here on HOME: one click and it's done
         const dn = { x: r.x + r.w - 3, y: r.y + i, w: 3, h: 1 };
-        const hot = ui.hovered(dn);
-        ui.text(dn.x, dn.y, " ✓ ", { fg: hot ? c.panel : c.success, bg: hot ? c.success : c.highlight, attrs: BOLD });
-        ui.hit(dn, { cmd: `remind done ${rem.id}`, tip: t("done (d)") });
         const end = ui.textRight(dn.x - 1, r.y + i, left(rem), { fg: late ? c.error : c.warning });
         ui.text(r.x + 1, r.y + i, "◷", { fg: c.accent });
         ui.text(r.x + 4, r.y + i, rem.title, { fg: c.fg }, end - r.x - 5);
         const line = { x: r.x, y: r.y + i, w: dn.x - r.x, h: 1 };
         if (ui.hovered(line)) hoverId = rem.id;
         ui.hit(line, { tip: `${rem.title}\n✓ = ${t("done")} · ${t("del: remove · right-click: edit, more")}`, menu: () => remMenu(rem) });
+        ui.button(dn.x, dn.y, "✓", () => {}, { cmd: `remind done ${rem.id}`, tip: t("done (d)"), accent: c.success });
       });
     },
     popup: {
@@ -388,19 +378,18 @@ export function activate(ib: IcebreakerAPI): void {
           const st = i === popSel ? { bg: mix(c.accent, c.bg, 0.8) } : {};
           ui.text(r.x + 2, r.y + i, rem.title, { fg: c.fg, ...st }, r.w - 30);
           ui.textRight(r.x + r.w - 6, r.y + i, `${when(rem)} · ${left(rem)}`, { fg: c.subtle, ...st });
-          const dn = { x: r.x + r.w - 4, y: r.y + i, w: 3, h: 1 };
-          ui.text(dn.x, dn.y, " ✓ ", { fg: ui.hovered(dn) ? c.panel : c.success, bg: ui.hovered(dn) ? c.success : c.highlight, attrs: BOLD });
-          ui.hit(dn, { cmd: `remind done ${rem.id}`, tip: t("done (d)") });
           ui.hit(row, { onClick: () => (popSel = i), menu: () => remMenu(rem) });
+          // after the row's own click (the last one registered wins): ✓ is its own
+          ui.button(r.x + r.w - 4, r.y + i, "✓", () => {}, { cmd: `remind done ${rem.id}`, tip: t("done (d)"), accent: c.success });
         });
         if (!up.length) ui.text(r.x + 2, r.y, t("nothing to remember — a adds a reminder"), { fg: c.muted });
         ui.button(r.x + 2, r.y + r.h - 1, t("+ add a reminder"), () => void addFlow(), { tip: "a" });
       },
-      onText: (s, { close }) => {
+      onText: (s) => {
         const rem = upcoming()[popSel];
-        if (s === "a" || s === "+") return close(), void addFlow(), true;
+        if (s === "a" || s === "+") return void addFlow(), true;
         if (s === "d" && rem) return run(`remind done ${rem.id}`), true;
-        if (s === "e" && rem) return close(), void editFlow(rem), true;
+        if (s === "e" && rem) return void editFlow(rem), true;
         return false;
       },
       onKey: (k) => {

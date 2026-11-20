@@ -1,3 +1,4 @@
+import pkg from "../../../package.json";
 import { AVATAR_COLORS, AVATARS, avatarOf } from "../../core/avatar";
 import { AvatarPicker } from "../../workspace/avatarpicker";
 import { helpText } from "../help";
@@ -228,7 +229,7 @@ const neofetch: Command = {
       `${key("OS")}: ICEBREAKER 0.1.0 on ${s.os}`,
       `${key("Kernel")}: ${s.kernel || "n/a"} (${s.arch})`,
       `${key("Uptime")}: ${formatUptime(s.uptime)}`,
-      `${key("Shell")}: ibsh 0.1`,
+      `${key("Shell")}: ibsh ${pkg.version}`,
       `${key("Theme")}: ${t.name}`,
       `${key("Font")}: ${d.theme.font.family} ${d.settings.data.appearance.fontSize}px @ ${d.settings.data.appearance.scale}%`,
       `${key("CPU")}: ${s.cpuBrand || "unknown"} (${s.cores.length})`,

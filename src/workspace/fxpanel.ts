@@ -4,7 +4,7 @@ import type { Deck } from "../deck";
 import { ListView } from "../ui/list";
 import type { UI } from "../ui/ui";
 import type { Overlay } from "./overlays";
-import { askNumber, slider } from "../ui/slider";
+import { accelerated, askNumber, slider } from "../ui/slider";
 import { fxMax, getFx, setFx, type FxLevel } from "../core/fxlevels";
 
 type FxKey = "ambient" | "glitch" | "bloom" | "scanlines" | "vignette" | "flicker";
@@ -63,7 +63,7 @@ export class FxPanel implements Overlay {
   private activate(row: Row, dir: 1 | -1 = 1): void {
     const s = this.deck.settings;
     if (row.level) {
-      // enter / space on a slider: off ⇄ 100 %; ←→ step by 5
+      // enter / space on a slider: off ⇄ 100 %; ←→ one at a time, faster when held
       const cur = getFx(this.deck, row.level);
       setFx(this.deck, row.level, dir === 1 && cur === 0 ? 100 : dir === 1 ? 0 : cur);
       return;
@@ -76,7 +76,7 @@ export class FxPanel implements Overlay {
   private nudge(dir: 1 | -1): void {
     const row = this.list.current;
     if (!row?.level) return;
-    setFx(this.deck, row.level, Math.round(getFx(this.deck, row.level) / 5) * 5 + dir * 5);
+    setFx(this.deck, row.level, getFx(this.deck, row.level) + dir * accelerated(`fx:${row.level}`));
   }
 
   onKey(k: KeyInput): boolean {

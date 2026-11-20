@@ -6,15 +6,19 @@
 //! called from src/platform/tauri.ts with `invoke("command_name", args)`.
 
 mod account;
+mod appupdate;
 mod audio;
 mod claude_code;
 mod config;
+mod crypto;
 mod files;
-mod dev; // DEV ONLY — remove before release
+mod dev; // developer tools: refuse unless built with --features dev-tools
 mod google;
 mod media;
 mod net;
+mod recovery;
 mod screen;
+mod store;
 mod term;
 mod system;
 mod vault;
@@ -31,6 +35,9 @@ pub fn run() {
     builder
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .manage(appupdate::UpdateState::default())
         .manage(vault::VaultState::default())
         .manage(system::SystemState::default())
         .manage(claude_code::ClaudeCodeState::default())
@@ -41,6 +48,7 @@ pub fn run() {
         .manage(audio::AudioState::default())
         .setup(|app| {
             term::start_bridge(app.handle());
+            account::init(app.handle());
             #[cfg(target_os = "macos")]
             promotion::unlock(app);
             Ok(())
@@ -56,13 +64,30 @@ pub fn run() {
             vault::vault_write,
             vault::vault_mkdir,
             vault::vault_trash,
-            vault::vault_destroy,
+            account::vault_destroy,
             files::fs_home,
             files::fs_list,
             files::fs_read_text,
             vault::vault_rename,
             vault::vault_exists,
             vault::vault_import,
+            vault::vault_crypt_status,
+            vault::vault_unlock,
+            vault::vault_decrypt,
+            account::vault_export,
+            account::vault_encrypt,
+            account::vault_recovery_new,
+            account::vault_rekey,
+            appupdate::app_update_check,
+            appupdate::app_update_download,
+            appupdate::app_update_install,
+            account::vault_recover,
+            account::account_recover,
+            account::account_open_vault,
+            account::account_vault_sync,
+            vault::vault_adopt,
+            vault::vault_move,
+            vault::vault_move_cleanup,
             config::config_read,
             config::config_write,
             config::env_api_key,
@@ -109,8 +134,14 @@ pub fn run() {
             dev::dev_factory_reset, // DEV ONLY
             dev::dev_restart,       // DEV ONLY
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running ICEBREAKER");
+        .build(tauri::generate_context!())
+        .expect("error while running ICEBREAKER")
+        .run(|app, ev| {
+            // quitting: an encrypted vault's key is wiped from memory first
+            if let tauri::RunEvent::Exit = ev {
+                vault::lock(&tauri::Manager::state::<vault::VaultState>(app));
+            }
+        });
 }
 
 /// App menu (About, Hide, Quit) + Edit (so ⌘C ⌘V ⌘X ⌘Z ⌘A reach the webview) + fullscreen.

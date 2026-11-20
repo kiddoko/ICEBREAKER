@@ -233,15 +233,14 @@ export function activate(ib: IcebreakerAPI): void {
         if (row.kind === "mod") {
           const mine = all.filter((s) => s.source === row.id);
           const on = mine.filter((s) => !hidden.includes(s.id)).length;
-          const box = on === mine.length ? "☑" : on ? "◐" : "☐";
-          ui.text(x + 1, y, box, { fg: on ? c.accent : c.faint, ...st });
-          ui.text(x + 3, y, moduleName(row.id), { fg: c.title, attrs: BOLD, ...st });
+          ib.lib.checkbox(ui, x + 1, y, on === mine.length ? true : on ? "some" : false, { bg: st.bg });
+          ui.text(x + 5, y, moduleName(row.id), { fg: c.title, attrs: BOLD, ...st });
           ui.textRight(x + w - 1, y, `${on}/${mine.length}`, { fg: c.subtle, ...st });
         } else {
           const off = hidden.includes(row.s.id);
           ui.text(x + 1, y, "└", { fg: c.faint, ...st });
-          ui.text(x + 3, y, off ? "☐" : "☑", { fg: off ? c.faint : c.accent, ...st });
-          ui.text(x + 5, y, t(row.s.label), { fg: off ? c.muted : c.fg, ...st }, w - 30);
+          ib.lib.checkbox(ui, x + 3, y, !off, { bg: st.bg });
+          ui.text(x + 7, y, t(row.s.label), { fg: off ? c.muted : c.fg, ...st }, w - 32);
           ui.textRight(x + w - 1, y, `${show(row.s)}  ${row.s.id}`, { fg: c.subtle, ...st });
         }
         ui.hit(line, { onClick: () => ((this.setupSel = i), this.toggleRow(i)), tip: row.kind === "mod" ? `stats hide ${row.id} · stats unhide ${row.id}` : `stats hide ${row.s.id}` });
@@ -361,7 +360,6 @@ export function activate(ib: IcebreakerAPI): void {
         const sum = v.reduce((a, b) => a + b, 0);
         ui.text(gx, gy + gh + 2, `${days} ${t("days")} · min ${show(s, lo)} · max ${show(s, hi)} · ${s.kind === "counter" ? `${t("total")} ${show(s, sum)}` : `${t("avg")} ${show(s, sum / v.length)}`}`, { fg: c.muted }, gw);
       }
-      void focused;
     }
   }
 
@@ -410,17 +408,17 @@ export function activate(ib: IcebreakerAPI): void {
         if (!visible().length) ui.text(r.x + 2, r.y, t("no stats yet — a starts one; modules add theirs"), { fg: c.muted });
         ui.button(r.x + 2, r.y + r.h - 1, t("+ track something"), () => void addFlow(), { tip: "a" });
       },
-      onText: (s, { close }) => {
+      onText: (s) => {
         const st = visible()[popSel];
-        if (s === "a" || s === "+") return close(), void addFlow(), true;
+        if (s === "a" || s === "+") return void addFlow(), true;
         if (s === "p" && st) return run(`stats ${pinned.includes(st.id) ? "unpin" : "pin"} ${st.id}`), true;
         return false;
       },
-      onAction: (a, { close }) => {
+      onAction: (a) => {
         const n = visible().length;
         if (a === "up") return (popSel = n ? (popSel - 1 + n) % n : 0), true;
         if (a === "down") return (popSel = n ? (popSel + 1) % n : 0), true;
-        if (a === "confirm" && visible()[popSel]) return close(), void updateFlow(visible()[popSel]), true;
+        if (a === "confirm" && visible()[popSel]) return void updateFlow(visible()[popSel]), true;
         return false;
       },
     },

@@ -32,9 +32,61 @@ export interface VaultBackend {
   rename(from: string, to: string): Promise<void>;
   exists(path: string): Promise<boolean>;
   /** SELF-DESTRUCT: empty the vault folder for good. `confirm` = the folder's name. Returns how many top-level items went. */
-  destroy?(confirm: string): Promise<number>;
+  /** `password`: the logged-in account's, checked by the native side */
+  destroy?(confirm: string, password: string): Promise<number>;
   /** Raw bytes of a small file (desktop only). */
   readBytes?(path: string): Promise<ArrayBuffer>;
+  /** Vault encryption (desktop only; src-tauri/src/store.rs, docs/ENCRYPTION.md). */
+  crypt?: VaultCrypt;
+  /** Move the whole vault to a new or empty folder (every file copied and checked; the deck switches to it). Returns the new path. */
+  move?(dest: string): Promise<string>;
+  /** After move: remove the old folder (only the one the vault came from). */
+  moveCleanup?(): Promise<void>;
+}
+
+export interface VaultCryptStatus {
+  encrypted: boolean;
+  /** an encrypted vault opened by the login's password (its key in the native side's memory only) */
+  unlocked: boolean;
+  /** it has a recovery key */
+  recovery: boolean;
+  /** encrypt / decrypt / export running */
+  busy: boolean;
+  /** what unlocking found and fixed (files recovered into .trash, a rebuilt index) */
+  notes: string[];
+  /** plain files next to the encrypted vault (an older ICEBREAKER or another app wrote them): vault adopt */
+  leftovers: number;
+}
+
+export interface VaultCryptReport {
+  files: number;
+  folders: number;
+  bytes: number;
+  /** the plain backup zip made first (encrypt) */
+  backup?: string;
+  /** plain files that couldn't be removed afterwards (encrypt) */
+  left: string[];
+  /** the recovery key's 24 words (encrypt): shown once, kept nowhere */
+  recovery?: string;
+}
+
+export interface VaultCrypt {
+  status(): Promise<VaultCryptStatus>;
+  /** `password` = the logged-in account's; `stamp` names the backup zip (local date). */
+  encrypt(password: string, stamp: string): Promise<VaultCryptReport>;
+  decrypt(password: string): Promise<VaultCryptReport>;
+  /** A plain copy in `dest` (a new or empty folder outside the vault). */
+  /** `password`: the logged-in account's, checked by the native side */
+  export(dest: string, password: string): Promise<VaultCryptReport>;
+  unlock(password: string): Promise<void>;
+  /** A new recovery key (the old one stops working); `password` = the account's. Returns its 24 words. */
+  newRecovery(password: string): Promise<string>;
+  /** The recovery key opens the mounted vault; the account's `password` opens it from now on. */
+  recover(words: string, password: string): Promise<void>;
+  /** A new vault key: everything encrypted again, a new recovery key (its words in the report). */
+  rekey(password: string): Promise<VaultCryptReport>;
+  /** The plain files next to the encrypted vault go inside it. */
+  adopt(): Promise<VaultCryptReport>;
 }
 
 export interface SystemStats {
@@ -68,6 +120,17 @@ export interface Platform {
   /** The local Claude Code CLI (desktop only). Runs on the user's Claude plan instead of an API key. */
   /** Google News RSS (desktop only — feeds have no CORS). */
   newsRss?(query: string, lang: string, country: string, provider?: "google" | "bing"): Promise<string>;
+  /**
+   * ICEBREAKER updating itself (desktop): check (`endpoint`: where the releases are, empty =
+   * the official place), download (progress: done / total bytes), install (then it restarts).
+   * Every update is signed; an unsigned one is refused by the native side.
+   */
+  appUpdate?: {
+    check(endpoint?: string): Promise<AppUpdateInfo | null>;
+    download(onProgress?: (done: number, total: number | null) => void): Promise<AppUpdateInfo>;
+    /** restart: start the new version at once (default); false: the next launch will */
+    install(restart?: boolean): Promise<void>;
+  };
   /** GET a text file over https (or http on the local network): the STORE's indexes and downloads. */
   netGet?(url: string): Promise<string>;
   /** Open an https link in the default browser (desktop only). */
@@ -97,6 +160,16 @@ export interface Platform {
     change(password: string, newUser: string, newPassword: string): Promise<void>;
     /** Delete the unlocked account and its settings (its vault stays). */
     remove(password: string): Promise<void>;
+    /**
+     * Forgot password (desktop): the account's encrypted vault's recovery key sets a new password for both; the
+     * account is unlocked. With `path`: a vault from another computer (the account is made here if needed, approved).
+     */
+    recover?(user: string, words: string, newPassword: string, path?: string, approver?: string, approverPassword?: string): Promise<{ id: string; user: string }>;
+    /** Open a vault (a USB key, another computer's): its account's name + password → that account here, its settings with it. */
+    openVault?(path: string, user: string, password: string, approver?: string, approverPassword?: string): Promise<{ id: string; user: string }>;
+    /** After mounting: true if the vault brought newer settings (changed on another computer) → reload the deck. */
+    /** "taken": newer settings came from the vault (reload) · "ask": a plain vault brings newer ones, call again with your answer */
+    syncVault?(accept?: boolean): Promise<"none" | "ask" | "taken">;
   };
   /**
    * What's playing on this computer and play/pause/next/volume (desktop:
@@ -168,7 +241,7 @@ export interface Platform {
     send(id: string, chunk: string | null, done: boolean, found: boolean): void;
   };
   /** DEV ONLY — remove before release: back to a first launch (see dev.rs). */
-  dev?: { factoryReset(): Promise<string[]>; restart(): Promise<void> };
+  dev?: { factoryReset(password: string): Promise<string[]>; restart(): Promise<void> };
   window: {
     setFullscreen(on: boolean): Promise<void>;
     isFullscreen(): Promise<boolean>;
@@ -213,4 +286,13 @@ export interface MediaStatus {
   duration: number;
   /** 0–100 */
   volume: number | null;
+}
+
+/** A newer ICEBREAKER (platform.appUpdate). */
+export interface AppUpdateInfo {
+  version: string;
+  current: string;
+  notes: string;
+  date: string;
+  downloaded: boolean;
 }

@@ -92,8 +92,7 @@ export class TrashApp implements App {
     if (s === "o") return this.open(this.list.current), true;
     return false;
   }
-  onKey(k: KeyInput): boolean {
-    void k;
+  onKey(_k: KeyInput): boolean {
     return false;
   }
   onAction(a: Action): boolean {

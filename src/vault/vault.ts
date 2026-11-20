@@ -3,7 +3,7 @@ import { writeStartHere } from "./starthere";
 import { Emitter } from "../core/events";
 import { WELCOME_NOTE } from "../platform/demo-vault";
 import type { VaultBackend, VaultEntry } from "../platform/types";
-import { basename, dirname, isoDate, join, normalize } from "./paths";
+import { basename, dirname, isoDate, join, newNameProblem, normalize } from "./paths";
 
 /**
  * The vault as the rest of the app sees it: the backend (disk or browser)
@@ -25,9 +25,9 @@ export class Vault {
   }
 
   /** SELF-DESTRUCT — see the `self-destruct` command. Empties the folder for good. */
-  async destroy(confirm: string): Promise<number> {
+  async destroy(confirm: string, password: string): Promise<number> {
     if (!this.backend.destroy) throw new Error("self-destruct needs the desktop app");
-    const n = await this.backend.destroy(confirm);
+    const n = await this.backend.destroy(confirm, password);
     await this.rescan();
     return n;
   }
@@ -105,8 +105,15 @@ export class Vault {
     });
   }
 
+  /** A new name must be one every screen and every system shows as it is (paths.ts newNameProblem). */
+  private checkNewName(p: string): void {
+    const why = newNameProblem(p);
+    if (why) throw new Error(`${p.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069\u2028\u2029]/g, "�")}: ${why}`);
+  }
+
   async write(path: string, content: string): Promise<void> {
     const p = normalize(path);
+    if (newNameProblem(p) && !this.find(p) && !(await this.backend.exists(p).catch(() => false))) this.checkNewName(p);
     await this.backend.write(p, content);
     this.upsert(p, content.length);
     this.events.emit("changed", { path: p });
@@ -121,6 +128,7 @@ export class Vault {
 
   async mkdir(path: string): Promise<void> {
     const p = normalize(path);
+    this.checkNewName(p);
     await this.backend.mkdir(p);
     for (let d = p; d; d = dirname(d)) this.upsertDir(d);
     this.events.emit("changed", { path: p });
@@ -178,6 +186,8 @@ export class Vault {
   }
 
   async rename(from: string, to: string): Promise<void> {
+    // into the trash and back: the name it had; anywhere else: a name every screen shows as it is
+    if (!normalize(to).startsWith(".trash/") && !normalize(from).startsWith(".trash/")) this.checkNewName(to);
     await this.backend.rename(normalize(from), normalize(to));
     // a restore from the trash records itself (as the trash's undo), not as a rename
     if (!normalize(from).startsWith(".trash/"))

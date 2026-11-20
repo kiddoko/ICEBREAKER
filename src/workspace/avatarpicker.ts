@@ -1,8 +1,9 @@
 import { mix } from "../core/color";
+import { strWidth } from "../core/unicode";
 import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
-import { AVATAR_COLORS, AVATARS, avatarOf, avatarRGB, drawAvatar } from "../core/avatar";
+import { AVATAR_COLORS, AVATARS, avatarRGB, drawAvatar } from "../core/avatar";
 import type { Deck } from "../deck";
 import type { UI } from "../ui/ui";
 import type { Overlay } from "./overlays";
@@ -122,7 +123,6 @@ export class AvatarPicker implements Overlay {
       cx += rect.w + 1;
     }
     const ok = ` ${t("keep it")}  ⏎ `;
-    ui.button(inner.x + inner.w - ok.length - 2, cy, ok.trim(), () => this.apply());
-    void avatarOf;
+    ui.button(inner.x + inner.w - strWidth(ok) - 2, cy, ok.trim(), () => this.apply());
   }
 }

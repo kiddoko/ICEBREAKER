@@ -78,35 +78,67 @@ pub fn claude_code_detect() -> Option<String> {
 
 #[tauri::command]
 pub async fn claude_code_run(
+    app: tauri::AppHandle,
     vault: State<'_, VaultState>,
     state: State<'_, ClaudeCodeState>,
     req: RunRequest,
     on_line: Channel<String>,
 ) -> Result<RunResult, String> {
     let exe = find_claude().ok_or("Claude Code isn't installed (https://claude.com/claude-code)")?;
-    let cwd = vault_root(&vault).map_err(|e| e.to_string())?;
+    // an encrypted vault: Claude Code can't read its files (only noise on disk) and
+    // must never write plain ones into it — it gets an empty folder and no file tools;
+    // it only gets what you type (or pipe to `ask`): the LINK page says so
+    let encrypted = crate::vault::is_encrypted(&vault);
+    let cwd = if encrypted {
+        // an empty folder of ours (the app's cache, yours only) — never a shared /tmp one
+        // another user could fill with a CLAUDE.md
+        use tauri::Manager;
+        let d = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("claude-empty");
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).map_err(|e| e.to_string())?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&d, std::fs::Permissions::from_mode(0o700));
+        }
+        d
+    } else {
+        vault_root(&vault).map_err(|e| e.to_string())?
+    };
 
     let mut cmd = Command::new(exe);
-    cmd.args(["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages"])
+    // `-p` skips Claude Code's "do you trust this folder?" question — and a vault can come
+    // from anywhere (a USB key, a shared folder). So nothing of the folder's own Claude Code
+    // set-up is loaded: only YOUR user settings (`--setting-sources user`: no project
+    // .claude/settings.json, so none of its hooks — programs it would run — or permissions)
+    // and no MCP server from the folder or anywhere (`--strict-mcp-config`).
+    cmd.args(["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--setting-sources", "user", "--strict-mcp-config"])
         .args(["--system-prompt", &req.system])
         // `--` ends the variadic tool lists (the prompt itself goes through stdin).
         // Writes: `Edit(./**)` allows creating / editing files under the vault
         // only (Edit rules cover Write too); anything outside needs a permission
         // that -p mode never grants. ICEBREAKER's own folders stay off-limits.
-        .args(if req.writes {
-            [
+        .args(if encrypted {
+            &["--disallowedTools", "Read,Glob,Grep,LS,Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch"][..]
+        } else if req.writes {
+            &[
                 "--allowedTools",
                 "Read,Glob,Grep,Edit(./**)",
                 "--disallowedTools",
-                "Bash,NotebookEdit,WebFetch,WebSearch,Edit(./.icebreaker/**),Edit(./.obsidian/**),Edit(./.git/**),Edit(./.trash/**)",
-            ]
+                // never Claude Code's own set-up in the vault either: a note that talks the model
+                // into writing .claude/settings.json would plant a hook for the next run
+                "Bash,NotebookEdit,WebFetch,WebSearch,Read(./.icebreaker/**),Edit(./.icebreaker/**),Edit(./.obsidian/**),Edit(./.git/**),Edit(./.trash/**),Edit(./.claude/**),Edit(./CLAUDE.md),Edit(./CLAUDE.local.md),Edit(./.mcp.json),Edit(./.icebreaker-vault/**)",
+            ][..]
         } else {
-            ["--allowedTools", "Read,Glob,Grep", "--disallowedTools", "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch"]
+            &["--allowedTools", "Read,Glob,Grep", "--disallowedTools", "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Read(./.icebreaker/**)"][..]
         });
-    if let Some(id) = req.resume.as_deref().filter(|s| !s.is_empty()) {
+    // a session id and a model are names: never something Claude Code would read as an
+    // option ("--dangerously-skip-permissions" as a model would switch every check off)
+    let plain = |s: &&str| !s.is_empty() && !s.starts_with('-') && s.chars().all(|c| c.is_ascii_alphanumeric() || "._:-[]".contains(c));
+    if let Some(id) = req.resume.as_deref().filter(plain) {
         cmd.args(["--resume", id]);
     }
-    if let Some(m) = req.model.as_deref().filter(|s| !s.is_empty()) {
+    if let Some(m) = req.model.as_deref().filter(plain) {
         cmd.args(["--model", m]);
     }
     cmd.current_dir(cwd)

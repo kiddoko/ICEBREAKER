@@ -19,13 +19,60 @@ describe("settings", () => {
     const s = await SettingsStore.load(platformWith({ keys: { "ctrl+shift+1": "open a.md" } }));
     expect(s.data.keys["ctrl+shift+1"]).toBe("open a.md");
   });
-  it("turns the old notification choice into boxes", async () => {
-    const s = await SettingsStore.load(platformWith({ notifications: { mode: "sound" } }));
-    expect(s.data.notifications).toMatchObject({ sound: true, voice: true, screen: false, system: false });
+  it("a speed you chose stays yours (85 isn't changed any more)", async () => {
+    const s = await SettingsStore.load(platformWith({ appearance: { textSpeed: 85 } }));
+    expect(s.data.appearance.textSpeed).toBe(85);
   });
-  it("moves the old space-menu keys to THE MENU", async () => {
-    const s = await SettingsStore.load(platformWith({ leader: { keys: { home: "j" } }, keys: { "space g": "open a.md" } }));
-    expect(s.data.menu.keys).toEqual({ home: "j" });
-    expect(s.data.keys).toEqual({ "menu g": "open a.md" });
+  it("keeps what a newer ICEBREAKER wrote, and survives what another one changed", async () => {
+    const s = await SettingsStore.load(platformWith({ futureThing: { a: 1 }, sound: { muted: "yes please", futureKnob: 3 }, keys: { "ctrl+1": "x" } }));
+    // a value of another kind: the default stays (no crash)
+    expect(s.data.sound.muted).toBe(false);
+    // what's unknown here is written back as it was
+    delete s.data.keys["ctrl+1"];
+    const saved = JSON.parse(s.serialize());
+    expect(saved.futureThing).toEqual({ a: 1 });
+    expect(saved.sound.futureKnob).toBe(3);
+    expect(saved.sound.muted).toBe(false);
+    // a free-form record is this version's: deleted stays deleted
+    expect(saved.keys["ctrl+1"]).toBeUndefined();
+  });
+});
+
+import { limitSetting, limitAll, DEFAULT_SETTINGS as DEFAULTS, type Settings as S } from "../src/core/settings";
+
+describe("a setting stays what it may be, wherever the value comes from", () => {
+  it("numbers stay in their range", () => {
+    expect(limitSetting("appearance.fontSize", 0, 13)).toBe(8);
+    expect(limitSetting("appearance.fontSize", 99999, 13)).toBe(40);
+    expect(limitSetting("appearance.scale", -100, 100)).toBe(25);
+    expect(limitSetting("appearance.scale", 1e6, 100)).toBe(200);
+    expect(limitSetting("appearance.maxFps", -1, 60)).toBe(0);
+    expect(limitSetting("editor.tabSize", 0, 2)).toBe(1);
+    expect(limitSetting("sound.volume", 99999, 50)).toBe(100);
+    expect(limitSetting("sound.mix.ui", -5, 50)).toBe(0);
+    expect(limitSetting("appearance.fontSize", Number.NaN, 13)).toBe(13);
+    expect(limitSetting("appearance.fontSize", Infinity, 13)).toBe(13);
+  });
+  it("choices are one of their words", () => {
+    expect(limitSetting("boot.mode", "fast", "full")).toBe("fast");
+    expect(() => limitSetting("boot.mode", "weird", "full")).toThrow(/full, fast, off/);
+    expect(limitSetting("boot.mode", "weird", "full", false)).toBe("full");
+  });
+  it("names and folders hold nothing that breaks the screen or leaves the vault", () => {
+    expect(limitSetting("user.handle", "\u001b[31m\u0000evil\n\n", "neo")).toBe("[31mevil");
+    expect(limitSetting("user.handle", "\n", "neo")).toBe("neo");
+    expect(limitSetting("journal.folder", "../../x", "journal")).toBe("x");
+    expect(limitSetting("journal.folder", "..", "journal")).toBe("journal");
+    expect(limitSetting("journal.folder", ".icebreaker/plugins", "journal")).toBe("journal");
+    expect(limitSetting("journal.folder", "/diary/2026/", "journal")).toBe("diary/2026");
+  });
+  it("a whole settings object is put right in place (a file, a vault from elsewhere)", () => {
+    const d = JSON.parse(JSON.stringify(DEFAULTS)) as S;
+    d.appearance.fontSize = 0;
+    d.appearance.scale = 1e9;
+    (d.boot as { mode: string }).mode = "weird";
+    d.journal.folder = "../../etc";
+    limitAll(d);
+    expect([d.appearance.fontSize, d.appearance.scale, d.boot.mode, d.journal.folder]).toEqual([8, 200, "full", "etc"]);
   });
 });

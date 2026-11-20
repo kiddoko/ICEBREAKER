@@ -37,7 +37,7 @@ export interface SettingRow {
   cmd?: () => string;
   /** greyed and locked (e.g. the fps cap while vsync is on) */
   disabled?: () => boolean;
-  /** a real slider instead of a value (drag / click / wheel; ←→ by 5) */
+  /** a real slider instead of a value (drag / hold / wheel / ←→: one at a time, faster when held) */
   slider?: { min: number; max: number; get: () => number; set: (v: number) => void; zeroIsOff?: boolean; show?: (v: number) => string; step?: number };
   /** not shown right now (e.g. "your own word" while gender isn't "other") */
   hidden?: () => boolean;
@@ -97,7 +97,12 @@ export class SettingsRegistry {
     const out: ReturnType<SettingsRegistry["sections"]> = [];
     for (const r of this.rows()) {
       if (!r.label && r.section) out.push({ name: r.section, rows: [], group: r.section === "DANGER ZONE" ? "DANGER" : r.section === "OVERVIEW" || r.section.startsWith("◇") ? "MODULES" : "GENERAL" });
-      else if (out.length) out[out.length - 1].rows.push(r);
+      else if (out.length) {
+        const rows = out[out.length - 1].rows;
+        // a heading inside a category gets an empty line above it (not the first one): groups breathe
+        if (r.head && rows.length && !rows[rows.length - 1].head) rows.push({ label: "", head: true, kind: "head", value: () => "", from: r.from } as SettingRow & { from: string });
+        rows.push(r);
+      }
     }
     return [...out.filter((x) => x.group === "GENERAL"), ...out.filter((x) => x.group === "MODULES"), ...out.filter((x) => x.group === "DANGER")];
   }

@@ -42,8 +42,6 @@ export class ExplorerApp implements App {
   private shownAt = 0;
   /** when we last went into (or out of) a folder: the dive animation */
   private diveAt = 0;
-  private typed = "";
-  private typedAt = 0;
   private preview = new Map<string, string>();
   private sortBy: "name" | "modified" | "size" = "name";
 
@@ -63,7 +61,8 @@ export class ExplorerApp implements App {
   }
 
   /** search + colours (the same bar as MODULES): / types, squares tick colours */
-  readonly filter = new FilterBar();
+  /** typing a letter searches at once (no letter shortcuts here) */
+  readonly filter = new FilterBar({ typeToSearch: true });
 
   private items(): VaultEntry[] {
     // colours ticked: what wears one, and the folders that hold some; a search: the names
@@ -187,14 +186,7 @@ export class ExplorerApp implements App {
     if (this.filter.onText(t)) return (this.sel = 0), true;
     if (t === "+") return void this.newNote(), true;
     if (t === ":") return void this.actionMenu(), true;
-    if (!/^[\p{L}\p{N}._ -]$/u.test(t)) return false;
-    if (t === "h" && !this.typed) return false; // h → HOME, unless typing a name
-    const now = performance.now();
-    this.typed = now - this.typedAt > 900 ? t : this.typed + t;
-    this.typedAt = now;
-    const i = this.items().findIndex((e) => e.name.toLowerCase().startsWith(this.typed.toLowerCase()));
-    if (i >= 0) this.sel = i;
-    return true;
+    return false;
   }
 
   onKey(k: KeyInput): boolean {
@@ -322,7 +314,9 @@ export class ExplorerApp implements App {
   private drawNode(ui: UI, r: Rect, v: { e: VaultEntry; i: number; z: number; x: number }, horizon: number, floor: number, focused: boolean): void {
     const c = ui.c;
     const front = v.i === this.sel;
-    const near = (v.z + 1) / 2; // 0 back → 1 front
+    // 0 back → 1 front, in 12 steps: the colours that fade with depth repeat from one
+    // frame to the next (each new tint is a glyph drawn again — core/atlas.ts)
+    const near = Math.round(((v.z + 1) / 2) * 12) / 12;
     // sizes follow the depth continuously (no jump from one size to the next)
     const big = near > 0.93;
     const k = near * near;

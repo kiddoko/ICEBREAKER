@@ -11,6 +11,8 @@ export class FrameLoop {
   fps = 0;
   /** Time spent building + painting the last frame, in ms. */
   frameMs = 0;
+  /** how soon the frame before this one asked for the next (ms; `debug perf` tells a late frame from a slow animation) */
+  wanted = Infinity;
   /** after each frame, with how long it took (the deck's `debug on` watches slow ones) */
   onFrame?: (ms: number) => void;
 
@@ -159,7 +161,7 @@ export class FrameLoop {
     this.last = now;
 
     const t0 = performance.now();
-    let next: number;
+    let next = Infinity;
     try {
       next = this.render(now);
     } catch (err) {
@@ -176,6 +178,7 @@ export class FrameLoop {
       this.count = 0;
       this.windowStart = now;
     }
+    this.wanted = next;
     if (Number.isFinite(next)) this.request(next);
   };
 }

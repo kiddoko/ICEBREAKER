@@ -16,9 +16,12 @@ import { KeyCapture } from "../workspace/keycapture";
 import { SETTINGS_HELP } from "./settings-help";
 import { focus } from "../widgets/focusstate";
 import { q } from "../ui/ui";
+import { accelerated } from "../ui/slider";
 import { fxMax, getFx, setFx, type FxLevel } from "../core/fxlevels";
 import type { Deck } from "../deck";
 import type { SettingRow as Row } from "../core/prefs";
+import type { VaultCryptStatus } from "../platform/types";
+import { pickFolder } from "../workspace/filebrowser";
 import { ollamaModels } from "../ai/ollama";
 import { commandNames } from "../core/suggest";
 
@@ -39,6 +42,26 @@ export async function checkNeural(deck: Deck): Promise<void> {
     neural.v = false;
   }
   deck.requestFrame();
+}
+
+/** the vault's encryption, for the PRIVACY rows (asked again every few seconds) */
+const crypt: { v: VaultCryptStatus | null; at: number } = { v: null, at: -1e9 };
+function cryptState(deck: Deck): VaultCryptStatus | null {
+  if (performance.now() - crypt.at > 3000) {
+    crypt.at = performance.now();
+    void deck.platform.vault.crypt?.status().then((st) => {
+      crypt.v = st;
+      deck.requestFrame();
+    }).catch(() => {});
+  }
+  return crypt.v;
+}
+
+/** An interactive command (it asks for your password…) run in the ibsh tab, the keys going there. */
+function runAsking(deck: Deck, line: string): void {
+  crypt.at = -1e9;
+  void deck.act(line).finally(() => (crypt.at = -1e9));
+  deck.workspace.focusShell();
 }
 
 export function coreSettingRows(deck: Deck): Row[] {
@@ -72,10 +95,9 @@ export function coreSettingRows(deck: Deck): Row[] {
       set(key, options[(i + dir + options.length) % options.length]);
     },
   });
-  /** a real slider row; ←→ step by 5 */
   /**
    * Every number with a range is a slider, and they all follow the same rules (ui/slider.ts):
-   * ←→ step by `step` (5 by default, 1 for small ranges), 0 reads "off" when it means off,
+   * ←→ step by `step` (1 by default), faster when held; 0 reads "off" when it means off,
    * the unit shows when it isn't a percentage.
    */
   const slide = (key: string, label: string, min: number, max: number, get: () => number, put: (v: number) => void, extra: { zeroIsOff?: boolean; show?: (v: number) => string; cmd?: (v: number) => string; step?: number } = {}): Row => ({
@@ -84,15 +106,20 @@ export function coreSettingRows(deck: Deck): Row[] {
     kind: "slider",
     cmd: () => (extra.cmd ? extra.cmd(get()) : `config set ${key} ${get()}`),
     value: () => (extra.show ? extra.show(get()) : extra.zeroIsOff && get() === 0 ? t("off") : `${get()}%`),
-    change: (dir) => {
-      const step = extra.step ?? 5;
-      put(Math.max(min, Math.min(max, Math.round(get() / step) * step + dir * step)));
-    },
+    // ←→ one at a time, faster when held (ui/slider.ts accelerated)
+    change: (dir) => put(Math.max(min, Math.min(max, get() + dir * (extra.step ?? 1) * accelerated(key)))),
     slider: { min, max, get, set: put, zeroIsOff: extra.zeroIsOff, show: extra.show, step: extra.step },
   });
   const fxSlide = (e: FxLevel, label: string, show?: (v: number) => string) =>
     slide(`fx.levels.${e}`, label, 0, fxMax(e), () => getFx(d, e), (v) => void setFx(d, e, v), { zeroIsOff: e !== "sharpness", show, cmd: (v) => `fx ${e} ${v}` });
   const num = (key: string) => Number(s.get(key) ?? 0);
+  /** a small heading inside a category: what follows belongs together (one look in settings.ts) */
+  const head = (label: string): Row => ({ label, head: true, kind: "head", value: () => "" });
+  /** a row that only means something when `ok()`: greyed (and still) otherwise — never a sentence saying why */
+  const needs = (ok: () => boolean, row: Row): Row => ({ ...row, disabled: () => !ok() || (row.disabled?.() ?? false) });
+  const soundOn = () => s.data.sound.enabled !== false;
+  const voiceOn = () => s.data.voice.enabled !== false;
+  const provider = (p: string) => () => s.data.ai.provider === p;
   // suggestions: the ▾ list and Tab completion of the prompt (can be fetched: Ollama's models)
   const text = (key: string, label: string, section?: string, placeholder = "", suggestions?: () => string[] | Promise<string[]>): Row => ({
     section,
@@ -110,6 +137,7 @@ export function coreSettingRows(deck: Deck): Row[] {
 
   return [
     { section: "YOU", label: "", value: () => "" },
+    head("Profile"),
     cycle("user.language", "Language", ["en", "fr"], undefined, (v) => (v === "fr" ? "Français" : "English")),
     text("user.handle", "Name"),
     {
@@ -139,30 +167,36 @@ export function coreSettingRows(deck: Deck): Row[] {
     },
     text("user.locale", "Date format", undefined, "fr-FR, en-US… (empty = system)", () => ["fr-FR", "fr-CH", "fr-BE", "fr-CA", "en-US", "en-GB", "de-CH", "de-DE", "it-CH", "it-IT", "es-ES", "pt-BR", "ja-JP", "nb-NO"]),
     // your account: who you are, log out (new accounts are made on the login page)
+    head("Account"),
     { label: "Account", kind: "action", value: () => d.account ?? "—", cmd: () => "account passwd", change: () => void d.shell.runLine("account passwd").then(() => d.workspace.focusShell()) },
     { label: "Log out", kind: "action", value: () => "⏻", cmd: () => "logout", change: () => d.lockNow() },
     { section: "APPEARANCE", label: "", value: () => "" },
+    head("Screen"),
     cycle("appearance.theme", "Theme", d.themes.list().map((t) => t.name)),
     slide("appearance.scale", "Zoom", 50, 200, () => num("appearance.scale"), (v) => set("appearance.scale", v)),
     slide("appearance.fontSize", "Font size", 10, 20, () => num("appearance.fontSize"), (v) => set("appearance.fontSize", v), { step: 1, show: (v) => `${v}px` }),
     cycle("appearance.fontWeight", "Font weight", ["thin", "light", "regular"]),
     toggle("appearance.startFullscreen", "Start in full screen"),
+    slide("appearance.brightness", "Brightness", 50, 150, () => num("appearance.brightness") || 100, (v) => set("appearance.brightness", v)),
+    head("Motion"),
     // the pace of frames: vsync (the screen's rate) or your own cap, greyed while vsync is on
     toggle("appearance.vsync", "V-Sync"),
     (() => {
       const row = slide("appearance.maxFps", "Frame rate", 0, 240, () => num("appearance.maxFps"), (v) => set("appearance.maxFps", v), { show: (v) => (v === 0 ? t("still") : `${v}fps`) });
       const vsync = () => s.data.appearance.vsync !== false;
-      return { ...row, disabled: vsync, change: (dir: 1 | -1) => (vsync() ? d.notify(t("vertical sync is on: it follows your screen")) : row.change?.(dir)) };
+      return needs(() => !vsync(), row);
     })(),
-    slide("appearance.brightness", "Brightness", 50, 150, () => num("appearance.brightness") || 100, (v) => set("appearance.brightness", v)),
     toggle("appearance.reduceMotion", "Reduce motion"),
+    head("Text"),
     toggle("appearance.fadeIn", "Smooth text"),
     slide("appearance.textSpeed", "Text speed", 0, 100, () => num("appearance.textSpeed"), (v) => set("appearance.textSpeed", v), { show: (v) => (v >= 100 ? t("instant") : `${v}%`) }),
-    toggle("appearance.showFps", "Show FPS"),
     toggle("appearance.lineNumbers", "Line numbers"),
+    head("Performance"),
+    toggle("appearance.showFps", "Show FPS"),
     toggle("appearance.backgroundSlow", "Save energy in background"),
 
     // (the effects are part of APPEARANCE)
+    head("Effects"),
     toggle("fx.ambient", "Animated background"),
     toggle("fx.flicker", "CRT flicker"),
     toggle("fx.glitch", "Glitch effects"),
@@ -185,15 +219,17 @@ export function coreSettingRows(deck: Deck): Row[] {
     fxSlide("chroma", "Chromatic aberration"),
     fxSlide("glow", "Glow"),
     fxSlide("sharpness", "Sharpness", (v) => `${v}%`),
-    slide("fx.screensaverMinutes", "Screensaver", 0, 60, () => num("fx.screensaverMinutes"), (v) => set("fx.screensaverMinutes", v), { step: 5, zeroIsOff: true, show: (v) => (v ? `${v} min` : t("never")) }),
+    head("Screensaver and start"),
+    slide("fx.screensaverMinutes", "Screensaver", 0, 60, () => num("fx.screensaverMinutes"), (v) => set("fx.screensaverMinutes", v), { zeroIsOff: true, show: (v) => (v ? `${v} min` : t("never")) }),
     cycle("boot.mode", "Boot animation", ["full", "fast", "off"]),
     { section: "SOUND", label: "", value: () => "" },
+    head("Sound"),
     // ui sounds: one slider, 0 = off
     slide("sound.volume", "Volume", 0, 100, () => (s.data.sound.enabled ? num("sound.volume") : 0), (v) => {
       set("sound.enabled", v > 0);
       if (v > 0) set("sound.volume", v);
     }, { zeroIsOff: true }),
-    {
+    needs(soundOn, {
       label: "Sound pack",
       steps: true,
       value: () => `${d.soundPack()}${d.soundPack() === d.theme.sound.pack ? ` ${t("(default)")}` : ""}`,
@@ -203,44 +239,48 @@ export function coreSettingRows(deck: Deck): Row[] {
         d.setSoundPack(packs[(packs.indexOf(d.soundPack()) + dir + packs.length) % packs.length]);
         d.sound.play("tick");
       },
-    },
+    }),
     // the mixer: one fader per kind of sound, under the main volume above (core/sound.ts SOUND_CHANNELS)
-    { label: "Mixer", kind: "head", value: () => "" },
-    slide("sound.mix.ui", "Interface", 0, 100, () => num("sound.mix.ui"), (v) => set("sound.mix.ui", v), { zeroIsOff: true }),
-    slide("sound.mix.alerts", "Notifications", 0, 100, () => num("sound.mix.alerts"), (v) => set("sound.mix.alerts", v), { zeroIsOff: true }),
-    slide("sound.mix.text", "Text", 0, 100, () => num("sound.mix.text"), (v) => set("sound.mix.text", v), { zeroIsOff: true }),
-    slide("sound.mix.typing", "Keyboard", 0, 100, () => num("sound.mix.typing"), (v) => set("sound.mix.typing", v), { zeroIsOff: true }),
-    slide("sound.mix.boot", "Startup", 0, 100, () => num("sound.mix.boot"), (v) => set("sound.mix.boot", v), { zeroIsOff: true }),
-    toggle("sound.typing", "Keyboard sounds"),
+    head("Mixer"),
+    needs(soundOn, slide("sound.mix.ui", "Interface", 0, 100, () => num("sound.mix.ui"), (v) => set("sound.mix.ui", v), { zeroIsOff: true })),
+    needs(soundOn, slide("sound.mix.alerts", "Notifications", 0, 100, () => num("sound.mix.alerts"), (v) => set("sound.mix.alerts", v), { zeroIsOff: true })),
+    needs(soundOn, slide("sound.mix.text", "Text", 0, 100, () => num("sound.mix.text"), (v) => set("sound.mix.text", v), { zeroIsOff: true })),
+    needs(soundOn, slide("sound.mix.typing", "Keyboard", 0, 100, () => num("sound.mix.typing"), (v) => set("sound.mix.typing", v), { zeroIsOff: true })),
+    needs(soundOn, slide("sound.mix.boot", "Startup", 0, 100, () => num("sound.mix.boot"), (v) => set("sound.mix.boot", v), { zeroIsOff: true })),
+    needs(soundOn, toggle("sound.typing", "Keyboard sounds")),
     { section: "NOTIFICATIONS", label: "", value: () => "" },
     // how reminders, timers and modules call you: one box each (Deck.alert)
+    head("How you're called"),
     toggle("notifications.screen", "Banners"),
     toggle("notifications.sound", "Sound"),
     toggle("notifications.system", "Notification Center"),
-    { ...toggle("notifications.systemOnlyAway", "Only in background"), hidden: () => !s.data.notifications.system },
+    needs(() => !!s.data.notifications.system, toggle("notifications.systemOnlyAway", "Only in background")),
     toggle("notifications.voice", "Read aloud"),
+    head("Try it"),
     { label: "Test", kind: "action", value: () => "test", cmd: () => "alert test", change: () => d.alert(t("Test"), t("this is how you'll be called")) },
     { section: "VOICE", label: "", value: () => "" },
+    head("Voice"),
     toggle("voice.enabled", "Voice"),
-    toggle("voice.readAI", "Read AI answers"),
-    toggle("voice.subtitles", "Subtitles"),
-    toggle("voice.greet", "Greeting"),
+    needs(voiceOn, toggle("voice.readAI", "Read AI answers")),
+    needs(voiceOn, toggle("voice.subtitles", "Subtitles")),
+    needs(voiceOn, toggle("voice.greet", "Greeting")),
     // say aloud: one switch per kind of thing (Deck.speak)
-    { label: "Say aloud", kind: "head", value: () => "" },
-    toggle("voice.speak.errors", "Errors"),
-    toggle("voice.speak.reminders", "Reminders"),
-    toggle("voice.speak.timers", "Timers"),
-    toggle("voice.speak.calendar", "Events"),
-    toggle("voice.speak.weather", "Weather"),
-    toggle("voice.speak.time", "Time"),
-    toggle("voice.speak.system", "System alerts"),
-    toggle("voice.speak.modules", "Modules"),
-    slide("voice.robot", "Robot effect", 0, 100, () => num("voice.robot"), (v) => set("voice.robot", v), { zeroIsOff: true }),
-    slide("voice.rate", "Speed", 50, 200, () => Math.round(num("voice.rate") * 100), (v) => set("voice.rate", v / 100), { show: (v) => `×${(v / 100).toFixed(2).replace(/0$/, "")}` }),
-    slide("voice.volume", "Volume", 0, 100, () => num("voice.volume"), (v) => set("voice.volume", v), { zeroIsOff: true }),
-    cycle("voice.language", "Language", ["en", "fr", "ja"], undefined, (v) => (v === "fr" ? "Français" : v === "ja" ? "日本語" : "English")),
-    cycle("voice.engine", "Engine", ["auto", "piper", "system"], undefined, (v) => String(v)),
-    {
+    head("Say aloud"),
+    needs(voiceOn, toggle("voice.speak.errors", "Errors")),
+    needs(voiceOn, toggle("voice.speak.reminders", "Reminders")),
+    needs(voiceOn, toggle("voice.speak.timers", "Timers")),
+    needs(voiceOn, toggle("voice.speak.calendar", "Events")),
+    needs(voiceOn, toggle("voice.speak.weather", "Weather")),
+    needs(voiceOn, toggle("voice.speak.time", "Time")),
+    needs(voiceOn, toggle("voice.speak.system", "System alerts")),
+    needs(voiceOn, toggle("voice.speak.modules", "Modules")),
+    head("How it sounds"),
+    needs(voiceOn, slide("voice.robot", "Robot effect", 0, 100, () => num("voice.robot"), (v) => set("voice.robot", v), { zeroIsOff: true })),
+    needs(voiceOn, slide("voice.rate", "Speed", 50, 200, () => Math.round(num("voice.rate") * 100), (v) => set("voice.rate", v / 100), { show: (v) => `×${(v / 100).toFixed(2).replace(/0$/, "")}` })),
+    needs(voiceOn, slide("voice.volume", "Volume", 0, 100, () => num("voice.volume"), (v) => set("voice.volume", v), { zeroIsOff: true })),
+    needs(voiceOn, cycle("voice.language", "Language", ["en", "fr", "ja"], undefined, (v) => (v === "fr" ? "Français" : v === "ja" ? "日本語" : "English"))),
+    needs(voiceOn, cycle("voice.engine", "Engine", ["auto", "piper", "system"], undefined, (v) => String(v))),
+    needs(voiceOn, {
       label: "Natural voice",
       value: () => (s.data.voice.language === "ja" ? "system voice" : neural.v === null ? "…" : neural.v ? "installed" : "download"),
       cmd: () => `voice install ${s.data.voice.language === "en" ? "en" : s.data.voice.language}`,
@@ -252,29 +292,69 @@ export function coreSettingRows(deck: Deck): Row[] {
         d.notify("downloading the natural voice — the shell shows the progress", "info");
         void d.act(`voice install ${s.data.voice.language}`).then(() => checkNeural(deck));
       },
-    },
-    { label: "Test", value: () => "test", cmd: () => "voice test", change: () => void d.act("voice test") },
+    }),
+    needs(voiceOn, { label: "Test", value: () => "test", cmd: () => "voice test", change: () => void d.act("voice test") }),
     { section: "PRIVACY", label: "", value: () => "" },
+    head("Network"),
     toggle("privacy.stealth", "Stealth mode"),
+    // the vault encrypted or plain: back and forth as often as you like (each way checks every file)
+    ...(d.platform.vault.crypt
+      ? ([
+          head("Vault encryption"),
+          {
+            label: "Vault encryption",
+            kind: "action",
+            value: () => {
+              const st = cryptState(d);
+              return !st ? "…" : st.busy ? "working…" : st.encrypted ? (st.unlocked ? "on" : "on · locked") : "off";
+            },
+            cmd: () => (cryptState(d)?.encrypted ? "vault decrypt --window" : "vault encrypt --window"),
+            change: () => runAsking(d, cryptState(d)?.encrypted ? "vault decrypt --window" : "vault encrypt --window"),
+          },
+          {
+            label: "Recovery key",
+            kind: "action",
+            value: () => {
+              const st = cryptState(d);
+              return !st?.encrypted || st.recovery ? "make a new one" : "none: make one";
+            },
+            cmd: () => "vault recovery --window",
+            change: () => void runAsking(d, "vault recovery --window"),
+            disabled: () => !cryptState(d)?.encrypted,
+          },
+          {
+            label: "Vault key",
+            kind: "action",
+            value: () => "change it",
+            cmd: () => "vault rekey --window",
+            change: () => void runAsking(d, "vault rekey --window"),
+            disabled: () => !cryptState(d)?.encrypted,
+          },
+        ] as Row[])
+      : []),
     { section: "SHELL", label: "", value: () => "" },
-    cycle("shell.mode", "Shell", ["system", "ibsh"], undefined, (v) => (v === "system" ? "my terminal + ICEBREAKER" : "ibsh only")),
-    cycle("shell.prompt", "Prompt", ["icebreaker", "mine"], undefined, (v) => (v === "mine" ? "mine (my own theme)" : "ICEBREAKER's")),
+    // the TERMINAL module (core-packages.ts) off: no panel, these mean nothing
+    needs(() => d.workspace.terminalOn, cycle("shell.mode", "Shell", ["system", "ibsh"], undefined, (v) => (v === "system" ? "my terminal + ICEBREAKER" : "ibsh only"))),
+    needs(() => d.workspace.terminalOn, cycle("shell.prompt", "Prompt", ["icebreaker", "mine"], undefined, (v) => (v === "mine" ? "mine (my own theme)" : "ICEBREAKER's"))),
     { section: "UPLINK (AI)", label: "", value: () => "" },
+    head("Provider"),
     cycle("ai.provider", "Provider", ["claude-code", "anthropic", "ollama"], undefined, (v) => (v === "claude-code" ? "claude code (subscription)" : v === "anthropic" ? "anthropic api (tokens)" : "ollama (local)")),
-    text("ai.claudeCodeModel", "Model (Claude Code)", undefined, "sonnet, opus… (empty = default)", () => CLAUDE_CODE_MODELS),
-    toggle("ai.allowWrites", "Allow writing notes"),
-    text("ai.model", "Model (API)", undefined, "claude-opus-5-5", () => CLAUDE_MODELS),
-    cycle("ai.effort", "Effort", ["low", "medium", "high", "xhigh", "max"]),
-    {
+    needs(provider("claude-code"), text("ai.claudeCodeModel", "Model (Claude Code)", undefined, "sonnet, opus… (empty = default)", () => CLAUDE_CODE_MODELS)),
+    needs(provider("anthropic"), text("ai.model", "Model (API)", undefined, "claude-opus-5-5", () => CLAUDE_MODELS)),
+    needs(provider("anthropic"), cycle("ai.effort", "Effort", ["low", "medium", "high", "xhigh", "max"])),
+    needs(provider("anthropic"), {
       label: "API key",
       value: () => (s.secrets.anthropicApiKey ? `sk-…${s.secrets.anthropicApiKey.slice(-4)}` : d.ai.envKey ? "from env" : "not set"),
       change: () => void d.shell.runLine("config key"),
-    },
-    text("ai.ollamaHost", "Ollama host", undefined, "http://localhost:11434", () => ["http://localhost:11434", "http://127.0.0.1:11434"]),
+    }),
+    head("Local (Ollama)"),
+    needs(provider("ollama"), text("ai.ollamaHost", "Ollama host", undefined, "http://localhost:11434", () => ["http://localhost:11434", "http://127.0.0.1:11434"])),
     text("ai.ollamaModel", "Ollama model", undefined, "llama3.1", async () => {
       const pulled = await ollamaModels(String(s.get("ai.ollamaHost") ?? ""));
       return [...pulled, ...OLLAMA_COMMON.filter((m) => !pulled.includes(m))];
     }),
+    head("Your notes and chats"),
+    toggle("ai.allowWrites", "Allow writing notes"),
     toggle("ai.saveChats", "Save chats"),
     { section: "KEYS", label: "", value: () => "" },
     ...keyRows(deck, toggle),
@@ -283,19 +363,54 @@ export function coreSettingRows(deck: Deck): Row[] {
     { label: "Store", value: () => "open", cmd: () => "store", change: () => void d.act("store") },
     { label: "Module APIs", value: () => String(d.services.list().length), cmd: () => "modules api", change: () => void d.act("modules api") },
     { section: "VAULT", label: "", value: () => "" },
+    head("Notes"),
     text("journal.folder", "Journal folder", undefined, "journal", () => d.vault.entries.filter((e) => e.isDir && !e.path.startsWith(".")).map((e) => e.path)),
     toggle("editor.autosave", "Autosave"),
     toggle("editor.treeWheel", "Preview on scroll"),
+    head("Where it is"),
     {
       label: "Vault folder",
+      kind: "action",
       value: () => d.vault.root,
+      cmd: () => "vault mount <folder>",
       change: async () => {
-        const p = await d.prompt("Mount another folder as vault (absolute path)", { initial: d.vault.root });
+        // another folder as the vault (it stays where it is): chosen, not typed
+        const p = await pickFolder(d, t("USE ANOTHER FOLDER AS THE VAULT"), d.vault.root);
         if (p) await d.mountVault(p);
       },
     },
+    ...(d.platform.vault.move
+      ? ([{ label: "Move vault", kind: "action", value: () => t("elsewhere…"), cmd: () => "vault move --window", change: () => runAsking(d, "vault move --window") }] as Row[])
+      : []),
     // ── each module's own settings (only the modules that are on) ──
     ...moduleRows(deck, text),
+    // ICEBREAKER's and the modules' updates (core/updater.ts)
+    { section: "UPDATES", label: "", value: () => "" },
+    head("Now"),
+    {
+      label: "ICEBREAKER",
+      kind: "info",
+      value: () => {
+        const u = d.updater;
+        if (u.progress) return `${t("downloading")} ${u.progress.total ? Math.round((u.progress.done / u.progress.total) * 100) : "…"}%`;
+        if (u.busy) return t("looking…");
+        if (u.app) return `${u.version} → ${u.app.version}${u.app.downloaded ? ` · ${t("ready")}` : ""}`;
+        return u.checkedAt ? `${u.version} · ${t(u.appError ? "couldn't check" : "up to date")}` : u.version;
+      },
+    },
+    {
+      label: "Modules",
+      kind: "info",
+      value: () => (d.updater.modules.length ? d.updater.modules.map((m) => `${m.id} ${m.latest}`).join(", ") : d.updater.checkedAt ? t("up to date") : "—"),
+    },
+    needs(() => !s.data.privacy.stealth, { label: "Look now", kind: "action", value: () => t("check"), cmd: () => "update", change: () => void d.act("update") }),
+    needs(() => d.updater.pending(), { label: "Install", kind: "action", value: () => t("install now"), cmd: () => "update install --window", change: () => void d.act("update install --window") }),
+    head("By itself"),
+    needs(() => !s.data.privacy.stealth, cycle("updates.check", "Look for updates", ["daily", "start", "never"], undefined, (v) => (v === "daily" ? "every day" : v === "start" ? "at start" : "never"))),
+    needs(() => !s.data.privacy.stealth && s.data.updates.check !== "never", toggle("updates.download", "Download by itself")),
+    needs(() => !s.data.privacy.stealth && s.data.updates.check !== "never", cycle("updates.install", "Install", ["ask", "auto"], undefined, (v) => (v === "ask" ? "ask me first" : "by itself (ICEBREAKER: when I quit)"))),
+    head("Where from"),
+    text("updates.endpoint", "Releases", undefined, "empty = the official ones"),
     { section: "DANGER ZONE", label: "", value: () => "" },
     { label: "Self-destruct", value: () => "☢", cmd: () => "self-destruct", change: () => void d.act("self-destruct") },
   ];

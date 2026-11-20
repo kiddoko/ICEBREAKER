@@ -9,7 +9,9 @@
 //! - system — what the OS already has: `say` on macOS, `espeak-ng` on Linux,
 //!            SAPI on Windows. Works with no download.
 //!
-//! Text goes through stdin or a temp file, never through a shell.
+//! Text never goes through a shell. The system voices read it from a private temp file;
+//! the neural engine takes it as an argument (the only way it accepts text): while it
+//! speaks, other users of this computer could see that text in the list of processes.
 
 use serde::Serialize;
 use std::path::PathBuf;
@@ -136,14 +138,44 @@ pub async fn voice_list(app: AppHandle, engine: String) -> Result<Vec<VoiceName>
     .map_err(|e| e.to_string())?
 }
 
+/// A folder only your user can open, for the voice's work files.
+fn private_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    let d = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("voice");
+    std::fs::create_dir_all(&d).map_err(|e| e.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&d, std::fs::Permissions::from_mode(0o700));
+    }
+    Ok(d)
+}
+
+fn random_tag() -> String {
+    let mut b = [0u8; 8];
+    let _ = getrandom::getrandom(&mut b);
+    b.iter().map(|x| format!("{x:02x}")).collect()
+}
+
 /// Speak `text` into a WAV (or AIFF on macOS) and return its bytes.
 #[tauri::command]
 pub async fn voice_speak(app: AppHandle, text: String, engine: String, voice: String, rate: f64) -> Result<tauri::ipc::Response, String> {
+    // a voice is a name (a folder of models/, a system voice): never a path
+    if voice.contains(['/', '\\']) || voice.contains("..") {
+        return Err(format!("{voice}: not a voice name"));
+    }
     let text: String = text.chars().filter(|c| !c.is_control() || *c == '\n').take(4000).collect();
+    // the neural engine gets the text as an argument: one starting with "-" would be read as
+    // an option ("--output-filename=…" could write anywhere) — never let it look like one
+    let text = if text.trim_start().starts_with('-') { format!("… {}", text.trim_start().trim_start_matches('-')) } else { text };
     if text.trim().is_empty() {
         return Err("nothing to say".into());
     }
-    let tmp = std::env::temp_dir().join(format!("icebreaker-voice-{}.wav", std::process::id()));
+    // the spoken text (a note's) and its sound: in the app's own cache folder (yours only),
+    // random names — never the shared /tmp, where another user could plant a link
+    let work = private_dir(&app)?;
+    let tag = random_tag();
+    let tmp = work.join(format!("voice-{tag}.wav"));
+    let txt_path = work.join(format!("voice-{tag}.txt"));
     let piper = piper_bin(&app);
     let model_dir = dir(&app)?.join("models").join(&voice);
     let tmp2 = tmp.clone();
@@ -197,8 +229,8 @@ pub async fn voice_speak(app: AppHandle, text: String, engine: String, voice: St
             return Ok(());
         }
         let sys = system_engine().ok_or("no system voice here (Linux: install espeak-ng) — or voice install for piper")?;
-        let txt = std::env::temp_dir().join(format!("icebreaker-voice-{}.txt", std::process::id()));
-        std::fs::write(&txt, &text).map_err(|e| e.to_string())?;
+        let txt = txt_path.clone();
+        crate::crypto::write_private(&txt, text.as_bytes()).map_err(|e| e.to_string())?;
         let status = match sys.as_str() {
             "say" => {
                 let mut c = Command::new("say");
@@ -239,16 +271,40 @@ pub async fn voice_speak(app: AppHandle, text: String, engine: String, voice: St
     Ok(tauri::ipc::Response::new(bytes))
 }
 
+/// SHA-256 of a file, as lowercase hex (read in pieces: the downloads are tens of MB).
+fn file_sha256(path: &std::path::Path) -> std::io::Result<String> {
+    use sha2::{Digest, Sha256};
+    use std::io::Read;
+    let mut f = std::fs::File::open(path)?;
+    let mut h = Sha256::new();
+    let mut buf = vec![0u8; 1 << 16];
+    loop {
+        let n = f.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        h.update(&buf[..n]);
+    }
+    Ok(h.finalize().iter().map(|b| format!("{b:02x}")).collect())
+}
+
 /// Download the neural engine (once) and one voice — "fr" or "en" — into the app data dir.
 #[tauri::command]
 pub async fn voice_install(app: AppHandle, lang: String) -> Result<String, String> {
     let d = dir(&app)?;
     let has_engine = piper_bin(&app).is_some();
     tauri::async_runtime::spawn_blocking(move || {
-        let get = |url: &str, to: &std::path::Path| -> Result<(), String> {
-            let out = quiet(Command::new("curl").args(["-sSLf", "--max-time", "900", "--proto", "=https", "-o"]).arg(to).arg(url)).output().map_err(|e| format!("curl: {e}"))?;
+        // What's downloaded here is a program that will run: it must be, byte for byte, the
+        // file ICEBREAKER was built to expect (its SHA-256, below) — else it's deleted, unopened.
+        let get = |url: &str, to: &std::path::Path, sha256: &str| -> Result<(), String> {
+            let out = quiet(Command::new("curl").args(["-q", "-sSLf", "--max-time", "900", "--proto", "=https", "--proto-redir", "=https", "-o"]).arg(to).arg("--").arg(url)).output().map_err(|e| format!("curl: {e}"))?;
             if !out.status.success() {
                 return Err(format!("download failed: {url}\n{}", String::from_utf8_lossy(&out.stderr).trim()));
+            }
+            let got = file_sha256(to).map_err(|e| format!("{}: {e}", to.display()))?;
+            if got != sha256 {
+                let _ = std::fs::remove_file(to);
+                return Err(format!("the download isn't the file ICEBREAKER expects (it was deleted, nothing was installed): {url}\nIt may have been replaced or damaged on the way — try again later, or update ICEBREAKER."));
             }
             Ok(())
         };
@@ -271,33 +327,34 @@ pub async fn voice_install(app: AppHandle, lang: String) -> Result<String, Strin
         if !has_engine {
             const V: &str = "v2.0.1";
             // the same engine and voices everywhere (Windows: the static-CRT build, no VC++ runtime needed)
-            let asset = match (std::env::consts::OS, std::env::consts::ARCH) {
-                ("macos", "aarch64") => "osx-arm64-shared",
-                ("macos", _) => "osx-x64-shared",
-                ("linux", "x86_64") => "linux-x64-shared",
-                ("linux", "aarch64") => "linux-aarch64-shared-cpu",
-                ("windows", "x86_64") => "win-x64-shared-MT-Release",
-                ("windows", "aarch64") => "win-arm64-shared-MT-Release",
+            // (the file, its SHA-256 as GitHub publishes it for release v2.0.1)
+            let (asset, sum) = match (std::env::consts::OS, std::env::consts::ARCH) {
+                ("macos", "aarch64") => ("osx-arm64-shared", "5e874d3c9b3d6b8c71f7c09e3a9fb9ae846c3009129d302b398d1f7aedb69f84"),
+                ("macos", _) => ("osx-x64-shared", "100315fbb174de2d7fec92b67d28c4128499daf3a6f47b4da6350252680d178f"),
+                ("linux", "x86_64") => ("linux-x64-shared", "2e823376987c3b6960d50726b6560155e2ad92da0b8b3886325773225ec6bdec"),
+                ("linux", "aarch64") => ("linux-aarch64-shared-cpu", "a8fc9fb3940d1aa3f83136767742b05068f00253f560d53c4f5aeb75ab4cb350"),
+                ("windows", "x86_64") => ("win-x64-shared-MT-Release", "dc703575a68594435f53dec93df775ff4913af851a196c0537163f21d8d2364e"),
+                ("windows", "aarch64") => ("win-arm64-shared-MT-Release", "d6faf59919314d4728a2701e715ea748a8a5d846fde1f1d58a38ecd91c848011"),
                 (os, arch) => return Err(format!("no neural voice build for {os}/{arch} yet — the system voice works: voice engine system")),
             };
             let name = format!("sherpa-onnx-{V}-{asset}");
             let archive = d.join(format!("{name}.tar.bz2"));
-            get(&format!("https://github.com/k2-fsa/sherpa-onnx/releases/download/{V}/{name}.tar.bz2"), &archive)?;
+            get(&format!("https://github.com/k2-fsa/sherpa-onnx/releases/download/{V}/{name}.tar.bz2"), &archive, sum)?;
             untar(&archive, &d)?;
             let _ = std::fs::remove_dir_all(d.join("engine"));
             std::fs::rename(d.join(&name), d.join("engine")).map_err(|e| format!("install: {e}"))?;
         }
         // female voices: Jenny (British English), Amy (American English), Siwis (French)
-        let model = match lang.as_str() {
-            "en" | "en-gb" => "vits-piper-en_GB-jenny_dioco-medium",
-            "en-us" => "vits-piper-en_US-amy-medium",
-            "fr" => "vits-piper-fr_FR-siwis-medium",
+        let (model, sum) = match lang.as_str() {
+            "en" | "en-gb" => ("vits-piper-en_GB-jenny_dioco-medium", "a0888024569bafbefc05a4b48ddf8419d8dbbf3205f4af37cf7c6f1a87cc20c5"),
+            "en-us" => ("vits-piper-en_US-amy-medium", "9a5d1fc497f85e8022b785bff5f8105203b1e33099ee6265203efc70b0cb0264"),
+            "fr" => ("vits-piper-fr_FR-siwis-medium", "375909aa30842b3a4efa10b1beb1d761af792960ae6873b4d53889f96c66195b"),
             "ja" => return Err("Japanese speaks with the system's Japanese voice (Kyoko on macOS): nothing to download".into()),
             other => return Err(format!("no voice for \"{other}\" yet (en, en-us, fr, ja)")),
         };
         let models = d.join("models");
         let archive = d.join(format!("{model}.tar.bz2"));
-        get(&format!("https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/{model}.tar.bz2"), &archive)?;
+        get(&format!("https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/{model}.tar.bz2"), &archive, sum)?;
         let _ = std::fs::remove_dir_all(models.join(model));
         untar(&archive, &models)?;
         Ok(model.to_string())

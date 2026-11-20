@@ -1,8 +1,10 @@
 import { Glide } from "../ui/glide";
+import { FilterBar } from "../ui/filterbar";
+import { checkbox, choice } from "../ui/controls";
 import { t } from "../core/i18n";
 import { SETTINGS_HELP } from "./settings-help";
 import { checkNeural } from "./settings-rows";
-import { strWidth, truncate } from "../core/unicode";
+import { strWidth, truncate, wrapWords } from "../core/unicode";
 import { askNumber, slider } from "../ui/slider";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
@@ -42,7 +44,11 @@ export class SettingsApp implements App {
   private cat = 0;
   private sel = 0;
   private pane: "cats" | "rows" = "cats";
-  private query = "";
+  /** type anywhere: it searches every setting (ui/field.ts) */
+  private readonly search = new FilterBar({ always: true, colours: false, onChange: () => ((this.sel = 0), (this.pane = "rows")) });
+  private get query(): string {
+    return this.search.query;
+  }
   private scroll = 0;
   /** the wheel's glide (ui/glide.ts) */
   private readonly glide = new Glide();
@@ -106,12 +112,16 @@ export class SettingsApp implements App {
   }
 
   onText(ch: string): boolean {
-    if (ch === "\n") return false;
-    this.query += ch;
-    this.sel = 0;
-    this.pane = "rows";
-    return true;
+    // space on a box or a ‹ choice › (the one under the mouse, else the one selected): tick it / next value
+    if (ch === " " && !this.query) {
+      const row = this.hoverRow ?? (this.pane === "rows" ? this.shown()[this.sel]?.row : undefined);
+      const kind = row ? kindOf(row) : undefined;
+      if (row && (kind === "toggle" || kind === "choice") && !row.disabled?.()) return void row.change?.(1), true;
+    }
+    return this.search.onText(ch);
   }
+  /** the row under the mouse (last frame): space acts on it */
+  private hoverRow: Row | undefined;
 
   /** on a shortcut row: 0 = its keys, 1 = its key on THE MENU */
   private keyCell: 0 | 1 = 0;
@@ -122,8 +132,8 @@ export class SettingsApp implements App {
     if (k.combo === "delete" && cur) return cur.keys?.remove ? cur.keys.remove() : void this.resetOne(cur), true;
     if (k.combo === "shift+delete" && !this.query) return void this.resetCategory(), true;
     if (k.combo === "f2" && cur?.keys?.editCombo) return cur.keys.editCombo(), true;
-    if (k.combo === "backspace" && this.query) return (this.query = this.query.slice(0, -1)), (this.sel = 0), true;
-    if (k.combo === "esc" && this.query) return (this.query = ""), (this.sel = 0), true;
+    if (this.query && k.combo !== "enter" && this.search.onKey(k)) return true;
+    if (k.combo === "esc" && this.query) return this.search.clear(), true;
     if (k.combo === "esc" && this.pane === "rows") return (this.pane = "cats"), true;
     if (k.combo === "tab" || k.combo === "shift+tab") {
       if (k.combo === "shift+tab" && this.pane === "cats") return false; // the next part of the screen
@@ -148,6 +158,7 @@ export class SettingsApp implements App {
     if (a === "back" && !this.query) return (this.pane = "cats"), true;
     if (!row) return a === "left" ? ((this.pane = "cats"), true) : false;
     const kind = kindOf(row);
+    if (row.disabled?.() && (a === "left" || a === "right" || a === "confirm")) return a !== "left" || ((this.pane = "cats"), true);
     // a shortcut: ←→ between its keys and its menu key, enter changes the one chosen
     if (kind === "keys") {
       const k = row.keys!;
@@ -178,11 +189,8 @@ export class SettingsApp implements App {
     const sy = r.y + 1;
     const sw = Math.min(r.w - 4, 100);
     const sx = r.x + 2;
-    ui.fill({ x: sx, y: sy, w: sw, h: 1 }, { bg: c.highlight });
-    ui.text(sx + 1, sy, "⌕", { fg: c.accent, bg: c.highlight });
-    ui.text(sx + 3, sy, this.query || ` ${t("type to search every setting…")}`, { fg: this.query ? c.fg : c.muted, bg: c.highlight }, sw - 4);
     // the blinking caret: you can type here
-    if (focused) ui.cursor(sx + 3 + strWidth(this.query), sy);
+    this.search.render(ui, { x: sx, y: sy, w: sw, h: 1 }, {}, { focused, placeholder: t("type to search every setting…") });
 
     // left: the categories
     const top = sy + 2;
@@ -203,7 +211,7 @@ export class SettingsApp implements App {
       if (bg !== undefined) ui.fill(line, { bg });
       const name = t(sec.name);
       ui.text(sx + 1, y, `${on ? "▸" : " "} ${name}`, { fg: on && focused && this.pane === "cats" ? c.panel : sec.name === "DANGER ZONE" ? c.error : on ? c.fg : c.muted, attrs: on ? BOLD : 0, ...(bg !== undefined ? { bg } : {}) }, catW - 1);
-      ui.hit(line, { onClick: () => ((this.cat = i), (this.sel = 0), (this.query = ""), (this.pane = "rows")), tip: `${sec.rows.length} settings` });
+      ui.hit(line, { onClick: () => ((this.cat = i), this.search.clear(), (this.sel = 0), (this.pane = "rows")), tip: `${sec.rows.length} settings` });
     });
     ui.vline(sx + catW + 1, top, r.y + r.h - top - 2, { fg: c.faint });
 
@@ -213,7 +221,8 @@ export class SettingsApp implements App {
     this.sel = Math.min(this.sel, Math.max(0, rows.length - 1));
     if (rows[this.sel]?.row.head) this.sel = this.step(rows, this.sel, 1);
     // a big interface scale leaves few lines: the help at the bottom goes first, the settings stay
-    const helpH = r.h - (top - r.y) >= 14 ? 5 : 1;
+    // (5 lines of help when there's room: some explanations are long and were cut mid-sentence)
+    const helpH = r.h - (top - r.y) >= 18 ? 7 : r.h - (top - r.y) >= 14 ? 5 : 1;
     const room = Math.max(1, r.y + r.h - top - helpH);
     // keep the selected row in view only when the selection moves (else the wheel couldn't scroll away)
     if (this.sel !== this.shownSel) {
@@ -243,6 +252,7 @@ export class SettingsApp implements App {
       const y = top + k;
       const kind = kindOf(row);
       if (kind === "head") {
+        if (!row.label) return; // the empty line above a heading
         // a heading inside the category (KEYS: with the names of the two columns)
         const name = t(row.label).toUpperCase();
         const hx = ui.text(rx + 2, y, name, { fg: c.title, attrs: BOLD });
@@ -273,11 +283,12 @@ export class SettingsApp implements App {
       const vw = kind === "slider" ? sliderW : kind === "toggle" ? 3 : kind === "keys" ? Math.min(22, Math.floor(rw * 0.4)) : strWidth(v) + 2;
       const labelRoom = Math.max(6, vx - vw - (rx + 2) - 2);
       const label = row.keys?.remove ? row.label : t(row.label); // yours: the command as you wrote it
-      const lend = ui.text(rx + 2, y, label, { fg: selected ? c.fg : kind === "keys" && !row.keys?.editCombo ? c.subtle : disabled ? c.subtle : c.muted, attrs: selected ? BOLD : 0, ...st }, labelRoom);
+      const lend = ui.text(rx + 2, y, label, { fg: disabled ? c.faint : selected ? c.fg : kind === "keys" && !row.keys?.editCombo ? c.subtle : c.muted, attrs: selected ? BOLD : 0, ...st }, labelRoom);
       if (this.query) ui.text(lend + 2, y, t(from).toLowerCase(), { fg: c.faint, ...st }, Math.max(0, vx - vw - lend - 4));
 
       const pick = () => ((this.sel = i), (this.pane = "rows"));
-      const act = (dir: 1 | -1 = 1) => (pick(), void row.change?.(dir));
+      // greyed (it depends on another setting): chosen, never changed
+      const act = (dir: 1 | -1 = 1) => (pick(), disabled ? undefined : void row.change?.(dir));
       const tip = row.cmd?.();
       // the whole line: choose it; a box ticks, text and actions open, at once
       ui.hit(line, { onClick: () => (kind === "toggle" || kind === "text" || kind === "action" ? act() : pick()), tip });
@@ -290,34 +301,20 @@ export class SettingsApp implements App {
           show: sl.show,
           step: sl.step,
           disabled,
-          tip: t("drag, click, wheel · ←→ by 5 · double-click the number to type it"),
+          tip: t("drag the handle · hold on the track · wheel · ←→ (1 at a time, faster when held) · double-click the number to type it"),
           onEdit: () => void askNumber(this.deck, t(row.label), sl.get(), sl.min, sl.max, sl.zeroIsOff).then((nv) => nv !== null && sl.set(nv)),
         });
       } else if (kind === "toggle") {
-        const on = raw === "on";
-        ui.text(ve - 2, y, "[", { fg: hot ? c.fg : c.subtle, ...st });
-        ui.text(ve - 1, y, on ? "■" : " ", { fg: c.accent, attrs: BOLD, ...st });
-        ui.text(ve, y, "]", { fg: hot ? c.fg : c.subtle, ...st });
+        checkbox(ui, ve - 2, y, raw === "on", { hot: hot && !disabled, bg: st.bg, disabled });
       } else if (kind === "keys") {
         this.drawKeys(ui, row, y, { vx, selected: selected && focused, hot, st, pick });
       } else {
         const vxStart = ve - strWidth(v) + 1;
-        ui.text(vxStart, y, v, { fg: valFg, attrs: selected ? BOLD : 0, ...st });
-        if (kind === "choice") {
-          // ‹ value ›: the arrows only on the row you're on
-          const arrow = (x: number, ch: string, dir: 1 | -1) => {
-            const ar = { x: x - 1, y, w: 2, h: 1 };
-            if (hot) ui.text(x, y, ch, { fg: ui.hovered(ar) ? c.fg : c.accent, attrs: BOLD, ...st });
-            ui.hit(ar, { onClick: () => act(dir) });
-          };
-          // a click on the value: its left half goes back, its right half forward
-          const vw = strWidth(v), half = Math.floor(vw / 2);
-          ui.hit({ x: vxStart, y, w: half, h: 1 }, { onClick: () => act(-1), tip });
-          ui.hit({ x: vxStart + half, y, w: vw - half, h: 1 }, { onClick: () => act(1), tip });
-          arrow(vxStart - 2, "‹", -1);
-          arrow(vx, "›", 1);
-        } else if (hot && kind === "text") ui.text(vx, y, "✎", { fg: c.accent, ...st });
-        else if (hot && kind === "action") ui.text(vx, y, "›", { fg: c.accent, attrs: BOLD, ...st });
+        // ‹ value ›: the arrows only on the row you're on (ui/controls.ts)
+        if (kind === "choice") choice(ui, vxStart, y, v, { arrows: hot && !disabled, onStep: (dir) => act(dir), fg: valFg, attrs: selected ? BOLD : 0, bg: st.bg, tip });
+        else ui.text(vxStart, y, v, { fg: valFg, attrs: selected ? BOLD : 0, ...st });
+        if (hot && !disabled && kind === "text") ui.text(vx, y, "✎", { fg: c.accent, ...st });
+        else if (hot && !disabled && kind === "action") ui.text(vx, y, "›", { fg: c.accent, attrs: BOLD, ...st });
       }
       // ↺: back to the default, on the row you're on
       if (changed && hot) {
@@ -330,6 +327,7 @@ export class SettingsApp implements App {
 
     // at the bottom: what the row does (the one under the mouse, else the chosen one),
     // and the category's "everything back to default" on the right
+    this.hoverRow = hoverRow;
     const cur = hoverRow ?? rows[this.sel]?.row;
     const help = cur ? SETTINGS_HELP[cur.key ?? cur.label] : undefined;
     const fr = this.deck.settings.data.user.language === "fr";
@@ -346,16 +344,13 @@ export class SettingsApp implements App {
     }
     if (help && helpH > 1) {
       helpRoom = rw - 2;
-      const words = help[fr ? 1 : 0].split(" ");
-      const lines: string[] = [];
-      let line = "";
-      for (const w of words) {
-        if (strWidth(`${line} ${w}`) > helpRoom && line) (lines.push(line), (line = w));
-        else line = line ? `${line} ${w}` : w;
-      }
-      lines.push(line);
-      ui.hline(rx, by - 4, rw, { fg: mix(c.subtle, c.bg, 0.5) }, "┄");
-      lines.slice(0, 3).forEach((l, j) => ui.text(rx + 2, by - 3 + j, l, { fg: c.muted }, helpRoom));
+      const lines = wrapWords(help[fr ? 1 : 0], helpRoom);
+      const n = helpH - 2;
+      ui.hline(rx, by - n - 1, rw, { fg: mix(c.subtle, c.bg, 0.5) }, "┄");
+      // what doesn't fit ends with … (never a sentence cut without saying so)
+      const shown = lines.slice(0, n);
+      if (lines.length > n) shown[n - 1] = `${shown[n - 1].slice(0, Math.max(0, helpRoom - 2))} …`;
+      shown.forEach((l, j) => ui.text(rx + 2, by - n + j, l, { fg: c.muted }, helpRoom));
     }
   }
 

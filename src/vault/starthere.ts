@@ -29,6 +29,20 @@ terminal** — and a little operating system around your notes: modules,
 widgets, a real shell, an AI if you want one. Everything works offline, with
 the keyboard, the mouse or a gamepad.
 
+> **⚠ Read this first — test software.** ICEBREAKER is a hobby project made by one person
+> who isn't a developer, with an AI (Claude) writing most of the code. It's free and open,
+> built with care — but **never audited, with no warranty and no support**, and **not ready
+> for heavy, secure or professional use**. Its author isn't responsible for bugs, data loss
+> or security problems.
+>
+> - **Store nothing sensitive in it**: no passwords, banking, medical, legal or confidential
+>   documents — encrypted vault or not.
+> - **Back up your vault regularly**: it's a folder, copy it (\`vault export\` when it's encrypted).
+> - **Help if you like**: report bugs, say how it went, share ideas, make modules and themes —
+>   github.com/kiddoko/ICEBREAKER (Issues and Discussions).
+>
+> The whole text: DISCLAIMER.md on github.com/kiddoko/ICEBREAKER.
+
 ## The 30-second tour
 
 \`\`\`
@@ -77,7 +91,7 @@ reinstalled** (MODULES → space / x, or the STORE) — the built-in ones too.
 \`\`\`
    ┌──┐ ┌──┐ ┌──┐ ┌──┐
    │▦ │ │◆ │ │☂ │ │◷ │   MODULES (⌘⇧M): a ring of shards (the chips netrunners slot in)
-   └──┘ └──┘ └──┘ └──┘   ←↑↓→ choose · enter launch · space on/off · p pin · x remove
+   └──┘ └──┘ └──┘ └──┘   ←↑↓→ choose · enter launch · space on/off · del remove · type to search
 \`\`\`
 
 Give a module a **colour** (right-click a module → colour, or \`modules tag todo cyan\`):
@@ -179,6 +193,10 @@ were on come back as you left them next time.
   on. A changed one has a **▎** on its left: **del** puts it back to default, and
   *↺ all back to default* (bottom right) resets the whole category. Hover a
   setting to see what it does and the shell command that does the same.
+  **Space** ticks a box or turns a ‹ choice › (the line under the mouse, else the one
+  you're on). Sliders go **1 at a time** — drag the handle, hold on the bar, the wheel
+  or ←→ — faster the longer you hold. A **greyed** line depends on another setting
+  (the voice's lines while the voice is off, Vault key on a plain vault…).
 - **Settings → KEYS**: every shortcut on one page — click its keys to change them,
   click its **≡** key to change its key on THE MENU, del for the default.
 - **Settings → NOTIFICATIONS**: one box each — on screen, sound, the notification
@@ -277,7 +295,14 @@ were on come back as you left them next time.
   being written, sentence by sentence; in Japanese, UPLINK starts with a short
   spoken version, read at once.
 - **MODULES** is NEXUS's scene with modules on it: each one a shard in its colour,
-  with its state; they power up one after the other when the page opens.
+  with its state; they power up one after the other when the page opens. Just **type**
+  to search (MODULES and NEXUS have no letter shortcuts): space switches a module,
+  del removes it, enter launches. Even the **TERMINAL** is a module: switch it off and
+  the shell panel is gone (commands still run from THE MENU, what they ask comes as a
+  window). Every module that ships with the deck is in the **STORE**: remove one, put it
+  back from there. **Updates**: Settings → UPDATES (every day, download by
+  itself, install by itself or ask first) or \`update\` in the shell; \`store update\` for the
+  modules. A module that needs another one (\`requires\`) gets it installed and switched on with it.
 - **Smooth text**: every letter that appears fades in — what you type, the
   terminal, the chat (Settings → APPEARANCE → *Smooth text*).
 - **Settings** have short, usual names (Zoom, Font size, V-Sync, Reduce motion,
@@ -460,7 +485,8 @@ todo add "pack the books" --every sat --cycles 3
 
   "privacy.md": `# Privacy
 
-- Your notes are **plain Markdown files** in this folder. No cloud, no online account.
+- Your notes are **plain Markdown files** in this folder, unless you encrypt it
+  (below). No cloud, no online account.
 - What goes online, and only when you use it: the AI you chose (or none — or
   a local model with Ollama), the weather (open-meteo.com), the news, Google
   Calendar if you connect it, GitHub when you install from the STORE.
@@ -472,8 +498,25 @@ todo add "pack the books" --every sat --cycles 3
 - **Accounts**: every account has a password (hashed with Argon2id, never
   stored). Before you log in, nothing of anyone is loaded: no vault, no
   settings, no module. A new account must be approved by an existing one.
-- An account **locks the app; it doesn't encrypt your notes yet** (it's planned):
-  anyone who can open this folder on your disk can read them.
+- An account **locks the app**. Its vault can be **encrypted** too: \`vault encrypt\`
+  (a plain backup zip next to the vault first, every file checked). Then this folder
+  holds only noise — no note, no name — and your password opens it at login; ICEBREAKER
+  and ibsh work as always, your real terminal, Obsidian and git see noise.
+  \`vault export <folder>\`: a plain copy. \`vault decrypt\`: back to plain files.
+  It gives a **recovery key**: 24 words, shown once — write them on paper. Forgot
+  the password? Login page → *forgot password?*. \`vault recovery\`: a new one. \`vault rekey\` (Settings → PRIVACY → Vault key): a new key for the whole vault, everything encrypted again — if an old copy may be in someone's hands.
+  It's an option (Settings → PRIVACY), either way, as often as you like.
+  Three things: the **vault key** encrypts the files (you never see it); your **password**
+  and the **recovery key** are two doors to it. Typed in the shell, these commands stay in
+  the shell; from Settings or THE MENU every step is a window.
+- **Your vault carries your account** (its name, a hash of the password, your
+  settings): on another computer or from a USB key, login page → *open a vault*
+  (*browse* chooses the folder). Moving it: Settings → VAULT → *Move vault*.
+  An encrypted vault brings everything. A vault that isn't encrypted is a folder
+  anyone with access can write in: it never brings a password, your keys, macros,
+  pins or module list, and its other settings only after you say yes.
+- **Modules can't touch the encryption**, nor your account's files in the vault.
+  Not encrypted, anyone who can open this folder on your disk can read your notes.
 - **Log out** (⌘⇧L): back to the login page.
 - **Notifications** (⚙ NOTIFICATIONS): on screen, sound, your system's
   notification center, read aloud — one box each.
@@ -482,7 +525,12 @@ todo add "pack the books" --every sat --cycles 3
   computer, with your own rights.
 - **Modules you install** start switched off. Switching one on shows its
   permissions and what its code does that a module shouldn't need (\`plugin
-  audit <id>\`). Modules still run inside the deck: only switch on code you trust.
+  audit <id>\`). They run in a **sandbox**: only what their permissions allow —
+  nothing of the deck, the page, the native side or the network. A module never
+  runs with more than the permissions you approved, nor with other code: if an
+  update asks for more, or its code changed without you, it stays off until you
+  switch it on again (\`plugin reload\` approves the code of a module you're writing). What a module asks you is headed
+  with its name.
 - **self-destruct**: deletes everything in the vault for good, after four
   confirmations and a countdown. Copies elsewhere are not touched.
 `,
@@ -509,6 +557,12 @@ Three rules the whole deck follows: **one feature = one module**, **every
 click is a shell command** (so it can be typed, bound to a key, put on THE MENU
 or in a macro), and **everything works offline, without an online account, without AI**.
 **BLOCKS** (\`blocks\`) lists everything there is to call.
+
+Where the safety lines are (read before you publish a module): \`docs/SANDBOX.md\` (what a
+module can reach), \`docs/SECURITY_AUDIT.md\` (what was found, fixed, still open),
+\`docs/COMMUNITY.md\` (getting a module verified in the STORE), \`docs/REVIEWING.md\` (how to
+review the deck itself). ICEBREAKER is test software: bug reports, ideas, modules and themes
+are what it needs most — github.com/kiddoko/ICEBREAKER (Issues and Discussions).
 `,
   "../FOR DEVELOPERS/architecture.md": `# How the deck is built
 
@@ -522,9 +576,9 @@ The full map is \`docs/ARCHITECTURE.md\` in the repository. In short:
 | \`src/workspace/\` | the screen: panes and input (\`workspace.ts\`), the frame (\`chrome.ts\`), right-click menus (\`menus.ts\`), THE MENU (\`quickmenu.ts\`), the guided tour (\`tour.ts\`), the tree, the side panel, dialogs |
 | \`src/apps/\` | what opens in a tab or a page: HOME, notes, settings, MODULES, NEXUS… |
 | \`src/widgets/\` | HOME widgets |
-| \`src/shell/\` | ibsh, every command (\`commands/*.ts\`), your real terminal |
+| \`src/shell/\` | ibsh, every command (\`commands/*.ts\`), your real terminal; \`origin.ts\` (who a line comes from: a module's line runs as that module) and \`privileged.ts\` (what only you may run) |
 | \`src/vault/\` | the notes folder, tags, the journal |
-| \`src/plugins/\` | the module system and the \`ib.*\` API |
+| \`src/plugins/\` | the module system and the \`ib.*\` API (\`api.ts\`), the sandbox (\`sandbox/\`), the STORE's installer |
 | \`src-tauri/src/\` | Rust: files, terminal, voice, Google, system stats |
 
 **One frame**: an input changes some state → the deck draws everything again
@@ -602,9 +656,15 @@ export function activate(ib) {
 Right-click menus: give a clickable area a \`menu\`: \`ui.hit(rect, { cmd, menu: () => [{ label: "done", cmd: "todo done 3" }] })\`.
 Call anything — another module or the deck's own parts — in one line:
 \`await ib.use("tree").reveal("notes/ideas.md")\`, \`ib.use("theme").colors()\`,
-\`ib.use("terminal").run("git status")\` (permission "terminal"), \`ib.use("todo").add("…")\`.
+\`ib.use("terminal").run("git status")\` (permission "terminal"), \`ib.use("todo").add("…")\` (permission "vault:write").
+What a module has the deck do runs **as that module**: \`ib.shell.run\` and the functions that run a
+command (\`shell.run\`, \`home.add\`…) refuse what only you may do (the vault's encryption, accounts,
+scripts, macros, shortcuts, THE MENU's keys, pins, the STORE, updates…) and read, pipe or write notes
+only with \`vault:read\` / \`vault:write\` — never \`.icebreaker/\`. A module's id is its folder's name.
 \`modules api\` in the shell lists every function; the deck's own parts include
-\`menu\` (open, items, add), \`keys\` (list, run, bind) and \`deck\` (notify, alert, say, setting).
+\`menu\` (open, items), \`keys\` (list, run) and \`deck\` (notify, alert, say, setting: the look
+and sound settings). \`menu.add\`, \`keys.bind\` and \`home.link\` plant a command behind a key or
+a square: they're the deck's own, a module can't call them.
 Settings rows: \`ib.settings.register([{ key, label, type: "toggle" | "choice" | "text" | "number" | "action", … }])\`
 — an \`action\` row runs a \`cmd\` (or \`run()\`) and shows a \`value()\` ("connected"…).
 Widgets: \`size\`, \`min\`, \`max\` (a shortcut square: \`max: { w: 1, h: 2 }\`), \`popup\` or

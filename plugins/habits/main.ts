@@ -98,7 +98,7 @@ export function activate(ib: IcebreakerAPI): void {
   };
   const boxes = (h: Habit, d = new Date()) => {
     const n = count(h, d);
-    return h.per === 1 ? (n ? "☑" : "☐") : h.per <= 8 ? "●".repeat(n) + "○".repeat(h.per - n) : `${n}/${h.per}`;
+    return h.per === 1 ? (n ? ib.lib.BOX_ON : ib.lib.BOX_OFF) : h.per <= 8 ? "●".repeat(n) + "○".repeat(h.per - n) : `${n}/${h.per}`;
   };
   const daysLabel = (h: Habit) => (h.days.length ? h.days.map((d) => ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][d]).join(" ") : t("every day"));
 
@@ -204,8 +204,8 @@ export function activate(ib: IcebreakerAPI): void {
     run(`habit add ${q(name.trim())}${Number(times) > 1 ? ` --times ${Number(times)}` : ""}${days.trim() ? ` --days ${days.trim().replace(/\s+/g, "")}` : ""}`);
   }
 
-  ib.modules.expose("list", { doc: "list() → [{ id, name, per, days, today (count), done, streak }]", fn: async () => (await ready, habits.map((h) => ({ ...h, today: count(h, new Date()), done: doneOn(h, new Date()), streak: streak(h) }))) });
-  ib.modules.expose("check", { doc: "check(id) → one more today; returns today's count", fn: async (id: number) => (await ready, bump(habits.find((h) => h.id === Number(id)) ?? (() => { throw new Error(`no habit ${id}`); })(), 1)) });
+  ib.modules.expose("list", { needs: "vault:read", doc: "list() → [{ id, name, per, days, today (count), done, streak }]", fn: async () => (await ready, habits.map((h) => ({ ...h, today: count(h, new Date()), done: doneOn(h, new Date()), streak: streak(h) }))) });
+  ib.modules.expose("check", { needs: "vault:write", doc: "check(id) → one more today; returns today's count", fn: async (id: number) => (await ready, bump(habits.find((h) => h.id === Number(id)) ?? (() => { throw new Error(`no habit ${id}`); })(), 1)) });
 
   /** one row: boxes, name, streak, the last 14 days */
   const drawRow = (ui: UI, x: number, y: number, w: number, h: Habit, bg?: number) => {
@@ -217,7 +217,9 @@ export function activate(ib: IcebreakerAPI): void {
     const stripW = w >= 50 ? 14 : w >= 36 ? 7 : 0;
     const s = streak(h);
     const right = x + w - 1;
-    const sEnd = ui.textRight(right, y, s ? `▲${s}` : "", { fg: c.warning, attrs: BOLD, ...st });
+    // the streak in a column of its own width (▲999): starting a streak never moves the days' squares
+    ui.textRight(right, y, s ? `▲${s}` : "", { fg: c.warning, attrs: BOLD, ...st });
+    const sEnd = right - 4;
     if (stripW) {
       let sx = sEnd - stripW - 2;
       for (let i = stripW - 1; i >= 0; i--) {
@@ -233,7 +235,13 @@ export function activate(ib: IcebreakerAPI): void {
   class HabitsApp implements App {
     readonly kind = "habits";
     readonly key = "habits";
-    private sel = 0;
+    /** THE list (ib.lib.ListView): selection, scrolling, mouse, right-click */
+    private readonly list = new ib.lib.ListView<Habit>();
+    constructor() {
+      this.list.onActivate = (h) => run(`habit check ${h.id}`);
+      this.list.tipOf = (h) => `habit check ${h.id} · habit uncheck ${h.id}`;
+      this.list.menuOf = (h) => habitMenu(h);
+    }
     title() {
       return "Habits";
     }
@@ -241,7 +249,7 @@ export function activate(ib: IcebreakerAPI): void {
       return t("space / enter check · u uncheck · a add · e edit · x remove");
     }
     onText(s: string): boolean {
-      const h = habits[this.sel];
+      const h = this.list.current;
       if (s === "a" || s === "+") return void addFlow(), true;
       if (s === " " && h) return run(`habit check ${h.id}`), true;
       if (s === "u" && h) return run(`habit uncheck ${h.id}`), true;
@@ -253,11 +261,8 @@ export function activate(ib: IcebreakerAPI): void {
       return k.combo === "delete" || k.combo === "ctrl+backspace" ? this.onText("x") : false;
     }
     onAction(a: Action): boolean {
-      const n = habits.length;
-      if (a === "up") return (this.sel = n ? (this.sel - 1 + n) % n : 0), true;
-      if (a === "down" || a === "item-next") return (this.sel = n ? (this.sel + 1) % n : 0), true;
-      if (a === "confirm") return habits[this.sel] ? run(`habit check ${habits[this.sel].id}`) : void addFlow(), true;
-      return false;
+      if (a === "confirm" && !this.list.current) return void addFlow(), true;
+      return this.list.onAction(a === "item-next" ? "down" : a);
     }
     render(ui: UI, r: Rect, focused: boolean): void {
       const c = ui.c;
@@ -271,17 +276,9 @@ export function activate(ib: IcebreakerAPI): void {
       y += 1;
       if (due.length) ui.bar(x, ++y, w, done / due.length, c.accent, c.faint);
       y += 2;
-      this.sel = Math.min(this.sel, Math.max(0, habits.length - 1));
-      if (!habits.length) ui.text(x, y, t("no habits yet — a adds one (drink water ×8, read, stretch on mon wed fri…)"), { fg: c.muted }, w);
-      habits.forEach((h, i) => {
-        if (y >= r.y + r.h - 1) return;
-        const line = { x, y, w, h: 1 };
-        const bg = i === this.sel && focused ? mix(c.accent, c.bg, 0.8) : ui.hovered(line) ? c.highlight : undefined;
-        if (bg !== undefined) ui.fill(line, { bg });
-        drawRow(ui, x, y, w, h, bg);
-        ui.hit(line, { onClick: () => (this.sel = i), onDouble: () => run(`habit check ${h.id}`), tip: `habit check ${h.id} · habit uncheck ${h.id}`, menu: () => habitMenu(h) });
-        y++;
-      });
+      this.list.items = habits;
+      if (!habits.length) return void ui.text(x, y, t("no habits yet — a adds one (drink water ×8, read, stretch on mon wed fri…)"), { fg: c.muted }, w);
+      this.list.render(ui, { x, y, w, h: r.y + r.h - 1 - y }, focused, (h, row) => drawRow(ui, row.x, row.y, row.w, h));
     }
   }
   ib.apps.register({ kind: "habits", title: "Habits", description: "daily habits with streaks", icon: "◉", launcher: true, create: () => new HabitsApp() });
@@ -332,17 +329,17 @@ export function activate(ib: IcebreakerAPI): void {
         if (!list.length) ui.text(r.x + 2, r.y, t("nothing due today"), { fg: c.muted });
         ui.button(r.x + 2, r.y + r.h - 1, t("+ new habit"), () => void addFlow(), { tip: "a" });
       },
-      onText: (s, { close }) => {
+      onText: (s) => {
         const h = today()[popSel];
-        if (s === "a" || s === "+") return close(), void addFlow(), true;
+        if (s === "a" || s === "+") return void addFlow(), true;
         if (s === " " && h) return run(`habit check ${h.id}`), true;
         if (s === "u" && h) return run(`habit uncheck ${h.id}`), true;
-        if (s === "e" && h) return close(), void editFlow(h), true;
+        if (s === "e" && h) return void editFlow(h), true;
         return false;
       },
-      onKey: (k, { close }) => {
+      onKey: (k) => {
         const h = today()[popSel];
-        if (h && isDelete(k)) return close(), askRemove(h), true;
+        if (h && isDelete(k)) return askRemove(h), true;
         return false;
       },
       onAction: (a) => {

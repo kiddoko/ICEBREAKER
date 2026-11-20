@@ -118,7 +118,7 @@ export function createWebPlatform(): Platform {
     envApiKey: async () => null,
     account: webAccount(),
     dev: {
-      factoryReset: async () => {
+      factoryReset: async (_password: string) => {
         const keys = Object.keys(localStorage).filter((k) => k.startsWith("icebreaker"));
         keys.forEach((k) => localStorage.removeItem(k));
         return [`${keys.length} browser storage keys cleared`];

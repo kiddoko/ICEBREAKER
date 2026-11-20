@@ -1,3 +1,4 @@
+import pkg from "../../package.json";
 import { mix } from "../core/color";
 import { BOLD, DIM } from "../core/grid";
 import { strWidth } from "../core/unicode";
@@ -126,8 +127,9 @@ export class BootScreen {
     if (this.finished && n === this.lines.length && !Number.isFinite(this.postEnd)) this.schedule(this.shownAt[n - 1] ?? t);
     const x = 2;
     let y = 1;
-    ui.text(x, y++, "ICEBREAKER BIOS v0.1.0 · open firmware · no warranty, no masters", { fg: c.accent, attrs: BOLD });
-    ui.text(x, y++, "(c) the ICEBREAKER contributors — MIT licensed — https://github.com/", { fg: c.subtle, attrs: DIM });
+    ui.text(x, y++, `ICEBREAKER BIOS v${pkg.version} · open firmware · no warranty, no masters`, { fg: c.accent, attrs: BOLD });
+    ui.text(x, y++, "(c) the ICEBREAKER contributors — MIT licensed — https://github.com/kiddoko/ICEBREAKER", { fg: c.subtle, attrs: DIM });
+    ui.text(x, y++, "⚠ test software, never audited: store nothing sensitive · back up your vault · report bugs (DISCLAIMER.md)", { fg: c.warning });
     y++;
     // memory check counts up
     const memP = this.memMB ? Math.min(1, t / 400) : 0;

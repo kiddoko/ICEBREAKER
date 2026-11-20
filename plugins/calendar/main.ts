@@ -250,12 +250,15 @@ export function activate(ib: IcebreakerAPI): void {
   /** events starting on or after `from`, for `days` days */
   const upcomingAfter = (from: Date, days: number) => visible().filter((e) => dayOf(e.start) >= from && dayOf(e.start) < addDays(from, days)).sort(byStart);
   // ── for other modules (ib.modules.call("calendar", …)) ──
+  // your agenda (Google's too, when connected): only for modules you gave "google-calendar"
   ib.modules.expose("events", {
+    needs: "google-calendar",
     doc: "events(fromISO, toISO) → [{ id, cal, title, start, end, allDay, where }]",
     fn: (from: string, to: string) => (refreshLocal(), between(new Date(from), new Date(to)).map((e) => ({ ...e }))),
   });
-  ib.modules.expose("today", { doc: "today() → today's events", fn: () => (refreshLocal(), between(dayOf(ymd(new Date())), addDays(dayOf(ymd(new Date())), 1)).map((e) => ({ ...e }))) });
-  ib.modules.expose("add", { doc: 'add("dentist fri 14:30 --cal work") → same words as `cal add`', fn: (words: string) => ib.shell.run(`cal add ${words}`) });
+  ib.modules.expose("today", { doc: "today() → today's events", needs: "google-calendar", fn: () => (refreshLocal(), between(dayOf(ymd(new Date())), addDays(dayOf(ymd(new Date())), 1)).map((e) => ({ ...e }))) });
+  // each word quoted: a ";" or a "|" in the words can never start another command
+  ib.modules.expose("add", { doc: 'add("dentist fri 14:30 --cal work") → same words as `cal add`', needs: "google-calendar", fn: (words: string) => ib.shell.run(`cal add ${String(words).split(/\s+/).filter(Boolean).map((w) => ib.lib.q(w)).join(" ")}`) });
   const recordUpcoming = () => void ib.stats.set("week", upcomingAfter(dayOf(ymd(new Date())), 7).length, { label: "events this week" }).catch(() => {});
   setTimeout(recordUpcoming, 3000);
   const upcoming = (n: number) =>
@@ -1063,7 +1066,7 @@ export function activate(ib: IcebreakerAPI): void {
         if (sel || ui.hovered(row)) ui.fill(row, { bg: sel ? mix(c.accent, c.bg, 0.8) : c.highlight });
         const st = sel || ui.hovered(row) ? { bg: sel ? mix(c.accent, c.bg, 0.8) : c.highlight } : {};
         const shown = !hidden.includes(cal.id);
-        ui.text(x, y, shown ? "[■]" : "[ ]", { fg: shown ? c.accent : c.subtle, ...st });
+        ib.lib.checkbox(ui, x, y, shown, { hot: sel, bg: st.bg });
         ui.hit({ x, y, w: 3, h: 1 }, { cmd: `cal ${shown ? "hide" : "show"} ${q(cal.name)}`, tip: "space · show / hide" });
         ui.text(x + 4, y, "●", { fg: colorOf(ui, cal.id), ...st });
         ui.text(x + 6, y, cal.name, { fg: shown ? c.fg : c.muted, attrs: sel ? BOLD : 0, ...st }, w - 34);
@@ -1132,8 +1135,8 @@ export function activate(ib: IcebreakerAPI): void {
       });
       ui.button(ax, r.y + r.h - 1, t("+ add"), () => void addFlow(popDay), { tip: "a" });
     },
-    onText: (t: string, { close }: { close(): void }) => {
-      if (t === "a" || t === "+") return close(), void addFlow(popDay), true;
+    onText: (t: string) => {
+      if (t === "a" || t === "+") return void addFlow(popDay), true;
       if (t === "[") return (popDay = new Date(popDay.getFullYear(), popDay.getMonth() - 1, 1)), true;
       if (t === "]") return (popDay = new Date(popDay.getFullYear(), popDay.getMonth() + 1, 1)), true;
       if (t === "t") return (popDay = startOfDay(new Date())), true;
@@ -1320,7 +1323,7 @@ export function activate(ib: IcebreakerAPI): void {
         if (!evs.length) ui.text(r.x + 2, r.y + 1, t("nothing coming up · a adds an event"), { fg: c.muted });
         ui.button(r.x + 2, r.y + r.h - 1, t("+ add an event"), () => void addFlow(startOfDay(new Date())), { tip: "a" });
       },
-      onText: (t, { close }) => (t === "a" || t === "+" ? (close(), void addFlow(startOfDay(new Date())), true) : false),
+      onText: (t) => (t === "a" || t === "+" ? (void addFlow(startOfDay(new Date())), true) : false),
       onKey: (k, { close }) => {
         if (k.combo !== "enter") return false;
         const e = upcoming(40)[nextSel];

@@ -17,6 +17,9 @@ import { fileIcon } from "../ui/fileicon";
  *    under itself): enter goes in, a file opens; + note, + folder, trash, NEXUS.
  *  - `source: "computer"` with `pick` — the whole computer, read-only, to choose
  *    a file (importing a script): enter on a file picks it.
+ *  - `source: "computer"` with `pickDir` — the same, to choose a folder (a vault
+ *    on a USB key, where to move the vault): "choose this folder" takes the one
+ *    you're in; ⏏ jumps to the drives (/Volumes, /media).
  *
  * The same everywhere: ‹ › history (like a browser), ↑ the folder above, ⌂ where
  * it started, "/" filters (the shared FilterBar), esc closes.
@@ -40,6 +43,16 @@ export interface FileBrowserOptions {
   pick?: (path: string | null) => void;
   /** extensions to highlight (".sh", ".py"…) */
   exts?: string[];
+  /** choosing a folder: the one you're in is handed here (null: closed without one) */
+  pickDir?: (path: string | null) => void;
+}
+
+/** Where removable drives show up on this system (null: no such folder to jump to). */
+function drivesFolder(): string | null {
+  const p = navigator.platform.toLowerCase();
+  if (p.includes("mac")) return "/Volumes";
+  if (p.includes("linux")) return "/media";
+  return null;
 }
 
 export class FileBrowser implements Overlay {
@@ -73,7 +86,14 @@ export class FileBrowser implements Overlay {
   }
 
   private async start(): Promise<void> {
-    const s = this.o.start ?? (this.vault ? "" : await this.deck.platform.files!.home());
+    if (this.vault) {
+      this.history = [this.o.start ?? ""];
+      return;
+    }
+    const home = await this.deck.platform.files!.home();
+    // "~/Music" is the home's; a folder that isn't there (yet) starts at home instead of an error
+    let s = (this.o.start ?? home).replace(/^~(?=\/|\\|$)/, home);
+    if (s !== home) await this.deck.platform.files!.list(s).then((es) => this.cache.set(s, es)).catch(() => (s = home));
     this.history = [s];
     this.load(s);
   }
@@ -136,6 +156,14 @@ export class FileBrowser implements Overlay {
   private close(): void {
     this.done = true;
     this.o.pick?.(null);
+    this.o.pickDir?.(null);
+  }
+
+  /** pickDir: the folder you're in is the one */
+  private chooseHere(): void {
+    if (!this.o.pickDir || !this.dir) return;
+    this.done = true;
+    this.o.pickDir(this.dir);
   }
 
   private async newNote(): Promise<void> {
@@ -168,6 +196,7 @@ export class FileBrowser implements Overlay {
       case "up": this.list.onAction("up"); return true;
       case "down": this.list.onAction("down"); return true;
       case "enter": this.list.onAction("confirm"); return true;
+      case "ctrl+enter": case "cmd+enter": this.chooseHere(); return true;
     }
     return true;
   }
@@ -200,13 +229,7 @@ export class FileBrowser implements Overlay {
 
     // ‹ › ↑ ⌂ and where you are
     let bx = inner.x;
-    const nav = (label: string, ok: boolean, run: () => void, tip: string) => {
-      const br = { x: bx, y: inner.y, w: 3, h: 1 };
-      const hot = ok && ui.hovered(br);
-      ui.text(bx, inner.y, ` ${label} `, { fg: !ok ? c.faint : hot ? c.bg : c.fg, bg: hot ? c.accent : c.highlight, attrs: BOLD });
-      if (ok) ui.hit(br, { onClick: run, tip });
-      bx += 4;
-    };
+    const nav = (label: string, ok: boolean, run: () => void, tip: string) => (bx += ui.button(bx, inner.y, label, run, { tip, disabled: !ok, quiet: true }) + 1);
     nav("‹", this.at > 0, () => this.go(-1), t("back · ← or ⌫"));
     nav("›", this.at < this.history.length - 1, () => this.go(1), t("forward · →"));
     nav("↑", this.parent() !== null, () => this.goTo(this.parent()!), t("the folder above"));
@@ -239,9 +262,18 @@ export class FileBrowser implements Overlay {
       btn("⬡", () => ((this.done = true), void this.deck.act(`explore ${q(this.dir)}`)), t("open this folder in NEXUS"));
     } else {
       btn("~", () => void this.deck.platform.files!.home().then((hm) => this.goTo(hm)), t("your home folder · ~"));
-      ui.text(fx + 1, fy, t("enter on a file chooses it"), { fg: c.faint, bg: c.panel }, inner.x + inner.w - fx - 1);
+      const drives = drivesFolder();
+      if (drives) btn("⏏", () => this.goTo(drives), t("the drives (a USB key…)"));
+      if (this.o.pickDir) btn(t("choose this folder"), () => this.chooseHere(), "ctrl+enter", c.success);
+      else ui.text(fx + 1, fy, t("enter on a file chooses it"), { fg: c.faint, bg: c.panel }, inner.x + inner.w - fx - 1);
     }
   }
+}
+
+/** Pick a folder anywhere on the computer (a vault, where to move it). Resolves with its path, or null. */
+export function pickFolder(deck: Deck, title: string, start?: string): Promise<string | null> {
+  if (!deck.platform.files) return deck.notify(t("picking folders needs the desktop app"), "warning"), Promise.resolve(null);
+  return new Promise((resolve) => deck.workspace.push(new FileBrowser(deck, { source: "computer", title, start, pickDir: resolve })));
 }
 
 /** Pick a file anywhere on the computer (the deck's own picker). Resolves with its path, or null. */

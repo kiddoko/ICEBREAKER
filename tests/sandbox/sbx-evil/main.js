@@ -1,0 +1,45 @@
+export async function activate(ib) {
+  const r = [];
+  const t = async (name, f) => { try { const v = await f(); r.push(name + ": OPEN " + String(v).slice(0, 60)); } catch (e) { r.push(name + ": closed (" + String(e && e.message || e).slice(0, 70) + ")"); } };
+  await t("fetch", () => fetch("https://example.com"));
+  await t("XMLHttpRequest", () => new XMLHttpRequest());
+  await t("WebSocket", () => new WebSocket("wss://example.com"));
+  await t("nested Worker", () => new Worker("data:text/javascript,1"));
+  await t("tauri bridge", () => self.__TAURI_INTERNALS__.invoke("fs_read_text", { path: "/etc/hosts" }));
+  await t("window", () => window.document.title);
+  await t("import http", () => import("https://example.com/x.js"));
+  await t("factory-reset", async () => { const c = await ib.shell.run("factory-reset --yes"); if (c) throw new Error("exit " + c); return c; });
+  await t("script", async () => { const c = await ib.shell.run("script evil"); if (c) throw new Error("exit " + c); return c; });
+  await t("read secrets", () => ib.vault.read(".icebreaker/secrets.json"));
+  await t("read account", () => ib.vault.read(".icebreaker/account.json"));
+  await t("write other module", () => ib.vault.write(".icebreaker/plugins/sbx-demo/main.js", "x"));
+  await t("take the vault command", () => ib.commands.register({ name: "vault", summary: "fake", run() {} }));
+  await t("rpc not allowed", () => self.postMessage({ t: "rpc", id: 999999, path: ["vault", "tools"], args: [] }) || "sent (answer is an error)");
+  // ── found by the 2026-11-20 review: every way round, now closed ──
+  const refused = async (line) => { const c = await ib.shell.run(line); if (c) throw new Error("exit " + c); return c; };
+  const called = async (...a) => { const c = await ib.modules.call(...a); if (c) throw new Error("exit " + c); return "ran (exit " + c + ")"; };
+  await t("modules.call shell.run script", () => called("shell", "run", "script evil"));
+  await t("modules.call shell.run vault mount", () => called("shell", "run", "vault mount /tmp"));
+  await t("modules.call keys.bind", () => called("keys", "bind", "ctrl+shift+9", "script evil"));
+  await t("modules.call menu.add", () => called("menu", "add", "9", "script evil"));
+  await t("modules.call home.link", () => called("home", "link", "x", "script evil"));
+  await t("modules.call clocks.timer injection", () => called("clocks", "timer", "5m; script evil"));
+  await t("modules.call deck.setting vault.path", () => ib.modules.call("deck", "setting", "vault.path"));
+  await t("shell: modules call shell run", () => refused('modules call shell run "script evil"'));
+  await t("shell: menu add", () => refused('menu add 9 "script evil"'));
+  await t("shell: config set vault.path", () => refused("config set vault.path /tmp/x"));
+  await t("shell: macro run", () => refused("macro run x"));
+  await t("shell: plugin disable", () => refused("plugin disable todo"));
+  await t("shell: exit", () => refused("exit"));
+  await t("read account (capitals)", () => ib.vault.read(".ICEBREAKER/account.json"));
+  await t("read account (trailing dot)", () => ib.vault.read(".icebreaker/account.json."));
+  await t("read other module's data", () => ib.vault.read(".icebreaker/plugin-data/todo.json"));
+  await t("write settings (capitals)", () => ib.vault.write(".ICEBREAKER/settings.json", "{}"));
+  await t("write other module (capitals)", () => ib.vault.write(".ICEBREAKER/plugins/sbx-demo/main.js", "x"));
+  await t("shell redirect into .icebreaker", () => refused("echo x > .icebreaker/scripts/evil.sh"));
+  await t("shell redirect into .ICEBREAKER", () => refused("echo x > .ICEBREAKER/scripts/evil.sh"));
+  await t("shell mv into .icebreaker", () => refused("mv Welcome.md .icebreaker/plugins/sbx-demo/main.js"));
+  await t("take another module's command (todo)", () => ib.commands.register({ name: "todo", summary: "fake", run() {} }));
+  await t("take the menu command", () => ib.commands.register({ name: "menu", summary: "fake", run() {} }));
+  ib.commands.register({ name: "sbxevil", summary: "what the escape test found", run(ctx) { for (const l of r) ctx.out(l + "\n"); } });
+}

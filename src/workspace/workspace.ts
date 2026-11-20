@@ -1,3 +1,4 @@
+import { RecoveryDialog } from "./recoverydialog";
 import { editMenu, shellMenu } from "./menus";
 import { editBand, renderNotchBand, renderShellPanel, renderStatusBar, renderSubtitles, renderTip, renderTopBar } from "./chrome";
 import { shortcutFor, type Shortcut } from "../core/shortcuts";
@@ -16,7 +17,7 @@ import type { Deck } from "../deck";
 import { drawBackground } from "../fx/backgrounds";
 import { inside, q, type Hit, type MenuEntry, type MenuItem, type UI } from "../ui/ui";
 import { ContextMenu } from "./contextmenu";
-import { ConfirmDialog, Osk, PromptDialog, Toasts, type Overlay, type PromptOptions, type ToastKind, ChooseDialog } from "./overlays";
+import { ConfirmDialog, Osk, PromptDialog, Toasts, type MessageOptions, type Overlay, type PromptOptions, type ToastKind, ChooseDialog } from "./overlays";
 import type { ChoiceOption } from "../plugins/api";
 import { FxPanel } from "./fxpanel";
 import { Sidebar } from "./sidebar";
@@ -45,7 +46,21 @@ export class Workspace {
   active = 0;
   focus: Pane = "main";
   sidebarVisible = true;
-  shellVisible = true;
+  /** the shell panel is shown (and the TERMINAL module is on: core-packages.ts) */
+  get shellVisible(): boolean {
+    return this.shellShown && this.terminalOn;
+  }
+  set shellVisible(v: boolean) {
+    this.shellShown = v;
+  }
+  private shellShown = true;
+  /** the TERMINAL module (core-packages.ts): off, there's no shell panel */
+  terminalOn = true;
+  setTerminalModule(on: boolean): void {
+    this.terminalOn = on;
+    if (!on && this.focus === "shell") this.focus = "main";
+    this.deck.requestFrame();
+  }
   shellRatio = 0.3;
   overlays: Overlay[] = [];
   readonly toasts = new Toasts();
@@ -161,6 +176,7 @@ export class Workspace {
   }
 
   showShellTab(t: ShellTab): void {
+    if (!this.terminalOn) return this.terminalOff();
     if (t === "term" && !this.termAvailable) t = "ibsh";
     this.shellTab = t;
     this.shellTabChosen = true;
@@ -348,12 +364,19 @@ export class Workspace {
   // ── panes ────────────────────────────────────────────────────────────────
 
   toggleShell(show = !this.shellVisible): void {
+    if (!this.terminalOn) return this.terminalOff();
     this.shellVisible = show;
     if (show) this.focus = "shell";
     else if (this.focus === "shell") this.focus = "main";
   }
 
+  /** the TERMINAL module is off: say so once, where to get it back */
+  private terminalOff(): void {
+    this.deck.notify(t("the TERMINAL module is off — MODULES switches it on"), "info");
+  }
+
   focusShell(): void {
+    if (!this.terminalOn) return this.terminalOff();
     if (!this.shellVisible || this.focus !== "shell") {
       this.shellVisible = true;
       this.focus = "shell";
@@ -362,6 +385,7 @@ export class Workspace {
 
   /** An interactive shell command asks something: make sure it's seen. */
   focusShellIfHidden(): void {
+    if (!this.terminalOn) return;
     this.shellVisible = true;
     this.focus = "shell";
   }
@@ -416,12 +440,23 @@ export class Workspace {
       );
   }
 
-  confirm(title: string, detail = ""): Promise<boolean> {
-    return new Promise((resolve) => this.push(new ConfirmDialog(title, detail, resolve)));
+  /** `preselected` false: enter answers no unless you choose yes (questions whose safe answer is no) */
+  confirm(title: string, detail = "", preselected = true): Promise<boolean> {
+    return new Promise((resolve) => this.push(new ConfirmDialog(title, detail, resolve, undefined, preselected)));
+  }
+
+  /** A message with one ok button (overlays.ts ConfirmDialog in message mode). */
+  message(title: string, detail = "", opts: MessageOptions = {}): Promise<void> {
+    return new Promise((resolve) => this.push(new ConfirmDialog(title, detail, () => resolve(), opts)));
   }
 
   choose(title: string, options: ChoiceOption[], selected = 0): Promise<number | null> {
     return new Promise((resolve) => this.push(new ChooseDialog(title, options, selected, resolve)));
+  }
+
+  /** The recovery key's 24 words in a window: copy all, one word typed back to close (workspace/recoverydialog.ts). */
+  recoveryWords(words: string): Promise<void> {
+    return new Promise((resolve) => this.push(new RecoveryDialog(words, resolve)));
   }
 
   prompt(title: string, opts: PromptOptions = {}): Promise<string | null> {

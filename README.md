@@ -7,6 +7,30 @@
 ╚═╝ ╚═════╝╚══════╝╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝
 ```
 
+> [!CAUTION]
+> ## ⚠ Test software — read this before you use it
+>
+> ICEBREAKER is a **hobby project in testing**, vibe-coded by one person who isn't a
+> developer, with an AI (Claude) writing most of the code. It has **never been audited**.
+> **It is not ready for heavy, secure or professional use.**
+>
+> - **Store nothing sensitive in it** — no passwords, banking, medical, legal or confidential
+>   documents — *encrypted vault or not*.
+> - **Back up your vault regularly** (it's a folder: copy it). A bug can lose notes.
+> - **No warranty, no support**: the author isn't responsible for bugs, data loss or security
+>   problems. You use it at your own risk ([DISCLAIMER.md](DISCLAIMER.md), [LICENSE](LICENSE)).
+> - What was found, fixed and what is still open, honestly: [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md).
+>
+> **You can help — that's the point of making it public:** report bugs and tell us how it went
+> ([Issues](https://github.com/kiddoko/ICEBREAKER/issues)), share ideas and feedback
+> ([Discussions](https://github.com/kiddoko/ICEBREAKER/discussions)), make **modules and themes**
+> ([docs/PLUGINS.md](docs/PLUGINS.md), [docs/THEMES.md](docs/THEMES.md), [the STORE's repository](https://github.com/kiddoko/icebreaker-modules)),
+> review the code ([docs/REVIEWING.md](docs/REVIEWING.md)).
+>
+> *En français : logiciel de test, fait par un non-développeur avec une IA, jamais audité, pas
+> prêt pour un usage intensif, sécurisé ou professionnel. N'y mets rien de sensible, sauvegarde
+> ton vault souvent, et dis-nous ce qui casse — [DISCLAIMER.md](DISCLAIMER.md).*
+
 **An open-source cyberdeck for your notes, your journal and your AI.**
 A standalone desktop app (Windows · macOS · Linux) that looks and feels like a
 terminal from the future — pure character-cell UI, ASCII art, glow and
@@ -38,9 +62,11 @@ scanlines — and works with the keyboard, the mouse or a gamepad.
 - The **voice** reads answers while they're written, in English, French — or Japanese, for the full cyberpunk effect. Local open-source voices (sherpa-onnx): nothing leaves your computer. You choose what else it says aloud (errors, reminders, your next event…).
 
 ### Modules
-- **Everything is a module**, apart from the frame (HOME, notes, the tree, the shell, settings): TODO, CALENDAR (local + Google), HABITS, REMINDERS, STATS, MUSIC, WEATHER, CLOCKS, FOCUS, NEWS, NEXUS, UPLINK… Switch them off, remove them, reinstall them from the **STORE** (modules and themes from the [community index](https://github.com/kiddoko/icebreaker-modules) or your own server).
+- **Everything is a module**, apart from the frame (HOME, notes, the tree, the command engine, settings): TODO, CALENDAR (local + Google), HABITS, REMINDERS, STATS, MUSIC, WEATHER, CLOCKS, FOCUS, NEWS, NEXUS, UPLINK, the TERMINAL itself… — every one listed in the STORE, so a removed one comes back from there. Modules can need other modules (installed and switched on with them), and **ICEBREAKER and its modules update themselves** (Settings → UPDATES: every day, download by itself, install by itself or ask first — signed updates, nothing in stealth mode). Switch them off, remove them, reinstall them from the **STORE** (modules and themes from the [community index](https://github.com/kiddoko/icebreaker-modules) or your own server).
 - **MODULES** shows them on a turning ring, each one a cyberdeck shard in its colour.
 - Modules have a documented API and declared permissions; the built-in ones use the very same API ([docs/PLUGINS.md](docs/PLUGINS.md)). Everything is callable: `ib.use("tree").reveal("notes/a.md")`.
+- **Modules from the STORE run in a sandbox** (a Worker: no page, no native side, no network of their own — only what their permissions allow; [docs/SANDBOX.md](docs/SANDBOX.md)).
+- **One UI kit**: the field, the checkbox, the slider, the list, the file browser… exist once and modules get the same ones ([docs/UI_KIT.md](docs/UI_KIT.md), spacing rules: [docs/LAYOUT.md](docs/LAYOUT.md)).
 
 ### Look and feel
 - **11 themes**, each with its colours, font, animated background, sounds, widget frames and screensaver — from e-ink (matte paper) to neon-district (synthwave) and abyss (bioluminescent sonar). Make your own in a `.toml` file or the theme studio ([docs/THEMES.md](docs/THEMES.md)).
@@ -53,15 +79,19 @@ scanlines — and works with the keyboard, the mouse or a gamepad.
 - **Picks up where you left**: tabs, open folders and the page you were on come back at the next start. Mouse back / forward and a two-finger swipe switch tabs; pinch zooms.
 
 ### Accounts and privacy
-- **Accounts**: each one is its own deck — settings, theme, sounds, vault, Google connection — behind its password (Argon2id, never stored). It locks the app; it doesn't encrypt your notes yet (vault encryption is planned: [docs/ENCRYPTION.md](docs/ENCRYPTION.md)). Forgot a password? Quit, remove that account from `accounts.json` in the config folder (macOS: `~/Library/Application Support/org.icebreaker.deck/`); its settings stay in `users/<id>/`.
+- **Accounts**: each one is its own deck — settings, theme, sounds, vault, Google connection — behind its password (Argon2id, never stored). It locks the app; its vault can also be encrypted (`vault encrypt`: names, folders and notes, XChaCha20-Poly1305, the key opened by your password — [docs/ENCRYPTION.md](docs/ENCRYPTION.md); a plain backup zip is made first, `vault decrypt` and `vault export <folder>` give plain files back). It also gives a **recovery key** (24 words, shown once, one asked back): forgot the password → login page → *forgot password?*; `vault recovery` makes a new one, `vault rekey` a new key for the whole vault (everything encrypted again). Encryption is an option (the setup asks, Settings → PRIVACY switches it, either way, as often as you like).
+- **Move your vault** (Settings → VAULT → *Move vault*, `vault move`): everything copied and checked, then used; the old folder goes only if you say so.
+- **Modules can't touch the encryption** (nor your account's files in the vault, nor pose as the deck's or another module's commands), run with the permissions you approved and nothing more — in the shell too — and say who they are when they ask you something ([docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md): what was found, fixed, and what's still open).
+- **Portable vault**: the vault carries its account and settings. On another computer — Mac, Windows, Linux, a USB key — login page → *open a vault*: its folder, the account's name and password (or its 24 words). Forgot a password? Quit, remove that account from `accounts.json` in the config folder (macOS: `~/Library/Application Support/org.icebreaker.deck/`); its settings stay in `users/<id>/`.
 - **Stealth mode** (`stealth on`): 100 % local, no internet at all.
 
 > [!WARNING]
 > **Not for sensitive documents.** ICEBREAKER is a hobby project, made with care
-> but without any security audit. Your notes are plain files on your disk
-> (vault encryption is being worked on, not there yet). Don't use it to keep
-> passwords, medical, legal, financial or other sensitive documents. Use it at
-> your own risk — see the [license](LICENSE): no warranty of any kind.
+> but without any security audit. Your notes are plain files on your disk unless
+> you encrypt the vault (`vault encrypt`: new, home-made on well-known libraries, not
+> reviewed by experts). Don't use it to keep passwords, medical, legal, financial or
+> other sensitive documents. Use it at your own risk — [DISCLAIMER.md](DISCLAIMER.md),
+> and the [license](LICENSE): no warranty of any kind.
 
 ## Yours, offline, anonymous — if you want
 
@@ -71,7 +101,7 @@ use **no account** and **no AI**, and the deck works the same.
 
 - Your data is plain files on your disk (Markdown, TOML, JSON). Open them with anything; sync them with anything — or don't.
 - Nothing phones home. There is no ICEBREAKER server and no telemetry.
-- Network traffic only goes where *you* point it, when you use it: the AI provider you choose (or a local model with Ollama), the weather widget (open-meteo.com, no account), news feeds, Google Calendar if you connect it, and GitHub when you install a module or theme.
+- Network traffic only goes to the services a feature names: the AI provider you choose (or a local model with Ollama), the weather widget (open-meteo.com, no account), news feeds, Google Calendar if you connect it, and GitHub — when you install a module or theme, and once a day to look for updates (Settings → UPDATES: *never* switches that off; **stealth mode** switches everything off).
 - Google data, if you connect it, is never written into your vault (so no AI or sync tool sees it), and `cal google disconnect` removes it. See the [privacy policy](docs/PRIVACY.md).
 
 ## Install
@@ -81,6 +111,9 @@ latest successful **Actions → build** run): `.zip` for macOS, `.exe` installer
 for Windows, `.AppImage` / `.deb` for Linux. Builds run for release tags and on
 demand (`gh workflow run build.yml`), not on every push.
 
+- **Tested on macOS so far.** The Windows and Linux builds run the same code but the vault
+  encryption, the module sandbox and the latest security fixes haven't been tried there yet:
+  tell us how it goes.
 - **macOS**: the app isn't notarized yet. The first time, right-click it → *Open*
   (or run `xattr -dr com.apple.quarantine ICEBREAKER.app`).
 - **Windows**: SmartScreen may warn about an unknown publisher → *More info* → *Run anyway*.
@@ -120,7 +153,7 @@ To talk to Claude: get an API key at [console.anthropic.com](https://console.ant
 | put anything on THE MENU | right-click → *Add to THE MENU…* · `menu add <key> "<cmd>"` | — |
 | on-screen keyboard | status bar `⌨` | X |
 | interface scale (25–200 %) / fullscreen | `Ctrl+=` `Ctrl+-` `Ctrl+0` / `F11` | — |
-| back to HOME | `h` (when not typing) | Start |
+| back to HOME | `Ctrl+Shift+H` (or `h` where letters aren't typed or searched) | Start |
 
 Every setting can go back to its default: ↺ next to it, or a button per category (`config reset <key>`). Every click runs the matching shell command (the LOG tab shows it): the mouse teaches you the command line (hover anything to see its command and shortcut). `Esc` closes the page you're on and goes back to the previous one. The mouse works everywhere: tabs, tree, tiles, calendar, buttons, drag-to-select, drag the shell border to resize.
 
@@ -136,11 +169,11 @@ src/
   ui/            immediate-mode drawing toolkit: editor, lists, chat, sliders, keycaps, typewriter
   workspace/     layout, tabs, focus, overlays (THE MENU, dialogs, OSK), boot sequence
   apps/          home, note, journal, link (UPLINK), modules, explorer (NEXUS), settings, help…
-  shell/         parser, executor, terminal buffer, commands/
+  shell/         parser, executor, terminal buffer, commands/; origin.ts + privileged.ts: what a module's line may do
   ai/            Claude (Claude Code, Anthropic API) and Ollama providers, vault tools, prompts, context page
-  plugins/       plugin host + the public API (api.ts)
+  plugins/       plugin host + the public API (api.ts), the sandbox (sandbox/), the STORE's installer
   platform/      Tauri bridge, or a browser fallback
-src-tauri/       Rust: vault file access (sandboxed), config files, system stats
+src-tauri/       Rust: vault file access (sandboxed), encryption (crypto.rs, store.rs), accounts, the terminal, updates
 plugins/         built-in plugins (same API as user plugins)
 themes/          built-in themes (nightshade.toml is the annotated reference)
 ```
@@ -151,9 +184,13 @@ themes/          built-in themes (nightshade.toml is the annotated reference)
 - Make a theme → [docs/THEMES.md](docs/THEMES.md)
 - Make a sound pack → [docs/SOUND_PACKS.md](docs/SOUND_PACKS.md)
 - The house rules for modules and themes → [docs/GUIDELINES.md](docs/GUIDELINES.md)
-- Modules and safety (the audit, the sandbox plan) → [docs/SANDBOX.md](docs/SANDBOX.md)
+- Modules and safety (the audit, the sandbox) → [docs/SANDBOX.md](docs/SANDBOX.md) · what was found and fixed → [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md)
+- The UI kit and the spacing rules → [docs/UI_KIT.md](docs/UI_KIT.md) · [docs/LAYOUT.md](docs/LAYOUT.md)
 - Share them, install other people's → [docs/COMMUNITY.md](docs/COMMUNITY.md)
-- Contribute to the core → [CONTRIBUTING.md](CONTRIBUTING.md) · report a vulnerability → [SECURITY.md](SECURITY.md)
+- Contribute (ideas, fixes, modules — how a change gets in) → [CONTRIBUTING.md](CONTRIBUTING.md) · report a vulnerability → [SECURITY.md](SECURITY.md)
+- What this project is and isn't → [DISCLAIMER.md](DISCLAIMER.md)
+- Review the code (where the risk is, how to report) → [docs/REVIEWING.md](docs/REVIEWING.md)
+- Updates (in the app, and how releases are made) → [docs/UPDATES.md](docs/UPDATES.md)
 
 ## Roadmap
 
@@ -163,10 +200,14 @@ themes/          built-in themes (nightshade.toml is the annotated reference)
 - [ ] Backlinks panel and a graph view in braille
 - [ ] Tool use for local models (Ollama), more providers (llama.cpp server, LM Studio)
 - [x] `plugin install` / `theme install` from GitHub + a community index
-- [ ] Modules from the store in a sandboxed Worker ([docs/SANDBOX.md](docs/SANDBOX.md))
+- [x] Modules from the store in a sandboxed Worker ([docs/SANDBOX.md](docs/SANDBOX.md))
+- [ ] The built-in modules in the Worker too; the native bridge locked
 - [ ] Vim keybindings in the editor
 - [ ] Native gamepad backend (gilrs) for Linux WebKitGTK builds without the Gamepad API
-- [ ] Vault encryption, with a recovery key (plan agreed: [docs/ENCRYPTION.md](docs/ENCRYPTION.md))
+- [x] Vault encryption (`vault encrypt` / `decrypt` / `export`) — [docs/ENCRYPTION.md](docs/ENCRYPTION.md)
+- [x] The recovery key (24 words; login page → forgot password?)
+- [x] Encryption as an option (setup, Settings → PRIVACY), back and forth as often as you like
+- [x] Portable vaults: open yours on another computer (USB key, any system) with its name and password
 
 ## License
 

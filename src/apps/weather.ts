@@ -183,7 +183,8 @@ class WeatherApp implements App {
     return "weather";
   }
   status() {
-    return t("s search a place · ←→ your places · p save this place · r refresh");
+    // the data's licence (CC BY 4.0) asks for this line
+    return `${t("s search a place · ←→ your places · p save this place · r refresh")} · ${t("weather data by Open-Meteo.com")}`;
   }
   private places(): Place[] {
     return (this.deck.settings.data.home.weatherPlaces ?? []) as Place[];
@@ -222,8 +223,7 @@ class WeatherApp implements App {
     if (s === "p" && this.f) return void this.deck.act(`weather save ${this.f.place.name}`), true;
     return false;
   }
-  onKey(k: KeyInput): boolean {
-    void k;
+  onKey(_k: KeyInput): boolean {
     return false;
   }
   onAction(a: Action): boolean {
@@ -236,9 +236,8 @@ class WeatherApp implements App {
     return false;
   }
 
-  render(ui: UI, r: Rect, focused: boolean): void {
+  render(ui: UI, r: Rect, _focused: boolean): void {
     const c = ui.c;
-    void focused;
     if (!this.f) {
       ui.textCenter(r, r.y + Math.floor(r.h / 2), this.loading ? `${ui.spinner()} ${t("reading the sky…")}` : this.error || t("no data"), { fg: this.error ? c.error : c.muted });
       if (this.loading) ui.animate(100);

@@ -10,7 +10,7 @@ import type { ChatSession } from "../ai/types";
 import { wrapWords } from "../core/unicode";
 import { q } from "../ui/ui";
 import type { UI } from "../ui/ui";
-import { Field } from "./field";
+import { Field } from "../ui/field";
 import type { WidgetPopupSpec, WidgetSpec } from "./types";
 
 interface Msg {
@@ -18,7 +18,7 @@ interface Msg {
   text: string;
 }
 const chat = { msgs: [] as Msg[], session: null as ChatSession | null, busy: false, error: "" };
-const field = new Field();
+const field = new Field({ icon: "❯" });
 
 /** The conversation as styled lines, newest last. */
 function lines(ui: UI, w: number): { text: string; fg: number; bold?: boolean }[] {
@@ -104,7 +104,7 @@ export const chatPopup: WidgetPopupSpec = {
     const room = r.h - 4;
     if (!all.length) ui.text(r.x + 2, r.y + 2, ok ? t("a conversation that stays on HOME; LINK is the full chat") : deck.ai.problem ?? "", { fg: c.faint }, r.w - 4);
     all.slice(-room).forEach((l, i) => ui.text(r.x + 2, r.y + 2 + i, l.text, { fg: l.fg, attrs: l.bold ? BOLD : 0 }, r.w - 3));
-    field.render(ui, r.x + 1, r.y + r.h - 1, r.w - 2, ok ? t("type, enter to send") : t("uplink offline"));
+    field.render(ui, { x: r.x + 1, y: r.y + r.h - 1, w: r.w - 2, h: 1 }, { focused: true, placeholder: ok ? t("type, enter to send") : t("uplink offline") });
   },
   onText: (s) => (field.onText(s), true),
   onKey: (k, { deck }) => {

@@ -33,15 +33,6 @@ export function digitsSize(s: string, k: number): { w: number; h: number } {
   return { w, h: Math.ceil((5 * k) / 2) };
 }
 
-/** Biggest scale (1..max) at which `s` fits in w×h, or 0. */
-export function fitDigits(s: string, w: number, h: number, max = 4): number {
-  for (let k = max; k >= 1; k--) {
-    const d = digitsSize(s, k);
-    if (d.w <= w && d.h <= h) return k;
-  }
-  return 0;
-}
-
 const SCRAMBLE = [..."░▒▓▚▞"];
 /** Per-position time of the last change, so changing digits glitch for a moment. */
 const flips = new Map<string, { s: string; at: number[] }>();

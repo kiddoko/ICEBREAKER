@@ -7,7 +7,7 @@ export interface SliderOptions {
   show?: (v: number) => string;
   /** 0 reads "off" (effects) */
   zeroIsOff?: boolean;
-  /** keyboard / wheel step (default 5) */
+  /** the smallest step (default 1): the wheel, ←→ and holding the mouse go by it, faster the longer you hold */
   step?: number;
   tip?: string;
   /** double-click on the number: type a value (the caller asks for it) */
@@ -17,25 +17,39 @@ export interface SliderOptions {
 }
 
 /**
- * A real slider: ━━━━━━■──────  120%
- * Click or drag anywhere on the track: the pointer's exact position (to the
- * pixel, not the cell) gives the value, so it moves 1 % at a time. The wheel
- * steps by 5; the caller handles ← → (also by 5). Double-click the number to
- * type one (`onEdit`).
+ * Held keys and a spinning wheel speed up: 1 at a time, then 2, 5, 10 the longer it
+ * lasts (the same for ←→ in Settings, the wheel and a held mouse button on a slider).
+ * `id` = what is being changed; a pause of 300 ms starts again from 1.
  */
+const streaks = new Map<string, { at: number; n: number }>();
+export function accelerated(id: string, now = performance.now()): number {
+  const s = streaks.get(id);
+  const n = s && now - s.at < 300 ? s.n + 1 : 0;
+  streaks.set(id, { at: now, n });
+  return n < 8 ? 1 : n < 20 ? 2 : n < 40 ? 5 : 10;
+}
+
 /**
- * The slider being dragged, if any: where it is on screen (its identity from one
+ * A real slider: ━━━━━━■──────  120%
+ * - grab the handle ■ and drag: it follows the pointer (to the pixel);
+ * - press anywhere else on the track and hold: it steps toward the pointer 1 by 1,
+ *   faster the longer you hold (like a scrollbar) — so the mouse reaches every value;
+ * - the wheel and ←→ (the caller) step 1 by 1, faster when held;
+ * - double-click the number to type one (`onEdit`).
+ *
+ * The slider being changed, if any: where it is on screen (its identity from one
  * frame to the next — sliders are redrawn every frame), the value it shows, and
- * when the setting was last applied. While you drag, the bar follows the pointer
- * at once and the (sometimes costly) setting is applied at most every 40 ms; the
- * last value is always applied when you let go.
+ * when the setting was last applied. The bar moves at once; the (sometimes costly)
+ * setting is applied at most every 40 ms, and always when you let go.
  */
-let live: { x: number; y: number; v: number; sentAt: number; sent: number } | null = null;
+let live: { x: number; y: number; v: number; sentAt: number; sent: number; hold?: { target: number; next: number; startX: number } } | null = null;
 const APPLY_MS = 40;
 
 export function slider(ui: UI, r: Rect, value: number, min: number, max: number, onSet: (v: number) => void, o: SliderOptions = {}): void {
   const c = ui.c;
-  if (live && live.x === r.x && live.y === r.y) value = live.v;
+  const mine = !!live && live.x === r.x && live.y === r.y;
+  if (mine) value = live!.v;
+  const clamp = (v: number) => Math.max(min, Math.min(max, v));
   const push = (v: number, force = false) => {
     if (!live || live.x !== r.x || live.y !== r.y) live = { x: r.x, y: r.y, v, sentAt: 0, sent: NaN };
     live.v = v;
@@ -54,7 +68,7 @@ export function slider(ui: UI, r: Rect, value: number, min: number, max: number,
   const text = truncate(show(value), textW);
   const tw = Math.max(4, r.w - textW - 1);
   const track = { x: r.x, y: r.y, w: tw, h: 1 };
-  const k = max > min ? (Math.max(min, Math.min(max, value)) - min) / (max - min) : 0;
+  const k = max > min ? (clamp(value) - min) / (max - min) : 0;
   const hot = ui.hovered(track);
   if (o.disabled) {
     // greyed: the track and the number, no handle to grab
@@ -62,6 +76,18 @@ export function slider(ui: UI, r: Rect, value: number, min: number, max: number,
     ui.textRight(r.x + r.w, r.y, text, { fg: c.faint });
     ui.hit(track, { onClick: () => {}, tip: o.tip ?? "locked" });
     return;
+  }
+  const step = o.step ?? 1;
+  // held on the track (not on the handle): one step toward the pointer, then faster
+  if (mine && live!.hold) {
+    const h = live!.hold;
+    const now = performance.now();
+    if (now >= h.next && value !== h.target) {
+      const by = step * accelerated(`hold:${r.x}:${r.y}`, now);
+      push(h.target > value ? Math.min(h.target, value + by) : Math.max(h.target, value - by));
+      h.next = now + (h.next === 0 ? 350 : 45);
+    }
+    ui.animate(16);
   }
   // The rules, the same for every slider of the deck (settings, ✦ fx, the setup):
   //  · one track width per place, the number in a 6-column box on the right
@@ -79,18 +105,29 @@ export function slider(ui: UI, r: Rect, value: number, min: number, max: number,
     const k = Math.max(0, Math.min(1, ((m.fx ?? m.x + 0.5) - r.x) / Math.max(1, tw)));
     return Math.round(min + k * (max - min));
   };
-  const step = o.step ?? 5;
   const num = { x: r.x + r.w - strWidth(text), y: r.y, w: strWidth(text), h: 1 };
   if (o.onEdit) ui.hit(num, { onDouble: () => o.onEdit?.(), tip: "double-click: type a value" });
   ui.hit(track, {
-    onClick: (m) => push(at(m), true),
-    onDrag: (m) => push(at(m)),
+    onClick: (m) => {
+      if (Math.abs(m.x - (r.x + at0)) <= 1) return push(value, true); // the handle: a drag starts
+      // the track: one step now, more while it's held
+      const by = step * accelerated(`hold:${r.x}:${r.y}`);
+      const target = at(m);
+      push(target > value ? Math.min(target, value + by) : Math.max(target, value - by), true);
+      live!.hold = { target, next: performance.now() + 350, startX: m.fx ?? m.x };
+    },
+    onDrag: (m) => {
+      // moving the pointer: the handle follows it (a hold that moves becomes a drag)
+      if (live?.hold && Math.abs((m.fx ?? m.x) - live.hold.startX) < 1) return void (live.hold.target = at(m));
+      if (live) live.hold = undefined;
+      push(at(m));
+    },
     onUp: () => {
       if (live && live.x === r.x && live.y === r.y && live.v !== live.sent) onSet(live.v);
       live = null;
     },
-    onWheel: (d) => onSet(Math.max(min, Math.min(max, value - Math.sign(d) * step))),
-    tip: o.tip ?? "drag, click, wheel · ←→ by 5",
+    onWheel: (d) => onSet(clamp(value - Math.sign(d) * step * accelerated(`wheel:${r.x}:${r.y}`))),
+    tip: o.tip ?? "drag the handle · hold on the track · wheel · ←→ (1 at a time, faster when held)",
   });
 }
 

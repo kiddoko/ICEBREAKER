@@ -26,7 +26,7 @@ Entries can point at GitHub (`user/repo`) or at any https folder holding
 The same, by hand:
 
 ```bash
-plugin search pomodoro                     # browse the community index
+store search pomodoro                      # the STORE's indexes (= plugin search)
 plugin install pomodoro                    # by id, from the index
 plugin install someone/icebreaker-pomodoro # or straight from any GitHub repo
 plugin install someone/repo/tree/main/plugins/x   # a sub-folder works too
@@ -58,8 +58,8 @@ It's one `main.js`: read it before enabling.
    Ship plain JavaScript (an ES module). If you write TypeScript, bundle it to a
    single `main.js` first (esbuild / tsup / vite lib mode).
 3. Anyone can now `plugin install you/your-repo`.
-4. To be listed in `plugin search`, open a pull request on the community index
-   adding one entry (see below).
+4. To be in the official STORE — and **verified** — see *Getting your module verified*
+   below: the code goes into the STORE's repository through a reviewed pull request.
 
 Tips:
 - Ask only for the permissions you use. Plugins that don't need `ai` or
@@ -75,15 +75,42 @@ A theme is one `.toml` file ([THEMES.md](THEMES.md)). Put it in a repo (a repo c
 hold many themes) and share `you/repo/name.toml`. A repo with a single
 `theme.toml` at its root can be installed as just `you/repo`.
 
-## The community index
+## The official STORE: verified modules
 
 The official index is [kiddoko/icebreaker-modules](https://github.com/kiddoko/icebreaker-modules)
-(`index.json`, modules and themes). Themes made by the community also have a
-home: [kiddoko/icebreaker-themes](https://github.com/kiddoko/icebreaker-themes).
+(`index.json`). **Only maintainers can change it**: every change is a pull request that a
+maintainer reviews and approves (CODEOWNERS + branch protection) — nobody can add something
+there by themselves.
 
-`plugin search` and install-by-id read a JSON list from the URL in
-`plugins.registry` (`config set plugins.registry <url>` to use another one —
-a company or a friend group can run their own):
+A module is **verified** (✓ in the STORE) when it's listed there **and its code lives in that
+repository** (`modules/<id>/`): what was reviewed is exactly what people download, and every
+update is a new pull request, reviewed again. The modules that ship with ICEBREAKER are
+verified too.
+
+**Not verified** (⚠ in the STORE, and a warning to accept before installing): a module listed
+by another index, an entry of the official index pointing to someone's own repository, or
+`plugin install user/repo`. Nobody from the project read its code; it can be fine, buggy or
+written to harm. It still runs in the sandbox with only the permissions you give it.
+
+### Getting your module verified
+
+1. Build and test it in your vault (`plugin new <id>`, [PLUGINS.md](PLUGINS.md)).
+2. Fork `kiddoko/icebreaker-modules`, add `modules/<id>/` (`plugin.json`, `main.js` — readable,
+   not minified —, a `README.md` saying what it does, its commands, what it connects to) and
+   one entry in `index.json` with `"repo": "kiddoko/icebreaker-modules/tree/main/modules/<id>"`.
+3. Open a pull request. A maintainer reads every line, tries it, and checks:
+   - it does what its README says, and nothing else; no hidden network calls, no obfuscation;
+   - it asks only for the permissions it needs, and says why;
+   - it's legal (no piracy, no scraping against a site's terms, licenses respected) and
+     follows the [code of conduct](../CODE_OF_CONDUCT.md);
+   - `node scripts/check-index.mjs` passes.
+4. Merged = verified. An update = the same, with `version` raised in `plugin.json`.
+
+### Your own index
+
+Anyone can run an index (a company, friends, you): a JSON list like the one below, anywhere
+over https (or http on your local network). `store sources add <url | user/repo>`. Its modules
+show as **not verified** in the STORE.
 
 ```json
 [
@@ -93,7 +120,10 @@ a company or a friend group can run their own):
     "name": "Pomodoro",
     "description": "25/5 focus timer: app, widget and status bar",
     "author": "someone",
-    "repo": "someone/icebreaker-pomodoro"
+    "repo": "someone/icebreaker-pomodoro",
+    "version": "1.0.0",
+    "permissions": ["vault:write"],
+    "requires": { "icebreaker": ">=0.5.0" }
   },
   {
     "id": "synthwave",
@@ -106,15 +136,15 @@ a company or a friend group can run their own):
 ]
 ```
 
-Index rules (for reviewers):
-- the repo is public and its `plugin.json` id matches the entry's `id`;
-- no obfuscated or minified-beyond-reading code, no network calls hidden from
-  the README;
-- one entry per plugin; updates happen in the plugin's own repo.
+Themes are colours and settings only (a `.toml` file, no code): they install without the
+module warning.
 
 ## Security, honestly
 
-Plugins run in the app's JavaScript context. Permissions gate the `ib` API and
-the Content-Security-Policy blocks most network access, but a malicious
-plugin could still misbehave. Install from people you trust, read `main.js`,
-and keep an eye on `plugin ls`. A Worker-based sandbox is on the roadmap.
+Modules from the STORE or the vault run in a **sandbox** (a Web Worker): no page, no native
+access, no network of their own — only the `ib` calls their permissions allow, each one
+checked by the deck ([SANDBOX.md](SANDBOX.md)). They can't run the vault's encryption,
+accounts, scripts, shortcuts, the STORE or updates ([../src/shell/privileged.ts](../src/shell/privileged.ts)).
+Within their permissions they can still do damage (a module allowed to write notes can
+overwrite them). So: prefer verified modules, read the code of the others, give the fewest
+permissions, keep backups. See [../DISCLAIMER.md](../DISCLAIMER.md).

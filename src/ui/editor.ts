@@ -88,8 +88,19 @@ export class TextEditor {
 
   // ── content ──────────────────────────────────────────────────────────────
 
+  /** the whole text and its word count, kept until the next change: the status bar and the
+   *  "unsaved" dot ask for them every frame — on a 3 MB note that was 400 ms a frame */
+  private textAt = -1;
+  private textIs = "";
+  private wordsAt = -1;
+  private wordsAre = 0;
+
   get text(): string {
-    return this.lines.join("\n");
+    if (this.textAt !== this.version) {
+      this.textIs = this.lines.join("\n");
+      this.textAt = this.version;
+    }
+    return this.textIs;
   }
 
   /** Replace everything (resets undo history). */
@@ -122,7 +133,11 @@ export class TextEditor {
   }
 
   wordCount(): number {
-    return (this.text.match(/[\p{L}\p{N}][\p{L}\p{N}'’_-]*/gu) ?? []).length;
+    if (this.wordsAt !== this.version) {
+      this.wordsAre = (this.text.match(/[\p{L}\p{N}][\p{L}\p{N}'’_-]*/gu) ?? []).length;
+      this.wordsAt = this.version;
+    }
+    return this.wordsAre;
   }
 
   selection(): [Pos, Pos] | null {

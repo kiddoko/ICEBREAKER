@@ -1,5 +1,11 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Share an idea, feedback, or how it went for you
+    url: https://github.com/kiddoko/ICEBREAKER/discussions
+    about: Discussions — ideas, questions, what you built, what annoyed you. (Bugs go in an issue.)
   - name: Report a security problem
     url: https://github.com/kiddoko/ICEBREAKER/security/advisories/new
     about: Privately, please — not in a public issue.
+  - name: Submit a module or a theme to the official STORE
+    url: https://github.com/kiddoko/icebreaker-modules
+    about: A pull request there (see docs/COMMUNITY.md → Getting your module verified).

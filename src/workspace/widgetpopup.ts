@@ -1,4 +1,5 @@
 import { t } from "../core/i18n";
+import { strWidth } from "../core/unicode";
 import type { Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
@@ -79,7 +80,7 @@ export class WidgetPopup implements Overlay {
     if (this.spec.open) {
       const words = this.spec.open.split(" ");
       const label = `${t("open")} ${words[0] === "launch" ? words[1] : words[0]}  ⏎`;
-      ui.button(x - label.length - 4, fy, label, () => this.open(), { tip: this.spec.open });
+      ui.button(x - strWidth(label) - 4, fy, label, () => this.open(), { tip: this.spec.open });
     }
     if (p.hint) ui.text(inner.x + 1, fy, t(p.hint), { fg: c.faint, attrs: 0 }, Math.max(0, x - inner.x - 30));
   }

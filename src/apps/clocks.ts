@@ -5,6 +5,7 @@
  *   t  a new timer      space  stopwatch start / stop    l  lap
  *   r  reset the stopwatch     x  stop the next timer    w  add a city
  */
+import { strWidth } from "../core/unicode";
 import { mix } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
@@ -46,8 +47,7 @@ class ClocksApp implements App {
     if (s === "f") return act("clock style next"), true;
     return false;
   }
-  onKey(k: KeyInput): boolean {
-    void k;
+  onKey(_k: KeyInput): boolean {
     return false;
   }
   onAction(a: Action): boolean {
@@ -55,9 +55,8 @@ class ClocksApp implements App {
     return false;
   }
 
-  render(ui: UI, r: Rect, focused: boolean): void {
+  render(ui: UI, r: Rect, _focused: boolean): void {
     const c = ui.c;
-    void focused;
     ui.animate(Math.min(100, 1000 - (Date.now() % 1000)));
     // the time, big, in your clock face
     const top = { x: r.x + 2, y: r.y + 1, w: r.w - 4, h: Math.max(5, Math.min(12, Math.floor(r.h * 0.38))) };
@@ -68,7 +67,7 @@ class ClocksApp implements App {
     const cols = [r.x + 2, r.x + 3 + colW, r.x + 4 + colW * 2];
     const head = (x: number, label: string, btn: string, cmd: () => void, tip: string) => {
       ui.text(x, y0, label, { fg: c.title, attrs: BOLD });
-      ui.button(x + colW - btn.length - 3, y0, btn, cmd, { tip });
+      ui.button(x + colW - strWidth(btn) - 3, y0, btn, cmd, { tip });
       ui.hline(x, y0 + 1, colW - 1, { fg: c.faint }, "─");
     };
 
