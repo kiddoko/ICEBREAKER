@@ -15,6 +15,7 @@ import type { Deck } from "../deck";
 import { spokenAlert } from "../core/voice";
 import type { IcebreakerAPI, Permission, PluginManifest, PluginModule } from "./api";
 import * as lib from "./lib";
+import type { App } from "../apps/types";
 
 import pkg from "../../package.json";
 import { describeNeeds, unmet, wakeOrder, dependents, type Need } from "./deps";
@@ -129,8 +130,31 @@ export class PluginHost {
   }
 
   async reload(trustChanges = false): Promise<void> {
+    // the modules' pages open now are made again from the new code: a tab that kept the old
+    // page would show the old module (a sandboxed one: its last frame, frozen) until reopened
+    const deck = this.deck;
+    const theirs = deck.workspace.tabs.filter((a) => this.isModulePage(a.kind)).map((app) => ({ app, kind: app.kind, args: deck.appArgs.get(app) }));
+    for (const { app } of theirs) await Promise.resolve(app.close?.()).catch(() => {});
     for (const p of this.active()) await this.deactivate(p);
     await this.init(trustChanges);
+    for (const { app, kind, args } of theirs) {
+      const spec = this.isModulePage(kind) ? deck.apps.get(kind) : undefined;
+      let fresh: App | null = null;
+      try {
+        fresh = spec ? spec.create(deck, args) : null;
+      } catch (e) {
+        deck.log.add("error", `[${kind}] ${e instanceof Error ? e.message : String(e)}`);
+      }
+      if (fresh) deck.appArgs.set(fresh, args);
+      deck.workspace.replaceTab(app, fresh);
+    }
+  }
+
+  /** a page that a module (not the deck's core) registered */
+  private isModulePage(kind: string): boolean {
+    const from = this.deck.apps.sourceOf(kind);
+    const p = from ? this.plugins.find((x) => x.manifest.id === from) : undefined;
+    return !!p && !p.manifest.core;
   }
 
   /** SHA-256 of a vault module's code and manifest, as hex ("" when it can't be read). */
@@ -500,6 +524,7 @@ export class PluginHost {
         read: (p) => (need("vault:read"), thirdParty && notDeck(p), deck.vault.read(p)),
         exists: (p) => (need("vault:read"), thirdParty && notDeck(p), deck.vault.exists(p)),
         notes: () => (need("vault:read"), deck.vault.markdown().map((e) => e.path)),
+        modified: async () => (need("vault:read"), Object.fromEntries(deck.vault.markdown().map((e) => [e.path, e.modified]))),
         write: (p, c) => (need("vault:write"), notDeck(p), deck.vault.write(p, c)),
         append: (p, t) => (need("vault:write"), notDeck(p), deck.vault.append(p, t)),
         mkdir: (p) => (need("vault:write"), notDeck(p), deck.vault.mkdir(p)),

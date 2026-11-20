@@ -203,6 +203,9 @@ export const scriptCommand: Command = {
         }
         line = line.replace(m[0], asked.get(m[1]) ?? "");
       }
+      // like a real shell: `exit` in a script ends the script (never the app)
+      const end = /^exit(?:\s+(\d+))?$/.exec(line);
+      if (end) return ctx.out(fmt.dim(`■ ${s.name} done\n`)), Number(end[1] ?? 0);
       const tolerant = /\|\|\s*true\s*$/.test(line);
       if (tolerant) line = line.replace(/\|\|\s*true\s*$/, "").trim();
       ctx.out(`${fmt.cyan("›")} ${line}\n`);

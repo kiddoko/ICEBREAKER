@@ -285,10 +285,16 @@ const rain: Command = {
 
 const exit: Command = {
   name: "exit",
-  summary: "hide the shell (`exit --quit` closes ICEBREAKER)",
+  aliases: ["quit"],
+  summary: "quit ICEBREAKER (like ⌘Q / Alt+F4)",
+  man: `The normal way out, like ⌘Q / Alt+F4 or THE MENU's "Quit ICEBREAKER": open pages save,
+the vault locks (an encrypted vault's key leaves the memory), and an update waiting to be
+installed "by itself" installs as the app closes.
+In a script, \`exit\` ends the script, not the app. In your real terminal (the term tab),
+\`exit\` is that shell's own: it ends that terminal, not ICEBREAKER.
+To hide the shell panel instead: ctrl+\` (it shows and hides it).`,
   async run(ctx) {
-    if (ctx.args.includes("--quit")) await ctx.deck.quit();
-    else ctx.deck.workspace.toggleShell(false);
+    await ctx.deck.quit();
   },
 };
 

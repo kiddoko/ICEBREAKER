@@ -2,8 +2,10 @@
  * TODO — a to-do list, written as a module (a built-in plugin).
  *
  * One feature, one module: the tasks live in the module's own data file
- * (.icebreaker/plugin-data/todo.json), not in your notes. Three faces, one
- * source of truth — the `todo` command:
+ * (.icebreaker/plugin-data/todo.json), not in your notes — and under them, the
+ * open `- [ ]` written in your notes (notetasks.ts): ticking one in TODO writes
+ * `- [x]` on that line of the note. Three faces, one source of truth — the
+ * `todo` command:
  *
  *   todo add "walk the dog" --urgent --due tomorrow +home
  *   the TODO app        (a / space / 1-4 / d / e / x …)
@@ -20,6 +22,7 @@ import type { IcebreakerAPI } from "../../src/plugins/api";
 import type { Command, ShellContext } from "../../src/shell/types";
 import type { UI } from "../../src/ui/ui";
 import type * as Dates from "../../src/core/dates";
+import { NoteTasks, noteName, parseRef, refOf, type NoteTask } from "./notetasks";
 /** the deck's one date reader (ib.lib.dates), set when the module starts */
 let D!: typeof Dates;
 
@@ -314,8 +317,9 @@ export function activate(ib: IcebreakerAPI): void {
     "a number of times…": "un nombre de fois…",
     "For how long?": "Pendant combien de temps ?",
     "How many times?": "Combien de fois ?",
+    "IN YOUR NOTES": "DANS TES NOTES",
   });
-  const { BOLD, DIM, STRIKE, mix, strWidth, q, fmt } = ib.lib;
+  const { BOLD, DIM, STRIKE, mix, strWidth, truncate, q, fmt } = ib.lib;
 
   // ── store (only the `todo` command writes it) ──
   let tasks: Task[] = [];
@@ -356,6 +360,33 @@ export function activate(ib: IcebreakerAPI): void {
     savedJson = now;
     await write();
   };
+
+  // ── the `- [ ]` of your notes (notetasks.ts): read through the vault API, re-read only what changed ──
+  const notes = new NoteTasks({ modified: () => ib.vault.modified(), read: (p) => ib.vault.read(p), write: (p, c) => ib.vault.write(p, c) });
+  /** while TODO shows: the notes looked at again, every few seconds (only the changed ones are read) */
+  const lookAtNotes = () => {
+    if (Date.now() - notes.checked > 3000) void notes.refresh().then((changed) => changed && ib.ui.redraw(), () => {});
+  };
+  void ready.then(() => notes.refresh()).then(() => ib.ui.redraw(), () => {});
+  /** open the note a checkbox is in */
+  const openNote = (n: NoteTask) => run(`open ${q(n.path)}`);
+  /** tick (or untick) a note's checkbox: one ⌘Z step; refused when the line changed since TODO read it */
+  async function tickNote(ref: { path: string; line: number }, done: boolean): Promise<NoteTask | string> {
+    const seen = notes.find(ref.path, ref.line);
+    try {
+      const { before, after } = await notes.tick(ref.path, ref.line, done, done ? seen?.raw : undefined);
+      const again = (to: boolean, expect: string) => async () => {
+        await notes.tick(ref.path, ref.line, to, expect);
+        ib.ui.redraw();
+      };
+      ib.history.record({ label: `todo ${done ? "done" : "undo"} ${refOf(ref)}`, undo: again(!done, after), redo: again(done, before) });
+      ib.ui.redraw();
+      return { path: ref.path, line: ref.line, raw: after, text: seen?.text ?? after.replace(/^\s*[-*+] \[.\] /, "").trim() };
+    } catch (e) {
+      ib.ui.redraw();
+      return e instanceof Error ? e.message : String(e);
+    }
+  }
 
   /** r in the app: the repeat, picked from lists (the same words as `todo repeat`). */
   async function repeatFlow(t: Task): Promise<void> {
@@ -499,6 +530,7 @@ export function activate(ib: IcebreakerAPI): void {
       ["todo ls --today", "due today or late"],
       ["todo ls +work", "only tasks tagged work"],
       ["todo done 3 5", "tick tasks 3 and 5"],
+      ["todo done notes/courses.md:4", "tick the - [ ] on line 4 of that note"],
       ["todo prio 3 low", "change a priority"],
       ["todo due 3 24/12", "set a due date (- removes it)"],
       ["todo edit 3 \"promener le chien et le chat\" --high", "new text and priority"],
@@ -519,6 +551,7 @@ export function activate(ib: IcebreakerAPI): void {
       "     --cycles 10|100|1y|6m|forever             for how long (default: forever)",
       "todo repeat <n> <rule | off> [--times N] [--cycles …]   (r in the app)",
       "todo done <n…>    todo undo <n…>",
+      "todo done <note.md:line>      ticks a - [ ] written in a note (todo lists them)",
       "todo edit <n> [new text] [options]",
       "todo prio <n> urgent|high|moderate|low",
       "todo due <n> <date | ->",
@@ -527,7 +560,7 @@ export function activate(ib: IcebreakerAPI): void {
       "todo clear        forget finished tasks",
       "todo open         the TODO app",
     ].join("\n"),
-    man: "Tasks are stored by the TODO module in .icebreaker/plugin-data/todo.json, not in your notes.\nThe app and the HOME widget run these same commands: click around and watch the shell.",
+    man: "Tasks are stored by the TODO module in .icebreaker/plugin-data/todo.json, not in your notes.\nUnder them, TODO lists the open checkboxes (- [ ] …) written in your notes, with the note's name:\n`todo done notes/x.md:12` writes - [x] on that line of the note (refused if the line changed since\nTODO read it), ⌘Z unticks it. Notes in hidden folders (.trash, .icebreaker) and in ``` blocks are left out.\nThe app and the HOME widget run these same commands: click around and watch the shell.",
     complete: () => SUBS,
     async run(ctx) {
       await ready;
@@ -578,6 +611,23 @@ export function activate(ib: IcebreakerAPI): void {
         }
         case "done":
         case "undo": {
+          // "notes/x.md:12": a checkbox in a note — written in the note itself
+          const refs = args.map(parseRef);
+          if (refs.some(Boolean)) {
+            let code = 0;
+            for (const [i, ref] of refs.entries()) {
+              if (!ref) {
+                ctx.err(`todo: ${args[i]}: give a note's line (notes/x.md:12) — tasks and notes' lines go in two commands\n`);
+                code = 1;
+                continue;
+              }
+              const r = await tickNote(ref, sub === "done");
+              if (typeof r === "string") (ctx.err(`todo: ${r}\n`), (code = 1));
+              else ctx.out(`${sub === "done" ? fmt.green(ib.lib.BOX_ON) : ib.lib.BOX_OFF} ${r.text}  ${fmt.dim(refOf(ref))}\n`);
+            }
+            if (sub === "done" && !code) void ib.stats.add("done", refs.length, { label: "tasks done", kind: "counter" }).catch(() => {});
+            return code;
+          }
           const list = ids(ctx, args);
           if (!list) return 1;
           for (const t of list) {
@@ -669,8 +719,14 @@ export function activate(ib: IcebreakerAPI): void {
           let list = pick(f);
           if (args.includes("--late")) list = list.filter((t) => t.due && daysUntil(t.due) < 0);
           if (tag) list = list.filter((t) => t.tags.includes(tag));
-          if (!list.length) return ctx.out(f === "open" ? "nothing to do. suspicious.\n" : "nothing here.\n"), 0;
+          // the open `- [ ]` of your notes, under the tasks (not with a tag, --today, --late or --done)
+          const inNotes = (f === "open" || f === "all") && !tag && !args.includes("--late") ? (await notes.refresh(), notes.list()) : [];
+          if (!list.length && !inNotes.length) return ctx.out(f === "open" ? "nothing to do. suspicious.\n" : "nothing here.\n"), 0;
           for (const t of list) ctx.out(line(t));
+          if (inNotes.length) {
+            ctx.out(`${fmt.dim(`── in your notes (${inNotes.length}) · todo done <note:line> ticks one`)}\n`);
+            for (const n of inNotes) ctx.out(`    ${ib.lib.BOX_OFF}     ${n.text}  ${fmt.dim(refOf(n))}\n`);
+          }
           return 0;
         }
         default:
@@ -717,8 +773,18 @@ export function activate(ib: IcebreakerAPI): void {
       return pick(this.filter);
     }
 
+    /** the `- [ ]` of your notes, under the tasks (open and all) */
+    private get fromNotes(): NoteTask[] {
+      return this.filter === "open" || this.filter === "all" ? notes.list() : [];
+    }
+
     private get current(): Task | undefined {
       return this.list[this.sel];
+    }
+
+    /** the chosen line, when it's a note's checkbox */
+    private get currentNote(): NoteTask | undefined {
+      return this.sel >= this.list.length ? this.fromNotes[this.sel - this.list.length] : undefined;
     }
 
     private submit(): void {
@@ -754,6 +820,13 @@ export function activate(ib: IcebreakerAPI): void {
         return this.add.onText(t);
       }
       const cur = this.current;
+      const note = this.currentNote;
+      if (note && t !== "a" && t !== "n" && t !== "+" && t !== "i" && t !== "u" && t !== "c") {
+        if (t === " ") return run(`todo done ${q(refOf(note))}`), true;
+        if (t === "e" || t === "o") return openNote(note), true;
+        if (["1", "2", "3", "4", "d", "r", "x"].includes(t)) return (this.hint = `a checkbox in “${noteName(note.path)}”: space ticks it, e opens the note`), true;
+        return false;
+      }
       switch (t) {
         case "a": case "n": case "+": case "i": this.startTyping(); return true;
         case " ": if (cur) run(`todo ${cur.done ? "undo" : "done"} ${cur.id}`); return true;
@@ -783,16 +856,20 @@ export function activate(ib: IcebreakerAPI): void {
         return true;
       }
       if ((k.combo === "delete" || k.combo === "ctrl+backspace") && this.current) return run(`todo rm ${this.current.id}`), true;
+      if ((k.combo === "delete" || k.combo === "ctrl+backspace") && this.currentNote) return (this.hint = "a checkbox in a note: e opens the note to change it"), true;
       return false;
     }
 
     onAction(a: Action): boolean {
       if (this.typing) return false;
-      const n = this.list.length;
+      const n = this.list.length + this.fromNotes.length;
       switch (a) {
         case "up": if (this.sel === 0) this.startTyping(); else this.sel--; return true;
         case "down": this.sel = Math.min(n - 1, this.sel + 1); return true;
-        case "confirm": if (this.current) run(`todo ${this.current.done ? "undo" : "done"} ${this.current.id}`); return true;
+        case "confirm":
+          if (this.current) run(`todo ${this.current.done ? "undo" : "done"} ${this.current.id}`);
+          else if (this.currentNote) run(`todo done ${q(refOf(this.currentNote))}`);
+          return true;
         case "home": this.sel = 0; return true;
         case "end": this.sel = Math.max(0, n - 1); return true;
         default: return false;
@@ -803,6 +880,7 @@ export function activate(ib: IcebreakerAPI): void {
       const c = ui.c;
       const g = ui.theme.glyphs;
       if (!loaded) return void ui.text(r.x + 1, r.y, `${ui.spinner()} loading…`, { fg: c.muted });
+      lookAtNotes();
       const w = Math.min(r.w - 2, 110);
       const x0 = r.x + Math.max(1, Math.floor((r.w - w) / 2));
       let y = r.y + 1;
@@ -818,7 +896,7 @@ export function activate(ib: IcebreakerAPI): void {
       // ── filters + counters ──
       let fx = x0;
       for (const f of FILTERS) {
-        const label = ` ${f} ${pick(f).length} `;
+        const label = ` ${f} ${pick(f).length + (f === "open" || f === "all" ? notes.list().length : 0)} `;
         const on = f === this.filter;
         const rect = { x: fx, y, w: strWidth(label), h: 1 };
         ui.text(fx, y, label, on ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: ui.hovered(rect) ? c.accent : c.muted, bg: c.highlight });
@@ -834,21 +912,24 @@ export function activate(ib: IcebreakerAPI): void {
 
       // ── list, grouped by priority ──
       const list = this.list;
-      this.sel = Math.max(0, Math.min(this.sel, list.length - 1));
-      type Row = { head: Prio } | { task: Task; index: number };
+      const inNotes = this.fromNotes;
+      this.sel = Math.max(0, Math.min(this.sel, list.length + inNotes.length - 1));
+      type Row = { head: Prio | "notes" } | { task: Task; index: number } | { note: NoteTask; index: number };
       const rows: Row[] = [];
       list.forEach((t, index) => {
         const prev = list[index - 1];
         if (this.filter !== "done" && !t.done && (!prev || prev.prio !== t.prio || prev.done)) rows.push({ head: t.prio });
         rows.push({ task: t, index });
       });
+      if (inNotes.length) rows.push({ head: "notes" });
+      inNotes.forEach((note, i) => rows.push({ note, index: list.length + i }));
       const viewH = r.y + r.h - y;
-      const selRow = rows.findIndex((row) => "task" in row && row.index === this.sel);
+      const selRow = rows.findIndex((row) => "index" in row && row.index === this.sel);
       if (selRow - 1 < this.scroll) this.scroll = Math.max(0, selRow - 1);
       if (selRow >= this.scroll + viewH) this.scroll = selRow - viewH + 1;
       this.scroll = Math.max(0, Math.min(this.scroll, Math.max(0, rows.length - viewH)));
 
-      if (!list.length) {
+      if (!list.length && !inNotes.length) {
         const msg = this.filter === "done" ? "nothing finished yet" : this.filter === "today" ? "nothing due today" : "nothing to do. suspicious.  (a to add)";
         ui.text(x0 + 1, y, msg, { fg: c.muted });
       }
@@ -856,10 +937,30 @@ export function activate(ib: IcebreakerAPI): void {
       rows.slice(this.scroll, this.scroll + viewH).forEach((row, k) => {
         const ry = y + k;
         if ("head" in row) {
-          const label = ` ${row.head.toUpperCase()} `;
+          const label = row.head === "notes" ? ` ${ib.lib.t("IN YOUR NOTES")} ` : ` ${row.head.toUpperCase()} `;
           ui.text(x0, ry, "──", { fg: c.faint });
-          ui.text(x0 + 2, ry, label, { fg: pc(row.head), attrs: BOLD });
-          ui.hline(x0 + 2 + label.length, ry, w - label.length - 2, { fg: c.faint });
+          ui.text(x0 + 2, ry, label, { fg: row.head === "notes" ? c.accentAlt : pc(row.head), attrs: BOLD });
+          ui.hline(x0 + 2 + strWidth(label), ry, w - strWidth(label) - 2, { fg: c.faint });
+          return;
+        }
+        if ("note" in row) {
+          // a `- [ ]` written in a note: its text, the note's name on the right
+          const n = row.note;
+          const rect = { x: x0, y: ry, w, h: 1 };
+          const sel = row.index === this.sel && !this.typing;
+          const hot = ui.hovered(rect);
+          const rbg = sel ? (focused ? c.selection : c.highlight) : hot ? c.highlight : undefined;
+          if (rbg !== undefined) ui.fill(rect, { bg: rbg });
+          ui.hit(rect, { onClick: () => ((this.sel = row.index), (this.typing = false)), onDouble: () => openNote(n), tip: `${refOf(n)}\nspace: done (written in the note) · e / double-click: open the note` });
+          const box = g.todo;
+          const bw = strWidth(box);
+          ui.text(x0 + 1, ry, box, { fg: c.accentAlt, bg: rbg, attrs: BOLD });
+          ui.hit({ x: x0 + 1, y: ry, w: bw, h: 1 }, { cmd: `todo done ${q(refOf(n))}`, tip: "space / enter · ⌘Z unticks it" });
+          const tx = x0 + 2 + bw + 8;
+          const name = `◇ ${noteName(n.path)}`;
+          const nx = ui.textRight(x0 + w - 1, ry, truncate(name, Math.floor(w / 3)), { fg: c.subtle, bg: rbg }) - 2;
+          ui.hit({ x: nx + 2, y: ry, w: x0 + w - 1 - nx - 2, h: 1 }, { onClick: () => openNote(n), tip: `open ${n.path}` });
+          ui.text(tx, ry, n.text, { fg: c.fg, bg: rbg }, Math.max(1, nx - tx));
           return;
         }
         const t = row.task;
@@ -942,6 +1043,12 @@ export function activate(ib: IcebreakerAPI): void {
     { label: "Remove", cmd: `todo rm ${t.id}`, danger: true, hint: "del" },
   ];
 
+  /** right-click on a note's checkbox */
+  const noteMenu = (n: NoteTask) => [
+    { label: "Done ✓", cmd: `todo done ${q(refOf(n))}`, hint: "click" },
+    { label: `Open ${noteName(n.path)}`, run: () => openNote(n) },
+  ];
+
   ib.widgets.register({
     id: "list",
     title: "todo",
@@ -959,21 +1066,24 @@ export function activate(ib: IcebreakerAPI): void {
       const g = ui.theme.glyphs;
       hoverId = null;
       if (!loaded) return void ui.text(r.x + 1, r.y, `${ui.spinner()} loading…`, { fg: c.muted });
+      lookAtNotes();
       const open = pick("open");
+      const inNotes = notes.list();
       const urgent = open.filter((t) => t.prio === "urgent").length;
       const late = open.filter((t) => t.due && daysUntil(t.due) < 0).length;
       const add = " + add ";
       const ax = r.x + r.w - strWidth(add) - 1;
       const room = ax - r.x - 2;
-      let hx = ui.text(r.x + 1, r.y, `${open.length} open`, { fg: open.length ? c.accent : c.success, attrs: BOLD }, room);
+      const total = open.length + inNotes.length;
+      let hx = ui.text(r.x + 1, r.y, `${total} open`, { fg: total ? c.accent : c.success, attrs: BOLD }, room);
       const extra = [urgent ? `${urgent} urgent` : "", late ? `${late} late` : ""].filter(Boolean).join(" · ");
       if (extra && hx - r.x - 1 + 3 + strWidth(extra) <= room) hx = ui.text(hx, r.y, ` · ${extra}`, { fg: c.error });
       const addRect = { x: ax, y: r.y, w: strWidth(add), h: 1 };
       ui.text(ax, r.y, add, ui.hovered(addRect) ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: c.accent, bg: c.highlight });
       ui.hit(addRect, { cmd: "todo open --add", tip: 'or straight from the shell: todo add "…"' });
-      if (!open.length) return void ui.text(r.x + 1, r.y + 1, "nothing to do. suspicious.", { fg: c.muted });
+      if (!total) return void ui.text(r.x + 1, r.y + 1, "nothing to do. suspicious.", { fg: c.muted });
       const pc = (p: Prio) => (p === "urgent" ? c.error : p === "high" ? c.warning : p === "moderate" ? c.accent : c.subtle);
-      const fits = open.length > r.h - 1 ? r.h - 2 : r.h - 1;
+      const fits = total > r.h - 1 ? r.h - 2 : r.h - 1;
       open.slice(0, fits).forEach((t, i) => {
         const y = r.y + 1 + i;
         const row = { x: r.x, y, w: r.w, h: 1 };
@@ -988,7 +1098,20 @@ export function activate(ib: IcebreakerAPI): void {
         const dx = due ? ui.textRight(r.x + r.w - 1, y, due, { fg: dueFg }) : r.x + r.w;
         ui.text(tx, y, t.text, { fg: hot ? c.accent : c.fg, attrs: hot ? STRIKE : 0 }, Math.max(1, dx - tx - 1));
       });
-      if (fits < open.length) ui.text(r.x + 1, r.y + r.h - 1, `+${open.length - fits} more · enter opens the list`, { fg: c.faint }, r.w - 2);
+      // then the `- [ ]` of your notes, the note's name on the right
+      inNotes.slice(0, Math.max(0, fits - open.length)).forEach((n, i) => {
+        const y = r.y + 1 + open.length + i;
+        const row = { x: r.x, y, w: r.w, h: 1 };
+        const hot = ui.hovered(row);
+        const box = hot ? g.done : g.todo;
+        ui.text(r.x + 1, y, box, { fg: c.accentAlt, attrs: BOLD });
+        ui.hit(row, { cmd: `todo done ${q(refOf(n))}`, tip: `${n.text}\n${refOf(n)}\nclick: done (written in the note) · right-click: open the note`, menu: () => noteMenu(n) });
+        const tx = r.x + 2 + strWidth(box);
+        const name = noteName(n.path);
+        const dx = r.w > 24 ? ui.textRight(r.x + r.w - 1, y, truncate(name, Math.floor(r.w / 3)), { fg: c.subtle }) : r.x + r.w;
+        ui.text(tx, y, n.text, { fg: hot ? c.accent : c.fg, attrs: hot ? STRIKE : 0 }, Math.max(1, dx - tx - 1));
+      });
+      if (fits < total) ui.text(r.x + 1, r.y + r.h - 1, `+${total - fits} more · enter opens the list`, { fg: c.faint }, r.w - 2);
     },
     open: "todo open",
     popup: {
@@ -999,9 +1122,15 @@ export function activate(ib: IcebreakerAPI): void {
         const c = ui.c;
         const quick = quickField.text;
         quickField.render(ui, { x: r.x + 1, y: r.y, w: r.w - 2, h: 1 }, { focused: true, placeholder: "walk the dog --urgent --due tomorrow +home" });
+        lookAtNotes();
         const open = pick("open");
-        quickSel = Math.max(0, Math.min(quickSel, open.length - 1));
-        open.slice(0, r.h - 2).forEach((t, i) => {
+        const inNotes = notes.list();
+        quickSel = Math.max(0, Math.min(quickSel, open.length + inNotes.length - 1));
+        // the chosen line stays in view
+        const rows = r.h - 2;
+        const top = Math.max(0, quickSel - rows + 1);
+        open.slice(top, top + rows).forEach((t, k) => {
+          const i = top + k;
           const y = r.y + 2 + i;
           const row = { x: r.x, y, w: r.w, h: 1 };
           const sel = i === quickSel && !quick;
@@ -1012,12 +1141,28 @@ export function activate(ib: IcebreakerAPI): void {
           if (t.due) ui.textRight(r.x + r.w - 2, y, dueLabel(t.due), { fg: daysUntil(t.due) < 0 ? c.error : c.subtle, ...st });
           ui.hit(row, { cmd: `todo done ${t.id}`, tip: "click: done · right-click: edit, due date, remove", menu: () => taskMenu(t) });
         });
-        if (!open.length) ui.text(r.x + 2, r.y + 2, "nothing to do. suspicious.", { fg: c.muted });
+        inNotes.forEach((n, k) => {
+          const i = open.length + k;
+          if (i < top || i >= top + rows) return;
+          const y = r.y + 2 + i - top;
+          const row = { x: r.x, y, w: r.w, h: 1 };
+          const sel = i === quickSel && !quick;
+          if (sel) ui.fill(row, { bg: mix(c.accent, c.bg, 0.8) });
+          const st = sel ? { bg: mix(c.accent, c.bg, 0.8) } : {};
+          ui.text(r.x + 2, y, ui.theme.glyphs.todo, { fg: c.accentAlt, ...st });
+          ui.text(r.x + 5, y, n.text, { fg: c.fg, attrs: sel ? BOLD : 0, ...st }, r.w - 20);
+          ui.textRight(r.x + r.w - 2, y, truncate(noteName(n.path), 14), { fg: c.subtle, ...st });
+          ui.hit(row, { cmd: `todo done ${q(refOf(n))}`, tip: `${refOf(n)}\nclick: done (written in the note) · right-click: open the note`, menu: () => noteMenu(n) });
+        });
+        if (!open.length && !inNotes.length) ui.text(r.x + 2, r.y + 2, "nothing to do. suspicious.", { fg: c.muted });
       },
       onText: (t) => {
         if (t === " " && !quickField.text) {
-          const cur = pick("open")[quickSel];
+          const open = pick("open");
+          const cur = open[quickSel];
+          const note = cur ? undefined : notes.list()[quickSel - open.length];
           if (cur) run(`todo done ${cur.id}`);
+          else if (note) run(`todo done ${q(refOf(note))}`);
           return true;
         }
         return quickField.onText(t) || true;

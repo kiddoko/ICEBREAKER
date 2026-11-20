@@ -415,8 +415,6 @@ export function coreSettingRows(deck: Deck): Row[] {
     needs(() => !s.data.privacy.stealth && s.data.updates.check !== "never", cycle("updates.install", "Install", ["ask", "auto"], undefined, (v) => (v === "ask" ? "ask me first" : "by itself (ICEBREAKER: when I quit)"))),
     head("Where from"),
     text("updates.endpoint", "Releases", undefined, "empty = the official ones"),
-    { section: "DANGER ZONE", label: "", value: () => "" },
-    { label: "Self-destruct", value: () => "☢", cmd: () => "self-destruct", change: () => void d.act("self-destruct") },
   ];
 }
 

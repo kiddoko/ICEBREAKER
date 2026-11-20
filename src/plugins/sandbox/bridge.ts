@@ -39,7 +39,7 @@ export function sandboxed(deck: Deck, code: string, manifest: PluginManifest): P
 /** What the module may call on its `ib` (data in, data out). Everything else stays in its Worker or isn't there yet. */
 const CALLS = new Set([
   "apps.open",
-  "vault.read", "vault.exists", "vault.write", "vault.append", "vault.mkdir",
+  "vault.read", "vault.exists", "vault.write", "vault.append", "vault.mkdir", "vault.modified",
   "shell.run",
   "ui.notify", "ui.alert", "ui.say", "ui.confirm", "ui.prompt", "ui.choose", "ui.pickFolder", "ui.pickFile",
   "storage.get", "storage.set",

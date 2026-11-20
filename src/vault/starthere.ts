@@ -62,7 +62,7 @@ the keyboard, the mouse or a gamepad.
 | find or do anything | **THE MENU**: ⌘K, or shift twice (even while typing) — type to search, or a key + enter (m ⏎ = MODULES) |
 | see every shortcut | **⌘/ / Ctrl+/** |
 | write a note | **⌘N / Ctrl+N**, or *+ note* in the tree |
-| the journal (today) | **⌘J / Ctrl+J** |
+| the journal (today) | **⌘J / Ctrl+J**, or \`journal\` · \`journal "a line"\` adds a line without opening it |
 | change the look | ⚙ settings → APPEARANCE, or \`theme\` |
 | switch a feature off | **MODULES** (⌘⇧M) → space |
 | learn the shell | click anything: the command it runs shows in the shell's **log** tab |
@@ -75,7 +75,7 @@ the keyboard, the mouse or a gamepad.
 - [[ui]] — HOME, widgets, the tree, tabs, pins, settings
 - [[shell]] — ibsh, your real terminal, scripts, macros
 - [[keys]] — the keyboard, the mouse, the gamepad
-- [[privacy]] — what stays here, what goes out, stealth, modules you install, self-destruct
+- [[privacy]] — what stays here, what goes out, stealth, modules you install
 - [[ai]] — the AI as a work assistant: write, sort, plan (optional, can be local)
 - \`for developers/\` — themes, modules, sound packs, tweaking the deck
 
@@ -101,11 +101,11 @@ has the same bar. The tree's colour squares tick several colours too (\`tag view
 
 | Module | What it does | Try |
 |---|---|---|
-| **TODO** | tasks with priorities, due dates, tags, **recurring** | \`todo add "gym" --every mon,wed,sat\` |
+| **TODO** | tasks with priorities, due dates, tags, **recurring** — and the \`- [ ]\` of your notes | \`todo add "gym" --every mon,wed,sat\` |
 | **HABITS** | boxes that reset every day, streaks ▲ | \`habit add "water" --times 8\` |
 | **REMINDERS** | a notification before and on time | \`remind "call mom" fri 18:00\` |
 | **CALENDAR** | a local calendar (+ Google if you want) | \`cal add "dentist" fri 14:30\` |
-| **JOURNAL** | one page a day, the evening check-in | \`today\` · \`daily\` |
+| **JOURNAL** | one page a day, the evening check-in | \`journal\` · \`journal "a line"\` · \`daily\` |
 | **STATS** | numbers over time, from modules and from you | \`stats set weight 72 --unit kg\` |
 | **WEATHER** | any place, an animated ASCII sky, the week | \`weather Tokyo\` |
 | **CLOCKS** | timers (several), a stopwatch with laps, the world | \`timer 4m tea\` |
@@ -277,6 +277,11 @@ were on come back as you left them next time.
   removes it (a habit asks first), right-click → **Edit…** changes it; in their
   pop-up, e edits and Delete removes the chosen line. In the shell: \`todo edit 3 "…"\`,
   \`remind edit 2 "…" fri 18:00\`, \`habit edit 1 "…" --times 8\`.
+- **TODO reads your notes too**: every \`- [ ] …\` written in a note shows in the TODO
+  page and widget, with the note's name. Ticking it there writes \`- [x]\` in the note,
+  on that very line (if the line changed since, it says so and leaves the note alone);
+  ⌘Z unticks it. In the shell: \`todo\` lists them as \`notes/x.md:12\`, \`todo done
+  notes/x.md:12\` ticks one. HABITS stays its own list.
 - **A widget to another HOME page**: right-click → *Move to page*, or in edit mode
   **[ ]** (it goes, and you go with it), or drag it onto a page number at the bottom.
 - **Full screen** (F11, \`fullscreen\`): the whole screen, the notch of a MacBook
@@ -360,6 +365,9 @@ it, ⌘\` brings it back):
   \`cd STA\` + Tab → \`cd "START HERE/"\`.
 - An ICEBREAKER command run in your real terminal says what went wrong (in red) and
   gives its exit code back: \`$?\` and the prompt's ✕ show it failed.
+- **\`exit\`** (or \`quit\`) in ibsh quits ICEBREAKER, like ⌘Q / Alt+F4: pages save, the
+  vault locks, an update waiting installs. In a script it only ends the script; in your
+  real terminal \`exit\` is that shell's own (it ends that terminal). ctrl+\` hides the shell.
 
 ## Handy commands
 | | |
@@ -551,8 +559,6 @@ todo add "pack the books" --every sat --cycles 3
   update asks for more, or its code changed without you, it stays off until you
   switch it on again (\`plugin reload\` approves the code of a module you're writing). What a module asks you is headed
   with its name.
-- **self-destruct**: deletes everything in the vault for good, after four
-  confirmations and a countdown. Copies elsewhere are not touched.
 `,
 
   "../FOR DEVELOPERS/README.md": `# For developers

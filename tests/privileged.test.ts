@@ -8,7 +8,7 @@ describe("what modules may never do", () => {
     for (const sub of ["encrypt", "decrypt", "export", "recovery", "rekey", "unlock", "adopt", "mount", "move"]) expect(isPrivileged("vault", [sub])).toBe(true);
     expect(isPrivileged("vault", ["--window", "decrypt"])).toBe(true);
     expect(isPrivileged("account", [])).toBe(true);
-    expect(isPrivileged("self-destruct", [])).toBe(true);
+    expect(isPrivileged("factory-reset", [])).toBe(true);
     expect(isPrivileged("plugin", ["install", "x/y"])).toBe(true);
     expect(isPrivileged("config", ["set", "plugins.registry", "https://evil"])).toBe(true);
     // what would run a program, or plant a command you'd run later
@@ -53,7 +53,10 @@ describe("what modules may never do", () => {
     // modules: switching others off, removing, reloading
     for (const sub of ["disable", "enable", "reload", "new", "remove", "update", "install"]) expect(isPrivileged("plugin", [sub, "todo"])).toBe(true);
     // the deck itself
-    for (const n of ["exit", "reboot", "logout", "starthere", "undo", "redo"]) expect(isPrivileged(n, [])).toBe(true);
+    // `exit` quits the app (0.5.2): never a module's, alias `quit` included, flags or not
+    for (const n of ["exit", "quit", "reboot", "logout", "starthere", "undo", "redo"]) expect(isPrivileged(n, [])).toBe(true);
+    expect(isPrivileged("exit", ["--quit"])).toBe(true);
+    expect(PRIVILEGED_NAMES.has("exit") && PRIVILEGED_NAMES.has("quit")).toBe(true);
     expect(isPrivileged("stealth", ["off"])).toBe(true);
     expect(isPrivileged("theme", ["install", "x/y"])).toBe(true);
     expect(isPrivileged("voice", ["install", "fr"])).toBe(true);
@@ -66,7 +69,7 @@ describe("what modules may never do", () => {
     expect(isPrivileged("home", ["links"])).toBe(true);
   });
   it("keeps the sensitive names for the deck", () => {
-    for (const n of ["vault", "account", "self-destruct", "plugin", "lock"]) expect(PRIVILEGED_NAMES.has(n)).toBe(true);
+    for (const n of ["vault", "account", "factory-reset", "plugin", "lock"]) expect(PRIVILEGED_NAMES.has(n)).toBe(true);
   });
   it("settings: keeps keys a newer version wrote, not deleted record entries", () => {
     const out = keepUnknown({ future: 1, keys: { a: "x" } }, { keys: {} } as Record<string, unknown>);

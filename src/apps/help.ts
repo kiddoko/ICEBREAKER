@@ -33,7 +33,7 @@ Everything works with **keyboard only**, **mouse only**, a **gamepad**, or any m
 - \`Ctrl+=\` / \`Ctrl+-\` / \`Ctrl+0\` — interface scale · \`F11\` — fullscreen · \`F1\` — this manual
 - \`Ctrl+Shift+L\` — log out · \`Ctrl+Shift+Backspace\` — the trash
 - \`h\` — HOME, from anywhere you're not typing · \`Esc\` — back to the page before
-- In the shell: \`tour\` — the guided tour · \`undo list\` · \`chat\` — talk to the AI · \`daily\` — end-of-day check-in
+- In the shell: \`tour\` — the guided tour · \`undo list\` · \`chat\` — talk to the AI · \`journal\` — today's page, \`journal "a line"\` — a line in it without opening it · \`daily\` — end-of-day check-in · \`exit\` — quit
 
 ## Mouse
 Click anything: tabs, files, tiles, buttons, calendar days (in the tree, one click selects a note, a double-click opens it). Every click runs a
@@ -56,6 +56,7 @@ quotes, \`$VARS\`, globs \`*.md\`, history (↑), fish-style suggestions (→), 
 \`/\` and \`~\` are the vault root. \`<cmd> -h\` (or \`man <cmd>\`) shows a command's help with full examples: \`todo -h\`.
 - **Stop a command**: \`Ctrl+C\` (on a Mac \`⌘X\`, or the real Control key + C) stops what's running or the question it asks — it ends with ^C and the prompt comes back. \`Esc\` stops a question too. In your real terminal, \`⌘X\` on a Mac sends ctrl+C.
 - **Names with spaces**: Tab puts them between quotes — \`cd STA\` + Tab gives \`cd "START HERE/"\`.
+- \`exit\` (or \`quit\`) — quits ICEBREAKER, like ⌘Q / Alt+F4: pages save, the vault locks, an update waiting installs. In a script it ends the script; in your real terminal it's that shell's own \`exit\`.
 - \`say <text>\` — the deck's voice says it (the voice of UPLINK and the notifications; silent when the sound is muted or the voice is off).
 
 ${cmds}
@@ -68,7 +69,7 @@ ${cmds}
 - \`.icebreaker/themes/*.toml\` — your themes (\`theme new <name>\`)
 - \`.icebreaker/plugins/<id>/\` — your plugins (\`plugin new <id>\`) · they run in a sandbox: only what their permissions allow, in the shell too, never more than you approved (docs/SANDBOX.md)
 - \`.icebreaker/templates/journal.md\` — your journal template
-- \`.trash/\` — where \`rm\` puts things (\`trash open\` to see it, restore). Nothing is ever deleted for good, apart from \`self-destruct\` (it asks four times). A note sent there closes its tabs and leaves the pins; ⌘Z brings it back.
+- \`.trash/\` — where \`rm\` puts things (\`trash open\` to see it, restore). Nothing is ever deleted for good from inside the deck. A note sent there closes its tabs and leaves the pins; ⌘Z brings it back.
 
 ## Days and times
 The same words everywhere (reminders, \`todo add … --due\`, \`cal add\`), in English or French:

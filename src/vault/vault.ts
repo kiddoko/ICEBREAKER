@@ -19,19 +19,6 @@ export class Vault {
 
   constructor(private readonly backend: VaultBackend) {}
 
-  /** Can this platform self-destruct the vault? (desktop) */
-  get canDestroy(): boolean {
-    return !!this.backend.destroy;
-  }
-
-  /** SELF-DESTRUCT — see the `self-destruct` command. Empties the folder for good. */
-  async destroy(confirm: string, password: string): Promise<number> {
-    if (!this.backend.destroy) throw new Error("self-destruct needs the desktop app");
-    const n = await this.backend.destroy(confirm, password);
-    await this.rescan();
-    return n;
-  }
-
   /** START HERE notes you changed, which a newer version of the deck would have updated (`starthere --force`) */
   docsYours: string[] = [];
 

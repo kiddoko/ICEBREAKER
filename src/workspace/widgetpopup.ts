@@ -20,11 +20,16 @@ export class WidgetPopup implements Overlay {
 
   constructor(
     private readonly deck: Deck,
-    private readonly spec: WidgetSpec,
+    private readonly first: WidgetSpec,
     /** which copy ("clock#2"): its commands change that one */
     private readonly key?: string,
   ) {
-    focusWidget(key ?? spec.id);
+    focusWidget(key ?? first.id);
+  }
+
+  /** the widget as registered now: a module that reloads gives its new one (not the old, frozen) */
+  private get spec(): WidgetSpec {
+    return this.deck.widgets.get(this.first.id) ?? this.first;
   }
 
   private get ctx() {

@@ -17,7 +17,7 @@ Severity: 🔴 critical (your notes, keys or computer) · 🟠 high · 🟡 medi
 |---|---|---|---|
 | 1 | A module's code ran in the deck's own JavaScript: it could call **any native command** — `fs_read_text` reads any file of the computer (≤2 MB: `~/.ssh`, browser profiles…), `net_get` sends it out, `vault_decrypt`… | 🔴 | **The sandbox**: modules from the STORE and the vault run in a Worker without the native bridge, the page or the network (docs/SANDBOX.md). Tested with a module written to escape. |
 | 2 | `ib.shell.run("script x")` runs a `.sh` / `.py`… in **your real terminal**: a module with `vault:write` writes the script, then runs it — any program on your computer | 🔴 | `script` is refused to modules (`src/shell/privileged.ts`) |
-| 3 | A module could run `vault decrypt / export / encrypt / recovery / mount / move`, `account`, `self-destruct` | 🔴 | refused to modules; each also asks your password or confirmation |
+| 3 | A module could run `vault decrypt / export / encrypt / recovery / mount / move`, `account`, `self-destruct` | 🔴 | refused to modules; each also asks your password or confirmation (`self-destruct` itself was removed in 0.5.2) |
 | 4 | A module could **plant a trap**: `bind <key> factory-reset --yes`, a macro button, `config set keys.*` — your next key press runs it as you | 🟠 | `bind`, `unbind`, `macro add / rm`, `config set keys / menu / shell / privacy / plugins / ai` refused to modules |
 | 5 | A module could register a command named `vault` (or replace the Settings page, a THE MENU action): a fake one asks for your password | 🟠 | the deck's sensitive names are refused; a STORE / vault module can't replace any of the deck's commands, pages or actions |
 | 6 | `ib.vault.read(".icebreaker/secrets.json")` (your API key, inside an encrypted vault) and `account.json` (your password's hash); `ib.vault.write(".icebreaker/settings.json")` plants settings another computer adopts | 🔴 | the native side refuses these files to the UI, modules, ibsh and the AI — only Rust reads them |
@@ -61,7 +61,7 @@ Severity: 🔴 critical (your notes, keys or computer) · 🟠 high · 🟡 medi
 | 44 | Asking the vault's status during `vault rekey` could delete the half-built new store — and, at the worst moment, files of the new one | 🟡 | asking never touches the disk; an interrupted rekey is put right when the vault is mounted |
 | 45 | A window or a question opened by a module didn't say who was asking (it could ask "your password") | 🟡 | they're headed "<module> (module) — …", `[module]` in the shell |
 | 46 | `plugin install https://evil.example/github.com/kiddoko/icebreaker-modules/` passed for the official STORE (no warning) | 🟡 | decided on the address the download uses |
-| 47 | `vault export` and self-destruct checked your password in the interface only | ⚪ | checked by the native side |
+| 47 | `vault export` and self-destruct checked your password in the interface only | ⚪ | checked by the native side (self-destruct was removed in 0.5.2: no command deletes the vault any more) |
 | 48 | The plain backup zip of `vault encrypt` and some settings files were readable by the computer's other users | ⚪ | `0600` from the first byte |
 | 49 | `net_get` took `http://10.0.0.1@evil.example` or `127.evil.example` for your local network; your `~/.curlrc` applied; `{a,b}` in an address was expanded | ⚪ | the host is read as curl reads it, a local address is four numbers; `-q -g` |
 | 50 | The Google sign-in's `state` was a piece of its PKCE secret; a calendar request's body starting with `@` would have sent a file | ⚪ | its own random value; JSON only |
@@ -73,6 +73,7 @@ Severity: 🔴 critical (your notes, keys or computer) · 🟠 high · 🟡 medi
 | 56 | A vault's newer settings were "newer" again at every start when the other computer's clock was ahead (an endless reload for an encrypted vault) | 🟡 | what's taken is stamped no older than the vault's own |
 | 57 | Mounting an encrypted vault the login's password didn't open left an empty deck with the other vault's tree | ⚪ | its password is asked for, in a window |
 | 58 | The account's card in a plain vault (its password's hash) was readable by the computer's other users | ⚪ | `0600` |
+| 59 | CI: the GitHub Actions were named by version (a tag can be moved to other code), not by commit (was open #O20) | ⚪ | every third-party action is pinned to a commit SHA, its version in a comment (`.github/workflows/build.yml`, 0.5.2) |
 
 ## Open — for the security pass
 
@@ -88,7 +89,7 @@ Severity: 🔴 critical (your notes, keys or computer) · 🟠 high · 🟡 medi
 | O17 | The built-in modules and the deck's own functions trust their callers' words: a function exposed tomorrow that builds a command from an argument without quoting it would reopen #32 for that function | 🟡 | `tests/origin.test.ts` guards the mechanism; each new function must use `line(…)` (plugins/frame-services.ts) |
 | O18 | The neural voice takes its text as an argument: while it speaks, other users of the computer can see that text in the list of processes | ⚪ | the engine has no other way in; the system voices read a private file |
 | O19 | Windows: the deck's terminals start PowerShell with `-ExecutionPolicy Bypass` (needed to load its hook) | ⚪ | sign the hook, or load it another way |
-| O20 | CI: the GitHub Actions are named by version, not by commit; the updater key has no password | ⚪ | pin them; a key with a password in the secret |
+| O20 | CI: the updater key has no password (the actions are pinned now: #59) | ⚪ | a key with a password in the secret |
 | O13 | The audit (`plugin audit`) reads the code before it runs; a minified or obfuscated module can hide what it does | ⚪ | with the sandbox it matters much less; keep showing "minified" in red |
 
 ## Looked at, nothing found

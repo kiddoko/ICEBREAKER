@@ -127,7 +127,7 @@ On disk an encrypted vault is **one folder** and nothing else:
   removed. Finder's `.DS_Store` files are removed, not encrypted.
 - `vault decrypt` never overwrites a file; on any problem it removes what it wrote
   and the vault stays encrypted. `vault export <folder>` asks the password again (checked
-  by the native side, like self-destruct) and wants a new or empty folder outside the vault.
+  by the native side) and wants a new or empty folder outside the vault.
 - The **plain backup zip** `vault encrypt` makes first stays next to the vault until YOU
   delete it (readable by your user only): it's your notes in plain. Deleted plain files
   aren't shredded: on an SSD nothing can promise that.
@@ -228,7 +228,7 @@ seen opening as a new (approved) account, the setup's ENCRYPTION step, Settings 
 ### Closed to modules, menus and windows (2026-11-20)
 
 - **Modules never touch the encryption**: what a module has the deck do runs as that module
-  (`src/shell/origin.ts`), and the vault's encryption and place, accounts, self-destruct and
+  (`src/shell/origin.ts`), and the vault's encryption and place, accounts and
   installing modules are refused to it (`src/shell/privileged.ts`); a module can't register a
   command named `vault`, `account`… nor (from the STORE / the vault) replace any command, page
   or action of the deck or of another module; the account's card, settings and secrets in the

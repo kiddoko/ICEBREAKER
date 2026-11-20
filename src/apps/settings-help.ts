@@ -98,5 +98,4 @@ export const SETTINGS_HELP: Record<string, [string, string]> = {
   "journal.folder": ["The vault folder where the journal's daily pages go.", "Le dossier du vault où vont les pages du journal."],
   "editor.autosave": ["Notes save themselves as you type.", "Les notes s'enregistrent toutes seules pendant que tu écris."],
   "+ bind a key to anything": ["Pick a key combo, then the shell command it runs: open a note, a folder, a module, a script…", "Choisis une combinaison de touches, puis la commande shell qu'elle lance : ouvrir une note, un dossier, un module, un script…"],
-  "Self-destruct": ["Deletes everything in the vault for good, after four confirmations and a 10-second countdown. Copies elsewhere (iCloud, git, backups) aren't touched.", "Supprime tout le vault pour de bon, après quatre confirmations et un compte à rebours de 10 s. Les copies ailleurs (iCloud, git, sauvegardes) ne sont pas touchées."],
 };

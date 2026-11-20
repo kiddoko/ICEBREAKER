@@ -152,6 +152,7 @@ function makeIb(manifest: unknown, version: string): unknown {
       write: rpc("vault", "write"),
       append: rpc("vault", "append"),
       mkdir: rpc("vault", "mkdir"),
+      modified: rpc("vault", "modified"),
       notes: () => {
         if (notes === null) throw new Error(notesError || "needs the vault:read permission");
         return [...notes];

@@ -31,9 +31,6 @@ export interface VaultBackend {
   trash(path: string): Promise<string>;
   rename(from: string, to: string): Promise<void>;
   exists(path: string): Promise<boolean>;
-  /** SELF-DESTRUCT: empty the vault folder for good. `confirm` = the folder's name. Returns how many top-level items went. */
-  /** `password`: the logged-in account's, checked by the native side */
-  destroy?(confirm: string, password: string): Promise<number>;
   /** Raw bytes of a small file (desktop only). */
   readBytes?(path: string): Promise<ArrayBuffer>;
   /** Vault encryption (desktop only; src-tauri/src/store.rs, docs/ENCRYPTION.md). */

@@ -1,6 +1,5 @@
 import { contextCommand } from "../../ai/context";
 import { BOX_OFF, BOX_ON } from "../../ui/controls";
-import { parseDay } from "../../core/dates";
 import { redoCommand, tourCommand, undoCommand } from "./undo";
 import { auditReport } from "../../plugins/audit";
 import { DEFAULT_SETTINGS } from "../../core/settings";
@@ -9,17 +8,16 @@ import { fmt } from "../../core/ansi";
 import { askInShell, asker } from "../ask";
 import { padEnd } from "../../core/unicode";
 import { ASK_SYSTEM_PROMPT } from "../../ai/prompts";
-import { appendLog, ensureEntry } from "../../vault/journal";
+import { appendLog, journalArgs } from "../../vault/journal";
 import { join, slugify } from "../../vault/paths";
 import { applyFxPreset, FX_PRESET_ALIASES, FX_PRESET_NAMES, FX_PRESETS } from "../../workspace/fxpanel";
 import { installPlugin, installTheme, isOfficialSource, unverifiedWarning } from "../../plugins/install";
 import { storeCommand } from "../../apps/store";
 import { pickFolder } from "../../workspace/filebrowser";
-import { parseFlags } from "../parser";
 import type { Command, ShellContext } from "../types";
 import { applyTweaks, tweaksToToml, type Theme } from "../../core/theme";
 import { knob, KNOBS, parseKnobValue } from "../../core/tweaks";
-import { account, lock, login, selfDestruct } from "./account";
+import { account, lock, login } from "./account";
 import { chat, daily } from "./daily";
 import { errorsCommand, mute, sound } from "./sound";
 import { debugCommand, logCommand } from "./log";
@@ -57,44 +55,34 @@ const open: Command = {
 const journal: Command = {
   name: "journal",
   examples: [
-    ["journal", "today's entry"],
+    ["journal", "today's page, opened"],
+    ["journal \"café avec Léa\"", "a timestamped line in today's page, without opening it"],
     "journal yesterday",
     ["journal 2026-11-05", "a given day"],
-    ["journal add \"caf\u00e9 avec L\u00e9a\"", "a timestamped line in today's log"],
+    ["date | journal", "piped text: a line too (handy from scripts)"],
     ["journal ls -n 7", "the last 7 entries"],
   ],
-  aliases: ["j"],
-  summary: "today's journal (or another day), add log lines, list entries",
-  usage: "journal [today|yesterday|-N|YYYY-MM-DD]\njournal add <text>      (or: echo text | journal add)\njournal ls [-n N]",
+  aliases: ["j", "today"],
+  summary: "today's journal: opens it, or adds a line to it (journal \"text\")",
+  usage: "journal                   today's page (ctrl+J from anywhere)\njournal <text…>           adds a timestamped line to today's page, without opening it\njournal yesterday | -N | YYYY-MM-DD    opens that day\njournal ls [-n N]         the last entries\n(also: journal add <text>, echo text | journal; `today` is the same command)",
   man: `Entries live in <vault>/${"journal"}/YYYY-MM-DD.md (folder: config journal.folder).
-"journal add" appends a timestamped line to the "## log" section of today's entry,
-without opening anything — handy from scripts: \`date | journal add\`.
+"journal <text>" appends a timestamped line to the "## log" section of today's entry,
+without opening anything — handy from scripts: \`date | journal\`.
+One word that names a day (today, yesterday, hier, -3, 2026-11-05, 24/12) opens that day;
+to log such a word, write \`journal add yesterday\`.
 Custom template: create .icebreaker/templates/journal.md ({{date}} {{title}} {{weekday}} {{time}}).`,
   async run(ctx) {
-    const [sub, ...rest] = ctx.args;
     const locale = ctx.deck.settings.data.user.locale;
-    if (sub === "add") {
-      const text = rest.join(" ") || ctx.stdin.trim();
-      if (!text) {
-        ctx.err("journal add: nothing to add\n");
-        return 1;
-      }
-      const path = await appendLog(ctx.deck.vault, new Date(), text.replace(/\n+/g, " "), locale);
-      ctx.out(`${ctx.isTTY ? fmt.green("✓") : "ok"} logged to ${path}\n`);
-      return;
-    }
-    if (sub === "ls" || sub === "list") {
-      const { flags } = parseFlags(rest, ["n"]);
-      const dates = [...ctx.deck.vault.journalDates()].sort().reverse().slice(0, Number(flags.n ?? 15));
+    const what = journalArgs(ctx.args, ctx.stdin);
+    if (what.kind === "error") return ctx.err(`journal: ${what.error}\n`), 1;
+    if (what.kind === "open") return void (await ctx.deck.openJournal(what.day));
+    if (what.kind === "ls") {
+      const dates = [...ctx.deck.vault.journalDates()].sort().reverse().slice(0, what.n);
       for (const d of dates) ctx.out(`${ctx.isTTY ? fmt.magenta(d) : d}  ${new Date(d + "T12:00").toLocaleDateString(locale || undefined, { weekday: "long" })}\n`);
       return;
     }
-    const day = sub ? parseDay(sub) : new Date();
-    if (!day) {
-      ctx.err(`journal: can't understand date "${sub}" (use YYYY-MM-DD, yesterday, -3…)\n`);
-      return 1;
-    }
-    await ctx.deck.openJournal(day);
+    const path = await appendLog(ctx.deck.vault, new Date(), what.text, locale);
+    ctx.out(`${ctx.isTTY ? fmt.green("✓") : "ok"} logged to ${path}\n`);
   },
 };
 
@@ -821,16 +809,7 @@ const plugin: Command = {
   },
 };
 
-const today: Command = {
-  name: "today",
-  summary: "print today's journal entry",
-  async run(ctx) {
-    const path = await ensureEntry(ctx.deck.vault, new Date(), ctx.deck.settings.data.user.locale);
-    ctx.out(await ctx.deck.vault.read(path));
-  },
-};
-
-export const deckCommands: Command[] = [undoCommand, redoCommand, tourCommand, contextCommand, ...uiCommands, voiceCommand, sayCommand, stealthCommand, newsCommand, daily, chat, account, selfDestruct, lock, login, sound, mute, errorsCommand, logCommand, debugCommand, open, journal, note, checkboxes, ask, link, sysmon, theme, fx, config, vaultCmd, plugin, today];
+export const deckCommands: Command[] = [undoCommand, redoCommand, tourCommand, contextCommand, ...uiCommands, voiceCommand, sayCommand, stealthCommand, newsCommand, daily, chat, account, lock, login, sound, mute, errorsCommand, logCommand, debugCommand, open, journal, note, checkboxes, ask, link, sysmon, theme, fx, config, vaultCmd, plugin];
 
 /** A theme's current value for "section.key", for display. */
 export function knobValue(t: Theme, key: string): string {
