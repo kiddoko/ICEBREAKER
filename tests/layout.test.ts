@@ -150,6 +150,8 @@ describe("the layout probe (debug layout)", () => {
     expect(caller(v8)).toBe("chrome.ts › renderStatusBar");
     const wk = "text@http://localhost:1420/src/ui/ui.ts:180:5\nrender@tauri://localhost/src/apps/home.ts:430:12";
     expect(caller(wk)).toBe("home.ts › render");
+    // a built app (one bundle): no name rather than a wrong one
+    expect(caller("Error\n    at Ae.letter (tauri://localhost/assets/index-8zdtsIbZ.js:1:2345)\n    at Ve (tauri://localhost/assets/index-8zdtsIbZ.js:1:999)")).toBe("?");
     // a module's file keeps its folder: they're all main.ts
     expect(caller("Error\n    at UI.text (http://localhost:1420/src/ui/ui.ts:1:1)\n    at CalendarApp.render (http://localhost:1420/plugins/calendar/main.ts:9:9)")).toBe("calendar/main.ts › CalendarApp.render");
   });

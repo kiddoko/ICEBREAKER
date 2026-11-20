@@ -209,6 +209,7 @@ async function layoutCheck(d: Deck, args: string[], out: (s: string) => void): P
     out(`${kind} ${fmt.bold(g.where.padEnd(34))} ${fmt.dim(sizes)}\n        "${g.sample}"${g.under ? fmt.dim(` over "${g.under}"`) : ""}\n`);
   }
   if (groups.length > 40) out(fmt.dim(`… and ${groups.length - 40} more places (--json for all)\n`));
+  if (groups.some((g) => g.where === "?")) out(fmt.dim("? = a built app doesn't know its code's names: npm run dev or npm run app shows them\n"));
   out(fmt.dim(`${total} issues in ${groups.length} places, ${reports.length} sizes\n`));
   return 0;
 }

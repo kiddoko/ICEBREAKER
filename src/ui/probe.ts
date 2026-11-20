@@ -109,7 +109,8 @@ function short(s: string | undefined): string {
 export function caller(stack = new Error().stack ?? ""): string {
   for (const raw of stack.split("\n").slice(1)) {
     const line = raw.replace(/\?[^:)\s]*/, "");
-    if (HELPERS.test(line)) continue;
+    // only the source's own files tell where: a built app (one bundle, index-….js) doesn't
+    if (HELPERS.test(line) || !/\.ts:\d+:\d+\)?\s*$/.test(line)) continue;
     // Chrome / WebView2: "    at Workspace.render (http://localhost:1420/src/workspace/chrome.ts:374:9)"
     const v8 = /^\s*at (?:async )?([^\s(]+) \(.*?([^/]+\/[^/]+\.(?:ts|js)):\d+:\d+\)\s*$/.exec(line);
     if (v8) return `${file(v8[2])} › ${v8[1].replace(/^Object\./, "")}`;
@@ -176,7 +177,8 @@ export function groupIssues(reports: SizeReport[]): { where: string; kind: Issue
   const groups = new Map<string, { where: string; kind: IssueKind; sizes: string[]; sample: string; under?: string; count: number }>();
   for (const r of reports)
     for (const i of r.issues) {
-      const key = `${i.kind} ${i.where}`;
+      // no code name (a built app): the same text is the same place
+      const key = i.where === "?" ? `${i.kind} ? ${i.text}` : `${i.kind} ${i.where}`;
       let g = groups.get(key);
       if (!g) groups.set(key, (g = { where: i.where, kind: i.kind, sizes: [], sample: i.text, under: i.under, count: 0 }));
       g.count++;
