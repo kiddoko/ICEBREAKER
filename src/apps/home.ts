@@ -2,6 +2,7 @@ import { allWidgetKeys, focusWidget, forgetWidget, keyOf, newWidgetKey, widgetId
 import { Glide } from "../ui/glide";
 import { t } from "../core/i18n";
 import { mix } from "../core/color";
+import { strWidth } from "../core/unicode";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
@@ -573,7 +574,7 @@ export class HomeApp implements App {
           tip: t("drag: bigger / smaller · shift+arrows"),
         });
       }
-      if (anim) drawEffects(ui, rect, inner, i, sel, this.shownAt, this.selAt);
+      if (anim) ui.art(() => drawEffects(ui, rect, inner, i, sel, this.shownAt, this.selAt)); // boot-in effects over the frame, on purpose
     }
     // dragging: where it would land (dashed), and the widget itself following the mouse
     const dg = this.drag;
@@ -589,7 +590,9 @@ export class HomeApp implements App {
       }
     }
     ui.grid.popClip();
-    if (this.scroll < maxScroll) ui.textRight(r.x + r.w - 1, r.y + r.h - 1, ` ↓ more (wheel) `, { fg: c.panel, bg: c.accent });
+    // more below: a tab on the bottom edge, drawn over what's there on purpose (ui.art), shorter when narrow
+    const more = [` ↓ ${t("more (wheel)")} `, " ↓ "].find((m) => strWidth(m) <= r.w - 2);
+    if (this.scroll < maxScroll && more) ui.art(() => ui.textRight(r.x + r.w - 1, r.y + r.h - 1, more, { fg: c.panel, bg: c.accent }));
     if (this.scroll > 0) ui.textRight(r.x + r.w - 1, r.y, ` ↑ ${this.scroll} `, { fg: c.muted });
 
     // pages: ‹ 1 2 3 + › at the bottom left (always while editing)

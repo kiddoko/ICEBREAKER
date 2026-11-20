@@ -264,7 +264,8 @@ class WeatherApp implements App {
     // the sky (left) and the numbers (right)
     const skyW = Math.max(20, Math.floor(r.w * 0.45)), skyH = Math.max(6, Math.min(14, Math.floor(r.h * 0.45)));
     const skyR = { x: r.x + 2, y: r.y + 3, w: skyW, h: skyH };
-    ui.clip(skyR, () => drawSky(ui, skyR, sk, f.isDay, sec));
+    // the animated sky overlaps itself on purpose (ui.art: debug layout doesn't count it)
+    ui.clip(skyR, () => ui.art(() => drawSky(ui, skyR, sk, f.isDay, sec)));
     const nx = skyR.x + skyW + 3;
     const temp = `${Math.round(f.temp)}°`;
     const k = fitMatrix(temp, r.x + r.w - nx - 2, 4, 1);

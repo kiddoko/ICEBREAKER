@@ -80,6 +80,8 @@ export function choice(ui: UI, x: number, y: number, value: string, o: ChoiceOpt
 }
 
 export interface TabsOptions {
+  /** the first cell it may not use: tabs that don't fit aren't drawn (never over what follows) */
+  end?: number;
   tip?: string;
   /** what each tab says (default: the tab itself) */
   label?: (tab: string) => string;
@@ -91,6 +93,7 @@ export function tabs(ui: UI, x: number, y: number, list: readonly string[], curr
   for (const tb of list) {
     const label = ` ${o.label ? o.label(tb) : tb} `;
     const rect = { x, y, w: strWidth(label), h: 1 };
+    if (o.end !== undefined && x + rect.w > o.end) break; // no room: the rest aren't drawn (tab still reaches them)
     const on = tb === current;
     ui.text(x, y, label, on ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: ui.hovered(rect) ? c.accent : c.fg, bg: c.highlight });
     ui.hit(rect, { onClick: () => onPick(tb), tip: o.tip });

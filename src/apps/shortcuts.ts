@@ -12,6 +12,7 @@ import type { Deck } from "../deck";
 import type { Command } from "../shell/types";
 import type { UI } from "../ui/ui";
 import type { App, AppSpec } from "./types";
+import { GAP } from "../ui/layout";
 import { KeyCapture } from "../workspace/keycapture";
 import { q } from "../ui/ui";
 
@@ -130,17 +131,25 @@ class ShortcutsApp implements App {
     const w = Math.min(r.w - 4, 100), x = r.x + Math.floor((r.w - w) / 2);
     let y = r.y + 1;
     // the search field
+    // the buttons on the right, each only while the field keeps 12 cells (F2, `bind` and
+    // `keys reset all` still work without them)
     const bindLabel = t("+ bind a key");
-    const bx = x + w - strWidth(bindLabel) - 2;
-    const field = { x, y, w: bx - x - 2, h: 1 };
-    this.search.render(ui, field, {}, { focused, placeholder: t("type to search: \"note\", \"tab\", \"ctrl+shift\"…") });
-    ui.button(bx, y, bindLabel, () => this.bind(), { tip: "F2 · bind <keys> <command>" });
-    // every deck shortcut back to its default keys (asks first)
     const changed = Object.keys(this.deck.settings.data.keyOverrides ?? {}).length;
-    if (changed) {
-      const rl = `↺ ${t("defaults")} (${changed})`;
-      ui.button(bx - strWidth(rl) - 4, y, rl, () => void resetKeys(this.deck), { tip: t("every deck shortcut back to its default keys · keys reset all"), accent: c.warning });
+    const resetLabel = changed ? `↺ ${t("defaults")} (${changed})` : "";
+    let right = x + w;
+    const fits = (label: string) => !!label && right - x - (strWidth(label) + 2) - GAP >= 12;
+    if (fits(bindLabel)) {
+      right -= strWidth(bindLabel) + 2;
+      ui.button(right, y, bindLabel, () => this.bind(), { tip: "F2 · bind <keys> <command>" });
+      right -= GAP;
     }
+    // every deck shortcut back to its default keys (asks first)
+    if (fits(resetLabel)) {
+      right -= strWidth(resetLabel) + 2;
+      ui.button(right, y, resetLabel, () => void resetKeys(this.deck), { tip: t("every deck shortcut back to its default keys · keys reset all"), accent: c.warning });
+      right -= GAP;
+    }
+    this.search.render(ui, { x, y, w: right - x, h: 1 }, {}, { focused, placeholder: t("type to search: \"note\", \"tab\", \"ctrl+shift\"…") });
     y += 2;
 
     const rows = this.rows();

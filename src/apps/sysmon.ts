@@ -4,6 +4,7 @@ import type { SystemStats } from "../platform/types";
 import { formatUptime } from "../shell/commands/system";
 import type { UI } from "../ui/ui";
 import type { App, AppSpec } from "./types";
+import { Bar, INSET } from "../ui/layout";
 
 /** SYSMON — live CPU / memory with braille graphs. Polls once per second while open. */
 export class SysmonApp implements App {
@@ -59,8 +60,11 @@ export class SysmonApp implements App {
     const half = Math.floor(r.w / 2);
 
     // header
-    ui.text(r.x + 1, r.y, `${s.cpuBrand || "cpu"}`, { fg: c.muted }, half);
-    ui.textRight(r.x + r.w - 1, r.y, `${s.os} · ${s.arch}`, { fg: c.subtle });
+    // the cpu on the left, the system on the right: both shrink (…) rather than overlap
+    new Bar(ui, r.x + INSET, r.y, r.x + r.w - INSET)
+      .text(s.cpuBrand || "cpu", { fg: c.muted }, { priority: 9, fit: 8 })
+      .text(`${s.os} · ${s.arch}`, { fg: c.subtle }, { side: "right", priority: 5, fit: 6 })
+      .draw();
 
     // CPU graph
     const graphH = Math.max(3, Math.floor((r.h - 8) / 2));
