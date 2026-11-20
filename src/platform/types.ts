@@ -192,7 +192,11 @@ export interface Platform {
   google?: {
     status(): Promise<{ configured: boolean; custom: boolean; connected: boolean }>;
     setup(clientId: string, clientSecret: string): Promise<void>;
-    connect(): Promise<void>;
+    /**
+     * Sign in in the browser. Resolves once the token is saved (up to 5 minutes);
+     * `onPhase` hears "browser" (waiting for you there) then "token" (Google answered).
+     */
+    connect(onPhase?: (phase: string) => void): Promise<void>;
     disconnect(): Promise<void>;
     /** Raw Calendar API v3 call; `path` is relative to /calendar/v3/. Returns the JSON text. */
     calendar(method: string, path: string, query?: string, body?: string): Promise<string>;
@@ -238,10 +242,15 @@ export interface Platform {
   /** ICEBREAKER commands typed in the system shell arrive here (see term.rs). */
   bridge?: {
     onRun(cb: (req: { id: string; line: string; cwd: string }) => void): void;
-    send(id: string, chunk: string | null, done: boolean, found: boolean): void;
+    /** `status`, with `done`: the command's exit code (the shell's $? and its prompt's ✕) */
+    send(id: string, chunk: string | null, done: boolean, found: boolean, status?: number): void;
   };
-  /** DEV ONLY — remove before release: back to a first launch (see dev.rs). */
-  dev?: { factoryReset(password: string): Promise<string[]>; restart(): Promise<void> };
+  /**
+   * Developer tools (src-tauri/src/dev.rs): back to a first launch. Only a build made with
+   * `--features dev-tools` (npm run app:mac) has them — `available()` says so, and the deck
+   * registers `factory-reset` only then (deck.ts registerCore).
+   */
+  dev?: { available(): Promise<boolean>; factoryReset(password: string): Promise<string[]>; restart(): Promise<void> };
   window: {
     setFullscreen(on: boolean): Promise<void>;
     isFullscreen(): Promise<boolean>;

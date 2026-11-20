@@ -23,6 +23,30 @@ every OS. Notes:
   and the secret, then connect.
 - Stay 100 % local if you prefer: the calendar lives in `calendar/` in your
   vault as plain Markdown, no account needed.
+- **It didn't connect?** The deck says why on screen ("Google Calendar isn't
+  connected: …") and `cal google status` shows the state. Settings → ◇ CALENDAR →
+  *where your calendar lives* says **vault + Google (not connected)** when you
+  chose Google but the sign-in hasn't come through yet: *Google account* tries again.
+
+### How the sign-in works (and what to check when it doesn't)
+
+1. `google_connect` (google.rs) opens a server on `127.0.0.1:<random port>` (the
+   loopback only: nothing on your network can reach it), then opens Google's page
+   in the default browser and **returns at once**.
+2. A thread waits up to 5 minutes for the browser to come back with
+   `?code=…&state=…`; the page then says *"ICEBREAKER got the answer from Google"*.
+3. It trades the code for a token at `oauth2.googleapis.com` (PKCE, through the
+   system `curl`) and saves the refresh token in the account's folder
+   (`users/<id>/google.json`, next to the app's config — never in the vault).
+4. Meanwhile the deck asks `google_connect_result` every second (phases
+   `browser` → `token` → `done` / `failed` with the reason). The CALENDAR module
+   also re-reads `google_status` on its own, so a sign-in that finished while the
+   module was busy elsewhere still shows up.
+
+Until 0.5.0 the deck waited for one IPC call that lasted the whole sign-in: on
+Windows the browser said yes and the deck never heard of it. If it fails, the
+message names the step: no answer from the browser (the page never came back to
+127.0.0.1), the token trade (network, curl), or saving the token.
 
 ## 1. Put the client in your local builds
 

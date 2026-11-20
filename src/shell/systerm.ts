@@ -1,12 +1,23 @@
 import { Terminal, type IBufferCell } from "@xterm/headless";
 import { mix, NONE, type RGB } from "../core/color";
 import { BOLD, ITALIC, UNDERLINE, type Rect } from "../core/grid";
-import type { Action, KeyInput } from "../core/input";
+import { IS_MAC, type Action, type KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import type { UI } from "../ui/ui";
 import { copyToClipboard } from "../core/clipboard";
 
 const EXIT_MARK = "\x1b]ib-exit\x07";
+
+/**
+ * What the keys do in a real terminal, for the status bar. A Mac keeps ⌘ for the deck
+ * (⌘C ⌘V copy and paste, ⌘X sends ctrl+C); on Windows / Linux every ctrl key goes to the
+ * shell, except ctrl+C over a selection (copy) and ctrl+V (paste).
+ */
+export function terminalKeysHint(): string {
+  return IS_MAC
+    ? "ctrl = Control (nano: ctrl+X quits) · ⌘C ⌘V copy/paste · ⌘X interrupt (ctrl+C)"
+    : "ctrl+C copies a selection, else interrupts · ctrl+shift+C copy · ctrl+V paste";
+}
 
 /** xterm's 256 colors: 16 from the theme, a 6×6×6 cube, 24 greys. */
 function color256(n: number, ansi: RGB[]): RGB {
@@ -25,9 +36,14 @@ function color256(n: number, ansi: RGB[]): RGB {
  * native side, xterm's terminal engine here (colors, cursor, vim, htop, ssh…),
  * drawn in the deck's grid with the theme's colors.
  */
-/** core deck commands that win over system programs of the same name in your terminal */
-/** deck commands that win over the system shell's own (zsh's logout would close the terminal) */
-const CORE_IN_TERMINAL = ["reboot", "logout"];
+/**
+ * deck commands that win over the system shell's own: zsh's logout would close the terminal,
+ * and macOS's login asks for a user and ignores ctrl+C (typed for logout, you were stuck)
+ */
+const CORE_IN_TERMINAL = ["reboot", "logout", "login"];
+
+/** ⌘X on a Mac: ctrl+C for the shell (⌘C is copy there) */
+const macInterrupt = (k: KeyInput) => IS_MAC && !!k.rawMeta && k.combo === "ctrl+x";
 
 export class SystemTerminal {
   readonly term: Terminal;
@@ -43,6 +59,9 @@ export class SystemTerminal {
   private error = "";
   private cols = 0;
   private rows = 0;
+  /** the size the native terminal was last given: it must always match xterm's, or the shell
+   * redraws its prompt on the wrong rows (it vanished on Windows) */
+  private ptySize = "";
   private cell: IBufferCell | undefined;
   private lastInputAt = 0;
   /** mouse selection, in buffer lines (scrollback included) and columns; head = where the mouse is */
@@ -74,8 +93,14 @@ export class SystemTerminal {
     this.started = true;
     this.exited = false;
     this.term.resize(cols, rows);
+    this.ptySize = `${cols}x${rows}`;
     pty
       .spawn(this.id, cols, rows, (data) => {
+        // output means the native side has this terminal: it can take our answers now. Windows'
+        // ConPTY asks where the cursor is the moment it starts, often before pty_spawn has
+        // answered: that answer used to be dropped, and ConPTY waited 3 s for it before
+        // showing anything (a new PowerShell took ages to show its prompt)
+        this.spawned = true;
         if (data.includes(EXIT_MARK)) {
           this.exited = true;
           data = data.replace(EXIT_MARK, "\r\n\x1b[2m[process exited — press enter to start a new shell]\x1b[0m\r\n");
@@ -135,6 +160,7 @@ export class SystemTerminal {
 
   /** Which keys belong to the terminal (the rest stay app shortcuts). */
   wants(k: KeyInput): boolean {
+    if (macInterrupt(k)) return true;
     if (k.rawMeta) return false; // ⌘ shortcuts stay the deck's; the terminal uses the real Control key
     if (k.combo === "ctrl+tab" || k.combo === "ctrl+shift+tab" || k.key === "f11" || k.key === "f12") return false;
     if (k.rawCtrl && k.code === "Backquote") return false; // ctrl+` toggles the panel
@@ -209,6 +235,7 @@ export class SystemTerminal {
   }
 
   onKey(k: KeyInput): boolean {
+    if (macInterrupt(k) && !this.exited) return (this.sel = null), this.write("\x03"), true;
     // copy: ⌘C on a Mac; elsewhere ctrl+C copies when something is selected (else it interrupts), ctrl+shift+C always
     if (k.ctrl && k.key === "c" && (k.rawMeta || k.shift || this.hasSelection())) {
       if (this.copySelection()) this.sel = null;
@@ -260,7 +287,11 @@ export class SystemTerminal {
       this.cols = r.w;
       this.rows = r.h;
       this.term.resize(r.w, r.h);
-      if (this.alive && this.spawned) void this.deck.platform.pty?.resize(this.id, r.w, r.h)?.catch(() => {});
+    }
+    // a size change while the shell was starting is sent once it's there
+    if (this.alive && this.spawned && this.ptySize !== `${r.w}x${r.h}`) {
+      this.ptySize = `${r.w}x${r.h}`;
+      void this.deck.platform.pty?.resize(this.id, r.w, r.h)?.catch(() => {});
     }
     const buf = this.term.buffer.active;
     const ansi = ui.theme.ansi;

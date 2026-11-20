@@ -10,7 +10,7 @@ import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import { mix } from "../core/color";
 import { displayKeys } from "../core/shortcuts";
-import { kindOf, resetRow, rowIsDefault, rowResettable, type SettingRow as Row } from "../core/prefs";
+import { defaultOf, kindOf, resetRow, rowIsDefault, rowResettable, type SettingRow as Row } from "../core/prefs";
 import type { Deck } from "../deck";
 import type { UI } from "../ui/ui";
 import type { App, AppSpec } from "./types";
@@ -112,16 +112,47 @@ export class SettingsApp implements App {
   }
 
   onText(ch: string): boolean {
-    // space on a box or a ‹ choice › (the one under the mouse, else the one selected): tick it / next value
+    // space, when nothing is being searched, acts on the row you're on (the one under the
+    // mouse, else the one selected) and never types: a box ticks, a ‹ choice › goes to the
+    // next value, a slider goes to its rest and back (0 = mute / unmute; no 0: its default)
     if (ch === " " && !this.query) {
-      const row = this.hoverRow ?? (this.pane === "rows" ? this.shown()[this.sel]?.row : undefined);
+      const row = this.spaceRow();
       const kind = row ? kindOf(row) : undefined;
-      if (row && (kind === "toggle" || kind === "choice") && !row.disabled?.()) return void row.change?.(1), true;
+      if (!row || row.disabled?.()) return true;
+      if (kind === "toggle" || kind === "choice") void row.change?.(1);
+      else if (kind === "slider") this.flipSlider(row);
+      return true;
     }
     return this.search.onText(ch);
   }
-  /** the row under the mouse (last frame): space acts on it */
+  /** the row under the mouse (last frame), unless the keys moved the selection since the mouse last moved */
   private hoverRow: Row | undefined;
+  /** where the mouse was when ↑↓ last moved the selection: hovering counts again once it moves */
+  private mouseStill = "";
+  private mouseAt = "";
+  /** the row space acts on */
+  private spaceRow(): Row | undefined {
+    return this.hoverRow ?? (this.pane === "rows" ? this.shown()[this.sel]?.row : undefined);
+  }
+  /** each slider's last value away from its rest (space: rest ⇄ that value) */
+  private readonly lastOn = new Map<string, number>();
+  /** space on a slider: to its rest and back — 0 when its range has one (mute / unmute),
+   *  else its default (brightness, zoom, text size: back to normal, then to your value) */
+  private flipSlider(row: Row): void {
+    const sl = row.slider!;
+    const id = row.key ?? row.label;
+    const def = row.key ? Number(defaultOf(this.deck, row.key)) : NaN;
+    const hasZero = sl.min <= 0 && sl.max >= 0;
+    const rest = hasZero ? 0 : Number.isFinite(def) ? def : NaN;
+    if (!Number.isFinite(rest)) return;
+    const v = sl.get();
+    if (v !== rest) {
+      this.lastOn.set(id, v);
+      return sl.set(rest);
+    }
+    const back = this.lastOn.get(id) ?? (hasZero ? (def > 0 ? def : 100) : undefined);
+    if (back !== undefined) sl.set(Math.min(sl.max, Math.max(sl.min, back)));
+  }
 
   /** on a shortcut row: 0 = its keys, 1 = its key on THE MENU */
   private keyCell: 0 | 1 = 0;
@@ -145,6 +176,8 @@ export class SettingsApp implements App {
 
   onAction(a: Action): boolean {
     const secs = this.sections();
+    // the keys move the selection: the row under a mouse that stays still no longer counts
+    if (a === "up" || a === "down" || a === "item-next") (this.mouseStill = this.mouseAt), (this.hoverRow = undefined);
     if (this.pane === "cats" && !this.query) {
       if (a === "up") return (this.cat = (this.cat - 1 + secs.length) % secs.length), (this.sel = 0), true;
       if (a === "down" || a === "item-next") return (this.cat = (this.cat + 1) % secs.length), (this.sel = 0), true;
@@ -234,6 +267,10 @@ export class SettingsApp implements App {
     ui.hit({ x: rx, y: top, w: rw, h: room }, { onWheel: (d) => this.glide.push(d) });
     if (!rows.length) ui.text(rx + 2, top, t("nothing matches — esc clears the search"), { fg: c.muted });
     let hoverRow: Row | undefined;
+    // the mouse hasn't moved since ↑↓ chose a row: the row under it isn't "the one you're on"
+    this.mouseAt = `${ui.mouse.x},${ui.mouse.y}`;
+    if (this.mouseStill && this.mouseStill !== this.mouseAt) this.mouseStill = "";
+    const mouseCounts = !this.mouseStill;
 
     // One sheet, the same on every row:
     //   ▎ label ……………………………………………  value  ›  ↺
@@ -267,7 +304,7 @@ export class SettingsApp implements App {
       const line = { x: rx, y, w: rw, h: 1 };
       // the chosen row's long label scrolls by itself (ui.marqueeZone)
       ui.marqueeZone = selected && focused ? line : null;
-      const hovered = ui.hovered(line);
+      const hovered = mouseCounts && ui.hovered(line);
       const hot = (selected && focused) || hovered;
       const bg = selected && focused ? mix(c.accent, c.bg, 0.84) : hovered ? c.highlight : undefined;
       if (bg !== undefined) ui.fill(line, { bg });
@@ -301,7 +338,7 @@ export class SettingsApp implements App {
           show: sl.show,
           step: sl.step,
           disabled,
-          tip: t("drag the handle · hold on the track · wheel · ←→ (1 at a time, faster when held) · double-click the number to type it"),
+          tip: t("drag the handle · hold on the track · wheel · ←→ (1 at a time, faster when held) · space: 0 and back · double-click the number to type it"),
           onEdit: () => void askNumber(this.deck, t(row.label), sl.get(), sl.min, sl.max, sl.zeroIsOff).then((nv) => nv !== null && sl.set(nv)),
         });
       } else if (kind === "toggle") {

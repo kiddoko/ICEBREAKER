@@ -4,7 +4,7 @@ import type { Deck } from "../deck";
 import { ListView } from "../ui/list";
 import type { UI } from "../ui/ui";
 import type { Overlay } from "./overlays";
-import { accelerated, askNumber, slider } from "../ui/slider";
+import { askNumber, heldStep, slider } from "../ui/slider";
 import { fxMax, getFx, setFx, type FxLevel } from "../core/fxlevels";
 
 type FxKey = "ambient" | "glitch" | "bloom" | "scanlines" | "vignette" | "flicker";
@@ -29,7 +29,7 @@ export const FX_PRESET_ALIASES: Record<string, Preset> = { potato: "none", minim
 export const FX_PRESETS: Record<Preset, { on: FxKey[]; levels: Record<FxLevel, number>; hint: string }> = {
   none: { on: [], levels: { bloom: 0, scanlines: 0, vignette: 0, chroma: 0, glow: 0, sharpness: 100 }, hint: "flat and sharp, nothing moves (old laptops)" },
   light: { on: ["ambient", "glitch"], levels: { bloom: 60, scanlines: 40, vignette: 50, chroma: 0, glow: 0, sharpness: 90 }, hint: "a hint of glow, crisp text (default)" },
-  medium: { on: ["ambient", "glitch"], levels: { bloom: 100, scanlines: 100, vignette: 100, chroma: 30, glow: 30, sharpness: 80 }, hint: "a real CRT" },
+  medium: { on: ["ambient", "glitch"], levels: { bloom: 100, scanlines: 100, vignette: 100, chroma: 40, glow: 30, sharpness: 80 }, hint: "a real CRT" },
   heavy: { on: ["ambient", "glitch", "flicker"], levels: { bloom: 150, scanlines: 150, vignette: 130, chroma: 100, glow: 80, sharpness: 70 }, hint: "glow, fringes, flicker" },
   party: { on: ["ambient", "glitch", "flicker"], levels: { bloom: 200, scanlines: 200, vignette: 200, chroma: 200, glow: 200, sharpness: 60 }, hint: "everything at the max. sunglasses on" },
 };
@@ -76,7 +76,8 @@ export class FxPanel implements Overlay {
   private nudge(dir: 1 | -1): void {
     const row = this.list.current;
     if (!row?.level) return;
-    setFx(this.deck, row.level, getFx(this.deck, row.level) + dir * accelerated(`fx:${row.level}`));
+    const lv = row.level;
+    heldStep(`fx:${lv}`, dir, (d) => (setFx(this.deck, lv, getFx(this.deck, lv) + d), this.deck.requestFrame()));
   }
 
   onKey(k: KeyInput): boolean {

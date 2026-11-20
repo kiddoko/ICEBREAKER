@@ -1,4 +1,4 @@
-import { accelerated, slider } from "../ui/slider";
+import { heldStep, slider } from "../ui/slider";
 import { Field } from "../ui/field";
 import { mix } from "../core/color";
 import { LANGS, setLang, t } from "../core/i18n";
@@ -361,9 +361,12 @@ export class SetupApp implements App {
         set("notifications.screen", see), set("notifications.system", see), set("notifications.sound", hear), set("notifications.voice", hear);
       }
       if (this.a.terminal) set("shell.mode", this.a.terminal);
-      // modules are configured through their commands, like everything else
-      if (this.a.calendar === "local") void this.deck.act("cal mode local");
-      if (this.a.calendar === "google") void this.deck.act("cal mode google");
+      // modules are configured through their commands, like everything else — once the vault
+      // is the one they'll keep (their choice is saved in it): after the mount / the encryption
+      const calendar = this.a.calendar;
+      const modules = async () => {
+        if (calendar === "local" || calendar === "google") await this.deck.act(`cal mode ${calendar}`);
+      };
       set("user.language", this.a.language || this.deck.settings.data.user.language || "en");
       set("user.gender", this.a.gender ?? "");
       set("user.genderOther", this.a.gender === "other" ? (this.a["gender-other"] ?? "") : "");
@@ -388,10 +391,14 @@ export class SetupApp implements App {
           await this.deck.act("vault encrypt --window");
           this.busy = false;
           this.leave(skipped);
+          void modules();
         })();
         return;
       }
-      if (path) void this.deck.act(`vault mount ${q(path)}`);
+      void (async () => {
+        if (path) await this.deck.act(`vault mount ${q(path)}`);
+        await modules();
+      })();
     }
     this.leave(skipped);
   }
@@ -471,7 +478,7 @@ export class SetupApp implements App {
 
   onAction(a: Action): boolean {
     const st = this.cur;
-    if (st.slider && (a === "left" || a === "right")) return this.setSound(Number(this.a[st.id]) + (a === "left" ? -1 : 1) * accelerated("setup:sound")), true;
+    if (st.slider && (a === "left" || a === "right")) return heldStep("setup:sound", a === "left" ? -1 : 1, (d) => (this.setSound(Number(this.a[st.id]) + d), this.deck.requestFrame())), true;
     const n = this.options().length;
     switch (a) {
       case "up": this.sel = (this.sel - 1 + Math.max(1, n)) % Math.max(1, n); this.preview(); return true;

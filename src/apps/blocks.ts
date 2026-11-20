@@ -164,7 +164,7 @@ class BlocksApp implements App {
     }
     let bx = dx;
     if (b.run) bx += ui.button(bx, dy, `${t("run")} ⏎`, () => this.run(b)) + 2;
-    if (b.call) ui.button(bx, dy, `${t("copy")} ⌘C`, () => (copyToClipboard(b.call!), this.deck.notify(`${t("copied")}: ${b.call}`, "success")));
+    if (b.call) ui.button(bx, dy, t("copy ⌘C"), () => (copyToClipboard(b.call!), this.deck.notify(`${t("copied")}: ${b.call}`, "success")));
   }
 }
 

@@ -129,7 +129,7 @@ export function createTauriPlatform(): Platform {
     },
     bridge: {
       onRun: (cb) => void listen<{ id: string; line: string; cwd: string }>("bridge-run", (e) => cb(e.payload)),
-      send: (id, chunk, done, found) => void invoke("bridge_send", { id, chunk, done, found }),
+      send: (id, chunk, done, found, status) => void invoke("bridge_send", { id, chunk, done, found, status: status ?? null }),
     },
     media: {
       status: () => invoke<MediaStatus | null>("media_status"),
@@ -150,12 +150,26 @@ export function createTauriPlatform(): Platform {
     google: {
       status: () => invoke<{ configured: boolean; custom: boolean; connected: boolean }>("google_status"),
       setup: (clientId, clientSecret) => invoke<void>("google_setup", { clientId, clientSecret }),
-      connect: () => invoke<void>("google_connect"),
+      // google_connect opens the browser and returns at once; the sign-in goes on in a thread
+      // that we ask every second (one IPC call waiting minutes is what got lost on Windows)
+      connect: async (onPhase) => {
+        const id = await invoke<number>("google_connect");
+        let seen = "";
+        for (;;) {
+          await new Promise((r) => setTimeout(r, 1000));
+          const f = await invoke<{ id: number; phase: string; error: string | null }>("google_connect_result");
+          if (f.id !== id) throw new Error("google: another sign-in started");
+          if (f.phase !== seen) onPhase?.((seen = f.phase));
+          if (f.phase === "done") return;
+          if (f.phase === "failed") throw new Error(f.error ?? "google: the sign-in failed");
+        }
+      },
       disconnect: () => invoke<void>("google_disconnect"),
       calendar: (method, path, query, body) => invoke<string>("google_calendar", { method, path, query, body }),
       cache: (content) => invoke<string | null>("google_cache", { content: content ?? null }),
     },
     dev: {
+      available: () => invoke<boolean>("dev_tools_available"),
       factoryReset: (password) => invoke<string[]>("dev_factory_reset", { password }),
       restart: () => invoke<void>("dev_restart"),
     },

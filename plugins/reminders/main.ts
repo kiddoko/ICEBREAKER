@@ -5,8 +5,13 @@
  *
  *   remind "call mom" fri 18:00            15 min before, then on time
  *   remind "pills" tomorrow 9h --before 0  only on time
- *   remind "tea" +10m                      in 10 minutes
+ *   remind "tea" +10m · remind "tea" 1h    in a while (no time at all: in 1 hour)
+ *   remind "tea" --at "demain à 9h"        the time on its own (the pop-up uses it)
  *   remind ls · remind done <n> · remind rm <n> · remind test
+ *
+ * Times are read by the deck's one date reader (ib.lib.dates, core/dates.ts):
+ * +1h, 1h, 30min, 19:00, 19h, 19h30, demain 9h, tomorrow 9am, ven 18h, fri 6pm,
+ * 24/12 9:00, dans 1h, à 19h… Every add, done, edit and removal is a ⌘Z step.
  *
  * The deck has to be running for a reminder to ring (it can be in the
  * background). Missed ones ring as soon as it starts.
@@ -33,20 +38,7 @@ interface Reminder {
 }
 
 const pad = (n: number) => D.pad2(n);
-/** a day the way people write it — ib.lib.dates */
-const parseDay = (s: string): Date | null => D.parseDay(s);
-/** a time of day as [hours, minutes] — ib.lib.dates */
-const parseTime = (s: string): [number, number] | null => {
-  const m = D.parseTime(s);
-  return m === null ? null : [Math.floor(m / 60), m % 60];
-};
-
-/** "+10m", "+2h", "in 1h30" as minutes from now, or null */
-function parseIn(s: string): number | null {
-  const m = /^\+?(?:(\d+)h)?(?:(\d+)m(?:in)?)?$/i.exec(s.trim());
-  if (!m || (!m[1] && !m[2]) || !s.trim().startsWith("+")) return null;
-  return Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0);
-}
+const EXAMPLES = "+1h · 30min · 19h · demain 9h · fri 6pm · 24/12 9:00";
 let timer: ReturnType<typeof setInterval> | null = null;
 
 export function activate(ib: IcebreakerAPI): void {
@@ -56,15 +48,35 @@ export function activate(ib: IcebreakerAPI): void {
   let list: Reminder[] = [];
   let next = 1;
   let loaded = false;
+  /** the list as last saved: each save that changes it is one ⌘Z step */
+  let savedJson = "";
   const ready = (async () => {
     list = await ib.storage.get<Reminder[]>("reminders", []);
+    savedJson = JSON.stringify(list);
     next = list.reduce((n, r) => Math.max(n, r.id + 1), 1);
     loaded = true;
     check();
   })();
-  const save = () => {
+  const write = () => {
     void ib.stats.set("pending", list.filter((r) => !r.done && !r.fired).length, { label: "reminders pending" }).catch(() => {});
     return ib.storage.set("reminders", list).then(() => ib.ui.redraw());
+  };
+  /** Back to a list saved before (⌘Z / ⌘⇧Z). */
+  const restore = (json: string) => {
+    list = JSON.parse(json) as Reminder[];
+    next = list.reduce((n, r) => Math.max(n, r.id + 1), next);
+    savedJson = json;
+    return write();
+  };
+  /** Save — and, when the user changed something (`label`), record how to take it back. */
+  const save = (label?: string) => {
+    const now = JSON.stringify(list);
+    if (label && savedJson && now !== savedJson) {
+      const before = savedJson;
+      ib.history.record({ label: `remind ${label}`, undo: () => restore(before), redo: () => restore(now) });
+    }
+    savedJson = now;
+    return write();
   };
   ib.modules.expose("list", { needs: "vault:read", doc: "list() → the reminders still to come { id, title, due (ISO), before }", fn: async () => (await ready, list.filter((r) => !r.done && !r.fired).map((r) => ({ ...r }))) });
   ib.modules.expose("add", {
@@ -76,7 +88,7 @@ export function activate(ib: IcebreakerAPI): void {
       if (Number.isNaN(d.getTime())) throw new Error(`reminders.add: "${due}" isn't a date`);
       const r: Reminder = { id: next++, title: String(title), due: d.toISOString(), before: Number(before) || 0, done: false, warned: false, fired: false };
       list.push(r);
-      await save();
+      await save(`"${r.title}"`);
       return { ...r };
     },
   });
@@ -123,27 +135,21 @@ export function activate(ib: IcebreakerAPI): void {
     { key: "before", label: "early warning, by default (minutes)", type: "choice", options: ["0", "5", "10", "15", "30", "60"], default: "15", help: "How long before the time a reminder warns you first (then it rings again on time). 0 = only on time. `--before` on a reminder overrides it." },
   ]);
 
-  /** Words → the title, and the time if some words say one (fri 18:00, tomorrow 9h, +10m). */
-  function parseWhen(words: string[]): { title: string[]; due: Date | null; inMin: number | null } {
-    let day: Date | null = null, time: [number, number] | null = null, inMin: number | null = null;
-    const title: string[] = [];
-    for (const w of words) {
-      if (inMin === null && parseIn(w) !== null) inMin = parseIn(w);
-      else if (!time && parseTime(w)) time = parseTime(w);
-      else if (!day && parseDay(w)) day = parseDay(w);
-      else title.push(w);
+  /**
+   * Words → the title, and the time if some words say one (fri 18:00, demain 9h, +10m, 1h).
+   * `--at "…"` gives the time on its own: then every other word is the title.
+   */
+  function parseWhen(words: string[], at?: string | true): { title: string[]; due: Date | null; inMin: number | null; bad?: string } {
+    if (typeof at === "string") {
+      const w = D.readWhen(at);
+      if (w.rest.length) return { title: words, due: null, inMin: null, bad: at };
+      return { title: words, due: D.resolveWhen(w), inMin: w.inMinutes };
     }
-    return { title, due: day || time || inMin !== null ? whenOf(day, time, inMin) : null, inMin };
+    const w = D.readWhen(words);
+    return { title: w.rest, due: D.resolveWhen(w), inMin: w.inMinutes };
   }
-
-  function whenOf(day: Date | null, time: [number, number] | null, inMin: number | null): Date {
-    if (inMin !== null) return new Date(Date.now() + inMin * 60000);
-    const d = day ?? new Date();
-    const [h, m] = time ?? [9, 0];
-    let due = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m);
-    if (!day && due.getTime() < Date.now()) due = new Date(due.getTime() + 86400000); // a time already past today → tomorrow
-    return due;
-  }
+  /** the last reminder `remind` added (the pop-up checks it got there) */
+  let lastAdded = 0;
 
   ib.commands.register({
     name: "remind",
@@ -151,7 +157,8 @@ export function activate(ib: IcebreakerAPI): void {
     summary: "local reminders: a notification before and on time (REMINDERS module)",
     usage: [
       'remind "title" <day> <time> [--before 15m]   (default: 15 min before, then on time)',
-      'remind "title" +10m | +2h                    in a while (no time: in 1 hour)',
+      'remind "title" +10m | 1h | 30min             in a while (no time: in 1 hour)',
+      'remind "title" --at "demain à 9h"            the time on its own: every other word is the title',
       "remind ls                                    what's coming",
       "remind done <n> · remind rm <n>",
       'remind edit <n> "new title" [new time]       change it (what you give)',
@@ -162,25 +169,32 @@ export function activate(ib: IcebreakerAPI): void {
       ['remind "call mom" fri 18:00', "a notification at 17:45 and at 18:00"],
       ['remind "pills" tomorrow 9h --before 0', "only on time"],
       ['remind "tea" +10m', "in 10 minutes"],
+      ['remind "pasta" 1h', "in an hour (1h…6h alone: in that long)"],
+      ['remind "film" --at "ven 20h30"', "friday 20:30"],
     ],
     complete: () => ["ls", "done", "rm", "edit", "test", "open"],
     async run(ctx) {
       await ready;
-      const [sub, ...rest] = ctx.args;
-      if (!sub || sub === "ls" || sub === "list") {
+      const [first, ...rest] = ctx.args;
+      // a word is a sub-command only when the rest fits it: `remind "test" 19:00` is a
+      // reminder called "test" (the shell drops the quotes), `remind test` the sub-command
+      const bare = ["ls", "list", "open", "test"].includes(first) && rest.length === 0;
+      const byNumber = ["done", "rm", "remove", "edit"].includes(first) && (rest.length === 0 || /^\d+$/.test(rest[0]));
+      const sub = !first || bare || byNumber ? first : undefined;
+      if (!first || sub === "ls" || sub === "list") {
         const up = upcoming();
         if (!up.length) return ctx.out(fmt.dim("no reminders\n")), 0;
         for (const r of up) ctx.out(`${fmt.dim(String(r.id).padStart(3))}  ${fmt.bold(r.title)} ${fmt.dim(`· ${when(r)} · ${left(r)}${r.before ? ` · ${r.before} min before` : ""}`)}\n`);
         return 0;
       }
       if (sub === "open") return void ib.apps.open("reminders"), 0;
-      if (sub === "test") return ib.ui.alert("◷ ICEBREAKER", t("this is what a reminder looks like")), 0;
+      if (sub === "test") return ib.ui.alert(`◷ ${t("reminder")}`, t("this is what a reminder looks like")), 0;
       if (sub === "done" || sub === "rm" || sub === "remove") {
         const r = list.find((x) => x.id === Number(rest[0]));
         if (!r) return ctx.err(`remind: no reminder ${rest[0] ?? ""} (remind ls)\n`), 1;
         if (sub === "done") r.done = true;
         else list = list.filter((x) => x !== r);
-        await save();
+        await save(`${sub === "done" ? "done" : "rm"} "${r.title}"`);
         ctx.out(`${sub === "done" ? fmt.green("✓") : fmt.red("✕")} ${r.title}\n`);
         return 0;
       }
@@ -188,8 +202,9 @@ export function activate(ib: IcebreakerAPI): void {
         // remind edit <n> "new title" [new time] — what you give changes, the rest stays
         const r = list.find((x) => x.id === Number(rest[0]));
         if (!r) return ctx.err(`remind: no reminder ${rest[0] ?? ""} (remind ls)\n`), 1;
-        const { flags: ef, rest: ew } = parseFlags(rest.slice(1), ["before"]);
-        const p = parseWhen(ew);
+        const { flags: ef, rest: ew } = parseFlags(rest.slice(1), ["before", "at"]);
+        const p = parseWhen(ew, ef.at);
+        if (p.bad) return ctx.err(`remind: ${t('I didn\'t understand "{at}" — try {examples}', { at: p.bad, examples: EXAMPLES })}\n`), 1;
         if (p.title.length) r.title = p.title.join(" ");
         if (p.due) {
           r.due = p.due.toISOString();
@@ -197,13 +212,14 @@ export function activate(ib: IcebreakerAPI): void {
         }
         const eb = typeof ef.before === "string" ? /^(\d+)(m|min|h)?$/.exec(ef.before) : null;
         if (eb) r.before = Number(eb[1]) * (eb[2] === "h" ? 60 : 1);
-        await save();
+        await save(`edit "${r.title}"`);
         ctx.out(`${fmt.cyan("~")} ${fmt.bold(r.title)} ${fmt.dim(`· ${when(r)} · #${r.id}`)}\n`);
         return 0;
       }
       // remind "title" <when…>
-      const { flags, rest: words } = parseFlags(ctx.args, ["before"]);
-      const { title, due: parsed, inMin } = parseWhen(words);
+      const { flags, rest: words } = parseFlags(ctx.args, ["before", "at"]);
+      const { title, due: parsed, inMin, bad } = parseWhen(words, flags.at);
+      if (bad) return ctx.err(`remind: ${t('I didn\'t understand "{at}" — try {examples}', { at: bad, examples: EXAMPLES })}\n`), 1;
       if (!title.length) return ctx.err('usage: remind "title" <day> <time> | +10m\n'), 1;
       // no time given: in an hour
       const due = parsed ?? new Date(Date.now() + 3600_000);
@@ -212,38 +228,35 @@ export function activate(ib: IcebreakerAPI): void {
       const before = b ? Number(b[1]) * (b[2] === "h" ? 60 : 1) : inMin !== null && inMin <= dflt ? 0 : dflt;
       const r: Reminder = { id: next++, title: title.join(" "), due: due.toISOString(), before, done: false, warned: false, fired: false };
       list.push(r);
-      await save();
+      lastAdded = r.id;
+      await save(`"${r.title}"`);
       ctx.out(`${fmt.green("◷")} ${fmt.bold(r.title)} ${fmt.dim(`· ${when(r)}${before ? ` · ${t("a notification {n} min before", { n: before })}` : ""} · #${r.id}`)}\n`);
       return 0;
     },
   });
 
-  /** Title, then when — the same words as the command. */
+  /** Title, then when — the same words as the command (`remind "title" --at "when"`). */
   async function addFlow(): Promise<void> {
     const title = await ib.ui.prompt(t("Remind me of…"), { placeholder: t("call mom") });
     if (!title?.trim()) return;
     // ask again until the time is understood (it used to fail silently, in the shell)
     let initial = "";
     for (;;) {
-      const raw = await ib.ui.prompt(t("When? (empty: in 1 hour)"), { initial, placeholder: "fri 18:00 · tomorrow 9h · +10m", suggestions: ["+10m", "+30m", "+1h", "today 18:00", "today 21:00", "tomorrow 9:00", "demain 9h", "mon 9:00", "fri 18:00"] });
+      const raw = await ib.ui.prompt(t("When? (empty: in 1 hour)"), { initial, placeholder: EXAMPLES, suggestions: ["+10m", "+30m", "1h", "19h", "today 18:00", "tomorrow 9:00", "demain 9h", "mon 9:00", "fri 18:00"] });
       if (raw === null) return; // esc: no reminder
-      const at = raw.trim() || "+1h"; // nothing said: in an hour
-      // every word must say a time: one that doesn't would end up in the title
-      const p = parseWhen(at.split(/\s+/));
-      if (p.title.length || !p.due) {
-        ib.ui.notify(t("I didn't understand \"{at}\" — try fri 18:00, tomorrow 9h, +10m", { at }), "warning");
+      const at = raw.trim();
+      // nothing said: in an hour (the command's own default — nothing to read)
+      if (at && !D.parseWhen(at)) {
+        ib.ui.notify(t('I didn\'t understand "{at}" — try {examples}', { at, examples: EXAMPLES }), "warning");
         initial = at;
         continue;
       }
-      const before = list.length;
-      const code = await ib.shell.run(`remind ${q(title.trim())} ${at.trim()}`);
-      if (code === 0 && list.length > before) {
-        const r = list[list.length - 1];
-        ib.ui.notify(`◷ ${r.title} — ${when(r)}`, "success");
-        return;
-      }
-      ib.ui.notify(t("I didn't understand \"{at}\" — try fri 18:00, tomorrow 9h, +10m", { at: at.trim() }), "warning");
-      initial = at.trim();
+      const seen = lastAdded;
+      const code = await ib.shell.run(`remind ${q(title.trim())}${at ? ` --at ${q(at)}` : ""}`);
+      const r = list.find((x) => x.id === lastAdded);
+      if (code === 0 && lastAdded !== seen && r) ib.ui.notify(`◷ ${r.title} — ${when(r)}`, "success");
+      else ib.ui.notify(t("the reminder couldn't be added (the LOG tab says why)"), "error");
+      return;
     }
   }
 
@@ -251,9 +264,19 @@ export function activate(ib: IcebreakerAPI): void {
   async function editFlow(rem: Reminder): Promise<void> {
     const title = await ib.ui.prompt(t("The reminder"), { initial: rem.title });
     if (title === null) return;
-    const at = await ib.ui.prompt(t("When? (empty: keep {when})", { when: when(rem) }), { placeholder: "fri 18:00 · tomorrow 9h · +10m", suggestions: ["+10m", "+30m", "+1h", "today 18:00", "tomorrow 9:00", "mon 9:00", "fri 18:00"] });
-    if (at === null) return;
-    await ib.shell.run(`remind edit ${rem.id} ${q(title.trim() || rem.title)} ${at.trim()}`);
+    let initial = "";
+    for (;;) {
+      const raw = await ib.ui.prompt(t("When? (empty: keep {when})", { when: when(rem) }), { initial, placeholder: EXAMPLES, suggestions: ["+10m", "+30m", "1h", "today 18:00", "tomorrow 9:00", "mon 9:00", "fri 18:00"] });
+      if (raw === null) return;
+      const at = raw.trim();
+      if (at && !D.parseWhen(at)) {
+        ib.ui.notify(t('I didn\'t understand "{at}" — try {examples}', { at, examples: EXAMPLES }), "warning");
+        initial = at;
+        continue;
+      }
+      await ib.shell.run(`remind edit ${rem.id} ${q(title.trim() || rem.title)}${at ? ` --at ${q(at)}` : ""}`);
+      return;
+    }
   }
 
   /** the line under the mouse in the HOME widget (Delete / ⌘⌫ removes it) */
@@ -430,7 +453,9 @@ export function activate(ib: IcebreakerAPI): void {
     "Edit…": "Modifier…",
     "del: remove · right-click: edit, more": "suppr : retirer · clic droit : modifier, plus",
     "When? (empty: in 1 hour)": "Quand ? (vide : dans 1 heure)",
-    'I didn\'t understand "{at}" — try fri 18:00, tomorrow 9h, +10m': "je n'ai pas compris « {at} » — essaie ven 18:00, demain 9h, +10m",
+    'I didn\'t understand "{at}" — try {examples}': "je n'ai pas compris « {at} » — essaie {examples}",
+    "the reminder couldn't be added (the LOG tab says why)": "le rappel n'a pas pu être ajouté (l'onglet LOG dit pourquoi)",
+    reminder: "rappel",
     "done ✓": "fait ✓",
     remove: "retirer",
     "done (d)": "fait (d)",

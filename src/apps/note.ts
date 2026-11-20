@@ -155,6 +155,19 @@ export class NoteApp implements App {
     return true;
   }
 
+  /**
+   * The file went to the trash (`dest`): the tab goes without writing the note back
+   * where it was. Edits not saved yet go into the trashed copy, so ⌘Z (or the TRASH
+   * page) brings the note back with them.
+   */
+  async discard(dest: string): Promise<void> {
+    clearTimeout(this.saveTimer);
+    this.unsubscribe();
+    // (a plain write: nothing to ⌘Z — and never history.quiet here, it would also swallow the
+    // trash's own step being recorded at this very moment)
+    if (this.dirty()) await this.deck.vault.write(dest, this.editor.text).catch(() => {});
+  }
+
   /** Open the [[wikilink]] or [text](path) under the cursor. */
   private followLink(): boolean {
     const { line, col } = this.editor.cursor;

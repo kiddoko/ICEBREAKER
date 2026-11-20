@@ -23,11 +23,11 @@ Everything works with **keyboard only**, **mouse only**, a **gamepad**, or any m
 ## Keyboard
 **Every shortcut, searchable: \`Ctrl+/\` (the SHORTCUTS page).** Change any of them in Settings → KEYS; bind your own with \`bind\`. On a Mac, ⌘ plays the role of Ctrl.
 - \`Ctrl+K\` or **Shift twice** — THE MENU: type to search everything, or a menu key + Enter
-- \`Ctrl+Z\` / \`Ctrl+Shift+Z\` — undo / redo anything (settings, widgets, trash, renames, new notes)
+- \`Ctrl+Z\` / \`Ctrl+Shift+Z\` — undo / redo the last thing done (settings, widgets, trash, renames, new notes, tasks, reminders, habits, events; a module uninstalled, right after)
 - \`Tab\` — the next thing on the screen · \`Shift+Tab\` — the next part of the screen (tree → page → shell)
 - \`Ctrl+Shift+H / M / E / U\` — HOME · MODULES · NEXUS · UPLINK (the AI)
 - \`Ctrl+Shift+T / P / S\` — the tree · the side panel · the shell
-- \`Ctrl+N\` new note · \`Ctrl+Shift+N\` new folder · \`Ctrl+J\` today's journal · \`Ctrl+,\` settings
+- \`Ctrl+N\` new note · \`Ctrl+Shift+N\` new folder · \`Ctrl+J\` the journal (open at today) · \`Ctrl+,\` settings
 - \`Ctrl+Tab\` / \`Ctrl+Shift+Tab\` — next / previous tab · \`Ctrl+1…9\` — that tab · \`Ctrl+W\` / \`Shift+Esc\` — close it
 - \`Ctrl+S\` — save (notes also save themselves) · \`Ctrl+Enter\` — follow the [[link]] under the cursor
 - \`Ctrl+=\` / \`Ctrl+-\` / \`Ctrl+0\` — interface scale · \`F11\` — fullscreen · \`F1\` — this manual
@@ -54,6 +54,9 @@ On-screen keyboard: A types, B deletes, Y space, Start enter, LB/RB move the cur
 A small POSIX-like shell over your vault: pipes \`|\`, redirections \`> >> <\`, \`&&\` \`||\` \`;\`,
 quotes, \`$VARS\`, globs \`*.md\`, history (↑), fish-style suggestions (→), Tab completion.
 \`/\` and \`~\` are the vault root. \`<cmd> -h\` (or \`man <cmd>\`) shows a command's help with full examples: \`todo -h\`.
+- **Stop a command**: \`Ctrl+C\` (on a Mac \`⌘X\`, or the real Control key + C) stops what's running or the question it asks — it ends with ^C and the prompt comes back. \`Esc\` stops a question too. In your real terminal, \`⌘X\` on a Mac sends ctrl+C.
+- **Names with spaces**: Tab puts them between quotes — \`cd STA\` + Tab gives \`cd "START HERE/"\`.
+- \`say <text>\` — the deck's voice says it (the voice of UPLINK and the notifications; silent when the sound is muted or the voice is off).
 
 ${cmds}
 
@@ -61,11 +64,16 @@ ${cmds}
 - Vault: your notes, plain Markdown — \`vault\` shows where. \`vault encrypt\`: encrypted on the disk (names too; a plain backup zip first; a recovery key of 24 words, shown once), \`vault decrypt\`, \`vault export <folder>\` (a plain copy), \`vault recovery\` (a new recovery key), \`vault rekey\` (a new vault key, everything encrypted again). Forgot the password: login page → forgot password?. Encryption is an option: Settings → PRIVACY. Another computer or a USB key: login page → open a vault (the vault carries its account and settings; browse chooses the folder). \`vault move [folder]\`: the whole vault elsewhere, checked (a folder that holds things gets it inside, under its name). Typed in the shell it stays in the shell; with \`--window\` (the menus) every step is a window. The vault key encrypts the files; your password and the recovery key are two doors to it.
 - Updates: Settings → UPDATES, or \`update\` (look), \`update install\`, \`store update\` (modules). Every day by default; install asks first unless you say "by itself" (ICEBREAKER then installs when you quit).
 - STORE in the shell: \`store search\`, \`store info <id>\`, \`store install <id>\` (and what it needs), \`store remove <id>\`.
-- Settings: space ticks a box / turns a choice; sliders go 1 at a time (hold: faster); greyed = depends on another setting. MODULES and NEXUS: just type to search.
+- Settings: space acts on the line you're on (under the mouse, else the chosen one): ticks a box, turns a choice, puts a slider to 0 and back (mute / unmute; a slider with no 0, like brightness: to its default and back); sliders always go 1 at a time (held: faster, still 1 by 1); greyed = depends on another setting. The STORE: just type to search, del removes. MODULES and NEXUS: just type to search.
 - \`.icebreaker/themes/*.toml\` — your themes (\`theme new <name>\`)
 - \`.icebreaker/plugins/<id>/\` — your plugins (\`plugin new <id>\`) · they run in a sandbox: only what their permissions allow, in the shell too, never more than you approved (docs/SANDBOX.md)
 - \`.icebreaker/templates/journal.md\` — your journal template
-- \`.trash/\` — where \`rm\` puts things (\`trash open\` to see it, restore). Nothing is ever deleted for good, apart from \`self-destruct\` (it asks four times).
+- \`.trash/\` — where \`rm\` puts things (\`trash open\` to see it, restore). Nothing is ever deleted for good, apart from \`self-destruct\` (it asks four times). A note sent there closes its tabs and leaves the pins; ⌘Z brings it back.
+
+## Days and times
+The same words everywhere (reminders, \`todo add … --due\`, \`cal add\`), in English or French:
+\`+1h\` · \`1h\` · \`30min\` · \`19:00\` · \`19h\` · \`19h30\` · \`demain 9h\` · \`tomorrow 9am\` · \`ven 18h\` · \`fri 6pm\` · \`24/12 9:00\` · \`dans 1h\` · \`à 19h\` · \`ce soir\`.
+"1h"… "6h" alone mean "in that long"; with a day ("demain 6h"), or from 7h on, a time of day. A reminder with no time: in an hour.
 `;
 }
 

@@ -1,7 +1,7 @@
 import { Glide } from "../ui/glide";
 import { mix } from "../core/color";
 import { BOLD, DIM, type Rect } from "../core/grid";
-import type { Action, KeyInput } from "../core/input";
+import { IS_MAC, type Action, type KeyInput } from "../core/input";
 import { strWidth } from "../core/unicode";
 import type { App } from "../apps/types";
 import type { Deck } from "../deck";
@@ -12,6 +12,7 @@ import type { Origin } from "./origin";
 
 const APP_VERSION: string = pkg.version;
 import { ShellExecutor } from "./exec";
+import { quoteWord, wordAtCursor } from "./complete";
 import { TerminalBuffer } from "./terminal";
 import type { ReadOptions } from "./types";
 
@@ -20,7 +21,20 @@ interface Reading {
   opts: ReadOptions;
   sel: number;
   done(v: string | null): void;
+  /** stops the command that asked (^C): whichever shell runs it, this one or a side one */
+  interrupt(): void;
 }
+
+/**
+ * The cancel key: ctrl+C everywhere (the real Control key on a Mac too), and ⌘X on a
+ * Mac, where ⌘C is copy. It stops the command running or the question it asks.
+ */
+export function isCancelKey(k: KeyInput): boolean {
+  return k.combo === "ctrl+c" || (IS_MAC && !!k.rawMeta && k.combo === "ctrl+x");
+}
+
+/** The cancel key as the status bar says it. */
+export const CANCEL_KEY = IS_MAC ? "⌘X" : "ctrl+C";
 
 const HISTORY_FILE = ".icebreaker/shell_history";
 
@@ -65,10 +79,10 @@ export class ShellApp implements App {
       },
       () => this.term.clear(),
     );
-    this.exec.readLine = (label, opts, signal) => this.readLine(label, opts, signal);
+    this.exec.readLine = (label, opts, signal, interrupt) => this.readLine(label, opts, signal, interrupt);
   }
 
-  private readLine(label: string, opts: ReadOptions, signal: AbortSignal): Promise<string | null> {
+  private readLine(label: string, opts: ReadOptions, signal: AbortSignal, interrupt: () => void): Promise<string | null> {
     // no shell panel (the TERMINAL module is off): what a command asks comes as a dialog
     if (!this.deck.workspace.terminalOn) {
       const ch = opts.choices ?? [];
@@ -89,8 +103,9 @@ export class ShellApp implements App {
         resolve(v);
         this.deck.requestFrame();
       };
-      const r: Reading = { label, opts, sel: 0, done };
+      const r: Reading = { label, opts, sel: 0, done, interrupt };
       this.reading = r;
+      if (signal.aborted) return done(null);
       signal.addEventListener("abort", () => done(null));
       this.deck.workspace.focusShellIfHidden();
       this.deck.requestFrame();
@@ -118,8 +133,23 @@ export class ShellApp implements App {
   }
 
   status(): string {
-    if (this.reading) return this.reading.opts.choices?.length ? "1-9 or click to answer · esc stop" : "type your answer · enter next · esc stop";
-    return this.exec.running ? "running… ctrl+c to interrupt" : `${display(this.exec.cwd)} · tab complete · ↑ history`;
+    if (this.reading) return this.reading.opts.choices?.length ? `1-9 or click to answer · esc or ${CANCEL_KEY} stop` : `type your answer · enter next · esc or ${CANCEL_KEY} stop`;
+    return this.exec.running ? `running… ${CANCEL_KEY} to interrupt` : `${display(this.exec.cwd)} · tab complete · ↑ history`;
+  }
+
+  /** ^C: stop the question asked and the command asking it, or the command running, or drop the line typed. */
+  cancel(): void {
+    const r = this.reading;
+    if (r) {
+      r.interrupt();
+      r.done(null); // (a shell already stopped: the question goes anyway)
+    } else if (this.exec.running) this.exec.interrupt();
+    else {
+      this.echoPrompt(this.input + "^C");
+      this.input = "";
+      this.cursor = 0;
+    }
+    this.deck.requestFrame();
   }
 
   /** Print the login banner and load history (call once the vault is mounted). */
@@ -181,7 +211,7 @@ export class ShellApp implements App {
     side.origin = origin;
     side.cwd = this.exec.cwd;
     side.env = { ...this.exec.env };
-    side.readLine = (label, opts, signal) => this.exec.readLine?.(`[${origin.source}] ${label}`, opts, signal) ?? Promise.resolve(null);
+    side.readLine = (label, opts, signal, interrupt) => this.exec.readLine?.(`[${origin.source}] ${label}`, opts, signal, interrupt) ?? Promise.resolve(null);
     const code = await side.run(line);
     if (code !== 0) entry.failed = true;
     this.deck.requestFrame();
@@ -257,15 +287,7 @@ export class ShellApp implements App {
   }
 
   onKey(k: KeyInput): boolean {
-    if (k.combo === "ctrl+c") {
-      if (this.exec.running) this.exec.interrupt();
-      else {
-        this.echoPrompt(this.input + "^C");
-        this.input = "";
-        this.cursor = 0;
-      }
-      return true;
-    }
+    if (isCancelKey(k)) return this.cancel(), true;
     if (k.combo === "ctrl+l") {
       this.term.clear();
       return true;
@@ -273,7 +295,7 @@ export class ShellApp implements App {
     const rd = this.reading;
     if (rd) {
       const n = rd.opts.choices?.length ?? 0;
-      if (k.combo === "esc") return this.exec.interrupt(), true;
+      if (k.combo === "esc") return this.cancel(), true;
       if (k.combo === "enter") return this.answer(), true;
       if (n && (k.combo === "up" || k.combo === "left") && !this.input) return (rd.sel = (rd.sel - 1 + n) % n), this.deck.sound.play("move"), true;
       if (n && (k.combo === "down" || k.combo === "right" || k.combo === "tab") && !this.input) return (rd.sel = (rd.sel + 1) % n), this.deck.sound.play("move"), true;
@@ -402,41 +424,46 @@ export class ShellApp implements App {
     return "";
   }
 
-  /** Tab completion: commands for the first word, vault paths after. */
+  /**
+   * Tab completion: commands for the first word, vault paths after. Read like the parser
+   * reads the line (shell/complete.ts): a name with spaces comes back quoted,
+   * `cd STA<Tab>` → `cd "START HERE/"`.
+   */
   private complete(): void {
     const before = this.input.slice(0, this.cursor);
-    const m = before.match(/(\S*)$/)!;
-    const word = m[1];
-    const isFirst = !before.slice(0, before.length - word.length).trim() || /[|;&]\s*$/.test(before.slice(0, before.length - word.length));
-    let candidates: string[];
+    const w = wordAtCursor(before);
+    const word = w.value;
+    // the names it could be (what the shell will read), and how the list shows them
+    let names: string[];
     let display_: string[];
 
-    if (isFirst && !word.includes("/")) {
-      candidates = this.deck.commands.names().filter((n) => n.startsWith(word)).map((n) => n + " ");
-      display_ = candidates.map((c) => c.trim());
+    if (w.first && !word.includes("/")) {
+      names = this.deck.commands.names().filter((n) => n.startsWith(word));
+      display_ = names;
     } else {
       const slash = word.lastIndexOf("/");
       const typedDir = slash >= 0 ? word.slice(0, slash + 1) : "";
       const prefix = word.slice(slash + 1);
       const dir = resolvePath(this.exec.cwd, typedDir || ".");
       const entries = this.deck.vault.entries.filter((e) => dirname(e.path) === dir && e.name.toLowerCase().startsWith(prefix.toLowerCase()));
-      candidates = entries.map((e) => typedDir + e.name + (e.isDir ? "/" : " "));
+      names = entries.map((e) => typedDir + e.name + (e.isDir ? "/" : ""));
       display_ = entries.map((e) => basename(e.path) + (e.isDir ? "/" : ""));
     }
 
-    if (candidates.length === 0) return;
-    let completion = candidates[0];
-    if (candidates.length > 1) {
-      completion = commonPrefix(candidates);
-      if (completion.length <= word.length) {
+    if (names.length === 0) return;
+    let value = names[0];
+    if (names.length > 1) {
+      value = commonPrefix(names);
+      if (value.length <= word.length) {
         // nothing more to add: show the options, like bash's double-tab
         this.echoPrompt(this.input);
         this.term.write(columns(display_, 80) + "\n");
         return;
       }
     }
-    this.input = before.slice(0, before.length - word.length) + completion + this.input.slice(this.cursor);
-    this.cursor = before.length - word.length + completion.length;
+    const completion = quoteWord(value, w.open, names.length === 1);
+    this.input = before.slice(0, w.start) + completion + this.input.slice(this.cursor);
+    this.cursor = w.start + completion.length;
   }
 
   // ── drawing ──────────────────────────────────────────────────────────────
@@ -491,7 +518,7 @@ export class ShellApp implements App {
     const cw = strWidth(shown.slice(0, this.cursor));
     const off = Math.max(0, cw - room + 1);
     if (!this.input) {
-      const hint = rd.opts.placeholder ?? (ch.length && !rd.opts.allowText ? "1-9 · ←→ · enter" : "enter = skip · esc = stop");
+      const hint = rd.opts.placeholder ?? (ch.length && !rd.opts.allowText ? "1-9 · ←→ · enter" : `enter = skip · esc or ${CANCEL_KEY} = stop`);
       ui.text(x, y, hint, { fg: c.faint }, room);
     } else ui.text(x, y, [...shown].slice(off).join(""), { fg: c.fg, raw: true }, room); // what you type: no keycaps
     if (focused) ui.cursor(x + cw - off, y, this.lastInputAt);

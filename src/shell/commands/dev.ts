@@ -1,6 +1,7 @@
 /*
- * DEV ONLY — remove before release (with src-tauri/src/dev.rs).
- * Commands to help while building ICEBREAKER.
+ * Developer tools: commands to help while building ICEBREAKER. deck.ts registers
+ * them only when the native side has them (a build with `--features dev-tools`,
+ * src-tauri/src/dev.rs): a release doesn't have these commands at all.
  */
 import { fmt } from "../../core/ansi";
 import type { Command } from "../types";
@@ -10,7 +11,7 @@ export const factoryReset: Command = {
   interactive: true,
   summary: "[dev] back to a brand-new ICEBREAKER (vault + settings moved to backups)",
   usage: "factory-reset          asks first, then your account's password\nfactory-reset --yes    no question (still your password)",
-  man: "Testing helper, removed before release.\nRenames the vault folder and the config folder (settings, API key, login) with a -backup-<timestamp> suffix — nothing is deleted — then restarts: you get the first-run setup again.\nTo go back: quit, delete the new folders, rename the backups.",
+  man: "Testing helper: only in builds made with the dev-tools feature (npm run app:mac), never in a release.\nRenames the vault folder and the config folder (settings, API key, login) with a -backup-<timestamp> suffix — nothing is deleted — then restarts: you get the first-run setup again.\nTo go back: quit, delete the new folders, rename the backups.",
   async run(ctx) {
     const { deck } = ctx;
     const dev = deck.platform.dev;

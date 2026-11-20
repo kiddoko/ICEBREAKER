@@ -41,7 +41,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "modules", keys: "ctrl+shift+m", what: "MODULES, every module", cat: "everywhere", cmd: "modules", global: true, menuKey: "m", short: "MODULES" },
   { id: "nexus", keys: "ctrl+shift+e", what: "NEXUS: explore the vault", cat: "everywhere", cmd: "nexus", global: true, menuKey: "e", short: "NEXUS" },
   { id: "uplink", keys: "ctrl+shift+u · ctrl+space", what: "UPLINK: the AI chat", cat: "everywhere", cmd: "launch link", global: true, menuKey: "u", short: "UPLINK" },
-  { id: "journal", keys: "ctrl+j", what: "today's journal", cat: "everywhere", cmd: "today", global: true, menuKey: "j", short: "journal" },
+  { id: "journal", keys: "ctrl+j", what: "the journal, open at today", cat: "everywhere", cmd: "journal", global: true, menuKey: "j", short: "journal" },
   { id: "fx", keys: "ctrl+shift+f", what: "the effects panel (bloom, scanlines…)", cat: "everywhere", cmd: "view fx", global: true, menuKey: "f", short: "effects" },
   { id: "trash", keys: "ctrl+shift+backspace", what: "the TRASH page", cat: "everywhere", cmd: "trash open", global: true, menuKey: "x", short: "trash" },
   { id: "lock", keys: "ctrl+shift+l", what: "log out: back to the login page", cat: "everywhere", cmd: "logout", global: true, menuKey: "l", short: "log out" },
@@ -91,7 +91,8 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: "tab", what: "complete a command or a path", cat: "shell" },
   { keys: "→", what: "accept the grey suggestion", cat: "shell" },
   { keys: "↑ · ↓", what: "history", cat: "shell" },
-  { keys: "ctrl+c · ctrl+l", what: "cancel · clear", cat: "shell" },
+  { keys: IS_MAC ? "ctrl+x · meta+c" : "ctrl+c", what: "stop the command running, or the question it asks (^C)", cat: "shell" },
+  { keys: "ctrl+l", what: "clear the screen", cat: "shell" },
   { keys: "!cmd", what: "run one system command (in ibsh)", cat: "shell" },
 
   // lists & pages

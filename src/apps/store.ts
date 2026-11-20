@@ -158,8 +158,8 @@ class StoreApp implements App {
   readonly kind = "store";
   readonly key = "store";
   tab: Tab = "modules";
-  /** "/" searches (ui/field.ts) */
-  private readonly search = new FilterBar({ colours: false, onChange: () => this.list.select(0) });
+  /** type anywhere: it searches (THE search bar, the same as Settings, BLOCKS, SHORTCUTS) */
+  private readonly search = new FilterBar({ always: true, colours: false, onChange: () => this.list.select(0) });
   /** THE list (ui/list.ts): selection, scrolling, mouse */
   private readonly list = new ListView<StoreRow>();
   private get query(): string {
@@ -174,7 +174,7 @@ class StoreApp implements App {
     return "Store";
   }
   status(): string {
-    return t("tab: sections · / search · enter: install / use · x: remove · a: add a source · r: refresh");
+    return t("type to search · tab: sections · enter: install / use · del: remove");
   }
 
   private rows(): StoreRow[] {
@@ -220,16 +220,12 @@ class StoreApp implements App {
   }
 
   onText(s: string): boolean {
-    if (this.search.onText(s)) return true;
-    switch (s) {
-      case "x": void this.remove(this.list.current); return true;
-      case "a": if (this.tab === "sources") void this.addSource(); return true;
-      case "r": void this.deck.act("store refresh"); return true;
-      default: return false;
-    }
+    // every key types into the search (removing: del · a source: + add a source · refresh: ⟳)
+    return this.search.onText(s);
   }
   onKey(k: KeyInput): boolean {
-    if (this.search.onKey(k)) return true;
+    if (this.query && this.search.onKey(k)) return true;
+    if (k.combo === "esc" && this.query) return this.search.clear(), true;
     if (k.combo === "tab" || k.combo === "shift+tab") {
       this.tab = TABS[(TABS.indexOf(this.tab) + (k.shift ? TABS.length - 1 : 1)) % TABS.length];
       this.list.select(0);
@@ -252,17 +248,16 @@ class StoreApp implements App {
     const c = ui.c;
     const d = this.deck;
     if (cache.loading) ui.animate(80);
-    // tabs + search
-    let x = r.x + 1;
-    x = tabs(ui, x, r.y, TABS, this.tab, (tb) => ((this.tab = tb as typeof this.tab), this.list.select(0)), { tip: "tab", label: (tb) => t(tb) });
-    const sx = x + 1, sw = Math.max(10, r.x + r.w - sx - 16);
-    this.search.render(ui, { x: sx, y: r.y, w: sw, h: 1 }, {}, { focused, bg: c.panelAlt });
+    // the search on top, on its own line (where every page has it), then the tabs
+    this.search.render(ui, { x: r.x + 2, y: r.y + 1, w: Math.min(r.w - 4, 100), h: 1 }, {}, { focused, placeholder: t("type to search a module, a theme…") });
+    const ty = r.y + 3;
+    tabs(ui, r.x + 1, ty, TABS, this.tab, (tb) => ((this.tab = tb as typeof this.tab), this.list.select(0)), { tip: "tab", label: (tb) => t(tb) });
     const refreshLabel = cache.loading ? ` ${ui.spinner()} ` : " ⟳ ";
-    ui.button(r.x + r.w - 6, r.y, refreshLabel.trim() || "⟳", () => {}, { cmd: "store refresh", tip: "r · store refresh" });
+    ui.button(r.x + r.w - 6, ty, refreshLabel.trim() || "⟳", () => {}, { cmd: "store refresh", tip: "store refresh" });
 
-    const top = r.y + 2;
+    const top = ty + 2;
     const listW = Math.min(Math.floor(r.w * 0.5), 60);
-    const h = r.h - 3;
+    const h = r.y + r.h - top - 1;
     const rows = this.rows();
     this.list.items = rows;
 
@@ -295,7 +290,7 @@ class StoreApp implements App {
     });
     if (this.tab === "sources") {
       const y = top + rows.length + 1;
-      ui.button(r.x + 2, y, t("+ add a source"), () => void this.addSource(), { tip: "a · store sources add <url | user/repo>" });
+      ui.button(r.x + 2, y, t("+ add a source"), () => void this.addSource(), { tip: "store sources add <url | user/repo>" });
       ui.text(r.x + 2, y + 2, t("An index is a JSON list of modules and themes (see docs/COMMUNITY.md)."), { fg: c.faint }, listW);
       ui.text(r.x + 2, y + 3, t("Host yours anywhere: GitHub, your server, a NAS on your network."), { fg: c.faint }, listW);
     }
@@ -324,12 +319,12 @@ class StoreApp implements App {
       const action = row.kind === "theme" ? (st ? t("use it") : t("install")) : st === "enabled" ? t("open") : st === "installed" ? t("enable") : t("install");
       const bar = new Row(ui, dx, y, dx + dw);
       bar.button(`${action}  ⏎`, () => this.primary(row));
-      if (st) bar.button(t("remove  x"), () => void this.remove(row), { accent: c.error });
+      if (st) bar.button(t("remove  del"), () => void this.remove(row), { accent: c.error });
       if (st && row.kind === "plugin") bar.button(t("update"), () => {}, { cmd: `store update ${row.id} --window` });
     } else {
       const bar = new Row(ui, dx, y, dx + dw);
       bar.button(row.kind === "theme" ? t("use it") : row.active ? t("switch off") : t("switch on"), () => this.primary(row));
-      if (!row.builtin) bar.button(t("remove  x"), () => void this.remove(row), { accent: c.error });
+      if (!row.builtin) bar.button(t("remove  del"), () => void this.remove(row), { accent: c.error });
     }
   }
 }
@@ -465,19 +460,33 @@ export const storeCommand: Command = {
         if (!p) return ctx.err(`store: "${arg}" isn't installed\n`), 1;
         // others need it: they go off with it, after asking (plugins/deps.ts)
         const needers = d.plugins.dependentsOf(arg);
-        if (needers.length) {
-          if (!(await asker(ctx, window)(`${arg} is needed by ${needers.join(", ")}`, `Removing it switches ${needers.length > 1 ? "them" : "it"} off.`))) return ctx.out(`${arg}: kept\n`), 1;
-          for (const x of [...needers].reverse()) await d.plugins.disable(x);
-        }
-        if (p.source === "builtin") {
-          await d.plugins.removeBuiltin(arg);
-          ctx.out(`${arg}: removed · store install ${arg} brings it back\n`);
-          return 0;
-        }
-        if (p.active) await d.plugins.disable(arg);
-        await d.vault.trash(`.icebreaker/plugins/${arg}`);
-        await d.plugins.reload();
-        ctx.out(`${arg}: removed (in .trash)\n`);
+        if (needers.length && !(await asker(ctx, window)(`${arg} is needed by ${needers.join(", ")}`, `Removing it switches ${needers.length > 1 ? "them" : "it"} off.`))) return ctx.out(`${arg}: kept\n`), 1;
+        // ⌘Z right after brings back a working module (its files, switched on, approved as
+        // before, what needed it on again) — as ONE step, and only while it's the last thing
+        // done: never stray files restored from the trash later (core/undo.ts lastOnly)
+        const dir = `.icebreaker/plugins/${arg}`;
+        const pl = d.settings.data.plugins;
+        const before = JSON.parse(JSON.stringify({ enabled: pl.enabled, disabled: pl.disabled, removed: pl.removed ?? [], granted: pl.granted ?? {}, pinned: pl.pinned ?? {} })) as Record<string, unknown>;
+        let inTrash = "";
+        const remove = async () => {
+          for (const x of [...needers].reverse()) await d.plugins.disable(x).catch(() => false);
+          if (p.source === "builtin") return d.plugins.removeBuiltin(arg);
+          if (d.plugins.list().some((x) => x.manifest.id === arg && x.active)) await d.plugins.disable(arg);
+          inTrash = await d.vault.trash(dir);
+          await d.plugins.reload();
+        };
+        await d.history.quietAsync(remove);
+        d.history.record({
+          label: `uninstall ${arg}`,
+          lastOnly: true,
+          undo: async () => {
+            if (inTrash) await d.vault.restore(inTrash, dir);
+            for (const [k, v] of Object.entries(before)) d.settings.set(`plugins.${k}`, v);
+            await d.plugins.reload();
+          },
+          redo: remove,
+        });
+        ctx.out(p.source === "builtin" ? `${arg}: removed · store install ${arg} brings it back (⌘Z too, right now)\n` : `${arg}: removed (in .trash · ⌘Z right now brings it back)\n`);
         return 0;
       }
       case "sources": {

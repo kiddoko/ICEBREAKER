@@ -256,8 +256,16 @@ The full surface is typed and commented in
 - `ib.lib` → the same building blocks the core uses: `TextEditor`, `ListView`, `FilterBar` (search + colours: `matches(text, tag)`, `onText/onKey/render`), `WheelSpin` (a ring's feel),
   `ChatView`, `bigText`, `fmt` (ANSI colors), color helpers, attribute flags,
   and `dates` — the deck's one way to read a day and a time: `dates.parseDay("tomorrow" | "fri" | "+3d" | "24/12")`,
-  `dates.parseTime("18:00" | "9h" | "7pm")` (minutes), `dates.ymd(d)`, `addDays`, `startOfDay`, `WEEKDAYS`
-  (English and French). Use it instead of your own parser: "demain 9h" then means the same in every module.
+  `dates.parseTime("18:00" | "9h" | "7pm" | "midi")` (minutes), `dates.parseDuration("+1h" | "30min" | "1h30")` (minutes),
+  `dates.parseWhen("demain 9h" | "+1h" | "1h" | "19:00" | "fri 6pm" | "24/12 9:00" | "dans 1h" | "à 19h")` (a Date, or null
+  when a word isn't a time), `dates.readWhen(words)` → `{ day, time, inMinutes, rest }` (rest: the words that say no
+  time — a title), `dates.ymd(d)`, `addDays`, `startOfDay`, `WEEKDAYS` (English and French). "1h"…"6h" alone mean
+  "in that long"; with a day, or from 7h on, a time of day. Use it instead of your own parser: "demain 9h" then
+  means the same in every module.
+- `ib.history.record({ label, undo, redo })` → ⌘Z: record how to take back what your module just changed for the
+  user (a task added, an item ticked), so ⌘Z undoes the last thing done and not something older elsewhere. `undo` and
+  `redo` run with recording paused. The bundled modules snapshot their data at each save (see `plugins/todo/main.ts`).
+  Modules in the sandbox can't record yet.
 
 Inside `render(ui, rect, focused)` you get the full drawing toolkit
 ([`src/ui/ui.ts`](../src/ui/ui.ts)): `text`, `box`, `fill`, `bar`, `chart`,

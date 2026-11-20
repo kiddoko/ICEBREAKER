@@ -15,7 +15,7 @@ export class Vault {
   /** Absolute path of the mounted folder (for display). */
   root = "";
   entries: VaultEntry[] = [];
-  readonly events = new Emitter<{ changed: { path: string }; rescanned: void; renamed: { from: string; to: string }; trashed: { path: string } }>();
+  readonly events = new Emitter<{ changed: { path: string }; rescanned: void; renamed: { from: string; to: string }; trashed: { path: string; dest: string } }>();
 
   constructor(private readonly backend: VaultBackend) {}
 
@@ -134,23 +134,29 @@ export class Vault {
     this.events.emit("changed", { path: p });
   }
 
-  /** Moves to .trash (recoverable). Returns where it went. */
+  /**
+   * Moves to .trash (recoverable). Returns where it went. Whatever showed it (its
+   * tabs, its pins) lets go of it ("trashed"): one ⌘Z brings the file and its pins back.
+   */
   async trash(path: string): Promise<string> {
     const p = normalize(path);
-    const dest = await this.backend.trash(p);
-    this.entries = this.entries.filter((e) => e.path !== p && !e.path.startsWith(p + "/"));
-    // where it came from, so `trash restore` can put it back in its folder
-    await this.noteTrashed(dest, p).catch(() => {});
-    this.events.emit("trashed", { path: p });
-    this.events.emit("changed", { path: p });
-    // ⌘Z puts it back; ⌘⇧Z sends it again (each time to a new place in .trash)
-    let inTrash = dest;
-    this.history?.record({
-      label: `trash ${p}`,
-      undo: async () => void (await this.restore(inTrash)),
-      redo: async () => void (inTrash = await this.trash(p)),
-    });
-    return dest;
+    const run = async () => {
+      const dest = await this.backend.trash(p);
+      this.entries = this.entries.filter((e) => e.path !== p && !e.path.startsWith(p + "/"));
+      // where it came from, so `trash restore` can put it back in its folder
+      await this.noteTrashed(dest, p).catch(() => {});
+      this.events.emit("trashed", { path: p, dest });
+      this.events.emit("changed", { path: p });
+      // ⌘Z puts it back; ⌘⇧Z sends it again (each time to a new place in .trash)
+      let inTrash = dest;
+      this.history?.record({
+        label: `trash ${p}`,
+        undo: async () => void (await this.restore(inTrash)),
+        redo: async () => void (inTrash = await this.trash(p)),
+      });
+      return dest;
+    };
+    return this.history ? this.history.groupAsync(`trash ${p}`, run) : run();
   }
 
   static readonly TRASH_LOG = ".icebreaker/trash.json";

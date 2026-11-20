@@ -109,6 +109,7 @@ pub fn run() {
             google::google_status,
             google::google_setup,
             google::google_connect,
+            google::google_connect_result,
             google::google_disconnect,
             google::google_calendar,
             google::google_cache,
@@ -131,6 +132,7 @@ pub fn run() {
             screen::screen_fullscreen,
             screen::screen_is_fullscreen,
             screen::screen_notch,
+            dev::dev_tools_available,
             dev::dev_factory_reset, // DEV ONLY
             dev::dev_restart,       // DEV ONLY
         ])

@@ -62,7 +62,7 @@ the keyboard, the mouse or a gamepad.
 | find or do anything | **THE MENU**: ⌘K, or shift twice (even while typing) — type to search, or a key + enter (m ⏎ = MODULES) |
 | see every shortcut | **⌘/ / Ctrl+/** |
 | write a note | **⌘N / Ctrl+N**, or *+ note* in the tree |
-| today's journal | **⌘J / Ctrl+J** |
+| the journal (today) | **⌘J / Ctrl+J** |
 | change the look | ⚙ settings → APPEARANCE, or \`theme\` |
 | switch a feature off | **MODULES** (⌘⇧M) → space |
 | learn the shell | click anything: the command it runs shows in the shell's **log** tab |
@@ -115,7 +115,7 @@ has the same bar. The tree's colour squares tick several colours too (\`tag view
 | **UPLINK** | the AI: the chat (in tabs), the chatbox widget | ⌘⇧U |
 | **NEXUS** | the vault in pseudo-3D | \`explore\` |
 | **SYSMON** | the machine's vitals | \`sysmon\` |
-| **VOICE** | the deck speaks (local voices) — you pick what it says: errors, reminders, events, the time… | \`voice test\` |
+| **VOICE** | the deck speaks (local voices) — you pick what it says: errors, reminders, events, the time… | \`voice test\` · \`say hello\` |
 
 Each module's own settings: ⚙ → the ◇ sections at the bottom.
 Modules talk to each other (\`modules api\` lists what they share). **BLOCKS**
@@ -193,9 +193,10 @@ were on come back as you left them next time.
   on. A changed one has a **▎** on its left: **del** puts it back to default, and
   *↺ all back to default* (bottom right) resets the whole category. Hover a
   setting to see what it does and the shell command that does the same.
-  **Space** ticks a box or turns a ‹ choice › (the line under the mouse, else the one
-  you're on). Sliders go **1 at a time** — drag the handle, hold on the bar, the wheel
-  or ←→ — faster the longer you hold. A **greyed** line depends on another setting
+  **Space** acts on the line you're on (the one under the mouse, else the one chosen
+  with ↑↓): it ticks a box, turns a ‹ choice ›, and puts a slider to 0 and back to
+  where it was (mute / unmute; with no 0, like brightness: its default and back). Sliders always go **1 at a time** — drag the handle,
+  hold on the bar, the wheel or ←→; held, they go faster, still 1 by 1. A **greyed** line depends on another setting
   (the voice's lines while the voice is off, Vault key on a plain vault…).
 - **Settings → KEYS**: every shortcut on one page — click its keys to change them,
   click its **≡** key to change its key on THE MENU, del for the default.
@@ -215,12 +216,14 @@ were on come back as you left them next time.
   click keeps it; tab skips, ctrl+enter finishes. After it, a **guided tour**:
   UPLINK (the same face as its HOME widget) shows each part of the screen in turn (→ next, ← back, esc skips — it
   asks first). \`tour\` plays it again.
-- **⌘Z undoes anything** (ctrl+Z on Windows / Linux), wherever you are: a
+- **⌘Z undoes the last thing you did** (ctrl+Z on Windows / Linux), wherever you are: a
   setting, a theme, a widget moved or resized, a file sent to the trash, a
-  rename, a new note or folder — also with a widget's pop-up open. ⌘⇧Z (or
-  ctrl+Y) does it again. In a note, ⌘Z
+  rename, a new note or folder, a task, a reminder, a habit ticked, an event — also from a
+  widget's pop-up. ⌘⇧Z (or ctrl+Y) does it again. In a note, ⌘Z
   undoes your typing first. \`undo list\` shows what can be undone, \`undo 3\`
-  takes back three things.
+  takes back three things. **Uninstalling a module** can be undone too, but only right
+  after (its files come back and it's on again): once you've done something else, the
+  STORE reinstalls it.
 - **✦ fx** (status bar): a slider per effect — bloom, scanlines, vignette, RGB
   split, glow (bright things give off light), sharpness. 0 = off, up to 200 %.
   Or a preset: **none · light · medium · heavy · party** (\`fx heavy\`). Each
@@ -285,6 +288,10 @@ were on come back as you left them next time.
   the right half forward.
 - **A reminder without a time** is for in an hour (\`remind "tea"\`, or enter on an
   empty "when?").
+- **Times, in English or French, everywhere** (reminders, \`todo add … --due\`, \`cal add\`):
+  \`+1h\`, \`1h\`, \`30min\`, \`19:00\`, \`19h\`, \`19h30\`, \`demain 9h\`, \`tomorrow 9am\`,
+  \`ven 18h\`, \`fri 6pm\`, \`24/12 9:00\`, \`dans 1h\`, \`à 19h\`, \`ce soir\`. "1h"… "6h" alone mean
+  "in that long"; with a day ("demain 6h"), or from 7h on, a time of day.
 - **Lists everywhere**: a field that asks for a city, a folder, a model, a command…
   offers a list (▾) and completes with Tab.
 - **UPLINK**: each message says who wrote it — you on a tinted band, UPLINK with its
@@ -294,13 +301,16 @@ were on come back as you left them next time.
   box (bottom right) stops the reading. The voice reads an answer while it's
   being written, sentence by sentence; in Japanese, UPLINK starts with a short
   spoken version, read at once.
+- **The voice** says nothing while you log in and the deck loads: its first words are
+  the greeting. Alerts and notifications are read for what they say — never the
+  app's name ("ICEBREAKER") in front of them.
 - **MODULES** is NEXUS's scene with modules on it: each one a shard in its colour,
   with its state; they power up one after the other when the page opens. Just **type**
   to search (MODULES and NEXUS have no letter shortcuts): space switches a module,
   del removes it, enter launches. Even the **TERMINAL** is a module: switch it off and
   the shell panel is gone (commands still run from THE MENU, what they ask comes as a
-  window). Every module that ships with the deck is in the **STORE**: remove one, put it
-  back from there. **Updates**: Settings → UPDATES (every day, download by
+  window). Every module that ships with the deck is in the **STORE** (type to search
+  there too, del removes): remove one, put it back from there. **Updates**: Settings → UPDATES (every day, download by
   itself, install by itself or ask first) or \`update\` in the shell; \`store update\` for the
   modules. A module that needs another one (\`requires\`) gets it installed and switched on with it.
 - **Smooth text**: every letter that appears fades in — what you type, the
@@ -343,6 +353,14 @@ it, ⌘\` brings it back):
 ◆ ~/notes ❯ man todo          (every command has a manual: man <cmd>, <cmd> -h)
 \`\`\`
 
+- **Stop a command**: ctrl+C on Windows / Linux, **⌘X** on a Mac (or the real Control
+  key + C) — in ibsh it stops what's running or the question it asks (^C, the prompt comes
+  back); in your real terminal ⌘X sends ctrl+C. Esc stops a question too.
+- **Tab** completes commands and paths; a name with spaces comes between quotes:
+  \`cd STA\` + Tab → \`cd "START HERE/"\`.
+- An ICEBREAKER command run in your real terminal says what went wrong (in red) and
+  gives its exit code back: \`$?\` and the prompt's ✕ show it failed.
+
 ## Handy commands
 | | |
 |---|---|
@@ -350,6 +368,7 @@ it, ⌘\` brings it back):
 | \`catalog function todo\` | what you can call — \`--json\` for scripts |
 | \`notify --alert "tea" "it's ready"\` | call yourself like a reminder does |
 | \`account\` · \`lock\` | who you're logged in as · log out (the login page) |
+| \`say "tea's ready"\` | the deck's voice says it (silent when muted or the voice is off) |
 | \`plugin audit <id>\` | what a module's code does before you trust it |
 
 ## Scripts (≡)
@@ -371,7 +390,8 @@ were on stays a tab); \`term dock\` puts a terminal back in the panel.
 
 ## The trash
 \`rm\`, Delete in the tree and right-click → trash move things to .trash (never
-deleted for good). \`trash\` lists it, \`trash restore 2\` puts one back where it
+deleted for good). A note sent there closes its tabs and leaves the pins; ⌘Z brings
+the note and its pins back (not the tab: open it again). \`trash\` lists it, \`trash restore 2\` puts one back where it
 lived. ⌫ above the tree (or \`trash open\`) opens the TRASH page: everything in
 it, newest first, with where it lived — enter puts it back, r somewhere else,
 o opens it to read.
@@ -405,9 +425,9 @@ On a Mac, ⌘ plays the role of Ctrl.
 | ⌘K · ⇧⇧ | **THE MENU**: type to search everything, or a key + enter (m ⏎ = MODULES). Shift twice works anywhere, even while typing |
 | ⌘⇧K · ⌘⇧F | macros · effects |
 | ⌘N · ⌘⇧N | new note · new folder |
-| ⌘J | today's journal |
+| ⌘J | the journal, open at today |
 | ⌘⇧L | lock (log out) |
-| ⌘Z · ⌘⇧Z | undo · redo — anything (settings, widgets, trash, renames, new notes) |
+| ⌘Z · ⌘⇧Z | undo · redo — the last thing done (settings, widgets, trash, renames, new notes, tasks, reminders…) |
 | ⌘⇧⌫ | the trash |
 | ⇧Esc · ⌘W | close the tab |
 | 1…9 | go to that tab (when not typing) |
@@ -729,7 +749,8 @@ Only share sounds you made or may share, and say the licence in \`pack.toml\`.
   "../FOR DEVELOPERS/tweaking.md": `# Tweaking the deck
 
 - **Every setting** has a command: \`config list\`, \`config set fx.bloom true\`;
-  effects take one number: \`fx glow 60\`, \`fx chroma 120\` (0 = off, up to 200).
+  effects take one number: \`fx glow 60\`, \`fx chroma 120\` (0 = off, up to 200;
+  the colour fringes start gently: 50 is a light touch, 100 a strong one).
 - Settings live in the system's config folder (\`config path\`); the API key in
   a separate secrets file.
 - Your files: \`.icebreaker/themes\`, \`.icebreaker/plugins\`, \`.icebreaker/scripts\`,

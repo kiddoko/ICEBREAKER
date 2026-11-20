@@ -44,6 +44,7 @@ import type { Platform } from "./platform/types";
 import { PluginHost } from "./plugins/host";
 import { Updater } from "./core/updater";
 import { deckCommands } from "./shell/commands/deck";
+import { devCommands } from "./shell/commands/dev";
 import { fileCommands } from "./shell/commands/files";
 import { iconCommand, tagCommand } from "./shell/commands/marks";
 import { trashCommand } from "./shell/commands/trash";
@@ -61,7 +62,7 @@ import { basename, join, slugify } from "./vault/paths";
 import { Vault } from "./vault/vault";
 import { BootScreen, type BootLine } from "./workspace/boot";
 import { CellFx, Transitions } from "./fx/transition";
-import { DeckVoice, phrase } from "./core/voice";
+import { DeckVoice, phrase, spokenAlert } from "./core/voice";
 import { storeCommand, storeSpec } from "./apps/store";
 import { updateCommand } from "./shell/commands/update";
 import { detachCorePackages } from "./plugins/core-packages";
@@ -356,6 +357,8 @@ export class Deck implements InputSink {
     this.watchVisibility();
     // what starting changed (migrations, the vault path, restored tabs) isn't something to ⌘Z
     this.history.clear();
+    this.started = true;
+    if (!this.boot) this.sessionReady(); // no boot screen: the desktop is there now
     this.loop.request();
   }
 
@@ -424,6 +427,12 @@ export class Deck implements InputSink {
     // the settings rows: the deck's own (apps/settings-rows.ts, modules' rows included)
     this.prefs.register("core", () => coreSettingRows(this));
     for (const c of [...fileCommands, ...systemCommands, ...deckCommands, storeCommand, updateCommand, ...shortcutCommands, scriptCommand, pinCommand, unpinCommand, tagCommand, iconCommand, trashCommand, weatherCommand, startHereCommand]) this.commands.register({ ...c, source: "core" });
+    // developer tools (factory-reset): only in a build that has them (npm run app:mac, the
+    // web preview while developing). A release never registers them: not in help, man, Tab,
+    // THE MENU or BLOCKS — they don't exist there.
+    void this.platform.dev?.available().then((on) => {
+      if (on) for (const c of devCommands) this.commands.register({ ...c, source: "core" });
+    }, () => {});
     for (const w of [...BUILTIN_WIDGETS, pinnedWidget]) this.widgets.register(w);
     // the frame's own parts, callable like modules: deck.use("tree").reveal(…), ib.use("terminal")…
     for (const [id, fns] of Object.entries(frameServices(this))) this.services.exposeAll(id, fns);
@@ -455,7 +464,7 @@ export class Deck implements InputSink {
       this.boot = null;
       ui.begin(this.grid, this.theme, now, this.input.mouseCell);
       this.glitch(450);
-      if (!this.lock) this.greet();
+      if (!this.lock) this.sessionReady();
     }
     if (!this.boot && this.lock) this.lock.render(ui);
     else if (!this.boot) this.workspace.render(ui);
@@ -619,22 +628,24 @@ export class Deck implements InputSink {
     // An encrypted vault's commands stay in ibsh (they'd read your notes decrypted);
     // a plain vault's run untrusted, like a module's (shell/privileged.ts).
     const crypt = await this.platform.vault.crypt?.status().catch(() => null);
-    if (crypt?.encrypted) return b.send(req.id, "\x1b[33mICEBREAKER: the vault is encrypted — its commands stay in ibsh (your terminal only sees noise)\x1b[0m\n", true, true);
+    if (crypt?.encrypted) return b.send(req.id, "\x1b[33mICEBREAKER: the vault is encrypted — its commands stay in ibsh (your terminal only sees noise)\x1b[0m\n", true, true, 1);
     const line = args.map((a, i) => (i === 0 ? a : q(a))).join(" ");
     if (cmd.interactive) {
       void this.shell.runUntrusted(line, { source: "terminal", grants: "all" });
       this.requestFrame();
-      return b.send(req.id, `\x1b[2m→ ${args[0]} asks questions: it's running in the ibsh tab\x1b[0m\n`, true, true);
+      return b.send(req.id, `\x1b[2m→ ${args[0]} asks questions: it's running in the ibsh tab\x1b[0m\n`, true, true, 0);
     }
-    const ex = new ShellExecutor(this, (text) => b.send(req.id, text, false, true), () => {});
+    // what goes wrong is said in red, and the exit code goes back with the end (the shell's $?, its ✕)
+    const ex = new ShellExecutor(this, (text, isError) => b.send(req.id, isError ? `\x1b[31m${text.replace(/\n$/, "")}\x1b[0m${text.endsWith("\n") ? "\n" : ""}` : text, false, true), () => {});
     ex.origin = { source: "terminal", grants: "all" };
     ex.env = this.shell.exec.env;
     const root = this.vault.root.replace(/\/$/, "");
     ex.cwd = req.cwd === root ? "" : req.cwd.startsWith(`${root}/`) ? req.cwd.slice(root.length + 1) : "";
+    let status = 1;
     try {
-      await ex.run(line);
+      status = await ex.run(line);
     } finally {
-      b.send(req.id, null, true, true);
+      b.send(req.id, null, true, true, status);
       this.requestFrame();
     }
   }
@@ -665,8 +676,10 @@ export class Deck implements InputSink {
     // notification too, so you see it anyway (notifications: off / sound only skip it)
     const n = this.settings.data.notifications;
     if (n.system && (document.hidden || !document.hasFocus())) {
-      const title = kind === "error" ? "ICEBREAKER · error" : kind === "warning" ? "ICEBREAKER · warning" : "ICEBREAKER";
-      void this.platform.notify?.(title, text).catch(() => {});
+      // the system already shows the app's name: the title says what it is, not "ICEBREAKER"
+      // (a screen reader or "announce notifications" would read it before every message)
+      const title = kind === "error" ? t("error") : kind === "warning" ? t("warning") : text;
+      void this.platform.notify?.(title, title === text ? "" : text).catch(() => {});
     }
     this.workspace.notify(text, kind);
     this.requestFrame();
@@ -946,10 +959,13 @@ export class Deck implements InputSink {
       if (s.sound.muted) this.voice.stop();
       // a fader moved: hear that channel (Settings → SOUND → mixer)
       const sample: Record<string, SoundName> = { "sound.mix.text": "blip", "sound.mix.typing": "key", "sound.mix.alerts": "notify", "sound.mix.boot": "unlock", "sound.typing": "key" };
-      this.sound.play(sample[key] ?? "confirm");
+      // (at most ~10 a second: a held slider moves 60 steps a second — the value never waits, the sound does)
+      const now = performance.now();
+      if (now - this.samplePlayedAt > 100) (this.samplePlayedAt = now), this.sound.play(sample[key] ?? "confirm");
     }
     this.requestFrame();
   }
+  private samplePlayedAt = 0;
 
   /** dir +1 / -1 changes the interface scale by 10 % (25–200 %), 0 resets to 100 %. */
   zoom(dir: number): void {
@@ -1077,14 +1093,17 @@ export class Deck implements InputSink {
    * Get the user's attention, even when the deck is in the background: the
    * system notification, the "alert" sound (tu-dut), a toast — and the voice
    * reads it when it's on. Modules call it through ib.ui.alert.
+   *
+   * The voice reads what it's about — never the app's name: a title that's only
+   * "ICEBREAKER" or "Test" isn't read, the body is. `spoken` says exactly what to read.
    */
-  alert(title: string, body = "", topic: VoiceTopic = "reminders"): void {
+  alert(title: string, body = "", topic: VoiceTopic = "reminders", spoken?: string): void {
     // one box each in Settings → NOTIFICATIONS
     const n = this.settings.data.notifications;
     if (n.sound) this.sound.play("alert");
     if (n.screen) this.workspace.notify(body ? `${title} — ${body}` : title, "warning");
     if (n.system && (!n.systemOnlyAway || document.hidden || !document.hasFocus())) void this.platform.notify?.(title, body).catch((e) => console.warn("[notify]", e));
-    if (n.voice) this.speak(topic, body ? `${title}. ${body}` : title);
+    if (n.voice) this.speak(topic, spoken ?? spokenAlert(title, body));
   }
 
   /**
@@ -1100,6 +1119,19 @@ export class Deck implements InputSink {
   }
 
 
+
+  /** start() went all the way (the vault, the modules, the tabs) */
+  private started = false;
+  /**
+   * The session is ready: start() is done and the desktop is on screen. Until now the
+   * voice said nothing at all (a module's missed reminder, an error while loading, the
+   * CPU busy starting…): its first words are the greeting.
+   */
+  private sessionReady(): void {
+    if (!this.started || this.voice.open) return;
+    this.voice.open = true;
+    this.greet();
+  }
 
   /** "Welcome, netrunner": once per start, when the desktop appears (voice.greet). */
   private greeted = false;

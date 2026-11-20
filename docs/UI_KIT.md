@@ -18,9 +18,9 @@ checkbox or word wrapping again.
 | in plain text (shell, a menu label) | `BOX_ON` / `BOX_OFF` | `ib.lib.BOX_ON` | `☑` / `☐` |
 | one choice among several | `choice(ui, x, y, value, { arrows, onStep })` | `ib.lib.choice` | `‹ dots ›`: ←→, a click on its left / right half |
 | tabs | `tabs(ui, x, y, list, current, onPick)` | `ib.lib.tabs` | ` modules  themes  installed ` |
-| a number in a range | `slider(ui, rect, value, min, max, onSet, …)` · `askNumber` · `accelerated` | `ib.lib.slider` | `━━━━■── 80%` — drag the handle; hold on the track, the wheel or ←→: **1 at a time, faster the longer you hold** (`accelerated(id)`: 1, 2, 5, 10); double-click the number to type it |
+| a number in a range | `slider(ui, rect, value, min, max, onSet, …)` · `askNumber` · `heldStep` | `ib.lib.slider` | `━━━━■── 80%` — drag the handle (it follows the pointer to the pixel); hold on the track, the wheel (one notch, one step; a trackpad: a step every few pixels) or ←→: **always 1 at a time** — held, the pace speeds up (`HoldClock`: 8 → 60 steps a second), never the step; ←→ go through `heldStep(id, dir, step)`; double-click the number to type it |
 | a list | `ListView<T>` (`onNavKey(k)` for ↑↓ page keys under a field) | `new ib.lib.ListView<T>()` | selection, scrolling (with glide), mouse, keys, gamepad, right-click, drag |
-| **the search bar** (any list you filter) | `FilterBar` · `colourSquares` | `ib.lib.FilterBar` | `⌕ type to search      ■ ■ □ □ ■ □ □ □` — options: `typeToSearch` (a letter starts it: MODULES, NEXUS), `always` (every key types: Settings, BLOCKS, SHORTCUTS), `colours: false` (no squares: the STORE), `onChange` |
+| **the search bar** (any list you filter) | `FilterBar` · `colourSquares` | `ib.lib.FilterBar` | `⌕ type to search      ■ ■ □ □ ■ □ □ □` — options: `typeToSearch` (a letter starts it: MODULES, NEXUS), `always` (every key types: Settings, BLOCKS, SHORTCUTS, the STORE), `colours: false` (no squares: those four), `onChange` |
 | a page's header line | `pageBar` | — | where you are · tools · its filter |
 | choose a file / a folder | `FileBrowser` · `pickFile` · `pickFolder` | `ib.ui.pickFile` · `ib.ui.pickFolder` (you get the path the user chose) | the deck's browser: ‹ › ↑ ⌂, ⏏ drives, *choose this folder* |
 | yes / no · a value · one of a list · a message | `deck.confirm` · `deck.prompt` · `deck.choose` · `workspace.message` | `ib.ui.confirm` · `ib.ui.prompt` · `ib.ui.choose` · `ib.ui.alert` | the dialogs (a message: one *ok*, red for a problem — "Wrong password") |
@@ -45,7 +45,9 @@ it: "you're typing here" for fields you enter with a key (`a` in TODO).
 
 **Searching a list is always `FilterBar`**, never a `Field` of its own (a test checks it):
 the same look, the same keys everywhere. **Space** on a box or a ‹ choice › ticks it / goes
-to the next value — on the row under the mouse, else the one selected.
+to the next value, on a slider it goes to 0 and back (mute / unmute; a range with no 0: its default and back) — on the row under
+the mouse, else the one selected (once ↑↓ moved the selection, a mouse that stays still
+doesn't count). Space never types into an empty search and never scrolls the page.
 
 ## Changing a piece
 

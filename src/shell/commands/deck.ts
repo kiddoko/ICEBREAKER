@@ -4,7 +4,7 @@ import { parseDay } from "../../core/dates";
 import { redoCommand, tourCommand, undoCommand } from "./undo";
 import { auditReport } from "../../plugins/audit";
 import { DEFAULT_SETTINGS } from "../../core/settings";
-import { stealthCommand, voiceCommand } from "./voice";
+import { sayCommand, stealthCommand, voiceCommand } from "./voice";
 import { fmt } from "../../core/ansi";
 import { askInShell, asker } from "../ask";
 import { padEnd } from "../../core/unicode";
@@ -19,13 +19,12 @@ import { parseFlags } from "../parser";
 import type { Command, ShellContext } from "../types";
 import { applyTweaks, tweaksToToml, type Theme } from "../../core/theme";
 import { knob, KNOBS, parseKnobValue } from "../../core/tweaks";
-import { account, lock, selfDestruct } from "./account";
+import { account, lock, login, selfDestruct } from "./account";
 import { chat, daily } from "./daily";
 import { errorsCommand, mute, sound } from "./sound";
 import { debugCommand, logCommand } from "./log";
 import { FX_LEVELS, fxMax, getFx, setFx, type FxLevel } from "../../core/fxlevels";
 import { uiCommands } from "./ui";
-import { devCommands } from "./dev"; // DEV ONLY
 import { newsCommand } from "../../widgets/news";
 
 /** Commands specific to ICEBREAKER: notes, journal, AI, themes, plugins, settings. */
@@ -831,7 +830,7 @@ const today: Command = {
   },
 };
 
-export const deckCommands: Command[] = [undoCommand, redoCommand, tourCommand, contextCommand, ...devCommands, ...uiCommands, voiceCommand, stealthCommand, newsCommand, daily, chat, account, selfDestruct, lock, sound, mute, errorsCommand, logCommand, debugCommand, open, journal, note, checkboxes, ask, link, sysmon, theme, fx, config, vaultCmd, plugin, today];
+export const deckCommands: Command[] = [undoCommand, redoCommand, tourCommand, contextCommand, ...uiCommands, voiceCommand, sayCommand, stealthCommand, newsCommand, daily, chat, account, selfDestruct, lock, login, sound, mute, errorsCommand, logCommand, debugCommand, open, journal, note, checkboxes, ask, link, sysmon, theme, fx, config, vaultCmd, plugin, today];
 
 /** A theme's current value for "section.key", for display. */
 export function knobValue(t: Theme, key: string): string {

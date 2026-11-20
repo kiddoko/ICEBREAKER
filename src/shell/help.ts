@@ -1,10 +1,12 @@
 import { fmt } from "../core/ansi";
+import { osKeys } from "../core/keyhints";
 import type { Command } from "./types";
 
 /**
  * The help page of a command: what `todo -h`, `todo --help` and `man todo`
  * print. Built from the command's summary, usage, examples and man text, so
- * every command (core or module) gets one for free.
+ * every command (core or module) gets one for free. Key hints come out the
+ * way this computer reads them (core/keyhints.ts).
  */
 export function helpText(c: Command, tty: boolean): string {
   const h = (s: string) => (tty ? fmt.bold(fmt.magenta(s)) : s);
@@ -26,7 +28,8 @@ export function helpText(c: Command, tty: boolean): string {
     for (const l of c.man.split("\n")) out.push(`  ${l}`);
   }
   if (c.aliases?.length) out.push("", `${d("also:")} ${c.aliases.join(", ")}`);
-  return `${out.join("\n")}\n`;
+  // key hints the way this computer's keyboard reads (⌘K on a Mac, Ctrl+K elsewhere)
+  return `${osKeys(out.join("\n"))}\n`;
 }
 
 /** `cmd -h` / `cmd --help` (alone) shows the help instead of running the command. */

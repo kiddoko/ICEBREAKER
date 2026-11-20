@@ -1,5 +1,6 @@
 //! DEVELOPER TOOLS — only in builds made with `--features dev-tools` (`npm run app:mac`,
-//! for testing). In a release they answer "not in this build" and do nothing.
+//! for testing). In a release `dev_tools_available` says no, so the UI doesn't even
+//! register `factory-reset`; the commands below still refuse, in case.
 //!
 //! Brings ICEBREAKER back to a first launch, for testing: the vault folder and
 //! the config folder (settings, secrets, login) are *renamed* with a
@@ -20,6 +21,12 @@ static BUILD_KIND: &str = if cfg!(feature = "dev-tools") { "ICEBREAKER-BUILD:dev
 fn backup_name(p: &Path, stamp: u64) -> PathBuf {
     let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "icebreaker".into());
     p.with_file_name(format!("{name}-backup-{stamp}"))
+}
+
+/// Does this build carry the developer tools? (the UI registers `factory-reset` only then)
+#[tauri::command]
+pub fn dev_tools_available() -> bool {
+    cfg!(feature = "dev-tools")
 }
 
 /// Returns where things were moved (shown before the restart). The logged-in

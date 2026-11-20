@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.5.1 — not released yet (fixes from the first tests on Mac and Windows)
+
+- **Sliders move 1 by 1**: dragging follows the pointer to the pixel, holding speeds up
+  smoothly (always one step), every wheel notch is one step (Mac mouse, trackpad,
+  Windows); sound previews are throttled, not the value.
+- **Space in Settings** acts on the row you're on: a box ticks, a choice cycles, a
+  slider goes to 0 and back (no 0 in its range: its default and back); it never scrolls the page.
+- The **STORE's search bar** is the same as everywhere else. **Chromatic aberration**
+  eased in (100 % is the old 40 %).
+- **Shell**: ctrl+C (⌘X on a Mac) stops the running command or its question; Tab quotes
+  names with spaces; **Ctrl+J opens the journal**; `login` says who you are; new
+  **`say <text>`**.
+- **The real terminal**: errors from `ib …` come back in red with their exit code;
+  PowerShell starts much faster and keeps the deck's output; key hints show ctrl / alt
+  on Windows and Linux.
+- **`factory-reset` doesn't exist at all in a release** (only in dev-tools builds).
+- **Dates**: one reader for every form, English and French (`+1h`, `1h`, `19:00`, `19h30`,
+  `demain 9h`, `ven 18h`, `fri 6pm`, `24/12 9:00`, `ce soir`…) for REMINDERS, `todo
+  --due` and `cal add`; an empty time means in 1 hour, without an error.
+- **⌘Z**: adding in TODO, REMINDERS, HABITS and the calendar can be undone; uninstalling
+  a module is one step, undoable only right after.
+- **Voice**: silent until the session is ready, then the greeting; notifications are read
+  for their content, never "ICEBREAKER".
+- **Google Calendar on Windows** connects (the sign-in no longer waits on one call); the
+  setup's calendar choice is kept.
+- A note sent to the trash closes its tabs and leaves its pins (one ⌘Z brings it all back).
+- `remind "test" 19:00` is a reminder called "test": a word is a sub-command only when
+  what follows fits it.
+- **shift + wheel walks the tree from anywhere** (not only over it; a slider keeps its wheel).
+- Small things: NEWS is labelled with the right country when the language has no region
+  ("fr" → FR, not US); no "settings save failed" in the console before login; the login
+  card's line saying what a step is for wraps instead of being cut.
+
 ## 0.5.0 — 2026-11-20 (first public release)
 
 - **Test software, said everywhere**: a big warning at the top of the README and in

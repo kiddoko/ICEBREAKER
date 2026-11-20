@@ -8,10 +8,11 @@ import { mix } from "../core/color";
 import { t } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC } from "../core/input";
+import { osKeys } from "../core/keyhints";
 import { strWidth } from "../core/unicode";
 import { inside, q, type Hit, type UI } from "../ui/ui";
 import { Osk } from "./overlays";
-import { SystemTerminal } from "../shell/systerm";
+import { SystemTerminal, terminalKeysHint } from "../shell/systerm";
 import type { ShellTab, Workspace } from "./workspace";
 import { editMacro, macroMenu, shellMenu, tabMenu, termTabMenu } from "./menus";
 
@@ -160,7 +161,7 @@ export function renderTip(ws: Workspace, ui: UI, screen: Rect): void {
   const c = ui.c;
   const lines: { t: string; fg: number; attrs?: number }[] = [];
   if (h.cmd) lines.push({ t: `❯ ${h.cmd}`, fg: c.accent, attrs: BOLD });
-  if (h.tip) for (const l of h.tip.split("\n")) lines.push({ t: l, fg: c.muted });
+  if (h.tip) for (const l of osKeys(h.tip).split("\n")) lines.push({ t: l, fg: c.muted });
   const w = Math.min(screen.w - 2, Math.max(...lines.map((l) => strWidth(l.t))) + 4);
   const hgt = lines.length + 2;
   let bx = Math.min(x + 2, screen.w - w - 1);
@@ -349,8 +350,8 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
   let x = ui.text(r.x, r.y, ` ${pane.toUpperCase()} `, { fg: c.panel, bg: c.accent, attrs: BOLD });
   x = ui.text(x, r.y, "", { fg: c.accent, bg: c.statusBg });
   const status = ws.focus === "shell" && ws.shellTab === "term" && ws.termAvailable
-    ? `${ws.sysTerm?.shellName ?? "terminal"} · ctrl = Control (nano: ctrl+X quits) · ⌘C ⌘V copy/paste · ⇧⇧ menu · F12 tabs`
-    : ws.focus === "shell" ? d.shell.status() : ws.focus === "sidebar" ? "enter open · n new note · r rescan" : ws.focus === "panel" ? t("e edit · a add a widget · right-click: move, remove · ⌘⇧P hide") : (ws.activeApp?.status?.() ?? "");
+    ? `${ws.sysTerm?.shellName ?? "terminal"} · ${terminalKeysHint()} · ⇧⇧ menu · F12 tabs`
+    : ws.focus === "shell" ? d.shell.status() : ws.focus === "sidebar" ? "enter open · n new note · r rescan" : ws.focus === "panel" ? t("e edit · a add a widget · right-click: move, remove · ⌘⇧P hide") : osKeys(ws.activeApp?.status?.() ?? "");
 
   // right side
   const parts: { text: string; fg: number; cmd?: string; tip?: string }[] = [];

@@ -161,7 +161,11 @@ const inDays = (n: number) => {
   return iso(d);
 };
 
-/** "tomorrow", "fri", "+3d", "2w", "2026-12-01", "24/12" → YYYY-MM-DD; "-" → null; unreadable → undefined. */
+/**
+ * "tomorrow", "fri", "+3d", "2w", "2026-12-01", "24/12", "demain 9h", "fri 6pm", "19h"
+ * → YYYY-MM-DD (a task is due on a day: the time only tells which); "-" → null;
+ * unreadable → undefined.
+ */
 export function parseDue(raw: string): string | null | undefined {
   const s = raw.trim().toLowerCase();
   if (["-", "none", "no", "clear", "aucune", "aucun"].includes(s)) return null;
@@ -169,7 +173,7 @@ export function parseDue(raw: string): string | null | undefined {
   const n = /^\+?(\d{1,3})(d|j)?$/.exec(s);
   if (n) return inDays(Number(n[1]));
   // the rest: the deck's one date reader (ib.lib.dates)
-  const d = D.parseDay(s);
+  const d = D.parseWhen(s);
   return d ? iso(d) : undefined;
 }
 
@@ -222,8 +226,10 @@ export function parseTask(tokens: string[]): Parsed {
       }
       if (k === "due" || k === "d" || k === "for") {
         v ??= tokens[++i];
+        // "--due demain 9h", "--due fri 6 pm": the words after it that still say when
+        while (v !== undefined && i + 1 < tokens.length && !tokens[i + 1].startsWith("-") && parseDue(`${v} ${tokens[i + 1]}`) !== undefined) v = `${v} ${tokens[++i]}`;
         const d = v === undefined ? undefined : parseDue(v);
-        if (d === undefined) out.error = `can't read the date "${v ?? ""}" — try today, tomorrow, fri, +3d, 2026-12-01, 24/12`;
+        if (d === undefined) out.error = `can't read the date "${v ?? ""}" — try today, tomorrow, fri, +3d, 2026-12-01, 24/12, demain 9h`;
         else (out.due = d), (out.dueRaw = v);
         continue;
       }
@@ -316,19 +322,39 @@ export function activate(ib: IcebreakerAPI): void {
   let trash: Task[] = [];
   let nextId = 1;
   let loaded = false;
+  /** the tasks as last saved: every save that changes them is one ⌘Z step (labelled by `label`) */
+  let savedJson = "";
+  let label = "todo";
+  const snapshot = () => JSON.stringify({ tasks, trash: trash.slice(-20) });
   const ready = (async () => {
     tasks = await ib.storage.get<Task[]>("tasks", []);
     trash = await ib.storage.get<Task[]>("trash", []);
     nextId = await ib.storage.get<number>("next", tasks.reduce((m, t) => Math.max(m, t.id + 1), 1));
+    savedJson = snapshot();
     loaded = true;
     ib.ui.redraw();
   })();
-  const save = async () => {
+  const write = async () => {
     void ib.stats.set("open", tasks.filter((t) => !t.done).length, { label: "tasks open" }).catch(() => {});
     await ib.storage.set("tasks", tasks);
     await ib.storage.set("trash", trash.slice(-20));
     await ib.storage.set("next", nextId);
     ib.ui.redraw();
+  };
+  /** Back to the tasks as they were (⌘Z / ⌘⇧Z). Ids keep counting up: none is given twice. */
+  const restore = async (json: string) => {
+    ({ tasks, trash } = JSON.parse(json) as { tasks: Task[]; trash: Task[] });
+    savedJson = json;
+    await write();
+  };
+  const save = async () => {
+    const now = snapshot();
+    if (savedJson && now !== savedJson) {
+      const before = savedJson;
+      ib.history.record({ label, undo: () => restore(before), redo: () => restore(now) });
+    }
+    savedJson = now;
+    await write();
   };
 
   /** r in the app: the repeat, picked from lists (the same words as `todo repeat`). */
@@ -486,7 +512,7 @@ export function activate(ib: IcebreakerAPI): void {
       "todo                          what's left to do",
       "todo add <text> [options]     (also: todo task add …)",
       "     --urgent --high --moderate --low      priority (default: moderate)",
-      "     --due today|tomorrow|fri|+3d|2w|2026-12-01|24/12",
+      "     --due today|tomorrow|fri|+3d|2w|2026-12-01|24/12|\"demain 9h\"",
       "     +tag                     tags: +home +work",
       "     --every day|2d|week|2w|mon,wed,sat|month   it comes back when done",
       "     --times 3                several times a day",
@@ -506,6 +532,7 @@ export function activate(ib: IcebreakerAPI): void {
     async run(ctx) {
       await ready;
       const args = [...ctx.args];
+      label = `todo ${args.join(" ")}`.slice(0, 60); // what ⌘Z says it took back
       if (args[0] === "task") args.shift();
       const sub = args.shift() ?? "ls";
 
