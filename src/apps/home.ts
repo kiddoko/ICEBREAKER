@@ -12,6 +12,7 @@ import { DEFAULT_LAYOUT } from "../widgets/builtin";
 import type { WidgetPlacement } from "../widgets/types";
 import type { App, AppSpec } from "./types";
 import { WidgetPicker } from "../workspace/widgetpicker";
+import { INSET } from "../ui/layout";
 
 /** Grid geometry: 12 columns, one row unit = 2 text rows. */
 const COLS = 12;
@@ -591,7 +592,8 @@ export class HomeApp implements App {
     }
     ui.grid.popClip();
     // more below: a tab on the bottom edge, drawn over what's there on purpose (ui.art), shorter when narrow
-    const more = [` ↓ ${t("more (wheel)")} `, " ↓ "].find((m) => strWidth(m) <= r.w - 2);
+    const room = r.w - INSET * 2;
+    const more = [` ↓ ${t("more (wheel)")} `, " ↓ "].find((m) => strWidth(m) <= room);
     if (this.scroll < maxScroll && more) ui.art(() => ui.textRight(r.x + r.w - 1, r.y + r.h - 1, more, { fg: c.panel, bg: c.accent }));
     if (this.scroll > 0) ui.textRight(r.x + r.w - 1, r.y, ` ↑ ${this.scroll} `, { fg: c.muted });
 

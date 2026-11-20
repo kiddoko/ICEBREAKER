@@ -11,6 +11,7 @@ import { strWidth } from "../core/unicode";
 import { t } from "../core/i18n";
 import { isoDate } from "../vault/paths";
 import type { App, AppSpec } from "./types";
+import { INSET } from "../ui/layout";
 
 /**
  * LINK — chat with the AI. With Claude it can list, search, read and (with
@@ -308,8 +309,9 @@ export class LinkApp implements App {
     const ready = this.deck.ai.ready;
     const head = `${ready ? "●" : "○"} ${ready ? "LINKED" : "OFFLINE"} · ${this.deck.ai.provider.label}`;
     // the busy bar on the right only when there's room for it beside the state
-    const busy = this.c.chat.busy && r.w - 2 - strWidth(head) >= 16;
-    ui.text(r.x + 1, r.y, head, { fg: ready ? ui.c.success : ui.c.error, attrs: BOLD }, r.w - 2 - (busy ? 15 : 0));
+    const room = r.w - INSET * 2;
+    const busy = this.c.chat.busy && room - strWidth(head) >= 16;
+    ui.text(r.x + 1, r.y, head, { fg: ready ? ui.c.success : ui.c.error, attrs: BOLD }, room - (busy ? 15 : 0));
     if (busy) ui.gradientText(r.x + r.w - 14, r.y, "▰▰▰▰▰▰▰▰▰▰▰▰", ui.theme.gradient, 0, (ui.now / 1200) % 1);
     this.renderTabs(ui, { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: 1 });
     this.c.chat.render(ui, { x: r.x, y: r.y + 2, w: r.w, h: r.h - 2 }, focused);
