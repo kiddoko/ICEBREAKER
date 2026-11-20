@@ -76,6 +76,7 @@ let theme: Theme;
 let notes: string[] | null = null;
 let notesError = "";
 let settings: Record<string, unknown> = {};
+let audio = false;
 let mod: { activate?: (ib: unknown) => unknown; deactivate?: () => unknown } | null = null;
 
 // ── what the module registers ──────────────────────────────────────────────
@@ -152,6 +153,8 @@ function makeIb(manifest: unknown, version: string): unknown {
       write: rpc("vault", "write"),
       append: rpc("vault", "append"),
       mkdir: rpc("vault", "mkdir"),
+      readBytes: rpc("vault", "readBytes"),
+      writeBytes: rpc("vault", "writeBytes"),
       notes: () => {
         if (notes === null) throw new Error(notesError || "needs the vault:read permission");
         return [...notes];
@@ -198,6 +201,8 @@ function makeIb(manifest: unknown, version: string): unknown {
     },
     google: { available: notYet("ib.google.available"), status: rpc("google", "status"), setup: notYet("ib.google.setup"), connect: rpc("google", "connect"), disconnect: rpc("google", "disconnect"), calendar: rpc("google", "calendar"), cache: { read: rpc("google", "cache", "read"), write: rpc("google", "cache", "write") } },
     backgrounds: { register: notYet("ib.backgrounds") },
+    // its sound is played by the deck (core/mixer.ts): this Worker has none of its own
+    audio: { available: () => audio, now: rpc("audio", "now"), sample: rpc("audio", "sample"), drop: rpc("audio", "drop"), schedule: rpc("audio", "schedule"), stop: rpc("audio", "stop"), decode: rpc("audio", "decode") },
     lib,
   });
 }
@@ -343,6 +348,7 @@ scope.onmessage = async (ev: MessageEvent<ToModule>) => {
         notes = m.notes;
         notesError = m.notesError;
         settings = m.settings;
+        audio = !!m.audio;
         closeTheDoors();
         const url = URL.createObjectURL(new Blob([m.code], { type: "text/javascript" }));
         try {

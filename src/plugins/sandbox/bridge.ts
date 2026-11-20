@@ -39,7 +39,7 @@ export function sandboxed(deck: Deck, code: string, manifest: PluginManifest): P
 /** What the module may call on its `ib` (data in, data out). Everything else stays in its Worker or isn't there yet. */
 const CALLS = new Set([
   "apps.open",
-  "vault.read", "vault.exists", "vault.write", "vault.append", "vault.mkdir",
+  "vault.read", "vault.exists", "vault.write", "vault.append", "vault.mkdir", "vault.readBytes", "vault.writeBytes",
   "shell.run",
   "ui.notify", "ui.alert", "ui.say", "ui.confirm", "ui.prompt", "ui.choose", "ui.pickFolder", "ui.pickFile",
   "storage.get", "storage.set",
@@ -49,7 +49,18 @@ const CALLS = new Set([
   "ai.ask",
   "media.status", "media.control", "media.player.scan", "media.player.load", "media.player.control", "media.player.status",
   "google.status", "google.connect", "google.disconnect", "google.calendar", "google.cache.read", "google.cache.write",
+  "audio.now", "audio.sample", "audio.drop", "audio.schedule", "audio.stop", "audio.decode",
 ]);
+
+/** What goes back to the module: data only — JSON's, plus bytes and sound (typed arrays, ArrayBuffers) as they are. */
+function toData(v: unknown): unknown {
+  if (v === undefined) return undefined;
+  if (v instanceof ArrayBuffer || ArrayBuffer.isView(v)) return v;
+  if (Array.isArray(v)) return v.map((x) => toData(x) ?? null);
+  if (v && typeof v === "object" && Object.getPrototypeOf(v) === Object.prototype)
+    return Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined && typeof x !== "function").map(([k, x]) => [k, toData(x)]));
+  return JSON.parse(JSON.stringify(v) ?? "null");
+}
 
 /** keys a page of the module never takes: the deck's own (shortcuts, esc, tab, F-keys) */
 function deckKey(k: KeyInput): boolean {
@@ -94,7 +105,7 @@ class Sandbox {
   start(code: string): Promise<void> {
     const notes = this.notes();
     this.sentTheme = this.deck.theme;
-    this.send({ t: "load", code, manifest: JSON.parse(JSON.stringify(this.manifest)), version: this.ib.version, theme: JSON.parse(JSON.stringify(this.deck.theme)), notes: notes.notes, notesError: notes.error, settings: { ...((this.deck.settings.data.moduleSettings ?? {})[this.manifest.id] ?? {}) } });
+    this.send({ t: "load", code, manifest: JSON.parse(JSON.stringify(this.manifest)), version: this.ib.version, audio: this.ib.audio.available(), theme: JSON.parse(JSON.stringify(this.deck.theme)), notes: notes.notes, notesError: notes.error, settings: { ...((this.deck.settings.data.moduleSettings ?? {})[this.manifest.id] ?? {}) } });
     return new Promise((ok, no) => {
       this.ready = { ok, no };
       setTimeout(() => no(new Error("the module took more than 10 s to start")), 10_000);
@@ -158,7 +169,7 @@ class Sandbox {
           let value = await (fn as (...a: unknown[]) => unknown).apply(self, m.args);
           // what isn't data (an app object…) doesn't cross
           if (name === "apps.open") value = !!value;
-          this.send({ t: "rpc", id: m.id, ok: true, value: value === undefined ? undefined : JSON.parse(JSON.stringify(value)) });
+          this.send({ t: "rpc", id: m.id, ok: true, value: toData(value) });
         } catch (e) {
           this.send({ t: "rpc", id: m.id, ok: false, error: e instanceof Error ? e.message : String(e) });
         }

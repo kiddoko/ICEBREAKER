@@ -62,6 +62,7 @@ pub fn run() {
             vault::vault_read_many,
             vault::vault_read_bytes,
             vault::vault_write,
+            vault::vault_write_bytes,
             vault::vault_mkdir,
             vault::vault_trash,
             account::vault_destroy,

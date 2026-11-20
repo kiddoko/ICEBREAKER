@@ -21,7 +21,7 @@ import { applyTweaks, tweaksToToml, type Theme } from "../../core/theme";
 import { knob, KNOBS, parseKnobValue } from "../../core/tweaks";
 import { account, lock, selfDestruct } from "./account";
 import { chat, daily } from "./daily";
-import { errorsCommand, mute, sound } from "./sound";
+import { audioCommand, errorsCommand, mute, sound } from "./sound";
 import { debugCommand, logCommand } from "./log";
 import { FX_LEVELS, fxMax, getFx, setFx, type FxLevel } from "../../core/fxlevels";
 import { uiCommands } from "./ui";
@@ -831,7 +831,7 @@ const today: Command = {
   },
 };
 
-export const deckCommands: Command[] = [undoCommand, redoCommand, tourCommand, contextCommand, ...devCommands, ...uiCommands, voiceCommand, stealthCommand, newsCommand, daily, chat, account, selfDestruct, lock, sound, mute, errorsCommand, logCommand, debugCommand, open, journal, note, checkboxes, ask, link, sysmon, theme, fx, config, vaultCmd, plugin, today];
+export const deckCommands: Command[] = [undoCommand, redoCommand, tourCommand, contextCommand, ...devCommands, ...uiCommands, voiceCommand, stealthCommand, newsCommand, daily, chat, account, selfDestruct, lock, sound, mute, audioCommand, errorsCommand, logCommand, debugCommand, open, journal, note, checkboxes, ask, link, sysmon, theme, fx, config, vaultCmd, plugin, today];
 
 /** A theme's current value for "section.key", for display. */
 export function knobValue(t: Theme, key: string): string {

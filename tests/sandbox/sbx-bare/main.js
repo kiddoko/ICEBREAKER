@@ -10,6 +10,12 @@ export async function activate(ib) {
   await t("ib.vault.read", () => ib.vault.read("Welcome.md"));
   await t("ib.vault.write", () => ib.vault.write("notes/from-bare.md", "x"));
   await t("ib.vault.notes", () => ib.vault.notes().length);
+  await t("ib.vault.readBytes", () => ib.vault.readBytes("Welcome.md"));
+  await t("ib.vault.writeBytes", () => ib.vault.writeBytes("notes/from-bare.bin", new Uint8Array([1, 2, 3])));
+  await t("ib.audio.now (sound without the permission)", () => ib.audio.now());
+  await t("ib.audio.sample", () => ib.audio.sample("x", new Float32Array(100)));
+  await t("ib.audio.schedule", () => ib.audio.schedule([{ voice: 0, stop: true }]));
+  await t("ib.audio.decode", () => ib.audio.decode(new Uint8Array(10)));
   await t("pipe a note into my command", () => refused("cat Welcome.md | sbxgrab"));
   await t("read a note with <", () => refused("sbxgrab < Welcome.md"));
   await t("redirect into a note", () => refused("echo x > notes/from-bare.md"));

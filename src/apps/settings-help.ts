@@ -22,6 +22,7 @@ export const SETTINGS_HELP: Record<string, [string, string]> = {
   "sound.mix.text": ["The blips of text typing itself out.", "Les bips du texte qui s'écrit."],
   "sound.mix.typing": ["The click of your own keys (when Keyboard sounds is on).", "Le clic de tes propres touches (quand Sons du clavier est activé)."],
   "sound.mix.boot": ["The start-up sound.", "Le son du démarrage."],
+  "sound.mix.modules": ["The sound modules play themselves (a tracker, a drum machine: permission \"audio\").", "Le son que jouent les modules eux-mêmes (un tracker, une boîte à rythmes : permission « audio »)."],
   "sound.typing": ["A click when you type, another sound when you erase — each theme's sound pack has its own. Played the moment the key goes down.", "Un clic quand tu tapes, un autre son quand tu effaces — chaque pack de sons a les siens. Joué dès que la touche descend."],
   "user.language": ["The language of the interface and of the deck's voice. Command output and man pages stay in English for now.", "La langue de l'interface et de la voix du deck. Les sorties de commandes et les pages man restent en anglais pour l'instant."],
   "user.handle": ["What the deck calls you: the greeting, the shell prompt, the login.", "Comment le deck t'appelle : l'accueil, le prompt du shell, la connexion."],

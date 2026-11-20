@@ -256,7 +256,9 @@ were on come back as you left them next time.
   and in \`whoami\`.
 - **Sounds**: Settings → SOUND: the volume of everything, then a **mixer** — one
   fader each for moving around, notifications, the text that types itself out,
-  your keys, the start-up. *A click on your keys* (off by default) gives your
+  your keys, the start-up, and the sound **modules** play themselves (a module
+  allowed to — permission "audio" — shows ♪ its name in the status bar while it
+  plays: a click, or \`audio stop\`, silences it). *A click on your keys* (off by default) gives your
   typing the theme's own key sound — another one when you erase — played the
   moment the key goes down.
 - **Text that types itself out** — the tour, notifications, dialogs, the setup,
@@ -645,7 +647,8 @@ export function activate(ib) {
 | \`ib.\`… | |
 |---|---|
 | \`commands\` · \`apps\` · \`widgets\` · \`palette\` | add things to the deck (\`palette\` = THE MENU; \`key: "g"\` gives it a menu key if free) |
-| \`vault\` | read / write notes (permissions) |
+| \`vault\` | read / write notes (permissions); \`readBytes\` / \`writeBytes\` for binary files (a song, a sample: 16 MB at most) |
+| \`audio\` | sound of your own (permission "audio"): \`sample(id, data, { loopStart, loopLength })\`, then \`schedule([{ at, voice, play, rate, volume, pan, interp }])\` on the clock of \`now()\`; \`decode(bytes)\` reads wav, mp3, m4a… |
 | \`stats\` | numbers over time, shown by STATS |
 | \`modules\` | call other modules (\`todo.add\`, \`journal.append\`…), expose yours |
 | \`settings\` | your settings, shown in ⚙ under your name |

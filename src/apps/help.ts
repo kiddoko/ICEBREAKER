@@ -64,6 +64,7 @@ ${cmds}
 - Settings: space ticks a box / turns a choice; sliders go 1 at a time (hold: faster); greyed = depends on another setting. MODULES and NEXUS: just type to search.
 - \`.icebreaker/themes/*.toml\` — your themes (\`theme new <name>\`)
 - \`.icebreaker/plugins/<id>/\` — your plugins (\`plugin new <id>\`) · they run in a sandbox: only what their permissions allow, in the shell too, never more than you approved (docs/SANDBOX.md)
+- A module allowed to play sound (permission "audio": a tracker, a drum machine) shows **♪ its name** in the status bar while it plays: click it (or \`audio stop\`) to silence it. Its volume: Settings → SOUND → mixer → Modules.
 - \`.icebreaker/templates/journal.md\` — your journal template
 - \`.trash/\` — where \`rm\` puts things (\`trash open\` to see it, restore). Nothing is ever deleted for good, apart from \`self-destruct\` (it asks four times).
 `;

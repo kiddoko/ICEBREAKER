@@ -27,6 +27,8 @@ export function createTauriPlatform(): Platform {
       rename: (from, to) => invoke<void>("vault_rename", { from, to }),
       exists: (path) => invoke<boolean>("vault_exists", { path }),
       readBytes: (path) => invoke<ArrayBuffer>("vault_read_bytes", { path }),
+      // the body is the bytes, the path a header (vault.rs vault_write_bytes)
+      writeBytes: (path, data) => invoke<void>("vault_write_bytes", data instanceof Uint8Array ? data : new Uint8Array(data), { headers: { path: encodeURIComponent(path) } }),
       move: (dest) => invoke<string>("vault_move", { dest }),
       moveCleanup: () => invoke<void>("vault_move_cleanup"),
       crypt: {

@@ -22,6 +22,7 @@
  *                and play local music files (ib.media.player)
  *   google-calendar   read and change the user's Google Calendar
  *   stats:read   read the stats other modules keep (your own need nothing)
+ *   audio        play sound of its own through the speakers (ib.audio: a sampler)
  *
  * See docs/PLUGINS.md for a walkthrough, and `plugin new <id>` in the shell
  * for a ready-to-edit template.
@@ -36,11 +37,13 @@ import type { BackgroundSpec } from "../fx/backgrounds";
 import type { LocalTrack, MediaStatus, PlayerStatus } from "../platform/types";
 import type { Stat, StatMeta, StatPoint } from "../core/stats";
 import type { ModuleProxy, ServiceInfo, ServiceSpec } from "./services";
+import type { AudioEvent, SampleOptions } from "../core/mixer";
+export type { AudioEvent, SampleOptions } from "../core/mixer";
 
 /** "terminal": type commands in the user's real shell (terminal.run / write) */
 import type { BlockInfo, BlockKind } from "../core/catalog";
 
-export type Permission = "vault:read" | "vault:write" | "ai" | "media" | "google-calendar" | "stats:read" | "terminal";
+export type Permission = "vault:read" | "vault:write" | "ai" | "media" | "google-calendar" | "stats:read" | "terminal" | "audio";
 
 export interface PluginManifest {
   id: string;
@@ -101,6 +104,38 @@ export interface IcebreakerAPI {
     write(path: string, content: string): Promise<void>;
     append(path: string, text: string): Promise<void>;
     mkdir(path: string): Promise<void>;
+    /** A binary file's bytes (a song, a sample), at most 16 MB (permission "vault:read"). */
+    readBytes(path: string): Promise<Uint8Array>;
+    /** Write a binary file, at most 16 MB (permission "vault:write"). */
+    writeBytes(path: string, data: Uint8Array | ArrayBuffer): Promise<void>;
+  };
+
+  /**
+   * Sound of your own (permission "audio"): a sampler the deck mixes for you,
+   * on the exact frame. Load samples once, then send events dated on the audio
+   * clock — a song computed ~100 ms ahead never stutters; a note played now is
+   * `at: undefined`. 64 voices, 32 MB of samples; everything stops when your
+   * module is switched off. The volume is the user's (Settings → SOUND → Modules).
+   *
+   *   const t = await ib.audio.now();
+   *   await ib.audio.sample("kick", int8Data, { loopStart: 0, loopLength: 0 });
+   *   await ib.audio.schedule([{ at: t + 0.1, voice: 0, play: "kick", rate: 8363, volume: 0.8 }]);
+   */
+  audio: {
+    /** there's a sound output here */
+    available(): boolean;
+    /** the audio clock, in seconds */
+    now(): Promise<number>;
+    /** a mono sample: floats (-1…1), Int8Array (an Amiga's 8 bits), Int16Array, or Uint8Array (unsigned 8-bit WAV) */
+    sample(id: string, data: Float32Array | Int8Array | Int16Array | Uint8Array, opts?: SampleOptions): Promise<void>;
+    /** forget one sample, or all of yours */
+    drop(id?: string): Promise<void>;
+    /** change voices at given times (start a sample, its speed, volume, pan, stop) */
+    schedule(events: AudioEvent[]): Promise<void>;
+    /** silence all your voices now and forget what was scheduled */
+    stop(): Promise<void>;
+    /** decode an audio file (wav, aiff, mp3, m4a, ogg… what the system reads) into floats, one array per channel */
+    decode(bytes: Uint8Array | ArrayBuffer): Promise<{ rate: number; channels: Float32Array[] }>;
   };
 
   /** The AI provider the user configured (Claude, or a local model). */

@@ -180,7 +180,7 @@ export class PluginHost {
     for (const n of needs) if (!seen.has(n.id)) await this.enable(n.id, ask, seen);
     if (this.needsOf(p).length) return false; // a need was refused: it stays off
     if (p.source === "vault") {
-      const perms = p.manifest.permissions?.length ? p.manifest.permissions.map((x) => (x === "terminal" ? "terminal (it can type commands in your real terminal: any program on this computer)" : x)).join(", ") : "none";
+      const perms = p.manifest.permissions?.length ? p.manifest.permissions.map((x) => (x === "terminal" ? "terminal (it can type commands in your real terminal: any program on this computer)" : x === "audio" ? "audio (it plays sound of its own through your speakers)" : x)).join(", ") : "none";
       // what its code does that a module shouldn't need (plugins/audit.ts)
       const report = auditReport(await this.audit(id).catch(() => []));
       const ok = await ask(
@@ -361,6 +361,8 @@ export class PluginHost {
     this.deck.moduleSettings.delete(id);
     this.deck.prefs.unregisterSource(id);
     this.deck.moduleSettingListeners.delete(id);
+    // its sound stops, its samples go
+    this.deck.mixer.release(id);
   }
 
   /** Build the API object for one plugin, enforcing its declared permissions. */
@@ -502,6 +504,23 @@ export class PluginHost {
         write: (p, c) => (need("vault:write"), notDeck(p), deck.vault.write(p, c)),
         append: (p, t) => (need("vault:write"), notDeck(p), deck.vault.append(p, t)),
         mkdir: (p) => (need("vault:write"), notDeck(p), deck.vault.mkdir(p)),
+        readBytes: async (p) => (need("vault:read"), thirdParty && notDeck(p), deck.vault.readBytes(p)),
+        writeBytes: async (p, data) => {
+          need("vault:write");
+          notDeck(p);
+          if (!(data instanceof Uint8Array || data instanceof ArrayBuffer)) throw new Error("vault.writeBytes: the data must be a Uint8Array");
+          return deck.vault.writeBytes(p, data);
+        },
+      },
+      // its own sound (core/mixer.ts): its samples and voices are its own, gone when it's switched off
+      audio: {
+        available: () => deck.mixer.available(),
+        now: async () => (need("audio"), deck.mixer.now()),
+        sample: async (id, data, opts) => (need("audio"), deck.mixer.sample(m.id, id, data, opts)),
+        drop: async (id) => (need("audio"), deck.mixer.drop(m.id, id)),
+        schedule: async (events) => (need("audio"), deck.mixer.schedule(m.id, events)),
+        stop: async () => (need("audio"), deck.mixer.stop(m.id)),
+        decode: async (bytes) => (need("audio"), deck.mixer.decode(bytes)),
       },
       ai: {
         ready: () => deck.ai.ready,

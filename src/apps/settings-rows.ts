@@ -247,6 +247,7 @@ export function coreSettingRows(deck: Deck): Row[] {
     needs(soundOn, slide("sound.mix.text", "Text", 0, 100, () => num("sound.mix.text"), (v) => set("sound.mix.text", v), { zeroIsOff: true })),
     needs(soundOn, slide("sound.mix.typing", "Keyboard", 0, 100, () => num("sound.mix.typing"), (v) => set("sound.mix.typing", v), { zeroIsOff: true })),
     needs(soundOn, slide("sound.mix.boot", "Startup", 0, 100, () => num("sound.mix.boot"), (v) => set("sound.mix.boot", v), { zeroIsOff: true })),
+    needs(soundOn, slide("sound.mix.modules", "Modules", 0, 100, () => num("sound.mix.modules"), (v) => set("sound.mix.modules", v), { zeroIsOff: true })),
     needs(soundOn, toggle("sound.typing", "Keyboard sounds")),
     { section: "NOTIFICATIONS", label: "", value: () => "" },
     // how reminders, timers and modules call you: one box each (Deck.alert)

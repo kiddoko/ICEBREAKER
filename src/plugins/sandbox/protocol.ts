@@ -79,7 +79,7 @@ export type FromModule =
 
 /** Deck → worker */
 export type ToModule =
-  | { t: "load"; code: string; manifest: unknown; version: string; theme: unknown; notes: string[] | null; notesError: string; settings: Record<string, unknown> }
+  | { t: "load"; code: string; manifest: unknown; version: string; audio: boolean; theme: unknown; notes: string[] | null; notesError: string; settings: Record<string, unknown> }
   | { t: "rpc"; id: number; ok: boolean; value?: unknown; error?: string }
   | { t: "theme"; theme: unknown }
   | { t: "notes"; notes: string[] | null; notesError: string }

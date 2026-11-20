@@ -46,6 +46,29 @@ export const mute: Command = {
   },
 };
 
+/** The modules' own sound (ib.audio, core/mixer.ts): who plays, and silencing them (the ♪ <module> button bottom-right). */
+export const audioCommand: Command = {
+  name: "audio",
+  summary: "the sound modules play themselves: who is playing, stop them",
+  usage: "audio              the modules playing now\naudio stop [id]    silence one module (or all of them)",
+  examples: [["audio stop", "silence every module"], ["audio stop breakermed", "silence one"]],
+  complete: () => ["stop"],
+  run(ctx) {
+    const m = ctx.deck.mixer;
+    const [sub, id] = ctx.args;
+    if (sub === "stop") {
+      const ids = id ? [id] : m.playing();
+      for (const x of ids) m.stop(x);
+      ctx.out(ids.length ? `♪ ${ids.join(", ")}: silenced\n` : fmt.dim("no module is playing\n"));
+      return 0;
+    }
+    if (sub) return ctx.err(`audio: unknown "${sub}" (audio stop [id])\n`), 1;
+    const ids = m.playing();
+    ctx.out(ids.length ? `♪ ${ids.join(", ")}\n` : fmt.dim(`no module is playing${m.available() ? "" : " (no sound output here)"}\n`));
+    return 0;
+  },
+};
+
 export const sound: Command = {
   name: "sound",
   examples: [

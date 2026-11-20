@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **Modules can play sound** (for breakerMED, the tracker to come): a new permission
+  **`audio`** and `ib.audio` — a sampler the deck mixes on the exact frame (an AudioWorklet:
+  `src/core/mixer.ts`). A module loads samples and sends events dated on the audio clock;
+  `interp: "none"` gives the Amiga's stepped grit; `decode` reads wav, mp3, m4a…. 64 voices
+  and 32 MB per module, silenced when it's switched off. Settings → SOUND → mixer gets a
+  **Modules** fader, the status bar shows **♪ the module** while it plays (a click, or the new
+  `audio stop`, silences it). docs/PLUGINS.md, SANDBOX.md, SECURITY_AUDIT.md (O21).
+- **Binary files for modules**: `ib.vault.readBytes / writeBytes` (16 MB, the same permissions
+  and walls as notes); natively `vault_write_bytes`. Tested from the sandbox
+  (`tests/sandbox/sbx-audio`, and the escape tests try the new doors: closed).
+
 ## 0.5.0 — 2026-11-20 (first public release)
 
 - **Test software, said everywhere**: a big warning at the top of the README and in

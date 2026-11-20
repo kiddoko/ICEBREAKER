@@ -49,7 +49,11 @@ the deck and still run inside it.
   notes, write, append, mkdir — by permission), `shell.run`, `ui` (notify, alert,
   say, confirm, prompt, choose, pickFolder, pickFile, theme, redraw), `storage`,
   `settings.get / set`, `stats` (not `onChange`), `modules.call`, `ai.ask`, `media`,
-  `google` (by permission), and all of `lib`.
+  `google`, `vault.readBytes / writeBytes`, `audio` (by permission), and all of `lib`.
+- **Sound**: a Worker has none. A module with the `audio` permission loads samples and sends
+  dated events; the deck plays them (`src/core/mixer.ts`, an AudioWorklet of the deck's own):
+  its samples and voices are its own, within limits, silenced when it's switched off. Bytes
+  and sound cross as typed arrays (copied), never as handles.
 - What isn't yet (a clear error says so): `settings.register`, `settings.onChange`,
   `stats.onChange`, `modules.expose / has / list / installed`, `catalog`,
   `ai.session` / `vaultTools` / `ready` / `problem`, `backgrounds`,
@@ -59,7 +63,7 @@ the deck and still run inside it.
 ### Tested
 
 Two modules written to escape — one with `vault:read` / `vault:write`, one with no
-permission at all (`tests/sandbox/sbx-evil`, `sbx-bare`; how to run them:
+permission at all (`tests/sandbox/sbx-evil`, `sbx-bare`; `sbx-audio` uses sound and binary files normally; how to run them:
 [SECURITY_AUDIT.md](SECURITY_AUDIT.md)) — found every door closed, the ones a later review
 found open included (`modules.call("shell", "run", …)`, pipes and `>` in the shell,
 `.ICEBREAKER/` in capitals, `menu add`, an update asking for more…). The first test, before
