@@ -2,7 +2,6 @@ import { mix } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
 import type { KeyInput } from "../core/input";
-import { truncate } from "../core/unicode";
 import type { Deck } from "../deck";
 import { FilterBar } from "../ui/filterbar";
 import { ListView } from "../ui/list";
@@ -212,7 +211,7 @@ export class FileBrowser implements Overlay {
     nav("›", this.at < this.history.length - 1, () => this.go(1), t("forward · →"));
     nav("↑", this.parent() !== null, () => this.goTo(this.parent()!), t("the folder above"));
     nav("⌂", this.dir !== this.history[0], () => this.goTo(this.history[0]), t("back to where it started"));
-    ui.text(bx, inner.y, truncate(this.vault ? `/${this.dir}` : this.dir, inner.x + inner.w - bx), { fg: c.subtle, bg: c.panel });
+    ui.text(bx, inner.y, this.vault ? `/${this.dir}` : this.dir, { fg: c.subtle, bg: c.panel }, inner.x + inner.w - bx);
     // the shared filter bar
     this.filter.render(ui, { x: inner.x, y: inner.y + 1, w: inner.w, h: 1 });
 

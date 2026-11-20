@@ -7,6 +7,7 @@ import { strWidth } from "../core/unicode";
 import type { Deck } from "../deck";
 import { q, type UI } from "../ui/ui";
 import type { Overlay } from "./overlays";
+import { commandNames } from "../core/suggest";
 
 /**
  * "A shortcut for this": waits for a key combo, shows what it would replace
@@ -60,7 +61,7 @@ export class KeyCapture implements Overlay {
   }
 
   private async addAction(): Promise<void> {
-    const cmd = await this.deck.prompt(t("Then what? (a shell command)"), { placeholder: "open notes/ideas.md · launch todo · macro run ls" });
+    const cmd = await this.deck.prompt(t("Then what? (a shell command)"), { suggestions: commandNames(this.deck), placeholder: "open notes/ideas.md · launch todo · macro run ls" });
     if (cmd?.trim()) this.actions.push(cmd.trim());
     this.deck.requestFrame();
   }

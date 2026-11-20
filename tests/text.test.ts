@@ -29,3 +29,12 @@ describe("colours", () => {
     expect(mix(0x000000, 0xffffff, 1)).toBe(0xffffff);
   });
 });
+
+describe("emoji widths", () => {
+  it("emoji take two cells, text symbols one", async () => {
+    const { strWidth } = await import("../src/core/unicode");
+    for (const e of ["⏰", "✅", "⚡", "⛅", "🚀", "🔥", "🙂", "🇨🇭", "🧠", "🫠"]) expect(strWidth([...e][0])).toBe(2);
+    for (const s of ["★", "⚙", "☀", "♥", "◷", "ϟ", "é", "→"]) expect(strWidth(s)).toBe(1);
+    expect(strWidth("日")).toBe(2);
+  });
+});

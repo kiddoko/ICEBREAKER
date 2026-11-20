@@ -26,7 +26,7 @@ export const isTagColor = (s: string): s is TagColor => s in TAG_COLORS;
 export const tagRGB = (c: TagColor): RGB => hex(TAG_COLORS[c]);
 
 /** Glyphs offered in the icon menu (any character works with `icon <path> <glyph>`). */
-export const ICON_CHOICES = ["★", "♥", "◆", "●", "▲", "■", "✚", "✦", "⚑", "⚡", "☀", "☾", "♪", "✎", "⌘", "⚙", "☢", "☠", "♞", "⌬", "∿", "λ", "❯", "▣"];
+export const ICON_CHOICES = ["★", "♥", "◆", "●", "▲", "■", "✚", "✦", "⚑", "ϟ", "☀", "☾", "♪", "✎", "⌘", "⚙", "☢", "☠", "♞", "⌬", "∿", "λ", "❯", "▣"];
 
 const TAGS = ".icebreaker/tags.json";
 const ICONS = ".icebreaker/icons.json";

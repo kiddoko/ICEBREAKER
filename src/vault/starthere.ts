@@ -37,7 +37,7 @@ the keyboard, the mouse or a gamepad.
 │ │ ★ pins │ │  widgets: clock · weather · todo · habits · stats · chat… │ │
 │ │ tree   │ │  e = edit the layout · a = add a widget · enter = open it  │ │
 │ └────────┘ └───────────────────────────────────────────────────────────┘ │
-│ ┌ shell: icbrkr_trm · ibsh · history · ≡ scripts · ▾ hide ──────────────┐ │
+│ ┌ shell: icbrkr_trm · ibsh · log ────────────────────────── ≡ ─ □ ───┐ │
 │ │ ◆ ~/notes ❯ _                                                         │ │
 │ └───────────────────────────────────────────────────────────────────────┘ │
 └ status bar: what keys do here · ▾ shell · ✦ fx · ⌘K menu · F1 help ────┘
@@ -51,7 +51,7 @@ the keyboard, the mouse or a gamepad.
 | today's journal | **⌘J / Ctrl+J** |
 | change the look | ⚙ settings → APPEARANCE, or \`theme\` |
 | switch a feature off | **MODULES** (⌘⇧M) → space |
-| learn the shell | click anything: the command it runs shows in the shell |
+| learn the shell | click anything: the command it runs shows in the shell's **log** tab |
 | see everything the deck can do | **BLOCKS** (\`blocks\`): every command, setting, shortcut, function… and how to call it |
 | someone else on this deck (or a work deck) | the login page → **+ new account**: its own settings, theme and vault |
 
@@ -77,13 +77,13 @@ reinstalled** (MODULES → space / x, or the STORE) — the built-in ones too.
 \`\`\`
    ┌──┐ ┌──┐ ┌──┐ ┌──┐
    │▦ │ │◆ │ │☂ │ │◷ │   MODULES (⌘⇧M): a ring of shards (the chips netrunners slot in)
-   └──┘ └──┘ └──┘ └──┘   ←↑↓→ choose · enter launch · space on/off · p pin
+   └──┘ └──┘ └──┘ └──┘   ←↑↓→ choose · enter launch · space on/off · p pin · x remove
 \`\`\`
 
 Give a module a **colour** (right-click a module → colour, or \`modules tag todo cyan\`):
-its label turns that colour, and the squares top right show one colour at a
-time — several at once (\`modules view cyan pink\`); **/** searches. NEXUS has the
-same bar. The tree's colour squares tick several colours too (\`tag view red blue\`).
+its shard takes that colour. The bar on top filters: type to search (**/**),
+click colour squares to see only those colours (\`modules view cyan pink\`). NEXUS
+has the same bar. The tree's colour squares tick several colours too (\`tag view red blue\`).
 
 | Module | What it does | Try |
 |---|---|---|
@@ -149,13 +149,13 @@ VAULT              8
  ▾ journal/      2
  ├─ 2026-11-17
  └─ 2026-11-18
- ▸⚡ projects/  ■ 3   ← a custom icon, tagged cyan (the square, on the right)
+ ▸ϟ projects/  ■ 3   ← a custom icon, tagged cyan (the square, on the right)
 \`\`\`
 
 **Right-click anything** (or the menu key, shift+F10): open, rename (F2),
 duplicate, pin, copy the path or a [[link]], a **colour** (red, orange, yellow,
 green, cyan, blue, purple, pink — like Ableton), an **icon**, the trash.
-In the shell: \`tag notes/ideas.md red\`, \`tag view red\`, \`icon projects ⚡\`.
+In the shell: \`tag notes/ideas.md red\`, \`tag view red\`, \`icon projects ϟ\`.
 Tags and icons live in your vault (.icebreaker/tags.json, icons.json).
 **Shift + wheel over the tree** walks file by file (a little click each time) and
 shows each file at once in a preview tab that the next one replaces — open one
@@ -164,7 +164,8 @@ for real (click, enter) and it stays. The plain wheel scrolls the tree.
 (below the last row = the vault's root; \`mv\` does the same). Drag files from
 the Finder / Explorer onto a folder of the tree: they're **copied** into it
 (the originals stay where they were; never overwritten: "a copy.md").
-One click opens a note or folds a folder. The tree, your tabs and the page you
+**One click selects** a note (so F2, Delete / ⌘⌫, p act on it), a **double-click**
+(or enter) opens it; one click folds a folder. The tree, your tabs and the page you
 were on come back as you left them next time.
 
 ## Tabs, pins, settings
@@ -208,7 +209,6 @@ were on come back as you left them next time.
   theme remembers its own effects.
 - Status bar, right: **♪** mutes everything · **☾** the screensaver (each theme
   has its own: a neon city, an 80s mainframe, sonar, warp, an e-reader).
-- Too many tabs for the bar: they scroll around the one shown (‹ ›).
 - **◧ side panel** (status bar, ⌘⇧P, or \`panel\`): a column on the right whose
   widgets stay in view on every page. Click it: **a** adds a widget, **e** edits.
   **Edit mode is shared** by HOME and the panel (e on either, esc ends it), and
@@ -235,7 +235,7 @@ were on come back as you left them next time.
   the next event, tasks due, the next reminder, the music, the focus timer…
 - **Your profile icon**: Settings → YOU → profile icon (or \`avatar\`): a little
   pixel-art face or a glyph, in the colour you like. It's on the login screen
-  and in \`whoami\`; the chat will use it.
+  and in \`whoami\`.
 - **Sounds**: Settings → SOUND: the volume of everything, then a **mixer** — one
   fader each for moving around, notifications, the text that types itself out,
   your keys, the start-up. *A click on your keys* (off by default) gives your
@@ -248,6 +248,27 @@ were on come back as you left them next time.
 - **Notes**: a toolbar on top — save (● red when not saved: the tab has a red dot
   too, ⌘S or right-click on the tab saves), save as, a new note, the note before /
   after in the folder, undo, redo.
+- **A note changed elsewhere** (Obsidian, iCloud, another editor, the AI) comes back
+  on its own when you have no unsaved edits. With edits, nothing is overwritten:
+  its toolbar says *changed on disk* — **Take the disk's** (⌘Z brings yours back)
+  or **Keep mine**.
+- **REMINDERS, TODO, HABITS on HOME**: Delete (⌘⌫) on the line under the mouse
+  removes it (a habit asks first), right-click → **Edit…** changes it; in their
+  pop-up, e edits and Delete removes the chosen line. In the shell: \`todo edit 3 "…"\`,
+  \`remind edit 2 "…" fri 18:00\`, \`habit edit 1 "…" --times 8\`.
+- **A widget to another HOME page**: right-click → *Move to page*, or in edit mode
+  **[ ]** (it goes, and you go with it), or drag it onto a page number at the bottom.
+- **Full screen** (F11, \`fullscreen\`): the whole screen, the notch of a MacBook
+  included — the rows behind the camera become a thin band (the deck's name, the time).
+- **The caret** is a thin bar that glides from letter to letter (longer and softer
+  when it jumps far, a faint trail behind it), flares a little at each key and
+  breathes instead of blinking hard (*Reduce motion*: it jumps).
+- **‹ value ›** (settings, a clock's face…): a click on the left half goes back, on
+  the right half forward.
+- **A reminder without a time** is for in an hour (\`remind "tea"\`, or enter on an
+  empty "when?").
+- **Lists everywhere**: a field that asks for a city, a folder, a model, a command…
+  offers a list (▾) and completes with Tab.
 - **UPLINK**: each message says who wrote it — you on a tinted band, UPLINK with its
   model. Before each conversation it reads its **context page** (\`context\` opens
   it): who you are, how it should talk to you, how your vault is organised — built
@@ -277,12 +298,13 @@ were on come back as you left them next time.
   top and the bottom.
 - **Smoothness** (Settings → APPEARANCE): vertical sync (follows your screen,
   120 Hz included) or your own frames per second (0-240; 0 = no animations),
-  brightness, and *reduce animations* for slower machines.
+  brightness, and *Reduce motion* for slower machines.
 `,
 
   "shell.md": `# The shell
 
-Two shells live in the panel at the bottom (▾ hides it, ⌘\` brings it back):
+Two shells live in the panel at the bottom (─ or *▾ shell* in the status bar hides
+it, ⌘\` brings it back):
 
 | Tab | What |
 |---|---|
@@ -305,10 +327,11 @@ Two shells live in the panel at the bottom (▾ hides it, ⌘\` brings it back):
 | \`account\` · \`lock\` | who you're logged in as · log out (the login page) |
 | \`plugin audit <id>\` | what a module's code does before you trust it |
 
-## Scripts (≡ scripts)
-Shell lines kept in \`.icebreaker/scripts/\`, run in one click or \`script <name>\`.
+## Scripts (≡)
+Shell lines kept in \`.icebreaker/scripts/\`, run in one click (≡, top right of the
+shell) or \`script <name>\`.
 \`.ibsh\` scripts run in the deck; \`.sh .py .js .ps1\`… run in your terminal.
-**Import** one from anywhere: ≡ scripts → import, or \`script import "~/x.sh" work\`.
+**Import** one from anywhere: ≡ → import, or \`script import "~/x.sh" work\`.
 
 \`\`\`
 # morning.ibsh — one command per line, # comments, {blanks} are asked
@@ -318,7 +341,7 @@ news
 \`\`\`
 
 ## Bigger
-⤢ maximize turns the shell into a big tab after the others (the page you
+□ (top right of the shell) turns it into a big tab after the others (the page you
 were on stays a tab); \`term dock\` puts a terminal back in the panel.
 
 ## The trash
@@ -330,9 +353,9 @@ o opens it to read.
 
 ## Macros
 Buttons above your terminal that type a command: \`macro add deploy "git pull"\`.
-Right-click one → **shortcut…**: press the keys, see what they'd replace, OK.
-A shortcut can do several things in a row (+ another action). ▴ at the end of
-the row hides the macros, ⌗ macros on the panel brings them back
+Right-click one → **Set shortcut…**: press the keys, see what they'd replace, OK.
+A shortcut can do several things in a row (+ another action). ◂ at the end of
+the row hides the macros, ⌗ on the shell (or ⌘⇧K) brings them back
 (\`macro hide\` / \`macro show\`).
 `,
 
@@ -372,8 +395,8 @@ and its key on THE MENU, changed with one click.
 
 | Mouse | |
 |---|---|
-| click | does it — and shows the command in the shell |
-| double-click | open (one click is enough in the tree) |
+| click | does it — and the shell's **log** tab shows the command |
+| double-click | open (in the tree too: one click selects, one click folds a folder) |
 | back / forward buttons | the tab before / after |
 | two-finger swipe → ← (trackpad) | the tab after / before |
 | pinch · ctrl+wheel | interface bigger / smaller |
@@ -389,7 +412,7 @@ and its key on THE MENU, changed with one click.
 | hold RB | **THE MENU**: the stick chooses, let go to run it (or the d-pad and A) |
 
 Anything can go on THE MENU: right-click a note, a folder, a module or a macro →
-*add to the menu…* and press the key you want, or \`menu add t "launch todo"\`.
+*Add to THE MENU…* and press the key you want, or \`menu add t "launch todo"\`.
 `,
 
   "ai.md": `# The AI, as a work assistant
@@ -402,7 +425,7 @@ leaves it). Stealth mode switches it off entirely.
 ## Where it is
 | | |
 |---|---|
-| **UPLINK** (⌘⇧U) | a chat, as long as you like — several at once in tabs (ctrl+T a new one, ctrl+[ ctrl+] to move, right-click a tab to close it) |
+| **UPLINK** (⌘⇧U) | a chat, as long as you like — several at once in tabs (ctrl+T a new one, ctrl+[ ctrl+] to move, ctrl+shift+W or right-click a tab to close it) |
 | the **chat** widget | a quick question from HOME |
 | \`ask\` in the shell | one question, and you can pipe anything into it |
 
@@ -437,14 +460,20 @@ todo add "pack the books" --every sat --cycles 3
 
   "privacy.md": `# Privacy
 
-- Your notes are **plain Markdown files** in this folder. No account, no cloud.
+- Your notes are **plain Markdown files** in this folder. No cloud, no online account.
 - What goes online, and only when you use it: the AI you chose (or none — or
   a local model with Ollama), the weather (open-meteo.com), the news, Google
   Calendar if you connect it, GitHub when you install from the STORE.
+- **What the AI receives**: your messages, the notes you or it pick, and its
+  **context page** (\`context\` opens it): your profile, the names of your folders,
+  recent notes and pins, the modules that are on. With Ollama, none of it leaves
+  the machine.
 - **Stealth** (⚙ PRIVACY, or \`stealth\`): nothing leaves the machine. At all.
 - **Accounts**: every account has a password (hashed with Argon2id, never
   stored). Before you log in, nothing of anyone is loaded: no vault, no
   settings, no module. A new account must be approved by an existing one.
+- An account **locks the app; it doesn't encrypt your notes yet** (it's planned):
+  anyone who can open this folder on your disk can read them.
 - **Log out** (⌘⇧L): back to the login page.
 - **Notifications** (⚙ NOTIFICATIONS): on screen, sound, your system's
   notification center, read aloud — one box each.
@@ -478,7 +507,7 @@ src-tauri/      the native side (Rust)       docs/      the full docs
 
 Three rules the whole deck follows: **one feature = one module**, **every
 click is a shell command** (so it can be typed, bound to a key, put on THE MENU
-or in a macro), and **everything works offline, without an account, without AI**.
+or in a macro), and **everything works offline, without an online account, without AI**.
 **BLOCKS** (\`blocks\`) lists everything there is to call.
 `,
   "../FOR DEVELOPERS/architecture.md": `# How the deck is built
@@ -504,7 +533,7 @@ nothing is drawn (0 % CPU).
 
 **Clicks**: while drawing, \`ui.hit(rect, { onClick, cmd, menu, tip })\` marks
 an area; the last one drawn under the pointer wins. A \`cmd\` area runs that
-shell command and shows it in the shell — the mouse teaches the command line.
+shell command and the shell's LOG tab shows it — the mouse teaches the command line.
 
 **Traps**: a new setting needs its default in \`core/settings.ts\` (setting an
 unknown key fails); dialogs get raw keys, not "up/confirm" actions.
@@ -540,8 +569,8 @@ screensaver = "city"  # city · paper · terminal · sonar · warp
 | Command | |
 |---|---|
 | \`theme\` | list them |
-| \`theme <name>\` | switch |
-| \`theme tweak ui.accent "#ff2e88"\` | change one value, live |
+| \`theme set <name>\` | switch |
+| \`theme tweak accent #ff2e88\` | change one value, live (\`theme tweak\` lists them) |
 | \`theme new <name>\` | a copy to edit |
 
 Full reference: \`docs/THEMES.md\` in the repository.
@@ -578,7 +607,7 @@ Call anything — another module or the deck's own parts — in one line:
 \`menu\` (open, items, add), \`keys\` (list, run, bind) and \`deck\` (notify, alert, say, setting).
 Settings rows: \`ib.settings.register([{ key, label, type: "toggle" | "choice" | "text" | "number" | "action", … }])\`
 — an \`action\` row runs a \`cmd\` (or \`run()\`) and shows a \`value()\` ("connected"…).
-Widgets: \`size\`, \`min\`, \`max\` (a 1×1 square: \`max: { w: 1, h: 1 }\`), \`popup\` or
+Widgets: \`size\`, \`min\`, \`max\` (a shortcut square: \`max: { w: 1, h: 2 }\`), \`popup\` or
 \`activate\` for Enter, \`clickActivates\` for one-click widgets.
 Errors you report with \`ib.ui.notify(text, "error")\` land in the error log with a code (docs/ERRORS.md).
 
@@ -604,7 +633,7 @@ The full version is \`docs/GUIDELINES.md\` in the repository. In short — a mod
 4. **One thing, one place.** Use what exists (\`ib.lib\`: lists, the filter bar,
    sliders…) and call other modules (\`ib.use("todo")\`) instead of copying them.
 5. **The theme decides the look.** Colours from \`ui.c\`, never a hex colour.
-6. **Offline, private, polite.** Works without internet, account or AI; asks only
+6. **Offline, private, polite.** Works without internet, online account or AI; asks only
    for the permissions it uses; the user's data stays readable in the vault.
 7. **The user is in charge.** Never steal a key; every setting has a default to
    come back to.
@@ -650,7 +679,8 @@ Only share sounds you made or may share, and say the licence in \`pack.toml\`.
 - Your own sounds: \`.icebreaker/sounds/<name>.wav\`, or a whole pack in
   \`.icebreaker/sounds/packs/<id>/\` ([[sound-packs]]).
 - The source: \`git clone\` the repository, \`npm install\`, \`npm run dev\` for the
-  browser preview, \`npm run app:mac\` (or win / linux) for the app.
+  browser preview, \`npm run app\` for the app with hot reload, \`npm run app:mac\`
+  (a Mac) or \`npm run app:build\` (Windows / Linux) to build it.
 `,
 };
 

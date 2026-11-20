@@ -29,6 +29,12 @@ export interface WidgetSpec {
   /** Biggest size it may take (a shortcut square: 1×1). */
   max?: { w: number; h: number };
   render(ui: UI, rect: Rect, ctx: WidgetContext): void;
+  /**
+   * A key while the widget is selected on HOME or the side panel (outside edit
+   * mode): true when the widget used it. Delete (⌘⌫ on a Mac) on the line under
+   * the mouse removes that entry, e for edit…
+   */
+  onKey?(k: KeyInput, ctx: WidgetContext): boolean;
   /** Enter pressed while the widget is selected (outside edit mode), when it has no pop-up. */
   activate?(ctx: WidgetContext): void;
   /**

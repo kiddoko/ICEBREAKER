@@ -192,7 +192,10 @@ export class SidePanel {
         if (chosen && hasFocus) focusWidget(key);
         ui.clip(wi, () => {
           try {
+            const zone = ui.marqueeZone;
+            if (chosen && hasFocus) ui.marqueeZone = wi; // its long texts scroll, as under the mouse
             spec.render(ui, wi, { deck: d, focused: chosen, key });
+            ui.marqueeZone = zone;
           } catch {
             ui.text(wi.x, wi.y, "⚠", { fg: c.error });
           }
@@ -337,6 +340,9 @@ export class SidePanel {
     const key = slots[this.sel]?.key;
     if (k.combo === "esc" && ws.editing) return (ws.editing = false), true;
     if (!key) return false;
+    // outside edit mode, the chosen widget first (Delete on the entry under the mouse…)
+    const spec = this.deck.widgets.get(key.split("#")[0]);
+    if (!ws.editing && spec?.onKey?.(k, { deck: this.deck, focused: true, key })) return true;
     // edit mode: the same keys as HOME — shift+arrows resize, arrows move
     if (ws.editing && (k.combo === "shift+up" || k.combo === "shift+down")) return this.setHeight(key, this.heightOf(key) + (k.combo === "shift+up" ? -1 : 1)), (this.reveal = true), true;
     if ((k.combo === "delete" || k.combo === "backspace") && ws.editing) return void this.deck.act(`panel rm ${key}`), true;

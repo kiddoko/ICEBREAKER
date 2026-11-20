@@ -66,7 +66,7 @@ Tips:
   `vault:write` get enabled more often.
 - Bump `version` in `plugin.json` when you publish changes; users get them with
   `plugin update <id>`.
-- Prefix palette action ids with your plugin id (`pomodoro.start`). Widget and
+- Prefix the ids of your THE MENU actions (`ib.palette.register`) with your plugin id (`pomodoro.start`). Widget and
   app ids are namespaced for you.
 
 ## Publishing a theme

@@ -40,7 +40,7 @@ const STEPS: TourStep[] = [
   },
   {
     title: "VAULT",
-    text: "Your notes, files and folders. ⌘N a new note, F2 renames, Delete (⌘⌫ on a Mac) sends to the trash — nothing is lost, ⌘Z brings it back. ⌘⇧T shows or hides the tree.",
+    text: "Your notes, files and folders. One click selects, a double-click opens. ⌘N a new note, F2 renames, Delete (⌘⌫ on a Mac) sends to the trash — nothing is lost, ⌘Z brings it back. ⌘⇧T shows or hides the tree.",
     prep: (ws) => void (ws.sidebarVisible = true),
     at: (ws) => ws.rects.sidebar,
   },

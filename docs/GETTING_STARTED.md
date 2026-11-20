@@ -75,7 +75,7 @@ point the deck at it (`vault mount /Volumes/nas/vault`). See [PRIVACY.md](PRIVAC
 
 ```bash
 voice install en      # a neural English voice (Jenny), once (~85 MB) — or fr (Siwis), en-us (Amy)
-voice language ja     # or: Japanese, always (the system's Japanese voice; AI answers get translated)
+voice language ja     # or: Japanese, always (the system's Japanese voice; UPLINK writes a Japanese line to say, the rest is translated)
 voice on              # then: voice test
 voice read on         # UPLINK reads its answers aloud
 voice robot 80        # more machine (0 = clean, 100 = full robot)

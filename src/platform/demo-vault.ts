@@ -20,7 +20,7 @@ in your vault — open it with Obsidian, vim, anything. Nothing is locked in.
 - \`Ctrl+Z\` undoes anything; \`tour\` in the shell shows you around
 - \`Ctrl+J\` opens today's journal entry
 - \`Ctrl+\`\` (the key under Esc) toggles the shell
-- \`F1\` opens the manual
+- \`F1\` opens the manual; **START HERE/** in the tree is the guide
 
 ## The shell is real-ish
 Try these in the shell panel:

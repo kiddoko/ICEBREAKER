@@ -1,9 +1,10 @@
 # Privacy policy
 
-*ICEBREAKER desktop app · last updated 18 November 2026*
+*ICEBREAKER desktop app · last updated 20 November 2026*
 
-ICEBREAKER runs on your computer. Its authors run **no server** and **no account
-system**, and the app sends **no telemetry**. We do not collect, receive, sell or
+ICEBREAKER runs on your computer. Its authors run **no server** and **no online
+accounts** (the deck's accounts live on your computer only), and the app sends
+**no telemetry**. We do not collect, receive, sell or
 share any of your data.
 
 ## What stays on your computer
@@ -12,6 +13,12 @@ Everything you create: notes, journal, tasks, calendar events of the local
 calendar, settings, your music library index. They are plain files in your vault
 or in the app's configuration folder.
 
+**Accounts** are local: a name, a profile icon and a password. The password is
+never stored — only an Argon2id hash of it, in the app's configuration folder.
+An account locks the app; it does **not** encrypt your notes yet (planned: see
+[ENCRYPTION.md](ENCRYPTION.md)), so anyone who can open the vault folder on
+your disk can read them.
+
 ## When the app uses the network
 
 Only when you use a feature that needs it, and only to the service that feature
@@ -19,7 +26,7 @@ names:
 
 | feature | goes to | sends |
 |---------|---------|-------|
-| AI (UPLINK, AI-powered modules) | the provider *you* choose: Claude (Anthropic) via Claude Code or an API key, or a local model (Ollama, nothing leaves your machine) | your messages and the notes you or the AI pick |
+| AI (UPLINK, AI-powered modules) | the provider *you* choose: Claude (Anthropic) via Claude Code or an API key, or a local model (Ollama, nothing leaves your machine) | your messages, the notes you or the AI pick, and UPLINK's context page (below); with the Japanese voice, the answers to translate |
 | Weather widget | open-meteo.com | the location you entered (city or coordinates) |
 | News widget | Google News / Bing News RSS | your search terms, language, country |
 | Google Calendar (optional) | googleapis.com | see below |
@@ -27,6 +34,14 @@ names:
 | `voice install` (once) | GitHub (the sherpa-onnx engine and a piper voice) | nothing but the download request |
 
 The voice itself is synthesized on your computer: what it reads never leaves it.
+
+**UPLINK's context page** (`.icebreaker/context.md`, `context` opens it) goes to
+the AI provider at the start of every conversation: your handle and profile, the
+place you gave at setup, the names of your folders, of the last notes you touched
+and of your pins, your colour tags, the modules that are on, the date — plus what
+you wrote in it yourself. Read it and change your part whenever you like (the
+automatic part is rebuilt before each conversation). With
+a local model (Ollama) none of it leaves your machine.
 
 Each of these can be left off. **Stealth mode** (`stealth on`, or "Stealth" in
 the setup) turns all of them off at once and blocks any connection outside this
@@ -75,4 +90,4 @@ Open an issue on the project's repository.
 
 ## Self-destruct
 
-`self-destruct` in the shell deletes everything inside the vault folder for good (not to the trash). It asks four times — a dialog, the folder's name, `DESTROY` in capitals, your password if the deck has a login — then counts down from 10 (ctrl+c stops it). Copies elsewhere are **not** touched: iCloud / Dropbox / Syncthing copies on other devices, git remotes, Time Machine and other backups.
+`self-destruct` in the shell deletes everything inside the vault folder for good (not to the trash). It asks four times — a dialog, the folder's name, `DESTROY` in capitals, your account's password — then counts down from 10 (ctrl+c stops it). Copies elsewhere are **not** touched: iCloud / Dropbox / Syncthing copies on other devices, git remotes, Time Machine and other backups.

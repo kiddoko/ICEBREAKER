@@ -3,10 +3,10 @@ import { SOUND_NAMES, SOUND_PACKS, type SoundName } from "../../core/sound";
 import type { Command } from "../types";
 import { describe, ERROR_CODES, ERRORS_DOC } from "../../core/errors";
 
-/** The error log (the shell's errors tab). */
+/** The error log (the shell's LOG tab). */
 export const errorsCommand: Command = {
   name: "errors",
-  summary: "what went wrong, with codes (E101…) explained — the shell's errors tab",
+  summary: "what went wrong, with codes (E101…) explained — the shell's log tab",
   usage: "errors            the list, newest first\nerrors <code>     what that code means and what to do (E102…)\nerrors codes      every code\nerrors clear      empty the list",
   complete: () => ["clear", "codes", ...ERROR_CODES.map((e) => e.code)],
   run(ctx) {
@@ -29,7 +29,7 @@ export const errorsCommand: Command = {
   },
 };
 
-/** Everything silent at once (the 🔇 button bottom-right). */
+/** Everything silent at once (the ♪ button bottom-right). */
 export const mute: Command = {
   name: "mute",
   summary: "silence everything: ui sounds, the voice, alerts (again: sound back)",
@@ -41,7 +41,7 @@ export const mute: Command = {
     const next = a === "on" ? true : a === "off" ? false : !s.data.sound.muted;
     s.set("sound.muted", next);
     ctx.deck.applySettings("sound.muted");
-    ctx.out(next ? "🔇 muted — mute again to hear things\n" : "🔊 sound back\n");
+    ctx.out(next ? "♪ off — muted (mute again to hear things)\n" : "♪ on — sound back\n");
     return 0;
   },
 };

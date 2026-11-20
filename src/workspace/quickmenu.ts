@@ -28,7 +28,7 @@ import type { Overlay } from "./overlays";
  *   1. the deck's shortcuts (core/shortcuts.ts `menuKey`, changed in Settings → KEYS)
  *   2. modules: ib.palette.register({ id, title, key: "g", run })  (only if the key is free)
  *   3. yours: settings.keys "menu g" → a command (`menu add g "open notes/x.md"`,
- *      or right-click anything → "add to the menu…")
+ *      or right-click anything → "Add to THE MENU…")
  */
 export interface QuickItem {
   key: string;
@@ -229,7 +229,7 @@ export class QuickMenu implements Overlay {
       if (hot) ui.fill(cell, { bg });
       ui.text(cell.x + 1, cell.y, it.key, { fg: c.accent, bg, attrs: BOLD });
       const label = it.from === "deck" ? t(it.label) : it.label;
-      ui.text(cell.x + 3, cell.y, truncate(label, CELL - 5), { fg: it.from === "yours" ? c.title : on ? c.fg : c.muted, bg });
+      ui.text(cell.x + 3, cell.y, label, { fg: it.from === "yours" ? c.title : on ? c.fg : c.muted, bg }, CELL - 5);
       ui.hit(cell, { onClick: () => this.runItem(it), tip: it.tip });
     });
     ui.text(body.x + 1, body.y + body.h - 1, t("a key + enter runs it · type to search · ⌘K or shift twice, from anywhere"), { fg: c.faint, bg: c.panelAlt }, body.w - 2);

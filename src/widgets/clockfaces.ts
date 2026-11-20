@@ -239,12 +239,12 @@ export function drawClock(ui: UI, r: Rect, deck: Deck, now = new Date(), key?: s
 export const clockCommand: Command = {
   name: "clock",
   summary: "the clock widget's face: dots, segment, analog, binary, minimal; seconds on/off",
-  usage: "clock                       what it shows now\nclock style <name>          dots · segment · analog · binary · minimal\nclock style next            the next one\nclock seconds on|off        show the seconds",
+  usage: "clock                       what it shows now\nclock style <name>          dots · segment · analog · binary · minimal\nclock style next | prev     the next / the one before\nclock seconds on|off        show the seconds",
   examples: [
     ["clock style analog", "a round dial"],
     ["clock seconds on", "with the seconds"],
   ],
-  complete: () => ["style", "seconds", ...CLOCK_STYLES, "on", "off", "next"],
+  complete: () => ["style", "seconds", ...CLOCK_STYLES, "on", "off", "next", "prev"],
   run(ctx) {
     const d = ctx.deck;
     const h = d.settings.data.home;
@@ -256,7 +256,8 @@ export const clockCommand: Command = {
     if (!sub) return ctx.out(`style ${style} · seconds ${seconds ? "on" : "off"}\n`), 0;
     if (sub === "style") {
       const cur = (CLOCK_STYLES as readonly string[]).indexOf(style);
-      const next = v === "next" || !v ? CLOCK_STYLES[(cur + 1) % CLOCK_STYLES.length] : v;
+      const n = CLOCK_STYLES.length;
+      const next = v === "next" || !v ? CLOCK_STYLES[(cur + 1) % n] : v === "prev" ? CLOCK_STYLES[(cur - 1 + n) % n] : v;
       if (!(CLOCK_STYLES as readonly string[]).includes(next)) return ctx.err(`clock: styles are ${CLOCK_STYLES.join(", ")}\n`), 1;
       setWidgetSetting(d, "clock", "style", next, "home.clockStyle");
       ctx.out(`clock style ${next}\n`);

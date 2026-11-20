@@ -46,7 +46,7 @@ by the deck's built-in synthesizer. Start with the four you hear all the time
 | `unlock` | the login is accepted | once a session | 0.3–1.5 s |
 | `denied` | a wrong password | rarely | 0.2–1 s |
 | `boot` | the deck starts | once a session | 1–4 s |
-| `blip` | text typing itself out (the tour, notifications, dialogs) — a Game Boy RPG blip | **constantly** while text appears | 15–40 ms |
+| `blip` | text typing itself out (the tour, UPLINK, the shell, notifications, dialogs) — a Game Boy RPG blip | **constantly** while text appears | 15–40 ms |
 | `key` | your own keys, when "a click on your keys" is on (off by default) | **constantly** while typing | 10–30 ms |
 | `erase` | backspace / delete, with the same switch — lower, sliding down | often while typing | 10–40 ms |
 

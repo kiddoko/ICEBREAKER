@@ -34,7 +34,7 @@ export class Renderer {
    * — what you type, the terminal, the chat — so text flows instead of popping.
    * `fading` says frames are still needed (the deck asks for the next one).
    */
-  fadeMs = 110;
+  fadeMs = 220;
   /** `debug state`: cells fading now, and those fading for too long (should be 0) */
   fadeStats(): { fading: number; stuck: number } {
     const now = performance.now();
@@ -72,8 +72,87 @@ export class Renderer {
     this.canvasBlur = this.bloomCtx.filter === "blur(1px)";
     this.bloomCtx.filter = "none";
     if (this.canvasBlur) bloom.classList.add("canvas-blur");
+    // the caret: a thin bar above the grid that glides from letter to letter and
+    // breathes instead of blinking hard (CSS: no cell is repainted for it)
+    // + a faint trail that follows it a little later (a smear of light when it jumps)
+    const bar = (cls: string) => {
+      const el = document.createElement("div");
+      el.className = cls;
+      Object.assign(el.style, { position: "absolute", left: "0", top: "0", width: "2px", pointerEvents: "none", display: "none", zIndex: "3", borderRadius: "1px", willChange: "transform, opacity" });
+      canvas.parentElement?.appendChild(el);
+      return el;
+    };
+    this.trailEl = bar("ib-caret-trail");
+    this.caretEl = bar("ib-caret");
+    if (!document.getElementById("ib-caret-style")) {
+      const st = document.createElement("style");
+      st.id = "ib-caret-style";
+      st.textContent = [
+        // breathing, not blinking: a slow sine between bright and dim
+        "@keyframes ib-caret-breathe{0%,40%{opacity:1}70%,85%{opacity:.18}100%{opacity:1}}",
+        // a key pressed: a short flare
+        "@keyframes ib-caret-key{0%{filter:brightness(1.9);box-shadow:0 0 10px currentColor}100%{filter:none}}",
+        ".ib-caret{animation:ib-caret-breathe 1.2s cubic-bezier(.45,0,.55,1) .7s infinite}",
+        ".ib-caret.key{animation:ib-caret-key .22s ease-out,ib-caret-breathe 1.2s cubic-bezier(.45,0,.55,1) .9s infinite}",
+        ".ib-caret-trail{opacity:.3;filter:blur(1px)}",
+        ".ib-caret.still,.ib-caret-trail.still{transition:none!important}",
+      ].join("");
+      document.head.appendChild(st);
+    }
     this.setFontSize(fontSize);
   }
+
+  private caretEl: HTMLDivElement;
+  private trailEl: HTMLDivElement;
+  private caretAt = { x: -1, y: -1, typed: 0 };
+
+  /**
+   * Where the caret is this frame (null: none). `typedAt` restarts the breathing
+   * (solid while you type); `still` drops the glide (reduce motion).
+   */
+  setCaret(pos: { x: number; y: number } | null, color: string, typedAt: number, still: boolean): void {
+    const el = this.caretEl, tr = this.trailEl;
+    if (!pos || !this.cellW) {
+      if (el.style.display !== "none") el.style.display = tr.style.display = "none";
+      this.caretAt.x = -1;
+      return;
+    }
+    const cw = this.cellW / this.dpr, ch = this.cellH / this.dpr;
+    const shown = el.style.display !== "none";
+    // appearing: straight there, no slide from where it was last
+    el.classList.toggle("still", still || !shown);
+    tr.classList.toggle("still", still || !shown);
+    if (!shown) el.style.display = tr.style.display = "block";
+    const h = `${Math.round(ch * 0.86)}px`;
+    for (const e of [el, tr]) {
+      e.style.background = color;
+      e.style.height = h;
+    }
+    el.style.color = color;
+    el.style.boxShadow = `0 0 6px ${color}`;
+    const moved = pos.x !== this.caretAt.x || pos.y !== this.caretAt.y;
+    if (moved) {
+      // the farther it goes, the longer (and softer) the glide; a jump (end of line,
+      // another line) waits a breath before leaving, the trail a little more
+      const far = this.caretAt.x < 0 ? 0 : Math.abs(pos.x - this.caretAt.x) + Math.abs(pos.y - this.caretAt.y) * 4;
+      const ms = Math.min(240, 75 + far * 9);
+      const wait = far > 3 ? 30 : 0;
+      const ease = "cubic-bezier(.22,1,.36,1)";
+      el.style.transition = `transform ${ms}ms ${ease} ${wait}ms, height 80ms`;
+      tr.style.transition = `transform ${Math.round(ms * 1.9)}ms ${ease} ${wait + 25}ms, height 80ms`;
+      const to = `translate(${Math.round(this.left + pos.x * cw)}px, ${Math.round(this.top + pos.y * ch + ch * 0.07)}px)`;
+      el.style.transform = to;
+      tr.style.transform = to;
+    }
+    if (typedAt !== this.caretAt.typed) {
+      // a key: a short flare, then it breathes again (solid while you type)
+      el.classList.remove("key");
+      void el.offsetWidth;
+      el.classList.add("key");
+    }
+    this.caretAt = { x: pos.x, y: pos.y, typed: typedAt };
+  }
+
 
   /** Change the font size in CSS px (zoom). Rebuilds metrics and forces a full repaint. */
   setFontSize(size: number): void {
@@ -410,7 +489,8 @@ export class Renderer {
         if (cp > 32) {
           const age = born[i] > 0 ? (now - born[i]) / fade : 1;
           if (age < 1) {
-            ctx.globalAlpha = 0.25 + 0.75 * age * (2 - age); // ease out, never invisible
+            // a soft S-curve: it starts gently, settles gently (never invisible)
+            ctx.globalAlpha = 0.15 + 0.85 * age * age * (3 - 2 * age);
             this.fading = true;
           } else born[i] = 0;
           this.atlas.draw(ctx, cp, g.fg[i], attrs, x * cw, y * ch, charWidth(cp) === 2 ? 2 : 1);

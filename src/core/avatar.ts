@@ -31,7 +31,7 @@ export const AVATARS: Avatar[] = [
   { id: "oni", name: "oni", art: ["▲▄▄▄▲", "█◥ ◤█", "▀▀▼▀▀"] },
   { id: "drone", name: "drone", art: ["─┬─┬─", " ▐◎▌ ", "─┴─┴─"] },
   { id: "eye", name: "eye", art: [" ▄▄▄ ", "◀ ◉ ▶", " ▀▀▀ "] },
-  ...["☠", "⚡", "♞", "◆", "✦", "λ", "⌬", "☢", "☾", "★", "♥", "∞", "Ω", "▲", "◎", "⚙", "⛧", "☯", "♠", "❖"].map((g) => ({ id: g, name: g, art: g })),
+  ...["☠", "ϟ", "♞", "◆", "✦", "λ", "⌬", "☢", "☾", "★", "♥", "∞", "Ω", "▲", "◎", "⚙", "⛧", "☯", "♠", "❖"].map((g) => ({ id: g, name: g, art: g })),
 ];
 
 /** The colours an icon can wear: the theme's accent, or the tag colours. */

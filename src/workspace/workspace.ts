@@ -1,5 +1,5 @@
 import { editMenu, shellMenu } from "./menus";
-import { editBand, renderShellPanel, renderStatusBar, renderSubtitles, renderTip, renderTopBar } from "./chrome";
+import { editBand, renderNotchBand, renderShellPanel, renderStatusBar, renderSubtitles, renderTip, renderTopBar } from "./chrome";
 import { shortcutFor, type Shortcut } from "../core/shortcuts";
 import { SidePanel } from "./sidepanel";
 import { LogPane } from "./logpane";
@@ -758,18 +758,24 @@ export class Workspace {
     if (i >= 0) this.switchTab(i);
   }
 
+  /** rows hidden by the camera notch in full screen (deck.measureNotch): a band, the deck starts under it */
+  notchRows = 0;
+
   render(ui: UI): void {
     const d = this.deck;
     this.noteVisit();
     this.saveSession();
     const W = ui.cols;
-    const H = ui.rows;
+    const N = this.notchRows;
+    const H = ui.rows - N;
     // the animated background (not with reduce motion: it's the costliest thing that never stops)
-    if (d.settings.data.fx.ambient && !d.settings.data.appearance.reduceMotion) drawBackground(ui, { x: 0, y: 0, w: W, h: H }, ui.theme, 0.7);
+    if (d.settings.data.fx.ambient && !d.settings.data.appearance.reduceMotion) drawBackground(ui, { x: 0, y: N, w: W, h: H }, ui.theme, 0.7);
+    if (N) renderNotchBand(ui, { x: 0, y: 0, w: W, h: N });
+    if (N && d.settings.data.fx.ambient && !d.settings.data.appearance.reduceMotion) drawBackground(ui, { x: 0, y: 0, w: W, h: N }, ui.theme, 0.7);
 
-    renderTopBar(this, ui, { x: 0, y: 0, w: W, h: 1 });
+    renderTopBar(this, ui, { x: 0, y: N, w: W, h: 1 });
 
-    const body = { x: 1, y: 1, w: W - 2, h: H - 2 };
+    const body = { x: 1, y: N + 1, w: W - 2, h: H - 2 };
     let shellH = 0;
     if (this.shellVisible) shellH = Math.max(5, Math.min(body.h - 8, Math.round(body.h * this.shellRatio)));
     const top = { x: body.x, y: body.y, w: body.w, h: body.h - shellH };
@@ -811,10 +817,10 @@ export class Workspace {
       renderShellPanel(this, ui, r, body, max);
     }
 
-    renderStatusBar(this, ui, { x: 0, y: H - 1, w: W, h: 1 });
-    renderSubtitles(this, ui, W, H);
+    renderStatusBar(this, ui, { x: 0, y: N + H - 1, w: W, h: 1 });
+    renderSubtitles(this, ui, W, N + H);
 
-    const screen = { x: 0, y: 0, w: W, h: H };
+    const screen = { x: 0, y: N, w: W, h: H };
     this.overlays = this.overlays.filter((o) => !o.done);
     // the on-screen keyboard is drawn last so it stays clickable above dialogs
     for (const o of this.overlays) if (!(o instanceof Osk)) o.render(ui, screen);

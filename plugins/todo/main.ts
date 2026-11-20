@@ -754,7 +754,7 @@ export function activate(ib: IcebreakerAPI): void {
         this.sel = 0;
         return true;
       }
-      if (k.combo === "delete" && this.current) return run(`todo rm ${this.current.id}`), true;
+      if ((k.combo === "delete" || k.combo === "ctrl+backspace") && this.current) return run(`todo rm ${this.current.id}`), true;
       return false;
     }
 
@@ -899,6 +899,24 @@ export function activate(ib: IcebreakerAPI): void {
   // ── the HOME widget (and its pop-up: quick add) ──
   let quick = "";
   let quickSel = 0;
+  /** the task under the mouse in the HOME widget (Delete / ⌘⌫ removes it) */
+  let hoverId: number | null = null;
+  const isDelete = (k: KeyInput) => k.combo === "delete" || k.combo === "ctrl+backspace" || k.combo === "backspace";
+  const editTask = async (t: Task) => {
+    const v = await ib.ui.prompt(`edit #${t.id}`, { initial: t.text });
+    if (v?.trim() && v.trim() !== t.text) run(`todo edit ${t.id} ${q(v.trim())}`);
+  };
+  const dueTask = async (t: Task) => {
+    const v = await ib.ui.prompt(`due date for #${t.id}`, { initial: t.due ?? "", placeholder: "today, tomorrow, fri, +3d, 24/12 — or - to clear", suggestions: ["today", "tomorrow", "mon", "fri", "+3d", "+1w", "-"] });
+    if (v !== null) run(`todo due ${t.id} ${q(v.trim() || "-")}`);
+  };
+  /** right-click on a task, in the widget and its pop-up */
+  const taskMenu = (t: Task) => [
+    { label: "Done ✓", cmd: `todo done ${t.id}`, hint: "click" },
+    { label: "Edit…", run: () => void editTask(t), hint: "e" },
+    { label: "Due date…", run: () => void dueTask(t), hint: "d" },
+    { label: "Remove", cmd: `todo rm ${t.id}`, danger: true, hint: "del" },
+  ];
 
   ib.widgets.register({
     id: "list",
@@ -906,9 +924,16 @@ export function activate(ib: IcebreakerAPI): void {
     description: "what's left to do (TODO module)",
     size: { w: 4, h: 5 },
     min: { w: 2, h: 2 },
+    onKey(k) {
+      const t = tasks.find((x) => x.id === hoverId && !x.done);
+      if (!t || !isDelete(k)) return false;
+      run(`todo rm ${t.id}`);
+      return true;
+    },
     render(ui, r) {
       const c = ui.c;
       const g = ui.theme.glyphs;
+      hoverId = null;
       if (!loaded) return void ui.text(r.x + 1, r.y, `${ui.spinner()} loading…`, { fg: c.muted });
       const open = pick("open");
       const urgent = open.filter((t) => t.prio === "urgent").length;
@@ -929,9 +954,10 @@ export function activate(ib: IcebreakerAPI): void {
         const y = r.y + 1 + i;
         const row = { x: r.x, y, w: r.w, h: 1 };
         const hot = ui.hovered(row);
+        if (hot) hoverId = t.id;
         const box = hot ? g.done : g.todo;
         ui.text(r.x + 1, y, box, { fg: pc(t.prio), attrs: BOLD });
-        ui.hit(row, { cmd: `todo done ${t.id}`, tip: `${describe(t)}\nclick: done · todo undo ${t.id} to take it back` });
+        ui.hit(row, { cmd: `todo done ${t.id}`, tip: `${describe(t)}\nclick: done · del: remove · right-click: edit, due date`, menu: () => taskMenu(t) });
         const tx = r.x + 2 + strWidth(box);
         const due = t.due ? dueLabel(t.due) : "";
         const dueFg = t.due && daysUntil(t.due) < 0 ? c.error : t.due && daysUntil(t.due) === 0 ? c.warning : c.subtle;
@@ -944,7 +970,7 @@ export function activate(ib: IcebreakerAPI): void {
     popup: {
       title: "todo",
       size: { w: 64, h: 14 },
-      hint: "type + enter: add · ↑↓ · space: done",
+      hint: "type + enter: add · ↑↓ · space: done · del: remove · right-click: edit",
       render(ui, r) {
         const c = ui.c;
         ui.fill({ x: r.x + 1, y: r.y, w: r.w - 2, h: 1 }, { bg: c.highlight });
@@ -962,7 +988,7 @@ export function activate(ib: IcebreakerAPI): void {
           ui.text(r.x + 2, y, ui.theme.glyphs.todo, { fg: c.subtle, ...st });
           ui.text(r.x + 5, y, t.text, { fg: c.fg, attrs: sel ? BOLD : 0, ...st }, r.w - 20);
           if (t.due) ui.textRight(r.x + r.w - 2, y, dueLabel(t.due), { fg: daysUntil(t.due) < 0 ? c.error : c.subtle, ...st });
-          ui.hit(row, { cmd: `todo done ${t.id}`, tip: "click: done" });
+          ui.hit(row, { cmd: `todo done ${t.id}`, tip: "click: done · right-click: edit, due date, remove", menu: () => taskMenu(t) });
         });
         if (!open.length) ui.text(r.x + 2, r.y + 2, "nothing to do. suspicious.", { fg: c.muted });
       },
@@ -976,6 +1002,12 @@ export function activate(ib: IcebreakerAPI): void {
         return true;
       },
       onKey: (k) => {
+        // nothing typed: Delete (⌘⌫) removes the chosen task
+        if (!quick && isDelete(k)) {
+          const cur = pick("open")[quickSel];
+          if (cur) run(`todo rm ${cur.id}`);
+          return true;
+        }
         if (k.combo === "backspace") return (quick = quick.slice(0, -1)), true;
         if (k.combo === "enter" && quick.trim()) {
           run(`todo add ${quick.trim()}`); // same syntax as typing it in the shell

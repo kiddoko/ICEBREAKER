@@ -540,7 +540,7 @@ async function refreshPulse(deck: Deck): Promise<void> {
   await tryLine(async () => {
     if (!has("reminders", "list")) return null;
     const list = ((await deck.use("reminders").list()) as { title: string; due: string }[]).sort((a, b) => a.due.localeCompare(b.due));
-    return list[0] ? { icon: "⏰", name: t("reminder"), text: `${time(new Date(list[0].due))} ${list[0].title}`, cmd: "remind open" } : null;
+    return list[0] ? { icon: "◷", name: t("reminder"), text: `${time(new Date(list[0].due))} ${list[0].title}`, cmd: "remind open" } : null;
   });
   await tryLine(async () => {
     if (!has("habits", "list")) return null;

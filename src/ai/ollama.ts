@@ -11,6 +11,21 @@ import type { ChatHandlers, ChatSession, Provider, SessionOptions } from "./type
  * Tool use (letting the model read your vault) isn't wired for Ollama yet:
  * local chat works, vault tools are Claude-only for now.
  */
+/** The models this Ollama has pulled (for the settings' list); [] when it doesn't answer within 1.5 s. */
+export async function ollamaModels(host: string): Promise<string[]> {
+  if (!host) return [];
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 1500);
+    const res = await fetch(`${host.replace(/\/$/, "")}/api/tags`, { signal: ctl.signal });
+    clearTimeout(timer);
+    const j = (await res.json()) as { models?: { name?: string }[] };
+    return (j.models ?? []).map((m) => m.name ?? "").filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 export class OllamaProvider implements Provider {
   readonly id = "ollama" as const;
 

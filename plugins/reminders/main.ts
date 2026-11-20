@@ -106,11 +106,11 @@ export function activate(ib: IcebreakerAPI): void {
         r.fired = r.warned = true;
         changed = true;
         void ib.stats.add("rung", 1, { label: "reminders rung", kind: "counter" }).catch(() => {});
-        ib.ui.alert(`⏰ ${r.title}`, t("now"));
+        ib.ui.alert(`◷ ${r.title}`, t("now"));
       } else if (!r.warned && r.before > 0 && now >= due - r.before * 60000) {
         r.warned = true;
         changed = true;
-        ib.ui.alert(`⏰ ${r.title}`, t("in {n} min", { n: Math.max(1, Math.round((due - now) / 60000)) }));
+        ib.ui.alert(`◷ ${r.title}`, t("in {n} min", { n: Math.max(1, Math.round((due - now) / 60000)) }));
       }
     }
     if (changed) void save();
@@ -122,15 +122,38 @@ export function activate(ib: IcebreakerAPI): void {
     { key: "before", label: "early warning, by default (minutes)", type: "choice", options: ["0", "5", "10", "15", "30", "60"], default: "15", help: "How long before the time a reminder warns you first (then it rings again on time). 0 = only on time. `--before` on a reminder overrides it." },
   ]);
 
+  /** Words → the title, and the time if some words say one (fri 18:00, tomorrow 9h, +10m). */
+  function parseWhen(words: string[]): { title: string[]; due: Date | null; inMin: number | null } {
+    let day: Date | null = null, time: [number, number] | null = null, inMin: number | null = null;
+    const title: string[] = [];
+    for (const w of words) {
+      if (inMin === null && parseIn(w) !== null) inMin = parseIn(w);
+      else if (!time && parseTime(w)) time = parseTime(w);
+      else if (!day && parseDay(w)) day = parseDay(w);
+      else title.push(w);
+    }
+    return { title, due: day || time || inMin !== null ? whenOf(day, time, inMin) : null, inMin };
+  }
+
+  function whenOf(day: Date | null, time: [number, number] | null, inMin: number | null): Date {
+    if (inMin !== null) return new Date(Date.now() + inMin * 60000);
+    const d = day ?? new Date();
+    const [h, m] = time ?? [9, 0];
+    let due = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m);
+    if (!day && due.getTime() < Date.now()) due = new Date(due.getTime() + 86400000); // a time already past today → tomorrow
+    return due;
+  }
+
   ib.commands.register({
     name: "remind",
     aliases: ["reminder", "reminders"],
     summary: "local reminders: a notification before and on time (REMINDERS module)",
     usage: [
       'remind "title" <day> <time> [--before 15m]   (default: 15 min before, then on time)',
-      'remind "title" +10m | +2h                    in a while',
+      'remind "title" +10m | +2h                    in a while (no time: in 1 hour)',
       "remind ls                                    what's coming",
       "remind done <n> · remind rm <n>",
+      'remind edit <n> "new title" [new time]       change it (what you give)',
       "remind test                                  try the notification",
       "remind open                                  the REMINDERS app",
     ].join("\n"),
@@ -139,7 +162,7 @@ export function activate(ib: IcebreakerAPI): void {
       ['remind "pills" tomorrow 9h --before 0', "only on time"],
       ['remind "tea" +10m', "in 10 minutes"],
     ],
-    complete: () => ["ls", "done", "rm", "test", "open"],
+    complete: () => ["ls", "done", "rm", "edit", "test", "open"],
     async run(ctx) {
       await ready;
       const [sub, ...rest] = ctx.args;
@@ -150,7 +173,7 @@ export function activate(ib: IcebreakerAPI): void {
         return 0;
       }
       if (sub === "open") return void ib.apps.open("reminders"), 0;
-      if (sub === "test") return ib.ui.alert("⏰ ICEBREAKER", t("this is what a reminder looks like")), 0;
+      if (sub === "test") return ib.ui.alert("◷ ICEBREAKER", t("this is what a reminder looks like")), 0;
       if (sub === "done" || sub === "rm" || sub === "remove") {
         const r = list.find((x) => x.id === Number(rest[0]));
         if (!r) return ctx.err(`remind: no reminder ${rest[0] ?? ""} (remind ls)\n`), 1;
@@ -160,32 +183,36 @@ export function activate(ib: IcebreakerAPI): void {
         ctx.out(`${sub === "done" ? fmt.green("✓") : fmt.red("✕")} ${r.title}\n`);
         return 0;
       }
+      if (sub === "edit") {
+        // remind edit <n> "new title" [new time] — what you give changes, the rest stays
+        const r = list.find((x) => x.id === Number(rest[0]));
+        if (!r) return ctx.err(`remind: no reminder ${rest[0] ?? ""} (remind ls)\n`), 1;
+        const { flags: ef, rest: ew } = parseFlags(rest.slice(1), ["before"]);
+        const p = parseWhen(ew);
+        if (p.title.length) r.title = p.title.join(" ");
+        if (p.due) {
+          r.due = p.due.toISOString();
+          r.warned = r.fired = false;
+        }
+        const eb = typeof ef.before === "string" ? /^(\d+)(m|min|h)?$/.exec(ef.before) : null;
+        if (eb) r.before = Number(eb[1]) * (eb[2] === "h" ? 60 : 1);
+        await save();
+        ctx.out(`${fmt.cyan("~")} ${fmt.bold(r.title)} ${fmt.dim(`· ${when(r)} · #${r.id}`)}\n`);
+        return 0;
+      }
       // remind "title" <when…>
       const { flags, rest: words } = parseFlags(ctx.args, ["before"]);
-      let day: Date | null = null, time: [number, number] | null = null, inMin: number | null = null;
-      const title: string[] = [];
-      for (const w of words) {
-        if (inMin === null && parseIn(w) !== null) inMin = parseIn(w);
-        else if (!time && parseTime(w)) time = parseTime(w);
-        else if (!day && parseDay(w)) day = parseDay(w);
-        else title.push(w);
-      }
+      const { title, due: parsed, inMin } = parseWhen(words);
       if (!title.length) return ctx.err('usage: remind "title" <day> <time> | +10m\n'), 1;
-      let due: Date;
-      if (inMin !== null) due = new Date(Date.now() + inMin * 60000);
-      else {
-        const d = day ?? new Date();
-        const [h, m] = time ?? [9, 0];
-        due = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m);
-        if (!day && due.getTime() < Date.now()) due = new Date(due.getTime() + 86400000); // a time already past today → tomorrow
-      }
+      // no time given: in an hour
+      const due = parsed ?? new Date(Date.now() + 3600_000);
       const b = typeof flags.before === "string" ? /^(\d+)(m|min|h)?$/.exec(flags.before) : null;
       const dflt = Number(ib.settings.get("before") ?? 15);
       const before = b ? Number(b[1]) * (b[2] === "h" ? 60 : 1) : inMin !== null && inMin <= dflt ? 0 : dflt;
       const r: Reminder = { id: next++, title: title.join(" "), due: due.toISOString(), before, done: false, warned: false, fired: false };
       list.push(r);
       await save();
-      ctx.out(`${fmt.green("⏰")} ${fmt.bold(r.title)} ${fmt.dim(`· ${when(r)}${before ? ` · ${t("a notification {n} min before", { n: before })}` : ""} · #${r.id}`)}\n`);
+      ctx.out(`${fmt.green("◷")} ${fmt.bold(r.title)} ${fmt.dim(`· ${when(r)}${before ? ` · ${t("a notification {n} min before", { n: before })}` : ""} · #${r.id}`)}\n`);
       return 0;
     },
   });
@@ -197,13 +224,21 @@ export function activate(ib: IcebreakerAPI): void {
     // ask again until the time is understood (it used to fail silently, in the shell)
     let initial = "";
     for (;;) {
-      const at = await ib.ui.prompt(t("When? (enter to confirm)"), { initial, placeholder: "fri 18:00 · tomorrow 9h · +10m", suggestions: ["+10m", "+30m", "+1h", "today 18:00", "today 21:00", "tomorrow 9:00", "demain 9h", "mon 9:00", "fri 18:00"] });
-      if (!at?.trim()) return;
+      const raw = await ib.ui.prompt(t("When? (empty: in 1 hour)"), { initial, placeholder: "fri 18:00 · tomorrow 9h · +10m", suggestions: ["+10m", "+30m", "+1h", "today 18:00", "today 21:00", "tomorrow 9:00", "demain 9h", "mon 9:00", "fri 18:00"] });
+      if (raw === null) return; // esc: no reminder
+      const at = raw.trim() || "+1h"; // nothing said: in an hour
+      // every word must say a time: one that doesn't would end up in the title
+      const p = parseWhen(at.split(/\s+/));
+      if (p.title.length || !p.due) {
+        ib.ui.notify(t("I didn't understand \"{at}\" — try fri 18:00, tomorrow 9h, +10m", { at }), "warning");
+        initial = at;
+        continue;
+      }
       const before = list.length;
       const code = await ib.shell.run(`remind ${q(title.trim())} ${at.trim()}`);
       if (code === 0 && list.length > before) {
         const r = list[list.length - 1];
-        ib.ui.notify(`⏰ ${r.title} — ${when(r)}`, "success");
+        ib.ui.notify(`◷ ${r.title} — ${when(r)}`, "success");
         return;
       }
       ib.ui.notify(t("I didn't understand \"{at}\" — try fri 18:00, tomorrow 9h, +10m", { at: at.trim() }), "warning");
@@ -211,10 +246,24 @@ export function activate(ib: IcebreakerAPI): void {
     }
   }
 
+  /** Change a reminder: its title, then its time (empty = keep it). */
+  async function editFlow(rem: Reminder): Promise<void> {
+    const title = await ib.ui.prompt(t("The reminder"), { initial: rem.title });
+    if (title === null) return;
+    const at = await ib.ui.prompt(t("When? (empty: keep {when})", { when: when(rem) }), { placeholder: "fri 18:00 · tomorrow 9h · +10m", suggestions: ["+10m", "+30m", "+1h", "today 18:00", "tomorrow 9:00", "mon 9:00", "fri 18:00"] });
+    if (at === null) return;
+    await ib.shell.run(`remind edit ${rem.id} ${q(title.trim() || rem.title)} ${at.trim()}`);
+  }
+
+  /** the line under the mouse in the HOME widget (Delete / ⌘⌫ removes it) */
+  let hoverId: number | null = null;
+  const isDelete = (k: KeyInput) => k.combo === "delete" || k.combo === "ctrl+backspace" || k.combo === "backspace";
+
   /** right-click on a reminder */
   const remMenu = (rem: Reminder) => [
     { label: t("done ✓"), cmd: `remind done ${rem.id}` },
-    { label: t("remove"), cmd: `remind rm ${rem.id}`, danger: true },
+    { label: t("Edit…"), run: () => void editFlow(rem), hint: "e" },
+    { label: t("remove"), cmd: `remind rm ${rem.id}`, danger: true, hint: "del" },
     "-" as const,
     { label: t("+ add a reminder"), run: () => void addFlow() },
   ];
@@ -228,18 +277,19 @@ export function activate(ib: IcebreakerAPI): void {
       return "Reminders";
     }
     status() {
-      return t("a add · d done · x remove · t test the notification");
+      return t("a add · e edit · d done · x remove · t test the notification");
     }
     onText(s: string): boolean {
       const r = upcoming()[this.sel];
       if (s === "a" || s === "+") return void addFlow(), true;
+      if (s === "e" && r) return void editFlow(r), true;
       if (s === "d" && r) return run(`remind done ${r.id}`), true;
       if (s === "x" && r) return run(`remind rm ${r.id}`), true;
       if (s === "t") return run("remind test"), true;
       return false;
     }
     onKey(k: KeyInput): boolean {
-      return k.combo === "delete" ? this.onText("x") : false;
+      return isDelete(k) ? this.onText("x") : false;
     }
     onAction(a: Action): boolean {
       const n = upcoming().length;
@@ -267,7 +317,7 @@ export function activate(ib: IcebreakerAPI): void {
         const late = new Date(rem.due).getTime() < Date.now();
         if (sel || ui.hovered(row)) ui.fill(row, { bg: sel ? mix(c.accent, c.bg, 0.78) : c.highlight });
         const st = sel || ui.hovered(row) ? { bg: sel ? mix(c.accent, c.bg, 0.78) : c.highlight } : {};
-        ui.text(x + 1, y, "⏰", { fg: late ? c.error : c.accent, ...st });
+        ui.text(x + 1, y, "◷", { fg: late ? c.error : c.accent, ...st });
         ui.text(x + 4, y, rem.title, { fg: c.fg, attrs: sel ? BOLD : 0, ...st }, w - 44);
         ui.textRight(x + w - 20, y, when(rem), { fg: c.subtle, ...st });
         ui.textRight(x + w - 10, y, left(rem), { fg: late ? c.error : c.warning, ...st });
@@ -285,7 +335,7 @@ export function activate(ib: IcebreakerAPI): void {
   }
   const x0Button = (ui: UI, x: number, y: number, label: string, onClick: () => void) => ui.button(x, y, label, onClick, { tip: "a" });
 
-  ib.apps.register({ kind: "reminders", title: "Reminders", description: "local reminders with notifications", icon: "⏰", launcher: true, create: () => new RemindersApp() });
+  ib.apps.register({ kind: "reminders", title: "Reminders", description: "local reminders with notifications", icon: "◷", launcher: true, create: () => new RemindersApp() });
   ib.palette.register({ id: "reminders.add", title: "Reminders: remind me of…", group: "reminders", run: () => void addFlow() });
 
   // ── the widget (and its pop-up) ──
@@ -296,11 +346,18 @@ export function activate(ib: IcebreakerAPI): void {
     size: { w: 4, h: 3 },
     min: { w: 2, h: 1 },
     open: "remind open",
+    onKey(k) {
+      const rem = list.find((x) => x.id === hoverId && !x.done);
+      if (!rem || !isDelete(k)) return false;
+      run(`remind rm ${rem.id}`);
+      return true;
+    },
     render(ui, r) {
       const c = ui.c;
       if (!loaded) return;
       ui.animate(30_000);
       const up = upcoming();
+      hoverId = null;
       if (!up.length) return void ui.text(r.x + 1, r.y, t("nothing to remember"), { fg: c.muted }, r.w - 2);
       up.slice(0, r.h).forEach((rem, i) => {
         const late = new Date(rem.due).getTime() < Date.now();
@@ -310,15 +367,17 @@ export function activate(ib: IcebreakerAPI): void {
         ui.text(dn.x, dn.y, " ✓ ", { fg: hot ? c.panel : c.success, bg: hot ? c.success : c.highlight, attrs: BOLD });
         ui.hit(dn, { cmd: `remind done ${rem.id}`, tip: t("done (d)") });
         const end = ui.textRight(dn.x - 1, r.y + i, left(rem), { fg: late ? c.error : c.warning });
-        ui.text(r.x + 1, r.y + i, "⏰", { fg: c.accent });
+        ui.text(r.x + 1, r.y + i, "◷", { fg: c.accent });
         ui.text(r.x + 4, r.y + i, rem.title, { fg: c.fg }, end - r.x - 5);
-        ui.hit({ x: r.x, y: r.y + i, w: dn.x - r.x, h: 1 }, { tip: `${rem.title}\n✓ = ${t("done")} · ${t("right-click: more")}`, menu: () => remMenu(rem) });
+        const line = { x: r.x, y: r.y + i, w: dn.x - r.x, h: 1 };
+        if (ui.hovered(line)) hoverId = rem.id;
+        ui.hit(line, { tip: `${rem.title}\n✓ = ${t("done")} · ${t("del: remove · right-click: edit, more")}`, menu: () => remMenu(rem) });
       });
     },
     popup: {
       title: "reminders",
       size: { w: 60, h: 12 },
-      hint: "a add · d done · ↑↓",
+      hint: "a add · e edit · d done · del remove · ↑↓",
       render(ui, r) {
         const c = ui.c;
         const up = upcoming();
@@ -341,6 +400,12 @@ export function activate(ib: IcebreakerAPI): void {
         const rem = upcoming()[popSel];
         if (s === "a" || s === "+") return close(), void addFlow(), true;
         if (s === "d" && rem) return run(`remind done ${rem.id}`), true;
+        if (s === "e" && rem) return close(), void editFlow(rem), true;
+        return false;
+      },
+      onKey: (k) => {
+        const rem = upcoming()[popSel];
+        if (rem && isDelete(k)) return run(`remind rm ${rem.id}`), true;
         return false;
       },
       onAction: (a) => {
@@ -369,8 +434,13 @@ export function activate(ib: IcebreakerAPI): void {
     "test the notification": "tester la notification",
     "nothing to remember — a adds a reminder": "rien à se rappeler — a ajoute un rappel",
     "nothing to remember": "rien à se rappeler",
-    "a add · d done · ↑↓": "a ajouter · d fait · ↑↓",
-    "When? (enter to confirm)": "Quand ? (entrée pour valider)",
+    "a add · e edit · d done · del remove · ↑↓": "a ajouter · e modifier · d fait · suppr retirer · ↑↓",
+    "a add · e edit · d done · x remove · t test the notification": "a ajouter · e modifier · d fait · x retirer · t tester la notification",
+    "The reminder": "Le rappel",
+    "When? (empty: keep {when})": "Quand ? (vide : garder {when})",
+    "Edit…": "Modifier…",
+    "del: remove · right-click: edit, more": "suppr : retirer · clic droit : modifier, plus",
+    "When? (empty: in 1 hour)": "Quand ? (vide : dans 1 heure)",
     'I didn\'t understand "{at}" — try fri 18:00, tomorrow 9h, +10m': "je n'ai pas compris « {at} » — essaie ven 18:00, demain 9h, +10m",
     "done ✓": "fait ✓",
     remove: "retirer",

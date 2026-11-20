@@ -26,6 +26,7 @@ import { focus, MATRIX_SETS, matrixLook, openTasks, tickFocus } from "./extra";
 import type { PopupContext, WidgetPopupSpec, WidgetSpec } from "./types";
 import { Field } from "./field";
 import { chatPopup } from "./chatbox";
+import { DURATIONS, NEWS_TOPICS, places } from "../core/suggest";
 
 
 /* ─────────── focus: start / pause / reset, durations ─────────── */
@@ -242,7 +243,7 @@ const streakPopup: WidgetPopupSpec = {
 
 /* ─────────── weather: the week ─────────── */
 
-const SKY: Record<string, string> = { sun: "☼", partly: "⛅", cloud: "☁", rain: "☂", snow: "❄", storm: "ϟ", fog: "≋" };
+const SKY: Record<string, string> = { sun: "☼", partly: "◐", cloud: "☁", rain: "☂", snow: "❄", storm: "ϟ", fog: "≋" };
 const weatherPopup: WidgetPopupSpec = {
   title: "weather",
   size: { w: 56, h: 13 },
@@ -271,7 +272,7 @@ const weatherPopup: WidgetPopupSpec = {
   onText: (t, { deck, key }) => {
     if (t !== "c") return false;
     // this copy's own city (empty: back to where you are)
-    void deck.prompt("This widget's city (empty: where you are)", { initial: widgetConfig(deck, key, "city", ""), placeholder: "Tokyo" }).then((v) => {
+    void deck.prompt("This widget's city (empty: where you are)", { initial: widgetConfig(deck, key, "city", ""), placeholder: "Tokyo", suggestions: places(deck) }).then((v) => {
       if (v !== null) setWidgetSetting(deck, "weather", "city", v.trim());
     });
     return true;
@@ -333,7 +334,7 @@ async function pickInterests(deck: Deck): Promise<void> {
     const i = await deck.choose(t("News interests (esc when done)"), opts);
     if (i === null) return;
     if (i === opts.length - 1) {
-      const v = await deck.prompt(t("Follow what?"), { placeholder: "formula 1, linux, Lyon…" });
+      const v = await deck.prompt(t("Follow what?"), { placeholder: "formula 1, linux, Lyon…", suggestions: NEWS_TOPICS });
       if (v?.trim()) await deck.act(`news add ${v.trim()}`);
       continue;
     }
@@ -342,7 +343,7 @@ async function pickInterests(deck: Deck): Promise<void> {
   }
 }
 async function askTopic(deck: Deck): Promise<void> {
-  const v = await deck.prompt("News topic", { initial: deck.settings.data.home.newsTopic, placeholder: "space, intelligence artificielle, F1…" });
+  const v = await deck.prompt("News topic", { initial: deck.settings.data.home.newsTopic, placeholder: "space, intelligence artificielle, F1…", suggestions: NEWS_TOPICS });
   if (v !== null) void deck.act(v.trim() ? `news topic ${v.trim()}` : "news topic -");
 }
 
@@ -384,7 +385,12 @@ const clockPopup: WidgetPopupSpec = {
     // this copy's face (each clock on HOME / the panel has its own)
     const style = widgetConfig(deck, key, "style", h.clockStyle), seconds = widgetConfig(deck, key, "seconds", h.clockSeconds);
     x = ui.text(x, r.y + 11, `${t("FACE")} `, { fg: c.subtle, attrs: BOLD }) + 1;
-    x += ui.button(x, r.y + 11, `‹ ${t(style || "dots")} ›`, () => {}, { cmd: "clock style next", tip: "f" }) + 2;
+    // ‹ face ›: the left half goes back, the right half forward
+    const faceW = ui.button(x, r.y + 11, `‹ ${t(style || "dots")} ›`, () => {}, { cmd: "clock style next", tip: "f" });
+    const half = Math.floor(faceW / 2);
+    ui.hit({ x, y: r.y + 11, w: half, h: 1 }, { cmd: "clock style prev", tip: t("the face before") });
+    ui.hit({ x: x + half, y: r.y + 11, w: faceW - half, h: 1 }, { cmd: "clock style next", tip: t("the next face · f") });
+    x += faceW + 2;
     ui.button(x, r.y + 11, seconds ? t("seconds ✓") : t("seconds ✗"), () => {}, { cmd: "clock seconds", tip: "s" });
   },
   onText: (t, { deck }) => {
@@ -393,7 +399,7 @@ const clockPopup: WidgetPopupSpec = {
     if (t === "f") return void deck.act("clock style next"), true;
     if (t === "s") return void deck.act("clock seconds"), true;
     if (t === "t") {
-      void deck.prompt("Timer", { placeholder: "5m, 90s, 1h30" }).then((v) => {
+      void deck.prompt("Timer", { placeholder: "5m, 90s, 1h30", suggestions: DURATIONS }).then((v) => {
         if (v?.trim()) void deck.act(`timer ${v.trim()}`);
       });
       return true;
@@ -438,7 +444,7 @@ export const timerCommand: Command = {
         const now = Date.now();
         for (const done of clockState.timers.filter((x) => now >= x.end)) {
           clockState.timers = clockState.timers.filter((x) => x !== done);
-          deck.alert(`⏰ ${done.label}`, t("timer done"), "timers");
+          deck.alert(`◷ ${done.label}`, t("timer done"), "timers");
         }
         if (!clockState.timers.length) {
           clearInterval(timerWatch!);

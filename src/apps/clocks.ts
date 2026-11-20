@@ -15,6 +15,7 @@ import { fitMatrix, matrixSize, matrixText } from "../ui/dots";
 import { drawClock } from "../widgets/clockfaces";
 import { clockState, dur, swNow } from "../widgets/clockstate";
 import type { App, AppSpec } from "./types";
+import { DURATIONS, timeZones } from "../core/suggest";
 
 class ClocksApp implements App {
   readonly kind = "clocks";
@@ -27,11 +28,11 @@ class ClocksApp implements App {
     return t("t timer · x stop a timer · space stopwatch · l lap · r reset · w add a city · f clock face");
   }
   private async newTimer(): Promise<void> {
-    const v = await this.deck.prompt(t("Timer: how long, and what for?"), { placeholder: "4m tea · 25 work · 1h30 oven" });
+    const v = await this.deck.prompt(t("Timer: how long, and what for?"), { placeholder: "4m tea · 25 work · 1h30 oven", suggestions: DURATIONS });
     if (v?.trim()) void this.deck.act(`timer ${v.trim()}`);
   }
   private async addCity(): Promise<void> {
-    const v = await this.deck.prompt(t("A city (Area/City)"), { placeholder: "Asia/Tokyo, America/Montreal, Europe/Lisbon" });
+    const v = await this.deck.prompt(t("A city (Area/City)"), { placeholder: "Asia/Tokyo, America/Montreal, Europe/Lisbon", suggestions: timeZones() });
     if (v?.trim()) void this.deck.act(`worldclock add ${v.trim()}`);
   }
   onText(s: string): boolean {

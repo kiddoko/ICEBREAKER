@@ -130,8 +130,10 @@ export function createTauriPlatform(): Platform {
       restart: () => invoke<void>("dev_restart"),
     },
     window: {
-      setFullscreen: (on) => win.setFullscreen(on),
-      isFullscreen: () => win.isFullscreen(),
+      // the deck's full screen covers the whole display (src-tauri/src/screen.rs)
+      setFullscreen: (on) => invoke<void>("screen_fullscreen", { on }),
+      isFullscreen: () => invoke<boolean>("screen_is_fullscreen"),
+      notch: () => invoke<number>("screen_notch").catch(() => 0),
       quit: () => invoke<void>("app_quit"),
     },
   };

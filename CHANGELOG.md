@@ -2,6 +2,59 @@
 
 ## Unreleased
 
+- **Full screen**: leaving it no longer leaves the notch band behind (a second
+  "ICEBREAKER" over the top bar): the band goes at once and is measured again once
+  the window has settled; it has no text any more (the theme's background), and it
+  exists only in the deck's own full screen (F11), checked by the window covering
+  the top of the screen.
+- **‹ value ›**: a click on the left half of the value goes back, the right half
+  forward (settings, the clock face in its pop-up: `clock style prev`).
+- **Reminders**: no time = in one hour (the command and the "when?" prompt, where
+  an empty answer used to add nothing); words the prompt doesn't understand as a
+  time make it ask again instead of landing in the title.
+- **The caret, smoother**: the glide lasts longer the farther it goes (75–240 ms,
+  an ease-out), a jump waits a breath, a faint trail follows it, a key makes it
+  flare; letters fade in on a gentler S-curve (220 ms).
+
+- **The tree: one click selects, a double-click opens** (one click still folds a
+  folder): F2, Delete / ⌘⌫ and p act on the selected note, the focus stays in the tree.
+- **Notes changed outside the deck reload** (the vault watcher's rescan): without
+  unsaved edits the note follows the disk; with edits, nothing is written over —
+  the toolbar shows *changed on disk* with **Take the disk's** (undoable) / **Keep
+  mine**, and a save checks the disk first.
+- **The sound comes back** after a long time in the background: the audio context
+  (sounds and voice) is resumed on focus / the first click or key, and made anew
+  when the system closed or "interrupted" it (WebKit).
+- **Text that scrolls when it doesn't fit** works in the world clock, the shortcut
+  squares, the tabs, THE MENU's cells and the file browser's path, and in the widget
+  chosen with the keyboard (not only under the mouse).
+- **Pins at the top of the tree show their colour tag** (icon and square).
+- **Full screen covers the whole display on a Mac** (simple full screen, no Space):
+  the rows behind a MacBook's notch become a thin band (the name, the time), the deck
+  starts under it (`src-tauri/src/screen.rs`).
+- **Lists in prompts**: Claude Code / API / Ollama models (Ollama's own list is read
+  from it), the journal folder, news topics, cities, time zones, durations, commands
+  (`core/suggest.ts`).
+- **TODO, REMINDERS, HABITS widgets**: Delete / ⌘⌫ on the line under the mouse,
+  right-click → Edit…; in their pop-ups e edits and Delete removes. New commands:
+  `remind edit <n> "title" [time]`, `habit edit <n> "name" [--times] [--days]`.
+  Widgets get keys while selected (`WidgetSpec.onKey`).
+- **A widget to another HOME page**: right-click → Move to page, `[` `]` in edit mode,
+  or drag it onto a page number.
+- **The notes toolbar** has room: a blank line above and below it, wider margins.
+- **The caret glides**: a thin bar that slides from letter to letter and breathes
+  (an overlay, no cell repainted); letters fade in a bit slower (160 ms).
+- **Emoji are two cells wide** (⏰ ⚡ ✅ 🚀… were squeezed into one); the deck's own
+  emoji became text symbols (◷ for reminders, ϟ, ◐, ♪).
+
+- **Docs checked against the code, everywhere** (2026-11-20): the README's features
+  grouped by theme without repeats; the shell's LOG tab named everywhere (the old
+  errors / history tabs were still mentioned); PRIVACY says what UPLINK sends (its
+  context page, the text to translate for the Japanese voice) and that accounts are
+  local and don't encrypt notes yet; one list of built-in themes; START HERE fixed
+  (the shell's buttons, `theme set`, `theme tweak accent`, menu labels, the shortcut
+  square's size); the F1 manual and the welcome note point to the LOG tab and START HERE.
+
 - **The voice follows UPLINK's answer as it's written**: each finished sentence is
   said at once (`voice.stream`), the first piece kept short so it starts right away;
   Japanese full stops (。！？) now cut sentences (a Japanese text went to the

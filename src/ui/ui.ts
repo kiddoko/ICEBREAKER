@@ -117,6 +117,10 @@ export class UI {
    * ui.text with a maxW does it.
    */
   marqueeZone: Rect | null = null;
+  /** the renderer draws the caret (a gliding bar): ui.cursor only says where */
+  softCaret = false;
+  /** when the text at the caret last changed (the caret stays solid while you type) */
+  caretTyped = 0;
   private marquees = new Map<string, number>();
   private marqueesSeen = new Set<string>();
 
@@ -165,7 +169,7 @@ export class UI {
    * `maxW` truncates with an ellipsis.
    */
   text(x: number, y: number, s: string, style: Style = {}, maxW?: number): number {
-    if (maxW !== undefined) s = maxW > 4 && strWidth(s) > maxW && this.marqueeHere(x, y, maxW) ? this.scrolled(x, y, s, maxW) : truncate(s, maxW);
+    if (maxW !== undefined) s = maxW > 2 && strWidth(s) > maxW && this.marqueeHere(x, y, maxW) ? this.scrolled(x, y, s, maxW) : truncate(s, maxW);
     const fg = style.fg ?? this.c.fg;
     const bg = style.bg ?? NONE;
     const attrs = style.attrs ?? 0;
@@ -362,9 +366,14 @@ export class UI {
     return frames[Math.floor(this.now / 80) % frames.length];
   }
 
-  /** Draw a block cursor at (x, y), blinking. Also tells the IME where we are. */
+  /**
+   * Draw a block cursor at (x, y), blinking. Also tells the IME where we are.
+   * With `softCaret` (the desktop deck) the renderer draws a gliding bar instead.
+   */
   cursor(x: number, y: number, blinkFrom = 0): void {
     this.caret = { x, y };
+    this.caretTyped = blinkFrom;
+    if (this.softCaret) return;
     const t = this.now - blinkFrom;
     const on = t < 600 || Math.floor(t / 530) % 2 === 0;
     this.animate(530 - (t % 530));

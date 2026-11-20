@@ -12,6 +12,7 @@ import { t } from "../core/i18n";
 import { q } from "../ui/ui";
 import { basename, dirname, join } from "../vault/paths";
 import type { App, AppSpec } from "./types";
+import { folders } from "../core/suggest";
 
 /**
  * Markdown note editor. Autosaves ~0.8s after you stop typing (like
@@ -25,6 +26,8 @@ export class NoteApp implements App {
   private saving = false;
   private loaded = false;
   private error = "";
+  /** the file changed on disk (another app, a sync, the AI) while you had edits here: neither side is lost */
+  private conflict = false;
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
   private unsubscribe: () => void;
 
@@ -44,9 +47,46 @@ export class NoteApp implements App {
     this.editor.onChange = () => this.scheduleSave();
     void this.load();
     // Reload if something else (the AI, a command) rewrote this file and we have no local edits.
-    this.unsubscribe = deck.vault.events.on("changed", ({ path: p }) => {
+    const offChanged = deck.vault.events.on("changed", ({ path: p }) => {
       if (p === this.path && !this.dirty() && !this.saving) void this.load(true);
     });
+    // Changed outside the deck (Obsidian, iCloud, an editor, git): the vault's watcher rescans.
+    // No edits here → the note reloads; edits here → nothing is overwritten, you choose.
+    const offRescan = deck.vault.events.on("rescanned", () => void this.checkDisk());
+    this.unsubscribe = () => (offChanged(), offRescan());
+  }
+
+  /** What's on disk now, if it differs from what this note last loaded or saved (null: same, or gone). */
+  private async diskChange(): Promise<string | null> {
+    if (!this.loaded || this.saving) return null;
+    const disk = (await this.deck.vault.exists(this.path)) ? await this.deck.vault.read(this.path).catch(() => null) : null;
+    return disk !== null && disk !== this.saved ? disk : null;
+  }
+
+  private async checkDisk(): Promise<void> {
+    const disk = await this.diskChange();
+    if (disk === null) return;
+    if (!this.dirty()) return void this.load(true);
+    if (!this.conflict) this.deck.notify(t("{0} changed on disk: your edits are kept, choose in its toolbar").replace("{0}", basename(this.path)), "warning");
+    this.conflict = true;
+    this.deck.requestFrame();
+  }
+
+  /** Take the version on disk (your edits here go; ⌘Z in the note brings them back). */
+  private async takeDisk(): Promise<void> {
+    this.conflict = false;
+    clearTimeout(this.saveTimer);
+    const text = (await this.deck.vault.exists(this.path)) ? await this.deck.vault.read(this.path).catch(() => this.saved) : this.saved;
+    this.editor.replaceAll(text);
+    this.saved = text;
+    this.deck.requestFrame();
+  }
+
+  /** Keep yours: written over the version on disk. */
+  private async keepMine(): Promise<void> {
+    this.conflict = false;
+    this.saved = (await this.deck.vault.read(this.path).catch(() => this.saved)) ?? this.saved;
+    await this.save();
   }
 
   private async load(keepCursor = false): Promise<void> {
@@ -55,7 +95,10 @@ export class NoteApp implements App {
       if (keepCursor && text === this.editor.text) return;
       const cursor = this.editor.cursor;
       this.editor.setText(text);
-      if (keepCursor) this.editor.cursor = { line: Math.min(cursor.line, this.editor.lines.length - 1), col: 0 };
+      if (keepCursor) {
+        const line = Math.min(cursor.line, this.editor.lines.length - 1);
+        this.editor.cursor = { line, col: Math.min(cursor.col, this.editor.lines[line]?.length ?? 0) };
+      }
       if (!this.loaded) this.onLoaded?.(this.editor);
       // cosmetic changes made by onLoaded (an empty "- " line) don't count as edits
       this.saved = this.editor.text;
@@ -76,7 +119,7 @@ export class NoteApp implements App {
 
   status(): string {
     const { line, col } = this.editor.cursor;
-    const state = this.error ? `✖ ${this.error}` : this.saving ? "saving…" : this.dirty() ? "● modified" : "✓ saved";
+    const state = this.error ? `✖ ${this.error}` : this.conflict ? "⚠ changed on disk" : this.saving ? "saving…" : this.dirty() ? "● modified" : "✓ saved";
     return `${this.path} · ln ${line + 1}, col ${col + 1} · ${this.editor.wordCount()} words · ${state}`;
   }
 
@@ -87,8 +130,10 @@ export class NoteApp implements App {
   }
 
   async save(): Promise<void> {
-    if (!this.dirty()) return;
+    if (!this.dirty() || this.conflict) return;
     clearTimeout(this.saveTimer);
+    // never write over a change made outside the deck since we read the file
+    if ((await this.diskChange()) !== null) return void this.checkDisk();
     this.saving = true;
     const text = this.editor.text;
     try {
@@ -173,7 +218,7 @@ export class NoteApp implements App {
 
   /** Save under another name: the copy opens, this note stays as it was saved. */
   private async saveAs(): Promise<void> {
-    const to = await this.deck.prompt(t("Save as"), { initial: this.path, placeholder: "notes/new name.md" });
+    const to = await this.deck.prompt(t("Save as"), { initial: this.path, placeholder: "notes/new name.md", suggestions: folders(this.deck).map((f) => `${f}/${basename(this.path)}`) });
     if (!to?.trim() || to.trim() === this.path) return;
     const path = to.trim().endsWith(".md") || /\.[a-z0-9]+$/i.test(to.trim()) ? to.trim() : `${to.trim()}.md`;
     if (await this.deck.vault.exists(path)) return void this.deck.notify(t("{path} already exists", { path }), "error");
@@ -192,11 +237,20 @@ export class NoteApp implements App {
   }
 
   /** The toolbar above the note: the basic tools, always in view. */
-  private toolbar(ui: UI, r: Rect): void {
+  /** The toolbar's row: a blank line above it (under the frame's title) and one below it (before your text). */
+  private toolbar(ui: UI, frame: Rect): void {
     const c = ui.c;
+    const r = { ...frame, x: frame.x + 1, y: frame.y + 1, w: frame.w - 2 };
     ui.fill({ x: r.x, y: r.y, w: r.w, h: 1 }, { bg: c.panelAlt });
     let x = r.x + 1;
     const dirty = this.dirty();
+    if (this.conflict) {
+      // changed on disk while you were editing: choose, nothing is saved until then
+      x = ui.text(x, r.y, ` ${t("changed on disk")} `, { fg: c.panel, bg: c.warning, raw: true }) + 1;
+      x += ui.button(x, r.y, t("Take the disk's"), () => void this.takeDisk(), { tip: t("the version on disk replaces yours here (⌘Z brings yours back)") }) + 1;
+      x += ui.button(x, r.y, t("Keep mine"), () => void this.keepMine(), { tip: t("yours is written over the version on disk"), accent: c.error }) + 1;
+      return;
+    }
     const tool = (label: string, run: () => void, tip: string, o: { accent?: number; off?: boolean } = {}) => {
       if (x + strWidth(label) + 2 > r.x + r.w) return;
       if (o.off) {
@@ -223,8 +277,8 @@ export class NoteApp implements App {
       return;
     }
     this.toolbar(ui, r);
-    r = { ...r, y: r.y + 1, h: r.h - 1 };
-    this.editor.render(ui, { x: r.x + 1, y: r.y, w: r.w - 1, h: r.h }, focused);
+    r = { ...r, y: r.y + 3, h: r.h - 3 };
+    this.editor.render(ui, { x: r.x + 2, y: r.y, w: r.w - 3, h: r.h }, focused);
     // ctrl+click follows links
     ui.hit(r, {
       onClick: (m) => {

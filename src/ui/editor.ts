@@ -106,6 +106,17 @@ export class TextEditor {
     this.wantScroll = true;
   }
 
+  /** Replace everything as one edit you can undo (the cursor stays about where it was). */
+  replaceAll(text: string): void {
+    this.checkpoint("paste");
+    const at = this.cursor;
+    this.lines = text.replace(/\r\n?/g, "\n").split("\n");
+    const line = Math.min(at.line, this.lines.length - 1);
+    this.cursor = { line, col: Math.min(at.col, this.lines[line].length) };
+    this.anchor = null;
+    this.changed(0, false);
+  }
+
   get isEmpty(): boolean {
     return this.lines.length === 1 && this.lines[0] === "";
   }

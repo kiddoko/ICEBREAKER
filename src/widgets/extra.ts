@@ -1,3 +1,4 @@
+import { strWidth } from "../core/unicode";
 import { typed } from "../ui/typewriter";
 import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
 import { chatWidget } from "./chatbox";
@@ -200,8 +201,9 @@ const worldWidget: WidgetSpec = {
       const night = hour < 7 || hour >= 20;
       const y = r.y + i;
       ui.text(r.x + 1, y, night ? "☾" : "☼", { fg: night ? c.info : c.warning });
-      ui.text(r.x + 3, y, city, { fg: c.fg }, r.w - 16);
-      ui.textRight(r.x + r.w - 1, y, `${day.toLowerCase()} ${time}`, { fg: night ? c.muted : c.accent, attrs: BOLD });
+      const right = r.w >= 20 ? `${day.toLowerCase()} ${time}` : time;
+      ui.text(r.x + 3, y, city, { fg: c.fg }, Math.max(1, r.w - 5 - strWidth(right)));
+      ui.textRight(r.x + r.w - 1, y, right, { fg: night ? c.muted : c.accent, attrs: BOLD });
     });
     ui.animate(1000);
   },

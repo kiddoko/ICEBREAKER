@@ -2,13 +2,14 @@ import { mix } from "../core/color";
 import type { Rect } from "../core/grid";
 import { FileBrowser } from "../workspace/filebrowser";
 import type { UI } from "../ui/ui";
-import { strWidth, truncate } from "../core/unicode";
+import { strWidth } from "../core/unicode";
 import { BOLD } from "../core/grid";
 import { t } from "../core/i18n";
 import type { Deck } from "../deck";
 import { q } from "../ui/ui";
 import type { WidgetSpec } from "./types";
 import { favCommand, favIcon, favorites, pinId, unplaceSquares, type Favorite } from "../workspace/favorites";
+import { commandNames } from "../core/suggest";
 
 /**
  * Shortcut widgets: 1×1 on HOME (never bigger, never smaller), each one opens
@@ -163,16 +164,16 @@ function linkSpec(l: HomeLink): WidgetSpec {
       if (r.h < 3) {
         // a flat chip (rows not stretched): the kind, the icon and the name on one line
         ui.text(r.x, r.y, "▌", { fg: col, ...st });
-        ui.text(r.x + 1, r.y, truncate(`${l.icon} ${l.label}`, r.w - 1), { fg: hot || focused ? c.fg : col, attrs: BOLD, ...st });
+        ui.text(r.x + 1, r.y, `${l.icon} ${l.label}`, { fg: hot || focused ? c.fg : col, attrs: BOLD, ...st }, r.w - 1);
       } else {
         // the kind on top, the icon in the middle, the name at the bottom
         // the kind on a band of its colour across the top
         ui.fill({ x: r.x, y: r.y, w: r.w, h: 1 }, { bg: mix(bg, col, 0.35) });
         const word = strWidth(t(KIND[kind].word)) <= r.w - 2 ? t(KIND[kind].word) : KIND[kind].short;
-        ui.textCenter(r, r.y, truncate(word, r.w), { fg: c.fg, bg: mix(bg, col, 0.35), attrs: BOLD });
+        ui.textCenter(r, r.y, word, { fg: c.fg, bg: mix(bg, col, 0.35), attrs: BOLD });
         const mid = r.y + Math.max(1, Math.floor((r.h - 1) / 2));
         ui.textCenter(r, mid, kind === "folder" ? `${l.icon}▾` : l.icon, { fg: hot || focused ? c.fg : col, attrs: BOLD, ...st });
-        ui.textCenter(r, r.y + r.h - 1, truncate(l.label, r.w), { fg: hot || focused ? c.fg : c.muted, ...st });
+        ui.textCenter(r, r.y + r.h - 1, l.label, { fg: hot || focused ? c.fg : c.muted, ...st });
       }
       ui.hit(r, kind === "folder" ? { tip } : { cmd: l.cmd, tip });
     },
@@ -257,7 +258,7 @@ export async function newLinkFlow(deck: Deck): Promise<void> {
     const i = await deck.choose(t("Which macro?"), macros.map((m) => ({ label: m.label, hint: m.cmd })));
     if (i !== null) pick = { label: macros[i].label, cmd: `macro run ${q(macros[i].label)}`, icon: "⌗" };
   } else {
-    const cmd = await deck.prompt(t("The command"), { placeholder: "todo add \"…\" · cal today · git status" });
+    const cmd = await deck.prompt(t("The command"), { placeholder: "todo add \"…\" · cal today · git status", suggestions: commandNames(deck) });
     if (!cmd?.trim()) return;
     const label = await deck.prompt(t("Its name"), { initial: cmd.trim().split(/\s+/)[0] });
     if (!label?.trim()) return;

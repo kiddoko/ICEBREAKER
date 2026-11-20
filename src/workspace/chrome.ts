@@ -8,7 +8,7 @@ import { mix } from "../core/color";
 import { t } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC } from "../core/input";
-import { strWidth, truncate } from "../core/unicode";
+import { strWidth } from "../core/unicode";
 import { inside, q, type Hit, type UI } from "../ui/ui";
 import { Osk } from "./overlays";
 import { SystemTerminal } from "../shell/systerm";
@@ -270,7 +270,7 @@ export function renderTabs(ws: Workspace, ui: UI, r: Rect): void {
     // not saved yet: a red dot before the name (it goes once saved — ⌘S, the toolbar, right-click)
     const unsaved = !!ws.tabs[i].dirty?.();
     if (unsaved) ui.text(x + 1, r.y, "●", { fg: c.error, bg: style.bg, attrs: BOLD });
-    ui.text(x + (unsaved ? 3 : 1), r.y, truncate(nameOf(i), tabW - (unsaved ? 7 : 5)), style);
+    ui.text(x + (unsaved ? 3 : 1), r.y, nameOf(i), style, tabW - (unsaved ? 7 : 5));
     const closeX = x + tabW - 3;
     const closeHot = ui.hovered({ x: closeX, y: r.y, w: 2, h: 1 });
     ui.text(closeX, r.y, isActive || hot ? "×" : " ", { fg: closeHot ? c.error : isActive ? c.panel : c.subtle, bg: style.bg, attrs: closeHot ? BOLD : 0 });
@@ -333,6 +333,15 @@ export function renderSubtitles(ws: Workspace, ui: UI, W: number, H: number): vo
     ui.text(r.x + 7, r.y + 1 + i, part, { fg: c.fg, bg: c.panelAlt }, w - 9);
   });
   ui.animate(60);
+}
+
+/**
+ * Full screen on a MacBook: the rows behind the camera notch. Nothing is written
+ * there (the top bar already says ICEBREAKER): only the deck's own background,
+ * so the screen is the deck's from edge to edge, no black band.
+ */
+export function renderNotchBand(ui: UI, r: Rect): void {
+  ui.fill(r, { bg: ui.c.bg });
 }
 
 export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {

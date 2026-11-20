@@ -23,6 +23,7 @@ import { fitMatrix, matrixSize, matrixText } from "../ui/dots";
 import type { UI } from "../ui/ui";
 import { sky } from "../widgets/builtin";
 import type { App, AppSpec } from "./types";
+import { places } from "../core/suggest";
 
 type Sky = ReturnType<typeof sky>;
 
@@ -79,7 +80,7 @@ async function forecastFor(place: Place): Promise<Forecast> {
 }
 
 const LABEL: Record<Sky, string> = { sun: "clear", partly: "partly cloudy", cloud: "overcast", fog: "fog", rain: "rain", snow: "snow", storm: "thunderstorm" };
-const GLYPH: Record<Sky, string> = { sun: "☼", partly: "⛅", cloud: "☁", fog: "≋", rain: "☂", snow: "❄", storm: "ϟ" };
+const GLYPH: Record<Sky, string> = { sun: "☼", partly: "◐", cloud: "☁", fog: "≋", rain: "☂", snow: "❄", storm: "ϟ" };
 const ARROWS = ["↓", "↙", "←", "↖", "↑", "↗", "→", "↘"]; // where the wind blows to (from N = ↓)
 const arrow = (deg: number) => ARROWS[Math.round(deg / 45) % 8];
 const placeName = (p: Place) => [p.name, p.admin && p.admin !== p.name ? p.admin : "", p.countryCode].filter(Boolean).join(", ");
@@ -208,7 +209,7 @@ class WeatherApp implements App {
     }
   }
   async search(): Promise<void> {
-    const q = await this.deck.prompt(t("Weather where?"), { placeholder: "Lausanne, Tokyo, Reykjavik…" });
+    const q = await this.deck.prompt(t("Weather where?"), { placeholder: "Lausanne, Tokyo, Reykjavik…", suggestions: places(this.deck) });
     if (!q?.trim()) return;
     const found = await geocode(q.trim(), langOf(this.deck)).catch(() => []);
     if (!found.length) return this.deck.notify(t("no place called {q}", { q: q.trim() }), "warning");

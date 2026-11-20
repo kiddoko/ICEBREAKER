@@ -172,6 +172,8 @@ export interface Platform {
   window: {
     setFullscreen(on: boolean): Promise<void>;
     isFullscreen(): Promise<boolean>;
+    /** how tall the screen's camera notch is, in CSS pixels (0 without one; desktop macOS only) */
+    notch?(): Promise<number>;
     quit(): Promise<void>;
   };
 }

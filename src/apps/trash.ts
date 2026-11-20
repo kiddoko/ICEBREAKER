@@ -9,6 +9,7 @@ import { ListView } from "../ui/list";
 import { q, type MenuEntry, type UI } from "../ui/ui";
 import { fileIcon } from "../ui/fileicon";
 import type { App, AppSpec } from "./types";
+import { folders } from "../core/suggest";
 
 /**
  * TRASH (⌫ above the tree, `trash open`) — a page, not a tab: what `rm`, Delete
@@ -66,7 +67,7 @@ export class TrashApp implements App {
   }
   private async restoreTo(it: TrashItem | undefined): Promise<void> {
     if (!it) return;
-    const to = await this.deck.prompt(t("Restore to (a path in the vault)"), { initial: it.from || it.name });
+    const to = await this.deck.prompt(t("Restore to (a path in the vault)"), { initial: it.from || it.name, suggestions: folders(this.deck).map((f) => `${f}/${it.name}`) });
     if (to?.trim()) void this.deck.act(`trash restore ${q(it.path)} ${q(to.trim())}`).then(() => this.reload());
   }
   private open(it: TrashItem | undefined): void {

@@ -35,11 +35,11 @@ src-tauri/src/     the native side, one file per area (see §8)
 
 | Folder | Files worth knowing |
 |---|---|
-| `core/` | `grid.ts` cells · `renderer.ts` paints them · `loop.ts` frames on demand · `input.ts` keys/mouse/gestures · `gamepad.ts` pad (hold RB: THE MENU) · `settings.ts` **every setting and its default** · `theme.ts` TOML themes · `shortcuts.ts` the shortcut table (some keys are bound right there: `global`) · `sound.ts` synthesized UI sounds, packs · `voice.ts` · `errors.ts` error codes · `i18n.ts` + `i18n-fr.ts` · `avatar.ts` profile icons · `time.ts` `ago()` · `fxlevels.ts` effect strengths · `stealth.ts` the offline guard · `prefs.ts` **the settings registry** (every row, the deck's and the modules', with its kind and its way back to default) · `catalog.ts` **the catalog**: everything the deck can do as blocks (commands, actions, shortcuts, settings, functions, widgets, apps, themes, modules) |
-| `ui/` | `ui.ts` the `UI` class (text, box, fill, button, **hit**) · `list.ts` `ListView` (selection, scroll, drag & drop, wheel hook) · `editor.ts` text editing · `slider.ts` sliders + `askNumber` · `wheelspin.ts` the wheel/trackpad feel of rings (`WheelSpin`: a critically damped spring, `ring()`) · `filterbar.ts` **the** search + colours bar (`FilterBar`) every list of things uses · `markdown.ts`, `chatview.ts`, `bigtext.ts`, `dots.ts` |
+| `core/` | `grid.ts` cells · `renderer.ts` paints them · `loop.ts` frames on demand · `input.ts` keys/mouse/gestures · `gamepad.ts` pad (hold RB: THE MENU) · `settings.ts` **every setting and its default** · `theme.ts` TOML themes · `shortcuts.ts` the shortcut table (some keys are bound right there: `global`) · `sound.ts` synthesized UI sounds, packs · `voice.ts` · `errors.ts` error codes · `i18n.ts` + `i18n-fr.ts` · `avatar.ts` profile icons · `time.ts` `ago()` · `dates.ts` day / time parsing (`ib.lib.dates`) · `undo.ts` the ⌘Z history · `eventlog.ts` what the LOG tab shows · `fxlevels.ts` effect strengths · `stealth.ts` the offline guard · `prefs.ts` **the settings registry** (every row, the deck's and the modules', with its kind and its way back to default) · `catalog.ts` **the catalog**: everything the deck can do as blocks (commands, actions, shortcuts, settings, functions, widgets, apps, themes, modules) |
+| `ui/` | `ui.ts` the `UI` class (text, box, fill, button, **hit**) · `list.ts` `ListView` (selection, scroll, drag & drop, wheel hook) · `editor.ts` text editing · `slider.ts` sliders + `askNumber` · `wheelspin.ts` the wheel/trackpad feel of rings (`WheelSpin`: a critically damped spring, `ring()`) · `filterbar.ts` **the** search + colours bar (`FilterBar`) every list of things uses · `keycaps.ts` keys drawn as keycaps · `typewriter.ts` text that types itself out · `uplinkcore.ts` UPLINK's face (widget and tour) · `pagebar.ts`, `floor.ts`, `glide.ts`, `markdown.ts`, `chatview.ts`, `bigtext.ts`, `dots.ts` |
 | `workspace/` | `workspace.ts` layout, tabs, focus, input routing · `chrome.ts` the frame around the page: top bar, tabs, status bar, shell panel, tips, subtitles · `sidebar.ts` the tree · `sidepanel.ts` the right panel · `overlays.ts` prompt, choose, confirm, toasts, on-screen keyboard · `quickmenu.ts` **THE MENU** (⌘K / shift twice: search everything, or a key + enter) · `contextmenu.ts` right-click menus · `keycapture.ts` "press the keys" dialog · `avatarpicker.ts` · `widgetpicker.ts`, `widgetpopup.ts` · `fxpanel.ts` · `filebrowser.ts` **the** little file browser (a vault folder, or picking a file on the computer) · `lock.ts` login · `boot.ts` · `favorites.ts` pins |
 | `apps/` | `types.ts` the `App` interface · `home.ts` the widget grid · `note.ts` editor · `settings.ts` draws the settings (its rows come from `settings-rows.ts` through `deck.prefs`; `settings-help.ts` one sentence per setting) · `blocks.ts` the BLOCKS page (the catalog) · `modules.ts` the shard ring · `explorer.ts` NEXUS · `trash.ts` · `shortcuts.ts` · `store.ts` · `setup.ts` · `terminal.ts` · weather / clocks / focus / journal / sysmon / studio / link / help |
-| `widgets/` | `types.ts` `WidgetSpec` · `builtin.ts` core widgets · `extra.ts` more · `links.ts` 1×1 shortcut squares · `popups.ts` widget pop-ups · shared state in dependency-free files (`clockstate.ts`, `focusstate.ts`) |
+| `widgets/` | `types.ts` `WidgetSpec` · `builtin.ts` core widgets · `extra.ts` more · `links.ts` the shortcut squares (one per pin) · `popups.ts` widget pop-ups · shared state in dependency-free files (`clockstate.ts`, `focusstate.ts`) |
 | `shell/` | `shell.ts` ibsh · `parser.ts` (pipes, `;` `&&` `\|\|`, quotes) · `exec.ts` · `commands/*.ts` every command, by area · `systerm.ts` your real shell in a PTY · `terminal.ts` the terminal emulator |
 | `vault/` | `vault.ts` (cached entries, events `changed` / `renamed` / `trashed`, trash log) · `marks.ts` colour tags & icons · `journal.ts` · `paths.ts` · `starthere.ts` the START HERE notes |
 | `plugins/` | `api.ts` **the API modules get** (`ib.*`) · `host.ts` loading, on/off, remove · `core-packages.ts` core features presented as modules · `services.ts` modules calling each other |
@@ -60,7 +60,7 @@ src-tauri/src/     the native side, one file per area (see §8)
 1. stealth guard, theme + font (so the boot screen already looks right);
 2. the boot screen's lines are real steps: the account's settings, **its vault
    mount** (a new account gets its own folder), user themes, sounds, AI detection,
-   `registerCore()` (core commands, apps, widgets, the 1×1 squares), plugins, STATS;
+   `registerCore()` (core commands, apps, widgets, the pins' squares), plugins, STATS;
 3. the session comes back (`Workspace.restoreSession`: tabs, open folders);
 4. the greeting (and the setup, the first time an account logs in).
 
@@ -152,7 +152,7 @@ pointer wins**. So to let a widget's own buttons work, register its frame *befor
 drawing its content; to make a whole thing draggable (edit mode), register the
 frame *after* (see `apps/home.ts`, `workspace/sidepanel.ts`). `onClick` fires on
 press; a drag gets `onDrag` then `onUp` even outside the area. A `cmd` hit runs
-that shell command (and echoes it in the shell: clicks teach the command line).
+that shell command (and the shell's LOG tab shows it: clicks teach the command line).
 
 Text goes through a hidden `<textarea>` so IME (日本語), dead keys (ê, ü) and
 paste work like in any native app.
@@ -236,7 +236,7 @@ the voice may say it (Settings → VOICE → say aloud). Add a topic to `VoiceTo
 
 **A widget** — a `WidgetSpec` (`widgets/types.ts`): `size`, `min`, optional `max`,
 `render`, and `popup` / `activate` / `open` for what Enter does. `clickActivates`
-makes one click run `activate` (the 1×1 squares). A widget can be placed several
+makes one click run `activate` (the shortcut squares, 1×2). A widget can be placed several
 times (HOME and the side panel): each copy has a key (`"clock"`, `"clock#2"`) in
 `ctx.key`; read a copy's own settings with `widgetConfig(deck, ctx.key, name,
 fallback)` and change them with `setWidgetSetting` (`widgets/instances.ts`) —

@@ -184,9 +184,17 @@ export class DeckVoice {
   }
 
   private async play(bytes: ArrayBuffer): Promise<void> {
+    // after a long time in the background the system can leave it suspended, interrupted or closed
+    if (this.ctx?.state === "closed") this.ctx = null;
     this.ctx ??= new AudioContext();
-    const ctx = this.ctx;
-    if (ctx.state === "suspended") await ctx.resume().catch(() => {});
+    let ctx = this.ctx;
+    if ((ctx.state as string) !== "running") {
+      await ctx.resume().catch(() => {});
+      if ((ctx.state as string) !== "running") {
+        void ctx.close().catch(() => {});
+        ctx = this.ctx = new AudioContext();
+      }
+    }
     const buf = await ctx.decodeAudioData(bytes.slice(0));
     const v = this.deck.settings.data.voice;
     const a = Math.max(0, Math.min(1, v.robot / 100));
@@ -351,7 +359,7 @@ export function neuralText(s: string): string {
     .replace(/[«»“”„]/g, '"')
     .replace(/[‘’‚]/g, "'")
     .replace(/…/g, "...")
-    .replace(/[·•◆◇▸▾▴★☆⏰◉○●✓✗✕☑☐→←↑↓]/g, " ")
+    .replace(/[·•◆◇▸▾▴★☆⏰◷◉○●✓✗✕☑☐→←↑↓]/g, " ")
     .replace(/[^\p{L}\p{N}\s.,;:!?'"()%&+\-/]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();

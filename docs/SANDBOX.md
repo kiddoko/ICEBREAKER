@@ -47,5 +47,8 @@ The audit makes that visible; it can't make it impossible.
    handle to it, and the Content-Security-Policy forbids loading code from `blob:`
    in the page.
 
+This is the next big piece of work, together with vault encryption: the agreed
+order is in [ENCRYPTION.md](ENCRYPTION.md) (modules from the STORE first).
+
 Until step 4 is done, the rule stays: **only switch on modules you trust, and
 read the audit.**

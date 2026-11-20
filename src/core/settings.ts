@@ -79,7 +79,7 @@ export interface Settings {
     macrosShown: boolean;
   };
   /** UI sounds (core/sound.ts). Volume 0–100. */
-  /** muted: everything silent (ui sounds, voice, alerts) — the 🔇 button, `mute` */
+  /** muted: everything silent (ui sounds, voice, alerts) — the ♪ button, `mute` */
   /** packByTheme: the sound pack chosen for a theme (else the theme's own) */
   /** mix: each channel's volume 0-100 (core/sound.ts SOUND_CHANNELS); typing: a click on your own keys */
   sound: { enabled: boolean; volume: number; muted?: boolean; packByTheme: Record<string, string>; mix: { ui: number; alerts: number; boot: number; text: number; typing: number }; typing: boolean };

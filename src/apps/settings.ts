@@ -310,7 +310,10 @@ export class SettingsApp implements App {
             if (hot) ui.text(x, y, ch, { fg: ui.hovered(ar) ? c.fg : c.accent, attrs: BOLD, ...st });
             ui.hit(ar, { onClick: () => act(dir) });
           };
-          ui.hit({ x: vxStart, y, w: strWidth(v), h: 1 }, { onClick: () => act(1), tip });
+          // a click on the value: its left half goes back, its right half forward
+          const vw = strWidth(v), half = Math.floor(vw / 2);
+          ui.hit({ x: vxStart, y, w: half, h: 1 }, { onClick: () => act(-1), tip });
+          ui.hit({ x: vxStart + half, y, w: vw - half, h: 1 }, { onClick: () => act(1), tip });
           arrow(vxStart - 2, "‹", -1);
           arrow(vx, "›", 1);
         } else if (hot && kind === "text") ui.text(vx, y, "✎", { fg: c.accent, ...st });

@@ -14,6 +14,7 @@ mod dev; // DEV ONLY — remove before release
 mod google;
 mod media;
 mod net;
+mod screen;
 mod term;
 mod system;
 mod vault;
@@ -102,6 +103,9 @@ pub fn run() {
             account::account_verify,
             account::account_change,
             account::account_remove,
+            screen::screen_fullscreen,
+            screen::screen_is_fullscreen,
+            screen::screen_notch,
             dev::dev_factory_reset, // DEV ONLY
             dev::dev_restart,       // DEV ONLY
         ])

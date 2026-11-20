@@ -89,6 +89,7 @@ export class Sound {
   private last = new Map<SoundName, number>();
   private lowpass: BiquadFilterNode | null = null;
   private voice: Voice = SOUND_PACKS.retro.voice;
+  private renewedAt = 0;
 
   /** Pick a pack (unknown names fall back to retro) and a pitch. */
   setPack(pack: string, pitch = 1): void {
@@ -137,7 +138,7 @@ export class Sound {
     this.last.set(name, now);
     const ctx = this.context();
     if (!ctx || !this.master) return;
-    if (ctx.state === "suspended") void ctx.resume();
+    if (ctx.state !== "running") this.wake();
     this.master.gain.value = this.volume * 0.35;
     // keys and blips start now; the rest a hair later (so every voice of a chord starts together)
     const t = ctx.currentTime + (CHANNEL_OF[name] === "typing" || name === "blip" ? 0 : 0.005);
@@ -155,6 +156,35 @@ export class Sound {
     }
     V = this.voice;
     SYNTHS[name](ctx, out, t);
+  }
+
+  /**
+   * Bring the sound back after the app sat in the background: the system can
+   * leave the audio "suspended" or (WebKit) "interrupted", or close it. Called on
+   * focus, on the first click / key after that, and before playing: resume it,
+   * and if it doesn't come back (or was closed), make a new one.
+   */
+  wake(): void {
+    const ctx = this.ctx;
+    if (!ctx || (ctx.state as string) === "running") return;
+    if (ctx.state === "closed") return void this.renew();
+    void ctx.resume().catch(() => {});
+    setTimeout(() => {
+      if (this.ctx === ctx && (ctx.state as string) !== "running" && document.hasFocus()) this.renew();
+    }, 400);
+  }
+
+  /** A new audio context (the old one is dead); your own sound files are kept. */
+  private renew(): void {
+    // at most once every 5 s (no audio output at all must not make a context per key)
+    if (performance.now() - this.renewedAt < 5000) return;
+    this.renewedAt = performance.now();
+    const old = this.ctx;
+    this.ctx = null;
+    this.master = null;
+    this.lowpass = null;
+    void old?.close().catch(() => {});
+    this.context();
   }
 
   private context(): AudioContext | null {

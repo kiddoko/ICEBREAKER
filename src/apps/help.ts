@@ -31,8 +31,8 @@ Everything works with **keyboard only**, **mouse only**, a **gamepad**, or any m
 - In the shell: \`tour\` — the guided tour · \`undo list\` · \`chat\` — talk to the AI · \`daily\` — end-of-day check-in
 
 ## Mouse
-Click anything: tabs, files, tiles, buttons, calendar days. Every click runs a
-shell command, shown in the shell (marked ◂ ui): click around to learn the
+Click anything: tabs, files, tiles, buttons, calendar days (in the tree, one click selects a note, a double-click opens it). Every click runs a
+shell command, shown in the shell's **log** tab: click around to learn the
 command line. Hover something for a moment to see its command and shortcut. Drag to select text,
 wheel to scroll, double-click to select a word, Ctrl+click to follow a link.
 Drag the line above the shell to resize it. The ⌨ button in the status bar opens
@@ -57,7 +57,7 @@ ${cmds}
 - \`.icebreaker/themes/*.toml\` — your themes (\`theme new <name>\`)
 - \`.icebreaker/plugins/<id>/\` — your plugins (\`plugin new <id>\`)
 - \`.icebreaker/templates/journal.md\` — your journal template
-- \`.trash/\` — where \`rm\` puts things. Nothing is ever hard-deleted.
+- \`.trash/\` — where \`rm\` puts things (\`trash open\` to see it, restore). Nothing is ever deleted for good, apart from \`self-destruct\` (it asks four times).
 `;
 }
 

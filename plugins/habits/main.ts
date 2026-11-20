@@ -111,13 +111,14 @@ export function activate(ib: IcebreakerAPI): void {
       'habit add "name" [--times 8] [--days mon,wed,fri]',
       "habit check <n|name> · habit uncheck <n|name>",
       "habit rm <n> · habit open",
+      'habit edit <n> "new name" [--times 8] [--days mon,wed|-]',
     ].join("\n"),
     examples: [
       ['habit add "drink water" --times 8', "eight glasses: ●●●○○○○○"],
       ['habit add "stretch" --days mon,wed,fri', "only those days"],
       ["habit check water", "one more glass"],
     ],
-    complete: () => ["add", "check", "uncheck", "rm", "open", ...habits.map((h) => String(h.id))],
+    complete: () => ["add", "check", "uncheck", "rm", "edit", "open", ...habits.map((h) => String(h.id))],
     async run(ctx) {
       await ready;
       const { flags, rest } = parseFlags(ctx.args, ["times", "days"]);
@@ -143,6 +144,18 @@ export function activate(ib: IcebreakerAPI): void {
         ctx.out(`${fmt.green("+")} ${fmt.bold(h.name)} ${fmt.dim(`· ${per > 1 ? `${per}× a day · ` : ""}${daysLabel(h)} · #${h.id}`)}\n`);
         return 0;
       }
+      if (sub === "edit") {
+        // habit edit <n> "new name" [--times 8] [--days mon,wed] — what you give changes, the rest stays
+        const h = find(words[0]);
+        if (!h) return ctx.err(`habit: no habit "${words[0] ?? ""}" (habit ls)\n`), 1;
+        const name = words.slice(1).join(" ").trim();
+        if (name) h.name = name;
+        if (flags.times !== undefined) h.per = Math.max(1, Math.min(50, Number(flags.times) || 1));
+        if (typeof flags.days === "string") h.days = flags.days.trim() === "-" ? [] : [...new Set(flags.days.toLowerCase().split(/[,\s]+/).map((d) => DAY_NAMES[d.slice(0, 3)]).filter((d) => d !== undefined))];
+        await save();
+        ctx.out(`${fmt.cyan("~")} ${fmt.bold(h.name)} ${fmt.dim(`· ${h.per > 1 ? `${h.per}× a day · ` : ""}${daysLabel(h)} · #${h.id}`)}\n`);
+        return 0;
+      }
       const h = find(words.join(" ") || undefined);
       if (!h) return ctx.err(`habit: no habit "${words.join(" ")}" (habit ls)\n`), 1;
       if (sub === "check" || sub === "uncheck") {
@@ -159,6 +172,27 @@ export function activate(ib: IcebreakerAPI): void {
       return ctx.err(`habit: unknown "${sub}" (man habit)\n`), 1;
     },
   });
+
+  /** Change a habit: its name, how many times a day, which days (empty = keep). */
+  async function editFlow(h: Habit): Promise<void> {
+    const name = await ib.ui.prompt(t("The habit"), { initial: h.name });
+    if (name === null) return;
+    const times = await ib.ui.prompt(t("How many times a day?"), { initial: String(h.per) });
+    if (times === null) return;
+    const days = await ib.ui.prompt(t("Which days? (- = every day)"), { initial: h.days.length ? daysLabel(h).replace(/ /g, ",") : "", placeholder: "mon,wed,fri" });
+    if (days === null) return;
+    run(`habit edit ${h.id} ${q(name.trim() || h.name)} --times ${Math.max(1, Number(times) || h.per)}${days.trim() ? ` --days ${days.trim().replace(/[\s,]+/g, ",")}` : ""}`);
+  }
+  const askRemove = (h: Habit) => void ib.ui.confirm(t("Remove {name}?", { name: h.name }), t("Its history goes too.")).then((ok) => ok && run(`habit rm ${h.id}`));
+  const isDelete = (k: KeyInput) => k.combo === "delete" || k.combo === "ctrl+backspace" || k.combo === "backspace";
+  /** the habit under the mouse in the HOME widget (Delete / ⌘⌫ removes it, after asking) */
+  let hoverId: number | null = null;
+  const habitMenu = (h: Habit) => [
+    { label: t("tick"), cmd: `habit check ${h.id}`, hint: "click" },
+    { label: t("untick"), cmd: `habit uncheck ${h.id}`, hint: "u" },
+    { label: t("Edit…"), run: () => void editFlow(h), hint: "e" },
+    { label: t("Remove…"), run: () => askRemove(h), danger: true, hint: "del" },
+  ];
 
   async function addFlow(): Promise<void> {
     const name = await ib.ui.prompt(t("A new habit"), { placeholder: t("read 20 pages · drink water · stretch") });
@@ -204,21 +238,19 @@ export function activate(ib: IcebreakerAPI): void {
       return "Habits";
     }
     status() {
-      return t("space / enter check · u uncheck · a add · x remove");
+      return t("space / enter check · u uncheck · a add · e edit · x remove");
     }
     onText(s: string): boolean {
       const h = habits[this.sel];
       if (s === "a" || s === "+") return void addFlow(), true;
       if (s === " " && h) return run(`habit check ${h.id}`), true;
       if (s === "u" && h) return run(`habit uncheck ${h.id}`), true;
-      if (s === "x" && h) {
-        void ib.ui.confirm(t("Remove {name}?", { name: h.name }), t("Its history goes too.")).then((ok) => ok && run(`habit rm ${h.id}`));
-        return true;
-      }
+      if (s === "e" && h) return void editFlow(h), true;
+      if (s === "x" && h) return askRemove(h), true;
       return false;
     }
     onKey(k: KeyInput): boolean {
-      return k.combo === "delete" ? this.onText("x") : false;
+      return k.combo === "delete" || k.combo === "ctrl+backspace" ? this.onText("x") : false;
     }
     onAction(a: Action): boolean {
       const n = habits.length;
@@ -247,7 +279,7 @@ export function activate(ib: IcebreakerAPI): void {
         const bg = i === this.sel && focused ? mix(c.accent, c.bg, 0.8) : ui.hovered(line) ? c.highlight : undefined;
         if (bg !== undefined) ui.fill(line, { bg });
         drawRow(ui, x, y, w, h, bg);
-        ui.hit(line, { onClick: () => (this.sel = i), onDouble: () => run(`habit check ${h.id}`), tip: `habit check ${h.id} · habit uncheck ${h.id}` });
+        ui.hit(line, { onClick: () => (this.sel = i), onDouble: () => run(`habit check ${h.id}`), tip: `habit check ${h.id} · habit uncheck ${h.id}`, menu: () => habitMenu(h) });
         y++;
       });
     }
@@ -263,28 +295,30 @@ export function activate(ib: IcebreakerAPI): void {
     size: { w: 4, h: 3 },
     min: { w: 2, h: 1 },
     open: "habit open",
+    onKey(k) {
+      const h = habits.find((x) => x.id === hoverId);
+      if (!h || !isDelete(k)) return false;
+      askRemove(h);
+      return true;
+    },
     render(ui, r) {
       if (!loaded) return;
       ui.animate(60_000);
+      hoverId = null;
       const list = today();
       if (!list.length) return void ui.text(r.x + 1, r.y, habits.length ? t("nothing due today") : t("no habits yet"), { fg: ui.c.muted }, r.w - 2);
       list.slice(0, r.h).forEach((h, i) => {
         drawRow(ui, r.x, r.y + i, r.w, h);
         // tick it right here, no pop-up needed (right-click: untick)
-        ui.hit({ x: r.x, y: r.y + i, w: r.w, h: 1 }, {
-          cmd: `habit check ${h.id}`,
-          tip: t("click: tick · right-click: untick"),
-          menu: () => [
-            { label: t("tick"), cmd: `habit check ${h.id}` },
-            { label: t("untick"), cmd: `habit uncheck ${h.id}` },
-          ],
-        });
+        const line = { x: r.x, y: r.y + i, w: r.w, h: 1 };
+        if (ui.hovered(line)) hoverId = h.id;
+        ui.hit(line, { cmd: `habit check ${h.id}`, tip: t("click: tick · del: remove · right-click: untick, edit"), menu: () => habitMenu(h) });
       });
     },
     popup: {
       title: "habits",
       size: { w: 60, h: 12 },
-      hint: "space check · u uncheck · a add · ↑↓",
+      hint: "space check · u uncheck · a add · e edit · del remove · ↑↓",
       render(ui, r) {
         const c = ui.c;
         const list = today();
@@ -293,7 +327,7 @@ export function activate(ib: IcebreakerAPI): void {
           const bg = i === popSel ? mix(c.accent, c.bg, 0.8) : undefined;
           if (bg !== undefined) ui.fill({ x: r.x, y: r.y + i, w: r.w, h: 1 }, { bg });
           drawRow(ui, r.x + 1, r.y + i, r.w - 2, h, bg);
-          ui.hit({ x: r.x, y: r.y + i, w: r.w, h: 1 }, { onClick: () => (popSel = i), onDouble: () => run(`habit check ${h.id}`) });
+          ui.hit({ x: r.x, y: r.y + i, w: r.w, h: 1 }, { onClick: () => (popSel = i), onDouble: () => run(`habit check ${h.id}`), menu: () => habitMenu(h) });
         });
         if (!list.length) ui.text(r.x + 2, r.y, t("nothing due today"), { fg: c.muted });
         ui.button(r.x + 2, r.y + r.h - 1, t("+ new habit"), () => void addFlow(), { tip: "a" });
@@ -303,6 +337,12 @@ export function activate(ib: IcebreakerAPI): void {
         if (s === "a" || s === "+") return close(), void addFlow(), true;
         if (s === " " && h) return run(`habit check ${h.id}`), true;
         if (s === "u" && h) return run(`habit uncheck ${h.id}`), true;
+        if (s === "e" && h) return close(), void editFlow(h), true;
+        return false;
+      },
+      onKey: (k, { close }) => {
+        const h = today()[popSel];
+        if (h && isDelete(k)) return close(), askRemove(h), true;
         return false;
       },
       onAction: (a) => {
@@ -318,6 +358,13 @@ export function activate(ib: IcebreakerAPI): void {
   ib.lib.addTranslations("fr", {
     "every day": "tous les jours",
     "click: tick · right-click: untick": "clic : cocher · clic droit : décocher",
+    "click: tick · del: remove · right-click: untick, edit": "clic : cocher · suppr : retirer · clic droit : décocher, modifier",
+    "space check · u uncheck · a add · e edit · del remove · ↑↓": "espace cocher · u décocher · a ajouter · e modifier · suppr retirer · ↑↓",
+    "space / enter check · u uncheck · a add · e edit · x remove": "espace / entrée cocher · u décocher · a ajouter · e modifier · x retirer",
+    "The habit": "L'habitude",
+    "Which days? (- = every day)": "Quels jours ? (- = tous les jours)",
+    "Edit…": "Modifier…",
+    "Remove…": "Retirer…",
     tick: "cocher",
     untick: "décocher",
     "A new habit": "Une nouvelle habitude",

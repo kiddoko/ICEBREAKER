@@ -145,7 +145,7 @@ export class Deck implements InputSink {
   readonly sound = new Sound();
   readonly voice: DeckVoice;
 
-  private readonly ui = new UI();
+  private readonly ui = Object.assign(new UI(), { softCaret: true }); // the caret glides (renderer.setCaret)
   private grid = new Grid(1, 1);
   /** the screen's size in cells (debug state) */
   get gridSize(): { cols: number; rows: number } {
@@ -360,6 +360,7 @@ export class Deck implements InputSink {
     const update = () => {
       const hidden = document.hidden;
       this.loop.setPaused(hidden);
+      if (!hidden) this.sound.wake();
       clearTimeout(this.releaseTimer);
       if (hidden) this.releaseTimer = setTimeout(() => this.renderer.release(), 60_000);
       this.gamepad.setActive?.(!hidden && document.hasFocus());
@@ -369,9 +370,13 @@ export class Deck implements InputSink {
       this.loop.background = !on && this.settings.data.appearance.backgroundSlow !== false;
       this.gamepad.setActive?.(on && !document.hidden);
       if (on) this.loop.request();
+      if (on) this.sound.wake();
     };
     window.addEventListener("focus", () => focus(true));
-    // what nobody caught still lands in the error log (with a sound, the errors tab blinks)
+    // the sound can come back only after a gesture: the first click / key after a time away wakes it
+    window.addEventListener("pointerdown", () => this.sound.wake(), { capture: true });
+    window.addEventListener("keydown", () => this.sound.wake(), { capture: true });
+    // what nobody caught still lands in the error log (with a sound, the LOG tab blinks)
     const caught = (msg: string) => {
       this.errors.add(msg);
       this.sound.play("error");
@@ -463,6 +468,7 @@ export class Deck implements InputSink {
     this.renderer.draw(this.grid);
     if (this.renderer.fading) ui.animate(0); // letters still fading in (renderer.fadeMs)
     if (ui.caret) this.input.placeCaret(ui.caret.x, ui.caret.y);
+    this.renderer.setCaret(ui.softCaret ? ui.caret : null, css(ui.c.cursor), ui.caretTyped, !!this.settings.data.appearance.reduceMotion);
     this.hits = ui.hits;
     return ui.wakeIn;
   };
@@ -521,6 +527,29 @@ export class Deck implements InputSink {
   private resize(): void {
     this.renderer.resize();
     this.loop.request();
+    // entering / leaving full screen moves the window in steps: measure again once it has settled
+    void this.measureNotch();
+    clearTimeout(this.notchTimer);
+    this.notchTimer = setTimeout(() => void this.measureNotch().then(() => setTimeout(() => void this.measureNotch(), 600)), 250);
+  }
+  private notchTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /**
+   * In full screen on a MacBook, the deck covers the camera notch too: the rows it
+   * hides become a thin band (workspace.notchRows) and the deck starts under it.
+   */
+  private async measureNotch(): Promise<void> {
+    const w = this.platform.window;
+    let rows = 0;
+    if (w.notch && (await w.isFullscreen().catch(() => false))) {
+      const px = await w.notch();
+      const cellCss = this.renderer.cellH / (window.devicePixelRatio || 1);
+      if (px > 0 && cellCss > 0) rows = Math.ceil(px / cellCss);
+    }
+    if (rows !== this.workspace.notchRows) {
+      this.workspace.notchRows = rows;
+      this.loop.request();
+    }
   }
 
   // ── InputSink: everything the keyboard/mouse/gamepad produce lands here ──
@@ -918,7 +947,10 @@ export class Deck implements InputSink {
 
   async toggleFullscreen(): Promise<void> {
     const on = !(await this.platform.window.isFullscreen());
+    // leaving: the band under the notch goes at once (it never outlives full screen)
+    if (!on) this.workspace.notchRows = 0;
     await this.platform.window.setFullscreen(on);
+    setTimeout(() => this.resize(), 300);
   }
 
   async mountVault(path: string): Promise<void> {

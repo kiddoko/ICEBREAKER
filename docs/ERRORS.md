@@ -1,7 +1,8 @@
 # Error codes
 
-Every error in ICEBREAKER gets a code. You see it in the shell panel, in the **errors** tab
-(it blinks red while some are unread, with a short error sound), and in the shell:
+Every error in ICEBREAKER gets a code. You see it in the shell panel's **log** tab
+(it blinks red while errors are unread, with a short error sound; tick *errors* to see
+only those), and with the `errors` command:
 
 ```
 errors            the list, newest first

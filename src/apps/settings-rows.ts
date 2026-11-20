@@ -19,6 +19,14 @@ import { q } from "../ui/ui";
 import { fxMax, getFx, setFx, type FxLevel } from "../core/fxlevels";
 import type { Deck } from "../deck";
 import type { SettingRow as Row } from "../core/prefs";
+import { ollamaModels } from "../ai/ollama";
+import { commandNames } from "../core/suggest";
+
+/** what the model fields offer (▾, Tab); anything else can still be typed */
+const CLAUDE_CODE_MODELS = ["opus", "sonnet", "haiku", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "claude-fable-5-2"];
+const CLAUDE_MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "claude-fable-5-2"];
+const OLLAMA_COMMON = ["llama3.1", "llama3.2", "qwen2.5", "mistral", "gemma2", "phi3"];
+
 
 /** a neural voice for the voice's language is installed (null: don't know yet) */
 const neural: { v: boolean | null } = { v: null };
@@ -85,7 +93,8 @@ export function coreSettingRows(deck: Deck): Row[] {
   const fxSlide = (e: FxLevel, label: string, show?: (v: number) => string) =>
     slide(`fx.levels.${e}`, label, 0, fxMax(e), () => getFx(d, e), (v) => void setFx(d, e, v), { zeroIsOff: e !== "sharpness", show, cmd: (v) => `fx ${e} ${v}` });
   const num = (key: string) => Number(s.get(key) ?? 0);
-  const text = (key: string, label: string, section?: string, placeholder = "", suggestions?: () => string[]): Row => ({
+  // suggestions: the ▾ list and Tab completion of the prompt (can be fetched: Ollama's models)
+  const text = (key: string, label: string, section?: string, placeholder = "", suggestions?: () => string[] | Promise<string[]>): Row => ({
     section,
     key,
     kind: "text",
@@ -94,7 +103,7 @@ export function coreSettingRows(deck: Deck): Row[] {
     cmd: () => `config set ${key} ${q(String(s.get(key) ?? ""))}`,
     value: () => String(s.get(key) || "—"),
     change: async () => {
-      const v = await d.prompt(t(label), { initial: String(s.get(key) ?? ""), placeholder, suggestions: suggestions?.() });
+      const v = await d.prompt(t(label), { initial: String(s.get(key) ?? ""), placeholder, suggestions: await suggestions?.() });
       if (v !== null) set(key, v);
     },
   });
@@ -252,17 +261,20 @@ export function coreSettingRows(deck: Deck): Row[] {
     cycle("shell.prompt", "Prompt", ["icebreaker", "mine"], undefined, (v) => (v === "mine" ? "mine (my own theme)" : "ICEBREAKER's")),
     { section: "UPLINK (AI)", label: "", value: () => "" },
     cycle("ai.provider", "Provider", ["claude-code", "anthropic", "ollama"], undefined, (v) => (v === "claude-code" ? "claude code (subscription)" : v === "anthropic" ? "anthropic api (tokens)" : "ollama (local)")),
-    text("ai.claudeCodeModel", "Model (Claude Code)", undefined, "sonnet, opus… (empty = default)"),
+    text("ai.claudeCodeModel", "Model (Claude Code)", undefined, "sonnet, opus… (empty = default)", () => CLAUDE_CODE_MODELS),
     toggle("ai.allowWrites", "Allow writing notes"),
-    text("ai.model", "Model (API)", undefined, "claude-opus-5-5"),
+    text("ai.model", "Model (API)", undefined, "claude-opus-5-5", () => CLAUDE_MODELS),
     cycle("ai.effort", "Effort", ["low", "medium", "high", "xhigh", "max"]),
     {
       label: "API key",
       value: () => (s.secrets.anthropicApiKey ? `sk-…${s.secrets.anthropicApiKey.slice(-4)}` : d.ai.envKey ? "from env" : "not set"),
       change: () => void d.shell.runLine("config key"),
     },
-    text("ai.ollamaHost", "Ollama host", undefined, "http://localhost:11434"),
-    text("ai.ollamaModel", "Ollama model", undefined, "llama3.1"),
+    text("ai.ollamaHost", "Ollama host", undefined, "http://localhost:11434", () => ["http://localhost:11434", "http://127.0.0.1:11434"]),
+    text("ai.ollamaModel", "Ollama model", undefined, "llama3.1", async () => {
+      const pulled = await ollamaModels(String(s.get("ai.ollamaHost") ?? ""));
+      return [...pulled, ...OLLAMA_COMMON.filter((m) => !pulled.includes(m))];
+    }),
     toggle("ai.saveChats", "Save chats"),
     { section: "KEYS", label: "", value: () => "" },
     ...keyRows(deck, toggle),
@@ -271,7 +283,7 @@ export function coreSettingRows(deck: Deck): Row[] {
     { label: "Store", value: () => "open", cmd: () => "store", change: () => void d.act("store") },
     { label: "Module APIs", value: () => String(d.services.list().length), cmd: () => "modules api", change: () => void d.act("modules api") },
     { section: "VAULT", label: "", value: () => "" },
-    text("journal.folder", "Journal folder"),
+    text("journal.folder", "Journal folder", undefined, "journal", () => d.vault.entries.filter((e) => e.isDir && !e.path.startsWith(".")).map((e) => e.path)),
     toggle("editor.autosave", "Autosave"),
     toggle("editor.treeWheel", "Preview on scroll"),
     {
@@ -314,7 +326,7 @@ function keyRows(deck: Deck, toggle: (k: string, l: string) => Row): Row[] {
       cmd: () => `bind ${q(combo)} ${q(cmd)}`,
       // enter on the line: change what it runs
       change: async () => {
-        const v = await d.prompt(t("Run what? (a shell command)"), { initial: cmd });
+        const v = await d.prompt(t("Run what? (a shell command)"), { initial: cmd, suggestions: commandNames(d) });
         if (v?.trim()) void d.act(`bind ${q(combo)} ${q(v.trim())}`);
       },
       keys: {
@@ -367,7 +379,7 @@ function moduleRows(deck: Deck, text: (k: string, l: string, sec?: string, ph?: 
   }
   if (on("news")) {
     head("NEWS");
-    out.push(text("home.newsTopic", "News topic", undefined, "space, F1…"));
+    out.push(text("home.newsTopic", "News topic", undefined, "space, F1…", () => ["tech", "science", "ai", "space", "world", "economy", "nature", "health", "culture", "sports", "games", "F1"]));
     out.push({ label: "News interests", value: () => (d.settings.data.home.newsInterests ?? []).join(", ") || "—", cmd: () => "news interests", change: () => void d.act("news interests") });
   }
   if (on("focus")) {

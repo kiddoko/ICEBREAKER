@@ -59,14 +59,18 @@ A theme without `[font]` uses JetBrains Mono and the user's weight setting.
 | e-ink-night | e-ink's dark mode: cream ink on charcoal paper (never pure black or white) | the same, softer paper texture |
 | neon-district | hot pink and cyan synthwave | circuit traces · wipe · glowing keystrokes · synth plucks |
 | abyss | teal bioluminescence in black water | sonar rings · fade · deep pings |
-| phosphor | 1983 green screen, pixel font | CRT scan · wipe · glowing phosphor |
-| amber, ghost, graphite, redline, neon-ronin | see their files | each with its own frames and motion |
+| phosphor | 1983 green screen, pixel font (VT323) | dot grid · CRT sweep · retro blips |
+| redline | black glass and warning red (Share Tech Mono) | rising embers · industrial clatter |
+| ghost | ice white on blue-black (IBM Plex Mono) | a quiet starfield · soft ticks |
+| amber | monochrome amber phosphor | its own frames and motion |
+| neon-ronin | teal steel and hot pink neon | neon rain |
+| graphite | monochrome greys (Fira Code) | no background: pure focus |
 
 ## Tweaking without writing a file
 
 `theme studio` (or MODULES → Theme studio) shows every knob with a live
 preview; ←→ change a value, enter types one (`#ff2e88`), r resets it. It's all
-commands, echoed in the shell, so this works too:
+commands (the shell's LOG tab shows them), so this works too:
 
 ```
 theme tweak accent #ff2e88
@@ -81,15 +85,6 @@ theme export my-night           (theme + tweaks → .icebreaker/themes/my-night.
 Tweaks are kept per theme in `settings.json` (`appearance.tweaks`); the theme
 file itself never changes. Plugins can add background effects with
 `ib.backgrounds.register(…)` (see src/plugins/api.ts).
-
-Built-in themes to start from — the first four are the flagships, each with
-its own background, sounds and motion:
-
-- `nightshade` — violet ICE, fine snow, glassy chimes, corner brackets
-- `phosphor` — 1983 green screen (VT323), dot grid + CRT sweep, retro blips, scanning selection
-- `redline` — black glass and warning red (Share Tech Mono), rising embers, industrial clatter
-- `ghost` — ice white (IBM Plex Mono), a quiet starfield, soft ticks
-- `amber`, `neon-ronin` (neon rain), `graphite` (monochrome, no background)
 
 Values are either `"#rrggbb"` or a name from `[palette]`.
 [`nightshade.toml`](../themes/nightshade.toml) lists every key with a comment.

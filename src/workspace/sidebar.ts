@@ -50,10 +50,10 @@ export class Sidebar {
     this.list.tipOf = (row) =>
       row.entry.isDir
         ? t("click: fold / unfold · drag things onto it to move them in · right-click: more")
-        : `open ${q(row.entry.path)}\n${t("drag it onto a folder to move it · F2 rename · right-click: more")}`;
+        : `open ${q(row.entry.path)}\n${t("click: select · double-click / enter: open · drag it onto a folder to move it · right-click: more")}`;
     this.list.menuOf = (row) => this.entryMenu(row);
-    // one click opens a file or folds a folder (when the button comes up: a drag never does)
-    this.list.clickActivates = () => true;
+    // one click folds a folder; a file is only selected (so ⌘⌫, F2… act on it): double-click or enter opens it
+    this.list.clickActivates = (row) => row.entry.isDir;
     // drag & drop: onto a folder (or a file: its folder), or below everything (the vault's root)
     const destOf = (target: Row | undefined) => (!target ? "" : target.entry.isDir ? target.entry.path : dirname(target.entry.path));
     this.list.canDrop = (row, target) => {
@@ -283,7 +283,7 @@ export class Sidebar {
       {
         label: t("Other…"),
         run: async () => {
-          const g = await this.deck.prompt(t("One character: an emoji, a symbol (★ ♥ ⚡ λ…)"), { initial: cur ?? "", suggestions: ICON_CHOICES });
+          const g = await this.deck.prompt(t("One character: a symbol (★ ♥ ϟ λ…)"), { initial: cur ?? "", suggestions: ICON_CHOICES });
           if (g?.trim()) void this.deck.act(`icon ${abs} ${q([...g.trim()][0])}`);
         },
       },
@@ -425,8 +425,13 @@ export class Sidebar {
         if (hot) ui.fill(line, { bg: c.highlight });
         const st = hot ? { bg: c.highlight } : {};
         ui.text(r.x + 1, top, "★", { fg: c.warning, ...st });
-        ui.text(r.x + 3, top, favIcon(f), { fg: c.accent, ...st });
-        ui.text(r.x + 5, top, f.label, { fg: hot ? c.fg : c.subtle, ...st }, r.w - 6);
+        // the colour the thing wears in the tree shows here too: its icon, and the square on the right
+        const tag = f.kind === "note" || f.kind === "folder" ? this.deck.marks.tagOf(f.target) : undefined;
+        const mono = ui.theme.fx.monochrome;
+        const mark = tag ? (mono ? `${t(tag)} ` : "■") : "";
+        ui.text(r.x + 3, top, favIcon(f), { fg: tag && !mono ? tagRGB(tag) : c.accent, ...st });
+        ui.text(r.x + 5, top, f.label, { fg: hot ? c.fg : c.subtle, ...st }, r.w - 7 - strWidth(mark));
+        if (mark) ui.textRight(r.x + r.w - 1, top, mark, { fg: mono ? c.faint : tagRGB(tag!), attrs: BOLD, ...st });
         ui.hit(line, {
           cmd: favCommand(this.deck, f),
           tip: `${favCommand(this.deck, f)}\nunpin ${f.target}`,

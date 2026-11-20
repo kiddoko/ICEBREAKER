@@ -234,6 +234,12 @@ export class HomeApp implements App {
     return true;
   }
 
+  /** where the page numbers were drawn (a widget dropped on one goes to that page) */
+  private pageRects: { n: number; rect: Rect }[] = [];
+  private pageAt(m: { x: number; y: number }): number | null {
+    return this.pageRects.find(({ rect }) => inside(rect, m.x, m.y))?.n ?? null;
+  }
+
   /** Right-click on an empty spot of HOME. */
   /** First in every right-click on HOME: into edit mode, or out of it. */
   private editEntry(): MenuEntry {
@@ -270,6 +276,14 @@ export class HomeApp implements App {
       ...(has ? [{ label: t("Open"), tip: spec.popup ? t("its pop-up: bigger, with its settings") : undefined, cmd: `widget ${keyOf(p)}`, hint: "enter" }] : []),
       ...(spec.open ? [{ label: t("Open module"), cmd: `widget ${keyOf(p)} open` }] : []),
       "-",
+      {
+        label: t("Move to page"),
+        tip: t("in edit mode: [ ] moves the chosen widget, or drag it onto a page number"),
+        sub: [
+          ...Array.from({ length: this.pageCount() }, (_, n) => ({ label: `${t("Page")} ${n + 1}`, cmd: `home move ${keyOf(p)} ${n + 1}`, disabled: n === (p.page ?? 0), checked: n === (p.page ?? 0) })),
+          { label: t("A new page"), cmd: `home move ${keyOf(p)} ${this.pageCount() + 1}` },
+        ],
+      },
       { label: t("Move to panel"), tip: t("the side panel on the right: always in view"), run: () => void this.deck.history.groupAsync(`${p.id} → panel`, async () => { await this.deck.act(`panel add --keep ${keyOf(p)}`); await this.deck.act(`home rm ${keyOf(p)}`); }) },
       { label: t("Duplicate"), tip: t("the same widget once more, with its own settings"), cmd: `home add ${p.id}` },
       { label: t("Add widget…"), run: () => this.add(), hint: "a" },
@@ -344,6 +358,13 @@ export class HomeApp implements App {
 
   /** Letters arrive as text (they're printable), so route them to the same shortcuts. */
   onText(t: string): boolean {
+    // edit mode: [ ] take the chosen widget to the page before / after (and go there with it)
+    const chosen = this.editing ? this.layout[this.selected] : undefined;
+    if (chosen && (t === "[" || t === "]")) {
+      const to = (chosen.page ?? 0) + (t === "]" ? 1 : -1);
+      if (to >= 0) void this.deck.act(`home move ${keyOf(chosen)} ${to + 1}`);
+      return true;
+    }
     if (t === "]" || t === ">") return this.setPage(this.page + 1), true;
     if (t === "[" || t === "<") return this.setPage(this.page - 1), true;
     if (t.length !== 1 || !"emaxr".includes(t)) return false;
@@ -352,6 +373,10 @@ export class HomeApp implements App {
 
   onKey(k: KeyInput): boolean {
     if (!this.editing) {
+      // the selected widget first (Delete on the entry under the mouse, its own letters…)
+      const p = this.layout[this.selected];
+      const spec = p && (p.page ?? 0) === this.page ? this.deck.widgets.get(p.id) : undefined;
+      if (spec?.onKey?.(k, { deck: this.deck, focused: true, key: keyOf(p) })) return true;
       if (k.combo === "e") return (this.editing = true);
       if (k.combo === "m") return void this.deck.openApp("modules"), true;
       return false;
@@ -490,6 +515,9 @@ export class HomeApp implements App {
           this.deck.workspace.panelDrop = null;
           // dropped on the side panel: it moves there, where the line showed
           if (d?.index === i && this.overPanel(m)) return this.deck.workspace.sidePanel.dropFromHome(keyOf(p), m.y);
+          // dropped on a page number at the bottom: it goes to that page
+          const pg = this.pageAt(m);
+          if (d?.index === i && pg !== null && pg !== (p.page ?? 0)) return void this.deck.act(`home move ${keyOf(p)} ${pg + 1}`);
           const cur = this.layout[i];
           if (!d?.spot || d.index !== i || !cur || (cur.x === d.spot.x && cur.y === d.spot.y && cur.w === d.spot.w)) return;
           this.place2(this.layout.map((q) => ({ ...q })), i, d.spot);
@@ -505,7 +533,11 @@ export class HomeApp implements App {
         try {
           // the copy you're on is the one its commands change (clock style next…)
           if (sel && focused) focusWidget(keyOf(p));
+          // the chosen widget's long texts scroll by themselves, as under the mouse
+          const zone = ui.marqueeZone;
+          if (sel && focused) ui.marqueeZone = inner;
           spec.render(ui, inner, { deck: this.deck, focused: sel, key: keyOf(p) });
+          ui.marqueeZone = zone;
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           ui.text(inner.x, inner.y, `⚠ ${msg}`, { fg: c.error }, inner.w);
@@ -566,11 +598,15 @@ export class HomeApp implements App {
       let px = r.x + 2;
       const py = r.y + r.h - 1;
       px = ui.text(px, py, " pages ", { fg: c.subtle });
+      this.pageRects = [];
       for (let n = 0; n <= pages; n++) {
         const label = n === pages ? " + " : ` ${n + 1} `;
         const on = n === this.page;
         const rect = { x: px, y: py, w: label.length, h: 1 };
-        ui.text(px, py, label, on ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: ui.hovered(rect) ? c.accent : c.muted, bg: c.highlight });
+        this.pageRects.push({ n, rect });
+        // a widget dragged over a page number: that page lights up (let go: it goes there)
+        const target = !!this.drag && ui.hovered(rect) && !on;
+        ui.text(px, py, label, on ? { fg: c.panel, bg: c.accent, attrs: BOLD } : target ? { fg: c.panel, bg: c.accentAlt, attrs: BOLD } : { fg: ui.hovered(rect) ? c.accent : c.muted, bg: c.highlight });
         ui.hit(rect, { cmd: `home page ${n === pages ? "new" : n + 1}`, tip: n === pages ? "a new empty page" : "[ / ] to flip pages" });
         px += label.length + 1;
       }

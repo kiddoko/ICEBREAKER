@@ -80,11 +80,11 @@ export const tagCommand: Command = {
 export const iconCommand: Command = {
   name: "icon",
   summary: "a custom icon (one character) for a file or folder in the tree",
-  usage: "icon <path> <glyph>   set it (★ ♥ ⚡ λ… any single character)\nicon rm <path>        back to the default icon\nicon ls               every custom icon\nicon glyphs           some ideas",
+  usage: "icon <path> <glyph>   set it (★ ♥ ϟ λ… any single character)\nicon rm <path>        back to the default icon\nicon ls               every custom icon\nicon glyphs           some ideas",
   man: "Default icons follow the file type: ∿ python, ʝ javascript/typescript, ❯ scripts, λ other code, ⚙ config, ▥ tables, ▣ images, ♪ audio, ▶ video, ▤ pdf, ▦ archives.\nStored in the vault, in .icebreaker/icons.json. Right-click → icon does the same.",
   examples: [
     ["icon notes/ideas.md ★", "a star"],
-    ["icon projects ⚡", "a folder with a lightning bolt"],
+    ["icon projects ϟ", "a folder with a lightning bolt"],
     ["icon rm projects", "the default one again"],
   ],
   complete: () => ["rm", "ls", "glyphs"],
