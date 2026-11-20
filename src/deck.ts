@@ -946,10 +946,13 @@ export class Deck implements InputSink {
       if (s.sound.muted) this.voice.stop();
       // a fader moved: hear that channel (Settings → SOUND → mixer)
       const sample: Record<string, SoundName> = { "sound.mix.text": "blip", "sound.mix.typing": "key", "sound.mix.alerts": "notify", "sound.mix.boot": "unlock", "sound.typing": "key" };
-      this.sound.play(sample[key] ?? "confirm");
+      // (at most ~10 a second: a held slider moves 60 steps a second — the value never waits, the sound does)
+      const now = performance.now();
+      if (now - this.samplePlayedAt > 100) (this.samplePlayedAt = now), this.sound.play(sample[key] ?? "confirm");
     }
     this.requestFrame();
   }
+  private samplePlayedAt = 0;
 
   /** dir +1 / -1 changes the interface scale by 10 % (25–200 %), 0 resets to 100 %. */
   zoom(dir: number): void {

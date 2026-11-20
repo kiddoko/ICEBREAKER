@@ -40,6 +40,13 @@ export interface MouseInput {
   delta: number;
   /** x with the part of a cell (2.5 = the middle of column 2): sliders use it for 1 % steps */
   fx?: number;
+  /**
+   * a drag that stayed in the same cell, or a wheel event too small to make a line
+   * (only for the areas that ask: Hit.fine — sliders)
+   */
+  fine?: boolean;
+  /** wheel: the raw pixels of this event (positive = down), for sliders */
+  px?: number;
   ctrl: boolean;
   shift: boolean;
 }
@@ -100,6 +107,7 @@ function ctrlKey(letter: string, shift = false): KeyInput {
 export class InputManager {
   /** Last known mouse cell (for hover effects). */
   mouseCell = { x: -1, y: -1 };
+  private mouseFx = -1;
   private wheelPx = 0;
   private wheelAt = 0;
   /** Called on any input — used for idle detection and to wake the frame loop. */
@@ -171,6 +179,8 @@ export class InputManager {
       }
       this.shiftAt = 0;
       const printable = [...e.key].length === 1 && (!(e.ctrlKey || e.metaKey || e.altKey) || altGr || macOption);
+      // a plain space: given to the deck here, never left to the webview (which may scroll the page with it)
+      if (e.key === " " && !e.ctrlKey && !e.metaKey && !e.altKey) return e.preventDefault(), this.sink.text(" ");
       if (printable || e.key === "Dead") return; // becomes an `input` event
       // ⌘Q ⌘H ⌘M ⌃⌘F are the macOS menu bar's: if we preventDefault them, WKWebView swallows them.
       if (IS_MAC && e.metaKey && (["q", "h", "m"].includes(e.key.toLowerCase()) || (e.ctrlKey && e.code === "KeyF"))) return;
@@ -181,6 +191,10 @@ export class InputManager {
       if (["Control", "Shift", "Alt", "Meta", "AltGraph", "CapsLock"].includes(e.key)) return;
       this.sink.key(k);
     });
+    // space anywhere else (the focus lost for a moment): never the page's scroll
+    window.addEventListener("keydown", (e) => {
+      if (e.key === " " && e.target !== ta) e.preventDefault();
+    }, true);
     ta.addEventListener("compositionstart", () => (this.composing = true));
     ta.addEventListener("compositionend", () => {
       this.composing = false;
@@ -251,8 +265,15 @@ export class InputManager {
     });
     host.addEventListener("mousemove", (e) => {
       const c = this.renderer.cellAt(e.clientX, e.clientY);
-      if (c.x === this.mouseCell.x && c.y === this.mouseCell.y) return; // only report cell changes
+      if (c.x === this.mouseCell.x && c.y === this.mouseCell.y) {
+        // the same cell: only a drag that moved (by a pixel or so: a slider's handle
+        // follows the pointer to the pixel: 1 % steps even when one cell holds 4 or 5 of them)
+        if (!e.buttons || Math.abs(c.fx - this.mouseFx) < 0.05) return;
+        this.mouseFx = c.fx;
+        return this.sink.mouse({ ...make("drag", e), fine: true });
+      }
       this.mouseCell = c;
+      this.mouseFx = c.fx;
       this.onActivity();
       this.sink.mouse(make(e.buttons ? "drag" : "move", e));
     });
@@ -307,9 +328,10 @@ export class InputManager {
         this.wheelPx += px;
         let lines = Math.trunc(this.wheelPx / cellH);
         if (!lines && lone && px) lines = Math.sign(px);
-        if (!lines) return;
+        // not a whole line yet: only sliders hear it (each notch of a Mac mouse is a step there)
+        if (!lines) return px ? this.sink.mouse({ ...make("wheel", e, 0), fine: true, px }) : undefined;
         this.wheelPx = lone && Math.abs(this.wheelPx) < cellH ? 0 : this.wheelPx - lines * cellH;
-        this.sink.mouse(make("wheel", e, lines));
+        this.sink.mouse({ ...make("wheel", e, lines), px });
       },
       { passive: false },
     );

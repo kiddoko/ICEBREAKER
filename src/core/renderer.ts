@@ -2,6 +2,7 @@ import { GlyphAtlas } from "./atlas";
 import { css, NONE } from "./color";
 import { BOLD, Grid, ITALIC, STRIKE, UNDERLINE } from "./grid";
 import { fontStack } from "./fonts";
+import { chromaStrength } from "./fxlevels";
 import { charWidth } from "./unicode";
 
 export const FONT_STACK = fontStack("JetBrains Mono");
@@ -259,8 +260,10 @@ export class Renderer {
     return v;
   }
 
-  /** 0–100: chromatic aberration (red and blue fringes, an old tube's misconvergence). */
+  /** 0–200: chromatic aberration (red and blue fringes, an old tube's misconvergence), the slider's value */
   chroma = 0;
+  /** how strong it is drawn (fxlevels.ts chromaStrength: gentle at first) */
+  private chromaE = 0;
   private chromaEl: HTMLCanvasElement | null = null;
   private chromaCtx: CanvasRenderingContext2D | null = null;
   private chromaTmp: HTMLCanvasElement | null = null;
@@ -268,6 +271,7 @@ export class Renderer {
   private chromaBg = "#000000";
   setChroma(level: number, bg = "#000000"): void {
     this.chroma = Math.max(0, Math.min(200, level));
+    this.chromaE = chromaStrength(this.chroma);
     this.chromaBg = bg;
     if (!this.chromaEl) {
       this.chromaEl = document.getElementById("chroma") as HTMLCanvasElement | null;
@@ -276,8 +280,9 @@ export class Renderer {
     }
     if (this.chromaEl) {
       this.chromaEl.style.display = this.chroma > 0 ? "block" : "none";
-      // a real RGB split: strong and saturated as it goes up (200 % = a badly misconverged tube)
-      this.chromaEl.style.opacity = String(Math.min(0.95, 0.5 + Math.sqrt(this.chroma / 200) * 0.45));
+      // a real RGB split, saturated as it goes up; it fades in at the start (no harsh first step)
+      const e = this.chromaE;
+      this.chromaEl.style.opacity = String(Math.min(0.95, 0.5 * Math.min(1, e / 10) + Math.sqrt(e / 200) * 0.45));
     }
     this.sizeChroma();
     this.front = null;
@@ -366,8 +371,9 @@ export class Renderer {
     const el = this.chromaEl, ctx = this.chromaCtx, tmp = this.chromaTmp;
     if (!el || !ctx || !tmp || !el.width) return;
     const w = el.width, h = el.height;
-    // a curve that bites early: 20 % already reads as a split, 200 % is a wreck
-    const o = 0.6 + Math.sqrt(this.chroma / 200) * 4.4; // half-res px
+    // how far the red and the blue move apart (the strength is already eased in: chromaStrength)
+    const e = this.chromaE;
+    const o = 0.6 * Math.min(1, e / 10) + Math.sqrt(e / 200) * 4.4; // half-res px
     const t = tmp.getContext("2d")!;
     t.globalCompositeOperation = "source-over";
     t.clearRect(0, 0, w, h);

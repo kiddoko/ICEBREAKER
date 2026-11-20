@@ -16,7 +16,7 @@ import { KeyCapture } from "../workspace/keycapture";
 import { SETTINGS_HELP } from "./settings-help";
 import { focus } from "../widgets/focusstate";
 import { q } from "../ui/ui";
-import { accelerated } from "../ui/slider";
+import { heldStep } from "../ui/slider";
 import { fxMax, getFx, setFx, type FxLevel } from "../core/fxlevels";
 import type { Deck } from "../deck";
 import type { SettingRow as Row } from "../core/prefs";
@@ -106,8 +106,12 @@ export function coreSettingRows(deck: Deck): Row[] {
     kind: "slider",
     cmd: () => (extra.cmd ? extra.cmd(get()) : `config set ${key} ${get()}`),
     value: () => (extra.show ? extra.show(get()) : extra.zeroIsOff && get() === 0 ? t("off") : `${get()}%`),
-    // ←→ one at a time, faster when held (ui/slider.ts accelerated)
-    change: (dir) => put(Math.max(min, Math.min(max, get() + dir * (extra.step ?? 1) * accelerated(key)))),
+    // ←→ one at a time, faster when held (ui/slider.ts heldStep): never more than one step at once
+    change: (dir) =>
+      heldStep(key, dir < 0 ? -1 : 1, (d) => {
+        const v = Math.max(min, Math.min(max, get() + d * (extra.step ?? 1)));
+        if (v !== get()) put(v);
+      }),
     slider: { min, max, get, set: put, zeroIsOff: extra.zeroIsOff, show: extra.show, step: extra.step },
   });
   const fxSlide = (e: FxLevel, label: string, show?: (v: number) => string) =>

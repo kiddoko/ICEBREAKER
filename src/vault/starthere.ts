@@ -193,9 +193,10 @@ were on come back as you left them next time.
   on. A changed one has a **▎** on its left: **del** puts it back to default, and
   *↺ all back to default* (bottom right) resets the whole category. Hover a
   setting to see what it does and the shell command that does the same.
-  **Space** ticks a box or turns a ‹ choice › (the line under the mouse, else the one
-  you're on). Sliders go **1 at a time** — drag the handle, hold on the bar, the wheel
-  or ←→ — faster the longer you hold. A **greyed** line depends on another setting
+  **Space** acts on the line you're on (the one under the mouse, else the one chosen
+  with ↑↓): it ticks a box, turns a ‹ choice ›, and puts a slider to 0 and back to
+  where it was (mute / unmute). Sliders always go **1 at a time** — drag the handle,
+  hold on the bar, the wheel or ←→; held, they go faster, still 1 by 1. A **greyed** line depends on another setting
   (the voice's lines while the voice is off, Vault key on a plain vault…).
 - **Settings → KEYS**: every shortcut on one page — click its keys to change them,
   click its **≡** key to change its key on THE MENU, del for the default.
@@ -299,8 +300,8 @@ were on come back as you left them next time.
   to search (MODULES and NEXUS have no letter shortcuts): space switches a module,
   del removes it, enter launches. Even the **TERMINAL** is a module: switch it off and
   the shell panel is gone (commands still run from THE MENU, what they ask comes as a
-  window). Every module that ships with the deck is in the **STORE**: remove one, put it
-  back from there. **Updates**: Settings → UPDATES (every day, download by
+  window). Every module that ships with the deck is in the **STORE** (type to search
+  there too, del removes): remove one, put it back from there. **Updates**: Settings → UPDATES (every day, download by
   itself, install by itself or ask first) or \`update\` in the shell; \`store update\` for the
   modules. A module that needs another one (\`requires\`) gets it installed and switched on with it.
 - **Smooth text**: every letter that appears fades in — what you type, the
@@ -729,7 +730,8 @@ Only share sounds you made or may share, and say the licence in \`pack.toml\`.
   "../FOR DEVELOPERS/tweaking.md": `# Tweaking the deck
 
 - **Every setting** has a command: \`config list\`, \`config set fx.bloom true\`;
-  effects take one number: \`fx glow 60\`, \`fx chroma 120\` (0 = off, up to 200).
+  effects take one number: \`fx glow 60\`, \`fx chroma 120\` (0 = off, up to 200;
+  the colour fringes start gently: 50 is a light touch, 100 a strong one).
 - Settings live in the system's config folder (\`config path\`); the API key in
   a separate secrets file.
 - Your files: \`.icebreaker/themes\`, \`.icebreaker/plugins\`, \`.icebreaker/scripts\`,
