@@ -67,6 +67,8 @@ ${cmds}
 - Settings: space acts on the line you're on (under the mouse, else the chosen one): ticks a box, turns a choice, puts a slider to 0 and back (mute / unmute; a slider with no 0, like brightness: to its default and back); sliders always go 1 at a time (held: faster, still 1 by 1); greyed = depends on another setting. The STORE: just type to search, del removes. MODULES and NEXUS: just type to search.
 - \`.icebreaker/themes/*.toml\` — your themes (\`theme new <name>\`)
 - \`.icebreaker/plugins/<id>/\` — your plugins (\`plugin new <id>\`) · they run in a sandbox: only what their permissions allow, in the shell too, never more than you approved (docs/SANDBOX.md)
+- A module allowed to play sound (permission "audio": a tracker, a drum machine) shows **♪ its name** in the status bar while it plays: click it (or \`audio stop\`) to silence it. Its volume: Settings → SOUND → mixer → Modules.
+- A page that **plays the keyboard** (a tracker, a piano, a game: the keys are its own) keeps every key while it's in front — letters, digits, space and all the **alt** combinations, alt + arrows too (on Windows and Linux the deck's pane keys): **esc** gives the keys back to the deck (the tree takes them), a click on the page brings them back. ⌘ / ctrl shortcuts stay the deck's.
 - \`.icebreaker/templates/journal.md\` — your journal template
 - \`.trash/\` — where \`rm\` puts things (\`trash open\` to see it, restore). Nothing is ever deleted for good, apart from \`self-destruct\` (it asks four times). A note sent there closes its tabs and leaves the pins; ⌘Z brings it back.
 

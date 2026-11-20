@@ -76,6 +76,7 @@ let theme: Theme;
 let notes: string[] | null = null;
 let notesError = "";
 let settings: Record<string, unknown> = {};
+let audio = false;
 let mod: { activate?: (ib: unknown) => unknown; deactivate?: () => unknown } | null = null;
 
 // ── what the module registers ──────────────────────────────────────────────
@@ -126,7 +127,7 @@ function makeIb(manifest: unknown, version: string): unknown {
     apps: {
       register(spec: Record<string, unknown>) {
         appSpecs.set(String(spec.kind), spec as { create(deck: unknown, args?: unknown): AppLike });
-        post({ t: "register", what: "app", spec: plain(spec, ["kind", "title", "description", "icon", "launcher"]) });
+        post({ t: "register", what: "app", spec: plain(spec, ["kind", "title", "description", "icon", "launcher", "rawKeys"]) });
       },
       open: rpc("apps", "open"),
     },
@@ -152,6 +153,9 @@ function makeIb(manifest: unknown, version: string): unknown {
       write: rpc("vault", "write"),
       append: rpc("vault", "append"),
       mkdir: rpc("vault", "mkdir"),
+      readBytes: rpc("vault", "readBytes"),
+      list: rpc("vault", "list"),
+      writeBytes: rpc("vault", "writeBytes"),
       notes: () => {
         if (notes === null) throw new Error(notesError || "needs the vault:read permission");
         return [...notes];
@@ -200,6 +204,8 @@ function makeIb(manifest: unknown, version: string): unknown {
     backgrounds: { register: notYet("ib.backgrounds") },
     // functions can't cross into the deck: a sandboxed module's changes aren't ⌘Z steps (yet)
     history: { record: () => {} },
+    // its sound is played by the deck (core/mixer.ts): this Worker has none of its own
+    audio: { available: () => audio, now: rpc("audio", "now"), sample: rpc("audio", "sample"), drop: rpc("audio", "drop"), schedule: rpc("audio", "schedule"), stop: rpc("audio", "stop"), decode: rpc("audio", "decode") },
     lib,
   });
 }
@@ -345,6 +351,7 @@ scope.onmessage = async (ev: MessageEvent<ToModule>) => {
         notes = m.notes;
         notesError = m.notesError;
         settings = m.settings;
+        audio = !!m.audio;
         closeTheDoors();
         const url = URL.createObjectURL(new Blob([m.code], { type: "text/javascript" }));
         try {

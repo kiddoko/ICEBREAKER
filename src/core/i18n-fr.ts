@@ -1411,6 +1411,7 @@ export const FR: Record<string, string> = {
   "Text": "Texte",
   "Keyboard": "Clavier",
   "Startup": "Démarrage",
+  "a module is playing sound · click to stop it": "un module joue du son · clic pour l'arrêter",
   "Keyboard sounds": "Sons du clavier",
   "Banners": "Bannières",
   "Sound": "Son",

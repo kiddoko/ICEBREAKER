@@ -361,6 +361,8 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
   if (ws.terminalOn) parts.push(ws.shellVisible ? { text: "▾ shell", fg: c.muted, cmd: "term hide", tip: "fold the shell away · ctrl+`" } : { text: "▴ shell", fg: c.accent, cmd: "term show", tip: "bring the shell back · ctrl+`" });
   parts.push({ text: "⌨", fg: ws.overlays.some((o) => o instanceof Osk) ? c.accent : c.muted, cmd: "osk", tip: "on-screen keyboard · pad: X" });
   parts.push({ text: "✦ fx", fg: c.accentAlt, cmd: "view fx", tip: "bloom, scanlines… · `fx` in the shell" });
+  // a module playing sound of its own (ib.audio): its name, one click silences it
+  for (const id of d.mixer.playing()) parts.push({ text: `♪ ${d.plugins.list().find((p) => p.manifest.id === id)?.manifest.name ?? id}`, fg: c.accent, cmd: `audio stop ${id}`, tip: t("a module is playing sound · click to stop it") });
   const muted = !!d.settings.data.sound.muted;
   parts.push({ text: muted ? "⊘ mute" : "♪", fg: muted ? c.error : c.muted, cmd: "mute", tip: muted ? t("muted: click to hear things again") : t("mute everything (sounds, voice, alerts)") });
   parts.push({ text: "☾", fg: c.muted, cmd: "screensaver", tip: t("screensaver now (any key brings you back)") });

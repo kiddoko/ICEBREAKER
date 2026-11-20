@@ -82,7 +82,7 @@ export interface Settings {
   /** muted: everything silent (ui sounds, voice, alerts) — the ♪ button, `mute` */
   /** packByTheme: the sound pack chosen for a theme (else the theme's own) */
   /** mix: each channel's volume 0-100 (core/sound.ts SOUND_CHANNELS); typing: a click on your own keys */
-  sound: { enabled: boolean; volume: number; muted?: boolean; packByTheme: Record<string, string>; mix: { ui: number; alerts: number; boot: number; text: number; typing: number }; typing: boolean };
+  sound: { enabled: boolean; volume: number; muted?: boolean; packByTheme: Record<string, string>; mix: { ui: number; alerts: number; boot: number; text: number; typing: number; modules: number }; typing: boolean };
   /** How alerts (reminders, modules' ib.ui.alert) reach you: sound (+ voice), visual (system notification + toast), both, or none. */
   notifications: {
     /** a toast in the deck */
@@ -205,7 +205,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // The heavy CRT stuff (bloom, scanlines, vignette, flicker) is one click away in the FX panel.
   fx: { bloom: false, scanlines: false, vignette: false, ambient: true, flicker: false, glitch: true, screensaverMinutes: 0, levels: { bloom: 100, scanlines: 100, vignette: 100, chroma: 0, sharpness: 80, glow: 0 } },
   boot: { mode: "full" },
-  sound: { enabled: true, volume: 50, muted: false, packByTheme: {}, mix: { ui: 100, alerts: 100, boot: 100, text: 60, typing: 60 }, typing: false },
+  sound: { enabled: true, volume: 50, muted: false, packByTheme: {}, mix: { ui: 100, alerts: 100, boot: 100, text: 60, typing: 60, modules: 80 }, typing: false },
   notifications: { screen: true, sound: true, system: true, systemOnlyAway: true, voice: true },
   keys: {},
   favorites: [],

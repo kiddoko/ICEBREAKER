@@ -79,6 +79,7 @@ compares versions there, Settings → UPDATES does it by itself (docs/UPDATES.md
 | `google-calendar` | `ib.google.*`: the user's Google Calendar, through their own OAuth client |
 | `stats:read` | `ib.stats.get/series/list` on *other* modules' stats (your own need no permission) |
 | `terminal` | `ib.use("terminal").run / write`: type commands in the user's real shell |
+| `audio` | `ib.audio.*`: play sound of its own through the speakers (a sampler the deck mixes) |
 
 Plugins from the vault are **off** until the user runs `plugin enable <id>`,
 which shows the permissions and asks for confirmation. Calling an API you
@@ -231,6 +232,11 @@ The full surface is typed and commented in
   module's. **Your permissions are the ones the person approved** when switching you on, for the
   code they approved: a later version asking for more stays off until they approve again
   (say why in your README). While you write a module, `plugin reload` approves your new code.
+- **A page that plays the keyboard** (a piano, a game): `rawKeys: true` in `ib.apps.register({…})` (and on the
+  page). While it's in front, letters, digits and space come to `onKey` as keys, never as text, with their
+  **place** in `code` (`KeyZ` is Z on QWERTY, W on AZERTY) and `repeat` when held; every **alt** combination is
+  the page's too (alt + arrows included, the deck's pane keys on Windows / Linux), and ⌘Z / ⌘⇧Z reach it (its own
+  undo). ⌘ / ctrl shortcuts stay the deck's; **esc** leaves the page (the tree takes the keys back).
 - `ib.apps.open(kind, args)`: your own pages take any `args`; the deck's pages only a note,
   a folder or a day.
 - `ib.ui.confirm / prompt / choose / alert` are headed with your module's name; what your
@@ -251,6 +257,19 @@ The full surface is typed and commented in
 - `ib.modules` → modules talk to each other. `expose("add", { doc, fn, needs })` publishes a function under your id; `call("todo", "add", "walk the dog")` calls another module's (built-in or downloaded); `has(id, fn)`, `list()`, `installed()`. A function can require a permission from its callers (`needs: "vault:write"`), so calling it is no way around permissions. In the shell: `modules api` lists everything, `modules call <module> <fn> [args…]` calls it. Built-in today: `journal.today/append`, `uplink.ask/ready`, `sysmon.stats`, `weather.now`, `news.headlines`, `clocks.timer/stopwatch`, `focus.status/start/stop`, `voice.say`, `todo.list/add/done`, `reminders.list/add`, `calendar.events/today/add`, `music.status/control`.
 - `ib.settings` → your module's settings, shown in Settings under MODULES with your name: `register([{ key, label, type: "toggle" | "choice" | "text" | "number", options, default, help }])`, `get(key)`, `set(key, value)`, `onChange(fn)`. Shell: `modules set <id> <key> <value>`.
 - `ib.ai` is the UPLINK module's AI: when the user switches UPLINK off, there's no AI for anyone.
+- `ib.vault.readBytes(path)` / `writeBytes(path, bytes)` → binary files (a song, a sample), 16 MB at most, with `vault:read` / `vault:write` like the rest of `ib.vault`; `ib.vault.list(dir)` → a folder's files of every kind (`{ path, name, isDir, size, modified }`, `vault:read`; never inside `.icebreaker/`).
+- `ib.audio` → **sound of your own** (permission `audio`), for a tracker, a drum machine, a game. Your module has no
+  sound in its sandbox: the deck mixes for you (an AudioWorklet, `src/core/mixer.ts`). Load a mono sample once —
+  `await ib.audio.sample("kick", data, { loopStart, loopLength })` (floats -1…1, `Int8Array` like an Amiga, `Int16Array`,
+  or `Uint8Array` unsigned 8-bit) — then send **events dated on the audio clock**:
+  `ib.audio.schedule([{ at: (await ib.audio.now()) + 0.1, voice: 0, play: "kick", rate: 8363, volume: 0.8, pan: -1 }])`.
+  `rate` is how fast the sample is read, in its frames per second (its recording rate = its own pitch); `interp: "none"`
+  plays it stepped, with the grit of the Amiga's Paula chip; `{ voice, stop: true }` silences a voice; an event without
+  `at` happens now (a key played live). Compute a song ~100 ms ahead and it never stutters. `stop()` silences all your
+  voices, `drop(id?)` forgets samples, `decode(bytes)` turns an audio file (wav, aiff, mp3, m4a, ogg — what the system
+  reads) into `{ rate, channels }`. Limits: 64 voices, 32 MB of samples, events 30 s ahead at most, 8192 per call.
+  Everything stops when your module is switched off; the volume is the user's (Settings → SOUND → Modules) and the
+  status bar shows ♪ your name while you play (a click silences you). Example: `tests/sandbox/sbx-audio/`.
 - `ib.media.player` → play local audio files (permission `media`); `ib.google.*` → the user's Google Calendar (permission `google-calendar`; keep Google data in `ib.google.cache`, never in the vault).
 - `ib.lib.t("English text")` → the user's language (English or French); add your own French with `ib.lib.addTranslations("fr", { "Add": "Ajouter" })`.
 - `ib.lib` → the same building blocks the core uses: `TextEditor`, `ListView`, `FilterBar` (search + colours: `matches(text, tag)`, `onText/onKey/render`), `WheelSpin` (a ring's feel),

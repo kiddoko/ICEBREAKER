@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- **Modules can play sound** (for a tracker, a drum machine, a game): a new permission
+  **`audio`** and `ib.audio` — a sampler the deck mixes on the exact frame (an AudioWorklet:
+  `src/core/mixer.ts`). A module loads samples and sends events dated on the audio clock;
+  `interp: "none"` gives the Amiga's stepped grit; `decode` reads wav, mp3, m4a…. 64 voices
+  and 32 MB per module, silenced when it's switched off. Settings → SOUND → mixer gets a
+  **Modules** fader, the status bar shows **♪ the module** while it plays (a click, or the new
+  `audio stop`, silences it). docs/PLUGINS.md, SANDBOX.md, SECURITY_AUDIT.md (O21).
+- **Binary files for modules**: `ib.vault.readBytes / writeBytes` (16 MB, the same permissions
+  and walls as notes); natively `vault_write_bytes`. `ib.vault.list(dir)`: a folder's files of
+  every kind (`vault:read`). Tested from the sandbox (`tests/sandbox/sbx-audio`, and the escape
+  tests try the new doors: closed).
+- **Pages that play the keyboard** (`rawKeys`: a piano, a tracker, a game): letters, digits and
+  space come as keys with their place (`code`), not as text — a piano works on AZERTY; every alt
+  combination is the page's on every system (alt + arrows too), ⌘Z / ⌘⇧Z reach it, esc gives the
+  keys back to the deck (the tree takes them). SHORTCUTS page, F1 manual.
+
 ## 0.5.1 — not released yet (fixes from the first tests on Mac and Windows)
 
 - **Sliders move 1 by 1**: dragging follows the pointer to the pixel, holding speeds up

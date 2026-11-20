@@ -520,7 +520,7 @@ pub fn vault_read(state: State<VaultState>, path: String) -> CmdResult<String> {
     }
 }
 
-/// Raw bytes of a small file (custom UI sounds). `None` when it doesn't exist.
+/// Raw bytes of a file (custom UI sounds, a module's binary files), at most 16 MB.
 #[tauri::command]
 pub fn vault_read_bytes(state: State<VaultState>, path: String) -> CmdResult<tauri::ipc::Response> {
     guard(&path, false)?;
@@ -528,8 +528,8 @@ pub fn vault_read_bytes(state: State<VaultState>, path: String) -> CmdResult<tau
         Mode::Enc(g) => {
             let s = g.as_ref().unwrap();
             let rel = store::norm(&path)?;
-            if s.node(&rel).is_some_and(|n| n.size > 8 * 1024 * 1024) {
-                return Err(format!("{path}: larger than 8 MB"));
+            if s.node(&rel).is_some_and(|n| n.size > MAX_BYTES) {
+                return Err(format!("{path}: larger than 16 MB"));
             }
             return Ok(tauri::ipc::Response::new(s.read(&rel)?.to_vec()));
         }
@@ -537,8 +537,8 @@ pub fn vault_read_bytes(state: State<VaultState>, path: String) -> CmdResult<tau
     };
     let p = plain(&root, &path)?;
     let meta = fs::metadata(&p).map_err(|e| format!("{path}: {e}"))?;
-    if meta.len() > 8 * 1024 * 1024 {
-        return Err(format!("{path}: larger than 8 MB"));
+    if meta.len() > MAX_BYTES {
+        return Err(format!("{path}: larger than 16 MB"));
     }
     Ok(tauri::ipc::Response::new(fs::read(&p).map_err(|e| format!("{path}: {e}"))?))
 }
@@ -563,27 +563,69 @@ pub fn vault_read_many(state: State<VaultState>, paths: Vec<String>) -> CmdResul
 /// one), so a crash mid-write never leaves a half-written note.
 #[tauri::command]
 pub fn vault_write(state: State<VaultState>, path: String, content: String) -> CmdResult<()> {
-    guard(&path, false)?;
     let content = Zeroizing::new(content);
-    let root = match mode(&state)? {
+    write_data(&state, &path, content.as_bytes())
+}
+
+/// The biggest file `vault_read_bytes` / `vault_write_bytes` move in one go (a module's
+/// song with its samples, a sound).
+const MAX_BYTES: u64 = 16 * 1024 * 1024;
+
+/// Raw bytes written to a file (a module's binary files: a tracker's songs). The body is
+/// the bytes; the path comes in the `path` header, percent-encoded (headers are ASCII).
+/// Same checks and the same atomic write as `vault_write`.
+#[tauri::command]
+pub fn vault_write_bytes(state: State<VaultState>, request: tauri::ipc::Request<'_>) -> CmdResult<()> {
+    let raw = request.headers().get("path").ok_or("vault_write_bytes: no path")?;
+    let path = percent_decode(raw.to_str().map_err(|_| "vault_write_bytes: the path isn't ASCII")?)?;
+    let tauri::ipc::InvokeBody::Raw(data) = request.body() else {
+        return Err("vault_write_bytes: the body must be raw bytes".into());
+    };
+    if data.len() as u64 > MAX_BYTES {
+        return Err(format!("{path}: larger than 16 MB"));
+    }
+    write_data(&state, &path, data)
+}
+
+/// `%41` → `A`; the result must be UTF-8 (what `encodeURIComponent` makes).
+fn percent_decode(s: &str) -> CmdResult<String> {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' {
+            let hex = s.get(i + 1..i + 3).ok_or("bad %-escape in the path")?;
+            out.push(u8::from_str_radix(hex, 16).map_err(|_| "bad %-escape in the path")?);
+            i += 3;
+        } else {
+            out.push(b[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).map_err(|_| "the path isn't UTF-8".into())
+}
+
+fn write_data(state: &State<VaultState>, path: &str, data: &[u8]) -> CmdResult<()> {
+    guard(path, false)?;
+    let root = match mode(state)? {
         Mode::Enc(mut g) => {
             let s = g.as_mut().unwrap();
-            let rel = store::norm(&path)?;
+            let rel = store::norm(path)?;
             if !s.exists(&rel) {
                 new_name(&rel)?;
             }
-            return s.write(&rel, content.as_bytes());
+            return s.write(&rel, data);
         }
         Mode::Plain(r) => r,
     };
-    let abs = plain_path(&root, &path)?;
+    let abs = plain_path(&root, path)?;
     if !abs.exists() {
-        new_name(&path)?;
+        new_name(path)?;
     }
     if let Some(parent) = abs.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    crypto::write_atomic(&abs, content.as_bytes()).map_err(|e| format!("{path}: {e}"))
+    crypto::write_atomic(&abs, data).map_err(|e| format!("{path}: {e}"))
 }
 
 #[tauri::command]
@@ -1084,6 +1126,16 @@ mod tests {
         assert!(guard("notes/account.json", false).is_ok());
         assert!(guard(".icebreaker/plugins/todo/settings.json", false).is_ok());
         assert!(guard("notes/a.md", true).is_ok());
+    }
+
+    #[test]
+    fn percent_decoding_the_path_of_raw_writes() {
+        assert_eq!(percent_decode("songs/a%20b.med").unwrap(), "songs/a b.med");
+        assert_eq!(percent_decode("%C3%A9t%C3%A9.mod").unwrap(), "été.mod");
+        assert_eq!(percent_decode("%2E%2E/x").unwrap(), "../x"); // then guard + resolve refuse it, as for any path
+        assert!(percent_decode("a%2").is_err());
+        assert!(percent_decode("a%zz").is_err());
+        assert!(percent_decode("%FF").is_err());
     }
 
     #[test]

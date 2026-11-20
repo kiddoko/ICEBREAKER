@@ -90,6 +90,7 @@ Severity: 🔴 critical (your notes, keys or computer) · 🟠 high · 🟡 medi
 | O19 | Windows: the deck's terminals start PowerShell with `-ExecutionPolicy Bypass` (needed to load its hook) | ⚪ | sign the hook, or load it another way |
 | O20 | CI: the GitHub Actions are named by version, not by commit; the updater key has no password | ⚪ | pin them; a key with a password in the secret |
 | O13 | The audit (`plugin audit`) reads the code before it runs; a minified or obfuscated module can hide what it does | ⚪ | with the sandbox it matters much less; keep showing "minified" in red |
+| O21 | A module with `audio` can play any sound, inaudible ones too (an ultrasound "beacon" some trackers use to link devices) | ⚪ | the permission says it plays sound; ♪ its name in the status bar while it plays, one click silences it; idea: a low-pass on the modules' channel |
 
 ## Looked at, nothing found
 
@@ -107,6 +108,13 @@ Severity: 🔴 critical (your notes, keys or computer) · 🟠 high · 🟡 medi
 - **The Worker's walls**: no `fetch`, XHR, WebSocket, nested Worker, native bridge or code
   from the network; what's left obeys the page's Content-Security-Policy.
 - **Stealth mode**: every way out of the deck goes through its guard.
+- **Sound and binary files from the sandbox** (2026-11-20, for a tracker module): `ib.audio`
+  needs the `audio` permission and plays only (no microphone, no recording); a module reaches only its
+  own samples and voices (the deck numbers them, the module never names another's), within limits (64
+  voices, 32 MB, 30 s ahead, 8192 events a call), and is silenced when it's switched off.
+  `vault.readBytes / writeBytes` follow `vault:read` / `vault:write`, never `.icebreaker/`, 16 MB at
+  most; the native `vault_write_bytes` goes through the same path guard and atomic write as
+  `vault_write` (`../` stops at the vault's root). `sbx-evil` and `sbx-bare` try them: closed.
 - **ICEBREAKER's own updates**: signature checked before installing, https only.
 
 ## How to repeat the test
@@ -117,7 +125,8 @@ must read and write nothing), `tests/sandbox/sbx-demo/` the one that uses the AP
 normally. Copy the three into a **test** vault's `.icebreaker/plugins/`, `plugin enable`
 them, run `sbxevil` and `sbxbare` (every line must say "closed", and `sbxbare` must end
 with "captured nothing"; "take the vault command" shows its refusal in the LOG tab) and
-`sbxdemo` / `launch sbx`. `tests/origin.test.ts` and `tests/privileged.test.ts` check the
+`sbxdemo` / `launch sbx`; `tests/sandbox/sbx-audio/` (`sbxaudio`: a little tune twice, smooth then
+stepped, a binary file written and read back, a WAV decoded, the limits refused). `tests/origin.test.ts` and `tests/privileged.test.ts` check the
 same rules without the app. Run on 2026-11-20 in the macOS app (WKWebView) and in a
 Chromium browser (the web version): every door closed. Also checked that day, for real: a
 hook planted in a vault's `.claude/settings.json` runs with plain `claude -p` and does

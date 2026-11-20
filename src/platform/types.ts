@@ -34,8 +34,10 @@ export interface VaultBackend {
   /** SELF-DESTRUCT: empty the vault folder for good. `confirm` = the folder's name. Returns how many top-level items went. */
   /** `password`: the logged-in account's, checked by the native side */
   destroy?(confirm: string, password: string): Promise<number>;
-  /** Raw bytes of a small file (desktop only). */
+  /** Raw bytes of a file, at most 16 MB. */
   readBytes?(path: string): Promise<ArrayBuffer>;
+  /** Write raw bytes (atomic, like `write`), at most 16 MB. */
+  writeBytes?(path: string, data: ArrayBuffer | Uint8Array): Promise<void>;
   /** Vault encryption (desktop only; src-tauri/src/store.rs, docs/ENCRYPTION.md). */
   crypt?: VaultCrypt;
   /** Move the whole vault to a new or empty folder (every file copied and checked; the deck switches to it). Returns the new path. */
