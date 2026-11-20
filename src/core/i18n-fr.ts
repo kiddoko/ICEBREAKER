@@ -841,6 +841,12 @@ export const FR: Record<string, string> = {
   "where your calendar lives": "où vit ton calendrier",
   "vault + Google": "vault + Google",
   "vault only": "vault seulement",
+  // ── 0.5.1: Google Calendar's state, alerts read by the voice
+  "vault + Google (not connected)": "vault + Google (pas connecté)",
+  "Google Calendar isn't connected: {why}": "Google Agenda n'est pas connecté : {why}",
+  "Google Calendar connected": "Google Agenda connecté",
+  error: "erreur",
+  warning: "attention",
   "Google account": "compte Google",
   "connected": "connecté",
   "not connected": "pas connecté",

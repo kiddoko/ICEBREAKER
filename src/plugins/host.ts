@@ -12,6 +12,7 @@ import { corePackageEntries } from "./core-packages";
 import { registerBackground } from "../fx/backgrounds";
 import { vaultTools } from "../ai/tools";
 import type { Deck } from "../deck";
+import { spokenAlert } from "../core/voice";
 import type { IcebreakerAPI, Permission, PluginManifest, PluginModule } from "./api";
 import * as lib from "./lib";
 
@@ -462,7 +463,7 @@ export class PluginHost {
         available: () => !!deck.platform.google,
         status: () => (need("google-calendar"), google().status()),
         setup: (id, secret) => (need("google-calendar"), google().setup(id, secret)),
-        connect: () => (need("google-calendar"), google().connect()),
+        connect: (onPhase) => (need("google-calendar"), google().connect(onPhase)),
         disconnect: () => (need("google-calendar"), google().disconnect()),
         calendar: async (method, path, opts = {}) => {
           need("google-calendar");
@@ -561,6 +562,10 @@ export class PluginHost {
         list: (module) => deck.services.list(module),
         installed: () => deck.plugins.list().map((p) => ({ id: p.manifest.id, name: p.manifest.name, active: p.active })),
       },
+      // ⌘Z: the module's own changes (a task added, a reminder done) are steps like the deck's
+      history: {
+        record: (step) => deck.history.record({ ...step, label: String(step.label) }),
+      },
       storage: {
         get: async <T,>(key: string, fallback: T) => ((await readData())[key] as T) ?? fallback,
         // one write at a time: two set() calls not awaited would otherwise each read the
@@ -579,7 +584,8 @@ export class PluginHost {
         choose: (t, options, o) => deck.choose(from(t), options, o),
         pickFolder: (title, start) => pickFolder(deck, from(title), start),
         pickFile: (title, exts, start) => pickFile(deck, from(title), exts, start),
-        alert: (title, body) => deck.alert(from(title), body),
+        // on screen, a module from the STORE signs its alert; the voice reads only what it says
+        alert: (title, body) => deck.alert(from(title), body, "reminders", spokenAlert(String(title), body)),
         say: (text, topic) => deck.speak((["calendar", "reminders", "timers", "weather", "system"].includes(topic ?? "") ? topic : "modules") as VoiceTopic, text),
         theme: () => deck.theme,
         redraw: () => deck.requestFrame(),

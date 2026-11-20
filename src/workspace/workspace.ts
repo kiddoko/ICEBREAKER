@@ -21,6 +21,7 @@ import { ConfirmDialog, Osk, PromptDialog, Toasts, type MessageOptions, type Ove
 import type { ChoiceOption } from "../plugins/api";
 import { FxPanel } from "./fxpanel";
 import { Sidebar } from "./sidebar";
+import { unplaceSquares } from "./favorites";
 import { SystemTerminal } from "../shell/systerm";
 
 export type ShellTab = "term" | "ibsh" | "log";
@@ -204,6 +205,37 @@ export class Workspace {
     this.logPane = new LogPane(deck);
     this.sidebar = new Sidebar(deck);
     this.sidePanel = new SidePanel(deck);
+    // a note (or a folder) sent to the trash: nothing keeps showing it
+    deck.vault.events.on("trashed", ({ path, dest }) => this.letGo(path, dest));
+  }
+
+  /**
+   * `path` went to the trash (now at `dest`): its tabs close — without writing it back —
+   * and its pins (and their squares on HOME) go, in the same ⌘Z step as the trash
+   * (vault.trash groups them). Undoing brings the note and its pins back, not the tab.
+   */
+  private letGo(path: string, dest: string): void {
+    const under = (p: string) => p === path || p.startsWith(`${path}/`);
+    const gone = this.tabs.filter((t) => t.kind === "note" && under(t.key.slice(5)));
+    for (const tab of gone) {
+      const i = this.tabs.indexOf(tab);
+      void (tab as App & { discard?: (dest: string) => Promise<void> }).discard?.(dest + tab.key.slice(5 + path.length));
+      if (tab === this.previewTab) this.previewTab = null;
+      this.tabs.splice(i, 1);
+      if (i < this.active || (i === this.active && i > 0)) this.active--;
+    }
+    if (gone.length) {
+      this.visited = this.visited.filter((k) => !(k.startsWith("note:") && under(k.slice(5))));
+      if (this.active >= this.tabs.length) this.active = Math.max(0, this.tabs.length - 1);
+      if (!this.tabs.length) this.deck.openApp("home");
+    }
+    const pins = this.deck.settings.data.favorites ?? [];
+    const keep = pins.filter((f) => !((f.kind === "note" || f.kind === "folder") && under(f.target)));
+    if (keep.length !== pins.length) {
+      this.deck.settings.set("favorites", keep);
+      unplaceSquares(this.deck, pins.filter((f) => !keep.includes(f)));
+    }
+    this.deck.requestFrame();
   }
 
   get activeApp(): App | undefined {

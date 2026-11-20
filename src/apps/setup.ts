@@ -361,9 +361,12 @@ export class SetupApp implements App {
         set("notifications.screen", see), set("notifications.system", see), set("notifications.sound", hear), set("notifications.voice", hear);
       }
       if (this.a.terminal) set("shell.mode", this.a.terminal);
-      // modules are configured through their commands, like everything else
-      if (this.a.calendar === "local") void this.deck.act("cal mode local");
-      if (this.a.calendar === "google") void this.deck.act("cal mode google");
+      // modules are configured through their commands, like everything else — once the vault
+      // is the one they'll keep (their choice is saved in it): after the mount / the encryption
+      const calendar = this.a.calendar;
+      const modules = async () => {
+        if (calendar === "local" || calendar === "google") await this.deck.act(`cal mode ${calendar}`);
+      };
       set("user.language", this.a.language || this.deck.settings.data.user.language || "en");
       set("user.gender", this.a.gender ?? "");
       set("user.genderOther", this.a.gender === "other" ? (this.a["gender-other"] ?? "") : "");
@@ -388,10 +391,14 @@ export class SetupApp implements App {
           await this.deck.act("vault encrypt --window");
           this.busy = false;
           this.leave(skipped);
+          void modules();
         })();
         return;
       }
-      if (path) void this.deck.act(`vault mount ${q(path)}`);
+      void (async () => {
+        if (path) await this.deck.act(`vault mount ${q(path)}`);
+        await modules();
+      })();
     }
     this.leave(skipped);
   }

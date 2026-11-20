@@ -109,6 +109,7 @@ pub fn run() {
             google::google_status,
             google::google_setup,
             google::google_connect,
+            google::google_connect_result,
             google::google_disconnect,
             google::google_calendar,
             google::google_cache,

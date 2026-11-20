@@ -197,6 +197,7 @@ export function activate(ib: IcebreakerAPI): void {
     if (Date.now() - localAt > 5000) {
       localAt = Date.now();
       void loadLocal().then(() => ib.ui.redraw());
+      void recheck();
     }
   };
 
@@ -327,8 +328,21 @@ export function activate(ib: IcebreakerAPI): void {
       ib.ui.redraw();
     }
   }
+  /**
+   * Ask the app whether Google is connected now: a sign-in finished elsewhere (another
+   * window, a sign-in that outlived the module being switched off and on, the setup)
+   * shows up without restarting.
+   */
+  const recheck = async () => {
+    if (!ib.google.available() || connected) return;
+    const st = await ib.google.status().catch(() => null);
+    if (!st?.connected) return;
+    connected = true;
+    if (mode !== "google") await ib.storage.set("mode", (mode = "google"));
+    void sync();
+  };
   if (syncTimer) clearInterval(syncTimer);
-  syncTimer = setInterval(() => void sync(), 10 * 60_000);
+  syncTimer = setInterval(() => void (connected ? sync() : recheck()), 10 * 60_000);
 
   // ── output helpers ───────────────────────────────────────────────────────
   const ansiColor = (id: string, s: string) => {
@@ -383,12 +397,14 @@ export function activate(ib: IcebreakerAPI): void {
   }
 
   async function removeEvent(e: Ev): Promise<void> {
+    // by id too: the files may have been read again since (⌘Z holds an older copy)
+    const same = (x: Ev) => x === e || (!!e.id && x.id === e.id && x.cal === e.cal);
     if (e.cal === "local") {
-      local = local.filter((x) => x !== e);
+      local = local.filter((x) => !same(x));
       await writeMonths([e]);
     } else {
       await ib.google.calendar("DELETE", `calendars/${gid(e.cal)}/events/${encodeURIComponent(e.id)}`);
-      google.events = google.events.filter((x) => x !== e);
+      google.events = google.events.filter((x) => !same(x));
     }
     await save();
   }
@@ -417,7 +433,8 @@ export function activate(ib: IcebreakerAPI): void {
       key: "where",
       label: "where your calendar lives",
       type: "action",
-      value: () => (connected ? t("vault + Google") : t("vault only")),
+      // what you chose (the setup, cal mode), and whether Google answers
+      value: () => (connected ? t("vault + Google") : mode === "google" ? t("vault + Google (not connected)") : t("vault only")),
       cmd: "cal settings",
       help: "Your events are plain Markdown in calendar/ inside the vault (offline, no account). Google Calendar is optional: it signs in in your browser, the token stays in the app's config folder, never in the vault.",
     },
@@ -506,6 +523,7 @@ export function activate(ib: IcebreakerAPI): void {
     complete: () => ["today", "tomorrow", "week", "next", "month", "add", "rm", "open", "settings", "calendars", t("default"), "show", "hide", "sync", "google"],
     async run(ctx) {
       await ready;
+      await recheck();
       await loadLocal(); // pick up edits made outside
       const [sub, ...rest] = ctx.args;
       const today = startOfDay(new Date());
@@ -567,6 +585,16 @@ export function activate(ib: IcebreakerAPI): void {
             const c = calOf(e.cal);
             if (c && !c.writable) return ctx.err(`cal: "${c.name}" is read-only\n`), 1;
             await removeEvent(e);
+            // ⌘Z: it comes back (a new event with the same title, time and place)
+            if (c) {
+              let back: Ev | null = null;
+              const [st, en] = [dayOf(e.start), dayOf(e.end)];
+              ib.history.record({
+                label: `cal rm ${e.title}`,
+                undo: async () => void (back = await addEvent(c, e.title, st, e.allDay, Math.round((en.getTime() - st.getTime()) / 60_000), e.where)),
+                redo: async () => void (back && (await removeEvent(back))),
+              });
+            }
             ctx.out(`${fmt.red("✕")} ${e.title} ${fmt.dim(`(${c?.name ?? e.cal})`)}\n`);
             return 0;
           }
@@ -641,17 +669,27 @@ export function activate(ib: IcebreakerAPI): void {
     let day: Date | null = null;
     let from: number | null = null;
     let to: number | null = null;
-    const words: string[] = [];
+    // "9:30-10:15" first; the rest is read by the deck's one date reader (fri 18h, demain à 9h, +1h…)
+    const others: string[] = [];
     for (const w of rest) {
       const range = /^(.+?)-(.+)$/.exec(w);
       if (from === null && range && parseTime(range[1]) !== null && parseTime(range[2]) !== null) {
         from = parseTime(range[1]);
         to = parseTime(range[2]);
-      } else if (from === null && parseTime(w) !== null) from = parseTime(w);
-      else if (!day && parseDay(w)) day = parseDay(w);
-      else words.push(w);
+      } else others.push(w);
     }
-    const title = words.join(" ").trim();
+    const w = D.readWhen(others);
+    if (w.inMinutes !== null) {
+      // "in an hour": that day, that minute
+      const at = new Date(Date.now() + w.inMinutes * 60_000);
+      day = startOfDay(at);
+      from = at.getHours() * 60 + at.getMinutes();
+    } else {
+      day = w.day;
+      if (from === null) from = w.time;
+      if (w.evening && from === null) from = 20 * 60;
+    }
+    const title = w.rest.join(" ").trim();
     if (!title) return ctx.err('cal: what is it? cal add "title" <day> [time]\n'), 1;
     if (!day) day = startOfDay(new Date());
     if (typeof flags.to === "string") to = parseTime(flags.to);
@@ -667,7 +705,14 @@ export function activate(ib: IcebreakerAPI): void {
       minutes = d;
     } else if (from !== null && to !== null) minutes = (to - from + 1440) % 1440 || 60;
     const start = from === null ? day : new Date(day.getFullYear(), day.getMonth(), day.getDate(), Math.floor(from / 60), from % 60);
-    const e = await addEvent(cal, title, start, from === null, minutes, typeof flags.where === "string" ? flags.where : undefined);
+    const where = typeof flags.where === "string" ? flags.where : undefined;
+    let e = await addEvent(cal, title, start, from === null, minutes, where);
+    // ⌘Z takes it off again (⌘⇧Z puts it back)
+    ib.history.record({
+      label: `cal add ${title}`,
+      undo: () => removeEvent(e),
+      redo: async () => void (e = await addEvent(cal, title, start, from === null, minutes, where)),
+    });
     ctx.out(`${fmt.green("+")} ${ansiColor(cal.id, "●")} ${e.title} ${fmt.dim(`· ${dayTitle(dayOf(e.start))} · ${when(e)} · ${cal.name} [${ref(e)}]`)}\n`);
     return 0;
   }
@@ -700,10 +745,21 @@ export function activate(ib: IcebreakerAPI): void {
       case "connect": case "login": {
         if (!st.configured) return ctx.err("cal: this build has no ICEBREAKER client — use your own: cal google setup (see man cal)\n"), 1;
         ctx.out(fmt.dim("your browser opens Google's consent page… (waiting up to 5 min)\n"));
-        await ib.google.connect();
+        try {
+          await ib.google.connect((phase) => {
+            if (phase === "token") ctx.out(fmt.dim("Google answered: getting the token…\n"));
+          });
+        } catch (e) {
+          // said on screen too: the setup and the settings run this where you don't see the shell
+          const why = e instanceof Error ? e.message : String(e);
+          ib.ui.notify(t("Google Calendar isn't connected: {why}", { why }), "error");
+          ctx.err(`cal: ${why}\n`);
+          return 1;
+        }
         connected = true;
         mode = "google";
         await ib.storage.set("mode", mode);
+        ib.ui.notify(t("Google Calendar connected"), "success");
         ctx.out(`${fmt.green("✓")} connected. Fetching your calendars…\n`);
         await sync();
         if (syncError) return ctx.err(`cal: ${syncError}\n`), 1;
@@ -746,7 +802,7 @@ export function activate(ib: IcebreakerAPI): void {
       if (i === null) return;
       cal = writable[i];
     }
-    const hasDay = when.trim().split(/\s+/).some((w) => parseDay(w));
+    const hasDay = !!D.readWhen(when).day || D.readWhen(when).inMinutes !== null;
     run(`cal add ${q(title.trim())}${hasDay ? "" : ` ${ymd(day)}`}${when.trim() ? ` ${when.trim()}` : ""} --cal ${q(cal.name)}`);
   }
 

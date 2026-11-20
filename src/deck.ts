@@ -61,7 +61,7 @@ import { basename, join, slugify } from "./vault/paths";
 import { Vault } from "./vault/vault";
 import { BootScreen, type BootLine } from "./workspace/boot";
 import { CellFx, Transitions } from "./fx/transition";
-import { DeckVoice, phrase } from "./core/voice";
+import { DeckVoice, phrase, spokenAlert } from "./core/voice";
 import { storeCommand, storeSpec } from "./apps/store";
 import { updateCommand } from "./shell/commands/update";
 import { detachCorePackages } from "./plugins/core-packages";
@@ -356,6 +356,8 @@ export class Deck implements InputSink {
     this.watchVisibility();
     // what starting changed (migrations, the vault path, restored tabs) isn't something to ⌘Z
     this.history.clear();
+    this.started = true;
+    if (!this.boot) this.sessionReady(); // no boot screen: the desktop is there now
     this.loop.request();
   }
 
@@ -455,7 +457,7 @@ export class Deck implements InputSink {
       this.boot = null;
       ui.begin(this.grid, this.theme, now, this.input.mouseCell);
       this.glitch(450);
-      if (!this.lock) this.greet();
+      if (!this.lock) this.sessionReady();
     }
     if (!this.boot && this.lock) this.lock.render(ui);
     else if (!this.boot) this.workspace.render(ui);
@@ -665,8 +667,10 @@ export class Deck implements InputSink {
     // notification too, so you see it anyway (notifications: off / sound only skip it)
     const n = this.settings.data.notifications;
     if (n.system && (document.hidden || !document.hasFocus())) {
-      const title = kind === "error" ? "ICEBREAKER · error" : kind === "warning" ? "ICEBREAKER · warning" : "ICEBREAKER";
-      void this.platform.notify?.(title, text).catch(() => {});
+      // the system already shows the app's name: the title says what it is, not "ICEBREAKER"
+      // (a screen reader or "announce notifications" would read it before every message)
+      const title = kind === "error" ? t("error") : kind === "warning" ? t("warning") : text;
+      void this.platform.notify?.(title, title === text ? "" : text).catch(() => {});
     }
     this.workspace.notify(text, kind);
     this.requestFrame();
@@ -1077,14 +1081,17 @@ export class Deck implements InputSink {
    * Get the user's attention, even when the deck is in the background: the
    * system notification, the "alert" sound (tu-dut), a toast — and the voice
    * reads it when it's on. Modules call it through ib.ui.alert.
+   *
+   * The voice reads what it's about — never the app's name: a title that's only
+   * "ICEBREAKER" or "Test" isn't read, the body is. `spoken` says exactly what to read.
    */
-  alert(title: string, body = "", topic: VoiceTopic = "reminders"): void {
+  alert(title: string, body = "", topic: VoiceTopic = "reminders", spoken?: string): void {
     // one box each in Settings → NOTIFICATIONS
     const n = this.settings.data.notifications;
     if (n.sound) this.sound.play("alert");
     if (n.screen) this.workspace.notify(body ? `${title} — ${body}` : title, "warning");
     if (n.system && (!n.systemOnlyAway || document.hidden || !document.hasFocus())) void this.platform.notify?.(title, body).catch((e) => console.warn("[notify]", e));
-    if (n.voice) this.speak(topic, body ? `${title}. ${body}` : title);
+    if (n.voice) this.speak(topic, spoken ?? spokenAlert(title, body));
   }
 
   /**
@@ -1100,6 +1107,19 @@ export class Deck implements InputSink {
   }
 
 
+
+  /** start() went all the way (the vault, the modules, the tabs) */
+  private started = false;
+  /**
+   * The session is ready: start() is done and the desktop is on screen. Until now the
+   * voice said nothing at all (a module's missed reminder, an error while loading, the
+   * CPU busy starting…): its first words are the greeting.
+   */
+  private sessionReady(): void {
+    if (!this.started || this.voice.open) return;
+    this.voice.open = true;
+    this.greet();
+  }
 
   /** "Welcome, netrunner": once per start, when the desktop appears (voice.greet). */
   private greeted = false;

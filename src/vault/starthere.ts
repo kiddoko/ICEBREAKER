@@ -215,12 +215,14 @@ were on come back as you left them next time.
   click keeps it; tab skips, ctrl+enter finishes. After it, a **guided tour**:
   UPLINK (the same face as its HOME widget) shows each part of the screen in turn (→ next, ← back, esc skips — it
   asks first). \`tour\` plays it again.
-- **⌘Z undoes anything** (ctrl+Z on Windows / Linux), wherever you are: a
+- **⌘Z undoes the last thing you did** (ctrl+Z on Windows / Linux), wherever you are: a
   setting, a theme, a widget moved or resized, a file sent to the trash, a
-  rename, a new note or folder — also with a widget's pop-up open. ⌘⇧Z (or
-  ctrl+Y) does it again. In a note, ⌘Z
+  rename, a new note or folder, a task, a reminder, a habit ticked, an event — also from a
+  widget's pop-up. ⌘⇧Z (or ctrl+Y) does it again. In a note, ⌘Z
   undoes your typing first. \`undo list\` shows what can be undone, \`undo 3\`
-  takes back three things.
+  takes back three things. **Uninstalling a module** can be undone too, but only right
+  after (its files come back and it's on again): once you've done something else, the
+  STORE reinstalls it.
 - **✦ fx** (status bar): a slider per effect — bloom, scanlines, vignette, RGB
   split, glow (bright things give off light), sharpness. 0 = off, up to 200 %.
   Or a preset: **none · light · medium · heavy · party** (\`fx heavy\`). Each
@@ -285,6 +287,10 @@ were on come back as you left them next time.
   the right half forward.
 - **A reminder without a time** is for in an hour (\`remind "tea"\`, or enter on an
   empty "when?").
+- **Times, in English or French, everywhere** (reminders, \`todo add … --due\`, \`cal add\`):
+  \`+1h\`, \`1h\`, \`30min\`, \`19:00\`, \`19h\`, \`19h30\`, \`demain 9h\`, \`tomorrow 9am\`,
+  \`ven 18h\`, \`fri 6pm\`, \`24/12 9:00\`, \`dans 1h\`, \`à 19h\`, \`ce soir\`. "1h"… "6h" alone mean
+  "in that long"; with a day ("demain 6h"), or from 7h on, a time of day.
 - **Lists everywhere**: a field that asks for a city, a folder, a model, a command…
   offers a list (▾) and completes with Tab.
 - **UPLINK**: each message says who wrote it — you on a tinted band, UPLINK with its
@@ -294,6 +300,9 @@ were on come back as you left them next time.
   box (bottom right) stops the reading. The voice reads an answer while it's
   being written, sentence by sentence; in Japanese, UPLINK starts with a short
   spoken version, read at once.
+- **The voice** says nothing while you log in and the deck loads: its first words are
+  the greeting. Alerts and notifications are read for what they say — never the
+  app's name ("ICEBREAKER") in front of them.
 - **MODULES** is NEXUS's scene with modules on it: each one a shard in its colour,
   with its state; they power up one after the other when the page opens. Just **type**
   to search (MODULES and NEXUS have no letter shortcuts): space switches a module,
@@ -371,7 +380,8 @@ were on stays a tab); \`term dock\` puts a terminal back in the panel.
 
 ## The trash
 \`rm\`, Delete in the tree and right-click → trash move things to .trash (never
-deleted for good). \`trash\` lists it, \`trash restore 2\` puts one back where it
+deleted for good). A note sent there closes its tabs and leaves the pins; ⌘Z brings
+the note and its pins back (not the tab: open it again). \`trash\` lists it, \`trash restore 2\` puts one back where it
 lived. ⌫ above the tree (or \`trash open\`) opens the TRASH page: everything in
 it, newest first, with where it lived — enter puts it back, r somewhere else,
 o opens it to read.
@@ -407,7 +417,7 @@ On a Mac, ⌘ plays the role of Ctrl.
 | ⌘N · ⌘⇧N | new note · new folder |
 | ⌘J | today's journal |
 | ⌘⇧L | lock (log out) |
-| ⌘Z · ⌘⇧Z | undo · redo — anything (settings, widgets, trash, renames, new notes) |
+| ⌘Z · ⌘⇧Z | undo · redo — the last thing done (settings, widgets, trash, renames, new notes, tasks, reminders…) |
 | ⌘⇧⌫ | the trash |
 | ⇧Esc · ⌘W | close the tab |
 | 1…9 | go to that tab (when not typing) |

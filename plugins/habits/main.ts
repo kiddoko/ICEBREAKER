@@ -47,10 +47,14 @@ export function activate(ib: IcebreakerAPI): void {
   let log: Log = {};
   let next = 1;
   let loaded = false;
+  /** the habits and their log as last saved: every save that changes them is one ⌘Z step */
+  let savedJson = "";
+  let label = "habit";
   const ready = (async () => {
     habits = await ib.storage.get<Habit[]>("habits", []);
     log = await ib.storage.get<Log>("log", {});
     next = habits.reduce((n, h) => Math.max(n, h.id + 1), 1);
+    savedJson = JSON.stringify({ habits, log });
     loaded = true;
     ib.ui.redraw();
   })();
@@ -77,10 +81,23 @@ export function activate(ib: IcebreakerAPI): void {
     void ib.stats.set("today", due.length ? Math.round((done / due.length) * 100) : 0, { label: "habits done today", unit: "%" }).catch(() => {});
     void ib.stats.set("best", habits.reduce((m, h) => Math.max(m, streak(h)), 0), { label: "best habit streak", unit: "d" }).catch(() => {});
   };
+  /** Back to the habits as they were (⌘Z / ⌘⇧Z). */
+  const restore = async (json: string) => {
+    ({ habits, log } = JSON.parse(json) as { habits: Habit[]; log: Log });
+    next = habits.reduce((n, h) => Math.max(n, h.id + 1), next);
+    savedJson = "";
+    await save();
+  };
   const save = async () => {
     // keep a year of history
     const cut = ymd(back(400));
     for (const k of Object.keys(log)) if (k < cut) delete log[k];
+    const now = JSON.stringify({ habits, log });
+    if (savedJson && now !== savedJson) {
+      const before = savedJson;
+      ib.history.record({ label, undo: () => restore(before), redo: () => restore(now) });
+    }
+    savedJson = now;
     await ib.storage.set("habits", habits);
     await ib.storage.set("log", log);
     record();
@@ -121,6 +138,7 @@ export function activate(ib: IcebreakerAPI): void {
     complete: () => ["add", "check", "uncheck", "rm", "edit", "open", ...habits.map((h) => String(h.id))],
     async run(ctx) {
       await ready;
+      label = `habit ${ctx.args.join(" ")}`.slice(0, 60); // what ⌘Z says it took back
       const { flags, rest } = parseFlags(ctx.args, ["times", "days"]);
       const [sub, ...words] = rest;
       if (!sub || sub === "ls" || sub === "today") {
