@@ -65,7 +65,7 @@ ${cmds}
 - \`.icebreaker/themes/*.toml\` — your themes (\`theme new <name>\`)
 - \`.icebreaker/plugins/<id>/\` — your plugins (\`plugin new <id>\`) · they run in a sandbox: only what their permissions allow, in the shell too, never more than you approved (docs/SANDBOX.md)
 - A module allowed to play sound (permission "audio": a tracker, a drum machine) shows **♪ its name** in the status bar while it plays: click it (or \`audio stop\`) to silence it. Its volume: Settings → SOUND → mixer → Modules.
-- A page that **plays the keyboard** (the breakerMED tracker: the keys are a piano) keeps every key while it's in front — letters, digits, space and all the **alt** combinations, alt + arrows too (on Windows and Linux the deck's pane keys): **esc** gives the keys back to the deck (the tree takes them), a click on the page brings them back. ⌘ / ctrl shortcuts stay the deck's.
+- A page that **plays the keyboard** (a tracker, a piano, a game: the keys are its own) keeps every key while it's in front — letters, digits, space and all the **alt** combinations, alt + arrows too (on Windows and Linux the deck's pane keys): **esc** gives the keys back to the deck (the tree takes them), a click on the page brings them back. ⌘ / ctrl shortcuts stay the deck's.
 - \`.icebreaker/templates/journal.md\` — your journal template
 - \`.trash/\` — where \`rm\` puts things (\`trash open\` to see it, restore). Nothing is ever deleted for good, apart from \`self-destruct\` (it asks four times).
 `;

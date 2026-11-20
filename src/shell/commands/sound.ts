@@ -51,7 +51,7 @@ export const audioCommand: Command = {
   name: "audio",
   summary: "the sound modules play themselves: who is playing, stop them",
   usage: "audio              the modules playing now\naudio stop [id]    silence one module (or all of them)",
-  examples: [["audio stop", "silence every module"], ["audio stop breakermed", "silence one"]],
+  examples: [["audio stop", "silence every module"], ["audio stop drums", "silence one module (its id)"]],
   complete: () => ["stop"],
   run(ctx) {
     const m = ctx.deck.mixer;

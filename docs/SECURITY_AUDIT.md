@@ -108,7 +108,7 @@ Severity: 🔴 critical (your notes, keys or computer) · 🟠 high · 🟡 medi
 - **The Worker's walls**: no `fetch`, XHR, WebSocket, nested Worker, native bridge or code
   from the network; what's left obeys the page's Content-Security-Policy.
 - **Stealth mode**: every way out of the deck goes through its guard.
-- **Sound and binary files from the sandbox** (2026-11-20, for the breakerMED tracker): `ib.audio`
+- **Sound and binary files from the sandbox** (2026-11-20, for a tracker module): `ib.audio`
   needs the `audio` permission and plays only (no microphone, no recording); a module reaches only its
   own samples and voices (the deck numbers them, the module never names another's), within limits (64
   voices, 32 MB, 30 s ahead, 8192 events a call), and is silenced when it's switched off.

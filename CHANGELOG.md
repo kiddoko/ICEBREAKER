@@ -2,29 +2,21 @@
 
 ## Unreleased
 
-- **Modules can play sound** (for breakerMED, the tracker to come): a new permission
+- **Modules can play sound** (for a tracker, a drum machine, a game): a new permission
   **`audio`** and `ib.audio` — a sampler the deck mixes on the exact frame (an AudioWorklet:
   `src/core/mixer.ts`). A module loads samples and sends events dated on the audio clock;
   `interp: "none"` gives the Amiga's stepped grit; `decode` reads wav, mp3, m4a…. 64 voices
   and 32 MB per module, silenced when it's switched off. Settings → SOUND → mixer gets a
   **Modules** fader, the status bar shows **♪ the module** while it plays (a click, or the new
   `audio stop`, silences it). docs/PLUGINS.md, SANDBOX.md, SECURITY_AUDIT.md (O21).
-- **breakerMED, step 1** (`modules/breakermed/`, a module for the STORE, not in the app): reads
-  `.med` (MMD0–MMD3) and `.mod`, plays them through `ib.audio` with OctaMED's commands (arpeggio,
-  slides, vibrato, volume, tempo, breaks, loops, delays…), shows the block scrolling with the song, the
-  sequence and the instruments; the keyboard plays the instrument like a piano; the `med` command
-  (open, ls, play, stop, pos, mute, solo, paula, effects, info). `ib.vault.list(dir)` for modules
-  (every kind of file, `vault:read`). **Pages that play the keyboard**: `rawKeys` on a page gives it
-  letters, digits and space as keys with their place (`code`), not as text — a piano works on AZERTY;
-  every alt combination is the page's on every system, ⌘Z reaches it, esc gives the keys back (the tree).
-- **breakerMED, step 2: editing.** Edit mode (space, a red "● EDIT"), the piano writes notes with the
-  instrument, 0–9 A–F the hex columns, note off, edit step (alt 0–9), the cursor column by column; delete
-  clears, ⌫ deletes the line, alt ⏎ inserts one; ⇧ + arrows or a drag select, alt C / X / V copy cut paste,
-  alt Q / A transpose (⇧: an octave); ⌘Z / ⌘⇧Z undo and redo (500 steps); a right-click menu on cells and
-  positions; `med edit / step / note / block / seq / tracks / tempo / speed / lpb / undo / redo`.
 - **Binary files for modules**: `ib.vault.readBytes / writeBytes` (16 MB, the same permissions
-  and walls as notes); natively `vault_write_bytes`. Tested from the sandbox
-  (`tests/sandbox/sbx-audio`, and the escape tests try the new doors: closed).
+  and walls as notes); natively `vault_write_bytes`. `ib.vault.list(dir)`: a folder's files of
+  every kind (`vault:read`). Tested from the sandbox (`tests/sandbox/sbx-audio`, and the escape
+  tests try the new doors: closed).
+- **Pages that play the keyboard** (`rawKeys`: a piano, a tracker, a game): letters, digits and
+  space come as keys with their place (`code`), not as text — a piano works on AZERTY; every alt
+  combination is the page's on every system (alt + arrows too), ⌘Z / ⌘⇧Z reach it, esc gives the
+  keys back to the deck (the tree takes them). SHORTCUTS page, F1 manual.
 
 ## 0.5.0 — 2026-11-20 (first public release)
 

@@ -15,15 +15,6 @@ an issue.
 | Nightshade's palette | inspired by [Catppuccin](https://catppuccin.com) | MIT |
 | The quotes widget | old philosophers (public domain) and our own lines | — |
 
-## breakerMED (the tracker module, `modules/breakermed/`)
-
-Our own code. What it reads is public: the `.mod` format (ProTracker's, documented everywhere) and
-OctaMED's MMD0 / MMD1 as Teijo Kinnunen described them in MED-FORM.TXT. For MMD2 / MMD3, the command
-pages, the tempo modes and the octave folding of the Amiga's voices, we checked our reader against
-[libopenmpt](https://lib.openmpt.org)'s (`soundlib/Load_med.cpp`, BSD-3-Clause, © OpenMPT
-Devs): read for reference, not copied. OctaMED's name, code, look and samples aren't used: breakerMED
-works *like* it and reads its files (interoperability), nothing more.
-
 ## Downloaded when you ask for them
 
 | what | when | from | terms |
