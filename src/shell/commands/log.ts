@@ -1,6 +1,8 @@
 import { isLogKind, LOG_KINDS } from "../../core/eventlog";
 import type { Command } from "../types";
 import { fmt } from "../../core/ansi";
+import { groupIssues, parseSize, PROBE_SIZES, type SizeReport } from "../../ui/probe";
+import type { Deck } from "../../deck";
 
 /** The LOG tab by command: open it, choose what it shows, print the last lines, empty it. */
 export const logCommand: Command = {
@@ -59,9 +61,12 @@ export const debugCommand: Command = {
     "debug hits              outline every clickable area (green: a command, yellow: a menu) — again to stop\n" +
     "debug log <text>        write a debug line (modules: ib.debug)\n" +
     "debug state             where things are: page, focus, panes, frame rate, grid, modules\n" +
-    "debug perf [seconds]    measure the frames while you use the deck (3 s): building, painting, cells, stutters",
-  examples: [["debug on", "then log show debug"], ["debug hits", "see what is clickable where"]],
-  complete: () => ["on", "off", "hits", "log", "state", "perf"],
+    "debug perf [seconds]    measure the frames while you use the deck (3 s): building, painting, cells, stutters\n" +
+    "debug layout [WxH…]     draw this screen at many sizes (off screen) and list what is cut or overlaps (--json)\n" +
+    "debug layout pages      the same for every page and module page, one after the other\n" +
+    "debug layout show       mark it on the screen as you go: red = cut, yellow = over another text — again to stop",
+  examples: [["debug on", "then log show debug"], ["debug hits", "see what is clickable where"], ["debug layout", "what breaks at 14 screen sizes"], ["debug layout 100x30 300x60", "two sizes only"]],
+  complete: () => ["on", "off", "hits", "log", "state", "perf", "layout"],
   async run(ctx) {
     const d = ctx.deck;
     const [a, ...rest] = ctx.args;
@@ -121,6 +126,7 @@ export const debugCommand: Command = {
       );
       return 0;
     }
+    if (a === "layout") return layoutCheck(ctx.deck, rest, ctx.out);
     if (a === "state") {
       const g = d.gridSize;
       const lines = [
@@ -136,6 +142,73 @@ export const debugCommand: Command = {
       for (const [k, v] of lines) ctx.out(`${fmt.dim(k.padEnd(8))} ${v}\n`);
       return 0;
     }
-    return ctx.err("usage: debug [on|off|hits|log <text>|state]\n"), 1;
+    return ctx.err("usage: debug [on|off|hits|log <text>|state|perf|layout]\n"), 1;
   },
 };
+
+/** pages `debug layout pages` doesn't open: they start something (a shell, the setup) or need a file */
+const NOT_PROBED = new Set(["note", "setup", "terminal", "ibsh"]);
+
+/**
+ * `debug layout`: the screen (or every page) drawn off screen at many sizes, with the
+ * layout probe (ui/probe.ts) — what is cut, what is drawn over another text, and the
+ * line of code that drew it. docs/LAYOUT.md "Checking a page".
+ */
+async function layoutCheck(d: Deck, args: string[], out: (s: string) => void): Promise<number> {
+  const json = args.includes("--json");
+  const rest = args.filter((x) => x !== "--json");
+  if (rest[0] === "show") {
+    d.showLayout = !d.showLayout;
+    d.layoutIssues = [];
+    d.requestFrame();
+    out(d.showLayout ? `layout marks ${fmt.green("on")}: ${fmt.red("red")} = cut, ${fmt.yellow("yellow")} = drawn over another text — debug layout show again to stop\n` : "layout marks off\n");
+    return 0;
+  }
+  const sizes = rest.filter((x) => x !== "pages").map(parseSize);
+  if (sizes.some((s) => !s)) return out(fmt.red("a size is COLSxROWS, from 20x8 to 600x300 (e.g. 120x34)\n")), 1;
+  const list = sizes.length ? (sizes as typeof PROBE_SIZES) : PROBE_SIZES;
+  const sweep = (page: string): SizeReport[] => list.map((s) => ({ ...s, label: page ? `${page} ${s.label}` : s.label, issues: d.probeLayout(s.cols, s.rows) }));
+
+  let reports: SizeReport[] = [];
+  const perPage: [string, number][] = [];
+  if (rest[0] === "pages") {
+    // each page opened in turn (no sound, no transition), measured, then closed again
+    const ws = d.workspace;
+    const before = new Set(ws.tabs);
+    const back = ws.activeApp?.key;
+    const kinds = d.apps.list().map((a) => a.kind).filter((k) => !NOT_PROBED.has(k));
+    if (!json) out(fmt.dim(`${kinds.length} pages × ${list.length} sizes…\n`));
+    for (const kind of kinds) {
+      const spec = d.apps.get(kind);
+      if (!spec) continue;
+      try {
+        ws.open(spec.create(d));
+      } catch {
+        continue;
+      }
+      d.requestFrame();
+      await new Promise((r) => setTimeout(r, 350)); // its data loads, a sandboxed page sends its first frame
+      const r = sweep(kind);
+      perPage.push([kind, r.reduce((n, x) => n + x.issues.length, 0)]);
+      reports = reports.concat(r);
+    }
+    for (let i = ws.tabs.length - 1; i >= 0; i--) if (!before.has(ws.tabs[i])) await ws.closeTab(i);
+    const at = ws.tabs.findIndex((t) => t.key === back);
+    if (at >= 0) ws.switchTab(at);
+    d.requestFrame();
+  } else reports = sweep("");
+
+  const groups = groupIssues(reports);
+  if (json) return out(`${JSON.stringify({ sizes: list, pages: perPage, issues: groups }, null, 2)}\n`), 0;
+  const total = reports.reduce((n, r) => n + r.issues.length, 0);
+  if (!total) return out(fmt.green(`nothing cut, nothing overlapping at ${reports.length} sizes\n`)), 0;
+  if (perPage.length) out(`${perPage.filter(([, n]) => n).map(([k, n]) => `${k} ${fmt.yellow(String(n))}`).join(" · ")}\n\n`);
+  for (const g of groups.slice(0, 40)) {
+    const kind = g.kind === "cut" ? fmt.red("cut    ") : fmt.yellow("overlap");
+    const sizes = g.sizes.length > 4 ? `${g.sizes.slice(0, 4).join(", ")} +${g.sizes.length - 4}` : g.sizes.join(", ");
+    out(`${kind} ${fmt.bold(g.where.padEnd(34))} ${fmt.dim(sizes)}\n        "${g.sample}"${g.under ? fmt.dim(` over "${g.under}"`) : ""}\n`);
+  }
+  if (groups.length > 40) out(fmt.dim(`… and ${groups.length - 40} more places (--json for all)\n`));
+  out(fmt.dim(`${total} issues in ${groups.length} places, ${reports.length} sizes\n`));
+  return 0;
+}

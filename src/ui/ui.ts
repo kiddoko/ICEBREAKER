@@ -4,6 +4,7 @@ import { BOLD, Grid, type Rect, type Style } from "../core/grid";
 import type { MouseInput } from "../core/input";
 import type { Theme } from "../core/theme";
 import { charWidth, strWidth, truncate } from "../core/unicode";
+import type { LayoutProbe } from "./probe";
 
 export type { Rect, Style };
 
@@ -124,6 +125,8 @@ export class UI {
   caretTyped = 0;
   private marquees = new Map<string, number>();
   private marqueesSeen = new Set<string>();
+  /** `debug layout`: reports texts that are cut or drawn over another (ui/probe.ts); null = off */
+  probe: LayoutProbe | null = null;
 
   begin(grid: Grid, theme: Theme, now: number, mouse: { x: number; y: number }): void {
     this.grid = grid;
@@ -171,6 +174,7 @@ export class UI {
    */
   text(x: number, y: number, s: string, style: Style = {}, maxW?: number): number {
     if (maxW !== undefined) s = maxW > 2 && strWidth(s) > maxW && this.marqueeHere(x, y, maxW) ? this.scrolled(x, y, s, maxW) : truncate(s, maxW);
+    if (this.probe) this.probeText(this.probe, x, y, s);
     const fg = style.fg ?? this.c.fg;
     const bg = style.bg ?? NONE;
     const attrs = style.attrs ?? 0;
@@ -200,6 +204,26 @@ export class UI {
       x += this.grid.set(x, y, cp === 9 ? 32 : cp, inKey ? keyFg : fg, inKey ? keyBg : bg, inKey ? attrs | BOLD : attrs);
     }
     return x;
+  }
+
+  /** What `text` is about to write, told to the layout probe: cut letters, letters over another text. */
+  private probeText(probe: LayoutProbe, x: number, y: number, s: string): void {
+    const g = this.grid;
+    const id = probe.begin(s);
+    let shown = 0, hidden = -1;
+    for (const ch of s) {
+      const cp0 = ch.codePointAt(0)!;
+      if (cp0 === 10 || cp0 === 13) continue;
+      const cp = cp0 === 9 ? 32 : cp0;
+      const w = charWidth(cp);
+      if (w === 0) continue;
+      const vis = g.inClip(x, y) && (w === 1 || g.inClip(x + 1, y));
+      if (vis) shown++;
+      else if (cp !== 32 && hidden < 0) hidden = x;
+      probe.letter(id, x, y, cp, vis, vis ? g.ch[y * g.cols + x] : 0);
+      x += w;
+    }
+    if (shown && hidden >= 0) probe.cut(id, hidden, y);
   }
 
   /** shortcuts drawn as keycaps (off while drawing content that isn't interface) */
@@ -259,6 +283,12 @@ export class UI {
     const fg = style.fg ?? this.c.fg;
     const bg = style.bg ?? NONE;
     for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) this.grid.set(x, y, cp, fg, bg, style.attrs ?? 0);
+    if (this.probe) {
+      // what was written there is meant to be covered (only the part inside the clip was)
+      const c = this.grid.clip;
+      const x = Math.max(c.x, r.x), y = Math.max(c.y, r.y);
+      this.probe.cleared({ x, y, w: Math.min(c.x + c.w, r.x + r.w) - x, h: Math.min(c.y + c.h, r.y + r.h) - y });
+    }
   }
 
   /** Recolor a rect without changing its characters (highlights, selections). */
@@ -403,6 +433,21 @@ export class UI {
   hovered(r: Rect): boolean {
     const { x, y } = this.mouse;
     return x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h;
+  }
+
+  /**
+   * Draw something that overlaps on purpose — an animated background, a pseudo-3D
+   * scene, art over a frame: `debug layout` (ui/probe.ts) doesn't report what's
+   * drawn inside. Nothing else changes.
+   */
+  art(fn: () => void): void {
+    const p = this.probe;
+    this.probe = null;
+    try {
+      fn();
+    } finally {
+      this.probe = p;
+    }
   }
 
   /** Restrict drawing to a rect while `fn` runs. */

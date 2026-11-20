@@ -8,8 +8,9 @@
 export { Field } from "../ui/field";
 /** checkbox [■] · choice ‹ value › · tabs · BOX_ON / BOX_OFF (☑ ☐ in plain text) */
 export { checkbox, choice, tabs, BOX_ON, BOX_OFF } from "../ui/controls";
-/** the spacing rules (docs/LAYOUT.md): Row lays things out GAP apart and never past its end */
-export { Row, INSET, GAP, LABEL, SECTION } from "../ui/layout";
+/** the spacing rules (docs/LAYOUT.md): Row lays things out GAP apart and never past its end; Bar drops the
+ * least important first; stack shares a frame's rows; cards reflow; sizeClass says how big a frame is */
+export { Row, INSET, GAP, LABEL, SECTION, Bar, stack, cards, sizeClass, atLeast, type SizeClass, type StackPart } from "../ui/layout";
 export { ChatView } from "../ui/chatview";
 /** the multi-line editor (notes); for one line, Field */
 export { TextEditor } from "../ui/editor";

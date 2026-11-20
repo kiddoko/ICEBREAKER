@@ -15,7 +15,7 @@ npm run app:mac                                   # macOS app with developer too
 ```
 
 Test **only on copies** of vaults: `vault mount <a copy>` from a test account, never someone's
-real notes. `debug perf [s]` measures frames; `debug hits` shows clickable areas; `debug state`.
+real notes. `debug perf [s]` measures frames; `debug hits` shows clickable areas; `debug layout` (and `debug layout pages`) lists what is cut or overlaps at 14 screen sizes; `debug state`.
 
 ## Where the risk is (read these first)
 

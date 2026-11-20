@@ -28,6 +28,9 @@ checkbox or word wrapping again.
 | a notification | `deck.notify` | `ib.ui.notify` | a toast |
 | text that fits | `wrapWords` · `truncate` · `strWidth` · `padEnd` | `ib.lib.*` | width-aware (emoji, Japanese, accents) |
 | things in a row | `Row` + `INSET` `GAP` `LABEL` `SECTION` | `ib.lib.Row` | see [LAYOUT.md](LAYOUT.md) |
+| a row that drops the least important first | `Bar` (`priority`, `side`, `fit`) | `ib.lib.Bar` | a status bar, a page's header: never overlaps, never cuts |
+| sections down a frame · cards that reflow | `stack` · `cards` | `ib.lib.stack` · `ib.lib.cards` | a header, a list, a help line that goes first · forecast days, 4 a row or 1 |
+| how big a frame is | `sizeClass` (`xs` `s` `m` `l`) · `atLeast` | `ib.lib.sizeClass` | choose a layout from your frame, not the window |
 
 ## How to use a field
 
