@@ -14,8 +14,11 @@ export class AudioStream {
   /** the node asks for more below `low` frames waiting, up to `high` */
   low = 0;
   high = 0;
-  /** the node wants `frames` more; `played` frames have been heard so far (the clock) */
-  onPull?: (frames: number, played: number) => void;
+  /**
+   * The node wants `frames` more. `played`: frames it has output so far (silence included);
+   * `buffered`: frames of yours still waiting — what you wrote minus `buffered` is what's heard now.
+   */
+  onPull?: (frames: number, played: number, buffered: number) => void;
   private closed = false;
 
   private constructor(private readonly port: MessagePort) {}
@@ -25,7 +28,7 @@ export class AudioStream {
     const s = new AudioStream(port);
     return new Promise((ok, no) => {
       const t = setTimeout(() => no(new Error("the sound stream didn't answer")), 5000);
-      port.onmessage = (ev: MessageEvent<{ t?: string; rate?: number; low?: number; high?: number; frames?: number; played?: number }>) => {
+      port.onmessage = (ev: MessageEvent<{ t?: string; rate?: number; low?: number; high?: number; frames?: number; played?: number; buffered?: number }>) => {
         const m = ev.data;
         if (m?.t === "hello") {
           clearTimeout(t);
@@ -33,7 +36,7 @@ export class AudioStream {
           s.low = Number(m.low) || 0;
           s.high = Number(m.high) || 0;
           ok(s);
-        } else if (m?.t === "pull" && !s.closed) s.onPull?.(Number(m.frames) || 0, Number(m.played) || 0);
+        } else if (m?.t === "pull" && !s.closed) s.onPull?.(Number(m.frames) || 0, Number(m.played) || 0, Number(m.buffered) || 0);
       };
       port.start?.();
     });

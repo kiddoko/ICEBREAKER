@@ -110,7 +110,7 @@ class IbStream extends AudioWorkletProcessor {
     // running low: ask for more (again, if the module didn't answer within 100 ms)
     if (this.data && this.buf.size < this.low && (this.asked < 0 || currentFrame - this.asked > sampleRate * 0.1)) {
       this.asked = currentFrame;
-      this.data.postMessage({ t: "pull", frames: this.high - this.buf.size, played: this.played });
+      this.data.postMessage({ t: "pull", frames: this.high - this.buf.size, played: this.played, buffered: this.buf.size });
     }
     if (currentFrame - this.told >= sampleRate / 4) {
       this.told = currentFrame;
