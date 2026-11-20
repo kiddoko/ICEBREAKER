@@ -62,7 +62,7 @@ the keyboard, the mouse or a gamepad.
 | find or do anything | **THE MENU**: ⌘K, or shift twice (even while typing) — type to search, or a key + enter (m ⏎ = MODULES) |
 | see every shortcut | **⌘/ / Ctrl+/** |
 | write a note | **⌘N / Ctrl+N**, or *+ note* in the tree |
-| today's journal | **⌘J / Ctrl+J** |
+| the journal (today) | **⌘J / Ctrl+J** |
 | change the look | ⚙ settings → APPEARANCE, or \`theme\` |
 | switch a feature off | **MODULES** (⌘⇧M) → space |
 | learn the shell | click anything: the command it runs shows in the shell's **log** tab |
@@ -115,7 +115,7 @@ has the same bar. The tree's colour squares tick several colours too (\`tag view
 | **UPLINK** | the AI: the chat (in tabs), the chatbox widget | ⌘⇧U |
 | **NEXUS** | the vault in pseudo-3D | \`explore\` |
 | **SYSMON** | the machine's vitals | \`sysmon\` |
-| **VOICE** | the deck speaks (local voices) — you pick what it says: errors, reminders, events, the time… | \`voice test\` |
+| **VOICE** | the deck speaks (local voices) — you pick what it says: errors, reminders, events, the time… | \`voice test\` · \`say hello\` |
 
 Each module's own settings: ⚙ → the ◇ sections at the bottom.
 Modules talk to each other (\`modules api\` lists what they share). **BLOCKS**
@@ -344,6 +344,14 @@ it, ⌘\` brings it back):
 ◆ ~/notes ❯ man todo          (every command has a manual: man <cmd>, <cmd> -h)
 \`\`\`
 
+- **Stop a command**: ctrl+C on Windows / Linux, **⌘X** on a Mac (or the real Control
+  key + C) — in ibsh it stops what's running or the question it asks (^C, the prompt comes
+  back); in your real terminal ⌘X sends ctrl+C. Esc stops a question too.
+- **Tab** completes commands and paths; a name with spaces comes between quotes:
+  \`cd STA\` + Tab → \`cd "START HERE/"\`.
+- An ICEBREAKER command run in your real terminal says what went wrong (in red) and
+  gives its exit code back: \`$?\` and the prompt's ✕ show it failed.
+
 ## Handy commands
 | | |
 |---|---|
@@ -351,6 +359,7 @@ it, ⌘\` brings it back):
 | \`catalog function todo\` | what you can call — \`--json\` for scripts |
 | \`notify --alert "tea" "it's ready"\` | call yourself like a reminder does |
 | \`account\` · \`lock\` | who you're logged in as · log out (the login page) |
+| \`say "tea's ready"\` | the deck's voice says it (silent when muted or the voice is off) |
 | \`plugin audit <id>\` | what a module's code does before you trust it |
 
 ## Scripts (≡)
@@ -406,7 +415,7 @@ On a Mac, ⌘ plays the role of Ctrl.
 | ⌘K · ⇧⇧ | **THE MENU**: type to search everything, or a key + enter (m ⏎ = MODULES). Shift twice works anywhere, even while typing |
 | ⌘⇧K · ⌘⇧F | macros · effects |
 | ⌘N · ⌘⇧N | new note · new folder |
-| ⌘J | today's journal |
+| ⌘J | the journal, open at today |
 | ⌘⇧L | lock (log out) |
 | ⌘Z · ⌘⇧Z | undo · redo — anything (settings, widgets, trash, renames, new notes) |
 | ⌘⇧⌫ | the trash |

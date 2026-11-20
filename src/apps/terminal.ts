@@ -1,7 +1,7 @@
 import type { Rect } from "../core/grid";
-import type { Action, KeyInput } from "../core/input";
+import { IS_MAC, type Action, type KeyInput } from "../core/input";
 import type { Deck } from "../deck";
-import { SystemTerminal } from "../shell/systerm";
+import { SystemTerminal, terminalKeysHint } from "../shell/systerm";
 import type { UI } from "../ui/ui";
 import type { App, AppSpec } from "./types";
 
@@ -27,7 +27,8 @@ export class TerminalApp implements App {
     return this.term.name;
   }
   status(): string {
-    return "ctrl = Control · ⌘ shortcuts stay the deck's · ⌘W closes it (and its shell) · term dock puts it back in the panel";
+    // a Mac keeps the deck's ⌘ shortcuts (⌘W closes the tab); elsewhere every ctrl key is the shell's
+    return `${terminalKeysHint()} · ${IS_MAC ? "⌘W closes it (and its shell) · " : ""}term dock puts it back in the panel`;
   }
   onKey(k: KeyInput): boolean {
     return this.term.onKey(k);

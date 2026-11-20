@@ -3,6 +3,7 @@ import { AVATAR_COLORS, AVATARS, avatarOf } from "../../core/avatar";
 import { AvatarPicker } from "../../workspace/avatarpicker";
 import { helpText } from "../help";
 import { fmt } from "../../core/ansi";
+import { osKeys } from "../../core/keyhints";
 import { gradient } from "../../core/color";
 import { padEnd, strWidth } from "../../core/unicode";
 import { ICE_ART } from "../../ui/bigtext";
@@ -24,7 +25,7 @@ const help: Command = {
       ctx.out(`\n${ctx.isTTY ? fmt.bold(fmt.magenta(g.toUpperCase())) : g.toUpperCase()}\n`);
       for (const c of cmds) ctx.out(`  ${ctx.isTTY ? fmt.green(padEnd(c.name, 12)) : padEnd(c.name, 12)} ${c.summary}\n`);
     }
-    ctx.out(`\n${fmt.dim("<command> -h for its help and examples (todo -h) · ⌘K / shift twice: THE MENU · F1 manual")}\n`);
+    ctx.out(`\n${fmt.dim(osKeys("<command> -h for its help and examples (todo -h) · ⌘K / shift twice: THE MENU · F1 manual"))}\n`);
   },
 };
 

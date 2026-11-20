@@ -217,7 +217,11 @@ const hello: Command = {
 ```
 
 If the system terminal should run the deck's version instead of a program of the
-same name, add it to `CORE_IN_TERMINAL` (`shell/systerm.ts`), like `reboot` and `logout`.
+same name, add it to `CORE_IN_TERMINAL` (`shell/systerm.ts`), like `reboot`, `logout` and `login`.
+
+A command that asks (`ctx.read`) or works for a while should still listen to `ctx.signal`, but
+it doesn't have to: ^C (ctrl+C, ⌘X on a Mac) stops it at once — `exec.ts` gives the prompt back
+with status 130 and drops whatever the command prints after that.
 
 **An app** — implement `App` (`apps/types.ts`: `title()` + `render()`, then
 `onKey` / `onText` / `onAction` / `menu`), export an `AppSpec`, register it in
@@ -342,7 +346,7 @@ modules in `tests/sandbox/` replay the attacks in the app ([SECURITY_AUDIT.md](S
 | `lib.rs` | the Tauri builder: plugins, every command registered; on macOS lifts WebKit's 60 fps preference (ProMotion) |
 | `vault.rs` | the vault: list, read, write, rename, trash, import; the path guard; the same commands on an encrypted vault (through `store.rs`), unlock / lock, `vault encrypt` / `decrypt` / `export` |
 | `store.rs` | an encrypted vault on disk: `.icebreaker-vault/` = key file, encrypted index, encrypted blobs; recovery after a crash; encrypt / decrypt / export with backup and checks |
-| `term.rs` | the PTY (your shell) and the bridge that lets it run deck commands; shell hooks for zsh, bash, fish, PowerShell |
+| `term.rs` | the PTY (your shell) and the bridge that lets it run deck commands (`POST /run` streams the output, errors in red; `GET /status/<id>` gives the exit code back to `$?` and the prompt); shell hooks for zsh, bash, fish, PowerShell |
 | `files.rs` | read-only access to the computer for the deck's file picker |
 | `config.rs` | settings and secrets files |
 | `crypto.rs` | vault encryption: vault key, Argon2id-wrapped `vault.key`, the `IBX1` file format (XChaCha20-Poly1305), atomic writes — see `docs/ENCRYPTION.md` |
@@ -350,7 +354,7 @@ modules in `tests/sandbox/` replay the attacks in the app ([SECURITY_AUDIT.md](S
 | `account.rs` | the accounts: Argon2id hashes, the unlocked one (session), each one's folder of settings; portable vaults (the vault's account card and settings copy, *open a vault*, recovery from another computer) |
 | `voice.rs` | text to speech (sherpa-onnx / piper, system voices) |
 | `appupdate.rs` | ICEBREAKER updating itself (tauri-plugin-updater): check, download, install — signed updates only (docs/UPDATES.md) |
-| `dev.rs` | developer tools (`factory-reset`): only in builds with `--features dev-tools` |
+| `dev.rs` | developer tools (`factory-reset`): only in builds with `--features dev-tools` — `dev_tools_available` tells the UI, which registers `factory-reset` only then (a release doesn't have the command at all) |
 | `media.rs`, `audio.rs` | what's playing (Spotify…), local music |
 | `google.rs` | Google OAuth (PKCE) and the Calendar API |
 | `net.rs` | `net_get` for the STORE and modules (https, LAN http) |

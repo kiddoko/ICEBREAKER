@@ -80,6 +80,19 @@ export const lock: Command = {
 };
 
 /**
+ * `login` typed for `logout` (in ibsh or your real terminal, where macOS's own login
+ * would ask for a user and ignore ctrl+C): says who you are and what logs out.
+ */
+export const login: Command = {
+  name: "login",
+  summary: "you're already logged in: says as whom (logout goes back to the login page)",
+  man: "Logging in happens on the login page. To log in as someone else: logout (or lock), then pick the account.\nIn your real terminal, `command login` still runs the system's own login.",
+  run(ctx) {
+    ctx.out(`logged in as ${fmt.bold(ctx.deck.account ?? "?")} ${fmt.dim("· logout (or lock) goes back to the login page")}\n`);
+  },
+};
+
+/**
  * SELF-DESTRUCT: the vault, gone for good. So many locks that nobody gets
  * there by accident: a dialog, the folder's name, DESTROY in capitals, the
  * password (if the deck has a login), then a 10-second countdown that any

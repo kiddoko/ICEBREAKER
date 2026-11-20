@@ -1,5 +1,6 @@
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
+import { osKeys } from "../core/keyhints";
 import { strWidth } from "../core/unicode";
 import type { MenuEntry, MenuItem, UI } from "../ui/ui";
 import type { Overlay } from "./overlays";
@@ -141,7 +142,7 @@ export class ContextMenu implements Overlay {
     this.levels.forEach((l, depth) => {
       const items = l.items;
       const labelW = Math.max(6, ...items.map((e) => (e === "-" ? 0 : strWidth(e.label) + (e.color !== undefined || e.checked !== undefined ? 2 : 0))));
-      const hintW = Math.max(0, ...items.map((e) => (e === "-" ? 0 : e.sub ? 1 : strWidth(e.hint ?? ""))));
+      const hintW = Math.max(0, ...items.map((e) => (e === "-" ? 0 : e.sub ? 1 : strWidth(osKeys(e.hint ?? "")))));
       const titleW = depth === 0 && this.title ? strWidth(this.title) + 4 : 0;
       let w = Math.min(screen.w - 2, Math.max(titleW, labelW + (hintW ? hintW + 3 : 0) + 4));
       const h = Math.min(screen.h - 2, items.length + 2);
@@ -188,7 +189,7 @@ export class ContextMenu implements Overlay {
         if (e.checked !== undefined) tx = ui.text(tx, ry, e.checked ? "✓ " : "  ", { fg: sel ? c.panel : c.accent, bg });
         else if (e.color !== undefined) tx = ui.text(tx, ry, "■ ", { fg: e.color, bg });
         ui.text(tx, ry, e.label, { fg, bg, attrs: sel ? BOLD : 0, raw: true }, inner.w - (tx - inner.x) - (hintW ? hintW + 2 : 1)); // a name, never keys
-        const right = e.sub ? "▸" : e.hint ?? "";
+        const right = e.sub ? "▸" : osKeys(e.hint ?? "");
         // a shortcut is a key; "shift+click", "ls -la" and the like stay words
         const isKey = !e.sub && !!e.hint && !/\s/.test(e.hint.trim()) && !/click/.test(e.hint);
         if (right) ui.textRight(inner.x + inner.w - 1, ry, right, { fg: sel ? c.panel : c.subtle, bg, key: isKey });
@@ -211,7 +212,7 @@ export class ContextMenu implements Overlay {
     const last = this.levels[this.levels.length - 1];
     const chosen = last?.items[last.sel];
     if (chosen && chosen !== "-" && chosen.tip && last.box) {
-      const tip = chosen.tip;
+      const tip = osKeys(chosen.tip);
       const b = last.box;
       const w = Math.min(screen.w - 2, Math.max(b.w, strWidth(tip) + 4));
       const below = b.y + b.h + 1 < screen.y + screen.h;

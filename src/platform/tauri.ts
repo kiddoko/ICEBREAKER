@@ -129,7 +129,7 @@ export function createTauriPlatform(): Platform {
     },
     bridge: {
       onRun: (cb) => void listen<{ id: string; line: string; cwd: string }>("bridge-run", (e) => cb(e.payload)),
-      send: (id, chunk, done, found) => void invoke("bridge_send", { id, chunk, done, found }),
+      send: (id, chunk, done, found, status) => void invoke("bridge_send", { id, chunk, done, found, status: status ?? null }),
     },
     media: {
       status: () => invoke<MediaStatus | null>("media_status"),
@@ -156,6 +156,7 @@ export function createTauriPlatform(): Platform {
       cache: (content) => invoke<string | null>("google_cache", { content: content ?? null }),
     },
     dev: {
+      available: () => invoke<boolean>("dev_tools_available"),
       factoryReset: (password) => invoke<string[]>("dev_factory_reset", { password }),
       restart: () => invoke<void>("dev_restart"),
     },

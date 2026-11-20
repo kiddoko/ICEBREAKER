@@ -10,6 +10,7 @@ import { IS_MAC } from "../core/input";
 import { q, type MenuEntry, type MenuItem } from "../ui/ui";
 import { copyToClipboard, readClipboard } from "../core/clipboard";
 import type { Workspace } from "./workspace";
+import { CANCEL_KEY } from "../shell/shell";
 
 /** Right-click on a macro button. */
 export function macroMenu(ws: Workspace, i: number): MenuEntry[] {
@@ -76,7 +77,12 @@ export function shellMenu(ws: Workspace): MenuEntry[] {
         { label: t("Select all"), run: () => ws.terminal.selectAll(), hint: IS_MAC ? "⌘A" : "" },
         "-",
       ]
-    : [...editMenu(ws), "-"];
+    : [
+        // ibsh: its ^C (a copy there would only send ctrl+C to it)
+        ...(ws.deck.shell.waiting || ws.deck.shell.exec.running ? [{ label: t("Stop the command"), run: () => ws.deck.shell.cancel(), hint: CANCEL_KEY } as MenuItem] : []),
+        ...editMenu(ws, { copy: false, cut: false, selectAll: false }),
+        "-",
+      ];
   if (term) items.push({ label: t("Clear"), run: () => void ws.terminal.onKey({ key: "l", code: "KeyL", ctrl: true, alt: false, shift: false, meta: false, combo: "ctrl+l", rawCtrl: true, rawMeta: false }), hint: "ctrl+L" });
   else if (ws.shellTab === "ibsh") items.push({ label: t("Clear"), cmd: "clear" });
   items.push(

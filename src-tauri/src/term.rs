@@ -9,8 +9,10 @@
 //! Bridge: a tiny HTTP server on 127.0.0.1 (random port, random token, both
 //! only given to the shells we start). The shells get a `command_not_found`
 //! hook and an `ib` function: an unknown command like `todo add "pain"` is
-//! POSTed here, the UI runs it with ibsh and streams the output back. Your own
-//! ~/.zshrc / ~/.bashrc are loaded first and never modified.
+//! POSTed here (`/run`), the UI runs it with ibsh and streams the output back
+//! (errors in red). The shell then asks `/status/<id>` for its exit code, so
+//! `$?` and the prompt's ✕ say when it failed. Your own ~/.zshrc / ~/.bashrc
+//! are loaded first and never modified.
 
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use serde::Serialize;
@@ -41,13 +43,19 @@ pub struct PtyState {
 const EXIT_MARK: &str = "\u{1b}]ib-exit\u{7}";
 
 fn default_shell() -> String {
-    // Windows: PowerShell 7 (pwsh) when it's installed, else Windows PowerShell
+    // Windows: PowerShell 7 (pwsh) when it's installed, else Windows PowerShell. Looked up
+    // in PATH once (it used to start `where.exe` for every new terminal: a console window
+    // flashing by, and time lost before the shell even started)
     #[cfg(windows)]
-    return if std::process::Command::new("where").arg("pwsh.exe").stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().map(|s| s.success()).unwrap_or(false) {
-        "pwsh.exe".into()
-    } else {
-        "powershell.exe".into()
-    };
+    {
+        static SHELL: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+        return SHELL
+            .get_or_init(|| {
+                let pwsh = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).any(|d| d.join("pwsh.exe").is_file())).unwrap_or(false);
+                if pwsh { "pwsh.exe".into() } else { "powershell.exe".into() }
+            })
+            .clone();
+    }
     #[cfg(not(windows))]
     std::env::var("SHELL").ok().filter(|s| !s.is_empty()).unwrap_or_else(|| if cfg!(target_os = "macos") { "/bin/zsh".into() } else { "/bin/bash".into() })
 }
@@ -58,35 +66,55 @@ const POWERSHELL_HOOK: &str = r#"
 # ── ICEBREAKER: its commands in your shell (unknown commands are asked to the deck) ──
 # UTF-8 both ways (Windows PowerShell 5.1 defaults to the old OEM code page: ◆ came out as â—†)
 try { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); [Console]::InputEncoding = [Text.UTF8Encoding]::new($false); $global:OutputEncoding = [Text.UTF8Encoding]::new($false) } catch {}
+# Runs a deck command: its output goes straight to the screen (Out-Host: in a function, a
+# program's output would otherwise become the function's return value, and vanish when
+# discarded), then its exit code lands in $LASTEXITCODE (and the prompt's ✕).
+# $__ib_unknown: the deck has no such command.
 function global:__ib_run {
+  $global:__ib_unknown = $false
   $tmp = [IO.Path]::GetTempFileName()
   [IO.File]::WriteAllText($tmp, (($args | ForEach-Object { "$_" }) -join [char]0) + [char]0)
-  curl.exe -sNf -X POST -H "X-IB-Token: $env:ICEBREAKER_TOKEN" -H "X-IB-Cwd: $PWD" --data-binary "@$tmp" "http://127.0.0.1:$env:ICEBREAKER_PORT/run"
-  $ok = $LASTEXITCODE -eq 0
+  $id = 'ib' + [guid]::NewGuid().ToString('N')
+  $token = "X-IB-Token: $env:ICEBREAKER_TOKEN"
+  curl.exe -sNf -X POST -H $token -H "X-IB-Cwd: $PWD" -H "X-IB-Id: $id" --data-binary "@$tmp" "http://127.0.0.1:$env:ICEBREAKER_PORT/run" | Out-Host
+  $found = $LASTEXITCODE -eq 0
   Remove-Item $tmp -ErrorAction SilentlyContinue
-  return $ok
+  $code = 127
+  if ($found) {
+    $s = curl.exe -sf -H $token "http://127.0.0.1:$env:ICEBREAKER_PORT/status/$id"
+    $code = if ("$s" -match '^\d+$') { [int]"$s" } else { 0 }
+  } else { $global:__ib_unknown = $true }
+  $global:LASTEXITCODE = $code
+  $global:__ib_code = $code
 }
-function global:ib { if ($args.Count -eq 0) { "ib <command>: run an ICEBREAKER command (ib help lists them)" } else { [void](__ib_run @args) } }
+function global:__ib_cmd {
+  __ib_run @args
+  if ($global:__ib_unknown) { Write-Host "ib: $($args[0]): not an ICEBREAKER command (ib help lists them)" -ForegroundColor Red }
+}
+function global:ib { if ($args.Count -eq 0) { "ib <command>: run an ICEBREAKER command (ib help lists them)" } else { __ib_cmd @args } }
 $ExecutionContext.InvokeCommand.CommandNotFoundAction = {
   param($name, $e)
   if ($name -like 'get-*' -or $name -match '[\/:]') { return }
-  $e.CommandScriptBlock = { if (-not (__ib_run $name @args)) { Write-Error "${name}: command not found" } }.GetNewClosure()
+  $e.CommandScriptBlock = { __ib_run $name @args; if ($global:__ib_unknown) { Write-Error "${name}: command not found" } }.GetNewClosure()
   $e.StopSearch = $true
 }
 # module commands win over programs of the same name (your aliases stay yours)
 foreach ($n in ("$env:ICEBREAKER_MODULES" -split ' ' | Where-Object { $_ })) {
-  if (-not (Get-Alias $n -ErrorAction SilentlyContinue)) { Set-Item "function:global:$n" ([scriptblock]::Create("[void](__ib_run $n @args)")) }
+  if (-not (Get-Alias $n -ErrorAction SilentlyContinue)) { Set-Item "function:global:$n" ([scriptblock]::Create("__ib_cmd $n @args")) }
 }
 # ICEBREAKER's prompt (Settings → terminal prompt → mine keeps oh-my-posh & co.)
 if ($env:ICEBREAKER_PROMPT -ne 'mine') {
   function global:prompt {
     $ok = $?
+    $code = ''
+    # an ICEBREAKER command just ran: its exit code decides (a function's $? can't say it)
+    if ($null -ne $global:__ib_code) { $ok = $global:__ib_code -eq 0; if (-not $ok) { $code = "$global:__ib_code" }; $global:__ib_code = $null }
     $e = [char]27
     # the glyphs by code: the same on every code page
     $dot = [char]0x25C6; $cross = [char]0x2715; $arrow = [char]0x276F
     $p = $PWD.Path
     if ($p.StartsWith($HOME)) { $p = '~' + $p.Substring($HOME.Length) }
-    $err = if ($ok) { '' } else { " $e[31m$cross$e[0m" }
+    $err = if ($ok) { '' } else { " $e[31m$cross$code$e[0m" }
     "$e[95m$dot$e[0m $e[35m$p$e[0m$err $e[95m$arrow$e[0m "
   }
 }
@@ -95,24 +123,43 @@ if ($env:ICEBREAKER_PROMPT -ne 'mine') {
 /// fish: the same bridge.
 const FISH_HOOK: &str = r#"
 # ── ICEBREAKER: its commands in your shell ──
+# runs a deck command, returns its exit code ($__ib_unknown: the deck has no such command)
 function __ib_run
-  string join0 -- $argv | command curl -sNf -X POST -H "X-IB-Token: $ICEBREAKER_TOKEN" -H "X-IB-Cwd: $PWD" --data-binary @- "http://127.0.0.1:$ICEBREAKER_PORT/run"
+  set -g __ib_unknown
+  set -l id ib(random)(random)(random)
+  string join0 -- $argv | command curl -sNf -X POST -H "X-IB-Token: $ICEBREAKER_TOKEN" -H "X-IB-Cwd: $PWD" -H "X-IB-Id: $id" --data-binary @- "http://127.0.0.1:$ICEBREAKER_PORT/run"
+  or begin
+    set -g __ib_unknown 1
+    return 127
+  end
+  set -l s (command curl -sf -H "X-IB-Token: $ICEBREAKER_TOKEN" "http://127.0.0.1:$ICEBREAKER_PORT/status/$id")
+  string match -qr '^[0-9]+$' -- "$s"; or set s 0
+  return $s
+end
+function __ib_cmd
+  __ib_run $argv
+  set -l s $status
+  test -n "$__ib_unknown"; and echo "ib: $argv[1]: not an ICEBREAKER command (ib help lists them)" >&2
+  return $s
 end
 function ib
   if test (count $argv) -eq 0
     echo "ib <command>: run an ICEBREAKER command (ib help lists them)"
   else
-    __ib_run $argv
+    __ib_cmd $argv
   end
 end
 function fish_command_not_found
-  __ib_run $argv; or __fish_default_command_not_found_handler $argv
+  __ib_run $argv
+  set -l s $status
+  test -n "$__ib_unknown"; and __fish_default_command_not_found_handler $argv
+  return $s
 end
 for __ib_c in (string split ' ' -- $ICEBREAKER_MODULES)
   test -n "$__ib_c"; or continue
   functions -q $__ib_c; and continue
   function $__ib_c --inherit-variable __ib_c
-    __ib_run $__ib_c $argv
+    __ib_cmd $__ib_c $argv
   end
 end
 # ICEBREAKER's prompt (Settings → terminal prompt → mine keeps yours)
@@ -137,14 +184,25 @@ fn shell_init(app: &AppHandle, shell: &str, cmd: &mut CommandBuilder) -> Result<
     // the hook, shared by zsh and bash
     let hook = r#"
 # ── ICEBREAKER: its commands in your shell (unknown commands are asked to the deck) ──
+# runs a deck command and returns its exit code; __ib_unknown=1: the deck has no such command
 __ib_run() {
-  printf '%s\0' "$@" | command curl -sNf -X POST -H "X-IB-Token: $ICEBREAKER_TOKEN" -H "X-IB-Cwd: $PWD" --data-binary @- "http://127.0.0.1:$ICEBREAKER_PORT/run"
+  __ib_unknown=
+  local __ib_id="ib$$${RANDOM}${RANDOM}${RANDOM}" __ib_s
+  printf '%s\0' "$@" | command curl -sNf -X POST -H "X-IB-Token: $ICEBREAKER_TOKEN" -H "X-IB-Cwd: $PWD" -H "X-IB-Id: $__ib_id" --data-binary @- "http://127.0.0.1:$ICEBREAKER_PORT/run" || { __ib_unknown=1; return 127; }
+  __ib_s=$(command curl -sf -H "X-IB-Token: $ICEBREAKER_TOKEN" "http://127.0.0.1:$ICEBREAKER_PORT/status/$__ib_id")
+  case "$__ib_s" in ''|*[!0-9]*) __ib_s=0 ;; esac
+  return "$__ib_s"
 }
-ib() { if [ $# -eq 0 ]; then echo "ib <command>: run an ICEBREAKER command (ib help lists them)"; else __ib_run "$@"; fi; }
+__ib_cmd() {
+  __ib_run "$@"; local __ib_s=$?
+  [ -n "$__ib_unknown" ] && echo "ib: $1: not an ICEBREAKER command (ib help lists them)" >&2
+  return $__ib_s
+}
+ib() { if [ $# -eq 0 ]; then echo "ib <command>: run an ICEBREAKER command (ib help lists them)"; else __ib_cmd "$@"; fi; }
 # module commands win over system programs of the same name (`command cal` still runs macOS's cal)
 for __ib_c in $(printf '%s' "$ICEBREAKER_MODULES"); do
   alias "$__ib_c" >/dev/null 2>&1 && continue   # your own aliases stay yours
-  eval "$__ib_c() { __ib_run $__ib_c \"\$@\"; }"
+  eval "$__ib_c() { __ib_cmd $__ib_c \"\$@\"; }"
 done
 unset __ib_c
 # ICEBREAKER's prompt — the same for everyone (Settings → terminal prompt → mine keeps yours)
@@ -178,7 +236,7 @@ fi
         write(
             ".zshrc",
             format!(
-                "ZDOTDIR=\"$HOME\"\n# powerlevel10k: no instant prompt in the deck's terminals (it fights our start-up resize: prompt_cr errors)\ntypeset -gi __p9k_instant_prompt_disabled=1\ntypeset -g POWERLEVEL9K_INSTANT_PROMPT=off\n[ -f \"$HOME/.zshrc\" ] && source \"$HOME/.zshrc\"\n# ~/.p10k.zsh may have turned it back on: off again, before p10k finalize reads it\ntypeset -g POWERLEVEL9K_INSTANT_PROMPT=off\n# powerlevel10k: its instant prompt wants this once the config is read (it can't tell here)\n(( ! ${{+functions[p10k]}} )) || p10k finalize\n# …and prompt_cr must stay off for it: something read later (.zlogin…) can turn it back on, so unset it right before each prompt, ahead of p10k's own hook\nif (( ${{+functions[p10k]}} )); then __ib_nocr() {{ unsetopt prompt_cr prompt_sp; }}; precmd_functions=(__ib_nocr $precmd_functions); unsetopt prompt_cr prompt_sp; fi\n{hook}\ncommand_not_found_handler() {{\n  __ib_run \"$@\" && return 0\n  print -u2 \"zsh: command not found: $1\"; return 127\n}}\n"
+                "ZDOTDIR=\"$HOME\"\n# powerlevel10k: no instant prompt in the deck's terminals (it fights our start-up resize: prompt_cr errors)\ntypeset -gi __p9k_instant_prompt_disabled=1\ntypeset -g POWERLEVEL9K_INSTANT_PROMPT=off\n[ -f \"$HOME/.zshrc\" ] && source \"$HOME/.zshrc\"\n# ~/.p10k.zsh may have turned it back on: off again, before p10k finalize reads it\ntypeset -g POWERLEVEL9K_INSTANT_PROMPT=off\n# powerlevel10k: its instant prompt wants this once the config is read (it can't tell here)\n(( ! ${{+functions[p10k]}} )) || p10k finalize\n# …and prompt_cr must stay off for it: something read later (.zlogin…) can turn it back on, so unset it right before each prompt, ahead of p10k's own hook\nif (( ${{+functions[p10k]}} )); then __ib_nocr() {{ unsetopt prompt_cr prompt_sp; }}; precmd_functions=(__ib_nocr $precmd_functions); unsetopt prompt_cr prompt_sp; fi\n{hook}\ncommand_not_found_handler() {{\n  __ib_run \"$@\"; local s=$?\n  [ -z \"$__ib_unknown\" ] && return $s\n  print -u2 \"zsh: command not found: $1\"; return 127\n}}\n"
             ),
         )?;
         cmd.env("ZDOTDIR", zd.to_string_lossy().as_ref());
@@ -188,7 +246,7 @@ fi
         std::fs::write(
             &rc,
             format!(
-                "for f in \"$HOME/.bash_profile\" \"$HOME/.bashrc\"; do [ -f \"$f\" ] && . \"$f\" && break; done\n{hook}\ncommand_not_found_handle() {{\n  __ib_run \"$@\" && return 0\n  echo \"bash: $1: command not found\" >&2; return 127\n}}\n"
+                "for f in \"$HOME/.bash_profile\" \"$HOME/.bashrc\"; do [ -f \"$f\" ] && . \"$f\" && break; done\n{hook}\ncommand_not_found_handle() {{\n  __ib_run \"$@\"; local s=$?\n  [ -z \"$__ib_unknown\" ] && return $s\n  echo \"bash: $1: command not found\" >&2; return 127\n}}\n"
             ),
         )
         .map_err(|e| e.to_string())?;
@@ -318,6 +376,13 @@ pub struct BridgeState {
     port: Mutex<u16>,
     token: Mutex<String>,
     pending: Arc<Mutex<HashMap<String, Sender<Msg>>>>,
+    /// exit codes of the commands that finished, until their shell asks (`/status/<id>`)
+    statuses: Arc<Mutex<HashMap<String, i32>>>,
+}
+
+/// An id a shell gave its request (X-IB-Id): letters and digits only, so it can't clash with ours ("b12").
+fn client_id(v: &str) -> Option<String> {
+    (v.len() >= 8 && v.len() <= 64 && v.starts_with("ib") && v.chars().all(|c| c.is_ascii_alphanumeric())).then(|| v.to_string())
 }
 
 impl BridgeState {
@@ -375,21 +440,36 @@ pub fn start_bridge(app: &AppHandle) {
     let token = random_token();
     *state.token.lock().unwrap() = token.clone();
     let pending = state.pending.clone();
+    let statuses = state.statuses.clone();
     let app = app.clone();
     std::thread::spawn(move || {
         let mut n: u64 = 0;
         for mut req in server.incoming_requests() {
             // compared in constant time: the timing says nothing about the token
             let ok = req.headers().iter().any(|h| h.field.equiv("X-IB-Token") && same(h.value.as_str().as_bytes(), token.as_bytes()));
-            if !ok || req.url() != "/run" {
+            if !ok {
+                let _ = req.respond(tiny_http::Response::empty(403));
+                continue;
+            }
+            // the exit code of a command that just finished (asked once, right after its output)
+            if let Some(asked) = req.url().strip_prefix("/status/").and_then(client_id) {
+                let code = statuses.lock().unwrap().remove(&asked);
+                let _ = match code {
+                    Some(c) => req.respond(tiny_http::Response::from_string(c.to_string())),
+                    None => req.respond(tiny_http::Response::empty(404)),
+                };
+                continue;
+            }
+            if req.url() != "/run" {
                 let _ = req.respond(tiny_http::Response::empty(403));
                 continue;
             }
             let cwd = req.headers().iter().find(|h| h.field.equiv("X-IB-Cwd")).map(|h| h.value.to_string()).unwrap_or_default();
+            let given = req.headers().iter().find(|h| h.field.equiv("X-IB-Id")).and_then(|h| client_id(h.value.as_str()));
             let mut line = String::new();
             let _ = req.as_reader().take(64 * 1024).read_to_string(&mut line);
             n += 1;
-            let id = format!("b{n}");
+            let id = given.filter(|g| !pending.lock().unwrap().contains_key(g)).unwrap_or_else(|| format!("b{n}"));
             let (tx, rx) = channel();
             pending.lock().unwrap().insert(id.clone(), tx);
             let _ = app.emit("bridge-run", RunEvent { id: id.clone(), line, cwd });
@@ -418,8 +498,9 @@ pub fn start_bridge(app: &AppHandle) {
 }
 
 /// From the UI: output for a bridged command (`found: false` = not an ICEBREAKER command).
+/// With `done`, `status` is its exit code: kept for the shell's `/status/<id>`.
 #[tauri::command]
-pub fn bridge_send(bridge: State<BridgeState>, id: String, chunk: Option<String>, done: bool, found: bool) {
+pub fn bridge_send(bridge: State<BridgeState>, id: String, chunk: Option<String>, done: bool, found: bool, status: Option<i32>) {
     let map = bridge.pending.lock().unwrap();
     let Some(tx) = map.get(&id) else { return };
     if !found {
@@ -430,6 +511,14 @@ pub fn bridge_send(bridge: State<BridgeState>, id: String, chunk: Option<String>
         let _ = tx.send(Msg::Chunk(c));
     }
     if done {
+        // stored before the output ends: when curl returns, the shell finds it
+        if client_id(&id).is_some() {
+            let mut st = bridge.statuses.lock().unwrap();
+            if st.len() > 256 {
+                st.clear(); // codes nobody asked for (a shell killed mid-command)
+            }
+            st.insert(id.clone(), status.unwrap_or(0));
+        }
         let _ = tx.send(Msg::Done);
     }
 }

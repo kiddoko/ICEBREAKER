@@ -118,3 +118,29 @@ export const stealthCommand: Command = {
     return 0;
   },
 };
+
+/**
+ * `say <text>` — the deck's voice says it (core/voice.ts: the voice UPLINK and the
+ * notifications use). Like the rest of the voice: nothing when the sound is muted or
+ * the voice is off, and everything stays on this computer (stealth mode changes nothing).
+ */
+export const sayCommand: Command = {
+  name: "say",
+  summary: "the deck's voice says the text",
+  usage: "say <text>         say it (queued after what's being said)\necho text | say    say what's piped in\nvoice stop         stop talking",
+  examples: [
+    ["say hello netrunner", "the voice says it"],
+    ["journal ls -n 1 | say", "says the last journal day"],
+  ],
+  man: "The same voice as UPLINK's answers and the notifications (voice: the engine, the robot filter, the language). Muted sound (mute) or the voice off (voice off): it says nothing and tells you why. Synthesized on this computer: nothing is sent anywhere, stealth mode included.\nIn your real terminal, macOS's own say stays the system's (ib say uses the deck's voice).",
+  run(ctx) {
+    const { deck } = ctx;
+    const text = (ctx.args.join(" ") || ctx.stdin).trim();
+    if (!text) return ctx.err("say: what should I say? (say <text>)\n"), 1;
+    if (!deck.voice.available) return ctx.err("say: the voice needs the desktop app\n"), 1;
+    if (deck.settings.data.sound.muted) return ctx.err("say: the sound is muted (mute off)\n"), 1;
+    if (!deck.settings.data.voice.enabled) return ctx.err("say: the voice is off (voice on)\n"), 1;
+    deck.voice.say(text);
+    return 0;
+  },
+};
