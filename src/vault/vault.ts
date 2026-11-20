@@ -119,18 +119,18 @@ export class Vault {
     this.events.emit("changed", { path: p });
   }
 
-  /** A binary file's bytes (a song, a sample), at most 16 MB. */
+  /** A binary file's bytes (a song, a sample), at most 256 MB. */
   async readBytes(path: string): Promise<Uint8Array> {
     if (!this.backend.readBytes) throw new Error("binary files aren't supported here");
     return new Uint8Array(await this.backend.readBytes(normalize(path)));
   }
 
-  /** Write a binary file (atomic, like `write`), at most 16 MB. */
+  /** Write a binary file (atomic, like `write`), at most 256 MB. */
   async writeBytes(path: string, data: Uint8Array | ArrayBuffer): Promise<void> {
     if (!this.backend.writeBytes) throw new Error("binary files aren't supported here");
     const p = normalize(path);
     const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
-    if (bytes.byteLength > 16 * 1024 * 1024) throw new Error(`${p}: larger than 16 MB`);
+    if (bytes.byteLength > 256 * 1024 * 1024) throw new Error(`${p}: larger than 256 MB`);
     if (newNameProblem(p) && !this.find(p) && !(await this.backend.exists(p).catch(() => false))) this.checkNewName(p);
     await this.backend.writeBytes(p, bytes);
     this.upsert(p, bytes.byteLength);

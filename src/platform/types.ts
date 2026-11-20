@@ -34,9 +34,9 @@ export interface VaultBackend {
   /** SELF-DESTRUCT: empty the vault folder for good. `confirm` = the folder's name. Returns how many top-level items went. */
   /** `password`: the logged-in account's, checked by the native side */
   destroy?(confirm: string, password: string): Promise<number>;
-  /** Raw bytes of a file, at most 16 MB. */
+  /** Raw bytes of a file, at most 256 MB. */
   readBytes?(path: string): Promise<ArrayBuffer>;
-  /** Write raw bytes (atomic, like `write`), at most 16 MB. */
+  /** Write raw bytes (atomic, like `write`), at most 256 MB. */
   writeBytes?(path: string, data: ArrayBuffer | Uint8Array): Promise<void>;
   /** Vault encryption (desktop only; src-tauri/src/store.rs, docs/ENCRYPTION.md). */
   crypt?: VaultCrypt;

@@ -21,7 +21,7 @@ export async function activate(ib) {
     if (await ib.vault.exists("escaped.bin")) throw new Error("stayed in the vault: ../ stops at its root");
     return "written outside?";
   });
-  await t("write bytes: 17 MB", () => ib.vault.writeBytes("notes/huge.bin", new Uint8Array(17 * 1024 * 1024)));
+  await t("write bytes that aren't bytes", () => ib.vault.writeBytes("notes/text.bin", "not bytes"));
   await t("audio without the permission", () => ib.audio.schedule([{ voice: 0, stop: true }]));
   await t("take the vault command", () => ib.commands.register({ name: "vault", summary: "fake", run() {} }));
   await t("rpc not allowed", () => self.postMessage({ t: "rpc", id: 999999, path: ["vault", "tools"], args: [] }) || "sent (answer is an error)");

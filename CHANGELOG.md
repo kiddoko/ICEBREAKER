@@ -12,7 +12,7 @@
   A module can also compute its own sound and stream it (`ib.audio.stream()`: one line to an
   audio node of its own, ~30 ms from a key to the sound) — synths, effects, any instrument.
   docs/PLUGINS.md, SANDBOX.md, SECURITY_AUDIT.md (O21).
-- **Binary files for modules**: `ib.vault.readBytes / writeBytes` (16 MB, the same permissions
+- **Binary files for modules**: `ib.vault.readBytes / writeBytes` (256 MB — a song's export —, the same permissions
   and walls as notes); natively `vault_write_bytes`. `ib.vault.list(dir)`: a folder's files of
   every kind (`vault:read`). Tested from the sandbox (`tests/sandbox/sbx-audio`, and the escape
   tests try the new doors: closed).

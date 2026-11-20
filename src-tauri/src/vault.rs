@@ -520,7 +520,7 @@ pub fn vault_read(state: State<VaultState>, path: String) -> CmdResult<String> {
     }
 }
 
-/// Raw bytes of a file (custom UI sounds, a module's binary files), at most 16 MB.
+/// Raw bytes of a file (custom UI sounds, a module's binary files), at most 256 MB (a song's export).
 #[tauri::command]
 pub fn vault_read_bytes(state: State<VaultState>, path: String) -> CmdResult<tauri::ipc::Response> {
     guard(&path, false)?;
@@ -529,7 +529,7 @@ pub fn vault_read_bytes(state: State<VaultState>, path: String) -> CmdResult<tau
             let s = g.as_ref().unwrap();
             let rel = store::norm(&path)?;
             if s.node(&rel).is_some_and(|n| n.size > MAX_BYTES) {
-                return Err(format!("{path}: larger than 16 MB"));
+                return Err(format!("{path}: larger than 256 MB"));
             }
             return Ok(tauri::ipc::Response::new(s.read(&rel)?.to_vec()));
         }
@@ -538,7 +538,7 @@ pub fn vault_read_bytes(state: State<VaultState>, path: String) -> CmdResult<tau
     let p = plain(&root, &path)?;
     let meta = fs::metadata(&p).map_err(|e| format!("{path}: {e}"))?;
     if meta.len() > MAX_BYTES {
-        return Err(format!("{path}: larger than 16 MB"));
+        return Err(format!("{path}: larger than 256 MB"));
     }
     Ok(tauri::ipc::Response::new(fs::read(&p).map_err(|e| format!("{path}: {e}"))?))
 }
@@ -569,7 +569,7 @@ pub fn vault_write(state: State<VaultState>, path: String, content: String) -> C
 
 /// The biggest file `vault_read_bytes` / `vault_write_bytes` move in one go (a module's
 /// song with its samples, a sound).
-const MAX_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_BYTES: u64 = 256 * 1024 * 1024;
 
 /// Raw bytes written to a file (a module's binary files: a tracker's songs). The body is
 /// the bytes; the path comes in the `path` header, percent-encoded (headers are ASCII).
@@ -582,7 +582,7 @@ pub fn vault_write_bytes(state: State<VaultState>, request: tauri::ipc::Request<
         return Err("vault_write_bytes: the body must be raw bytes".into());
     };
     if data.len() as u64 > MAX_BYTES {
-        return Err(format!("{path}: larger than 16 MB"));
+        return Err(format!("{path}: larger than 256 MB"));
     }
     write_data(&state, &path, data)
 }

@@ -112,7 +112,7 @@ Severity: 🔴 critical (your notes, keys or computer) · 🟠 high · 🟡 medi
   needs the `audio` permission and plays only (no microphone, no recording); a module reaches only its
   own samples and voices (the deck numbers them, the module never names another's), within limits (64
   voices, 32 MB, 30 s ahead, 8192 events a call), and is silenced when it's switched off.
-  `vault.readBytes / writeBytes` follow `vault:read` / `vault:write`, never `.icebreaker/`, 16 MB at
+  `vault.readBytes / writeBytes` follow `vault:read` / `vault:write`, never `.icebreaker/`, 256 MB at
   most; the native `vault_write_bytes` goes through the same path guard and atomic write as
   `vault_write` (`../` stops at the vault's root). `sbx-evil` and `sbx-bare` try them: closed.
   `ib.audio.stream()` (a module computing its own sound): one MessagePort to its own AudioWorklet
