@@ -1,4 +1,5 @@
 import { Glide } from "../ui/glide";
+import { WheelSpin } from "../ui/wheelspin";
 import { FilterBar } from "../ui/filterbar";
 import { checkbox, choice } from "../ui/controls";
 import { t } from "../core/i18n";
@@ -55,6 +56,38 @@ export class SettingsApp implements App {
   private readonly glide = new Glide();
   /** the selection the view last followed */
   private shownSel = -1;
+  /**
+   * The wheel and the trackpad move the row you're on (and over the categories, the category),
+   * like ↑↓: a mouse notch one row, a two-finger swipe a row every few lines (ui/wheelspin.ts).
+   * A category that fits on the screen has nothing to scroll: the wheel did nothing there.
+   */
+  private readonly rowSpin = new WheelSpin(2);
+
+  /** the wheel over the rows (or the categories): `lines` → rows, stopping at both ends */
+  private wheel(lines: number, onCats: boolean): void {
+    const steps = this.rowSpin.wheel(lines);
+    if (!steps) return;
+    const dir = Math.sign(steps) as 1 | -1;
+    // the row under a mouse that stays still no longer counts (like ↑↓)
+    this.mouseStill = this.mouseAt;
+    this.hoverRow = undefined;
+    if (onCats && !this.query) {
+      const n = this.sections().length;
+      const cat = Math.max(0, Math.min(n - 1, this.cat + steps));
+      if (cat !== this.cat) (this.cat = cat), (this.sel = 0), this.deck.sound.play("move");
+      this.pane = "cats";
+      return;
+    }
+    const rows = this.shown();
+    this.pane = "rows";
+    for (let n = Math.abs(steps); n > 0; n--) {
+      const next = this.step(rows, this.sel, dir);
+      // no going round: the last row stays the last
+      if ((dir > 0 && next <= this.sel) || (dir < 0 && next >= this.sel)) break;
+      this.sel = next;
+      this.deck.sound.play("move");
+    }
+  }
 
   /** what the right side shows: the category, or the search results across all of them */
   private shown(): { row: Row; from: string }[] {
@@ -246,6 +279,7 @@ export class SettingsApp implements App {
       ui.text(sx + 1, y, `${on ? "▸" : " "} ${name}`, { fg: on && focused && this.pane === "cats" ? c.panel : on ? c.fg : c.muted, attrs: on ? BOLD : 0, ...(bg !== undefined ? { bg } : {}) }, catW - 1);
       ui.hit(line, { onClick: () => ((this.cat = i), this.search.clear(), (this.sel = 0), (this.pane = "rows")), tip: `${sec.rows.length} settings` });
     });
+    ui.hit({ x: sx, y: top, w: catW, h: Math.max(1, r.y + r.h - 2 - top) }, { onWheel: (d) => this.wheel(d, true) });
     ui.vline(sx + catW + 1, top, r.y + r.h - top - 2, { fg: c.faint });
 
     // right: the settings of that category (or the search results)
@@ -264,7 +298,7 @@ export class SettingsApp implements App {
       this.shownSel = this.sel;
     }
     this.scroll = this.glide.follow(ui, this.scroll, rows.length - room);
-    ui.hit({ x: rx, y: top, w: rw, h: room }, { onWheel: (d) => this.glide.push(d) });
+    ui.hit({ x: rx, y: top, w: rw, h: room }, { onWheel: (d) => this.wheel(d, false) });
     if (!rows.length) ui.text(rx + 2, top, t("nothing matches — esc clears the search"), { fg: c.muted });
     let hoverRow: Row | undefined;
     // the mouse hasn't moved since ↑↓ chose a row: the row under it isn't "the one you're on"

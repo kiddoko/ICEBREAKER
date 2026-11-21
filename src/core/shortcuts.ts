@@ -79,6 +79,8 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: "p", what: "in the tree: pin / unpin", cat: "notes" },
   { keys: "drag", what: "in the tree: onto a folder to move it there (files from the Finder / Explorer are copied in)", cat: "notes" },
   { keys: "wheel", what: "over the tree: file by file, each one shown at once", cat: "notes" },
+  { keys: "shift+↑ · shift+↓", what: "in the tree: file by file, each one shown at once (like shift + wheel)", cat: "notes" },
+  { keys: IS_MAC ? "shift+backspace · alt+backspace" : "shift+backspace · ctrl+backspace", what: "delete the whole previous word (notes and text fields)", cat: "notes" },
 
   // home
   { keys: "←↑↓→ · tab", what: "choose a widget", cat: "home" },
@@ -93,6 +95,7 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: "↑ · ↓", what: "history", cat: "shell" },
   { keys: IS_MAC ? "ctrl+x · meta+c" : "ctrl+c", what: "stop the command running, or the question it asks (^C)", cat: "shell" },
   { keys: "ctrl+l", what: "clear the screen", cat: "shell" },
+  { keys: "drag · ctrl+c", what: "select text with the mouse (double-click: a word, triple-click: a line), then copy it — ctrl+c with nothing selected still stops", cat: "shell" },
   { keys: "!cmd", what: "run one system command (in ibsh)", cat: "shell" },
 
   // lists & pages

@@ -39,9 +39,11 @@ function color256(n: number, ansi: RGB[]): RGB {
  */
 /**
  * deck commands that win over the system shell's own: zsh's logout would close the terminal,
- * and macOS's login asks for a user and ignores ctrl+C (typed for logout, you were stuck)
+ * macOS's login asks for a user and ignores ctrl+C (typed for logout, you were stuck), and
+ * macOS's say spoke with the system's voice, not the one chosen in Settings → VOICE
+ * (`command say` is still macOS's)
  */
-const CORE_IN_TERMINAL = ["reboot", "logout", "login"];
+const CORE_IN_TERMINAL = ["reboot", "logout", "login", "say"];
 
 /** ⌘X on a Mac: ctrl+C for the shell (⌘C is copy there) */
 const macInterrupt = (k: KeyInput) => IS_MAC && !!k.rawMeta && k.combo === "ctrl+x";

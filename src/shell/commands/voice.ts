@@ -132,7 +132,7 @@ export const sayCommand: Command = {
     ["say hello netrunner", "the voice says it"],
     ["journal ls -n 1 | say", "says the last journal day"],
   ],
-  man: "The same voice as UPLINK's answers and the notifications (voice: the engine, the robot filter, the language). Muted sound (mute) or the voice off (voice off): it says nothing and tells you why. Synthesized on this computer: nothing is sent anywhere, stealth mode included.\nIn your real terminal, macOS's own say stays the system's (ib say uses the deck's voice).",
+  man: "The same voice as UPLINK's answers and the notifications (Settings → VOICE: the voice, the language, the robot filter). In Japanese, a text that isn't Japanese is translated first by your AI, like UPLINK's answers (no AI set up: the Japanese voice reads it as it is). Muted sound (mute) or the voice off (voice off): it says nothing and tells you why. Synthesized on this computer (the translation aside, by the AI you chose).\nIn your real terminal too, say is the deck's voice (command say runs macOS's own).",
   run(ctx) {
     const { deck } = ctx;
     const text = (ctx.args.join(" ") || ctx.stdin).trim();
@@ -140,7 +140,10 @@ export const sayCommand: Command = {
     if (!deck.voice.available) return ctx.err("say: the voice needs the desktop app\n"), 1;
     if (deck.settings.data.sound.muted) return ctx.err("say: the sound is muted (mute off)\n"), 1;
     if (!deck.settings.data.voice.enabled) return ctx.err("say: the voice is off (voice on)\n"), 1;
-    deck.voice.say(text);
+    // the voice and the language chosen in Settings → VOICE, like UPLINK's answers: in Japanese,
+    // a text that isn't Japanese yet is translated first (when an AI is set up), then read
+    if (deck.settings.data.voice.language === "ja" && !/[\u3040-\u30ff\u4e00-\u9fff]/.test(text) && deck.ai.ready) void deck.voice.speak(text);
+    else deck.voice.say(text);
     return 0;
   },
 };
