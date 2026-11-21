@@ -189,13 +189,15 @@ export class TrashApp implements App {
       const fits = (labels: string[]) => labels.reduce((n, l) => n + strWidth(l) + 4, 0) <= w;
       const long = [`${t("restore to…")}  r`, ...(cur.isDir ? [] : [`${t("open")}  o`]), `${t("delete permanently")}  del`];
       const short = [`${t("to…")} r`, ...(cur.isDir ? [] : [`${t("open")} o`]), `✕ ${t("delete")} del`];
-      const rest = fits([`${t("restore")}  ⏎`, ...long]) ? long : short;
-      const head = rest === long ? `${t("restore")}  ⏎` : `↩ ⏎`;
+      // a very narrow page: the keys alone (each still a button, its tip says what it does)
+      const tiny = ["r", ...(cur.isDir ? [] : ["o"]), "✕ del"];
+      const rest = fits([`${t("restore")}  ⏎`, ...long]) ? long : fits([`↩ ⏎`, ...short]) ? short : tiny;
+      const head = rest === long ? `${t("restore")}  ⏎` : rest === short ? `↩ ⏎` : "↩";
       // the restore button gets what the others leave: a long path is cut in the middle,
       // its start and the file's name kept (/journal/…/2026-11-20.md); no room: no path
       const room = w - rest.reduce((n, l) => n + strWidth(l) + 4, 0) - strWidth(head) - 4;
       const where = cur.from && room >= 12 ? ` → ${middlePath(`/${cur.from}`, room)}` : "";
-      btn(`${head.replace(/\s*⏎$/, "")}${where}  ⏎`, () => this.restore(cur), `${t("restore")} · enter · trash restore${cur.from ? `\n/${cur.from}` : ""}`);
+      btn(rest === tiny ? head : `${head.replace(/\s*⏎$/, "")}${where}  ⏎`, () => this.restore(cur), `${t("restore")} · enter · trash restore${cur.from ? `\n/${cur.from}` : ""}`);
       btn(rest[0], () => void this.restoreTo(cur), `${t("restore to…")} · r · trash restore <n> <path>`);
       if (!cur.isDir) btn(rest[1], () => this.open(cur), "o · read it");
       btn(rest[rest.length - 1], () => void this.purge([cur]), `${t("delete permanently")} · del · trash purge · ${t("can't be undone")}`, c.error);

@@ -21,7 +21,7 @@
   combination is the page's on every system (alt + arrows too), ⌘Z / ⌘⇧Z reach it, esc gives the
   keys back to the deck (the tree takes them). SHORTCUTS page, F1 manual.
 - **Dialogs: the answers always bottom right** — the way out (No, close) on the left, the
-  way forward (Yes, open) on the right, in every dialog and widget pop-up; ← → point at them.
+  way forward (Yes, open) on the right, in every dialog, widget pop-up and THEME STUDIO's palette; ← → point at them.
   A question whose safe answer is no (delete for good) still starts on No.
 - **Top bar: UPLINK ■** instead of the AI's name and model: the square is green when your AI
   is there, amber while it thinks, red when it's off (the theme's colours); its tip says which
@@ -30,7 +30,7 @@
   the least useful things first. Pages fixed at small sizes: MODULES, NEXUS, BLOCKS,
   SHORTCUTS, STORE, CLOCKS (titles shrink, buttons go), FOCUS (the buttons wrap), WEATHER (the
   numbers and the 24 h curve stay above the week), SYSMON (as many facts as fit), TRASH (the
-  count never covers the title), THEME STUDIO (a value gets at most half its row), JOURNAL
+  count never covers the title; a very narrow page shows its buttons' keys alone), THEME STUDIO (a value gets at most half its row), JOURNAL
   (under 48 cells the page alone), the tab bar.
 - **Gamepad buttons in pixel art**, and which kind of pad is plugged in (Xbox, PlayStation,
   Nintendo): `debug pad` shows them.
