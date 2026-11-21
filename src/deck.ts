@@ -112,6 +112,25 @@ export class Deck implements InputSink {
   readonly actions = new ActionRegistry();
   /** the macOS menu bar's items are listened to (once, whatever the logins) */
   private menuBarOn = false;
+  /** running on the battery (null: can't tell) — the smoothness setting's "auto" (watchPower) */
+  private onBattery: boolean | null = null;
+  private powerTimer: ReturnType<typeof setInterval> | undefined;
+
+  /** On battery or on the mains, looked at every 30 s: "auto" smoothness follows the plug. */
+  private watchPower(): void {
+    const look = async () => {
+      let b = (await this.platform.system.onBattery?.().catch(() => null)) ?? null;
+      const nav = navigator as Navigator & { getBattery?: () => Promise<{ charging: boolean }> };
+      if (b === null && nav.getBattery) b = await nav.getBattery().then((x) => !x.charging, () => null);
+      if (b !== this.onBattery) {
+        this.onBattery = b;
+        this.applyFx();
+      }
+    };
+    void look();
+    clearInterval(this.powerTimer);
+    this.powerTimer = setInterval(() => void look(), 30_000);
+  }
   /** every setting row, the deck's and the modules' (core/prefs.ts): Settings draws them */
   readonly prefs = new SettingsRegistry();
   /** everything the deck can do, as blocks (core/catalog.ts): the BLOCKS page, `catalog`, ib.catalog */
@@ -405,6 +424,7 @@ export class Deck implements InputSink {
       return { text: `Plugins: ${on} on · off: ${this.modulesOff.map((m) => `${m.id} (${m.why})`).join(", ")} — plugin enable <id>`, status: "WARN" };
     });
     this.platform.bridge?.onRun((req) => void this.runBridged(req));
+    this.watchPower();
     // the macOS menu bar's deck items (workspace/macmenu.ts): listened to once, ignored while locked
     if (!this.menuBarOn && this.platform.onMenu) {
       this.menuBarOn = true;
@@ -996,7 +1016,9 @@ export class Deck implements InputSink {
     this.renderer.setSoftness((100 - sharp) * 0.6);
     // the pace of frames: the screen's (vsync), or the user's cap; 0 = no animations
     const a = this.settings.data.appearance;
-    this.loop.configure({ maxFps: a.vsync ? 0 : Math.max(0, Math.min(240, a.maxFps)), timed: !a.vsync, frozen: !a.vsync && a.maxFps === 0, slow: !!a.reduceMotion });
+    // with vsync, the smoothness cap: 60 on battery, 120 on the mains ("auto"), or the one chosen
+    const smooth = a.smooth === "60" ? 60 : a.smooth === "120" ? 120 : this.onBattery ? 60 : 120;
+    this.loop.configure({ maxFps: a.vsync ? smooth : Math.max(0, Math.min(240, a.maxFps)), timed: !a.vsync, frozen: !a.vsync && a.maxFps === 0, slow: !!a.reduceMotion });
     // letters fade in as they appear (not with reduce animations, nor with no animations at all)
     this.renderer.fadeMs = a.fadeIn !== false && !a.reduceMotion && !(!a.vsync && a.maxFps === 0) ? 110 : 0;
     this.requestFrame();
@@ -1077,7 +1099,7 @@ export class Deck implements InputSink {
     else if (key === "appearance.fontWeight" || key === "appearance.fontSize" || key === "appearance.scale") void this.applyFont();
     else if (key === "journal.folder") this.vault.journalFolder = s.journal.folder;
     else if (key === "user.handle") this.shell.exec.env.USER = s.user.handle;
-    else if (key.startsWith("fx") || ["appearance.maxFps", "appearance.vsync", "appearance.brightness", "appearance.reduceMotion", "appearance.fadeIn"].includes(key)) this.applyFx();
+    else if (key.startsWith("fx") || ["appearance.maxFps", "appearance.vsync", "appearance.smooth", "appearance.brightness", "appearance.reduceMotion", "appearance.fadeIn"].includes(key)) this.applyFx();
     else if (key === "sound.packByTheme") {
       this.sound.setPack(this.soundPack(), this.theme.sound.pitch);
       void this.reloadSounds();

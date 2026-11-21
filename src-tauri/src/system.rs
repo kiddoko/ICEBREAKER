@@ -145,3 +145,37 @@ pub fn system_stats(state: tauri::State<SystemState>) -> Result<Stats, String> {
         load,
     })
 }
+
+/// Is the computer running on its battery? `None` where it can't tell (a desktop, Windows: the
+/// page asks navigator.getBattery there). For the "smoothness" setting: 60 frames a second on
+/// battery, 120 on the mains.
+#[tauri::command]
+pub fn power_on_battery() -> Option<bool> {
+    #[cfg(target_os = "macos")]
+    {
+        let out = std::process::Command::new("pmset").args(["-g", "batt"]).output().ok()?;
+        let text = String::from_utf8_lossy(&out.stdout);
+        if text.contains("'Battery Power'") {
+            return Some(true);
+        }
+        if text.contains("'AC Power'") {
+            return Some(false);
+        }
+        None
+    }
+    #[cfg(target_os = "linux")]
+    {
+        // a mains supply that says whether it's plugged in
+        for e in std::fs::read_dir("/sys/class/power_supply").ok()?.flatten() {
+            let p = e.path();
+            if std::fs::read_to_string(p.join("type")).map(|t| t.trim() == "Mains").unwrap_or(false) {
+                return std::fs::read_to_string(p.join("online")).ok().map(|v| v.trim() == "0");
+            }
+        }
+        None
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        None
+    }
+}

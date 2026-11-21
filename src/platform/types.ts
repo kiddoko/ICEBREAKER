@@ -127,7 +127,11 @@ export interface Platform {
     read(name: "settings.json" | "secrets.json" | "device.json" | "access.json"): Promise<string | null>;
     write(name: "settings.json" | "secrets.json" | "device.json" | "access.json", content: string): Promise<void>;
   };
-  system: { stats(): Promise<SystemStats> };
+  system: {
+    stats(): Promise<SystemStats>;
+    /** on battery (true), on the mains (false), can't tell (null): the smoothness setting */
+    onBattery?(): Promise<boolean | null>;
+  };
   /** ANTHROPIC_API_KEY from the environment, if set. */
   envApiKey(): Promise<string | null>;
   /** The local Claude Code CLI (desktop only). Runs on the user's Claude plan instead of an API key. */

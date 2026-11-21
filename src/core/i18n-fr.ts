@@ -1463,6 +1463,7 @@ export const FR: Record<string, string> = {
   "Glitch effects": "Effets glitch",
   "Effects preset": "Préréglage d'effets",
   "Bloom": "Bloom",
+  "Smoothness": "Fluidité",
   "Scanlines": "Scanlines",
   "Vignette": "Vignette",
   "Chromatic aberration": "Aberration chromatique",

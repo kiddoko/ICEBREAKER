@@ -47,7 +47,7 @@ export function createTauriPlatform(): Platform {
       read: (name) => invoke<string | null>("config_read", { name }),
       write: (name, content) => invoke<void>("config_write", { name, content }),
     },
-    system: { stats: () => invoke<SystemStats>("system_stats") },
+    system: { stats: () => invoke<SystemStats>("system_stats"), onBattery: () => invoke<boolean | null>("power_on_battery") },
     envApiKey: () => invoke<string | null>("env_api_key"),
     newsRss: (query, lang, country, provider) => invoke<string>("news_rss", { query, lang, country, provider: provider ?? null }),
     notify: async (title, body) => {
