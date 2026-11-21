@@ -14,7 +14,7 @@ import type { Deck } from "../deck";
 import { Bar, GAP, INSET, SECTION } from "../ui/layout";
 import type { UI } from "../ui/ui";
 import { drawMoon, moonBox, moonTone } from "../widgets/moondraw";
-import { daysUntil, moonAge, moonLit, phaseGlyph, phaseName, SYNODIC, upcoming, waxing } from "../widgets/moonphase";
+import { daysUntil, moonAge, moonLit, nextPhase, phaseName, SYNODIC, upcoming, waxing } from "../widgets/moonphase";
 import type { App, AppSpec } from "./types";
 
 const DAY = 86_400_000;
@@ -61,8 +61,13 @@ class MoonApp implements App {
     return false;
   }
 
+  /** when the page was last drawn: back after a while elsewhere, it shows today again */
+  private seenAt = 0;
+
   render(ui: UI, r: Rect, _focused: boolean): void {
     const c = ui.c;
+    if (ui.now - this.seenAt > 3000) this.offset = 0;
+    this.seenAt = ui.now;
     const when = this.when;
     const locale = this.deck.settings.data.user.locale || undefined;
     const body = { x: r.x + INSET, y: r.y, w: r.w - INSET * 2, h: r.h };
@@ -97,8 +102,12 @@ class MoonApp implements App {
     if (!calm) ui.animate(600);
     const disc = { x: r.x + INSET, y: r.y, w: r.w - INSET * 2, h: r.h };
     const behind = moonBox(ui, disc);
+    const taken = new Set<number>();
     for (let i = 0; i < Math.floor((r.w * r.h) / 40); i++) {
       const sx = r.x + Math.floor(hash(i * 2.1) * r.w), sy = r.y + Math.floor(hash(i * 7.3 + 1) * r.h);
+      // one star a cell
+      if (taken.has(sy * 10000 + sx)) continue;
+      taken.add(sy * 10000 + sx);
       // none behind the moon
       if (sx >= behind.x && sx < behind.x + behind.w && sy >= behind.y && sy < behind.y + behind.h) continue;
       const tw = calm ? 0.5 : (Math.sin(ui.now / 900 + i * 1.7) + 1) / 2;
@@ -119,7 +128,7 @@ class MoonApp implements App {
     new Bar(ui, r.x, y++, r.x + r.w)
       .text(t("{n} % lit", { n: lit }), { fg: c.fg }, { priority: 9 })
       .text(t("day {d} of {all}", { d: age.toFixed(1), all: SYNODIC.toFixed(1) }), { fg: c.muted }, { priority: 6 })
-      .text(waxing(when) ? t("growing ↗") : t("shrinking ↘"), { fg: c.subtle, raw: true }, { priority: 4 })
+      .text(phaseName(when) === "full moon" ? t("full tonight") : phaseName(when) === "new moon" ? t("new tonight") : waxing(when) ? t("growing ↗") : t("shrinking ↘"), { fg: c.subtle, raw: true }, { priority: 4 })
       .draw();
     // how far through the cycle: a bar, new → full → new
     if (r.h >= 6) {
@@ -152,7 +161,9 @@ class MoonApp implements App {
     const lead = (first.getDay() + 6) % 7; // monday first
     const weeks = Math.ceil((lead + days) / 7);
     // seven columns, a cell between two (the last one needs none)
-    const cellW = Math.max(4, Math.min(8, Math.floor((r.w + INSET) / 7)));
+    const cellW = Math.min(8, Math.floor((r.w + INSET) / 7));
+    // "21 ◑": the number, a space, the glyph (they read as one number when they touched)
+    if (cellW < 5) return;
     // a small drawn moon above each number when there's room for it (2 rows), else a glyph
     const big = cellW >= 6 && r.h >= 2 + weeks * 3;
     const rowH = big ? 3 : 1;
@@ -161,6 +172,15 @@ class MoonApp implements App {
     for (let d = 0; d < 7; d++) {
       const name = new Date(2024, 0, 1 + d).toLocaleDateString(locale, { weekday: "short" }).slice(0, cellW - 1);
       ui.text(r.x + d * cellW, r.y + 1, name, { fg: c.faint });
+    }
+    // the day each full and new moon really falls on this month (● ○ only there)
+    const exact = new Map<number, string>();
+    for (const [frac, g] of [[0.5, "●"], [0, "○"]] as [number, string][]) {
+      let at = nextPhase(frac, first.getTime() - DAY);
+      while (at.getMonth() === shown.getMonth() && at.getFullYear() === shown.getFullYear()) {
+        exact.set(at.getDate(), g);
+        at = nextPhase(frac, at.getTime() + DAY);
+      }
     }
     for (let n = 1; n <= days; n++) {
       const k = lead + n - 1;
@@ -172,7 +192,8 @@ class MoonApp implements App {
       if (isShown) ui.fill(cell, { bg: c.highlight });
       const bg = isShown ? c.highlight : undefined;
       if (big) drawMoon(ui, { x, y, w: cellW - 1, h: 2 }, at, { earthshine: 0.05 });
-      const label = big ? String(n) : `${String(n).padStart(2)}${phaseGlyph(at)}`;
+      const glyph = exact.get(n) ?? (waxing(at) ? "◑" : "◐");
+      const label = big ? String(n) : `${String(n).padStart(2)} ${glyph}`;
       ui.text(x + Math.max(0, Math.floor((cellW - 1 - strWidth(label)) / 2)), y + rowH - 1, label, { fg: isToday ? c.accent : isShown ? c.fg : c.muted, bg, attrs: isToday || isShown ? BOLD : 0 });
       ui.hit(cell, { onClick: () => this.go(daysUntil(new Date(at), today) - this.offset), tip: new Date(at).toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" }) + ` · ${t(phaseName(at))}` });
     }

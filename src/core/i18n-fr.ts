@@ -1543,4 +1543,6 @@ export const FR: Record<string, string> = {
   "tonight's moon, the next phases, the month in moons (computed here, no network)": "la lune de ce soir, les prochaines phases, le mois en lunes (calculé ici, sans réseau)",
   "on {day}": "le {day}",
   "full moon {d}": "pleine lune {d}",
+  "full tonight": "pleine ce soir",
+  "new tonight": "nouvelle ce soir",
 };

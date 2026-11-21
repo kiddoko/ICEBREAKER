@@ -7,7 +7,7 @@
  * Any size: the MOON page draws it big, its widget small, the calendar tiny; under two
  * rows it's a glyph (moonphase.ts phaseGlyph).
  */
-import { mix, type RGB } from "../core/color";
+import { channels, mix, type RGB } from "../core/color";
 import type { Rect } from "../core/grid";
 import type { UI } from "../ui/ui";
 import { moonPhase, phaseGlyph } from "./moonphase";
@@ -50,9 +50,20 @@ function albedo(x: number, y: number): number {
   return 1 - dark + bright + grain;
 }
 
+/** a light theme (paper, e-ink…): the page is lighter than its text */
+function lightTheme(ui: UI): boolean {
+  const [r, g, b] = channels(ui.c.bg);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 128;
+}
+
 /** the moon's colour where fully lit (a warm grey, a touch of the theme) */
+function litTone(ui: UI): RGB {
+  return lightTheme(ui) ? 0xf3eddf : mix(mix(ui.c.fg, 0xf4ecd8, 0.55), ui.c.warning, 0.08);
+}
+
+/** the moon's colour for words about it (the theme's text on a light theme, where a pale grey wouldn't read) */
 export function moonTone(ui: UI): RGB {
-  return mix(mix(ui.c.fg, 0xf4ecd8, 0.55), ui.c.warning, 0.08);
+  return lightTheme(ui) ? ui.c.fg : litTone(ui);
 }
 
 /** Where the moon goes in `r` (as big as fits, centred): its cells. */
@@ -80,8 +91,10 @@ export function drawMoon(ui: UI, r: Rect, t = Date.now(), o: { earthshine?: numb
   const th = moonPhase(t) * 2 * Math.PI;
   const sx = Math.sin(th), sz = -Math.cos(th);
   const shine = o.earthshine ?? 0.07;
-  const tone = moonTone(ui);
-  const bg = c.bg;
+  // a light theme: the moon in its own night (a dark disc, its lit part bright) — drawn on the
+  // page's light, the night side vanished and the lit side came out darker than it
+  const tone = litTone(ui);
+  const bg = lightTheme(ui) ? mix(c.bg, 0x14161c, 0.9) : c.bg;
   /** a pixel's colour, or null outside the disc */
   const px = (x: number, y: number): RGB | null => {
     const nx = (x - cx) / R, ny = (y - cy) / R;

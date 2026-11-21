@@ -44,3 +44,21 @@ describe("the moon's phase", () => {
     expect(daysUntil(new Date(2026, 10, 21, 23), new Date(2026, 10, 21, 1))).toBe(0);
   });
 });
+
+// timeanddate.com (UTC), checked by the Windows bench on 2026-11-21
+describe("the moon's phases, November–December 2026", () => {
+  const near = (a: Date, b: number) => Math.abs(a.getTime() - b) / 3600_000;
+  const from = Date.UTC(2026, 10, 21, 12, 51);
+  it("full 24 Nov, last quarter 1 Dec, new 9 Dec, first quarter 17 Dec (within an hour)", () => {
+    expect(near(nextPhase(0.5, from), Date.UTC(2026, 10, 24, 14, 53))).toBeLessThan(1);
+    expect(near(nextPhase(0.75, from), Date.UTC(2026, 11, 1, 6, 8))).toBeLessThan(1);
+    expect(near(nextPhase(0, from), Date.UTC(2026, 11, 9, 0, 51))).toBeLessThan(1);
+    expect(near(nextPhase(0.25, from), Date.UTC(2026, 11, 17, 5, 42))).toBeLessThan(1);
+  });
+  it("is 12.2 days old, about 87 % lit, a waxing gibbous", () => {
+    expect(moonAge(from)).toBeCloseTo(12.2, 1);
+    expect(moonLit(from)).toBeGreaterThan(0.84);
+    expect(moonLit(from)).toBeLessThan(0.9);
+    expect(phaseName(from)).toBe("waxing gibbous");
+  });
+});
