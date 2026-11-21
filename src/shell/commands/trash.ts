@@ -3,6 +3,7 @@ import { fmt } from "../../core/ansi";
 import type { Deck } from "../../deck";
 import { t } from "../../core/i18n";
 import type { Command } from "../types";
+import { askInShell } from "../ask";
 
 /**
  * The vault's trash (.trash): what `rm`, the tree's Delete and right-click →
@@ -37,15 +38,23 @@ export async function trashItems(deck: Deck): Promise<TrashItem[]> {
 }
 
 
-/** Delete for good, after asking (irreversible, said in the dialog). The ones deleted. */
-export async function purgeItems(deck: Deck, items: TrashItem[], all = false): Promise<number> {
+/**
+ * Delete for good, after asking (irreversible, said in the question). The ones deleted.
+ * `ask`: how — a dialog by default (the TRASH page, THE MENU); typed in ibsh, in the shell (y/N).
+ */
+export async function purgeItems(
+  deck: Deck,
+  items: TrashItem[],
+  all = false,
+  // the safe answer is no: enter alone keeps everything
+  ask: (title: string, detail: string) => Promise<boolean> = (title, detail) => deck.confirm(title, detail, false),
+): Promise<number> {
   if (!items.length) return 0;
   const one = items.length === 1 ? items[0] : null;
   const title = all ? t("Empty the trash?") : one ? t("Delete “{name}” for good?", { name: one.isDir ? `${one.name}/` : one.name }) : t("Delete {n} things for good?", { n: items.length });
   // (two short lines: the dialog doesn't wrap, a long sentence was cut)
   const detail = `${t("This can't be undone: it is erased from the vault.")}\n${t("Nothing keeps a copy, and ⌘Z won't bring it back.")}${all ? `\n${items.length === 1 ? t("1 thing") : t("{n} things", { n: items.length })}` : ""}`;
-  // the safe answer is no: enter alone keeps everything
-  if (!(await deck.confirm(title, detail, false))) return 0;
+  if (!(await ask(title, detail))) return 0;
   let n = 0;
   for (const it of items) {
     try {
@@ -61,12 +70,14 @@ export async function purgeItems(deck: Deck, items: TrashItem[], all = false): P
 export const trashCommand: Command = {
   name: "trash",
   summary: "what's in the vault's trash, and put things back (⌫ above the tree)",
-  usage: "trash                      the list\ntrash restore <n|name>     back where it was\ntrash restore <n> <path>   somewhere else\ntrash purge <n|name>       delete it for good (asks first, can't be undone)\ntrash empty                delete everything in it for good (asks first)\ntrash open                 the TRASH page (⌫ above the tree, ⌘⇧⌫)",
+  usage: "trash                      the list\ntrash restore <n|name>     back where it was\ntrash restore <n> <path>   somewhere else\ntrash purge <n|name>       delete it for good (asks first, can't be undone)\ntrash empty                delete everything in it for good (asks first)\n  --window                 ask in a dialog instead of the shell\ntrash open                 the TRASH page (⌫ above the tree, ⌘⇧⌫)",
   man: "rm, Delete in the tree and right-click → trash move things to <vault>/.trash — that is not deleted yet.\nThe deck remembers where each thing lived (.icebreaker/trash.json), so restore puts it back.\ntrash purge and trash empty (the TRASH page: delete permanently) erase for good, after a question that says so: it can't be undone, ⌘Z won't bring it back. Only you can: a module or your real terminal can't.",
   complete: () => ["restore", "purge", "empty", "open"],
   async run(ctx) {
     const d = ctx.deck;
-    const [sub, which, to] = ctx.args;
+    // typed: it asks in the shell (y/N); --window (the menus): a dialog
+    const window = ctx.args.includes("--window");
+    const [sub, which, to] = ctx.args.filter((a) => a !== "--window");
     const items = await trashItems(d);
     if (!sub || sub === "ls") {
       if (!items.length) return ctx.out(fmt.dim("the trash is empty\n")), 0;
@@ -97,7 +108,7 @@ export const trashCommand: Command = {
         if (!it) return ctx.err(`trash: nothing called ${which} in the trash\n`), 1;
         chosen = [it];
       }
-      const n = await purgeItems(d, chosen, sub === "empty");
+      const n = await purgeItems(d, chosen, sub === "empty", window ? undefined : (title, detail) => askInShell(ctx, title, detail));
       if (!n) return ctx.out(fmt.dim("nothing deleted\n")), 1;
       ctx.out(`${fmt.red("✕")} ${n === 1 ? "1 thing" : `${n} things`} deleted for good\n`);
       return n === chosen.length ? 0 : 1;
