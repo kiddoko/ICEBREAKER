@@ -32,8 +32,14 @@ stacked, moved, split, folded. This page is how it works and where it stands.
   accent. No number in front of the name: the numbers (⌘1…9) show only while ⌘ / ctrl is
   held (`InputManager.modHeld`). 12–24 cells each; the icon goes before the name gets
   short; the rest in "▾ +N". Drag a tab sideways to move it (`tab move <n> <m>`).
-- Step 3b: tabs on every frame (waiting for the user's answer), tab groups, terminals as a
-  group of tabs.
+- **Tab groups (done)** (`src/workspace/tabgroups.ts`, pure): drop a tab onto the middle of
+  another (or `tab group <n> <m> [name]`) and they become one chip `▣ name 3` at the first
+  one's place; hovering it lists its tabs (click: show it, ⇱ take it out, × close it);
+  right-click: rename, take the shown tab out, ungroup them all (`tab ungroup <n>`,
+  `tab groupname <n> <name>`). A group of one dissolves; closed tabs leave their groups;
+  groups are saved with the session (checked when read back).
+- Step 3b: tabs on every frame (waiting for the user's answer), terminals as a group of
+  tabs.
 - Step 4: each tab's history (back / forward). Step 5: the INFO panel.
 
 ## The model

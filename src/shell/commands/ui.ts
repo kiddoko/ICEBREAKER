@@ -132,8 +132,8 @@ const tab: Command = {
     ["tab close", "close the current one"],
   ],
   summary: "list, switch and close tabs",
-  usage: "tab              list\ntab <n>          switch (keys: ctrl+1…9)\ntab next | prev  (ctrl+tab)\ntab close [n]    (ctrl+w)\ntab move <n> <m> put tab n at place m (drag a tab sideways)",
-  complete: () => ["next", "prev", "close", "move"],
+  usage: "tab              list\ntab <n>          switch (keys: ctrl+1…9)\ntab next | prev  (ctrl+tab)\ntab close [n]    (ctrl+w)\ntab move <n> <m> put tab n at place m (drag a tab sideways)\ntab group <n> <m> [name]  tab m joins tab n's group (drop a tab on another)\ntab ungroup <n>  tab n on its own again\ntab groupname <n> <name>  rename tab n's group",
+  complete: () => ["next", "prev", "close", "move", "group", "ungroup", "groupname"],
   async run(ctx) {
     const ws = ctx.deck.workspace;
     const [a, b] = ctx.args;
@@ -142,6 +142,20 @@ const tab: Command = {
       return 0;
     }
     if (a === "next") return ws.switchTab(ws.active + 1), 0;
+    if (a === "group") {
+      const n = Number(b) - 1, m = Number(ctx.args[2]) - 1;
+      if (!ws.groupTabs(n, m, ctx.args.slice(3).join(" "))) return ctx.err(`usage: tab group <n> <m> [name] (two different tabs, 1…${ws.tabCount})\n`), 1;
+      return 0;
+    }
+    if (a === "ungroup") {
+      if (!ws.ungroupTab(Number(b) - 1)) return ctx.err("usage: tab ungroup <n> (a tab in a group)\n"), 1;
+      return 0;
+    }
+    if (a === "groupname") {
+      const name = ctx.args.slice(2).join(" ");
+      if (!ws.renameGroupOf(Number(b) - 1, name)) return ctx.err("usage: tab groupname <n> <name> (a tab in a group)\n"), 1;
+      return 0;
+    }
     if (a === "move") {
       const from = Number(b) - 1, to = Number(ctx.args[2]) - 1;
       if (!Number.isInteger(from) || !Number.isInteger(to) || !ws.moveTab(from, to)) return ctx.err(`usage: tab move <n> <m> (1…${ws.tabCount})\n`), 1;

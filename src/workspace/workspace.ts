@@ -28,6 +28,7 @@ import { frames, todayLayout, type Node as LayoutNode, type Today } from "./layo
 import { CLASSIC, effectiveLayout, isFolded, parseArrangement, resizeBetween, setFolded, type ANode, type FrameId } from "./layout/arrange";
 import { bordersOf, solveLayout, type Border } from "./layout/solve";
 import { paneToward } from "./layout/focus";
+import { groupOf, joinGroup, parseGroups, pick, prune, renameGroup, stripEntries, takeOut, type StripEntry, type TabGroup } from "./tabgroups";
 import { INSET } from "../ui/layout";
 
 export type ShellTab = "term" | "ibsh" | "log";
@@ -445,6 +446,52 @@ export class Workspace {
     this.active = Math.max(0, this.tabs.indexOf(shown));
     this.deck.requestFrame();
     return true;
+  }
+
+  // ── tab groups (workspace/tabgroups.ts) ─────────────────────────────────
+
+  /** several tabs behind one chip of the strip; kept in the session */
+  groups: TabGroup[] = [];
+
+  /** The keys of the real tabs, in order. */
+  private tabKeys(): string[] {
+    return this.tabs.slice(0, this.tabCount).map((a) => a.key);
+  }
+
+  /** Tab `m` joins tab `n`'s group (a new group of the two). Both from 0. */
+  groupTabs(n: number, m: number, name?: string): boolean {
+    const keys = this.tabKeys();
+    if (!keys[n] || !keys[m] || n === m) return false;
+    this.groups = joinGroup(this.groups, keys[n], keys[m], name);
+    this.deck.requestFrame();
+    return true;
+  }
+
+  /** Tab `n` out of its group, a tab of its own again. */
+  ungroupTab(n: number): boolean {
+    const key = this.tabKeys()[n];
+    if (!key || !groupOf(this.groups, key)) return false;
+    this.groups = takeOut(this.groups, key);
+    this.deck.requestFrame();
+    return true;
+  }
+
+  /** The group of tab `n` renamed. */
+  renameGroupOf(n: number, name: string): boolean {
+    const key = this.tabKeys()[n];
+    if (!key || !groupOf(this.groups, key)) return false;
+    this.groups = renameGroup(this.groups, key, name);
+    this.deck.requestFrame();
+    return true;
+  }
+
+  /** The strip's chips this frame: lone tabs and groups (closed tabs leave their groups). */
+  stripEntries(): StripEntry[] {
+    const keys = this.tabKeys();
+    this.groups = prune(this.groups, keys);
+    const shown = keys[this.active];
+    if (shown) this.groups = pick(this.groups, shown);
+    return stripEntries(this.groups, keys);
   }
 
   findTab(key: string): App | undefined {
@@ -928,11 +975,13 @@ export class Workspace {
   private sessionReady = false;
   private saveSession(): void {
     const tabs = this.tabs.slice(0, this.tabCount).filter((a) => !["setup", "terminal", "ibsh"].includes(a.kind)).map((a) => a.key);
-    const sig = `${tabs.join("|")}#${Math.min(this.active, this.tabCount - 1)}`;
+    // the groups of the tabs that are saved (a terminal tab doesn't come back, nor does its place in a group)
+    const groups = prune(this.groups, tabs);
+    const sig = `${tabs.join("|")}#${Math.min(this.active, this.tabCount - 1)}#${JSON.stringify(groups)}`;
     if (!this.sessionReady || sig === this.savedTabs) return;
     this.savedTabs = sig;
     const s = this.deck.settings;
-    s.set("session", { ...(s.data.session ?? {}), tabs, active: Math.max(0, tabs.indexOf(this.tabs[this.active]?.key ?? "")) });
+    s.set("session", { ...(s.data.session ?? {}), tabs, active: Math.max(0, tabs.indexOf(this.tabs[this.active]?.key ?? "")), groups });
   }
 
   /** Open again what was open when the deck closed (notes that still exist, modules that are still on). */
@@ -945,8 +994,10 @@ export class Workspace {
     }
   }
 
-  private async reopen(ses: { tabs?: string[]; active?: number }): Promise<void> {
+  private async reopen(ses: { tabs?: string[]; active?: number; groups?: unknown }): Promise<void> {
     if (!ses.tabs) return;
+    // the groups come back with their tabs (those that are still there)
+    this.groups = parseGroups(ses.groups);
     for (const key of ses.tabs) {
       if (key === "home" || this.findTab(key)) continue;
       if (key.startsWith("note:")) {
