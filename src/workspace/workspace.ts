@@ -24,6 +24,8 @@ import { WhatsNew } from "./whatsnew";
 import { Sidebar } from "./sidebar";
 import { unplaceSquares } from "./favorites";
 import { SystemTerminal } from "../shell/systerm";
+import { todayLayout, type Node as LayoutNode } from "./layout/tree";
+import { solveLayout } from "./layout/solve";
 
 export type ShellTab = "term" | "ibsh" | "log";
 
@@ -69,6 +71,8 @@ export class Workspace {
   readonly sidebar: Sidebar;
   /** where each pane was drawn this frame (the mouse and the side panel use them) */
   rects: Partial<Record<Pane, Rect>> = {};
+  /** the screen's layout tree this frame (layout/tree.ts; step 1: built from the switches above) */
+  layout: LayoutNode | null = null;
   private dragging: Hit | null = null;
   /** Hover tooltip: what's under the mouse and since when. */
   tip = { key: "", since: 0 };
@@ -884,35 +888,33 @@ export class Workspace {
 
     renderTopBar(this, ui, { x: 0, y: N, w: W, h: 1 });
 
+    // the frames: today's screen as a layout tree (layout/tree.ts), solved into one rect each
+    // (layout/solve.ts) — step 1 of the overhaul: the same places as always (tests/frames.test.ts)
     const body = { x: 1, y: N + 1, w: W - 2, h: H - 2 };
-    let shellH = 0;
-    if (this.shellVisible) shellH = Math.max(5, Math.min(body.h - 8, Math.round(body.h * this.shellRatio)));
-    const top = { x: body.x, y: body.y, w: body.w, h: body.h - shellH };
     const max = this.shellVisible && this.shellMax;
-    const stripH = Math.max(6, Math.round(body.h * 0.3));
-    const sideW = this.sidebarVisible ? Math.max(20, Math.min(34, Math.round(W * 0.18))) : 0;
-    const right = { x: body.x + (sideW ? sideW + 1 : 0), w: body.w - (sideW ? sideW + 1 : 0) };
+    const layout = todayLayout({ sidebar: this.sidebarVisible, shell: this.shellVisible, shellMax: this.shellMax, panel: !!d.settings.data.panel?.shown, shellRatio: this.shellRatio, cols: W, bodyH: body.h });
+    const at = solveLayout(layout, body).rects;
+    this.layout = layout;
 
     this.rects = {};
-    if (this.sidebarVisible) {
-      const r = { x: top.x, y: top.y, w: sideW, h: max ? body.h : top.h };
-      this.rects.sidebar = r;
-      const inner = ui.box(r, { title: "VAULT", focused: this.focus === "sidebar", info: `${d.vault.markdown().length}` });
+    const vaultR = at.get("vault");
+    if (this.sidebarVisible && vaultR) {
+      this.rects.sidebar = vaultR;
+      const inner = ui.box(vaultR, { title: "VAULT", focused: this.focus === "sidebar", info: `${d.vault.markdown().length}` });
       this.sidebar.render(ui, inner, this.focus === "sidebar");
     }
 
-    // maximized shell: the page goes to the strip at the bottom
-    const mainR = max ? { x: right.x, y: body.y + body.h - stripH, w: right.w, h: stripH } : { x: top.x + (sideW ? sideW + 1 : 0), y: top.y, w: top.w - (sideW ? sideW + 1 : 0), h: top.h };
-    // the side panel on the right: widgets that stay in view (panel show · ◧ in the status bar)
-    const panelW = Math.max(24, Math.min(36, Math.round(W * 0.2)));
+    // the side panel on the right: widgets that stay in view (panel show · ◧ in the status bar);
+    // folded by the solver when the page would keep less than 40 cells
     this.sidePanel.area = null;
-    if (d.settings.data.panel?.shown && mainR.w - panelW - 1 >= 40) {
-      mainR.w -= panelW + 1;
-      const pr = { x: mainR.x + mainR.w + 1, y: mainR.y, w: panelW, h: mainR.h };
-      this.rects.panel = pr; // a click there gives it the focus
-      this.sidePanel.render(ui, pr);
+    const panelR = at.get("panel");
+    if (panelR) {
+      this.rects.panel = panelR; // a click there gives it the focus
+      this.sidePanel.render(ui, panelR);
     }
     if (this.focus === "panel" && !this.sidePanel.area) this.focus = "main"; // the panel went away
+    // the page (maximized shell: in the strip at the bottom)
+    const mainR = at.get("main") ?? body;
     this.rects.main = mainR;
     const app = this.activeApp;
     const mainFocused = this.focus === "main" && !this.topModal;
@@ -921,10 +923,8 @@ export class Workspace {
     if (app) ui.clip(inner, () => app.render(ui, inner, mainFocused));
     if (this.editing) editBand(this, ui, inner, this.sidePanel.area);
 
-    if (this.shellVisible) {
-      const r = max ? { x: right.x, y: body.y, w: right.w, h: body.h - stripH } : { x: body.x, y: top.y + top.h, w: body.w, h: shellH };
-      renderShellPanel(this, ui, r, body, max);
-    }
+    const shellR = at.get("shell");
+    if (this.shellVisible && shellR) renderShellPanel(this, ui, shellR, body, max);
 
     renderStatusBar(this, ui, { x: 0, y: N + H - 1, w: W, h: 1 });
     renderSubtitles(this, ui, W, N + H);
