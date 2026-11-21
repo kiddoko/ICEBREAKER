@@ -116,7 +116,10 @@ export interface Settings {
   /** your effects, per theme: switching theme brings back what you had set on it */
   fxByTheme?: Record<string, Record<string, unknown>>;
   /** what was open when you quit, to come back to it: the tree's open folders, the tabs */
-  session?: { tree?: string[]; tabs?: string[]; active?: number };
+  /** places / shows: tabs moved to another frame, and the one each of those frames shows (workspace/tabplaces.ts) */
+  session?: { tree?: string[]; tabs?: string[]; active?: number; groups?: unknown[]; places?: Record<string, string>; shows?: Record<string, string> };
+  /** where the frames sit (workspace/layout/arrange.ts, docs/FRAMES.md): {} = today's arrangement; `layout preset`, `frame move` */
+  layout: { version?: number; preset?: string; root?: unknown };
   /** pinned notes, folders, modules (`pin`): top of the tree and the pinned widget */
   /** pins (workspace/favorites.ts): notes, folders, modules, pages, macros, commands — also HOME's squares */
   favorites: { kind: "note" | "folder" | "module" | "page" | "macro" | "command"; target: string; label: string; id?: string; icon?: string; cmd?: string }[];
@@ -212,6 +215,7 @@ export const DEFAULT_SETTINGS: Settings = {
   keys: {},
   favorites: [],
   session: {},
+  layout: {},
   fxByTheme: {},
   moduleSettings: {},
   moduleTags: {},
