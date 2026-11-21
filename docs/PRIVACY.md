@@ -52,8 +52,7 @@ paper can open the vault. If an old copy of the vault may be in someone's hands,
 key: the old copy's password and words open nothing new.
 
 **On your computer, other people's eyes**: the files with your secrets (API key, Google
-sign-in, accounts, the vault's key) are readable only by your user. Dictation's sound
-and text stay in the app's private folder, deleted once read. The shell's history doesn't
+sign-in, accounts, the vault's key) are readable only by your user. The shell's history doesn't
 keep lines that look like a key or start with a space. Programs you run in your own
 terminal don't get the deck's powers over an encrypted vault. Copying the 24 recovery
 words warns you first: a clipboard history app may keep them.

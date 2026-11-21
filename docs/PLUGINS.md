@@ -77,7 +77,7 @@ compares versions there, Settings → UPDATES does it by itself (docs/UPDATES.md
 | `vault:read`  | `ib.vault.read / exists / notes / modified`, `ib.ai.vaultTools()` |
 | `vault:write` | `ib.vault.write / append / mkdir`                   |
 | `ai`          | `ib.ai.ask / session` (uses the user's provider)    |
-| `media`       | `ib.media.status / control` (the system player), `ib.media.player.*` (local files) |
+| `media`       | `ib.media.status / control` (the system player: what plays, play / pause / next…), `ib.media.player.*` — **audio files anywhere on the computer, not only in the vault**: `scan(folder)` lists a folder's tracks with their tags, `load(path)` plays one. A module with `media` can see the names of your music files and play them |
 | `google-calendar` | `ib.google.*`: the user's Google Calendar, through their own OAuth client |
 | `stats:read` | `ib.stats.get/series/list` on *other* modules' stats (your own need no permission) |
 | `terminal` | `ib.use("terminal").run / write`: type commands in the user's real shell |
