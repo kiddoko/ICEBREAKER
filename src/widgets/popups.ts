@@ -28,6 +28,8 @@ import type { PopupContext, WidgetPopupSpec, WidgetSpec } from "./types";
 import { Field } from "../ui/field";
 import { chatPopup } from "./chatbox";
 import { DURATIONS, NEWS_TOPICS, places } from "../core/suggest";
+import { Bar, INSET, stack } from "../ui/layout";
+import { drawSky, sceneFor } from "../apps/weathersky";
 
 
 /* ─────────── focus: start / pause / reset, durations ─────────── */
@@ -246,27 +248,53 @@ const streakPopup: WidgetPopupSpec = {
 const SKY: Record<string, string> = { sun: "☼", partly: "◐", cloud: "☁", rain: "☂", snow: "❄", storm: "ϟ", fog: "≋" };
 const weatherPopup: WidgetPopupSpec = {
   title: "weather",
-  size: { w: 56, h: 13 },
+  size: { w: 60, h: 16 },
   hint: "c: city",
   render(ui, r, { deck, key }) {
     const c = ui.c;
     const w = currentWeather(widgetConfig(deck, key, "city", ""));
     // (wrapped: on one line it was cut at both ends while it scrolled)
-    if (!w) return void wrapWords("no forecast yet — location: setup, or config set home.weatherCity <city>", r.w - 4).forEach((l, i) => ui.text(r.x + 2, r.y + 1 + i, l, { fg: c.muted }));
-    ui.text(r.x + 2, r.y, w.place, { fg: c.fg, attrs: BOLD });
-    ui.textRight(r.x + r.w - 2, r.y, `${Math.round(w.temp)}° · feels ${Math.round(w.feels)}° · ${w.humidity}% · wind ${Math.round(w.wind)} km/h`, { fg: c.muted });
-    ui.text(r.x + 2, r.y + 1, `sunrise ${w.sunrise} · sunset ${w.sunset} · rain ${w.rainChance}%`, { fg: c.subtle });
+    if (!w) return void wrapWords("no forecast yet — location: setup, or config set home.weatherCity <city>", r.w - INSET * 4).forEach((l, i) => ui.text(r.x + INSET * 2, r.y + 1 + i, l, { fg: c.muted }));
+    // the sky (the WEATHER page's, apps/weathersky.ts) with the place and the temperature on it,
+    // the details under it, then the week: each day's range on the week's scale
+    const [skyR, detR, weekR] = stack(r, [
+      { min: 3, h: 5, priority: 6 },
+      { h: 1, priority: 8 },
+      { min: 2, fill: 1, priority: 9 },
+    ], 0);
+    if (skyR) {
+      const scene = sceneFor(w.code, { isDay: w.isDay, wind: w.wind, windDir: w.windDir, rain: w.rainChance });
+      ui.clip(skyR, () => ui.art(() => drawSky(ui, skyR, scene, ui.now / 1000)));
+      new Bar(ui, skyR.x + INSET * 2, skyR.y, skyR.x + skyR.w - INSET * 2)
+        .text(w.place, { fg: c.fg, attrs: BOLD }, { priority: 7, fit: 6 })
+        .text(`${Math.round(w.temp)}°`, { fg: c.accent, attrs: BOLD }, { side: "right", priority: 9 })
+        .draw();
+    }
+    if (detR) {
+      new Bar(ui, detR.x + INSET * 2, detR.y, detR.x + detR.w - INSET * 2)
+        .text(`${t("feels")} ${Math.round(w.feels)}°`, { fg: c.subtle }, { priority: 7 })
+        .text(`${t("wind")} ${Math.round(w.wind)} km/h`, { fg: c.subtle }, { priority: 5 })
+        .text(`☂ ${w.rainChance}%`, { fg: mix(0x7fb4ea, c.bg, 0.2) }, { priority: 8 })
+        .text(`${w.humidity}%rh`, { fg: c.faint }, { priority: 3 })
+        .text(`↑${w.sunrise} ↓${w.sunset}`, { fg: c.faint }, { side: "right", priority: 4 })
+        .draw();
+    }
+    if (!weekR) return;
     const lo = Math.min(...w.days.map((d) => d.min)), hi = Math.max(...w.days.map((d) => d.max));
-    const span = Math.max(1, hi - lo), barW = Math.max(6, r.w - 30);
-    w.days.slice(0, r.h - 4).forEach((d, i) => {
-      const y = r.y + 3 + i;
-      ui.text(r.x + 2, y, new Date(`${d.date}T12:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric" }), { fg: c.muted });
-      ui.text(r.x + 12, y, SKY[sky(d.code)] ?? "·", { fg: c.warning });
-      ui.textRight(r.x + 19, y, `${Math.round(d.min)}°`, { fg: c.info });
+    const span = Math.max(1, hi - lo);
+    const x0 = weekR.x + INSET * 2, x1 = weekR.x + weekR.w - INSET * 2;
+    const DAY = 9, GLY = 2, LO = 4, HI = 4;
+    const barX = x0 + DAY + GLY + LO + 1, barW = Math.max(4, x1 - barX - HI - 1);
+    w.days.slice(0, weekR.h).forEach((d, i) => {
+      const y = weekR.y + i;
+      const k = sky(d.code);
+      ui.text(x0, y, new Date(`${d.date}T12:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric" }), { fg: c.muted }, DAY - 1);
+      ui.text(x0 + DAY, y, SKY[k] ?? "·", { fg: k === "sun" || k === "partly" ? c.warning : k === "snow" ? c.fg : mix(0x7fb4ea, c.bg, 0.15) });
+      ui.textRight(barX - 1, y, `${Math.round(d.min)}°`, { fg: mix(0x7fb4ea, c.bg, 0.1) });
       const a = Math.round(((d.min - lo) / span) * barW), b = Math.max(a + 1, Math.round(((d.max - lo) / span) * barW));
-      ui.text(r.x + 21, y, "─".repeat(barW), { fg: c.faint });
-      ui.text(r.x + 21 + a, y, "━".repeat(b - a), { fg: mix(c.info, c.warning, (d.max - lo) / span) });
-      ui.text(r.x + 22 + barW, y, `${Math.round(d.max)}°`, { fg: c.warning });
+      ui.text(barX, y, "─".repeat(barW), { fg: c.faint });
+      ui.text(barX + a, y, "━".repeat(Math.min(barW - a, b - a)), { fg: mix(0x7fb4ea, 0xffcf5a, (d.max - lo) / span) });
+      ui.text(barX + barW + 1, y, `${Math.round(d.max)}°`, { fg: 0xffcf5a }, HI);
     });
   },
   onText: (t, { deck, key }) => {

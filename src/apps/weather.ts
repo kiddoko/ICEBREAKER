@@ -12,7 +12,7 @@
  * Data: open-meteo.com (no account, no key). Nothing when stealth mode is on.
  */
 import { fmt } from "../core/ansi";
-import { mix, type RGB } from "../core/color";
+import { mix } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
@@ -23,7 +23,8 @@ import { fitMatrix, matrixSize, matrixText } from "../ui/dots";
 import type { UI } from "../ui/ui";
 import { sky } from "../widgets/builtin";
 import type { App, AppSpec } from "./types";
-import { Bar, INSET } from "../ui/layout";
+import { atLeast, Bar, cards, GAP, INSET, stack } from "../ui/layout";
+import { drawSky, sceneFor, skyIcon } from "./weathersky";
 import { places } from "../core/suggest";
 
 type Sky = ReturnType<typeof sky>;
@@ -85,85 +86,6 @@ const GLYPH: Record<Sky, string> = { sun: "☼", partly: "◐", cloud: "☁", fo
 const ARROWS = ["↓", "↙", "←", "↖", "↑", "↗", "→", "↘"]; // where the wind blows to (from N = ↓)
 const arrow = (deg: number) => ARROWS[Math.round(deg / 45) % 8];
 const placeName = (p: Place) => [p.name, p.admin && p.admin !== p.name ? p.admin : "", p.countryCode].filter(Boolean).join(", ");
-
-/** Stable pseudo-random 0..1. */
-const rnd = (a: number, b: number) => {
-  const h = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
-  return h - Math.floor(h);
-};
-
-/** The sky, animated: everything is a pure function of the time `s` (seconds). */
-function drawSky(ui: UI, r: Rect, s: Sky, isDay: boolean, sec: number): void {
-  const c = ui.c;
-  const put = (x: number, y: number, ch: string, fg: RGB) => {
-    if (x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) ui.text(x, y, ch, { fg });
-  };
-  const cx = r.x + Math.floor(r.w * 0.3), cy = r.y + Math.floor(r.h * 0.32);
-  // sun or moon
-  if (s === "sun" || s === "partly") {
-    if (isDay) {
-      const rays = ["─", "╲", "│", "╱"];
-      for (let k = 0; k < 8; k++) {
-        const a = (k / 8) * Math.PI * 2 + sec * 0.4;
-        const len = 3 + (Math.sin(sec * 2 + k) > 0.3 ? 1 : 0);
-        put(Math.round(cx + Math.cos(a) * len * 2), Math.round(cy + Math.sin(a) * len), rays[k % 4], mix(c.warning, c.bg, 0.2));
-      }
-      for (const [dx, dy, ch] of [[-1, 0, "("], [0, 0, "☼"], [1, 0, ")"]] as const) put(cx + dx, cy + dy, ch, c.warning);
-    } else {
-      for (const [dx, dy, ch] of [[0, -1, "▄"], [-1, 0, "█"], [0, 0, " "], [-1, 1, "▀"]] as const) put(cx + dx, cy + dy, ch, mix(0xe8e4d8, c.bg, 0.1));
-      for (let i = 0; i < 14; i++) if (Math.sin(sec * 1.7 + i * 3) > 0.2) put(r.x + Math.floor(rnd(i, 1) * r.w), r.y + Math.floor(rnd(i, 2) * r.h * 0.6), "·", c.subtle);
-    }
-  }
-  // clouds drifting
-  const cloudCount = s === "sun" ? 0 : s === "partly" ? 1 : s === "fog" ? 0 : 3;
-  const CLOUD = ["  .--.   ", ".(    ). ", "(___.__)_"];
-  for (let k = 0; k < cloudCount; k++) {
-    const speed = 0.6 + k * 0.25;
-    const x0 = r.x + Math.floor(((rnd(k, 5) * r.w + sec * speed) % (r.w + 10)) - 9);
-    const y0 = r.y + (s === "partly" ? Math.floor(r.h * 0.35) : k);
-    const col = s === "storm" ? mix(c.subtle, c.bg, 0.2) : mix(c.fg, c.bg, 0.25 + k * 0.15);
-    CLOUD.forEach((row, i) => [...row].forEach((ch, j) => ch !== " " && put(x0 + j, y0 + i, ch, col)));
-  }
-  // rain, snow
-  if (s === "rain" || s === "storm") {
-    const n = Math.floor(r.w * r.h * 0.06);
-    for (let i = 0; i < n; i++) {
-      const sp = 7 + rnd(i, 9) * 5;
-      const y = r.y + 3 + Math.floor((rnd(i, 3) * r.h + sec * sp) % (r.h - 3));
-      const x = r.x + Math.floor((rnd(i, 4) * r.w - (y - r.y) * 0.4 + r.w) % r.w);
-      put(x, y, rnd(i, 6) > 0.5 ? "╱" : "'", mix(c.info, c.bg, 0.15 + rnd(i, 7) * 0.4));
-    }
-  }
-  if (s === "snow") {
-    const n = Math.floor(r.w * r.h * 0.05);
-    for (let i = 0; i < n; i++) {
-      const y = r.y + 3 + Math.floor((rnd(i, 3) * r.h + sec * (1.2 + rnd(i, 8))) % (r.h - 3));
-      const x = r.x + Math.floor((rnd(i, 4) * r.w + Math.sin(sec + i) * 1.5 + r.w) % r.w);
-      put(x, y, rnd(i, 6) > 0.6 ? "*" : "·", mix(0xffffff, c.bg, 0.1 + rnd(i, 7) * 0.4));
-    }
-  }
-  // storm: a bolt now and then, and the sky flashes
-  if (s === "storm") {
-    const flash = (sec % 5.3) < 0.18;
-    if (flash) {
-      ui.tint(r, undefined, mix(c.bg, 0xffffff, 0.12));
-      let x = r.x + Math.floor(rnd(Math.floor(sec / 5.3), 1) * (r.w - 6)) + 3;
-      for (let y = r.y + 3; y < r.y + r.h - 1; y++) {
-        put(x, y, y % 2 ? "╱" : "╲", c.warning);
-        x += y % 2 ? -1 : 1;
-      }
-    }
-  }
-  // fog banks sliding across
-  if (s === "fog" || s === "cloud") {
-    const layers = s === "fog" ? r.h - 1 : 2;
-    for (let i = 0; i < layers; i++) {
-      const y = r.y + r.h - 1 - i;
-      const off = Math.floor(sec * (0.8 + (i % 3) * 0.4)) + i * 7;
-      for (let x = 0; x < r.w; x++) if ((x + off) % 9 < 5) put(r.x + x, y, i % 2 ? "─" : "~", mix(c.subtle, c.bg, 0.3 + (i % 3) * 0.15));
-    }
-  }
-}
 
 let lastPlace: Place | null = null;
 
@@ -264,61 +186,122 @@ class WeatherApp implements App {
     if (this.loading) head.text(ui.spinner(), { fg: c.accent }, { side: "right", priority: 8 });
     head.draw();
 
-    // the sky (left) and the numbers (right)
-    const skyW = Math.max(20, Math.floor(r.w * 0.45)), skyH = Math.max(6, Math.min(14, Math.floor(r.h * 0.45)));
-    const skyR = { x: r.x + 2, y: r.y + 3, w: skyW, h: skyH };
+    // what's below the header shares the page (ui/layout.ts stack): the sky and the numbers,
+    // the next 24 h, the week as cards — the least needed go first when the page is short
+    const body = { x: r.x + INSET * 2, y: r.y + 3, w: Math.max(0, r.w - INSET * 4), h: Math.max(0, r.h - 4) };
+    const wide = atLeast(body, "m");
+    const [skyRow, hoursR, weekR] = stack(body, [
+      { min: 6, fill: 1, max: 16, priority: 9 },
+      { h: wide ? 6 : 5, priority: 4 },
+      { h: 4, priority: 6 },
+    ]);
+    if (skyRow) this.drawNow(ui, skyRow, f, sk, sec);
+    if (hoursR) this.drawHours(ui, hoursR, f);
+    if (weekR) this.drawWeek(ui, weekR, f);
+  }
+
+  /** The sky (left) and the numbers (right) — the numbers over the sky when it's narrow. */
+  private drawNow(ui: UI, r: Rect, f: Forecast, sk: Sky, sec: number): void {
+    const c = ui.c;
+    const scene = sceneFor(f.code, { isDay: f.isDay, wind: f.wind, windDir: f.windDir, rain: f.hours[0]?.rain });
+    const side = r.w >= 56;
+    const skyR = side ? { x: r.x, y: r.y, w: Math.max(24, Math.floor(r.w * 0.55)), h: r.h } : r;
     // the animated sky overlaps itself on purpose (ui.art: debug layout doesn't count it)
-    ui.clip(skyR, () => ui.art(() => drawSky(ui, skyR, sk, f.isDay, sec)));
-    const nx = skyR.x + skyW + 3;
+    ui.clip(skyR, () => ui.art(() => drawSky(ui, skyR, scene, sec)));
+    const nr = side ? { x: skyR.x + skyR.w + GAP, y: r.y, w: r.x + r.w - (skyR.x + skyR.w + GAP), h: r.h } : { x: r.x + Math.floor(r.w / 2), y: r.y, w: r.w - Math.floor(r.w / 2), h: Math.min(r.h, 5) };
+    let y = nr.y;
+    const line = (txt: string, style: { fg: number; attrs?: number; bg?: number; raw?: boolean }) => void (y < nr.y + nr.h && ui.text(nr.x, y++, txt, style, nr.w));
     const temp = `${Math.round(f.temp)}°`;
-    const k = fitMatrix(temp, r.x + r.w - nx - 2, 4, 1);
-    let ny = skyR.y;
+    // big dot-matrix digits when there's room for them and the lines under them
+    const k = side ? fitMatrix(temp, nr.w, nr.h - 6, 3) : 0;
     if (k) {
-      matrixText(ui, nx, ny, temp, k, () => c.accent);
-      ny += matrixSize(temp, k).h + 1;
-    } else ui.text(nx, ny++, temp, { fg: c.accent, attrs: BOLD });
-    // the numbers: cut with … at the page's edge, and never down into the week's rows
-    const nw = Math.max(0, r.x + r.w - INSET * 2 - nx);
-    const nyEnd = r.y + r.h - 3;
-    const line = (s: string, style: { fg: number; attrs?: number }) => void (ny < nyEnd && ui.text(nx, ny++, s, style, nw));
+      matrixText(ui, nr.x, y, temp, k, () => c.accent);
+      y += matrixSize(temp, k).h + 1;
+    } else line(temp, { fg: c.accent, attrs: BOLD });
     line(`${GLYPH[sk]}  ${t(LABEL[sk])}`, { fg: c.fg, attrs: BOLD });
-    line(`${t("feels")} ${Math.round(f.feels)}° · ${t("humidity")} ${f.humidity}%`, { fg: c.subtle });
-    line(`${t("wind")} ${Math.round(f.wind)} km/h ${arrow(f.windDir)}`, { fg: c.subtle });
-    line(`☀ ${f.days[0]?.sunrise}  ☾ ${f.days[0]?.sunset}`, { fg: c.subtle });
-
-    // the next 24 hours: a curve, the rain chances under it
-    const cy = skyR.y + skyH + 1;
-    const cw = r.w - 6, chH = Math.max(3, Math.min(6, r.y + r.h - cy - 8));
-    // the curve, its rain row and its hours end above the week (its 3 rows at the bottom)
-    if (cw > 20 && cy + chH + 2 < r.y + r.h - 3) {
-      const temps = f.hours.map((h) => h.temp);
-      const lo = Math.min(...temps), hi = Math.max(...temps), span = hi - lo || 1;
-      ui.text(r.x + 2, cy, t("next 24 h"), { fg: c.muted, attrs: BOLD });
-      ui.textRight(r.x + r.w - 2, cy, `${Math.round(lo)}° … ${Math.round(hi)}°`, { fg: c.subtle });
-      const samples = cw * 2;
-      ui.chart({ x: r.x + 3, y: cy + 1, w: cw, h: chH }, Array.from({ length: samples }, (_, i) => (temps[Math.min(temps.length - 1, Math.floor((i / samples) * temps.length))] - lo) / span * 0.9 + 0.05), c.accent);
-      const ry = cy + chH + 1;
-      const bars = "▁▂▃▄▅▆▇█";
-      for (let i = 0; i < cw; i++) {
-        const h = f.hours[Math.min(f.hours.length - 1, Math.floor((i / cw) * f.hours.length))];
-        if (h.rain > 5) ui.text(r.x + 3 + i, ry, bars[Math.min(7, Math.floor((h.rain / 100) * 8))], { fg: mix(c.info, c.bg, 0.2) });
-      }
-      for (let i = 0; i < f.hours.length; i += 3) ui.text(r.x + 3 + Math.floor((i / f.hours.length) * cw), ry + 1, f.hours[i].t.slice(0, 2), { fg: c.faint });
+    if (!side) return;
+    line(`${t("feels")} ${Math.round(f.feels)}°`, { fg: c.subtle });
+    // humidity as a bar, the wind with its arrow and its word
+    if (y < nr.y + nr.h) {
+      const label = `${t("humidity")} ${f.humidity}% `;
+      const lw = Math.min(nr.w, label.length);
+      ui.text(nr.x, y, label, { fg: c.subtle }, nr.w);
+      if (nr.w - lw > 4) ui.bar(nr.x + lw, y, Math.min(16, nr.w - lw), f.humidity / 100, mix(0x7fb4ea, c.bg, 0.2), c.faint);
+      y++;
     }
+    line(`${t("wind")} ${Math.round(f.wind)} km/h ${arrow(f.windDir)} · ${t(beaufort(f.wind))}`, { fg: c.subtle, raw: true });
+    // the day: sunrise, sunset, and where the sun is between them
+    const d0 = f.days[0];
+    if (d0 && y < nr.y + nr.h) {
+      const mins = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
+      const now = new Date();
+      const p = Math.max(0, Math.min(1, (now.getHours() * 60 + now.getMinutes() - mins(d0.sunrise)) / Math.max(1, mins(d0.sunset) - mins(d0.sunrise))));
+      const a = `☀ ${d0.sunrise} `, b = ` ${d0.sunset} ☾`;
+      const bw = nr.w - a.length - b.length;
+      if (bw >= 6) {
+        ui.text(nr.x, y, a, { fg: c.subtle });
+        ui.bar(nr.x + a.length, y, bw, p, mix(c.warning, c.bg, 0.25), c.faint);
+        ui.text(nr.x + a.length + bw, y, b, { fg: c.subtle });
+      } else ui.text(nr.x, y, `${a}${b}`, { fg: c.subtle }, nr.w);
+      y++;
+    }
+  }
 
-    // the week (not when the page is too short: it would sit on the header)
-    const wy = r.y + r.h - 3;
-    if (wy <= r.y + 2) return;
-    const colW = Math.max(9, Math.floor((r.w - 4) / Math.min(7, f.days.length)));
-    f.days.slice(0, Math.floor((r.w - 4) / colW)).forEach((d, i) => {
-      const dx = r.x + 2 + i * colW;
-      const date = new Date(`${d.date}T12:00`);
-      const name = i === 0 ? t("today") : date.toLocaleDateString(this.deck.settings.data.user.locale || undefined, { weekday: "short" });
-      ui.text(dx, wy, `${GLYPH[sky(d.code)]} ${name}`, { fg: i === 0 ? c.accent : c.fg, attrs: i === 0 ? BOLD : 0 }, colW - 1);
-      ui.text(dx, wy + 1, `${Math.round(d.max)}° ${Math.round(d.min)}°`, { fg: c.subtle }, colW - 1);
-      if (d.rain >= 20) ui.text(dx, wy + 2, `☂ ${d.rain}%`, { fg: mix(c.info, c.bg, 0.2) }, colW - 1);
+  /** The next 24 hours: the temperature as a curve, the rain chances under it, the hours. */
+  private drawHours(ui: UI, r: Rect, f: Forecast): void {
+    const c = ui.c;
+    if (r.w < 20 || r.h < 4) return;
+    const temps = f.hours.map((h) => h.temp);
+    const lo = Math.min(...temps), hi = Math.max(...temps), span = hi - lo || 1;
+    new Bar(ui, r.x, r.y, r.x + r.w)
+      .text(t("next 24 h"), { fg: c.muted, attrs: BOLD }, { priority: 9 })
+      .text(`${Math.round(lo)}° … ${Math.round(hi)}°`, { fg: c.subtle }, { side: "right", priority: 5 })
+      .draw();
+    const chH = Math.max(1, r.h - 3);
+    const cw = r.w;
+    ui.chart({ x: r.x, y: r.y + 1, w: cw, h: chH }, Array.from({ length: cw * 2 }, (_, i) => ((temps[Math.min(temps.length - 1, Math.floor((i / (cw * 2)) * temps.length))] - lo) / span) * 0.9 + 0.05), c.accent);
+    const ry = r.y + 1 + chH;
+    const bars = "▁▂▃▄▅▆▇█";
+    for (let i = 0; i < cw; i++) {
+      const h = f.hours[Math.min(f.hours.length - 1, Math.floor((i / cw) * f.hours.length))];
+      if (h.rain > 5) ui.text(r.x + i, ry, bars[Math.min(7, Math.floor((h.rain / 100) * 8))], { fg: mix(0x7fb4ea, c.bg, 0.2) });
+    }
+    const step = cw >= 72 ? 3 : 6;
+    for (let i = 0; i < f.hours.length; i += step) {
+      const hx = r.x + Math.floor((i / f.hours.length) * cw);
+      if (hx + 2 <= r.x + r.w) ui.text(hx, ry + 1, f.hours[i].t.slice(0, 2), { fg: c.faint });
+    }
+  }
+
+  /** The week: a card a day (as many as fit), today lit. */
+  private drawWeek(ui: UI, r: Rect, f: Forecast): void {
+    const c = ui.c;
+    const { rects, shown } = cards(r, f.days.length, { minW: 11, maxW: 18, h: 4, gap: GAP, gapY: 0 });
+    const locale = this.deck.settings.data.user.locale || undefined;
+    f.days.slice(0, shown).forEach((d, i) => {
+      const cr = rects[i];
+      const today = i === 0;
+      if (today) ui.fill(cr, { bg: mix(c.accent, c.bg, 0.88) });
+      const bg = today ? mix(c.accent, c.bg, 0.88) : undefined;
+      const name = today ? t("today") : new Date(`${d.date}T12:00`).toLocaleDateString(locale, { weekday: "short" });
+      const k = sky(d.code);
+      const [i1, i2] = skyIcon(k);
+      const tint = k === "sun" || k === "partly" ? c.warning : k === "rain" || k === "storm" ? mix(0x7fb4ea, c.bg, 0.1) : k === "snow" ? 0xffffff : c.muted;
+      ui.text(cr.x + INSET, cr.y, name, { fg: today ? c.accent : c.fg, attrs: today ? BOLD : 0, bg }, cr.w - INSET * 2);
+      ui.text(cr.x + INSET, cr.y + 1, i1, { fg: tint, bg }, cr.w - INSET * 2);
+      ui.text(cr.x + INSET, cr.y + 2, i2, { fg: tint, bg }, cr.w - INSET * 2);
+      new Bar(ui, cr.x + INSET, cr.y + 3, cr.x + cr.w - INSET, 1)
+        .text(`${Math.round(d.max)}°`, { fg: c.fg, attrs: BOLD, bg }, { priority: 9 })
+        .text(`${Math.round(d.min)}°`, { fg: c.subtle, bg }, { priority: 8 })
+        .text(d.rain >= 20 ? `☂${d.rain}%` : "", { fg: mix(0x7fb4ea, c.bg, 0.2), bg }, { side: "right", priority: 3 })
+        .draw();
     });
   }
+}
+
+/** The wind in words (Beaufort, roughly). */
+function beaufort(kmh: number): string {
+  return kmh < 2 ? "calm" : kmh < 12 ? "light breeze" : kmh < 29 ? "breeze" : kmh < 50 ? "strong wind" : kmh < 75 ? "gale" : "violent storm";
 }
 
 export const weatherSpec: AppSpec = {
