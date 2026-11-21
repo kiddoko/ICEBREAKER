@@ -1,6 +1,6 @@
 import { gradient as sampleGradient, mix, NONE, type RGB } from "../core/color";
 import { keySpans } from "./keycaps";
-import { BOLD, Grid, type Rect, type Style } from "../core/grid";
+import { BOLD, Grid, PIXELS, type Rect, type Style } from "../core/grid";
 import type { MouseInput } from "../core/input";
 import type { Theme } from "../core/theme";
 import { charWidth, strWidth, truncate } from "../core/unicode";
@@ -320,8 +320,12 @@ export class UI {
       for (let x = Math.max(0, r.x); x < Math.min(g.cols, r.x + r.w); x++) {
         const i = y * g.cols + x;
         if (g.bg[i] !== NONE) g.bg[i] = mix(g.bg[i], this.c.bg, 0.6);
+        const ch = g.ch[i];
+        // block glyphs (▀ ▄ █ ▌…: a tab's bar, a logo) are shapes, not text: their own colour,
+        // darkened — in the text's grey a tab's dark bar came out as a light one
+        if (ch >= 0x2580 && ch <= 0x259f && !(g.attr[i] & PIXELS)) g.fg[i] = mix(g.fg[i], this.c.bg, 0.6);
+        else if (g.inClip(x, y)) g.tint(x, y, fg, NONE);
       }
-    this.tint(r, fg);
   }
 
   tint(r: Rect, fg: RGB = NONE, bg: RGB = NONE): void {
