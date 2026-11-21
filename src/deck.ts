@@ -494,6 +494,9 @@ export class Deck implements InputSink {
       this.speak("errors", t("error {code}: {title}", { code: e.code.split("").join(" "), title: t(e.title) }));
     };
     window.addEventListener("blur", () => focus(false));
+    // started without the focus (launched behind another window, the login done elsewhere): no
+    // blur ever comes, so ask now — or the boot screen ran at full rate, unseen (perf R7)
+    this.loop.background = !document.hasFocus() && this.settings.data.appearance.backgroundSlow !== false;
     // some webviews don't report a minimized window as hidden: ask the window itself
     void this.platform.onMinimized?.((min) => {
       this.loop.setPaused(min || document.hidden);
