@@ -189,7 +189,9 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
   ui.animate(1000 - now.getMilliseconds());
   // narrow (small window, big interface scale): the right side shrinks so the tabs keep room
   const narrow = r.w < 110;
-  const ai = d.ai.ready ? (narrow ? ui.theme.glyphs.mark : `${ui.theme.glyphs.mark} ${d.ai.provider.label}`) : narrow ? "○" : `○ ${t("offline")}`;
+  // UPLINK ■: green when the AI is there and answering, amber while it thinks, red when it's off
+  // (the provider and the model are in its tip — they took the bar's room for nothing)
+  const ai = narrow ? "■" : "UPLINK ■";
   // settings stay one click away whatever is open
   const gear = narrow ? " ⚙ " : ` ⚙ ${t("settings")} `;
   const right = narrow ? ` ${ai} ${time.slice(0, 5)} ` : ` ${ai}  │  ${date}  ${time} `;
@@ -222,8 +224,11 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
     nx -= 1;
   }
   ui.text(rx, r.y, right, { fg: c.muted, bg: c.panelAlt });
-  ui.text(rx + 1, r.y, ai, { fg: d.ai.ready ? c.accent : c.error, bg: c.panelAlt });
-  ui.hit({ x: rx, y: r.y, w: strWidth(ai) + 2, h: 1 }, d.ai.ready ? { cmd: "link", tip: "ctrl+space · or `chat` right here in the shell" } : { cmd: "settings", tip: `AI offline: ${d.ai.problem ?? ""}` });
+  const lamp = !d.ai.ready ? c.error : d.ai.busy > 0 ? c.warning : c.success;
+  if (!narrow) ui.text(rx + 1, r.y, "UPLINK", { fg: d.ai.ready ? c.fg : c.muted, bg: c.panelAlt, attrs: BOLD });
+  ui.text(rx + strWidth(ai), r.y, "■", { fg: lamp, bg: c.panelAlt });
+  const who = `${d.ai.provider.label}`;
+  ui.hit({ x: rx, y: r.y, w: strWidth(ai) + 2, h: 1 }, d.ai.ready ? { cmd: "link", tip: `UPLINK: ${who}${d.ai.busy > 0 ? ` · ${t("thinking…")}` : ""}\nctrl+space · or \`chat\` right here in the shell` } : { cmd: "settings", tip: `UPLINK ${t("off")}: ${d.ai.problem ?? ""}` });
   const offRect = { x: ox, y: r.y, w: strWidth(off), h: 1 };
   const offHot = ui.hovered(offRect);
   ui.text(ox, r.y, off, { fg: offHot ? c.panel : c.error, bg: offHot ? c.error : mix(c.error, c.panelAlt, 0.82), attrs: BOLD });
