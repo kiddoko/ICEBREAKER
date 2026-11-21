@@ -210,7 +210,7 @@ class WeatherApp implements App {
     ui.clip(skyR, () => ui.art(() => drawSky(ui, skyR, scene, sec)));
     const nr = side ? { x: skyR.x + skyR.w + GAP, y: r.y, w: r.x + r.w - (skyR.x + skyR.w + GAP), h: r.h } : { x: r.x + Math.floor(r.w / 2), y: r.y, w: r.w - Math.floor(r.w / 2), h: Math.min(r.h, 5) };
     let y = nr.y;
-    const line = (txt: string, style: { fg: number; attrs?: number; bg?: number }) => void (y < nr.y + nr.h && ui.text(nr.x, y++, txt, style, nr.w));
+    const line = (txt: string, style: { fg: number; attrs?: number; bg?: number; raw?: boolean }) => void (y < nr.y + nr.h && ui.text(nr.x, y++, txt, style, nr.w));
     const temp = `${Math.round(f.temp)}°`;
     // big dot-matrix digits when there's room for them and the lines under them
     const k = side ? fitMatrix(temp, nr.w, nr.h - 6, 3) : 0;
@@ -229,7 +229,7 @@ class WeatherApp implements App {
       if (nr.w - lw > 4) ui.bar(nr.x + lw, y, Math.min(16, nr.w - lw), f.humidity / 100, mix(0x7fb4ea, c.bg, 0.2), c.faint);
       y++;
     }
-    line(`${t("wind")} ${Math.round(f.wind)} km/h ${arrow(f.windDir)} · ${t(beaufort(f.wind))}`, { fg: c.subtle });
+    line(`${t("wind")} ${Math.round(f.wind)} km/h ${arrow(f.windDir)} · ${t(beaufort(f.wind))}`, { fg: c.subtle, raw: true });
     // the day: sunrise, sunset, and where the sun is between them
     const d0 = f.days[0];
     if (d0 && y < nr.y + nr.h) {

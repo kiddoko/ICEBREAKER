@@ -106,7 +106,8 @@ export function drawSky(ui: UI, r: Rect, s: SkyScene, sec: number): void {
   const night = !s.isDay;
   const dark = s.kind === "storm" || s.kind === "rain" || s.kind === "cloud";
   // the air: a faint gradient from the top
-  const top = night ? mix(c.bg, 0x0a1a3a, 0.5) : dark ? mix(c.bg, 0x5a6470, 0.18) : mix(c.bg, 0x3a7bd5, 0.16);
+  // day reads blue at a glance (a clear noon is not a night sky), grey under heavy clouds, night deep navy
+  const top = night ? mix(c.bg, 0x0a1a3a, 0.45) : dark ? mix(c.bg, 0x6a7480, 0.3) : mix(c.bg, 0x3a8be5, 0.38);
   for (let y = 0; y < r.h; y++) ui.fill({ x: r.x, y: r.y + y, w: r.w, h: 1 }, { bg: mix(top, c.bg, y / r.h) });
   const skyBg = (y: number) => mix(top, c.bg, (y - r.y) / r.h);
 

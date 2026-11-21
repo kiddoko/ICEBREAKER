@@ -223,8 +223,20 @@ const weatherWidget: WidgetSpec = {
     const s = sky(w.code);
     const arrow = ARROWS[Math.round(w.windDir / 45) % 8];
     // a tiny card: one line, the essentials
-    if (r.w < 14 || r.h < 3) {
-      ui.text(r.x + INSET, r.y + Math.floor((r.h - 1) / 2), `${w.place} ${Math.round(w.temp)}° ${SKY_LABEL[s]}`, { fg: c.accent, attrs: BOLD }, r.w - INSET * 2);
+    // (the sky needs 5 rows: under that, a line — and the details under it when there's a second row)
+    if (r.w < 14 || r.h < 5) {
+      const y = r.y + Math.max(0, Math.floor((r.h - (r.h >= 2 ? 2 : 1)) / 2));
+      new Bar(ui, r.x + INSET, y, r.x + r.w - INSET)
+        .text(w.place, { fg: c.fg, attrs: BOLD }, { priority: 6, fit: 4 })
+        .text(`${Math.round(w.temp)}°`, { fg: c.accent, attrs: BOLD }, { priority: 10 })
+        .text(SKY_LABEL[s], { fg: c.subtle }, { priority: 4 })
+        .draw();
+      if (r.h >= 2)
+        new Bar(ui, r.x + INSET, y + 1, r.x + r.w - INSET)
+          .text(`${t("feels")} ${Math.round(w.feels)}°`, { fg: c.subtle }, { priority: 6 })
+          .text(`${arrow} ${Math.round(w.wind)} km/h`, { fg: c.subtle, raw: true }, { priority: 5 })
+          .text(`☂ ${Math.round(w.rainChance)}%`, { fg: mix(0x7fb4ea, c.bg, 0.2) }, { priority: 7 })
+          .draw();
       return;
     }
     // the parts share the card (ui/layout.ts stack): the sky first, then the details, the week, the 24 h
@@ -248,7 +260,7 @@ const weatherWidget: WidgetSpec = {
     if (detailR) {
       new Bar(ui, detailR.x + INSET, detailR.y, detailR.x + detailR.w - INSET)
         .text(`${t("feels")} ${Math.round(w.feels)}°`, { fg: c.subtle }, { priority: 6 })
-        .text(`${arrow} ${Math.round(w.wind)} km/h`, { fg: c.subtle }, { priority: 5 })
+        .text(`${arrow} ${Math.round(w.wind)} km/h`, { fg: c.subtle, raw: true }, { priority: 5 })
         .text(`☂ ${Math.round(w.rainChance)}%`, { fg: mix(0x7fb4ea, c.bg, 0.2) }, { priority: 7 })
         .text(`${Math.round(w.humidity)}%rh`, { fg: c.faint }, { priority: 2 })
         .text(`↑${w.sunrise} ↓${w.sunset}`, { fg: c.faint }, { side: "right", priority: 1 })
