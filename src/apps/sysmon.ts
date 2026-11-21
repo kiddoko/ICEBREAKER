@@ -53,12 +53,21 @@ export class SysmonApp implements App {
   private timer: ReturnType<typeof setInterval>;
   private error = "";
 
+  /** when the page was last drawn (it's on screen): hidden, it reads the computer every 10 s only */
+  private seenAt = performance.now();
+  private polledAt = 0;
+
   constructor(private readonly deck: Deck) {
     void this.poll();
     this.timer = setInterval(() => void this.poll(), 1000);
   }
 
   private async poll(): Promise<void> {
+    // a SYSMON tab behind another, or the deck asleep: a reading every 10 s keeps the history going
+    const now = performance.now();
+    const hidden = now - this.seenAt > 1500 || this.deck.loop.isPaused;
+    if (hidden && this.stats && now - this.polledAt < 10_000) return;
+    this.polledAt = now;
     try {
       const s = await this.deck.platform.system.stats();
       this.stats = s;
@@ -102,6 +111,7 @@ export class SysmonApp implements App {
   }
 
   render(ui: UI, r: Rect, focused: boolean): void {
+    this.seenAt = performance.now();
     const s = this.stats;
     const c = ui.c;
     if (!s) {

@@ -5,7 +5,7 @@
 use serde::Serialize;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
-use sysinfo::{Disks, Networks, ProcessesToUpdate, System};
+use sysinfo::{Disks, Networks, ProcessRefreshKind, ProcessesToUpdate, System};
 
 /// Created on first use (sysinfo's constructor can fail on exotic systems,
 /// and we'd rather show an error in SYSMON than crash at startup).
@@ -75,7 +75,9 @@ pub fn system_stats(state: tauri::State<SystemState>) -> Result<Stats, String> {
     let sys = guard.as_mut().expect("initialized above");
     sys.refresh_cpu_usage();
     sys.refresh_memory();
-    sys.refresh_processes(ProcessesToUpdate::All, true);
+    // only what the list shows (name, cpu, memory): reading every process's whole record each
+    // second kept the native side at 3–6 % of a core
+    sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing().with_cpu().with_memory());
 
     // the busiest ten (by cpu, then memory)
     let mut top: Vec<Proc> = sys
