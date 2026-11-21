@@ -192,6 +192,8 @@ export class PluginHost {
   private asking = new Map<string, Promise<string>>();
   /** "this time": until when (ms), by module and permission */
   private once = new Map<string, number>();
+  /** "no": until when (ms) — the same action's next steps (the file after its folder) aren't asked again */
+  private refused = new Map<string, number>();
 
   /**
    * A high-risk permission is about to be really used by a STORE / vault module: the first
@@ -211,6 +213,10 @@ export class PluginHost {
     const key = `${m.id}|${name}`;
     if (level !== "total" && (this.once.get(key) ?? 0) > Date.now()) return;
     const d = describePerm(name, t);
+    const no = () => new Error(t("{m}: you said no to “{p}”", { m: m.name, p: d.label }));
+    // you just said no to this: the rest of the same action (an export's file after its folder) stops
+    // without a second question
+    if (level !== "total" && (this.refused.get(key) ?? 0) > Date.now()) throw no();
     const scope = parsePerm(name)?.scope;
     const what = want.base === "vault:write" ? t("It wants to write: {x}", { x: target || "?" }) : want.base === "net" ? t("It wants to reach: {x}", { x: target || "?" }) : "";
     const spec: PermDialogSpec = {
@@ -247,7 +253,8 @@ export class PluginHost {
       if (level !== "total") this.once.set(key, Date.now() + 10_000);
       return;
     }
-    throw new Error(t("{m}: you said no to “{p}”", { m: m.name, p: d.label }));
+    if (level !== "total") this.refused.set(key, Date.now() + 10_000);
+    throw no();
   }
 
   /**
