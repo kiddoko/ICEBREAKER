@@ -127,22 +127,23 @@ export const stealthCommand: Command = {
 export const sayCommand: Command = {
   name: "say",
   summary: "the deck's voice says the text",
-  usage: "say <text>         say it (queued after what's being said)\necho text | say    say what's piped in\nvoice stop         stop talking",
+  usage: "say <text>         say it (queued after what's being said)\nsay -t <text>      in Japanese mode, translated by your AI first\necho text | say    say what's piped in\nvoice stop         stop talking",
   examples: [
     ["say hello netrunner", "the voice says it"],
     ["journal ls -n 1 | say", "says the last journal day"],
   ],
-  man: "The same voice as UPLINK's answers and the notifications (Settings → VOICE: the voice, the language, the robot filter). In Japanese, a text that isn't Japanese is translated first by your AI, like UPLINK's answers (no AI set up: the Japanese voice reads it as it is). Muted sound (mute) or the voice off (voice off): it says nothing and tells you why. Synthesized on this computer (the translation aside, by the AI you chose).\nIn your real terminal too, say is the deck's voice (command say runs macOS's own).",
+  man: "The same voice as UPLINK's answers and the notifications (Settings → VOICE: the voice, the language, the robot filter). It says the text as it is, at once — in Japanese mode too (the Japanese voice reads it); say -t has your AI translate it into Japanese first, like UPLINK's answers (slower: a round trip to the AI). Muted sound (mute) or the voice off (voice off): it says nothing and tells you why. Synthesized on this computer (the translation aside, by the AI you chose).\nIn your real terminal too, say is the deck's voice (command say runs macOS's own).",
   run(ctx) {
     const { deck } = ctx;
-    const text = (ctx.args.join(" ") || ctx.stdin).trim();
+    const translate = ctx.args[0] === "-t" || ctx.args[0] === "--translate";
+    const text = ((translate ? ctx.args.slice(1) : ctx.args).join(" ") || ctx.stdin).trim();
     if (!text) return ctx.err("say: what should I say? (say <text>)\n"), 1;
     if (!deck.voice.available) return ctx.err("say: the voice needs the desktop app\n"), 1;
     if (deck.settings.data.sound.muted) return ctx.err("say: the sound is muted (mute off)\n"), 1;
     if (!deck.settings.data.voice.enabled) return ctx.err("say: the voice is off (voice on)\n"), 1;
-    // the voice and the language chosen in Settings → VOICE, like UPLINK's answers: in Japanese,
-    // a text that isn't Japanese yet is translated first (when an AI is set up), then read
-    if (deck.settings.data.voice.language === "ja" && !/[\u3040-\u30ff\u4e00-\u9fff]/.test(text) && deck.ai.ready) void deck.voice.speak(text);
+    // said as it is, at once (a round trip to the AI made `say test` wait seconds in Japanese mode);
+    // -t: translated into Japanese first, like UPLINK's answers
+    if (translate && deck.settings.data.voice.language === "ja" && !/[\u3040-\u30ff\u4e00-\u9fff]/.test(text) && deck.ai.ready) void deck.voice.speak(text);
     else deck.voice.say(text);
     return 0;
   },
