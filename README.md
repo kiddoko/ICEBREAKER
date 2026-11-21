@@ -76,7 +76,8 @@ scanlines — and works with the keyboard, the mouse or a gamepad.
 - **THE MENU** (`⌘K` or shift twice) searches everything; every shortcut is listed (`⌘/`) and can be changed; right-click works everywhere.
 - **English or French**, chosen at setup. A **guided tour** after the setup (`tour` plays it again).
 - **Docs in your vault**: START HERE/ (the tour, modules, interface, shell, keys, the AI, privacy) and FOR DEVELOPERS/ (themes, the module API), written into every vault and kept up to date.
-- **Frames you arrange**: the tree, the page, the side panel and the shell, each with its tabs on its border — drag a tab onto any frame, group tabs, resize or fold a frame, presets (`layout preset`), ⌘Z.
+- **Frames you arrange**: the tree, the page, the side panel and the shell, each with its tabs on its border — drag a tab onto any frame, group tabs, resize or fold a frame, presets (`layout preset`, in ibsh), ⌘Z / Ctrl+Z. The top bar is one row: **◆ ICEBREAKER ▾**, the deck's menu (MODULES, STORE, NEXUS, settings, log out), UPLINK ■ and the clock. **HOME** is pinned, always the first tab.
+- **Wake-up alarms** (`clock alarm 7:30 --days mon-fri`): a full screen rings, with the sound and a notification, while ICEBREAKER runs. **MOON** has its own page (the moon drawn, the month in moons), **NEWS** too (each widget shows one thing: your area, your country, categories or your own words), **SYSMON** shows the busiest programs, the disks and the network.
 - **Picks up where you left**: tabs (in their frames), open folders and the page you were on come back at the next start. Mouse back / forward and a two-finger swipe switch tabs; pinch zooms.
 
 ### Accounts and privacy
@@ -144,7 +145,9 @@ To talk to Claude: get an API key at [console.anthropic.com](https://console.ant
 | THE MENU: search everything, or a key + enter | `Ctrl+K` (⌘K) · `Shift` twice (anywhere, even typing) | hold RB · Y |
 | today's journal / new note | `Ctrl+J` / `Ctrl+N` | — |
 | UPLINK, the AI | `Ctrl+Shift+U` · `Ctrl+Space` | — |
-| tree · side panel · shell | `Ctrl+Shift+T` · `Ctrl+Shift+P` · ``Ctrl+` `` / `Ctrl+Shift+S` | — |
+| tree · side panel · shell | `Ctrl+Shift+T` / `Ctrl+B` · `Ctrl+Shift+P` · ``Ctrl+` `` / `Ctrl+Shift+S` | — |
+| the deck's menu (MODULES, STORE, NEXUS, settings, log out) | a click on **◆ ICEBREAKER ▾**, top left | — |
+| a tab into another frame · a group | drag it onto the frame · onto another tab (or right-click → *Move to*) | — |
 | HOME · MODULES · NEXUS | `Ctrl+Shift+H` · `Ctrl+Shift+M` · `Ctrl+Shift+E` | Start (HOME) |
 | macros · effects | `Ctrl+Shift+K` · `Ctrl+Shift+F` | — |
 | shell | ``Ctrl+` `` (key under Esc) | Select (switch pane) |

@@ -26,9 +26,9 @@ Everything works with **keyboard only**, **mouse only**, a **gamepad**, or any m
 - \`Ctrl+Z\` / \`Ctrl+Shift+Z\` — undo / redo the last thing done (settings, widgets, trash, renames, new notes, tasks, reminders, habits, events; a module uninstalled, right after)
 - \`Tab\` — the next thing on the screen · \`Shift+Tab\` — the next part of the screen (tree → page → shell)
 - \`Ctrl+Shift+H / M / E / U\` — HOME · MODULES · NEXUS · UPLINK (the AI)
-- \`Ctrl+Shift+T / P / S\` — the tree · the side panel · the shell
+- \`Ctrl+Shift+T / P / S\` — the tree (also \`Ctrl+B\`) · the side panel · the shell · a click on **◆ ICEBREAKER ▾** (top left): the deck's menu
 - \`Ctrl+N\` new note · \`Ctrl+Shift+N\` new folder · \`Ctrl+J\` the journal (open at today) · \`Ctrl+,\` settings
-- \`Ctrl+Tab\` / \`Ctrl+Shift+Tab\` — next / previous tab · \`Ctrl+1…9\` — that tab · \`Ctrl+W\` / \`Shift+Esc\` — close it
+- \`Ctrl+Tab\` / \`Ctrl+Shift+Tab\` — next / previous tab · \`Ctrl+1…9\` — that tab · \`Ctrl+W\` / \`Shift+Esc\` — close it (the one you're looking at, in whichever frame) · drag a tab onto another frame or another tab
 - \`Ctrl+S\` — save (notes also save themselves) · \`Ctrl+Enter\` — follow the [[link]] under the cursor
 - \`Shift+Backspace\` — delete the whole previous word, in notes and every text field (also \`Alt+Backspace\` on a Mac, \`Ctrl+Backspace\` on Windows / Linux)
 - In the tree: \`Shift+↑\` / \`Shift+↓\` — file by file, each one shown at once in the preview tab (like Shift + wheel)

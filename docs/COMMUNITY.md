@@ -151,7 +151,8 @@ module warning.
 Modules from the STORE or the vault run in a **sandbox** (a Web Worker): no page, no native
 access, no network of their own — only the `ib` calls their permissions allow, each one
 checked by the deck ([SANDBOX.md](SANDBOX.md)). They can't run the vault's encryption,
-accounts, scripts, shortcuts, the STORE or updates ([../src/shell/privileged.ts](../src/shell/privileged.ts)).
+accounts, scripts, shortcuts, the STORE or updates, rearrange your screen or touch your alarms
+([../src/shell/privileged.ts](../src/shell/privileged.ts)).
 Within their permissions they can still do damage (a module allowed to write notes can
 overwrite them). So: prefer verified modules, read the code of the others, give the fewest
 permissions, keep backups. See [../DISCLAIMER.md](../DISCLAIMER.md).

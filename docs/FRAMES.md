@@ -1,5 +1,9 @@
 # Frames — the screen as a layout tree
 
+(Keys are written the Mac way: ⌘ is Ctrl on Windows / Linux, ⌘⌥ arrows are Alt+arrows.
+The screen commands — `layout`, `frame`, `tab move / group` — run in ibsh only: modules and
+your real terminal can't rearrange the screen, docs/SECURITY_AUDIT.md #60.)
+
 The UI overhaul (the README's roadmap) turns the screen into **frames** you can arrange:
 the tree, the page, the side panel, the shell — later INFO and any tab — side by side or
 stacked, moved, split, folded. This page is how it works and where it stands.

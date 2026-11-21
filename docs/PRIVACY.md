@@ -10,8 +10,15 @@ share any of your data.
 ## What stays on your computer
 
 Everything you create: notes, journal, tasks, calendar events of the local
-calendar, settings, your music library index. They are plain files in your vault
-or in the app's configuration folder.
+calendar, settings, your music library index, your wake-up alarms
+(`.icebreaker/alarms.json`), where your tabs and frames are. They are plain files in your
+vault or in the app's configuration folder.
+
+**SYSMON** reads your computer's vitals on your computer: the CPU, the memory, the busiest
+programs' names, the disks (their names and space), the network's byte counters, the load.
+They're shown, never sent anywhere; a module only gets the CPU, memory and uptime, not the
+programs, disks or network (0.6). **MOON**'s phases are computed on your computer — no
+network.
 
 **Accounts** are local: a name, a profile icon and a password. The password is
 never stored — only an Argon2id hash of it, in the app's configuration folder.
@@ -60,7 +67,7 @@ names:
 |---------|---------|-------|
 | AI (UPLINK, AI-powered modules) | the provider *you* choose: Claude (Anthropic) via Claude Code or an API key, or a local model (Ollama, nothing leaves your machine) | your messages, the notes you or the AI pick, and UPLINK's context page (below); with the Japanese voice, the answers to translate |
 | Weather widget | open-meteo.com | the location you entered (city or coordinates) |
-| News widget | Google News / Bing News RSS | your search terms, language, country |
+| NEWS (the page and the widgets) | Google News / Bing News RSS | what it shows: your area's name, your country, the categories you tick or your own words; your language and country |
 | Google Calendar (optional) | googleapis.com | see below |
 | STORE: installing modules / themes | GitHub, or the sources you add yourself | the name of what you install |
 | `encoders install` (once) | GitHub (ICEBREAKER's `encoders-v1` release) | nothing but the download request; the encoding itself happens on your computer |

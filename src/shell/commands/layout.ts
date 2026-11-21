@@ -17,7 +17,8 @@ export const layoutCommand: Command = {
     "layout presets            the ready-made layouts\n" +
     "layout preset <name>      one of them (⌘Z undoes it)\n" +
     "layout reset              the classic layout back\n" +
-    "frame move <frame> <side> one frame along a side (frame --help)",
+    "frame move <frame> <side> one frame along a side (frame --help)\n" +
+    "(in ibsh: modules and your real terminal can look, not rearrange the screen)",
   examples: [["layout preset shell-right", "the shell along the right edge"], ["layout reset", "as it always was"]],
   complete: () => ["presets", "preset", "reset", ...Object.keys(PRESETS)],
   run(ctx) {

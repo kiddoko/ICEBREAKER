@@ -63,7 +63,7 @@ the keyboard, the mouse or a gamepad.
 | see every shortcut | **⌘/ / Ctrl+/** |
 | write a note | **⌘N / Ctrl+N**, or *+ note* in the tree |
 | the journal (today) | **⌘J / Ctrl+J**, or \`journal\` · \`journal "a line"\` adds a line without opening it |
-| change the look | ⚙ settings → APPEARANCE, or \`theme\` |
+| change the look | settings (◆ ICEBREAKER ▾ top left, or **⌘, / Ctrl+,**) → APPEARANCE, or \`theme\` |
 | switch a feature off | **MODULES** (⌘⇧M) → space |
 | learn the shell | click anything: the command it runs shows in the shell's **log** tab |
 | see everything the deck can do | **BLOCKS** (\`blocks\`): every command, setting, shortcut, function… and how to call it |
@@ -272,7 +272,7 @@ were on come back as you left them next time.
   **ibsh** (the deck's own shell: your real terminal and modules can't rearrange the screen):
   \`layout preset classic | shell-right | panel-left | tree-bottom\`, \`frame move shell
   top\`, drag the border between two frames to resize, \`frame fold tree\` folds one into a
-  strip (a click opens it), \`layout reset\`; ⌘Z undoes. **Tab groups**: drop a tab onto
+  strip (a click opens it), \`layout reset\`; **⌘Z / Ctrl+Z** undoes. **Tab groups**: drop a tab onto
   another (\`▣ name 3\`; hover lists them, right-click renames or ungroups).
 - **Wake-up alarms**: \`clock alarm 7:30 wake up --days mon-fri\`, \`clock alarm\` lists
   them, \`clock alarm rm 1\` · \`on\` · \`off\` · \`snooze\` (in ibsh; your real terminal can set
@@ -280,14 +280,14 @@ were on come back as you left them next time.
   screen rings (s snooze 5 min, enter stop; the gamepad's B / A), with the sound and a
   notification — while ICEBREAKER is running. \`clock alarm test\` tries it.
 - **◆ ICEBREAKER ▾** (top left): the deck's menu — MODULES, STORE, NEXUS, settings,
-  the manual, what's new, updates, and **⏻ log out** (back to the login page, ⌘⇧L).
+  the manual, what's new, updates, and **⏻ log out** (back to the login page, ⌘⇧L / Ctrl+Shift+L).
 - **What's new**: after each update, a short page opens once — the version big,
   what's new, what's fixed. To see it again: \`changelog\`, Settings → UPDATES →
   *What's new*, or THE MENU; ← → for the versions before.
 - **Tabs** sit on top of their frame (the page's, the shell's; VAULT and PANEL have
   one each). They're wide when there are few and get narrower as you open more; when
   they don't fit any more, **▾ +N** lists the others. **⌂ HOME is pinned**: always
-  the first tab (⌘1), it can't be closed by mistake. A page from the menu (STORE,
+  the first tab (⌘1 / Ctrl+1), it can't be closed by mistake. A page from the menu (STORE,
   settings…) shows first, lit, with × to close it (or esc). **Drag a tab onto another
   frame** (the tree's, the panel's, the shell's) to keep it there, beside that frame's own
   — or right-click → *Move to*, or \`tab move 3 panel\` in ibsh. A click on the frame's own tab

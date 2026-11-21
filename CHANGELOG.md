@@ -64,6 +64,12 @@ tabs, and six modules are redrawn.
   its default layout; TODO's "↓ N more" badge was drawn over a task; the tree drew a row
   under its frame in a tiny window; `layout reset` puts the shell's height back; a half
   block dimmed behind a pop-up is dimmed in both halves (no stripes).
+  A module switched off or removed closes its pages' tabs; a tab whose frame isn't on screen
+  (hidden, or dropped by a narrow window) is in the page's tabs meanwhile; ⌘W / Ctrl+W closes
+  the tab you're looking at; `launch nexus` (a module's name) opens its page; `news open`
+  opens the NEWS page; the confirm dialog wraps long lines (a module's permissions were cut);
+  the boot's plugins line is short, the reasons in the LOG; the STORE offers "update" only
+  when there's a newer version.
 
 ## 0.5.5 — 2026-11-21
 

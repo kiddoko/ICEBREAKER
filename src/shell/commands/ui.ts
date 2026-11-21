@@ -134,7 +134,7 @@ const tab: Command = {
     ["tab close", "close the current one"],
   ],
   summary: "list, switch and close tabs",
-  usage: "tab              list\ntab <n>          switch (keys: ctrl+1…9)\ntab next | prev  (ctrl+tab)\ntab close [n]    (ctrl+w)\ntab move <n> <m> put tab n at place m (drag a tab sideways)\ntab move <n> tree|panel|shell|main  tab n into another frame (drag it onto that frame)\ntab group <n> <m> [name]  tab m joins tab n's group (drop a tab on another)\ntab ungroup <n>  tab n on its own again\ntab groupname <n> <name>  rename tab n's group",
+  usage: "tab              list\ntab <n>          switch (keys: ctrl+1…9)\ntab next | prev  (ctrl+tab)\ntab close [n]    (ctrl+w)\ntab move <n> <m> put tab n at place m (drag a tab sideways)\ntab move <n> tree|panel|shell|main  tab n into another frame (drag it onto that frame)\ntab group <n> <m> [name]  tab m joins tab n's group (drop a tab on another)\ntab ungroup <n>  tab n on its own again\ntab groupname <n> <name>  rename tab n's group\n(move, group, ungroup, groupname: in ibsh only — not from a module or your real terminal)",
   complete: () => ["next", "prev", "close", "move", "group", "ungroup", "groupname"],
   async run(ctx) {
     const ws = ctx.deck.workspace;

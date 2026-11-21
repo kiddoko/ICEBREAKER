@@ -303,7 +303,8 @@ export const ALARM_USAGE =
   "clock alarm on | off <n>            switch one on / off\n" +
   "clock alarm snooze [min] · stop     the one ringing\n" +
   "clock alarm test                    ring now, to hear it\n" +
-  "Alarms ring only while ICEBREAKER runs.";
+  "Alarms ring only while ICEBREAKER runs. Set them in ibsh (your real terminal can set one,\n" +
+  "nothing else; a module can only list them).\n";
 
 export async function alarmCommand(ctx: ShellContext, args: string[]): Promise<number> {
   const clock = alarmClock(ctx.deck);
