@@ -396,7 +396,10 @@ export class Deck implements InputSink {
       const bad = this.plugins.list().filter((p) => p.error);
       for (const p of bad) this.log.add("notify", `${p.manifest.name ?? p.manifest.id}: ${p.error}`, { source: "warning" });
       if (!bad.length) return { text: `Plugins: ${on} on`, status: "OK" };
-      return { text: `Plugins: ${on} on · ${bad.map((p) => p.manifest.id).join(", ")} off — switch ${bad.length > 1 ? "them" : "it"} on again in MODULES (the LOG says why)`, status: "WARN" };
+      // each one by name with why, in a few words, and what to do; said again once the desktop
+      // is there (the boot text goes by fast) — the whole reason is in the LOG
+      this.modulesOff = bad.map((p) => ({ id: p.manifest.id, name: p.manifest.name ?? p.manifest.id, why: PluginHost.shortReason(p.error ?? "") }));
+      return { text: `Plugins: ${on} on · off: ${this.modulesOff.map((m) => `${m.id} (${m.why})`).join(", ")} — plugin enable <id>`, status: "WARN" };
     });
     this.platform.bridge?.onRun((req) => void this.runBridged(req));
     // files changed in the terminal, Obsidian, Finder…: refresh the tree, search, widgets
@@ -1239,10 +1242,15 @@ export class Deck implements InputSink {
    * voice said nothing at all (a module's missed reminder, an error while loading, the
    * CPU busy starting…): its first words are the greeting.
    */
+  /** the modules that should be on and aren't, with why (said once the desktop appears) */
+  private modulesOff: { id: string; name: string; why: string }[] = [];
+
   private sessionReady(): void {
     if (!this.started || this.voice.open) return;
     this.voice.open = true;
     this.greet();
+    // a module that's off for a reason you can act on: said here, where you can read it
+    for (const m of this.modulesOff.splice(0, 3)) this.notify(t("{m} is off: {why} — switch it on again in the STORE (or: plugin enable {id})", { m: m.name, why: t(m.why), id: m.id }), "warning");
     // updated since this device last saw it: WHAT'S NEW, once (never during the setup)
     void whatsNewOnce(this);
   }

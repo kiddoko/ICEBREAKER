@@ -258,3 +258,13 @@ describe("the access journal doesn't flood", () => {
     expect(log.list.length).toBe(15);
   });
 });
+
+describe("why a module is off, in a few words (plugins/host.ts)", () => {
+  it("says what happened, short enough for the start screen", async () => {
+    const { PluginHost } = await import("../src/plugins/host");
+    expect(PluginHost.shortReason("its code changed since you approved it — the copy in the vault isn't the one you approved (…). Read it and switch it on again: plugin enable x (or the STORE)")).toBe("its code changed since you approved it");
+    expect(PluginHost.shortReason("asks for more than you approved (Change your notes): plugin enable x")).toBe("asks for more than you approved");
+    expect(PluginHost.shortReason("not approved on this deck yet: plugin enable x")).toBe("not approved here yet");
+    expect(PluginHost.shortReason("needs todo ≥ 0.2.0")).toBe("needs todo ≥ 0.2.0");
+  });
+});

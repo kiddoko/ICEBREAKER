@@ -37,6 +37,11 @@ tabs, and six modules are redrawn.
     `weather` and `news show`, open your browser, log you out (`keys.run("lock")`) and show
     unsigned notifications; modules now run only the commands classed for them (an
     allow-list, guarded by a test); stealth mode is checked by the native side too.
+  - **The STORE says what it can do**: a module put in the vault by hand has no source to
+    update from — the button is "reinstall from the STORE" (it was "update", and did nothing);
+    an update's answer shows where you clicked, not only in the LOG. At start, a module that's
+    off says why in a few words ("its code changed since you approved it") and what to do,
+    again once the desktop is there (it was "needs you — see the LOG").
   - Nothing is asked again of an account made before: what you approved is translated once.
     Module authors: `"api": 2` in plugin.json (docs/PLUGINS.md).
 

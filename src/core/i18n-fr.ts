@@ -1758,4 +1758,11 @@ export const FR: Record<string, string> = {
   "my notes only": "seulement mes notes",
   "notes, timers and alarms": "notes, minuteurs et réveils",
   "access": "accès",
+  "reinstall from the STORE": "réinstaller depuis le STORE",
+  "this copy was put in the vault by hand: the STORE's replaces it (you approve it again)": "cette copie a été posée à la main dans le vault : celle du STORE la remplace (tu l'approuves à nouveau)",
+  "was": "avant",
+  "{m} is off: {why} — switch it on again in the STORE (or: plugin enable {id})": "{m} est éteint : {why} — rallume-le dans le STORE (ou : plugin enable {id})",
+  "its code changed since you approved it": "son code a changé depuis que tu l'as approuvé",
+  "asks for more than you approved": "il demande plus que ce que tu as approuvé",
+  "not approved here yet": "pas encore approuvé ici",
 };

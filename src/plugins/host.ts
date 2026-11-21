@@ -103,7 +103,10 @@ export class PluginHost {
       // …and with the code you approved: changed since (another program or a sync wrote in the
       // vault, another vault holds a module of the same name), it stays off until you look again
       if (p.source === "vault" && !(await this.sameCode(p, trustChanges))) {
-        p.error = (this.deck.settings.data.plugins.pinned ?? {})[id] ? `its code changed since you approved it: plugin enable ${id}` : `not approved on this deck yet: plugin enable ${id}`;
+        // (said as what happened and what to do: "needs you — see the LOG" said neither)
+        p.error = (this.deck.settings.data.plugins.pinned ?? {})[id]
+          ? `its code changed since you approved it — the copy in the vault isn't the one you approved (an update, a sync, a file put there by hand). Read it and switch it on again: plugin enable ${id} (or the STORE)`
+          : `not approved on this deck yet: plugin enable ${id}`;
         continue;
       }
       await this.activate(p);
@@ -245,6 +248,19 @@ export class PluginHost {
       return;
     }
     throw new Error(t("{m}: you said no to “{p}”", { m: m.name, p: d.label }));
+  }
+
+  /**
+   * Why a module that should be on is off, in a few words a person reads at start
+   * ("its code changed", "asks for more", "not approved yet", "needs todo") — the whole
+   * reason is `p.error`, in the LOG and in `plugin ls`.
+   */
+  static shortReason(error: string): string {
+    if (error.startsWith("its code changed")) return "its code changed since you approved it";
+    if (error.startsWith("asks for more")) return "asks for more than you approved";
+    if (error.startsWith("not approved")) return "not approved here yet";
+    if (error.startsWith("needs ")) return error.split(" — ")[0];
+    return error.split("\n")[0].slice(0, 60);
   }
 
   /** `gate` for a module known by its id (the deck's functions it calls: plugins/frame-services.ts). */

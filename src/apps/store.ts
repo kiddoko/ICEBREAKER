@@ -340,9 +340,15 @@ class StoreApp implements App {
       if (st) bar.button(t("remove  del"), () => void this.remove(row), { accent: c.error });
       // "update" only when the index says there's a newer one (it showed on every installed
       // module, even one installed a second ago); an entry without a version: still offered
-      const mine = d.plugins.list().find((p) => p.manifest.id === row.id)?.manifest.version;
+      const here = d.plugins.list().find((p) => p.manifest.id === row.id)?.manifest;
+      const mine = here?.version;
       const newer = !("version" in row) || !row.version || !mine || compareVersions(row.version, mine) > 0;
-      if (st && row.kind === "plugin" && newer) bar.button(row.version && mine ? `${t("update")} ${mine} → ${row.version}` : t("update"), () => {}, { cmd: `store update ${row.id} --window` });
+      // a copy put in the vault by hand has no source to update from ("update" did nothing, and
+      // said so only in the LOG): the STORE's own copy is offered instead, said as what it is
+      const fromRepo = !!(here as { source?: string } | undefined)?.source;
+      const versions = row.version && mine ? ` ${mine} → ${row.version}` : "";
+      if (st && row.kind === "plugin" && newer && fromRepo) bar.button(`${t("update")}${versions}`, () => {}, { cmd: `store update ${row.id} --window` });
+      else if (st && row.kind === "plugin" && newer) bar.button(`${t("reinstall from the STORE")}${versions}`, () => {}, { cmd: `store install ${row.id} --window`, tip: t("this copy was put in the vault by hand: the STORE's replaces it (you approve it again)") });
     } else {
       const bar = new Row(ui, dx, y, dx + dw);
       bar.button(row.kind === "theme" ? t("use it") : row.active ? t("switch off") : t("switch on"), () => this.primary(row));
@@ -457,12 +463,23 @@ export const storeCommand: Command = {
           for (const u of updates) ctx.out(`${fmt.magenta(u.id.padEnd(18))} ${u.have} → ${fmt.green(u.latest)}\n`);
           return ctx.out(fmt.dim(`store update <id> · store update --all\n`)), 0;
         }
-        if (arg && !todo.length) return ctx.out(`${arg}: up to date (or not installed from a repo)\n`), 0;
+        // (asked by a click — --window: the answer shows where you clicked too, not only in the LOG)
+        const say = (text: string, kind: "info" | "success" | "error") => void (window && d.notify(text, kind));
+        if (arg && !todo.length) {
+          const p = installedPlugin(d, arg);
+          const byHand = p?.source === "vault" && !(p.manifest as { source?: string }).source;
+          const why = !p ? `${arg}: not installed` : byHand ? `${arg}: this copy was put in the vault by hand — nothing to update from (store install ${arg} puts the STORE's)` : `${arg}: up to date`;
+          say(why, byHand || !p ? "info" : "success");
+          return ctx.out(`${why}\n`), byHand || !p ? 1 : 0;
+        }
         for (const u of todo) {
           try {
-            ctx.out(`${fmt.green("✓")} ${await updateModule(d, u)} ${fmt.dim(`(was ${u.have})`)}\n`);
+            const done = await updateModule(d, u);
+            ctx.out(`${fmt.green("✓")} ${done} ${fmt.dim(`(was ${u.have})`)}\n`);
+            say(`✓ ${done} (${t("was")} ${u.have})`, "success");
           } catch (e) {
             ctx.err(`${u.id}: ${e instanceof Error ? e.message : e}\n`);
+            say(`${u.id}: ${e instanceof Error ? e.message : e}`, "error");
           }
         }
         return 0;
