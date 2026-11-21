@@ -101,10 +101,13 @@ const note: Command = {
       return 1;
     }
     const path = join("notes", `${slugify(title)}.md`);
-    if (!(await ctx.deck.vault.exists(path))) {
+    const isNew = !(await ctx.deck.vault.exists(path));
+    if (isNew) {
       await ctx.deck.vault.write(path, `# ${title}\n\n${ctx.stdin}`);
       ctx.deck.vault.recordCreated(path);
     }
+    // never silent: what it made (or found), even when the page opens behind something
+    ctx.out(`${isNew ? `${ctx.isTTY ? fmt.green("+") : "+"} created` : "opened"} ${path}\n`);
     await ctx.deck.openFile(path);
   },
 };

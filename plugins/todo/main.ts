@@ -1117,7 +1117,7 @@ export function activate(ib: IcebreakerAPI): void {
     popup: {
       title: "todo",
       size: { w: 64, h: 14 },
-      hint: "type + enter: add · ↑↓ · space: done · del: remove · right-click: edit",
+      hint: "type + enter: add · space: done · del: remove · right-click: edit",
       render(ui, r) {
         const c = ui.c;
         const quick = quickField.text;

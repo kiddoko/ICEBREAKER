@@ -55,6 +55,8 @@ export class SystemTerminal {
   private started = false;
   /** the native shell is really running (pty_spawn answered) */
   private spawned = false;
+  /** what you typed before the native shell was there (just opened, just restarted): sent once it is */
+  private early = "";
   private exited = false;
   /** which start this is: what an older shell still sends (its end, after a restart) is dropped */
   private generation = 0;
@@ -104,7 +106,7 @@ export class SystemTerminal {
         // ConPTY asks where the cursor is the moment it starts, often before pty_spawn has
         // answered: that answer used to be dropped, and ConPTY waited 3 s for it before
         // showing anything (a new PowerShell took ages to show its prompt)
-        this.spawned = true;
+        this.ready();
         if (data.includes(EXIT_MARK)) {
           // said once, even if the native side says it twice (Windows: its watcher and its reader)
           data = data.replace(EXIT_MARK, this.exited ? "" : "\r\n\x1b[2m[process exited — press enter to start a new shell]\x1b[0m\r\n").replaceAll(EXIT_MARK, "");
@@ -114,7 +116,7 @@ export class SystemTerminal {
       }, this.moduleCommands(), this.deck.settings.data.shell.prompt ?? "icebreaker")
       .then((name) => {
         this.shellName = name;
-        this.spawned = true;
+        this.ready();
       })
       .catch((e) => {
         this.error = String(e);
@@ -133,12 +135,24 @@ export class SystemTerminal {
     return [...mods, ...CORE_IN_TERMINAL].filter((n) => /^[a-z][a-z0-9_-]*$/.test(n));
   }
 
+  /** the native shell is there: what was typed meanwhile goes to it, in order */
+  private ready(): void {
+    this.spawned = true;
+    if (!this.early) return;
+    const keys = this.early;
+    this.early = "";
+    void this.deck.platform.pty?.write(this.id, keys)?.catch(() => {});
+  }
+
   restart(): void {
     this.generation++; // what the old shell still sends is dropped
     void this.deck.platform.pty?.kill(this.id);
     this.term.reset();
     this.started = false;
     this.spawned = false;
+    // a new shell comes at the next frame: what you type from now on is for it
+    this.exited = false;
+    this.early = "";
     this.deck.requestFrame();
   }
 
@@ -147,12 +161,15 @@ export class SystemTerminal {
   }
 
   write(data: string): void {
-    if (!this.alive) return;
+    // not started yet (just opened, restarted): kept for the shell that's coming (see `early`)
+    if (this.exited) return;
     this.lastInputAt = performance.now();
     // typing jumps back to the live screen
     this.term.scrollToBottom();
-    // the native shell may not be there yet (just opened, or shown again): never an error for that
+    // the native shell may not be there yet (just opened, restarted): kept until it is — an
+    // `exit` typed right after enter used to vanish (only the enter got through)
     if (this.spawned) void this.deck.platform.pty?.write(this.id, data)?.catch(() => {});
+    else this.early = (this.early + data).slice(-4096);
   }
 
   // ── input ────────────────────────────────────────────────────────────────

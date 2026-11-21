@@ -2,6 +2,7 @@ import { Glide } from "../ui/glide";
 import { FilterBar } from "../ui/filterbar";
 import { checkbox, choice } from "../ui/controls";
 import { t } from "../core/i18n";
+import { osKeys } from "../core/keyhints";
 import { SETTINGS_HELP } from "./settings-help";
 import { checkNeural } from "./settings-rows";
 import { strWidth, truncate, wrapWords } from "../core/unicode";
@@ -380,7 +381,8 @@ export class SettingsApp implements App {
     }
     if (help && helpH > 1) {
       helpRoom = rw - 2;
-      const lines = wrapWords(help[fr ? 1 : 0], helpRoom);
+      // keys written the Mac way ("⌘K") read the way this keyboard does (Ctrl+K on Windows / Linux)
+      const lines = wrapWords(osKeys(help[fr ? 1 : 0]), helpRoom);
       const n = helpH - 2;
       ui.hline(rx, by - n - 1, rw, { fg: mix(c.subtle, c.bg, 0.5) }, "┄");
       // what doesn't fit ends with … (never a sentence cut without saying so)

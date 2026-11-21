@@ -20,6 +20,11 @@
   Nothing in the deck deletes your vault for good; to get rid of one, delete its folder.
 - **The real terminal on Windows**: `exit` in PowerShell now ends that tab properly ("process
   exited — press enter to start a new shell"); it used to stay dead.
+- **What you type right after a terminal (re)starts** isn't lost any more: it waits for the shell.
+- **Quotes**: “typographic” double quotes work like "…" in ibsh; a quote left open says so
+  (`a " isn't closed`) instead of doing nothing; `note` says which note it created or opened.
+- **Settings on Windows / Linux**: key hints read Ctrl+K, never "⌘K (ctrl+K)". A widget
+  pop-up's hint no longer ends cut in the middle of a word.
 - **⌘A / Ctrl+A** selects the text of the search fields of Settings, SHORTCUTS, BLOCKS and the
   STORE (what you type next replaces it).
 - **`plugin reload`**: a module's page that was open switches to the new code (a sandboxed

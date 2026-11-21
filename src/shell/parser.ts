@@ -32,6 +32,9 @@ type Token = { kind: "word"; word: Word } | { kind: "op"; op: string };
 export class ParseError extends Error {}
 
 export function tokenize(line: string, env: Record<string, string>): Token[] {
+  // typographic double quotes (a phone, a word processor, macOS smart quotes) quote like "
+  // (not ‘ ’: ’ is an apostrophe in French text — journal l’idée)
+  line = line.replace(/[“”„]/g, '"');
   const tokens: Token[] = [];
   let i = 0;
   let cur = "";
@@ -72,7 +75,7 @@ export function tokenize(line: string, env: Record<string, string>): Token[] {
       break;
     } else if (c === "'") {
       const end = line.indexOf("'", i + 1);
-      if (end === -1) throw new ParseError("unterminated '");
+      if (end === -1) throw new ParseError("a ' isn't closed — add the closing ' (or write \\' for an apostrophe)");
       cur += line.slice(i + 1, end);
       inWord = true;
       i = end + 1;
@@ -86,7 +89,7 @@ export function tokenize(line: string, env: Record<string, string>): Token[] {
         } else if (line[i] === "$") cur += expandVar();
         else cur += line[i++];
       }
-      if (line[i] !== '"') throw new ParseError('unterminated "');
+      if (line[i] !== '"') throw new ParseError('a " isn\'t closed — add the closing "');
       i++;
     } else if (c === "\\" && i + 1 < line.length) {
       cur += line[i + 1];
