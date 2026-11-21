@@ -132,8 +132,8 @@ const tab: Command = {
     ["tab close", "close the current one"],
   ],
   summary: "list, switch and close tabs",
-  usage: "tab              list\ntab <n>          switch (keys: ctrl+1…9)\ntab next | prev  (ctrl+tab)\ntab close [n]    (ctrl+w)",
-  complete: () => ["next", "prev", "close"],
+  usage: "tab              list\ntab <n>          switch (keys: ctrl+1…9)\ntab next | prev  (ctrl+tab)\ntab close [n]    (ctrl+w)\ntab move <n> <m> put tab n at place m (drag a tab sideways)",
+  complete: () => ["next", "prev", "close", "move"],
   async run(ctx) {
     const ws = ctx.deck.workspace;
     const [a, b] = ctx.args;
@@ -142,6 +142,11 @@ const tab: Command = {
       return 0;
     }
     if (a === "next") return ws.switchTab(ws.active + 1), 0;
+    if (a === "move") {
+      const from = Number(b) - 1, to = Number(ctx.args[2]) - 1;
+      if (!Number.isInteger(from) || !Number.isInteger(to) || !ws.moveTab(from, to)) return ctx.err(`usage: tab move <n> <m> (1…${ws.tabCount})\n`), 1;
+      return 0;
+    }
     if (a === "prev") return ws.switchTab(ws.active - 1), 0;
     if (a === "close") {
       const n = b ? Number(b) - 1 : ws.active;

@@ -26,7 +26,14 @@ stacked, moved, split, folded. This page is how it works and where it stands.
   sharing). `frame fold <tree|panel|shell>` folds a frame into a one-cell strip with its
   name; a click on the strip (or `frame unfold`, ⌘B for the tree, anything that needs the
   shell) opens it again. A folded frame never keeps the focus.
-- Step 3: tabs on every frame, tab groups, terminals as a group of tabs, thicker tabs.
+- **Step 3a (done): thicker, readable tabs** (`src/workspace/tabstrip.ts`). The top bar
+  is two rows: each tab is its name (an icon for what it is, the title, × on the one shown
+  or hovered) with a half-block bar under it — a row and a half tall, the one shown in the
+  accent. No number in front of the name: the numbers (⌘1…9) show only while ⌘ / ctrl is
+  held (`InputManager.modHeld`). 12–24 cells each; the icon goes before the name gets
+  short; the rest in "▾ +N". Drag a tab sideways to move it (`tab move <n> <m>`).
+- Step 3b: tabs on every frame (waiting for the user's answer), tab groups, terminals as a
+  group of tabs.
 - Step 4: each tab's history (back / forward). Step 5: the INFO panel.
 
 ## The model

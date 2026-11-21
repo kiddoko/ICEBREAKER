@@ -15,7 +15,8 @@ import { Bar } from "../ui/layout";
 import { Osk } from "./overlays";
 import { SystemTerminal, terminalKeysHint } from "../shell/systerm";
 import type { ShellTab, Workspace } from "./workspace";
-import { editMacro, macroMenu, shellMenu, tabMenu, termTabMenu } from "./menus";
+import { editMacro, macroMenu, shellMenu, termTabMenu } from "./menus";
+import { renderTabStrip } from "./tabstrip";
 
 /**
  * The shell panel: tabs on its top border (your terminals [+] │ ibsh · history ·
@@ -236,72 +237,7 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
   ui.hit(offRect, { cmd: "logout", tip: t("log out: back to the login page · ⌘⇧L") });
 
   // the button-pages (NEXUS, STORE…) have no tab: their button lights up instead
-  renderTabs(ws, ui, { x, y: r.y, w: Math.max(0, nx - x - 1), h: 1 });
-}
-
-/**
- * The tabs, like a browser's: wide when there are few, narrower as more open
- * (never below a minimum). When even that doesn't fit, the last chip is
- * "▾ +N": a menu of the tabs that didn't fit. The tab shown is always visible.
- * Each tab: its number, its name (cut with … if needed), and × to close it.
- */
-export function renderTabs(ws: Workspace, ui: UI, r: Rect): void {
-  const c = ui.c;
-  const n = ws.tabCount;
-  // 12 at least: "3:journ…" — at 8 only the number was left (the tab overhaul, 0.6, goes further)
-  const MAXW = 18, MINW = 12;
-  const plusW = 3; // "+" (open anything) at the end
-  const avail = r.w - plusW;
-  let tabW = n ? Math.max(MINW, Math.min(MAXW, Math.floor(avail / n) - 1)) : MAXW;
-  // which tabs get a chip: all of them, or as many as fit (the shown one always among them)
-  let shown = Array.from({ length: n }, (_, i) => i);
-  const moreW = 7;
-  if (n * (tabW + 1) > avail) {
-    tabW = MINW;
-    // so narrow that not even one tab fits beside the list: only the list (▾ n), if that fits
-    const fit = Math.floor((avail - moreW) / (tabW + 1));
-    shown = shown.slice(0, Math.max(0, fit));
-    const act = Math.min(ws.active, n - 1);
-    if (fit > 0 && act >= fit) shown[fit - 1] = act;
-  }
-  const hidden = Array.from({ length: n }, (_, i) => i).filter((i) => !shown.includes(i));
-  const nameOf = (i: number) => `${i + 1}:${ws.tabs[i].title().toLowerCase()}`;
-  let x = r.x;
-  for (const i of shown) {
-    const rect = { x, y: r.y, w: tabW, h: 1 };
-    const isActive = i === ws.active;
-    const hot = ui.hovered(rect);
-    const style = isActive ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: hot ? c.fg : c.muted, bg: hot ? c.highlight : mix(c.panelAlt, c.fg, 0.05) };
-    // " 3:name…   × " — the × keeps a space on each side, away from the edge
-    ui.fill(rect, { bg: style.bg });
-    // not saved yet: a red dot before the name (it goes once saved — ⌘S, the toolbar, right-click)
-    const unsaved = !!ws.tabs[i].dirty?.();
-    if (unsaved) ui.text(x + 1, r.y, "●", { fg: c.error, bg: style.bg, attrs: BOLD });
-    ui.text(x + (unsaved ? 3 : 1), r.y, nameOf(i), style, tabW - (unsaved ? 7 : 5));
-    const closeX = x + tabW - 3;
-    const closeHot = ui.hovered({ x: closeX, y: r.y, w: 2, h: 1 });
-    ui.text(closeX, r.y, isActive || hot ? "×" : " ", { fg: closeHot ? c.error : isActive ? c.panel : c.subtle, bg: style.bg, attrs: closeHot ? BOLD : 0 });
-    ui.hit(rect, { cmd: `tab ${i + 1}`, tip: `${ws.tabs[i].title()}\n${IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`} · ${t("right-click: close others…")}`, menu: () => tabMenu(ws, i) });
-    ui.hit({ x: closeX - 1, y: r.y, w: 3, h: 1 }, { cmd: `tab close ${i + 1}`, tip: t("close · ctrl+w · shift+esc") });
-    x += tabW + 1;
-  }
-  // the tabs that didn't fit: a menu
-  if (hidden.length && x + strWidth(` ▾ +${hidden.length} `) <= r.x + r.w) {
-    const label = shown.length ? ` ▾ +${hidden.length} ` : ` ▾ ${hidden.length} `;
-    const rect = { x, y: r.y, w: strWidth(label), h: 1 };
-    const hot = ui.hovered(rect);
-    ui.text(x, r.y, label, { fg: hot ? c.panel : c.accent, bg: hot ? c.accent : c.highlight, attrs: BOLD });
-    ui.hit(rect, {
-      onClick: () => ws.openMenu(hidden.map((i) => ({ label: nameOf(i), cmd: `tab ${i + 1}`, hint: i < 9 ? (IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`) : "" })), rect.x, r.y + 1, t("more tabs")),
-      tip: t("{n} more tabs: click for the list", { n: hidden.length }),
-    });
-    x += rect.w + 1;
-  }
-  if (x + 1 <= r.x + r.w) {
-    const pr = { x, y: r.y, w: 1, h: 1 };
-    ui.text(x, r.y, "+", { fg: ui.hovered(pr) ? c.accent : c.subtle, bg: c.panelAlt, attrs: BOLD });
-    ui.hit(pr, { cmd: "palette", tip: t("open anything · ctrl+k") });
-  }
+  renderTabStrip(ws, ui, { x, y: r.y, w: Math.max(0, nx - x - 1), h: r.h });
 }
 
 /** What the voice says, in a small sci-fi box bottom-right (voice.subtitles). */

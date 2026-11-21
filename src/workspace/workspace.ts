@@ -32,6 +32,9 @@ import { INSET } from "../ui/layout";
 
 export type ShellTab = "term" | "ibsh" | "log";
 
+/** the top bar's rows: the tabs' names, and the bar under them */
+export const TOP_H = 2;
+
 /** the parts of the screen that can have the focus (the side panel only while shown) */
 export type Pane = "sidebar" | "main" | "shell" | "panel";
 
@@ -426,6 +429,22 @@ export class Workspace {
       if (!this.tabs.length) this.deck.openApp("home");
     }
     this.deck.requestFrame();
+  }
+
+  /**
+   * Tab `from` goes to place `to` (both among the real tabs, from 0); the one shown stays
+   * shown. False when either isn't a tab.
+   */
+  moveTab(from: number, to: number): boolean {
+    const n = this.tabCount;
+    if (from < 0 || to < 0 || from >= n || to >= n) return false;
+    if (from === to) return true;
+    const shown = this.tabs[this.active];
+    const [tab] = this.tabs.splice(from, 1);
+    this.tabs.splice(to, 0, tab);
+    this.active = Math.max(0, this.tabs.indexOf(shown));
+    this.deck.requestFrame();
+    return true;
   }
 
   findTab(key: string): App | undefined {
@@ -955,12 +974,13 @@ export class Workspace {
     if (N) renderNotchBand(ui, { x: 0, y: 0, w: W, h: N });
     if (N && d.settings.data.fx.ambient && !d.settings.data.appearance.reduceMotion) drawBackground(ui, { x: 0, y: 0, w: W, h: N }, ui.theme, 0.7);
 
-    renderTopBar(this, ui, { x: 0, y: N, w: W, h: 1 });
+    // the top bar: two rows (the tabs are a row and a half tall: Refonte UI step 3)
+    renderTopBar(this, ui, { x: 0, y: N, w: W, h: TOP_H });
 
     // the frames: the arrangement (settings.layout — today's when nothing's saved) with the
     // switches applied (tree, panel, shell shown), solved into one rect each (layout/solve.ts).
     // The maximized shell keeps its own layout (the page in a strip at the bottom).
-    const body = { x: 1, y: N + 1, w: W - 2, h: H - 2 };
+    const body = { x: 1, y: N + TOP_H, w: W - 2, h: H - TOP_H - 1 };
     const max = this.shellVisible && this.shellMax;
     const today: Today = { sidebar: this.sidebarVisible, shell: this.shellVisible, shellMax: this.shellMax, panel: !!d.settings.data.panel?.shown, shellRatio: this.shellRatio, cols: W, bodyH: body.h };
     const layout = max ? todayLayout(today) : effectiveLayout(this.arrangement, today);
