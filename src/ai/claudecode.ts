@@ -26,6 +26,8 @@ export class ClaudeCodeProvider implements Provider {
     private readonly writes = false,
     /** Called after a turn in which the model wrote files (the deck rescans the vault). */
     private readonly onWrote?: () => void,
+    /** what the AI may read by itself (`ai.reads`): unless "all", Claude Code gets no file tool */
+    private readonly reads: () => "nothing" | "given" | "all" = () => "all",
   ) {}
 
   get label(): string {
@@ -40,7 +42,7 @@ export class ClaudeCodeProvider implements Provider {
 
   createSession(opts: SessionOptions): ChatSession {
     if (!this.cc) throw new Error("Claude Code unavailable");
-    return new ClaudeCodeSession(this.cc, this.model, opts.system, this.writes, this.onWrote);
+    return new ClaudeCodeSession(this.cc, this.model, opts.system, this.writes, this.onWrote, this.reads);
   }
 }
 
@@ -65,6 +67,7 @@ class ClaudeCodeSession implements ChatSession {
     private readonly system: string,
     private readonly writes: boolean,
     private readonly onWrote?: () => void,
+    private readonly reads: () => "nothing" | "given" | "all" = () => "all",
   ) {}
 
   reset(): void {
@@ -125,7 +128,7 @@ class ClaudeCodeSession implements ChatSession {
     };
 
     try {
-      const r = await this.cc.run({ id, prompt: text, system: this.system, resume: this.sessionId, model: this.model, writes: this.writes }, onLine);
+      const r = await this.cc.run({ id, prompt: text, system: this.system, resume: this.sessionId, model: this.model, writes: this.writes && this.reads() === "all", reads: this.reads() }, onLine);
       if (wrote) this.onWrote?.();
       if (signal?.aborted) return;
       if (failure) throw new Error(failure);

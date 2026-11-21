@@ -11,13 +11,15 @@
  * The shell sees the same thing: `modules api` lists every function,
  * `modules call todo add "walk the dog"` calls one.
  */
+import type { PermSet } from "./permissions";
 import type { Origin } from "../shell/origin";
 import type { Permission } from "./api";
 
 /** Who calls a function: a module (its permissions, and the origin its lines run with) or the deck itself. */
 export interface Caller {
   id: string;
-  permissions: ReadonlySet<Permission> | "all";
+  /** what it may use, asked as `has(name)` (plugins/permissions.ts) */
+  permissions: PermSet | "all";
   /** every module has one (shell/origin.ts); the deck's own code and your typing have none */
   origin?: Origin;
 }

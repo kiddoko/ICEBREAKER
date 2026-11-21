@@ -622,6 +622,26 @@ todo add "pack the books" --every sat --cycles 3
   update asks for more, or its code changed without you, it stays off until you
   switch it on again (\`plugin reload\` approves the code of a module you're writing). What a module asks you is headed
   with its name.
+- **Permissions, in plain words** — no surprise: what a module may reach has a name
+  you can read (*Read your notes*, *Change your notes* — the whole vault or one
+  folder —, *Use your AI*, *Play sound*, *Go online* to a named site, *Type in your
+  real terminal*…) and a level. The riskiest are **asked again the first time
+  they're really used** (no · this time · always), and every command for your real
+  terminal is shown first. **Settings → PERMISSIONS** lists every module with each
+  permission, its level and its last use: enter takes one away or gives it back,
+  the module keeps running. In the shell: \`plugin perms\`, \`plugin revoke todo
+  vault:write\`, \`plugin grant todo vault:write\`. An update that asks for more
+  waits for your yes: say no and you keep the version you have.
+- **The access journal**: who used which permission, when, on what — a module, the
+  AI, your real terminal. Names only (a note's path, a site), 30 days, on this
+  computer only. The LOG tab's **◈ access** filter, or \`plugin perms <module>\`.
+- **What the AI may read** (Settings → PERMISSIONS): nothing · what you give it — a
+  note you name in your message ("summarize ideas"), pipe to it or have in front ·
+  your whole vault. The top bar says **◈ the AI reads …** while it does. Writing a
+  note always asks.
+- **Your real terminal** (Settings → PERMISSIONS): what a program you run there may
+  ask the deck — nothing · your notes only · notes, timers and alarms. What only you
+  may do is always typed in ibsh.
 `,
 
   "../FOR DEVELOPERS/README.md": `# For developers
@@ -758,6 +778,13 @@ What a module has the deck do runs **as that module**: \`ib.shell.run\` and the 
 command (\`shell.run\`, \`home.add\`…) refuse what only you may do (the vault's encryption, accounts,
 scripts, macros, shortcuts, THE MENU's keys, pins, the STORE, updates…) and read, pipe or write notes
 only with \`vault:read\` / \`vault:write\` — never \`.icebreaker/\`. A module's id is its folder's name.
+
+**Permissions** (docs/PERMISSIONS.md): put \`"api": 2\` in plugin.json and list the narrowest that
+do the job — a folder (\`vault:write:songs/\`), \`notify\`, \`shell\` (to run the deck's commands),
+\`system\`, \`net:api.example.com\` (\`await ib.net.get(url)\`: an https GET through the deck).
+\`vault.write\`, \`net.get\` and \`terminal.run\` can be refused when first used, and any
+permission can be taken away while you run: catch the error and say what you couldn't do.
+A module's line runs only the commands classed for modules (\`src/shell/classes.ts\`).
 \`modules api\` in the shell lists every function; the deck's own parts include
 \`menu\` (open, items), \`keys\` (list, run) and \`deck\` (notify, alert, say, setting: the look
 and sound settings). \`menu.add\`, \`keys.bind\` and \`home.link\` plant a command behind a key or

@@ -22,6 +22,16 @@ export class AIManager {
   onVaultWrite?: () => void;
   /** how many answers are being written right now (the uplink widget animates) */
   busy = 0;
+  /** what the AI is reading right now (a note's path, "search in every note"): the top bar shows it for a moment */
+  reading: { what: string; until: number } | null = null;
+  /** called for each read (the deck writes the access journal) */
+  onRead?: (what: string) => void;
+
+  /** The AI reads a note (ai/tools.ts, Claude Code's own Read): the voyant and the journal. */
+  noteRead(what: string): void {
+    this.reading = { what, until: Date.now() + 4000 };
+    this.onRead?.(what);
+  }
 
   constructor(private readonly settings: SettingsStore) {
     settings.onChange((path) => {
@@ -41,7 +51,7 @@ export class AIManager {
         ai.provider === "ollama"
           ? new OllamaProvider(ai.ollamaHost, ai.ollamaModel)
           : ai.provider === "claude-code"
-            ? new ClaudeCodeProvider(this.claudeCode, this.claudeCodePath, ai.claudeCodeModel, ai.allowWrites, () => this.onVaultWrite?.())
+            ? new ClaudeCodeProvider(this.claudeCode, this.claudeCodePath, ai.claudeCodeModel, ai.allowWrites, () => this.onVaultWrite?.(), () => this.settings.data.ai.reads)
             : new AnthropicProvider(this.settings.secrets.anthropicApiKey || this.envKey || "", ai.model, ai.effort);
     }
     return this.cached;

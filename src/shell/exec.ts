@@ -2,7 +2,8 @@ import { fmt, stripAnsi } from "../core/ansi";
 import { levenshtein } from "../core/fuzzy";
 import type { Deck } from "../deck";
 import { basename, dirname, globToRegex, resolvePath } from "../vault/paths";
-import { AI_COMMANDS, allows, guardedDeck, guardedVault, type Origin } from "./origin";
+import { AI_COMMANDS, allows, guardedDeck, guardedVault, trusted, type Origin } from "./origin";
+import { classOf, NOTE_COMMANDS } from "./classes";
 import { isPrivileged } from "./privileged";
 import { parse, ParseError, type SimpleCommand, type Word } from "./parser";
 import { helpText, wantsHelp } from "./help";
@@ -181,11 +182,31 @@ export class ShellExecutor {
       this.print(`${name}: ${origin.source} needs the "ai" permission\n`, true);
       return { status: 126, stdout: "" };
     }
+    // A STORE / vault module's line (its own commands apart): it needs "shell" to run the
+    // deck's commands at all, and the command must be one modules may run (shell/classes.ts,
+    // an allow-list: what isn't classed is refused)
+    const refuse = (why: string) => (this.print(`${name}: ${why}\n`, true), { status: 126, stdout: "" });
+    // (a module that ships with the deck too, once you took "run the deck's commands" away from it)
+    if (origin && origin.grants !== "all" && cmd.source !== origin.source && !allows(origin, "shell")) return refuse(`${origin.source} needs the "shell" permission to run the deck's commands`);
+    // your real terminal, limited to your notes (Settings → PERMISSIONS → Your real terminal)
+    if (origin?.source === "terminal" && origin.grants === "all" && this.deck.settings.data.shell.bridge === "notes" && (!cmd.source || cmd.source === "core") && !NOTE_COMMANDS.has(cmd.name))
+      return refuse("your real terminal is limited to your notes (Settings → PERMISSIONS) — type it in ibsh");
+    if (origin && !trusted(origin) && cmd.source !== origin.source) {
+      const owner = cmd.source && cmd.source !== "core" ? this.deck.plugins.list().find((p) => p.manifest.id === cmd.source) : undefined;
+      // (a module from the vault can write "core" in its plugin.json: only one that ships with the deck counts)
+      if (!cmd.source || cmd.source === "core" || (owner?.source === "builtin" && owner.manifest.core)) {
+        const klass = classOf(cmd.name);
+        if (!klass) return refuse("not a command modules may run (it isn't classed: shell/classes.ts)");
+        if (klass === "yours") return refuse("not allowed from a module — type it in ibsh");
+        if (klass === "online") return refuse(`it goes online: not from a module (${origin.source} would need its own "net:<host>" permission, through ib.net)`);
+        if (klass === "notify" && !allows(origin, "notify")) return refuse(`${origin.source} needs the "notify" permission`);
+      }
+    }
     // Another module's command (`todo add`, `remind`, `cal add`…) keeps that module's own data,
     // out of reach of the vault's guard: a STORE / vault module changes your data through
     // them only with "vault:write" (as through their functions: `todo.add`). The deck's own
     // commands and the features packaged with it go through the guarded vault below.
-    if (origin && origin.grants !== "all" && cmd.source && cmd.source !== "core" && cmd.source !== origin.source && !allows(origin, "vault:write")) {
+    if (origin && !trusted(origin) && cmd.source && cmd.source !== "core" && cmd.source !== origin.source && !allows(origin, "vault:write")) {
       const owner = this.deck.plugins.list().find((p) => p.manifest.id === cmd.source);
       // (a module from the vault can write "core" in its plugin.json: only one that ships with the deck counts)
       if (!(owner?.source === "builtin" && owner.manifest.core)) {

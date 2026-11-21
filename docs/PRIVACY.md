@@ -1,6 +1,6 @@
 # Privacy policy
 
-*ICEBREAKER desktop app · last updated 20 November 2026*
+*ICEBREAKER desktop app · last updated 21 November 2026*
 
 ICEBREAKER runs on your computer. Its authors run **no server** and **no online
 accounts** (the deck's accounts live on your computer only), and the app sends
@@ -57,6 +57,16 @@ keep lines that look like a key or start with a space. Programs you run in your 
 terminal don't get the deck's powers over an encrypted vault. Copying the 24 recovery
 words warns you first: a clipboard history app may keep them.
 
+**Permissions** ([PERMISSIONS.md](PERMISSIONS.md)): what a module, the AI or a program in
+your real terminal may reach has a name, a level and a switch (Settings → PERMISSIONS). The
+**access journal** — who used which permission, when, on what — keeps names only (a note's
+path, a host; never what a note says), for 30 days, in the app's configuration folder on
+this computer: it never goes into the vault, so it doesn't travel or sync.
+
+**What the AI may read** is yours to set: nothing, what you give it (a note you name in your
+message, pipe to it or have in front), or your whole vault. A new account starts on "what I
+give it". The top bar says when it reads.
+
 ## When the app uses the network
 
 Only when you use a feature that needs it, and only to the service that feature
@@ -82,6 +92,10 @@ and of your pins, your colour tags, the modules that are on, the date — plus w
 you wrote in it yourself. Read it and change your part whenever you like (the
 automatic part is rebuilt before each conversation). With
 a local model (Ollama) none of it leaves your machine.
+
+A module from the STORE has no network of its own. One that asks to go online names each
+host (`net:api.example.com`); you approve it when you switch the module on and again the
+first time it really goes there, and the journal keeps it.
 
 Each of these can be left off. **Stealth mode** (`stealth on`, or "Stealth" in
 the setup) turns all of them off at once and blocks any connection outside this

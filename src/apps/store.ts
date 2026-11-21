@@ -1,3 +1,4 @@
+import { sayPerms } from "../plugins/permissions";
 import { fmt } from "../core/ansi";
 import { compareVersions } from "../plugins/deps";
 import { FilterBar } from "../ui/filterbar";
@@ -115,7 +116,7 @@ async function storeInstall(ctx: ShellContext, arg: string, window: boolean, see
     const r = await installPlugin(d, src);
     await d.plugins.reload();
     id = r.id;
-    ctx.out(`${fmt.green("✓")} ${r.name} (${r.id}) installed — asks for: ${r.permissions.join(", ") || "nothing"}\n`);
+    ctx.out(`${fmt.green("✓")} ${r.name} (${r.id}) installed — asks for: ${sayPerms(r.permissions) || "nothing"}\n`);
   } catch (err) {
     ctx.err(`store install: ${err instanceof Error ? err.message : err}\n`);
     return 1;
@@ -130,7 +131,8 @@ async function storeInstall(ctx: ShellContext, arg: string, window: boolean, see
   }
   // switching it on shows its own permissions and the audit (and switches on what it needs)
   try {
-    if (!(await d.plugins.enable(id, ask))) return ctx.out(`${id}: installed, off (plugin enable ${id})\n`), 0;
+    // (in a window — a click in the STORE — the permission dialog; typed: asked here, in words)
+    if (!(await d.plugins.enable(id, window ? undefined : ask))) return ctx.out(`${id}: installed, off (plugin enable ${id})\n`), 0;
     ctx.out(`${fmt.green("✓")} ${id} is on\n`);
     return 0;
   } catch (err) {
@@ -326,7 +328,7 @@ class StoreApp implements App {
     y++;
     if ("repo" in row) {
       ui.text(dx, y++, row.repo, { fg: c.subtle }, dw);
-      if (row.permissions?.length) ui.text(dx, y++, `${t("asks for")}: ${row.permissions.join(", ")}`, { fg: c.warning }, dw);
+      if (row.permissions?.length) ui.text(dx, y++, `${t("asks for")}: ${sayPerms(row.permissions, t)}`, { fg: c.warning }, dw);
       if (row.index && row.index !== d.settings.data.plugins.registry) ui.text(dx, y++, `${t("from")} ${row.index}`, { fg: c.faint }, dw);
       // reviewed or not: always said (themes are only colours, modules are code)
       if (row.kind === "plugin") ui.text(dx, y++, isVerified(row) ? `✓ ${t("verified: reviewed in the official STORE")}` : `⚠ ${t("not verified: nobody from ICEBREAKER checked its code")}`, { fg: isVerified(row) ? c.success : c.warning }, dw);
@@ -338,9 +340,15 @@ class StoreApp implements App {
       if (st) bar.button(t("remove  del"), () => void this.remove(row), { accent: c.error });
       // "update" only when the index says there's a newer one (it showed on every installed
       // module, even one installed a second ago); an entry without a version: still offered
-      const mine = d.plugins.list().find((p) => p.manifest.id === row.id)?.manifest.version;
+      const here = d.plugins.list().find((p) => p.manifest.id === row.id)?.manifest;
+      const mine = here?.version;
       const newer = !("version" in row) || !row.version || !mine || compareVersions(row.version, mine) > 0;
-      if (st && row.kind === "plugin" && newer) bar.button(row.version && mine ? `${t("update")} ${mine} → ${row.version}` : t("update"), () => {}, { cmd: `store update ${row.id} --window` });
+      // a copy put in the vault by hand has no source to update from ("update" did nothing, and
+      // said so only in the LOG): the STORE's own copy is offered instead, said as what it is
+      const fromRepo = !!(here as { source?: string } | undefined)?.source;
+      const versions = row.version && mine ? ` ${mine} → ${row.version}` : "";
+      if (st && row.kind === "plugin" && newer && fromRepo) bar.button(`${t("update")}${versions}`, () => {}, { cmd: `store update ${row.id} --window` });
+      else if (st && row.kind === "plugin" && newer) bar.button(`${t("reinstall from the STORE")}${versions}`, () => {}, { cmd: `store install ${row.id} --window`, tip: t("this copy was put in the vault by hand: the STORE's replaces it (you approve it again)") });
     } else {
       const bar = new Row(ui, dx, y, dx + dw);
       bar.button(row.kind === "theme" ? t("use it") : row.active ? t("switch off") : t("switch on"), () => this.primary(row));
@@ -436,7 +444,7 @@ export const storeCommand: Command = {
           ["kind", e?.kind === "theme" ? "theme" : "module"],
           ["by", `${e?.author ?? p?.manifest.author ?? "?"}${e?.builtin || p?.source === "builtin" ? " · ships with the deck" : ""}`],
           ["version", `${e?.version ? `${e.version} in the store` : "—"}${p ? ` · ${p.manifest.version} here` : ""}`],
-          ["asks for", (e?.permissions ?? p?.manifest.permissions ?? []).join(", ") || "nothing"],
+          ["asks for", sayPerms(e?.permissions ?? p?.manifest.permissions ?? []) || "nothing"],
           ["needs", Object.keys(req).length ? Object.entries(req).map(([k, v]) => (v && v !== "*" ? `${k} ${v}` : k)).join(", ") : "nothing"],
           ["state", p ? (p.active ? "on" : p.error ? `off — ${p.error}` : "installed, off") : (d.settings.data.plugins.removed ?? []).includes(arg) ? "removed (store install brings it back)" : "not installed"],
           ["source", e?.repo ?? "—"],
@@ -455,12 +463,23 @@ export const storeCommand: Command = {
           for (const u of updates) ctx.out(`${fmt.magenta(u.id.padEnd(18))} ${u.have} → ${fmt.green(u.latest)}\n`);
           return ctx.out(fmt.dim(`store update <id> · store update --all\n`)), 0;
         }
-        if (arg && !todo.length) return ctx.out(`${arg}: up to date (or not installed from a repo)\n`), 0;
+        // (asked by a click — --window: the answer shows where you clicked too, not only in the LOG)
+        const say = (text: string, kind: "info" | "success" | "error") => void (window && d.notify(text, kind));
+        if (arg && !todo.length) {
+          const p = installedPlugin(d, arg);
+          const byHand = p?.source === "vault" && !(p.manifest as { source?: string }).source;
+          const why = !p ? `${arg}: not installed` : byHand ? `${arg}: this copy was put in the vault by hand — nothing to update from (store install ${arg} puts the STORE's)` : `${arg}: up to date`;
+          say(why, byHand || !p ? "info" : "success");
+          return ctx.out(`${why}\n`), byHand || !p ? 1 : 0;
+        }
         for (const u of todo) {
           try {
-            ctx.out(`${fmt.green("✓")} ${await updateModule(d, u)} ${fmt.dim(`(was ${u.have})`)}\n`);
+            const done = await updateModule(d, u);
+            ctx.out(`${fmt.green("✓")} ${done} ${fmt.dim(`(was ${u.have})`)}\n`);
+            say(`✓ ${done} (${t("was")} ${u.have})`, "success");
           } catch (e) {
             ctx.err(`${u.id}: ${e instanceof Error ? e.message : e}\n`);
+            say(`${u.id}: ${e instanceof Error ? e.message : e}`, "error");
           }
         }
         return 0;
@@ -486,12 +505,14 @@ export const storeCommand: Command = {
         // done: never stray files restored from the trash later (core/undo.ts lastOnly)
         const dir = `.icebreaker/plugins/${arg}`;
         const pl = d.settings.data.plugins;
-        const before = JSON.parse(JSON.stringify({ enabled: pl.enabled, disabled: pl.disabled, removed: pl.removed ?? [], granted: pl.granted ?? {}, pinned: pl.pinned ?? {} })) as Record<string, unknown>;
+        const before = JSON.parse(JSON.stringify({ enabled: pl.enabled, disabled: pl.disabled, removed: pl.removed ?? [], granted: pl.granted ?? {}, pinned: pl.pinned ?? {}, always: pl.always ?? {}, revoked: pl.revoked ?? {} })) as Record<string, unknown>;
         let inTrash = "";
         const remove = async () => {
           for (const x of [...needers].reverse()) await d.plugins.disable(x).catch(() => false);
           if (p.source === "builtin") return d.plugins.removeBuiltin(arg);
-          if (d.plugins.list().some((x) => x.manifest.id === arg && x.active)) await d.plugins.disable(arg);
+          // removed: nothing of it stays approved, switched on or not (the same module installed
+          // again asks again — it used to come back on by itself, with no dialog)
+          await d.plugins.disable(arg);
           inTrash = await d.vault.trash(dir);
           await d.plugins.reload();
         };
