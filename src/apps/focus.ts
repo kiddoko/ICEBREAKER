@@ -16,6 +16,8 @@ import { fitMatrix, matrixSize, matrixText } from "../ui/dots";
 import type { UI } from "../ui/ui";
 import { focus, tickFocus } from "../widgets/focusstate";
 import type { App, AppSpec } from "./types";
+import { INSET } from "../ui/layout";
+import { strWidth } from "../core/unicode";
 
 const PRESETS: [number, number][] = [[25, 5], [50, 10], [90, 20]];
 
@@ -108,8 +110,11 @@ class FocusApp implements App {
       for (const rr of [R, R - 1.2]) set(wc + (Math.sin(a) * rr) / asp, rows * 2 - Math.cos(a) * rr, on);
     }
     const pulse = focus.running ? (Math.sin(ui.now / 400) + 1) / 2 : 0;
-    for (let i = 0; i < bits.length; i++)
-      if (bits[i]) ui.text(ox + (i % wc), oy + Math.floor(i / wc), String.fromCodePoint(0x2800 + bits[i]), { fg: lit[i] ? mix(col, 0xffffff, pulse * 0.25) : c.faint });
+    // the ring is a drawing the time and the phase sit in (ui.art: debug layout doesn't count it)
+    ui.art(() => {
+      for (let i = 0; i < bits.length; i++)
+        if (bits[i]) ui.text(ox + (i % wc), oy + Math.floor(i / wc), String.fromCodePoint(0x2800 + bits[i]), { fg: lit[i] ? mix(col, 0xffffff, pulse * 0.25) : c.faint });
+    });
 
     // inside the ring: the time, the phase, the task
     const time = mmss(focus.left);
@@ -129,12 +134,30 @@ class FocusApp implements App {
       [t("↺ reset"), "focus reset", "r"],
       [t("» skip"), "focus skip", "s"],
     ];
-    const labels = [...btns.map((b) => b[0]), t("✎ what I'm on"), this.zen ? t("◉ zen on") : t("○ zen"), ...PRESETS.map(([w, b]) => `${w}/${b}`)];
-    let x = r.x + Math.floor((r.w - labels.reduce((n, l) => n + l.length + 3, 0)) / 2);
-    for (const [label, cmd, tip] of btns) x += ui.button(x, y, label, () => {}, { cmd, tip }) + 1;
-    x += ui.button(x, y, t("✎ what I'm on"), () => void this.task(), { tip: "e · focus task <what>" }) + 1;
-    x += ui.button(x, y, this.zen ? t("◉ zen on") : t("○ zen"), () => this.toggleZen(), { selected: !!this.zen, tip: "z: the tree and the shell fold away" }) + 2;
-    PRESETS.forEach(([w, b], i) => (x += ui.button(x, y, `${w}/${b}`, () => {}, { cmd: `focus set ${w} ${b}`, selected: focus.work === w && focus.rest === b, tip: String(i + 1) }) + 1));
+    // every button, in centred lines that fit the page (a narrow page gets two or three lines)
+    const all: { label: string; run: () => void; o: Parameters<UI["button"]>[4] }[] = [
+      ...btns.map(([label, cmd, tip]) => ({ label, run: () => {}, o: { cmd, tip } })),
+      { label: t("✎ what I'm on"), run: () => void this.task(), o: { tip: "e · focus task <what>" } },
+      { label: this.zen ? t("◉ zen on") : t("○ zen"), run: () => this.toggleZen(), o: { selected: !!this.zen, tip: "z: the tree and the shell fold away" } },
+      ...PRESETS.map(([w, b], i) => ({ label: `${w}/${b}`, run: () => {}, o: { cmd: `focus set ${w} ${b}`, selected: focus.work === w && focus.rest === b, tip: String(i + 1) } })),
+    ];
+    const room = r.w - INSET * 2;
+    const lines: (typeof all)[] = [[]];
+    let used = 0;
+    for (const b of all) {
+      const bw = strWidth(b.label) + 2;
+      if (used && used + 1 + bw > room) (lines.push([]), (used = 0));
+      used += (used ? 1 : 0) + bw;
+      lines[lines.length - 1].push(b);
+    }
+    for (const line of lines) {
+      if (y >= r.y + r.h) break;
+      const lw = line.reduce((n, b) => n + strWidth(b.label) + 2, 0) + line.length - 1;
+      let x = r.x + Math.max(INSET, Math.floor((r.w - lw) / 2));
+      for (const b of line) x += ui.button(x, y, b.label, b.run, b.o) + 1;
+      y += 1;
+    }
+    y -= 1;
 
     // today
     y += 2;
