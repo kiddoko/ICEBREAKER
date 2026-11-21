@@ -17,6 +17,8 @@ import { clockState, dur, swNow } from "../widgets/clockstate";
 import type { App, AppSpec } from "./types";
 import { Bar, cards, GAP, INSET, Row, SECTION, stack } from "../ui/layout";
 import { Braille, ring } from "../ui/braille";
+import { alarmClock } from "../widgets/alarmring";
+import { daysText, inText, timeText } from "../widgets/alarms";
 import { strWidth } from "../core/unicode";
 import { DURATIONS, timeZones } from "../core/suggest";
 
@@ -28,7 +30,7 @@ class ClocksApp implements App {
     return "clocks";
   }
   status() {
-    return t("t timer · x stop a timer · space stopwatch · l lap · r reset · w add a city · f clock face");
+    return t("t timer · x stop a timer · space stopwatch · l lap · r reset · a alarm · w add a city · f clock face");
   }
   private async newTimer(): Promise<void> {
     const v = await this.deck.prompt(t("Timer: how long, and what for?"), { placeholder: "4m tea · 25 work · 1h30 oven", suggestions: DURATIONS });
@@ -47,6 +49,7 @@ class ClocksApp implements App {
     if (s === "r") return act("stopwatch reset"), true;
     if (s === "w") return void this.addCity(), true;
     if (s === "f") return act("clock style next"), true;
+    if (s === "a") return void this.newAlarm(), true;
     return false;
   }
   onKey(_k: KeyInput): boolean {
@@ -62,10 +65,12 @@ class ClocksApp implements App {
     const body = { x: r.x + INSET * 2, y: r.y + 1, w: Math.max(0, r.w - INSET * 4), h: Math.max(0, r.h - 2) };
     const cities = this.deck.settings.data.home.worldClocks.length;
     const worldH = Math.max(3, cities + 2);
-    // three cards side by side when there's room; two (timers · stopwatch) over the world
-    // when it's medium; one a row when it's narrow. The clock on top gets what's left (up to 9 rows).
+    const alarmsH = Math.max(3, Math.min(6, alarmClock(this.deck).alarms.length) + 2);
+    // wide: timers · stopwatch · (alarms over the world). Medium: timers · stopwatch over
+    // alarms · world. Narrow: one a row. The clock on top gets what's left (up to 9 rows).
     const across = body.w >= 36 * 3 + GAP * 2 ? 3 : body.w >= 26 * 2 + GAP ? 2 : 1;
-    const cardsMin = across === 3 ? 7 : across === 2 ? 7 + SECTION + worldH : 5 * 2 + SECTION * 2 + worldH;
+    const lowH = Math.max(worldH, alarmsH);
+    const cardsMin = across === 3 ? alarmsH + SECTION + 3 : across === 2 ? 7 + SECTION + lowH : 5 * 2 + alarmsH + worldH + SECTION * 3;
     const [clockR, dayR, cardsR] = stack(body, [
       { min: 3, fill: 1, max: 9, priority: 9 },
       { h: 1, priority: 4 },
@@ -74,19 +79,58 @@ class ClocksApp implements App {
     if (clockR) drawClock(ui, clockR, this.deck);
     if (dayR) this.drawDay(ui, dayR);
     if (!cardsR) return;
-    let tr: Rect | null, sr: Rect | null, wr: Rect | null;
-    if (across === 3) [tr, sr, wr] = cards(cardsR, 3, { minW: 36, h: cardsR.h }).rects;
-    else {
-      const top = across === 2 ? [{ min: 5, fill: 1, priority: 9 }] : [{ min: 5, fill: 1, priority: 9 }, { min: 5, fill: 1, priority: 7 }];
-      const parts = stack(cardsR, [...top, { min: 3, h: worldH, priority: 6 }]);
-      if (across === 2) {
-        [tr, sr] = parts[0] ? cards(parts[0], 2, { minW: 26, h: parts[0].h }).rects : [null, null];
-        wr = parts[1];
-      } else [tr, sr, wr] = parts;
-    }
+    let tr: Rect | null = null, sr: Rect | null = null, ar: Rect | null = null, wr: Rect | null = null;
+    if (across === 3) {
+      let col: Rect | undefined;
+      [tr, sr, col] = cards(cardsR, 3, { minW: 36, h: cardsR.h }).rects;
+      if (col) [ar, wr] = stack(col, [{ min: 3, h: alarmsH, priority: 9 }, { min: 3, fill: 1, priority: 6 }]);
+    } else if (across === 2) {
+      const [top, low] = stack(cardsR, [{ min: 5, fill: 1, priority: 9 }, { min: 3, h: lowH, priority: 7 }]);
+      if (top) [tr, sr] = cards(top, 2, { minW: 26, h: top.h }).rects;
+      if (low) [ar, wr] = cards(low, 2, { minW: 26, h: low.h }).rects;
+    } else
+      [tr, sr, ar, wr] = stack(cardsR, [
+        { min: 5, fill: 1, priority: 9 },
+        { min: 5, fill: 1, priority: 7 },
+        { min: 3, h: alarmsH, priority: 8 },
+        { min: 3, h: worldH, priority: 6 },
+      ]);
     if (tr) this.drawTimers(ui, tr);
     if (sr) this.drawStopwatch(ui, sr);
+    if (ar) this.drawAlarms(ui, ar);
     if (wr) this.drawWorld(ui, wr);
+  }
+
+  /** Alarms: a line each — on/off, the time, its days, when it rings; the next one lit. */
+  private drawAlarms(ui: UI, r: Rect): void {
+    const c = ui.c;
+    const clock = alarmClock(this.deck);
+    const inner = this.card(ui, r, t("ALARMS"), "+", () => void this.newAlarm(), "a · clock alarm 7:30 --days mon-fri");
+    const list = clock.list();
+    if (!list.length) return void ui.text(inner.x + INSET, inner.y, t("none — a sets one"), { fg: c.muted }, inner.w - INSET * 2);
+    const next = clock.soonest()?.alarm;
+    list.forEach((al, i) => {
+      const y = inner.y + i;
+      if (y >= inner.y + inner.h) return;
+      const at = clock.nextOf(al);
+      const lit = al === next;
+      const bar = new Bar(ui, inner.x + INSET, y, inner.x + inner.w - INSET);
+      // the dot switches it on / off
+      bar.item(1, (x) => {
+        ui.text(x, y, al.on ? "●" : "○", { fg: al.on ? c.success : c.faint });
+        ui.hit({ x, y, w: 1, h: 1 }, { cmd: `clock alarm ${al.on ? "off" : "on"} ${i + 1}`, tip: al.on ? t("switch it off") : t("switch it on") });
+      }, { priority: 9 });
+      bar.text(timeText(al.time), { fg: !al.on ? c.faint : lit ? c.accent : c.fg, attrs: lit ? BOLD : 0 }, { priority: 10 });
+      bar.text(al.label, { fg: al.on ? c.muted : c.faint }, { priority: 4, fit: 4 });
+      bar.text(at ? `${clock.isSnoozed(al) ? "zz " : ""}${inText(at)}` : "", { fg: lit ? c.accent : c.faint }, { side: "right", priority: 5 });
+      bar.text(daysText(al.days, t), { fg: c.subtle }, { side: "right", priority: 6 });
+      bar.draw();
+    });
+  }
+
+  private async newAlarm(): Promise<void> {
+    const v = await this.deck.prompt(t("Alarm: what time, and what for?"), { placeholder: "7:30 wake up --days mon-fri · 6h45 · 8am --days weekend" });
+    if (v?.trim()) void this.deck.act(`clock alarm ${v.trim()}`);
   }
 
   /** A card's frame and title, its button on its top line. Returns the inside. */

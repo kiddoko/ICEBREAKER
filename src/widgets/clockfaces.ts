@@ -16,6 +16,7 @@ import { fitMatrix, matrixSize, matrixText } from "../ui/dots";
 import type { UI } from "../ui/ui";
 import type { Deck } from "../deck";
 import { Braille } from "../ui/braille";
+import { ALARM_USAGE, alarmCommand } from "./alarmring";
 
 export const CLOCK_STYLES = ["dots", "segment", "analog", "binary", "minimal"] as const;
 export type ClockStyle = (typeof CLOCK_STYLES)[number];
@@ -208,17 +209,21 @@ export function drawClock(ui: UI, r: Rect, deck: Deck, now = new Date(), key?: s
 
 export const clockCommand: Command = {
   name: "clock",
-  summary: "the clock widget's face: dots, segment, analog, binary, minimal; seconds on/off",
-  usage: "clock                       what it shows now\nclock style <name>          dots · segment · analog · binary · minimal\nclock style next | prev     the next / the one before\nclock seconds on|off        show the seconds",
+  summary: "the clock widget's face (dots, segment, analog, binary, minimal), and wake-up alarms",
+  usage: "clock                       what it shows now\nclock style <name>          dots · segment · analog · binary · minimal\nclock style next | prev     the next / the one before\nclock seconds on|off        show the seconds\n" + ALARM_USAGE,
   examples: [
     ["clock style analog", "a round dial"],
     ["clock seconds on", "with the seconds"],
+    ["clock alarm 7:30 wake up --days mon-fri", "every weekday at 7:30"],
+    ["clock alarm 6h45", "once, the next 6:45"],
+    ["clock alarm", "the alarms"],
   ],
-  complete: () => ["style", "seconds", ...CLOCK_STYLES, "on", "off", "next", "prev"],
+  complete: () => ["style", "seconds", "alarm", ...CLOCK_STYLES, "on", "off", "next", "prev", "rm", "snooze", "stop", "test", "--days"],
   run(ctx) {
     const d = ctx.deck;
     const h = d.settings.data.home;
     const [sub, v] = ctx.args;
+    if (sub === "alarm" || sub === "alarms") return alarmCommand(ctx, ctx.args.slice(1));
     // the copy whose pop-up is open (or that's selected) changes; else every clock without its own face
     const key = widgetTarget("clock") ?? undefined;
     const style = widgetConfig(d, key, "style", h.clockStyle);
@@ -239,6 +244,6 @@ export const clockCommand: Command = {
       ctx.out(`clock seconds ${on ? "on" : "off"}\n`);
       return 0;
     }
-    return ctx.err("usage: clock style <name> | clock seconds on|off\n"), 1;
+    return ctx.err("usage: clock style <name> | clock seconds on|off | clock alarm …\n"), 1;
   },
 };

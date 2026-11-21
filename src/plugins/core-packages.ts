@@ -1,4 +1,5 @@
 import { coreServices } from "./core-services";
+import { alarmClock } from "../widgets/alarmring";
 import type { AppSpec, PaletteAction } from "../apps/types";
 import type { Deck } from "../deck";
 import type { Command } from "../shell/types";
@@ -42,7 +43,7 @@ export const CORE_PACKAGES: CorePackage[] = [
   { id: "voice", name: "VOICE", icon: "◖", description: "the deck's voice: local text-to-speech through a robot filter", commands: ["voice"], launcher: false },
   { id: "news", name: "NEWS", icon: "≡", description: "headlines for your area or a topic, with summaries", commands: ["news"], widgets: ["news"] },
   { id: "weather", name: "WEATHER", icon: "☂", description: "now, the next 24 h and the week (open-meteo.com)", commands: ["weather"], apps: ["weather"], widgets: ["weather"] },
-  { id: "clocks", name: "CLOCKS", icon: "◷", description: "the clock, world clocks, a timer and a stopwatch", commands: ["timer", "stopwatch", "worldclock", "clock"], apps: ["clocks"], widgets: ["clock", "worldclock"] },
+  { id: "clocks", name: "CLOCKS", icon: "◷", description: "the clock, world clocks, timers, a stopwatch and wake-up alarms", commands: ["timer", "stopwatch", "worldclock", "clock"], apps: ["clocks"], widgets: ["clock", "worldclock"], onSwitch: (deck, on) => (on ? alarmClock(deck).start() : alarmClock(deck).stop()) },
   { id: "focus", name: "FOCUS", icon: "◎", description: "a pomodoro timer", commands: ["focus"], apps: ["focus"], widgets: ["focus"] },
   { id: "moon", name: "MOON", icon: "◑", description: "tonight's moon and the next phases", commands: ["moon"], widgets: ["moon"], launcher: false },
   { id: "matrix", name: "MATRIX", icon: "ﾑ", description: "digital rain on HOME: does nothing, looks great", commands: ["matrix"], widgets: ["matrix"], launcher: false },
