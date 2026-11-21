@@ -20,6 +20,7 @@ import { ContextMenu } from "./contextmenu";
 import { ConfirmDialog, Osk, PromptDialog, Toasts, type MessageOptions, type Overlay, type PromptOptions, type ToastKind, ChooseDialog } from "./overlays";
 import type { ChoiceOption } from "../plugins/api";
 import { FxPanel } from "./fxpanel";
+import { WhatsNew } from "./whatsnew";
 import { Sidebar } from "./sidebar";
 import { unplaceSquares } from "./favorites";
 import { SystemTerminal } from "../shell/systerm";
@@ -476,6 +477,12 @@ export class Workspace {
 
   fxPanel(): void {
     if (!this.overlays.some((o) => o instanceof FxPanel)) this.push(new FxPanel(this.deck));
+  }
+
+  /** WHAT'S NEW (workspace/whatsnew.ts): a version's notes; the current one by default. */
+  whatsNew(version?: string): void {
+    this.overlays.filter((o) => o instanceof WhatsNew).forEach((o) => (o.done = true));
+    this.push(new WhatsNew(this.deck, version));
   }
 
   toggleOsk(): void {

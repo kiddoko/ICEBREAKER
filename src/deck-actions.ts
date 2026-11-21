@@ -28,6 +28,7 @@ export function registerCoreActions(deck: Deck): void {
   act("deck.lock", "Log out (lock the deck)", () => deck.lockNow(), undefined, "deck");
   act("setup.run", "Setup (first-run questionnaire)", () => void deck.openApp("setup"), undefined, "deck");
   act("tour.run", "Guided tour (UPLINK shows you around)", () => void deck.act("tour"), undefined, "deck");
+  act("whatsnew.open", "What's new in this version (changelog)", () => deck.workspace.whatsNew(), undefined, "deck");
   act("ai.context", "UPLINK's context page (who you are, how it talks)", () => void deck.act("context"), undefined, "ai");
   act("sound.mute", "Mute everything (again: sound back)", () => void deck.act("mute"), undefined, "deck");
   act("modules.open", "Modules (all apps and plugins)", () => void deck.openApp("modules"), undefined, "deck");

@@ -9,11 +9,13 @@ import type { Platform } from "../platform/types";
  *   last       that name (kept only while `remember` is on)
  *   look       per account name: its theme and its icon, so the login screen
  *              takes your look as soon as you've typed your name
+ *   whatsNew   the last version WHAT'S NEW was shown for (src/whatsnew/seen.ts)
  */
 export interface DeviceInfo {
   remember: boolean;
   last: string;
   look: Record<string, { theme?: string; avatar?: { id?: string; color?: string } }>;
+  whatsNew?: string;
 }
 
 const EMPTY: DeviceInfo = { remember: false, last: "", look: {} };

@@ -263,6 +263,9 @@ were on come back as you left them next time.
   can show different things. **Featured** mode: one story, big, with its
   summary (↻ another one). \`news show science ai\`, \`news mode featured\`.
 - **⏻** (top right): log out — back to the login page.
+- **What's new**: after each update, a short page opens once — the version big,
+  what's new, what's fixed. To see it again: \`changelog\`, Settings → UPDATES →
+  *What's new*, or THE MENU; ← → for the versions before.
 - **Tabs** are wide when there are few and get narrower as you open more; when
   they don't fit any more, **▾ +N** lists the others.
 - **PULSE** (a HOME widget): what's happening in your modules, one line each —

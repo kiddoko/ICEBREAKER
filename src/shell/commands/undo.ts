@@ -1,3 +1,5 @@
+import { lang, t } from "../../core/i18n";
+import { NOTES, notesFor } from "../../whatsnew/notes";
 import type { Command } from "../types";
 import { fmt } from "../../core/ansi";
 
@@ -51,5 +53,37 @@ export const tourCommand: Command = {
   run(ctx) {
     ctx.deck.workspace.tour();
     ctx.deck.requestFrame();
+  },
+};
+
+/** changelog / whatsnew: WHAT'S NEW, a version's short notes (src/whatsnew/notes.ts). */
+export const changelogCommand: Command = {
+  name: "changelog",
+  aliases: ["whatsnew"],
+  summary: "what's new in this version (and the ones before)",
+  usage: "changelog            what's new in this version, in a window\nchangelog <version>  another version's (changelog 0.5.3)\nchangelog --list     every version there are notes for\nchangelog --print    the notes here, as text (with a version: that one)",
+  man: "It opens by itself once after an update. In the window: ←→ other versions, ↑↓ scroll, esc closes. Also Settings → UPDATES → What's new, and THE MENU. The full details: CHANGELOG.md on GitHub.",
+  examples: [["changelog", "this version's notes"], ["changelog 0.5.3", "an older version's"], ["whatsnew --print | grep TRASH", "search them"]],
+  complete: () => ["--list", "--print", ...NOTES.map((n) => n.version)],
+  run(ctx) {
+    const flags = ctx.args.filter((a) => a.startsWith("--"));
+    const version = ctx.args.find((a) => !a.startsWith("--"));
+    if (flags.includes("--list")) {
+      for (const n of NOTES) ctx.out(`${n.version === ctx.deck.updater.version ? fmt.magenta("●") : " "} ${n.version}  ${fmt.dim(n.date ?? t("not released yet"))}\n`);
+      return 0;
+    }
+    if (version && !notesFor(version)) return ctx.err(`changelog: no notes for ${version} — changelog --list\n`), 1;
+    if (flags.includes("--print")) {
+      const n = notesFor(version ?? ctx.deck.updater.version) ?? NOTES[0];
+      const text = lang() === "fr" ? n.fr : n.en;
+      ctx.out(`${fmt.bold(`ICEBREAKER ${n.version}`)}${n.date ? fmt.dim(`  ${n.date}`) : ""}\n`);
+      if (text.headline) ctx.out(`${text.headline}\n`);
+      ctx.out(`${fmt.magenta(t("NEW"))}\n${text.added.map((l) => `  ▸ ${l}\n`).join("")}`);
+      ctx.out(`${fmt.green(t("FIXED"))}\n${text.fixed.map((l) => `  · ${l}\n`).join("")}`);
+      return 0;
+    }
+    ctx.deck.workspace.whatsNew(version);
+    ctx.deck.requestFrame();
+    return 0;
   },
 };

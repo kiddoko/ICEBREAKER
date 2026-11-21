@@ -63,6 +63,7 @@ import { ensureEntry } from "./vault/journal";
 import { basename, join, slugify } from "./vault/paths";
 import { Vault } from "./vault/vault";
 import { BootScreen, type BootLine } from "./workspace/boot";
+import { whatsNewOnce } from "./workspace/whatsnew";
 import { CellFx, Transitions } from "./fx/transition";
 import { DeckVoice, phrase, spokenAlert } from "./core/voice";
 import { storeCommand, storeSpec } from "./apps/store";
@@ -1197,6 +1198,8 @@ export class Deck implements InputSink {
     if (!this.started || this.voice.open) return;
     this.voice.open = true;
     this.greet();
+    // updated since this device last saw it: WHAT'S NEW, once (never during the setup)
+    void whatsNewOnce(this);
   }
 
   /** "Welcome, netrunner": once per start, when the desktop appears (voice.greet). */

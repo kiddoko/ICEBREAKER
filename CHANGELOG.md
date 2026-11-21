@@ -20,6 +20,12 @@
   space come as keys with their place (`code`), not as text — a piano works on AZERTY; every alt
   combination is the page's on every system (alt + arrows too), ⌘Z / ⌘⇧Z reach it, esc gives the
   keys back to the deck (the tree takes them). SHORTCUTS page, F1 manual.
+- **What's new**: after an update, a short WHAT'S NEW page opens once (once per version and
+  per computer; never on a fresh install or during the setup): the version big, what's new,
+  what's fixed, in English or French. Again with `changelog` (`whatsnew`), Settings →
+  UPDATES → *What's new*, or THE MENU; ←→ or the version chips go through the older ones.
+  A minor version (0.6.0…) gets a bigger "release" page. The notes ship with the app
+  (`src/whatsnew/notes.ts`), not in your vault.
 - **Dialogs: the answers always bottom right** — the way out (No, close) on the left, the
   way forward (Yes, open) on the right, in every dialog, widget pop-up and THEME STUDIO's palette; ← → point at them.
   A question whose safe answer is no (delete for good) still starts on No.

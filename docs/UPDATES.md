@@ -46,7 +46,9 @@ install/remove/update` (src/shell/privileged.ts).
    (the content of the key file): each installer gets its `.sig`, attached to the release
    with it (and to the run's artifacts).
 3. **A release**: raise the version (`package.json`, `src-tauri/tauri.conf.json`,
-   `src-tauri/Cargo.toml`), a CHANGELOG section, commit, then `git tag v0.5.0 && git push
+   `src-tauri/Cargo.toml`), a CHANGELOG section, the version's short WHAT'S NEW notes in
+   `src/whatsnew/notes.ts` (English and French, 3–8 lines per group, its `date`; a minor
+   version also gets a `headline`; a test checks this version has some), commit, then `git tag v0.5.0 && git push
    --tags` → CI builds Windows and Linux and attaches them to the release *v0.5.0*.
 4. **macOS** (built on a Mac): `npm run app:mac:release` — **not** `npm run app:mac`, the
    testing build, which carries the developer tools (`factory-reset`…); the script below
