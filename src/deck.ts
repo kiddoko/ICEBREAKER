@@ -39,7 +39,7 @@ import { InputManager, type Action, type ActionSource, type InputSink, type KeyI
 import { FrameLoop } from "./core/loop";
 import { fontStack, loadFont, WEIGHTS } from "./core/fonts";
 import { Renderer } from "./core/renderer";
-import { bloomRadius, flickerSpeed } from "./core/fxlevels";
+import { bloomRadius, bloomStrength, flickerSpeed } from "./core/fxlevels";
 import { Sound, SOUND_CHANNELS, type SoundName } from "./core/sound";
 import { Mixer } from "./core/mixer";
 import { DEFAULT_SETTINGS, type SettingsStore } from "./core/settings";
@@ -945,10 +945,10 @@ export class Deck implements InputSink {
     const root = document.documentElement.style;
     root.setProperty("--deck-bg", css(t.c.bg));
     const lv = { ...DEFAULT_SETTINGS.fx.levels, ...fx.levels };
-    root.setProperty("--bloom", String(fx.bloom ? (t.fx.bloom * lv.bloom) / 100 : 0));
+    const bloomNow = fx.bloom ? bloomStrength(t.fx.bloom, lv.bloom) : 0;
+    root.setProperty("--bloom", String(bloomNow));
     // the bloom adds light, and each theme is tuned with it: lowered or off, the
     // picture itself gets that light back (no dimmer screen)
-    const bloomNow = fx.bloom ? (t.fx.bloom * lv.bloom) / 100 : 0;
     const boost = Math.min(1.35, 1 + Math.max(0, t.fx.bloom - bloomNow) * 0.6);
     const screenEl = document.getElementById("screen");
     // and the user's brightness (Settings → APPEARANCE), on top

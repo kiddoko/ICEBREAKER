@@ -229,8 +229,8 @@ were on come back as you left them next time.
   after (its files come back and it's on again): once you've done something else, the
   STORE reinstalls it.
 - **✦ fx** (status bar, or Settings → APPEARANCE → Effects): a slider per effect —
-  **bloom** (bright things bleed a soft halo of light onto what's around them: the
-  slider sets how far and how strong), scanlines, vignette, **RGB split** (red and
+  **bloom** (a soft glow around the bright things — the logo, the selected tab, accent
+  text — like neon tubes; at 100 % a clear halo a few letters wide), scanlines, vignette, **RGB split** (red and
   blue fringes on the text, the frames and the glyphs — never on the backgrounds),
   glow (bright things give off light), sharpness, **curvature** (the curved glass of
   an old tube: the picture bulges, lines bend towards the edges; off by default). 0 = off, up to 200 %.

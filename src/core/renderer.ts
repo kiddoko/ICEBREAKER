@@ -1,6 +1,6 @@
 import { GlyphAtlas } from "./atlas";
 import { css, NONE } from "./color";
-import { BOLD, Grid, ITALIC, STRIKE, UNDERLINE } from "./grid";
+import { BOLD, Grid, ITALIC, PIXELS, STRIKE, UNDERLINE } from "./grid";
 import { fontStack } from "./fonts";
 import { chromaStrength } from "./fxlevels";
 import { charWidth } from "./unicode";
@@ -656,7 +656,9 @@ export class Renderer {
           const fgc = this.L(g.fg[i]), cells = charWidth(cp) === 2 ? 2 : 1;
           this.atlas.draw(ctx, cp, fgc, attrs, x * cw, y * ch, cells);
           ctx.globalAlpha = 1;
-          if (fctx) {
+          // block glyphs (▀ █ ░ — a tab's bar, a picture's pixels, shaded fills) are surfaces, not
+          // text: they stay out of the fringes, or every bar and picture tinted red and blue
+          if (fctx && !(cp >= 0x2580 && cp <= 0x259f) && !(attrs & PIXELS)) {
             fctx.globalAlpha = alpha;
             this.atlas.draw(fctx, cp, fgc, attrs, x * cw, y * ch, cells);
             fctx.globalAlpha = 1;
