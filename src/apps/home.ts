@@ -608,9 +608,11 @@ export class HomeApp implements App {
     if (this.scroll < maxScroll && more) ui.art(() => ui.textRight(r.x + r.w - 1, r.y + r.h - 1, more, { fg: c.panel, bg: c.accent }));
     if (this.scroll > 0) ui.textRight(r.x + r.w - 1, r.y, ` ↑ ${this.scroll} `, { fg: c.muted });
 
-    // edit / done: a button on the bottom edge, right (the right-click menu and ⌘E do the same)
+    // edit / done: a button on HOME's top row, right — the widgets start under it (the
+    // right-click menu and ⌘E do the same); left of the ↑ shown when scrolled
     const edit = this.editing ? `✓ ${t("done")}` : `✎ ${t("edit")}`;
-    ui.button(r.x + r.w - INSET - (strWidth(edit) + INSET * 2) - (this.scroll < maxScroll && more ? strWidth(more) + 1 : 0), r.y + r.h - 1, edit, () => this.setEditing(!this.editing), { selected: this.editing, tip: this.editing ? t("done editing (esc)") : t("move, resize, add widgets (⌘E / ctrl+E)") });
+    const up = this.scroll > 0 ? strWidth(` ↑ ${this.scroll} `) : 0;
+    ui.button(r.x + r.w - INSET - (strWidth(edit) + INSET * 2) - up, r.y, edit, () => this.setEditing(!this.editing), { selected: this.editing, tip: this.editing ? t("done editing (esc)") : t("move, resize, add widgets (⌘E / ctrl+E)") });
 
     // pages: ‹ 1 2 3 + › at the bottom left (always while editing)
     const pages = this.pageCount();

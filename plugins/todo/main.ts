@@ -1031,6 +1031,8 @@ export function activate(ib: IcebreakerAPI): void {
   let quickSel = 0;
   /** the task under the mouse in the HOME widget (Delete / ⌘⌫ removes it) */
   let hoverId: number | null = null;
+  /** the HOME widget's first shown line (the wheel scrolls a list longer than the widget) */
+  let wTop = 0;
   const isDelete = (k: KeyInput) => k.combo === "delete" || k.combo === "ctrl+backspace" || k.combo === "backspace";
   const editTask = async (t: Task) => {
     const v = await ib.ui.prompt(`edit #${t.id}`, { initial: t.text });
@@ -1089,7 +1091,11 @@ export function activate(ib: IcebreakerAPI): void {
       if (!total) return void ui.text(r.x + 1, r.y + 1, "nothing to do. suspicious.", { fg: c.muted });
       const pc = (p: Prio) => (p === "urgent" ? c.error : p === "high" ? c.warning : p === "moderate" ? c.accent : c.subtle);
       const fits = total > r.h - 1 ? r.h - 2 : r.h - 1;
-      open.slice(0, fits).forEach((t, i) => {
+      // a list longer than the widget: the wheel scrolls it (first the module's tasks, then the notes')
+      wTop = Math.max(0, Math.min(wTop, total - fits));
+      if (fits < total) ui.hit({ x: r.x, y: r.y + 1, w: r.w, h: r.h - 1 }, { onWheel: (d) => (wTop = Math.max(0, Math.min(total - fits, wTop + Math.sign(d)))) });
+      const shownOpen = open.slice(wTop, wTop + fits);
+      shownOpen.forEach((t, i) => {
         const y = r.y + 1 + i;
         const row = { x: r.x, y, w: r.w, h: 1 };
         const hot = ui.hovered(row);
@@ -1104,8 +1110,9 @@ export function activate(ib: IcebreakerAPI): void {
         ui.text(tx, y, t.text, { fg: hot ? c.accent : c.fg, attrs: hot ? STRIKE : 0 }, Math.max(1, dx - tx - 1));
       });
       // then the `- [ ]` of your notes, the note's name on the right
-      inNotes.slice(0, Math.max(0, fits - open.length)).forEach((n, i) => {
-        const y = r.y + 1 + open.length + i;
+      const noteTop = Math.max(0, wTop - open.length);
+      inNotes.slice(noteTop, noteTop + fits - shownOpen.length).forEach((n, i) => {
+        const y = r.y + 1 + shownOpen.length + i;
         const row = { x: r.x, y, w: r.w, h: 1 };
         const hot = ui.hovered(row);
         const box = hot ? g.done : g.todo;
@@ -1116,7 +1123,8 @@ export function activate(ib: IcebreakerAPI): void {
         const dx = r.w > 24 ? ui.textRight(r.x + r.w - 1, y, truncate(name, Math.floor(r.w / 3)), { fg: c.subtle }) : r.x + r.w;
         ui.text(tx, y, n.text, { fg: hot ? c.accent : c.fg, attrs: hot ? STRIKE : 0 }, Math.max(1, dx - tx - 1));
       });
-      if (fits < total) ui.text(r.x + 1, r.y + r.h - 1, `+${total - fits} more · enter opens the list`, { fg: c.faint }, r.w - 2);
+      const below = total - fits - wTop;
+      if (fits < total) ui.text(r.x + 1, r.y + r.h - 1, below > 0 ? `↓ ${below} more · wheel · enter opens the list` : `↑ ${wTop} above · wheel`, { fg: c.faint }, r.w - 2);
     },
     open: "todo open",
     popup: {
@@ -1136,7 +1144,7 @@ export function activate(ib: IcebreakerAPI): void {
         const top = Math.max(0, quickSel - rows + 1);
         open.slice(top, top + rows).forEach((t, k) => {
           const i = top + k;
-          const y = r.y + 2 + i;
+          const y = r.y + 2 + k;
           const row = { x: r.x, y, w: r.w, h: 1 };
           const sel = i === quickSel && !quick;
           if (sel) ui.fill(row, { bg: mix(c.accent, c.bg, 0.8) });
@@ -1160,6 +1168,8 @@ export function activate(ib: IcebreakerAPI): void {
           ui.hit(row, { cmd: `todo done ${q(refOf(n))}`, tip: `${refOf(n)}\nclick: done (written in the note) · right-click: open the note`, menu: () => noteMenu(n) });
         });
         if (!open.length && !inNotes.length) ui.text(r.x + 2, r.y + 2, "nothing to do. suspicious.", { fg: c.muted });
+        // the wheel over the list moves the chosen line (the list follows it)
+        else ui.hit({ x: r.x, y: r.y + 2, w: r.w, h: rows }, { onWheel: (d) => (quickSel = Math.max(0, Math.min(open.length + inNotes.length - 1, quickSel + Math.sign(d)))) });
       },
       onText: (t) => {
         if (t === " " && !quickField.text) {
