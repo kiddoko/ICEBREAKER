@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Rect } from "../src/core/grid";
 import { solveLayout } from "../src/workspace/layout/solve";
+import { paneToward } from "../src/workspace/layout/focus";
 import { col, findFrame, frame, frameOf, frames, row, todayLayout, type Today } from "../src/workspace/layout/tree";
+import { CLASSIC, effectiveLayout, moveFrame, parseArrangement, PRESETS, arrangedIds, type ANode } from "../src/workspace/layout/arrange";
 
 /**
  * THE PROOF of step 1 (docs/FRAMES.md): the frames drawn from the layout tree are
@@ -120,5 +122,136 @@ describe("the tree", () => {
     expect(findFrame(t, "panel")?.foldable).toBe(true);
     const noShell = todayLayout({ sidebar: false, panel: false, shell: false, shellMax: false, shellRatio: 0.3, cols: 160, bodyH: 43 });
     expect(frames(noShell).map((f) => f.id)).toEqual(["main"]);
+  });
+});
+
+// ── step 2: the saved arrangement ────────────────────────────────────────────
+
+describe("the classic arrangement is today's screen (every account without a saved layout)", () => {
+  let n = 0;
+  for (const [W, Hs] of SIZES)
+    for (const sidebar of [true, false])
+      for (const panel of [true, false])
+        for (const shell of [true, false])
+          for (const shellRatio of [0.15, 0.3, 0.8]) {
+            const s: Today = { sidebar, panel, shell, shellMax: false, shellRatio, cols: W, bodyH: Hs - 2 };
+            const ref = before(s, W);
+            if (!valid(ref)) continue;
+            n++;
+            it(`${W}×${Hs} tree ${sidebar} panel ${panel} shell ${shell} ${shellRatio}`, () => {
+              const body = { x: 1, y: 1, w: W - 2, h: Hs - 2 };
+              expect(Object.fromEntries(solveLayout(effectiveLayout(CLASSIC, s), body).rects)).toEqual(ref);
+            });
+          }
+  it("compared many screens", () => expect(n).toBeGreaterThan(500));
+});
+
+describe("a saved arrangement is checked before it's used", () => {
+  const ok = (root: ANode) => ({ version: 1, root });
+  it("accepts the presets and what frame move makes", () => {
+    for (const p of Object.values(PRESETS)) expect(parseArrangement(ok(p.root))).not.toBeNull();
+    for (const id of ["vault", "panel", "shell"] as const)
+      for (const side of ["left", "right", "top", "bottom"] as const) expect(parseArrangement(ok(moveFrame(CLASSIC, id, side)))).not.toBeNull();
+  });
+  it("refuses anything else: today's arrangement is used", () => {
+    expect(parseArrangement({})).toBeNull();
+    expect(parseArrangement(null)).toBeNull();
+    expect(parseArrangement({ version: 2, root: CLASSIC })).toBeNull();
+    // a frame missing, twice, unknown
+    expect(parseArrangement(ok({ kind: "split", dir: "row", gap: 1, children: [{ kind: "frame", id: "main" }], sizes: [{ fill: 1 }] }))).toBeNull();
+    const twice = structuredClone(CLASSIC) as { children: ANode[] };
+    twice.children[1] = { kind: "frame", id: "main" };
+    expect(parseArrangement(ok(twice as unknown as ANode))).toBeNull();
+    expect(parseArrangement(ok({ kind: "frame", id: "evil" } as unknown as ANode))).toBeNull();
+    // a bad size, a bad gap, sizes not matching children
+    const badSize = structuredClone(CLASSIC) as { sizes: unknown[] };
+    badSize.sizes[0] = { cells: -5 };
+    expect(parseArrangement(ok(badSize as unknown as ANode))).toBeNull();
+    const badGap = structuredClone(CLASSIC) as { gap: number };
+    badGap.gap = 40;
+    expect(parseArrangement(ok(badGap as unknown as ANode))).toBeNull();
+    // too deep
+    let deep: ANode = CLASSIC;
+    for (let i = 0; i < 6; i++) deep = { kind: "split", dir: "row", gap: 1, children: [deep], sizes: [{ fill: 1 }] };
+    expect(parseArrangement(ok(deep))).toBeNull();
+  });
+});
+
+describe("moving a frame", () => {
+  const S: Today = { sidebar: true, panel: true, shell: true, shellMax: false, shellRatio: 0.3, cols: 160, bodyH: 43 };
+  const body = { x: 1, y: 1, w: 158, h: 43 };
+  const solve = (a: ANode) => solveLayout(effectiveLayout(a, S), body).rects;
+  it("puts it along that edge, the rest keeps its places", () => {
+    const right = solve(moveFrame(CLASSIC, "shell", "right"));
+    const shell = right.get("shell")!;
+    expect(shell.x + shell.w).toBe(body.x + body.w);
+    expect(shell.h).toBe(body.h);
+    expect(arrangedIds(moveFrame(CLASSIC, "shell", "right"))).toEqual(["vault", "main", "panel", "shell"]);
+    const bottomTree = solve(moveFrame(CLASSIC, "vault", "bottom")).get("vault")!;
+    expect(bottomTree.y + bottomTree.h).toBe(body.y + body.h);
+    expect(bottomTree.w).toBe(body.w);
+    const leftPanel = solve(moveFrame(CLASSIC, "panel", "left")).get("panel")!;
+    expect(leftPanel.x).toBe(body.x);
+  });
+  it("the page doesn't move: everything moves around it", () => {
+    expect(moveFrame(CLASSIC, "main", "left")).toBe(CLASSIC);
+  });
+  it("every preset and every move: frames inside, never overlapping, at every size", () => {
+    const all = [...Object.values(PRESETS).map((p) => p.root), ...(["vault", "panel", "shell"] as const).flatMap((id) => (["left", "right", "top", "bottom"] as const).map((side) => moveFrame(CLASSIC, id, side)))];
+    for (const a of all)
+      for (const [W, Hs] of SIZES) {
+        const s: Today = { ...S, cols: W, bodyH: Hs - 2 };
+        const b = { x: 1, y: 1, w: W - 2, h: Hs - 2 };
+        const rs = [...solveLayout(effectiveLayout(a, s), b).rects.values()];
+        for (const r of rs) {
+          expect(r.w >= 0 && r.h >= 0 && r.x >= b.x && r.y >= b.y && r.x + r.w <= b.x + b.w && r.y + r.h <= b.y + b.h).toBe(true);
+          for (const o of rs) if (o !== r && r.w && r.h && o.w && o.h) expect(r.x < o.x + o.w && o.x < r.x + r.w && r.y < o.y + o.h && o.y < r.y + r.h).toBe(false);
+        }
+      }
+  });
+  it("a hidden frame gives its room to its neighbours", () => {
+    const a = moveFrame(CLASSIC, "shell", "right");
+    const noShell = solveLayout(effectiveLayout(a, { ...S, shell: false }), body).rects;
+    expect(noShell.has("shell")).toBe(false);
+    const panel = noShell.get("panel")!;
+    expect(panel.x + panel.w).toBe(body.x + body.w);
+  });
+});
+
+describe("⌘⌥ arrows go to the part really in that direction", () => {
+  type P = "sidebar" | "main" | "panel" | "shell";
+  const ID: Record<string, P> = { vault: "sidebar", main: "main", panel: "panel", shell: "shell" };
+  const rectsOf = (a: ANode, s: Today): Partial<Record<P, Rect>> => {
+    const body = { x: 1, y: 1, w: s.cols - 2, h: s.bodyH };
+    return Object.fromEntries([...solveLayout(effectiveLayout(a, s), body).rects].map(([k, r]) => [ID[k], r]));
+  };
+  // the rules before step 2, for the classic layout (Workspace.moveFocus)
+  const old = (from: P, dir: "left" | "right" | "up" | "down", s: Today, rs: Partial<Record<P, Rect>>): P => {
+    if (dir === "left" && from === "panel") return "main";
+    if (dir === "left" && s.sidebar) return "sidebar";
+    if (dir === "right" && from === "sidebar") return "main";
+    if (dir === "right" && from === "main" && rs.panel) return "panel";
+    if (dir === "down" && s.shell) return "shell";
+    if (dir === "up" && from === "shell") return "main";
+    return from;
+  };
+  const neu = (from: P, dir: "left" | "right" | "up" | "down", s: Today, rs: Partial<Record<P, Rect>>): P => paneToward(rs, from, dir) ?? old(from, dir, s, rs);
+  it("the classic layout: the same as before, from every part, every way", () => {
+    for (const [W, Hs] of [[160, 45], [240, 68], [120, 34]])
+      for (const sidebar of [true, false]) for (const panel of [true, false]) for (const shell of [true, false]) {
+        const s: Today = { sidebar, panel, shell, shellMax: false, shellRatio: 0.3, cols: W, bodyH: Hs - 2 };
+        const rs = rectsOf(CLASSIC, s);
+        for (const from of Object.keys(rs) as P[]) for (const dir of ["left", "right", "up", "down"] as const) expect(`${from} ${dir} → ${neu(from, dir, s, rs)}`).toBe(`${from} ${dir} → ${old(from, dir, s, rs)}`);
+      }
+  });
+  it("moved frames: the panel on the left is left of the page, the shell on the right is right of it", () => {
+    // (a wide screen: at 160 columns the shell on the right leaves the page under 40, and the panel folds away)
+    const s: Today = { sidebar: true, panel: true, shell: true, shellMax: false, shellRatio: 0.3, cols: 260, bodyH: 60 };
+    expect(paneToward(rectsOf(moveFrame(CLASSIC, "panel", "left"), s), "main", "left")).toBe("sidebar");
+    expect(paneToward(rectsOf(moveFrame(CLASSIC, "shell", "right"), s), "main", "right")).toBe("panel");
+    expect(paneToward(rectsOf(moveFrame(CLASSIC, "shell", "right"), s), "panel", "right")).toBe("shell");
+    // the tree and the shell side by side under the page: down goes to the one under most of it, left from the shell to the tree
+    expect(paneToward(rectsOf(PRESETS["tree-bottom"].root, s), "main", "down")).toBe("shell");
+    expect(paneToward(rectsOf(PRESETS["tree-bottom"].root, s), "shell", "left")).toBe("sidebar");
   });
 });

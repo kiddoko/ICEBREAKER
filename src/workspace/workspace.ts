@@ -24,8 +24,10 @@ import { WhatsNew } from "./whatsnew";
 import { Sidebar } from "./sidebar";
 import { unplaceSquares } from "./favorites";
 import { SystemTerminal } from "../shell/systerm";
-import { todayLayout, type Node as LayoutNode } from "./layout/tree";
+import { todayLayout, type Node as LayoutNode, type Today } from "./layout/tree";
+import { CLASSIC, effectiveLayout, parseArrangement, type ANode } from "./layout/arrange";
 import { solveLayout } from "./layout/solve";
+import { paneToward } from "./layout/focus";
 
 export type ShellTab = "term" | "ibsh" | "log";
 
@@ -71,8 +73,29 @@ export class Workspace {
   readonly sidebar: Sidebar;
   /** where each pane was drawn this frame (the mouse and the side panel use them) */
   rects: Partial<Record<Pane, Rect>> = {};
-  /** the screen's layout tree this frame (layout/tree.ts; step 1: built from the switches above) */
+  /** the screen's layout tree this frame (layout/tree.ts): the arrangement with the switches above applied */
   layout: LayoutNode | null = null;
+
+  /**
+   * Where the frames sit (settings.layout, layout/arrange.ts): what `layout preset` and
+   * `frame move` saved, or today's arrangement. Read again only when the setting changes.
+   */
+  get arrangement(): ANode {
+    const raw = this.deck.settings.data.layout;
+    if (raw !== this.arrangedFrom) {
+      this.arrangedFrom = raw;
+      this.arranged = parseArrangement(raw) ?? CLASSIC;
+    }
+    return this.arranged;
+  }
+  private arrangedFrom: unknown = undefined;
+  private arranged: ANode = CLASSIC;
+
+  /** the shell sits along the bottom, the whole width (its top border drags to resize it then) */
+  get shellAtBottom(): boolean {
+    const a = this.arrangement;
+    return a.kind === "split" && a.dir === "col" && a.children[a.children.length - 1].kind === "frame" && (a.children[a.children.length - 1] as { id: string }).id === "shell";
+  }
   private dragging: Hit | null = null;
   /** Hover tooltip: what's under the mouse and since when. */
   tip = { key: "", since: 0 };
@@ -452,6 +475,10 @@ export class Workspace {
   }
 
   private moveFocus(dir: "left" | "right" | "up" | "down"): void {
+    // the part that really is in that direction (frames can sit anywhere: frame move, layout preset)
+    const near = paneToward(this.rects, this.focus, dir);
+    if (near) return void (this.focus = near);
+    // nothing there: the old rules (left from the shell → the tree…)
     if (dir === "left" && this.focus === "panel") this.focus = "main";
     else if (dir === "left" && this.sidebarVisible) this.focus = "sidebar";
     else if (dir === "right" && this.focus === "sidebar") this.focus = "main";
@@ -888,11 +915,13 @@ export class Workspace {
 
     renderTopBar(this, ui, { x: 0, y: N, w: W, h: 1 });
 
-    // the frames: today's screen as a layout tree (layout/tree.ts), solved into one rect each
-    // (layout/solve.ts) — step 1 of the overhaul: the same places as always (tests/frames.test.ts)
+    // the frames: the arrangement (settings.layout — today's when nothing's saved) with the
+    // switches applied (tree, panel, shell shown), solved into one rect each (layout/solve.ts).
+    // The maximized shell keeps its own layout (the page in a strip at the bottom).
     const body = { x: 1, y: N + 1, w: W - 2, h: H - 2 };
     const max = this.shellVisible && this.shellMax;
-    const layout = todayLayout({ sidebar: this.sidebarVisible, shell: this.shellVisible, shellMax: this.shellMax, panel: !!d.settings.data.panel?.shown, shellRatio: this.shellRatio, cols: W, bodyH: body.h });
+    const today: Today = { sidebar: this.sidebarVisible, shell: this.shellVisible, shellMax: this.shellMax, panel: !!d.settings.data.panel?.shown, shellRatio: this.shellRatio, cols: W, bodyH: body.h };
+    const layout = max ? todayLayout(today) : effectiveLayout(this.arrangement, today);
     const at = solveLayout(layout, body).rects;
     this.layout = layout;
 
@@ -924,7 +953,8 @@ export class Workspace {
     if (this.editing) editBand(this, ui, inner, this.sidePanel.area);
 
     const shellR = at.get("shell");
-    if (this.shellVisible && shellR) renderShellPanel(this, ui, shellR, body, max);
+    // its top border resizes it only where it's along the bottom (frames elsewhere: step 2b drags every border)
+    if (this.shellVisible && shellR) renderShellPanel(this, ui, shellR, body, max || !this.shellAtBottom);
 
     renderStatusBar(this, ui, { x: 0, y: N + H - 1, w: W, h: 1 });
     renderSubtitles(this, ui, W, N + H);

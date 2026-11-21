@@ -12,8 +12,16 @@ stacked, moved, split, folded. This page is how it works and where it stands.
   switches** (tree shown, panel shown, shell shown or maximized, the shell's height), so
   nothing moves: `tests/frames.test.ts` proves the rects are the very ones the old code
   computed, at 30 window sizes × every combination of those switches (1 400+ screens).
-- Step 2: the tree becomes the thing you change and save (`settings.layout`): move a frame
-  (`frame move shell left`), drag a border, fold a frame, 3 ready-made layouts, ⌘Z.
+- **Step 2 (done): the arrangement is saved and can change.** Where each frame sits is
+  `settings.layout` (`src/workspace/layout/arrange.ts`): `layout preset <name>` (classic,
+  shell-right, panel-left, tree-bottom), `frame move <tree|panel|shell> <side>`,
+  `layout reset`; ⌘Z undoes each. **Nothing saved = the classic arrangement = today's
+  screen**, so every account keeps its screen with no migration step (tested on the
+  rects, and on a copy of a real account's settings). What's shown stays today's
+  switches (⌘B the tree, ⌘⇧P the panel, ctrl+` the shell): a hidden frame gives its room
+  to its neighbours. ⌘⌥ arrows go to the part really in that direction.
+- Step 2b: drag any border between two frames (today only the shell's top border, when
+  the shell is along the bottom), fold a frame to a strip.
 - Step 3: tabs on every frame, tab groups, terminals as a group of tabs, thicker tabs.
 - Step 4: each tab's history (back / forward). Step 5: the INFO panel.
 
@@ -48,6 +56,27 @@ maximized shell:   row ─┬─ vault (full height)
                                         └─ panel
 ```
 
+## The arrangement (step 2)
+
+```
+settings.layout  ──parseArrangement──►  arrangement (or CLASSIC)
+       + switches (tree, panel, shell shown)  ──effectiveLayout──►  tree  ──solveLayout──►  rects
+```
+
+- An arrangement holds the four frames (`vault`, `main`, `panel`, `shell`), each exactly
+  once, in splits at most 4 deep. A size is `{ auto: id }` (that frame's own size along the
+  split: today's rules — the tree 18 % of the screen within 20–34 cells, the panel 20 %
+  within 24–36, the shell its share of the height), `{ cells }` or `{ fill }`.
+- **Checked before it's used** (`parseArrangement`): anything else — a missing or doubled
+  frame, an unknown size, too deep, another version — and the classic arrangement is used.
+- `effectiveLayout` leaves out the frames switched off; a split left with one child is that
+  child; a split with no `fill` child gives its last one the rest.
+- `moveFrame(arr, id, side)`: the frame goes along that edge of the whole screen at its own
+  size; the rest keeps its arrangement. The page never moves: the others move around it.
+- The maximized shell (`term max` from the panel's □, or `shellMax`) keeps its own layout.
+- The shell's top border resizes it only when the shell is along the bottom; HOME's edit
+  band spans the page and the panel wherever the panel sits.
+
 ## The solver
 
 `solveLayout(tree, rect)` → `{ rects: Map<frameId, Rect>, folded: Set<frameId> }`:
@@ -74,8 +103,10 @@ are unchanged. Every member the rest of the code uses (`sidebarVisible`, `shellV
 
 ## Checking
 
-- `tests/frames.test.ts`: same rects as the old code (the reference is kept in the test),
-  the solver's rules, frames inside the body and never overlapping.
+- `tests/frames.test.ts`: same rects as the old code (the reference is kept in the test) for
+  today's layout and for the classic arrangement; the solver's rules; saved arrangements
+  checked; every preset and every move keeps frames inside and apart at 30 sizes; ⌘⌥ arrows
+  behave as before on the classic layout and follow the frames elsewhere.
 - `debug layout` / `debug layout pages` (docs/LAYOUT.md): nothing new cut or overlapping.
 - In the app: the same screen as before with the tree, the panel and the shell on and off,
   and the shell maximized (`term max` / `term dock`), at a few window sizes.

@@ -22,7 +22,7 @@ import { editMacro, macroMenu, shellMenu, tabMenu, termTabMenu } from "./menus";
  * errors), the window-style buttons on the right, the macro row above a system
  * terminal, then the shell itself. Its top border drags to resize.
  */
-export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, max: boolean): void {
+export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fixed: boolean): void {
   const d = ws.deck;
   ws.rects.shell = r;
   const shellFocused = ws.focus === "shell" && !ws.topModal;
@@ -131,7 +131,8 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, max
     else d.shell.render(ui, si, shellFocused);
   });
   // drag the top border to resize
-  const handle = { x: tx + 2, y: r.y, w: max ? 0 : Math.max(0, r.x + r.w - 30 - tx), h: 1 };
+  // (`fixed`: maximized, or not along the bottom — its height isn't this border's to change)
+  const handle = { x: tx + 2, y: r.y, w: fixed ? 0 : Math.max(0, r.x + r.w - 30 - tx), h: 1 };
   ui.hit(handle, {
     onClick: () => {},
     onDrag: (m) => {
@@ -410,8 +411,12 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
  */
 export function editBand(ws: Workspace, ui: UI, page: Rect, panel: Rect | null): void {
   const c = ui.c;
-  const right = panel ? panel.x + panel.w : page.x + page.w;
-  const band = { x: page.x, y: page.y, w: right - page.x, h: 1 };
+  // across the page and the panel when they sit side by side on the same top line (wherever
+  // the panel is: right, left — frame move panel left); otherwise across the page alone
+  const beside = !!panel && panel.y === page.y;
+  const left = beside ? Math.min(page.x, panel!.x) : page.x;
+  const right = beside ? Math.max(page.x + page.w, panel!.x + panel!.w) : page.x + page.w;
+  const band = { x: left, y: page.y, w: right - left, h: 1 };
   const pulse = 0.75 + 0.25 * Math.sin(ui.now / 400);
   const bg = mix(c.bg, c.accent, pulse);
   ui.fill(band, { bg });
