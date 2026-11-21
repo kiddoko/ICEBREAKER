@@ -137,8 +137,11 @@ export function sortPerms(perms: string[]): string[] {
   return [...new Set(perms)].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
 }
 
+/** like parsePerm, and "net" alone too (the question "may it go online?", not a name a plugin.json may use) */
+const asked = (perm: string): Parsed | null => parsePerm(perm) ?? (perm === "net" ? { base: "net" } : null);
+
 export function specOf(perm: string): PermSpec | null {
-  const p = parsePerm(perm);
+  const p = asked(perm);
   return p ? PERMS[p.base] : null;
 }
 
@@ -226,7 +229,7 @@ export function missing(asks: readonly string[], granted: readonly string[]): st
 
 /** One line for a list: "✎ Change your notes → songs/". */
 export function describePerm(perm: string, tr: (s: string) => string = (s) => s): { icon: string; label: string; scope: string; level: Level; means: string } {
-  const p = parsePerm(perm);
+  const p = asked(perm);
   const s = p ? PERMS[p.base] : null;
   if (!p || !s) return { icon: "?", label: perm, scope: "", level: "total", means: tr("not a permission this deck knows") };
   return { icon: s.icon, label: tr(s.label), scope: p.scope ?? "", level: s.level, means: tr(s.means) };

@@ -181,7 +181,7 @@ export async function installPlugin(deck: Deck, src: string): Promise<{ id: stri
     if (more.length) {
       const have = deck.plugins.list().find((p) => p.manifest.id === id)?.manifest.version ?? "?";
       const answer = await deck.askPermission({
-        frame: `◆ ${t("AN UPDATE ASKS FOR MORE")}`,
+        frame: t("AN UPDATE ASKS FOR MORE"),
         heading: `${manifest.name} · v${have} → v${manifest.version ?? "?"}`,
         facts: [isOfficialSource(repo) ? `✔ ${t("from the official STORE")}` : `⚠ ${t("not from the official STORE: {s}", { s: repo })}`],
         intro: t("The new version asks for this, on top of what you approved:"),

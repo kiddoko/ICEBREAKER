@@ -86,14 +86,15 @@ function permissionRows(d: Deck, head: (label: string) => Row): Row[] {
       const info = describePerm(x.perm, t);
       const level = info.level === "total" ? t("TOTAL") : info.level === "high" ? t("HIGH") : t(info.level);
       out.push({
-        label: `${info.icon} ${info.label}${info.scope ? ` → ${info.scope}` : ""}`,
-        kind: "toggle",
+        // (the module's name in the row too: a search shows rows without their headings)
+        label: `${p.manifest.name} · ${info.icon} ${info.label}${info.scope ? ` → ${info.scope}` : ""}`,
+        kind: "action",
         // (read again at each draw: the list is rebuilt when a module comes or goes)
         value: () => {
           const now = d.plugins.permissionsOf(id).find((y) => y.perm === x.perm);
           if (!now) return "—";
-          if (!now.on) return t("taken away");
-          return `${level} · ${now.lastUse ? t("used {d}", { d: when(now.lastUse) }) : t("never used")}`;
+          if (!now.on) return `○ ${t("taken away")}`;
+          return `● ${level} · ${now.lastUse ? t("used {d}", { d: when(now.lastUse) }) : t("never used")}`;
         },
         cmd: () => `plugin ${d.plugins.permissionsOf(id).find((y) => y.perm === x.perm)?.on === false ? "grant" : "revoke"} ${id} ${x.perm}`,
         change: () => {

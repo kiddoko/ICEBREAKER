@@ -211,7 +211,7 @@ export class PluginHost {
     const scope = parsePerm(name)?.scope;
     const what = want.base === "vault:write" ? t("It wants to write: {x}", { x: target || "?" }) : want.base === "net" ? t("It wants to reach: {x}", { x: target || "?" }) : "";
     const spec: PermDialogSpec = {
-      frame: `◆ ${t("{m} (module) asks", { m: m.name })}`,
+      frame: t("{m} (module) asks", { m: m.name }),
       heading: level === "total" ? `⚠ ${t("TOTAL: this command has all your rights on this computer")}` : what,
       command,
       lines: [{ icon: d.icon, label: d.label, scope: d.scope, level: d.level }],
@@ -379,7 +379,7 @@ export class PluginHost {
         );
       } else {
         const answer = await this.deck.askPermission({
-          frame: `◆ ${t(before ? "A MODULE ASKS FOR MORE" : "SWITCH A MODULE ON")}`,
+          frame: t(before ? "A MODULE ASKS FOR MORE" : "SWITCH A MODULE ON"),
           heading: `${m.name} · v${m.version} · ${t("by {a}", { a: m.author ?? t("unknown") })}`,
           facts: [
             source && isOfficialSource(source) ? `✔ ${t("from the official STORE")}` : source ? `⚠ ${t("not from the official STORE: {s}", { s: source })}` : `⚠ ${t("put in the vault by hand: nobody checked it")}`,
@@ -626,7 +626,7 @@ export class PluginHost {
     const need = (perm: string, target?: string) => {
       if (granted.has(perm, target)) return;
       const label = describePerm(perm).label;
-      const want = parsePerm(perm);
+      const want = parsePerm(perm) ?? (perm === "net" ? { base: "net" as const } : null);
       const off = (deck.settings.data.plugins.revoked?.[m.id] ?? []).some((x) => parsePerm(x)?.base === want?.base);
       if (off) throw new Error(`${m.name}: you took “${label}” away from it (Settings → PERMISSIONS, or: plugin grant ${m.id} ${perm})`);
       if (target !== undefined && granted.has(perm)) throw new Error(`${m.name}: “${label}” is allowed only ${want?.base === "net" ? "for the hosts" : "in the folders"} you approved — not ${target}`);
@@ -908,7 +908,7 @@ export class PluginHost {
           })),
       },
       ui: {
-        notify: (text, kind) => (need("notify"), deck.notify(`${m.name}: ${text}`, kind)),
+        notify: (text, kind) => (need("notify"), note("notify"), deck.notify(`${m.name}: ${text}`, kind)),
         confirm: (t, d) => deck.confirm(from(t), d),
         prompt: (t, o) => deck.prompt(from(t), o),
         choose: (t, options, o) => deck.choose(from(t), options, o),
