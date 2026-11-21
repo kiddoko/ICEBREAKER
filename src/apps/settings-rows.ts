@@ -203,6 +203,7 @@ export function coreSettingRows(deck: Deck): Row[] {
     head("Effects"),
     toggle("fx.ambient", "Animated background"),
     toggle("fx.flicker", "CRT flicker"),
+    needs(() => !!s.data.fx.flicker, slide("fx.flickerSpeed", "Flicker speed", 10, 300, () => num("fx.flickerSpeed") || 100, (v) => set("fx.flickerSpeed", v), { cmd: (v) => `fx flicker ${v}`, step: 5 })),
     toggle("fx.glitch", "Glitch effects"),
     {
       label: "Effects preset",
@@ -223,6 +224,7 @@ export function coreSettingRows(deck: Deck): Row[] {
     fxSlide("chroma", "Chromatic aberration"),
     fxSlide("glow", "Glow"),
     fxSlide("sharpness", "Sharpness", (v) => `${v}%`),
+    fxSlide("curve", "CRT curvature"),
     head("Screensaver and start"),
     slide("fx.screensaverMinutes", "Screensaver", 0, 60, () => num("fx.screensaverMinutes"), (v) => set("fx.screensaverMinutes", v), { zeroIsOff: true, show: (v) => (v ? `${v} min` : t("never")) }),
     cycle("boot.mode", "Boot animation", ["full", "fast", "off"]),

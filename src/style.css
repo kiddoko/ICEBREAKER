@@ -5,6 +5,9 @@
  */
 :root {
   --deck-bg: #0b0b12;
+  /* CRT flicker speed (1 = the default pace) and curvature (0 = flat … 1) */
+  --flicker-speed: 1;
+  --curve: 0;
   --bloom: 0.4;
   --scanlines: 0.1;
   --vignette: 0.5;
@@ -47,7 +50,7 @@ body {
 /* Glow: a half-resolution copy of the screen, blurred and added on top. */
 #bloom {
   pointer-events: none;
-  filter: blur(3px) saturate(1.4);
+  filter: contrast(1.8) brightness(1.15) blur(5px) saturate(1.4);
   mix-blend-mode: screen;
   opacity: var(--bloom);
 }
@@ -88,7 +91,7 @@ body {
   height: 18%;
   top: -18%;
   background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, calc(var(--scanlines) * 0.18)), transparent);
-  animation: roll 9s linear infinite;
+  animation: roll calc(9s / var(--flicker-speed)) linear infinite;
 }
 @keyframes roll {
   to { transform: translateY(650%); }
@@ -134,7 +137,35 @@ body {
 }
 
 #deck.flicker {
-  animation: flicker 4s infinite steps(1);
+  animation: flicker calc(4s / var(--flicker-speed)) infinite steps(1);
+}
+
+/*
+ * CRT curvature ([fx] curve, Settings → Effects): the curved glass of an old tube, as a
+ * still overlay — the screen's corners rounded more and more, its rim darker, a soft
+ * reflection near the top. Nothing is resampled: it costs one more still layer for the
+ * compositor (no per-frame work, the mouse stays where the cells are).
+ */
+#curve {
+  --curve-r: calc(var(--curve) * 6vmin + 6px);
+  position: absolute;
+  inset: 0;
+  display: none;
+  pointer-events: none;
+  border-radius: var(--curve-r);
+  box-shadow:
+    inset 0 0 calc(var(--curve-r) * 1.4) calc(var(--curve-r) * 0.3) rgba(0, 0, 0, calc(0.2 + var(--curve) * 0.5)),
+    inset 0 0 0 1px rgba(255, 255, 255, calc(var(--curve) * 0.06));
+  background:
+    radial-gradient(ellipse 60% 45% at 30% 14%, rgba(255, 255, 255, calc(var(--curve) * 0.05)), transparent 70%),
+    radial-gradient(ellipse 120% 115% at 50% 50%, transparent 58%, rgba(0, 0, 0, calc(var(--curve) * 0.4)) 100%);
+}
+#deck.curved {
+  border-radius: calc(var(--curve) * 6vmin + 6px);
+  overflow: hidden;
+}
+#deck.curved #curve {
+  display: block;
 }
 
 @keyframes flicker {

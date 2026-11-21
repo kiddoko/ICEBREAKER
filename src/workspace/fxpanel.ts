@@ -27,11 +27,11 @@ export const FX_PRESET_ALIASES: Record<string, Preset> = { potato: "none", minim
 
 /** Each preset: the switches on (the rest off) and every effect's strength (0 = off, up to 200). */
 export const FX_PRESETS: Record<Preset, { on: FxKey[]; levels: Record<FxLevel, number>; hint: string }> = {
-  none: { on: [], levels: { bloom: 0, scanlines: 0, vignette: 0, chroma: 0, glow: 0, sharpness: 100 }, hint: "flat and sharp, nothing moves (old laptops)" },
-  light: { on: ["ambient", "glitch"], levels: { bloom: 60, scanlines: 40, vignette: 50, chroma: 0, glow: 0, sharpness: 90 }, hint: "a hint of glow, crisp text (default)" },
-  medium: { on: ["ambient", "glitch"], levels: { bloom: 100, scanlines: 100, vignette: 100, chroma: 40, glow: 30, sharpness: 80 }, hint: "a real CRT" },
-  heavy: { on: ["ambient", "glitch", "flicker"], levels: { bloom: 150, scanlines: 150, vignette: 130, chroma: 100, glow: 80, sharpness: 70 }, hint: "glow, fringes, flicker" },
-  party: { on: ["ambient", "glitch", "flicker"], levels: { bloom: 200, scanlines: 200, vignette: 200, chroma: 200, glow: 200, sharpness: 60 }, hint: "everything at the max. sunglasses on" },
+  none: { on: [], levels: { bloom: 0, scanlines: 0, vignette: 0, chroma: 0, glow: 0, sharpness: 100, curve: 0 }, hint: "flat and sharp, nothing moves (old laptops)" },
+  light: { on: ["ambient", "glitch"], levels: { bloom: 60, scanlines: 40, vignette: 50, chroma: 0, glow: 0, sharpness: 90, curve: 0 }, hint: "a hint of glow, crisp text (default)" },
+  medium: { on: ["ambient", "glitch"], levels: { bloom: 100, scanlines: 100, vignette: 100, chroma: 40, glow: 30, sharpness: 80, curve: 0 }, hint: "a real CRT" },
+  heavy: { on: ["ambient", "glitch", "flicker"], levels: { bloom: 150, scanlines: 150, vignette: 130, chroma: 100, glow: 80, sharpness: 70, curve: 40 }, hint: "glow, fringes, flicker" },
+  party: { on: ["ambient", "glitch", "flicker"], levels: { bloom: 200, scanlines: 200, vignette: 200, chroma: 200, glow: 200, sharpness: 60, curve: 100 }, hint: "everything at the max. sunglasses on" },
 };
 
 /**
@@ -46,12 +46,13 @@ export class FxPanel implements Overlay {
 
   constructor(private readonly deck: Deck) {
     this.list.items = [
-      { label: "bloom", hint: "neon glow", level: "bloom" },
+      { label: "bloom", hint: "bright things bleed light", level: "bloom" },
       { label: "scanlines", hint: "CRT lines", level: "scanlines" },
       { label: "vignette", hint: "dark corners", level: "vignette" },
       { label: "RGB split", hint: "colour fringes", level: "chroma" },
       { label: "glow", hint: "bright things shine", level: "glow" },
       { label: "sharpness", hint: "CRT focus", level: "sharpness" },
+      { label: "curvature", hint: "curved glass", level: "curve" },
       { label: "background", hint: "the theme's animation", key: "ambient" },
       { label: "glitch", hint: "transitions", key: "glitch" },
       { label: "flicker", hint: "unstable tube", key: "flicker" },

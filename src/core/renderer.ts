@@ -54,6 +54,21 @@ export class Renderer {
   private stack = FONT_STACK;
   private lineHeight = 1.12;
   bloomEnabled = true;
+  /**
+   * Only what's bright blooms: the copy's contrast is raised first, so dark backgrounds
+   * drop to black and give nothing (0.5.2 bloomed the whole screen, backgrounds too: a grey
+   * haze over everything rather than a halo around the bright things)
+   */
+  private static readonly BRIGHT_PASS = "contrast(1.8) brightness(1.15)";
+  /** how far the bloom's halo spreads, in CSS px of blur (fxlevels.ts bloomRadius) */
+  private bloomR = 3;
+  setBloomRadius(px: number): void {
+    if (Math.abs(px - this.bloomR) < 0.01) return;
+    this.bloomR = px;
+    // old webviews blur with CSS; the others in the bloom canvas (next bloom frame)
+    if (!this.canvasBlur) this.bloom.style.filter = `${Renderer.BRIGHT_PASS} blur(${px.toFixed(2)}px) saturate(1.4)`;
+    this.front = null;
+  }
   /** the bloom is blurred in its canvas (true) or by CSS (false) */
   private canvasBlur = false;
   /** the bloom canvas is this many times smaller than the screen */
@@ -267,16 +282,24 @@ export class Renderer {
   private chromaEl: HTMLCanvasElement | null = null;
   private chromaCtx: CanvasRenderingContext2D | null = null;
   private chromaTmp: HTMLCanvasElement | null = null;
-  /** the theme background, taken out of the fringes so only the text casts them */
-  private chromaBg = "#000000";
-  setChroma(level: number, bg = "#000000"): void {
+  /**
+   * The foreground alone — glyphs, frames, underlines, never a background — at half the
+   * screen's size, kept up to date cell by cell like the screen. The colour fringes are
+   * cut from it: only what's drawn splits, a panel's or a button's background never tints
+   * (0.5.2 took the screen and removed the theme's background: every other background
+   * — panels, the shell, selections — came out as a red / blue wash).
+   */
+  private fgEl: HTMLCanvasElement | null = null;
+  private fgCtx: CanvasRenderingContext2D | null = null;
+  setChroma(level: number): void {
     this.chroma = Math.max(0, Math.min(200, level));
     this.chromaE = chromaStrength(this.chroma);
-    this.chromaBg = bg;
     if (!this.chromaEl) {
       this.chromaEl = document.getElementById("chroma") as HTMLCanvasElement | null;
       this.chromaCtx = this.chromaEl?.getContext("2d") ?? null;
       this.chromaTmp = document.createElement("canvas");
+      this.fgEl = document.createElement("canvas");
+      this.fgCtx = this.fgEl.getContext("2d");
     }
     if (this.chromaEl) {
       this.chromaEl.style.display = this.chroma > 0 ? "block" : "none";
@@ -328,12 +351,12 @@ export class Renderer {
   }
 
   private sizeChroma(): void {
-    const el = this.chromaEl, tmp = this.chromaTmp;
-    if (!el || !tmp) return;
+    const el = this.chromaEl, tmp = this.chromaTmp, fg = this.fgEl;
+    if (!el || !tmp || !fg) return;
     const w = this.chroma > 0 ? Math.ceil(this.canvas.width / 2) : 0, h = this.chroma > 0 ? Math.ceil(this.canvas.height / 2) : 0;
     if (el.width !== w || el.height !== h) {
-      el.width = tmp.width = w;
-      el.height = tmp.height = h;
+      el.width = tmp.width = fg.width = w;
+      el.height = tmp.height = fg.height = h;
     }
     el.style.width = this.canvas.style.width;
     el.style.height = this.canvas.style.height;
@@ -367,32 +390,29 @@ export class Renderer {
     this.chromaEvery = cost < 2 ? 0 : Math.min(200, cost * 8);
   }
 
+  /**
+   * The fringes, from the foreground layer (same size: no scaling): its blue nudged right,
+   * its red nudged left, on black — screened over the picture, black adds nothing, so only
+   * the text, the frames and the glyphs cast fringes.
+   */
   private drawChroma(): void {
-    const el = this.chromaEl, ctx = this.chromaCtx, tmp = this.chromaTmp;
-    if (!el || !ctx || !tmp || !el.width) return;
+    const el = this.chromaEl, ctx = this.chromaCtx, tmp = this.chromaTmp, fg = this.fgEl;
+    if (!el || !ctx || !tmp || !fg || !el.width) return;
     const w = el.width, h = el.height;
     // how far the red and the blue move apart (the strength is already eased in: chromaStrength)
     const e = this.chromaE;
     const o = 0.6 * Math.min(1, e / 10) + Math.sqrt(e / 200) * 4.4; // half-res px
-    const t = tmp.getContext("2d")!;
-    t.globalCompositeOperation = "source-over";
-    t.clearRect(0, 0, w, h);
-    t.drawImage(this.canvas, o, 0, w, h);
-    t.globalCompositeOperation = "difference";
-    t.fillStyle = this.chromaBg;
-    t.fillRect(0, 0, w, h);
-    t.globalCompositeOperation = "multiply";
-    t.fillStyle = "#0000ff";
-    t.fillRect(0, 0, w, h);
-    ctx.globalCompositeOperation = "source-over";
-    ctx.clearRect(0, 0, w, h);
-    ctx.drawImage(this.canvas, -o, 0, w, h);
-    ctx.globalCompositeOperation = "difference";
-    ctx.fillStyle = this.chromaBg;
-    ctx.fillRect(0, 0, w, h);
-    ctx.globalCompositeOperation = "multiply";
-    ctx.fillStyle = "#ff0000";
-    ctx.fillRect(0, 0, w, h);
+    const split = (c: CanvasRenderingContext2D, dx: number, tint: string) => {
+      c.globalCompositeOperation = "source-over";
+      c.fillStyle = "#000000";
+      c.fillRect(0, 0, w, h);
+      c.drawImage(fg, dx, 0);
+      c.globalCompositeOperation = "multiply";
+      c.fillStyle = tint;
+      c.fillRect(0, 0, w, h);
+    };
+    split(tmp.getContext("2d")!, o, "#0000ff");
+    split(ctx, -o, "#ff0000");
     ctx.globalCompositeOperation = "lighter";
     ctx.drawImage(tmp, 0, 0);
     ctx.globalCompositeOperation = "source-over";
@@ -455,6 +475,12 @@ export class Renderer {
     }
     const fadeNew = appearing <= Renderer.FADE_MAX_PER_FRAME;
 
+    // the foreground layer for the colour fringes (half size: cells in half pixels)
+    const fctx = this.chroma > 0 && this.fgEl?.width ? this.fgCtx : null;
+    if (fctx) {
+      fctx.setTransform(0.5, 0, 0, 0.5, 0, 0);
+      if (full) fctx.clearRect(0, 0, g.cols * cw, g.rows * ch);
+    }
     const gctx = this.glow > 0 ? this.glowCtx : null;
     if (gctx) {
       this.sizeGlow(g.cols, g.rows);
@@ -518,6 +544,23 @@ export class Renderer {
         x = end;
       }
 
+      // the foreground layer: these cells emptied (rounded outward to whole half pixels)
+      if (fctx) {
+        for (let x = 0; x < g.cols; ) {
+          if (!dirty[x]) {
+            x++;
+            continue;
+          }
+          let end = x + 1;
+          while (end < g.cols && dirty[end]) end++;
+          fctx.setTransform(1, 0, 0, 1, 0, 0);
+          const x0 = Math.floor((x * cw) / 2), y0 = Math.floor((y * ch) / 2);
+          fctx.clearRect(x0, y0, Math.ceil((end * cw) / 2) - x0, Math.ceil(((y + 1) * ch) / 2) - y0);
+          fctx.setTransform(0.5, 0, 0, 0.5, 0, 0);
+          x = end;
+        }
+      }
+
       // 2) glyphs + decorations
       for (let x = 0; x < g.cols; x++) {
         if (!dirty[x]) continue;
@@ -527,13 +570,20 @@ export class Renderer {
         const attrs = g.attr[i];
         if (cp > 32) {
           const age = born[i] > 0 ? (now - born[i]) / fade : 1;
+          let alpha = 1;
           if (age < 1) {
             // a soft S-curve: it starts gently, settles gently (never invisible)
-            ctx.globalAlpha = 0.15 + 0.85 * age * age * (3 - 2 * age);
+            alpha = ctx.globalAlpha = 0.15 + 0.85 * age * age * (3 - 2 * age);
             this.fading = true;
           } else born[i] = 0;
-          this.atlas.draw(ctx, cp, this.L(g.fg[i]), attrs, x * cw, y * ch, charWidth(cp) === 2 ? 2 : 1);
+          const fgc = this.L(g.fg[i]), cells = charWidth(cp) === 2 ? 2 : 1;
+          this.atlas.draw(ctx, cp, fgc, attrs, x * cw, y * ch, cells);
           ctx.globalAlpha = 1;
+          if (fctx) {
+            fctx.globalAlpha = alpha;
+            this.atlas.draw(fctx, cp, fgc, attrs, x * cw, y * ch, cells);
+            fctx.globalAlpha = 1;
+          }
         }
         if (gctx) {
           // what this cell gives off: its glyph if it's bright, else a lit background
@@ -554,6 +604,11 @@ export class Renderer {
           const t = Math.max(1, Math.round(ch / 16));
           if (attrs & UNDERLINE) ctx.fillRect(x * cw, y * ch + this.baseline + t, cw, t);
           if (attrs & STRIKE) ctx.fillRect(x * cw, y * ch + Math.round(ch * 0.55), cw, t);
+          if (fctx) {
+            fctx.fillStyle = ctx.fillStyle;
+            if (attrs & UNDERLINE) fctx.fillRect(x * cw, y * ch + this.baseline + t, cw, t);
+            if (attrs & STRIKE) fctx.fillRect(x * cw, y * ch + Math.round(ch * 0.55), cw, t);
+          }
         }
       }
     }
@@ -584,8 +639,8 @@ export class Renderer {
       const b = this.bloomCtx;
       if (this.canvasBlur) {
         b.clearRect(0, 0, this.bloom.width, this.bloom.height);
-        // ≈ the old CSS blur(3px), in bloom pixels
-        b.filter = `blur(${((3 * this.dpr) / Renderer.BLOOM_DIV).toFixed(2)}px) saturate(1.4)`;
+        // the halo's spread (CSS px), in bloom pixels
+        b.filter = `${Renderer.BRIGHT_PASS} blur(${((this.bloomR * this.dpr) / Renderer.BLOOM_DIV).toFixed(2)}px) saturate(1.4)`;
       }
       b.drawImage(this.canvas, 0, 0, this.bloom.width, this.bloom.height);
       if (this.canvasBlur) b.filter = "none";

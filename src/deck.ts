@@ -34,6 +34,7 @@ import { InputManager, type Action, type ActionSource, type InputSink, type KeyI
 import { FrameLoop } from "./core/loop";
 import { fontStack, loadFont, WEIGHTS } from "./core/fonts";
 import { Renderer } from "./core/renderer";
+import { bloomRadius, flickerSpeed } from "./core/fxlevels";
 import { Sound, SOUND_CHANNELS, type SoundName } from "./core/sound";
 import { DEFAULT_SETTINGS, type SettingsStore } from "./core/settings";
 import { UndoHistory } from "./core/undo";
@@ -864,10 +865,17 @@ export class Deck implements InputSink {
     document.getElementById("scanlines")!.style.display = fx.scanlines ? "block" : "none";
     document.getElementById("vignette")!.style.display = fx.vignette ? "block" : "none";
     document.getElementById("deck")!.classList.toggle("flicker", fx.flicker && t.fx.flicker);
+    root.setProperty("--flicker-speed", String(flickerSpeed(fx.flickerSpeed)));
+    // the curved glass: a still overlay (style.css #curve), 0 = flat
+    const curve = Math.max(0, Math.min(100, lv.curve ?? 0)) / 100;
+    root.setProperty("--curve", String(curve));
+    document.getElementById("deck")!.classList.toggle("curved", curve > 0);
     document.getElementById("deck")!.classList.toggle("monochrome", t.fx.monochrome);
     root.setProperty("--paper", String(t.fx.paper));
-    this.renderer.bloomEnabled = fx.bloom;
-    this.renderer.setChroma(lv.chroma ?? 0, css(t.c.bg));
+    // nothing to bloom (the theme has none, or 0 %): no copy of the screen made at all
+    this.renderer.bloomEnabled = fx.bloom && t.fx.bloom * lv.bloom > 0;
+    this.renderer.setBloomRadius(bloomRadius(fx.bloom ? lv.bloom : 0));
+    this.renderer.setChroma(lv.chroma ?? 0);
     this.renderer.setGlow(lv.glow ?? 0, t.c.bg);
     const sharp = fx.levels.sharpness ?? 100 - (fx.levels.softness ?? 0);
     // a gentler curve: 80 % is a light CRT softness, 0 % still readable

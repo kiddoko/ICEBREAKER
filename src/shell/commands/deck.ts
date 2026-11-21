@@ -339,14 +339,15 @@ const fx: Command = {
     ["fx party", "everything at the max"],
   ],
   summary: "toggle visual effects (bloom, scanlines, ambient…)",
-  usage: "fx                      show current state\nfx <effect> on|off      bloom scanlines vignette ambient flicker glitch\nfx none | light | medium | heavy | party   how much CRT, from nothing to everything (light: the default)\nfx panel                open the FX panel (also: ✦ fx in the status bar)\nfx <effect> <0-200>     strength, 0 = off: bloom scanlines vignette chroma (RGB split)\nfx sharpness <0-100>    100 = razor sharp, lower = a CRT's soft focus\nfx fps                  measure the frames a second the screen really gives",
+  usage: "fx                      show current state\nfx <effect> on|off      bloom scanlines vignette ambient flicker glitch\nfx none | light | medium | heavy | party   how much CRT, from nothing to everything (light: the default)\nfx panel                open the FX panel (also: ✦ fx in the status bar)\nfx <effect> <0-200>     strength, 0 = off: bloom scanlines vignette chroma (RGB split) glow\nfx sharpness <0-100>    100 = razor sharp, lower = a CRT's soft focus\nfx curve <0-100>        the curved glass of a CRT (0 = flat, the default)\nfx flicker <10-300>     CRT flicker on, at this speed (100 = the default pace)\nfx fps                  measure the frames a second the screen really gives",
+  man: "bloom: a blurred copy of the screen laid over it — bright things bleed a soft halo of light onto what's around them; the number sets how far and how strong.\nchroma (RGB split): red and blue fringes on the text, the frames and the glyphs (never on the backgrounds).\ncurve: rounded screen corners, a darker rim and a soft reflection, like the curved glass of a tube (a still overlay: nothing moves, no cost per frame).\nflicker: a faint, irregular brightness flicker and a slow rolling band; fx flicker 200 makes it twice as fast.",
   async run(ctx) {
     const d = ctx.deck;
     const effects = ["bloom", "scanlines", "vignette", "ambient", "flicker", "glitch"] as const;
     const [what, state] = ctx.args;
     if (!what) {
       for (const e of effects) ctx.out(`${padEnd(e, 10)} ${d.settings.data.fx[e] ? fmt.green("on") : fmt.gray("off")}\n`);
-      ctx.out(`${padEnd("chroma", 10)} ${d.settings.data.fx.levels.chroma ?? 0}%\n${padEnd("sharpness", 10)} ${d.settings.data.fx.levels.sharpness ?? 100}%\n`);
+      ctx.out(`${padEnd("chroma", 10)} ${d.settings.data.fx.levels.chroma ?? 0}%\n${padEnd("sharpness", 10)} ${d.settings.data.fx.levels.sharpness ?? 100}%\n${padEnd("curve", 10)} ${d.settings.data.fx.levels.curve ?? 0}%\n${padEnd("flicker ⏵", 10)} ${d.settings.data.fx.flickerSpeed ?? 100}% speed\n`);
       const ap = d.settings.data.appearance;
       ctx.out(`${padEnd("fps", 10)} ${ap.vsync ? "vsync (the screen's rate)" : ap.maxFps || "frozen"}\n`);
       return;
@@ -381,7 +382,16 @@ const fx: Command = {
       ctx.out(`${what} ${v ? `${v}%` : "off"}\n`);
       return;
     }
-    if (what === "chroma" || what === "sharpness") {
+    // fx flicker 150: the flicker on, at that speed
+    if (what === "flicker" && state !== undefined && /^\d+$/.test(state)) {
+      const v = Math.max(10, Math.min(300, Number(state)));
+      d.settings.set("fx.flicker", true);
+      d.settings.set("fx.flickerSpeed", v);
+      d.applyFx();
+      ctx.out(`flicker on · ${v}% speed\n`);
+      return;
+    }
+    if (what === "chroma" || what === "sharpness" || what === "curve") {
       ctx.out(`${what} ${getFx(d, what)}% (fx ${what} <0-${fxMax(what)}>)\n`);
       return;
     }
