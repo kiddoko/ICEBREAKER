@@ -14,7 +14,7 @@ import { mix } from "../core/color";
 import { t } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC } from "../core/input";
-import { strWidth } from "../core/unicode";
+import { strWidth, truncate } from "../core/unicode";
 import { q, type MenuEntry, type UI } from "../ui/ui";
 import { Bar, INSET } from "../ui/layout";
 import type { Overlay } from "./overlays";
@@ -22,7 +22,8 @@ import { groupOf } from "./tabgroups";
 import type { Workspace } from "./workspace";
 import { tabMenu } from "./menus";
 
-const MAXW = 24, MINW = 12;
+// MINW: a name of 8–9 letters stays readable (the rest go in the ▾ +N list)
+const MAXW = 24, MINW = 15;
 const PLUS_W = 3;
 const MORE_W = 7;
 /** one cell between two tabs */
@@ -84,7 +85,8 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
       const name = e.group.name || ws.tabs[i]?.title().toLowerCase() || t("group");
       const count = ` ${e.indexes.length}`;
       tx = ui.text(tx, r.y, "▣ ", { fg: on ? c.panel : c.accent, bg, attrs: BOLD });
-      ui.text(tx, r.y, name, { fg, bg, attrs: on ? BOLD : 0 }, Math.max(0, x + tabW - 1 - strWidth(count) - tx));
+      // cut with "…", never a moving marquee: a chip is read at a glance
+      ui.text(tx, r.y, truncate(name, Math.max(0, x + tabW - 1 - strWidth(count) - tx)), { fg, bg, attrs: on ? BOLD : 0 });
       ui.text(x + tabW - 1 - strWidth(count), r.y, count, { fg: on ? c.panel : c.subtle, bg });
       // (no tip: hovering opens its list, which says it all; right-click: rename, ungroup)
       ui.hit(rect, { onClick: () => void ws.deck.act(`tab ${i + 1}`), menu: () => groupMenu(ws, i) });
@@ -156,7 +158,7 @@ function groupMenu(ws: Workspace, i: number): MenuEntry[] {
   if (!g) return tabMenu(ws, i);
   return [
     { label: t("Rename the group…"), run: async () => {
-      const v = await ws.deck.prompt(t("The group's name"), { initial: g.name });
+      const v = await ws.deck.prompt(t("The group's name"), { initial: g.name || ws.tabs[i]?.title().toLowerCase() || "" });
       if (v !== null) void ws.deck.act(`tab groupname ${i + 1} ${q(v.trim() || "-")}`);
     } },
     { label: t("Take this tab out"), cmd: `tab ungroup ${i + 1}` },
