@@ -25,14 +25,24 @@ the deck at an existing Obsidian vault with `vault mount /path` or in Settings.
 ## 2. The screen
 
 ```
-┌ VAULT ┐┌ HOME / the page you opened ──────────────┐┌ PANEL ┐
-│ tree  ││ widgets, notes, apps…                    ││widgets│
-└───────┘└──────────────────────────────────────────┘└───────┘
-┌ zsh ─ ibsh ─ log ─────────────────────────── ≡ ─ ▢ ┐
-│ the shell                                           │
-└─────────────────────────────────────────────────────┘
+ ◆ ICEBREAKER ▾                                     UPLINK ■ │ sat 21 nov  12:04
+  VAULT       ⌂ home  ✎ ideas   ☂ weather  +                     PANEL
+ ╭▀▀▀▀▀▀▀──╮ ╭▀▀▀▀▀▀▀─▀▀▀▀▀▀▀▀─▀▀▀▀▀▀▀▀▀────────────────╮ ╭▀▀▀▀▀▀▀──╮
+ │ tree    │ │ HOME, or the page you opened             │ │ widgets │
+ ╰─────────╯ ╰──────────────────────────────────────────╯ ╰─────────╯
+  ❯ zsh  ◆ ibsh  ≣ log                                          ≡ ─ □
+ ╭▀▀▀▀▀▀▀─▀▀▀▀▀▀▀─▀▀▀▀▀▀──────────────────────────────────────────────╮
+ │ the shell                                                          │
+ ╰────────────────────────────────────────────────────────────────────╯
  status bar · ✦ fx · ⌘K menu · F1 help · ◧ panel
 ```
+
+- **◆ ICEBREAKER ▾** (top left) — the deck's menu: MODULES, STORE, NEXUS, settings,
+  the manual, what's new, updates, log out.
+- **Frames and their tabs** — every frame has its tabs on its border. Drag a tab
+  onto another frame to keep it there, or onto another tab to make a group. Drag the
+  border between two frames to resize them; in ibsh: `layout preset shell-right`,
+  `frame fold tree`, `layout reset`. **HOME** is pinned: always the first tab.
 
 - **HOME** — widgets. `e` to edit (drag them, pull the corner ◢ to resize, gaps
   allowed), `a` to add one (the same widget several times if you like), `[` `]`
@@ -100,9 +110,9 @@ and sounds; `theme studio` tweaks everything live.
 
 ## 8. Store and NEXUS
 
-The top bar has your shortcuts: **⬡ nexus** (the vault in 3D: `+` new note,
-`/` search, F2 rename, delete → trash, `:` every action), **⇣ store** (modules
-and themes to install, and your own sources) and **▦ modules**.
+**◆ ICEBREAKER ▾**, top left, is the deck's menu: **⬡ NEXUS** (the vault in 3D: `+` new
+note, `/` search, F2 rename, delete → trash, `:` every action), **⇣ store** (modules
+and themes to install, and your own sources), **▦ modules**, settings, log out.
 
 ## 9. Where things are
 

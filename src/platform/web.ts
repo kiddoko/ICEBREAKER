@@ -38,6 +38,8 @@ export function createWebPlatform(): Platform {
   };
   const notFound = (p: string) => new Error(`no such file or directory: ${p}`);
 
+  const net = { rx: 0, tx: 0 };
+
   let cpu = 12;
   const boot = Date.now();
 
@@ -135,6 +137,11 @@ export function createWebPlatform(): Platform {
           memUsed: 6.1e9 + Math.random() * 2e8, memTotal: 16e9, swapUsed: 0, swapTotal: 0,
           uptime: (Date.now() - boot) / 1000, host: "browser", os: navigator.platform || "web",
           kernel: "n/a", cpuBrand: "virtual cpu", processes: 1, arch: "wasm-ish",
+          // the browser can't see any of these: made-up numbers, so the page can be worked on
+          top: [["ICEBREAKER", cpu * 0.6, 4.2e8], ["browser", cpu * 0.3, 9.1e8], ["WindowServer", 6, 2.1e8], ["kernel_task", 4, 1.2e8], ["Finder", 0.4, 9e7]].map(([name, c, mem]) => ({ name: name as string, cpu: c as number, mem: mem as number })),
+          disks: [{ mount: "/", name: "Macintosh HD", total: 494e9, available: 182e9, removable: false }, { mount: "/Volumes/USB", name: "USB", total: 64e9, available: 50e9, removable: true }],
+          netRx: (net.rx += 2e5 + Math.random() * 9e5), netTx: (net.tx += 2e4 + Math.random() * 8e4),
+          load: [cpu / 25, cpu / 30, cpu / 35],
         };
       },
     },

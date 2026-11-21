@@ -8,12 +8,15 @@ import { popupCommands } from "../../widgets/popups";
 import { quoteCommand, worldclockCommand } from "../../widgets/extra";
 import { WidgetPopup } from "../../workspace/widgetpopup";
 import { fmt } from "../../core/ansi";
+import { frameArg } from "../../workspace/tabplaces";
+import { CORE_PACKAGES } from "../../plugins/core-packages";
 import { q } from "../../ui/ui";
 import { HomeApp } from "../../apps/home";
 import { DEFAULT_SETTINGS } from "../../core/settings";
 
 const DEFAULT_MACROS = () => DEFAULT_SETTINGS.shell.macros.map((m) => ({ ...m }));
 import type { Command, ShellContext } from "../types";
+import { frameCommand, layoutCommand } from "./layout";
 
 /*
  * Everything you can click has a command (the click runs it, visibly, in the
@@ -131,8 +134,8 @@ const tab: Command = {
     ["tab close", "close the current one"],
   ],
   summary: "list, switch and close tabs",
-  usage: "tab              list\ntab <n>          switch (keys: ctrl+1…9)\ntab next | prev  (ctrl+tab)\ntab close [n]    (ctrl+w)",
-  complete: () => ["next", "prev", "close"],
+  usage: "tab              list\ntab <n>          switch (keys: ctrl+1…9)\ntab next | prev  (ctrl+tab)\ntab close [n]    (ctrl+w)\ntab move <n> <m> put tab n at place m (drag a tab sideways)\ntab move <n> tree|panel|shell|main  tab n into another frame (drag it onto that frame)\ntab group <n> <m> [name]  tab m joins tab n's group (drop a tab on another)\ntab ungroup <n>  tab n on its own again\ntab groupname <n> <name>  rename tab n's group\n(move, group, ungroup, groupname: in ibsh only — not from a module or your real terminal)",
+  complete: () => ["next", "prev", "close", "move", "group", "ungroup", "groupname"],
   async run(ctx) {
     const ws = ctx.deck.workspace;
     const [a, b] = ctx.args;
@@ -140,10 +143,39 @@ const tab: Command = {
       ws.tabs.forEach((t, i) => ctx.out(`${i === ws.active ? fmt.magenta("▸") : " "} ${i + 1} ${t.title()}${t.dirty?.() ? fmt.yellow(" ●") : ""}\n`));
       return 0;
     }
-    if (a === "next") return ws.switchTab(ws.active + 1), 0;
-    if (a === "prev") return ws.switchTab(ws.active - 1), 0;
+    if (a === "next") return ws.stepTab(1), 0;
+    if (a === "group") {
+      const n = Number(b) - 1, m = Number(ctx.args[2]) - 1;
+      if (!ws.groupTabs(n, m, ctx.args.slice(3).join(" "))) return ctx.err(`usage: tab group <n> <m> [name] (two different tabs, 1…${ws.tabCount})\n`), 1;
+      return 0;
+    }
+    if (a === "ungroup") {
+      if (!ws.ungroupTab(Number(b) - 1)) return ctx.err("usage: tab ungroup <n> (a tab in a group)\n"), 1;
+      return 0;
+    }
+    if (a === "groupname") {
+      // "-" (what the menu sends for an empty name) or nothing: no name (it shows its tab's)
+      const raw = ctx.args.slice(2).join(" ").trim();
+      const name = raw === "-" ? "" : raw;
+      if (!ws.renameGroupOf(Number(b) - 1, name)) return ctx.err("usage: tab groupname <n> <name> (a tab in a group)\n"), 1;
+      return 0;
+    }
+    if (a === "move") {
+      // tab move <n> tree|panel|shell|main: to another frame (Refonte UI 3b)
+      const place = frameArg(ctx.args[2]);
+      if (place) {
+        const n = Number(b) - 1;
+        if (!Number.isInteger(n) || !ws.tabs[n] || n >= ws.tabCount) return ctx.err(`usage: tab move <n> tree|panel|shell|main (1…${ws.tabCount})\n`), 1;
+        return ws.moveTabTo(n, place) ? 0 : 1;
+      }
+      const from = Number(b) - 1, to = Number(ctx.args[2]) - 1;
+      if (!Number.isInteger(from) || !Number.isInteger(to) || !ws.moveTab(from, to)) return ctx.err(`usage: tab move <n> <m> (1…${ws.tabCount})\n`), 1;
+      return 0;
+    }
+    if (a === "prev") return ws.stepTab(-1), 0;
     if (a === "close") {
-      const n = b ? Number(b) - 1 : ws.active;
+      // no number: the tab you're looking at — in the focused frame (a tab moved there), else the page's
+      const n = b ? Number(b) - 1 : Math.max(0, ws.tabs.indexOf(ws.focusedPage ?? ws.tabs[ws.active]));
       if (!ws.tabs[n]) return ctx.err(`tab: no tab ${b}\n`), 1;
       await ws.closeTab(n);
       return 0;
@@ -171,8 +203,11 @@ const launch: Command = {
       for (const a of d.apps.list()) if (a.kind !== "note") ctx.out(`${(a.icon ?? "·").padEnd(2)} ${a.kind.padEnd(10)} ${fmt.dim(a.description ?? "")}\n`);
       return 0;
     }
-    if (!d.apps.get(kind)) return ctx.err(`launch: no app "${kind}" (launch to list)\n`), 1;
-    d.openApp(kind);
+    // a module's name works too: `launch nexus` is its page, explorer (it said "no app")
+    const name = kind.toLowerCase();
+    const found = d.apps.get(name) ? name : d.apps.list().find((x) => x.title.toLowerCase() === name)?.kind ?? CORE_PACKAGES.find((x) => x.id === name)?.apps?.find((k) => d.apps.get(k));
+    if (!found) return ctx.err(`launch: no app "${kind}" (launch to list)\n`), 1;
+    d.openApp(found);
   },
 };
 
@@ -442,6 +477,8 @@ const panelCmd: Command = {
     const keep = ctx.args.includes("--keep");
     const [a, id, n] = ctx.args.filter((x) => x !== "--keep");
     const save = (p: Partial<typeof cur>) => s.set("panel", { ...cur, ...p });
+    // shown: the widgets, not a tab moved into the panel's frame
+    if ((!a && !cur.shown) || a === "show") d.workspace.ownContent("panel");
     if (!a) return save({ shown: !cur.shown }), 0;
     if (a === "show" || a === "hide") return save({ shown: a === "show" }), 0;
     if (a === "ls") {
@@ -500,6 +537,8 @@ const panelCmd: Command = {
 };
 
 export const uiCommands: Command[] = [
+  layoutCommand,
+  frameCommand,
   menuCmd,
   notifyCmd,
   catalogCmd,

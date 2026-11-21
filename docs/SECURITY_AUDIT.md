@@ -74,6 +74,9 @@ Severity: 🔴 critical (your notes, keys or computer) · 🟠 high · 🟡 medi
 | 57 | Mounting an encrypted vault the login's password didn't open left an empty deck with the other vault's tree | ⚪ | its password is asked for, in a window |
 | 58 | The account's card in a plain vault (its password's hash) was readable by the computer's other users | ⚪ | `0600` |
 | 59 | CI: the GitHub Actions were named by version (a tag can be moved to other code), not by commit (was open #O20) | ⚪ | every third-party action is pinned to a commit SHA, its version in a comment (`.github/workflows/build.yml`, 0.5.2) |
+| 60 | 0.6: a module with no permission could rearrange the screen (`layout preset`, `frame fold`, `tab move 2 shell`, `config set layout.…`) — put its page where your shell is, with a fake prompt — and ring a full-screen alarm (`clock alarm test`) | 🟡 | `layout` (but looking), `frame`, `tab move / group / ungroup / groupname`, and `clock alarm` (but listing — and setting one, from your real terminal) are refused to modules and your real terminal; `layout.*` joined the settings they can't change (`src/shell/privileged.ts`). A tab shown in the shell's frame gives way to the shell whenever the shell is asked for (ctrl+`, a question), so nothing typed for the shell lands in a page |
+| 61 | 0.6: `sysmon.stats` gave any module the ten busiest programs, the disks (names of external drives) and the network's counters | ⚪ | a module gets the vitals only (cpu, cores, memory, uptime, the system); the rest is the deck's own SYSMON (`src/plugins/core-services.ts`) |
+| 62 | 0.6: an alarm set by a line with an origin went to a second, never-started clock (the guarded deck is a Proxy): it never rang and was written away later | ⚪ | one clock per real deck (`realDeck`, `src/shell/origin.ts`); modules can't set alarms anyway (#60) |
 
 ## Open — for the security pass
 

@@ -1,5 +1,76 @@
 # Changelog
 
+## 0.6.0 — not released yet
+
+The UI overhaul ("Refonte UI"): the screen is made of frames you arrange, every frame has its
+tabs, and six modules are redrawn.
+
+- **Frames** (docs/FRAMES.md): the screen is a layout tree (`src/workspace/layout/`) solved
+  into one rect per frame — the tree, the page, the side panel, the shell. Nothing saved =
+  the classic screen, so every account keeps its screen. `layout preset classic | shell-right
+  | panel-left | tree-bottom`, `frame move <tree|panel|shell> <side>`, `layout reset`; drag any
+  border between two frames to resize it; `frame fold` folds a frame into a one-cell strip
+  with its name (a click opens it again); ⌘Z undoes each change.
+- **Tabs on every frame's border**: the top bar is one row — **◆ ICEBREAKER ▾**, the deck's
+  menu (MODULES, STORE, NEXUS, settings, manual, what's new, updates, log out; their keys
+  unchanged), UPLINK ■ and the clock. Each frame's tabs sit above its line, a half-block bar
+  under each; the one shown is lit when its frame has the focus. The shell's frame has your
+  terminals, ibsh and the log; VAULT and PANEL a tab each. A page without a tab (STORE,
+  settings…) shows first, × or esc closes it.
+- **Thicker, readable tabs**: an icon and the name, no number (the numbers show while ⌘ /
+  ctrl is held), 15–24 cells, the rest in "▾ +N". Drag a tab to move it; drop it onto another
+  and they become a **group** (`▣ name 3`: hover lists them; right-click: rename, take out,
+  ungroup). Groups are saved with the session.
+- **A tab in any frame**: drag a tab onto another frame (it's outlined), `tab move <n>
+  tree|panel|shell|main`, or right-click → Move to. The frame shows it instead of its own
+  content; a click on the frame's own tab brings that back. Keys and the status bar follow
+  the page the focused frame shows; where each tab lives is saved with the session.
+- **HOME is pinned**: always the first tab, ⌂, no × — ⌘W, `tab close` and "close others"
+  leave it. It can still move to another frame.
+- **WEATHER redrawn**: an animated sky (rain, snow, storm flashes, fog, sun, the moon at
+  night) that sets the mood of the page, the next 24 hours and the week; the page reflows at
+  any size; HOME's widget and its pop-up on the same sky (one line under 5 rows).
+- **CLOCKS redrawn**: timers as braille rings that empty, a stopwatch with a sweeping dial and
+  laps (best green, worst red), the day's course from midnight to midnight, world clocks
+  with their day strip. **Wake-up alarms**: `clock alarm 7:30 [label] [--days mon-fri]`,
+  list / rm / on / off / snooze; a ringing screen (snooze, stop — keys, mouse, gamepad),
+  sound and a system notification, respecting mute and stealth. They ring while ICEBREAKER
+  runs. `timer 15s` is 15 seconds (it was read as 1:05).
+- **STATS redrawn**: tiles that say what they mean (the value, ▲▼ against the period before,
+  a sparkline, a line in words), a real chart with its average, facts (per day, best, days in
+  a row…), a pie of activity by module and the weekdays; 7 d · 30 d · 90 d · 1 year.
+- **NEWS** — each widget answers one question, *what do I show?*: your area, your
+  country's top stories, the categories it ticks, or your own words. Its header always says
+  it; a click on it changes it. The new **NEWS page** (`news page`) has the same four as
+  tabs, "à la une" big and the article read on the right. Old settings carry over (a widget's
+  categories, else the old topic, else your area). Categories show this week's news.
+- **MOON** — its own page: the moon drawn in half blocks and lit from the sun's side, its seas
+  and earthshine, the next four phases, the month as a calendar of moons (←→ a day, ↑↓ a
+  week, t today). The phase comes from the sun's and the moon's positions (Meeus): to the
+  hour — **it was five days off before**. Light themes draw the moon in its own night.
+- **SYSMON redrawn**: CPU and memory in big digits with their graphs, the cores as bars, the
+  busiest processes (by cpu or memory), the disks, the network's rates, the load average.
+  `system.rs` reads them with sysinfo's disk and network features (no new crate); nothing
+  leaves the computer.
+- **WHAT'S NEW** for a minor version gets louder: sparks, a drifting starfield, the version
+  decrypting in, its headline typing itself out (standing still with reduce motion).
+- **Security** (docs/SECURITY_AUDIT.md #60–62): rearranging the screen (`layout` beyond
+  looking, `frame`, `tab move / group / ungroup / groupname`) and your alarms beyond listing them
+  are refused to modules and to your real terminal (which may still set an alarm) — type them in
+  ibsh; `sysmon.stats` gives a module the vitals only; an alarm set by a line with an origin
+  rings (one clock per deck). A tab shown in the shell's frame gives way to the shell whenever
+  the shell is asked for, so nothing typed for the shell lands in a page.
+- Fixes: a second copy of a widget was refused ("already on the grid") while HOME still had
+  its default layout; TODO's "↓ N more" badge was drawn over a task; the tree drew a row
+  under its frame in a tiny window; `layout reset` puts the shell's height back; a half
+  block dimmed behind a pop-up is dimmed in both halves (no stripes).
+  A module switched off or removed closes its pages' tabs; a tab whose frame isn't on screen
+  (hidden, or dropped by a narrow window) is in the page's tabs meanwhile; ⌘W / Ctrl+W closes
+  the tab you're looking at; `launch nexus` (a module's name) opens its page; `news open`
+  opens the NEWS page; the confirm dialog wraps long lines (a module's permissions were cut);
+  the boot's plugins line is short, the reasons in the LOG; the STORE offers "update" only
+  when there's a newer version.
+
 ## 0.5.5 — 2026-11-21
 
 - **CRT curvature really bends the picture** (`fx curve`, Settings → Effects): the screen bulges

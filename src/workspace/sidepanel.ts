@@ -8,6 +8,7 @@ import { Glide } from "../ui/glide";
 import { inside, type Hit, type UI } from "../ui/ui";
 import { focusWidget, widgetIdOf } from "../widgets/instances";
 import { WidgetPicker } from "./widgetpicker";
+import { soloTab, tabbedBox } from "./tabstrip";
 
 /** One widget of the panel: where it starts (lines from the top) and how tall it is. */
 interface Slot {
@@ -134,7 +135,9 @@ export class SidePanel {
     const hasFocus = ws.focus === "panel";
     const slots = this.layout();
     this.sel = Math.max(0, Math.min(this.sel, slots.length - 1));
-    const inner = ui.box(r, { title: t("PANEL"), info: editing ? t("edit · esc done") : hasFocus ? t("e edit · a add") : undefined, border: editing ? "heavy" : undefined, focused: editing || hasFocus });
+    // its tab on its border, like every frame (workspace/tabstrip.ts)
+    const inner = tabbedBox(ui, r, { info: editing ? t("edit · esc done") : hasFocus ? t("e edit · a add") : undefined, border: editing ? "heavy" : undefined, focused: editing || hasFocus });
+    soloTab(ui, r, t("PANEL"), (editing || hasFocus) && !ws.topModal, { onClick: () => (ws.focus = "panel"), tip: t("widgets always in view · panel hide · ◧ in the status bar"), menu: () => [{ label: t("Add widget…"), run: () => void this.pick() }, { label: t("Fold"), cmd: "frame fold panel" }, { label: t("Hide panel"), cmd: "panel hide" }] });
     ui.hit(inner, {
       menu: () => [{ label: editing ? t("Done editing") : t("Edit layout"), run: () => void (ws.editing = !editing), hint: editing ? "esc" : "e" }, { label: t("Add widget…"), run: () => void this.pick() }, { label: t("Hide panel"), cmd: "panel hide" }],
       onWheel: (dy) => this.glide.push(dy),
@@ -232,7 +235,8 @@ export class SidePanel {
         }
       }
     });
-    if (maxScroll > 0) ui.textRight(inner.x + inner.w, this.scroll < maxScroll ? inner.y + inner.h - 1 : inner.y, this.scroll < maxScroll ? "↓" : "↑", { fg: c.accent, attrs: BOLD });
+    // more below / above: an arrow in the corner, over a widget's frame on purpose (ui.art)
+    if (maxScroll > 0) ui.art(() => ui.textRight(inner.x + inner.w, this.scroll < maxScroll ? inner.y + inner.h - 1 : inner.y, this.scroll < maxScroll ? "↓" : "↑", { fg: c.accent, attrs: BOLD }));
     if (!slots.length) {
       ui.textCenter(inner, inner.y + 1, t("empty"), { fg: c.muted });
       ui.textCenter(inner, inner.y + 3, t("a: add a widget · right-click"), { fg: c.faint });

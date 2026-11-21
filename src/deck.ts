@@ -2,6 +2,8 @@ import { startHereCommand } from "./vault/starthere";
 import type { ModuleSettingSpec } from "./plugins/api";
 import { focusSpec } from "./apps/focus";
 import { clocksSpec } from "./apps/clocks";
+import { moonSpec } from "./apps/moon";
+import { newsSpec } from "./apps/news";
 import { weatherCommand, weatherSpec } from "./apps/weather";
 import { pinCommand, pinnedWidget, unpinCommand } from "./workspace/favorites";
 import { terminalSpec } from "./apps/terminal";
@@ -249,7 +251,7 @@ export class Deck implements InputSink {
       if (g === "back" || g === "forward") {
         if (ws.topModal) return;
         this.sound.play("move");
-        ws.switchTab(ws.active + (g === "forward" ? 1 : -1), true);
+        ws.stepTab(g === "forward" ? 1 : -1, true);
       } else this.zoom(g === "zoom-in" ? 1 : -1);
       this.requestFrame();
     };
@@ -370,7 +372,15 @@ export class Deck implements InputSink {
     this.ai.gate = () => (this.plugins.list().some((p) => p.manifest.id === "uplink" && p.active) ? null : "the UPLINK module is off (MODULES → UPLINK)");
     migrateWheel(this); // the old gamepad wheel's slots → keys on THE MENU (once)
     this.updater.start();
-    await step(() => this.plugins.init(), () => ({ text: `Plugins: ${this.plugins.active().map((p) => p.manifest.id).join(", ") || "none"}`, status: this.plugins.list().some((p) => p.error) ? "WARN" : "OK" }));
+    // short enough to read whole (the list of every module was cut with …); what's wrong, by name,
+    // with the whole reason in the LOG
+    await step(() => this.plugins.init(), () => {
+      const on = this.plugins.active().length;
+      const bad = this.plugins.list().filter((p) => p.error);
+      for (const p of bad) this.log.add("notify", `${p.manifest.name ?? p.manifest.id}: ${p.error}`, { source: "warning" });
+      if (!bad.length) return { text: `Plugins: ${on} on`, status: "OK" };
+      return { text: `Plugins: ${on} on · ${bad.map((p) => p.manifest.id).join(", ")} ${bad.length > 1 ? "need" : "needs"} you — see the LOG`, status: "WARN" };
+    });
     this.platform.bridge?.onRun((req) => void this.runBridged(req));
     // files changed in the terminal, Obsidian, Finder…: refresh the tree, search, widgets
     await step(() => this.platform.onVaultChange?.(() => void this.vault.rescan().then(() => this.requestFrame())), () => this.platform.onVaultChange ? { text: "Watching the vault for outside changes", status: "OK" } : null);
@@ -476,7 +486,7 @@ export class Deck implements InputSink {
     // the frame's own parts, callable like modules: deck.use("tree").reveal(…), ib.use("terminal")…
     for (const [id, fns] of Object.entries(frameServices(this))) this.services.exposeAll(id, fns);
     syncLinkWidgets(this); // the 1×1 shortcut squares
-    for (const a of [homeSpec, modulesSpec, storeSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec, shortcutsSpec, terminalSpec, weatherSpec, clocksSpec, focusSpec, trashSpec, blocksSpec]) this.apps.register(a);
+    for (const a of [homeSpec, modulesSpec, storeSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec, shortcutsSpec, terminalSpec, weatherSpec, clocksSpec, newsSpec, moonSpec, focusSpec, trashSpec, blocksSpec]) this.apps.register(a);
 
     registerCoreActions(this); // THE MENU's searchable actions (deck-actions.ts)
   }

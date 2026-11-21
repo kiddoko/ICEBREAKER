@@ -107,6 +107,15 @@ export interface SystemStats {
   cpuBrand: string;
   processes: number;
   arch: string;
+  /** the busiest processes, by cpu (cpu in % of ONE core); absent from older builds */
+  top?: { name: string; cpu: number; mem: number }[];
+  /** the disks: mount point, name, bytes */
+  disks?: { mount: string; name: string; total: number; available: number; removable: boolean }[];
+  /** bytes received / sent since the computer started (the rate is the difference over time) */
+  netRx?: number;
+  netTx?: number;
+  /** load average over 1, 5, 15 minutes (0 where there's none: Windows) */
+  load?: [number, number, number];
 }
 
 export interface Platform {

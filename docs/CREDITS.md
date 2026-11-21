@@ -14,6 +14,8 @@ an issue.
 | JavaScript libraries | npm — the list is in `package-lock.json` | each package's own (MIT for most) |
 | Nightshade's palette | inspired by [Catppuccin](https://catppuccin.com) | MIT |
 | The quotes widget | old philosophers (public domain) and our own lines | — |
+| MOON's phases | the main terms of Jean Meeus's *Astronomical Algorithms* (ch. 25, 47, 48), written again in `src/widgets/moonphase.ts` | the formulas; our code is MIT |
+| SYSMON's vitals | [sysinfo](https://crates.io/crates/sysinfo) (its system, disk and network parts) | MIT |
 
 ## Downloaded when you ask for them
 

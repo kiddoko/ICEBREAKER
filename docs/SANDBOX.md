@@ -63,6 +63,10 @@ the deck and still run inside it.
   `ai.session` / `vaultTools` / `ready` / `problem`, `backgrounds`,
   `media.available`, `google.available / setup`, a widget's `open` command. They need
   a callback across the wall; they come when a module needs them.
+- What its shell lines can't do (0.6, `src/shell/privileged.ts`): rearrange the screen
+  (`layout` beyond looking, `frame`, `tab move / group / ungroup / groupname`) — its page put
+  where your shell is, with a fake prompt — or touch your alarms beyond listing them. And
+  `sysmon.stats` gives it the vitals only.
 
 ### Tested
 

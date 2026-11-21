@@ -3,17 +3,19 @@ import { typed } from "../ui/typewriter";
 import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
 import { chatWidget } from "./chatbox";
 import { t } from "../core/i18n";
-import { mix } from "../core/color";
 import { BOLD } from "../core/grid";
 import type { Deck } from "../deck";
 import { Rain } from "../fx/rain";
-import { cellsFor, dots, fitMatrix, matrixSize, matrixText } from "../ui/dots";
+import { cellsFor, fitMatrix, matrixSize, matrixText } from "../ui/dots";
 import { drawUplinkCore } from "../ui/uplinkcore";
 import { isoDay, streakOf } from "../core/time";
 import { newsWidget } from "./news";
 import type { WidgetSpec } from "./types";
 import type { Command } from "../shell/types";
 import { fmt } from "../core/ansi";
+import { drawMoon } from "./moondraw";
+import { GAP, INSET } from "../ui/layout";
+import { moonLit, phaseName, upcoming } from "./moonphase";
 
 /* Extra cards shipped with the deck: not all on the default HOME, all one `a` away. */
 
@@ -63,38 +65,28 @@ const focusWidget: WidgetSpec = {
 const moonWidget: WidgetSpec = {
   id: "moon",
   title: "moon",
-  description: "tonight's moon phase",
+  description: "tonight's moon: its phase, how much is lit, the next full moon",
   size: { w: 4, h: 4 },
   min: { w: 2, h: 2 },
-  render(ui, r) {
+  open: "launch moon",
+  render(ui, r, { deck }) {
     const c = ui.c;
-    const synodic = 29.530588853;
-    const age = (((Date.now() / 86400000 - 10957.76) % synodic) + synodic) % synodic; // days since new moon
-    const phase = age / synodic;
-    const lit = (1 - Math.cos(phase * 2 * Math.PI)) / 2;
-    const names = ["new moon", "waxing crescent", "first quarter", "waxing gibbous", "full moon", "waning gibbous", "last quarter", "waning crescent"];
-    const name = names[Math.round(phase * 8) % 8];
-    // a round disc whatever the font: drawn in physical units (see ui/dots.ts)
-    const rows = Math.max(2, Math.min(r.h, 5));
-    const cols = cellsFor(ui, rows);
-    const R = rows / 2;
-    const x0 = r.x + 1, y0 = r.y + Math.floor((r.h - rows) / 2);
-    const k = Math.cos(phase * 2 * Math.PI);
-    dots(ui, { x: x0, y: y0, w: cols, h: rows }, [c.faint, mix(c.fg, c.warning, 0.2)], (x, y) => {
-      const px = (x - cols * ui.cellAspect / 2) / R, py = (y - R) / R;
-      const d2 = px * px + py * py;
-      if (d2 > 1) return 0;
-      const term = k * Math.sqrt(Math.max(0, 1 - py * py));
-      const isLit = phase < 0.5 ? px > term : px < -term;
-      return isLit ? 2 : d2 > 0.78 ? 1 : 0;
-    });
-    const tx = x0 + cols + 3;
-    if (tx + 10 < r.x + r.w) {
-      const ty = r.y + Math.max(0, Math.floor((r.h - 3) / 2));
-      ui.text(tx, ty, name, { fg: c.fg, attrs: BOLD }, r.x + r.w - tx);
-      ui.text(tx, ty + 1, `${Math.round(lit * 100)}% lit`, { fg: c.muted });
-      ui.text(tx, ty + 2, `day ${Math.floor(age)} of 29`, { fg: c.subtle });
-    }
+    const now = Date.now();
+    // the moon drawn (moondraw.ts), its words beside it when there's room
+    const size = Math.min(r.h, Math.floor(r.w * ui.cellAspect));
+    const cols = Math.ceil(size / ui.cellAspect);
+    const words = r.w - cols - 3 >= 12;
+    drawMoon(ui, words ? { x: r.x + INSET, y: r.y, w: cols, h: r.h } : r, now);
+    if (!words) return;
+    const tx = r.x + INSET + cols + GAP, tw = r.x + r.w - tx;
+    const full = upcoming(now).find((p) => p.name === "full moon");
+    const lines: [string, number, number][] = [
+      [t(phaseName(now)), c.fg, BOLD],
+      [t("{n} % lit", { n: Math.round(moonLit(now) * 100) }), c.muted, 0],
+      ...(full ? ([[`● ${t("full moon {d}", { d: full.at.toLocaleDateString(deck.settings.data.user.locale || undefined, { weekday: "short", day: "numeric" }) })}`, c.subtle, 0]] as [string, number, number][]) : []),
+    ];
+    const ty = r.y + Math.max(0, Math.floor((r.h - lines.length) / 2));
+    lines.slice(0, r.h).forEach(([s, fg, attrs], i) => ui.text(tx, ty + i, s, { fg, attrs }, tw));
   },
 };
 

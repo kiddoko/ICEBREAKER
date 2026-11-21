@@ -34,6 +34,8 @@ checkbox or word wrapping again.
 | a row that drops the least important first | `Bar` (`priority`, `side`, `fit`) | `ib.lib.Bar` | a status bar, a page's header: never overlaps, never cuts |
 | sections down a frame · cards that reflow | `stack` · `cards` | `ib.lib.stack` · `ib.lib.cards` | a header, a list, a help line that goes first · forecast days, 4 a row or 1 |
 | how big a frame is | `sizeClass` (`xs` `s` `m` `l`) · `atLeast` | `ib.lib.sizeClass` | choose a layout from your frame, not the window |
+| fine drawing: braille dots and rings | `Braille` · `ring(b, cx, cy, r, lit)` (`src/ui/braille.ts`) | — | CLOCKS' timer rings and stopwatch dial: 2×4 dots a cell, layers in two colours |
+| a frame's tabs on its border (the deck's own frames) | `tabbedBox` · `soloTab` · `chipStyle` · `drawChip` (`src/workspace/tabstrip.ts`) | — | the tabs' names above the frame's line, a half-block bar under each; lit when the frame has the focus |
 
 ## How to use a field
 

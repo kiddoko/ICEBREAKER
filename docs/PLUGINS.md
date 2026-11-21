@@ -222,8 +222,12 @@ The full surface is typed and commented in
   `factory-reset`, `script`, `macro` (but show / hide), `bind` / `unbind`, `keys`, `menu add`,
   `pin`, `home link`, `plugin` and `store` beyond listing and searching, `update` beyond
   looking, `modules call` / `set`, `stealth off`, `theme install`, `voice install`, `encoders` beyond looking, `exit`,
-  `reboot`, and `config set` of the settings that hold commands or decide what runs
-  (`keys`, `menu`, `shell`, `plugins`, `ai`, `privacy`, `updates`, `vault`, `home`, `favorites`…).
+  `reboot`, rearranging the screen (`layout` beyond looking, `frame`, `tab move` / `group` /
+  `ungroup` / `groupname` — 0.6), your alarms beyond listing them (`clock alarm …`; your real
+  terminal may set one, nothing else), and `config set` of the settings that hold commands or
+  decide what runs (`keys`, `menu`, `shell`, `plugins`, `ai`, `privacy`, `updates`, `vault`, `home`,
+  `favorites`, `layout`…). `sysmon.stats` gives a module the vitals (cpu, memory, uptime, the
+  system), not the busiest programs, the disks or the network.
 - The functions you call (`ib.modules.call`, `ib.use`) follow the same rule: one that runs a
   command (`shell.run`, `home.add`, `clocks.timer`…) runs it as your module; the built-in
   modules' functions ask for a permission (`todo.list`, `reminders.list`, `habits.list`:

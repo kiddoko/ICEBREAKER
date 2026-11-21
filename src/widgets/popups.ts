@@ -1,7 +1,7 @@
 import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
-import { BOX_OFF, BOX_ON, checkbox, choice } from "../ui/controls";
-import { clockState, dur, soonestTimer, swNow, type ClockTimer } from "./clockstate";
-import { NEWS_CATEGORIES } from "./news";
+import { checkbox, choice } from "../ui/controls";
+import { parseTimer, clockState, dur, soonestTimer, swNow, type ClockTimer } from "./clockstate";
+import { followedCats, followedWords, hasArea, NEWS_CATEGORIES, sourceLabel, widgetSource, type NewsSource } from "./news";
 import { clockCommand } from "./clockfaces";
 import { t } from "../core/i18n";
 /**
@@ -26,8 +26,12 @@ import { isoDay, mmss, streakOf } from "../core/time";
 import { focus, MATRIX_SETS, matrixLook, tickFocus } from "./extra";
 import type { PopupContext, WidgetPopupSpec, WidgetSpec } from "./types";
 import { Field } from "../ui/field";
+import { drawMoon } from "./moondraw";
+import { moonAge, moonLit, phaseName, SYNODIC, upcoming } from "./moonphase";
 import { chatPopup } from "./chatbox";
 import { DURATIONS, NEWS_TOPICS, places } from "../core/suggest";
+import { Bar, GAP, INSET, SECTION, stack } from "../ui/layout";
+import { drawSky, sceneFor } from "../apps/weathersky";
 
 
 /* ─────────── focus: start / pause / reset, durations ─────────── */
@@ -117,42 +121,38 @@ export const focusCommand: Command = {
 
 /* ─────────── moon: the next phases ─────────── */
 
-const SYNODIC = 29.530588853;
-const moonAge = (t = Date.now()) => (((t / 86400000 - 10957.76) % SYNODIC) + SYNODIC) % SYNODIC;
-/** when the moon next reaches `frac` of its cycle (0 new, .25 first quarter, .5 full, .75 last quarter) */
-const nextPhase = (frac: number) => {
-  const age = moonAge();
-  let days = frac * SYNODIC - age;
-  if (days <= 0.2) days += SYNODIC;
-  return new Date(Date.now() + days * 86400000);
-};
-const PHASES: [number, string, string][] = [[0, "●", "new moon"], [0.25, "◐", "first quarter"], [0.5, "○", "full moon"], [0.75, "◑", "last quarter"]];
-
+// the moon's phase is computed in moonphase.ts (the MOON page, its widget, this pop-up, `moon`)
 const moonPopup: WidgetPopupSpec = {
   title: "moon",
-  size: { w: 46, h: 8 },
+  size: { w: 50, h: 10 },
+  hint: "enter: the MOON page",
   render(ui, r) {
     const c = ui.c;
-    const age = moonAge();
-    ui.text(r.x + 2, r.y + 1, `day ${age.toFixed(1)} of ${SYNODIC.toFixed(1)}`, { fg: c.fg, attrs: BOLD });
-    PHASES.map(([f, g, name]) => ({ g, name, at: nextPhase(f) }))
-      .sort((a, b) => a.at.getTime() - b.at.getTime())
-      .forEach((p, i) => {
-        const y = r.y + 3 + i;
-        ui.text(r.x + 2, y, p.g, { fg: mix(c.fg, c.warning, 0.3) });
-        ui.text(r.x + 5, y, p.name, { fg: c.fg });
-        ui.textRight(r.x + r.w - 2, y, p.at.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }), { fg: c.accent });
-      });
+    const now = Date.now();
+    const mw = Math.min(Math.ceil((r.h - 1) / ui.cellAspect), Math.floor(r.w / 3));
+    drawMoon(ui, { x: r.x + INSET, y: r.y, w: mw, h: r.h - 1 }, now);
+    const x = r.x + INSET + mw + GAP, w = r.x + r.w - INSET - x;
+    ui.text(x, r.y, t(phaseName(now)), { fg: c.fg, attrs: BOLD }, w);
+    ui.text(x, r.y + 1, `${t("{n} % lit", { n: Math.round(moonLit(now) * 100) })} · ${t("day {d} of {all}", { d: moonAge(now).toFixed(1), all: SYNODIC.toFixed(1) })}`, { fg: c.muted }, w);
+    upcoming(now).forEach((p, i) => {
+      const y = r.y + 3 + i;
+      if (y >= r.y + r.h) return;
+      ui.text(x, y, `${p.glyph} ${t(p.name)}`, { fg: c.fg }, w - 12);
+      ui.textRight(x + w, y, p.at.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }), { fg: c.accent });
+    });
   },
+  onAction: (a, { deck }) => (a === "confirm" ? (deck.openApp("moon"), true) : false),
 };
 
 export const moonCommand: Command = {
   name: "moon",
-  summary: "tonight's moon and the next phases",
+  summary: "tonight's moon and the next phases (moon open: the MOON page)",
+  usage: "moon         the phase, how much is lit, the next four phases\nmoon open    the MOON page (the moon drawn, the month in moons)",
   run(ctx) {
-    const age = moonAge();
-    ctx.out(`${fmt.bold(`day ${age.toFixed(1)}`)} of the lunar cycle\n`);
-    for (const [f, g, name] of PHASES) ctx.out(`${g} ${name.padEnd(14)} ${fmt.dim(nextPhase(f).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }))}\n`);
+    if (ctx.args[0] === "open") return void ctx.deck.openApp("moon");
+    const now = Date.now();
+    ctx.out(`${fmt.bold(phaseName(now))} · ${Math.round(moonLit(now) * 100)}% lit · day ${moonAge(now).toFixed(1)} of ${SYNODIC.toFixed(1)}\n`);
+    for (const p of upcoming(now)) ctx.out(`${p.glyph} ${p.name.padEnd(14)} ${fmt.dim(p.at.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }))}\n`);
   },
 };
 
@@ -246,27 +246,53 @@ const streakPopup: WidgetPopupSpec = {
 const SKY: Record<string, string> = { sun: "☼", partly: "◐", cloud: "☁", rain: "☂", snow: "❄", storm: "ϟ", fog: "≋" };
 const weatherPopup: WidgetPopupSpec = {
   title: "weather",
-  size: { w: 56, h: 13 },
+  size: { w: 60, h: 16 },
   hint: "c: city",
   render(ui, r, { deck, key }) {
     const c = ui.c;
     const w = currentWeather(widgetConfig(deck, key, "city", ""));
     // (wrapped: on one line it was cut at both ends while it scrolled)
-    if (!w) return void wrapWords("no forecast yet — location: setup, or config set home.weatherCity <city>", r.w - 4).forEach((l, i) => ui.text(r.x + 2, r.y + 1 + i, l, { fg: c.muted }));
-    ui.text(r.x + 2, r.y, w.place, { fg: c.fg, attrs: BOLD });
-    ui.textRight(r.x + r.w - 2, r.y, `${Math.round(w.temp)}° · feels ${Math.round(w.feels)}° · ${w.humidity}% · wind ${Math.round(w.wind)} km/h`, { fg: c.muted });
-    ui.text(r.x + 2, r.y + 1, `sunrise ${w.sunrise} · sunset ${w.sunset} · rain ${w.rainChance}%`, { fg: c.subtle });
+    if (!w) return void wrapWords("no forecast yet — location: setup, or config set home.weatherCity <city>", r.w - INSET * 4).forEach((l, i) => ui.text(r.x + INSET * 2, r.y + 1 + i, l, { fg: c.muted }));
+    // the sky (the WEATHER page's, apps/weathersky.ts) with the place and the temperature on it,
+    // the details under it, then the week: each day's range on the week's scale
+    const [skyR, detR, weekR] = stack(r, [
+      { min: 3, h: 5, priority: 6 },
+      { h: 1, priority: 8 },
+      { min: 2, fill: 1, priority: 9 },
+    ], 0);
+    if (skyR) {
+      const scene = sceneFor(w.code, { isDay: w.isDay, wind: w.wind, windDir: w.windDir, rain: w.rainChance });
+      ui.clip(skyR, () => ui.art(() => drawSky(ui, skyR, scene, ui.now / 1000)));
+      new Bar(ui, skyR.x + INSET * 2, skyR.y, skyR.x + skyR.w - INSET * 2)
+        .text(w.place, { fg: c.fg, attrs: BOLD }, { priority: 7, fit: 6 })
+        .text(`${Math.round(w.temp)}°`, { fg: c.accent, attrs: BOLD }, { side: "right", priority: 9 })
+        .draw();
+    }
+    if (detR) {
+      new Bar(ui, detR.x + INSET * 2, detR.y, detR.x + detR.w - INSET * 2)
+        .text(`${t("feels")} ${Math.round(w.feels)}°`, { fg: c.subtle }, { priority: 7 })
+        .text(`${t("wind")} ${Math.round(w.wind)} km/h`, { fg: c.subtle }, { priority: 5 })
+        .text(`☂ ${w.rainChance}%`, { fg: mix(0x7fb4ea, c.bg, 0.2) }, { priority: 8 })
+        .text(`${w.humidity}%rh`, { fg: c.faint }, { priority: 3 })
+        .text(`↑${w.sunrise} ↓${w.sunset}`, { fg: c.faint }, { side: "right", priority: 4 })
+        .draw();
+    }
+    if (!weekR) return;
     const lo = Math.min(...w.days.map((d) => d.min)), hi = Math.max(...w.days.map((d) => d.max));
-    const span = Math.max(1, hi - lo), barW = Math.max(6, r.w - 30);
-    w.days.slice(0, r.h - 4).forEach((d, i) => {
-      const y = r.y + 3 + i;
-      ui.text(r.x + 2, y, new Date(`${d.date}T12:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric" }), { fg: c.muted });
-      ui.text(r.x + 12, y, SKY[sky(d.code)] ?? "·", { fg: c.warning });
-      ui.textRight(r.x + 19, y, `${Math.round(d.min)}°`, { fg: c.info });
+    const span = Math.max(1, hi - lo);
+    const x0 = weekR.x + INSET * 2, x1 = weekR.x + weekR.w - INSET * 2;
+    const DAY = 9, GLY = 2, LO = 4, HI = 4;
+    const barX = x0 + DAY + GLY + LO + 1, barW = Math.max(4, x1 - barX - HI - 1);
+    w.days.slice(0, weekR.h).forEach((d, i) => {
+      const y = weekR.y + i;
+      const k = sky(d.code);
+      ui.text(x0, y, new Date(`${d.date}T12:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric" }), { fg: c.muted }, DAY - 1);
+      ui.text(x0 + DAY, y, SKY[k] ?? "·", { fg: k === "sun" || k === "partly" ? c.warning : k === "snow" ? c.fg : mix(0x7fb4ea, c.bg, 0.15) });
+      ui.textRight(barX - 1, y, `${Math.round(d.min)}°`, { fg: mix(0x7fb4ea, c.bg, 0.1) });
       const a = Math.round(((d.min - lo) / span) * barW), b = Math.max(a + 1, Math.round(((d.max - lo) / span) * barW));
-      ui.text(r.x + 21, y, "─".repeat(barW), { fg: c.faint });
-      ui.text(r.x + 21 + a, y, "━".repeat(b - a), { fg: mix(c.info, c.warning, (d.max - lo) / span) });
-      ui.text(r.x + 22 + barW, y, `${Math.round(d.max)}°`, { fg: c.warning });
+      ui.text(barX, y, "─".repeat(barW), { fg: c.faint });
+      ui.text(barX + a, y, "━".repeat(Math.min(barW - a, b - a)), { fg: mix(0x7fb4ea, 0xffcf5a, (d.max - lo) / span) });
+      ui.text(barX + barW + 1, y, `${Math.round(d.max)}°`, { fg: 0xffcf5a }, HI);
     });
   },
   onText: (t, { deck, key }) => {
@@ -279,72 +305,61 @@ const weatherPopup: WidgetPopupSpec = {
   },
 };
 
-/* ─────────── news: pick the topic ─────────── */
+/* ─────────── news: what this widget shows ─────────── */
 
 const newsPopup: WidgetPopupSpec = {
   title: "news",
-  size: { w: 66, h: 15 },
-  hint: "this widget: its categories, its mode · t: topic · i: interests",
+  size: { w: 66, h: 14 },
+  hint: "what this widget shows · its look · w: your own words",
   render(ui, r, { deck, key }) {
     const c = ui.c;
-    // this copy: list or "à la une", and the categories it shows (none: the shared feed)
+    // ONE question: what does this widget show? (the user's choice "A": widgets/news.ts)
+    const src = widgetSource(deck, key);
     const mode = widgetConfig<string>(deck, key, "mode", "list");
-    const cats = widgetConfig<string[]>(deck, key, "cats", []);
-    ui.text(r.x + 2, r.y, t("THIS WIDGET"), { fg: c.title, attrs: BOLD });
-    let x = r.x + 2;
-    x = ui.text(x, r.y + 1, `${t("show")} `, { fg: c.muted }) + 1;
-    x += ui.button(x, r.y + 1, t("headlines"), () => {}, { cmd: "news mode list", selected: mode !== "featured" }) + 1;
-    ui.button(x, r.y + 1, t("à la une (one, big, with its summary)"), () => {}, { cmd: "news mode featured", selected: mode === "featured" });
-    ui.text(r.x + 2, r.y + 3, cats.length ? t("only these categories (click to switch one):") : t("categories: none chosen — it shows your area + interests"), { fg: c.muted }, r.w - 4);
-    x = r.x + 2;
-    let y = r.y + 4;
-    for (const [id, cat] of Object.entries(NEWS_CATEGORIES)) {
-      const label = t(cat.label);
-      const w = label.length + 2;
-      if (x + w > r.x + r.w - 2) (x = r.x + 2), y++;
-      const on = cats.includes(id);
-      ui.button(x, y, label, () => {}, { cmd: `news show ${on ? "-" : "+"}${id}`, selected: on });
-      x += w + 1;
-    }
-    if (cats.length) ui.button(r.x + 2, y + 1, t("× all categories off (the shared feed)"), () => {}, { cmd: "news show all", accent: c.subtle });
-    // the shared feed (every copy without categories)
-    const sy = y + 3;
-    const topic = deck.settings.data.home.newsTopic;
-    const mine = deck.settings.data.home.newsInterests ?? [];
-    ui.text(r.x + 2, sy, t("SHARED FEED"), { fg: c.title, attrs: BOLD });
-    ui.text(r.x + 2, sy + 1, `${t("following:")} ${topic || t("your area (top stories)")} · ${t("interests:")} ${mine.join(", ") || "—"}`, { fg: c.muted }, r.w - 4);
-    x = r.x + 2;
-    x += ui.button(x, sy + 2, t("change topic"), () => void askTopic(deck), { tip: "t · news topic <words>" }) + 2;
-    x += ui.button(x, sy + 2, t("my area"), () => {}, { cmd: "news topic -", tip: "-" }) + 2;
-    x += ui.button(x, sy + 2, t("+ / − interests"), () => void pickInterests(deck), { tip: "i · news add tech · news rm tech" }) + 2;
-    ui.button(x, sy + 2, t("refresh"), () => {}, { cmd: "news refresh" });
+    const x0 = r.x + INSET * 2, x1 = r.x + r.w - INSET * 2;
+    let y = r.y;
+    ui.text(x0, y++, t("THIS WIDGET SHOWS"), { fg: c.title, attrs: BOLD });
+    const row = new Bar(ui, x0, y++, x1);
+    const pick = (kind: NewsSource["kind"], label: string, cmd: () => void, tip: string) => row.button(label, cmd, { selected: src.kind === kind, tip }, { priority: 5 });
+    // no place set: "your area" is your country — only ⚑ then (lit for either)
+    if (hasArea(deck)) pick("area", `⌖ ${sourceLabel(deck, { kind: "area" })}`, () => void deck.act("news show area"), t("your area (location: setup)"));
+    else row.button(`⚑ ${sourceLabel(deck, { kind: "country" })}`, () => void deck.act("news show country"), { selected: src.kind === "area" || src.kind === "country", tip: t("your country's top stories · set your place (setup) for your area's") }, { priority: 5 });
+    if (hasArea(deck)) pick("country", `⚑ ${sourceLabel(deck, { kind: "country" })}`, () => void deck.act("news show country"), t("your country's top stories"));
+    pick("cats", `▦ ${t("categories")}`, () => void (src.kind !== "cats" && deck.act(`news show ${(followedCats(deck).length ? followedCats(deck) : ["world"]).join(" ")}`)), t("the categories you tick, woven together"));
+    pick("topic", `❝ ${t("your own words")}`, () => void askWords(deck, src), "w");
+    row.draw();
+    y += SECTION;
+    if (src.kind === "cats") {
+      // tick them on and off (the last one off: back to your area)
+      ui.text(x0, y++, t("its categories (click to switch one):"), { fg: c.muted }, x1 - x0);
+      let x = x0;
+      for (const [id, cat] of Object.entries(NEWS_CATEGORIES)) {
+        const label = t(cat.label);
+        const w = label.length + GAP;
+        if (x + w > x1) (x = x0), y++;
+        const on = src.cats.includes(id);
+        ui.button(x, y, label, () => {}, { cmd: `news show ${on ? "-" : "+"}${id}`, selected: on });
+        x += w + INSET;
+      }
+      y++;
+    } else if (src.kind === "topic") {
+      const x = ui.text(x0, y, `“${src.words}”`, { fg: c.fg, attrs: BOLD }, x1 - x0 - 12) + GAP;
+      ui.button(x, y++, t("change"), () => void askWords(deck, src), { tip: "w" });
+    } else ui.text(x0, y++, src.kind === "area" ? t("the news where you are (a quiet place gets the national news added)") : t("your country's top stories"), { fg: c.muted }, x1 - x0);
+    y += SECTION;
+    ui.text(x0, y++, t("ITS LOOK"), { fg: c.title, attrs: BOLD });
+    new Bar(ui, x0, y++, x1)
+      .button(t("headlines"), () => {}, { cmd: "news mode list", selected: mode !== "featured" }, { priority: 6 })
+      .button(t("à la une (one, big, with its summary)"), () => {}, { cmd: "news mode featured", selected: mode === "featured" }, { priority: 5 })
+      .button(t("refresh"), () => {}, { cmd: "news refresh" }, { side: "right", priority: 3 })
+      .draw();
   },
-  onText: (t, { deck }) => (t === "t" ? (void askTopic(deck), true) : t === "i" ? (void pickInterests(deck), true) : t === "-" ? (void deck.act("news topic -"), true) : false),
+  onText: (s, { deck, key }) => (s === "w" ? (void askWords(deck, widgetSource(deck, key)), true) : false),
 };
-/** Tick categories on and off (and type your own words), one pick at a time. */
-async function pickInterests(deck: Deck): Promise<void> {
-  for (;;) {
-    const mine = deck.settings.data.home.newsInterests ?? [];
-    const cats = Object.entries(NEWS_CATEGORIES);
-    const opts = [
-      ...cats.map(([id, c]) => ({ label: `${mine.includes(id) ? BOX_ON : BOX_OFF} ${t(c.label)}`, hint: id })),
-      ...mine.filter((m) => !NEWS_CATEGORIES[m]).map((m) => ({ label: `☑ ${m}`, hint: t("your words") })),
-      { label: t("+ your own words…"), hint: "formula 1, linux, Lyon…" },
-    ];
-    const i = await deck.choose(t("News interests (esc when done)"), opts);
-    if (i === null) return;
-    if (i === opts.length - 1) {
-      const v = await deck.prompt(t("Follow what?"), { placeholder: "formula 1, linux, Lyon…", suggestions: NEWS_TOPICS });
-      if (v?.trim()) await deck.act(`news add ${v.trim()}`);
-      continue;
-    }
-    const id = i < cats.length ? cats[i][0] : mine.filter((m) => !NEWS_CATEGORIES[m])[i - cats.length];
-    await deck.act(`news ${mine.includes(id) ? "rm" : "add"} ${id}`);
-  }
-}
-async function askTopic(deck: Deck): Promise<void> {
-  const v = await deck.prompt("News topic", { initial: deck.settings.data.home.newsTopic, placeholder: "space, intelligence artificielle, F1…", suggestions: NEWS_TOPICS });
-  if (v !== null) void deck.act(v.trim() ? `news topic ${v.trim()}` : "news topic -");
+/** Your own words for this widget (a topic: "formula 1", "linux", "Lyon"…). */
+async function askWords(deck: Deck, cur: NewsSource): Promise<void> {
+  const v = await deck.prompt(t("This widget shows the news about…"), { initial: cur.kind === "topic" ? cur.words : followedWords(deck), placeholder: "formula 1, linux, Lyon…", suggestions: NEWS_TOPICS });
+  if (v?.trim()) void deck.act(`news show ${v.trim()}`);
 }
 
 /* ─────────── clock: a timer and a stopwatch ─────────── */
@@ -427,8 +442,7 @@ export const timerCommand: Command = {
       ctx.deck.requestFrame();
       return ctx.out("timer stopped\n"), 0;
     }
-    const m = /^(?:(\d+)h)?(?:(\d+)m?)?(?:(\d+)s)?$/.exec(a);
-    const ms = m ? ((Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0)) * 60 + Number(m[3] ?? 0)) * 1000 : 0;
+    const ms = parseTimer(a);
     if (!ms) return ctx.err("usage: timer 5m | 90s | 1h30 | 25 (minutes) [label]\n"), 1;
     const tm: ClockTimer = { id: clockState.nextTimer++, label: rest.join(" ") || dur(ms), end: Date.now() + ms, total: ms };
     clockState.timers.push(tm);
