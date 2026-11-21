@@ -146,6 +146,21 @@ export class Vault {
     return this.history ? this.history.groupAsync(`trash ${p}`, run) : run();
   }
 
+  /**
+   * Delete for good something in .trash (TRASH → delete permanently, `trash purge`, `trash
+   * empty`). Irreversible: it is not in the undo history, and nothing outside .trash can be
+   * deleted this way (the native side refuses it too). The caller asks first.
+   */
+  async purge(dest: string): Promise<void> {
+    const p = normalize(dest);
+    if (!p.startsWith(".trash/")) throw new Error(`${p}: only what's in the trash can be deleted for good`);
+    await this.backend.purge(p);
+    const log = await this.trashLog();
+    const left = log.filter((l) => l.dest !== p && !l.dest.startsWith(p + "/"));
+    if (left.length !== log.length) await this.backend.write(Vault.TRASH_LOG, JSON.stringify(left, null, 1)).catch(() => {});
+    this.events.emit("changed", { path: p });
+  }
+
   static readonly TRASH_LOG = ".icebreaker/trash.json";
 
   /** The trash ledger: what's in .trash and where each thing lived. */

@@ -81,6 +81,12 @@ export function createWebPlatform(): Platform {
         persist();
         return dest;
       },
+      purge: async (p) => {
+        if (!p.startsWith(".trash/") || p.split("/").includes("..")) throw new Error(`${p}: only what's in the trash can be deleted for good`);
+        for (const k of [...files.keys()]) if (k === p || k.startsWith(p + "/")) files.delete(k);
+        for (const d of [...dirs]) if (d === p || d.startsWith(p + "/")) dirs.delete(d);
+        persist();
+      },
       rename: async (from, to) => {
         for (const [k, v] of [...files]) {
           if (k === from || k.startsWith(from + "/")) {

@@ -4,9 +4,10 @@ import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
-import { trashItems, type TrashItem } from "../shell/commands/trash";
+import { purgeItems, trashItems, type TrashItem } from "../shell/commands/trash";
 import { ListView } from "../ui/list";
 import { q, type MenuEntry, type UI } from "../ui/ui";
+import { strWidth } from "../core/unicode";
 import { fileIcon } from "../ui/fileicon";
 import type { App, AppSpec } from "./types";
 import { folders } from "../core/suggest";
@@ -14,11 +15,11 @@ import { folders } from "../core/suggest";
 /**
  * TRASH (⌫ above the tree, `trash open`) — a page, not a tab: what `rm`, Delete
  * in the tree and right-click → trash put in <vault>/.trash, newest first, with
- * where each thing lived. Put things back (where they were, or elsewhere), or
- * open one to read it. Nothing is deleted for good from the deck: empty the
- * .trash folder in your file manager when you want it gone.
+ * where each thing lived. Put things back (where they were, or elsewhere), open
+ * one to read it — or delete it for good (del, after a question that says it
+ * can't be undone), or empty the whole trash.
  *
- *   ↑↓ choose · enter restore · r restore to… · o open · esc close
+ *   ↑↓ choose · enter restore · r restore to… · o open · del delete for good · esc close
  */
 export class TrashApp implements App {
   readonly kind = "trash";
@@ -39,7 +40,7 @@ export class TrashApp implements App {
     return "trash";
   }
   status(): string {
-    return t("↑↓ choose · enter restore · r restore to… · o open · esc close");
+    return t("↑↓ choose · enter restore · r restore to… · o open · del delete for good · esc close");
   }
 
   private reload(): void {
@@ -70,6 +71,13 @@ export class TrashApp implements App {
     const to = await this.deck.prompt(t("Restore to (a path in the vault)"), { initial: it.from || it.name, suggestions: folders(this.deck).map((f) => `${f}/${it.name}`) });
     if (to?.trim()) void this.deck.act(`trash restore ${q(it.path)} ${q(to.trim())}`).then(() => this.reload());
   }
+  /** gone for good, after a question that says so (shell/commands/trash.ts purgeItems) */
+  private async purge(items: TrashItem[], all = false): Promise<void> {
+    const n = await purgeItems(this.deck, items, all);
+    if (n) this.deck.notify(n === 1 ? t("deleted for good") : t("{n} things deleted for good", { n }), "success");
+    this.loadedAt = -1e9;
+    this.reload();
+  }
   private open(it: TrashItem | undefined): void {
     if (it && !it.isDir) void this.deck.openFile(it.path);
   }
@@ -79,6 +87,9 @@ export class TrashApp implements App {
       { label: `${t("restore")}${it.from ? ` → /${it.from}` : ""}`, run: () => this.restore(it), hint: "enter" },
       { label: t("Restore to…"), tip: t("put it back somewhere else"), run: () => void this.restoreTo(it), hint: "r" },
       { label: t("Preview"), tip: t("read it without taking it out of the trash"), run: () => this.open(it), hint: "o", disabled: it.isDir },
+      "-",
+      { label: t("Delete permanently…"), tip: t("can't be undone"), run: () => void this.purge([it]), hint: "del", danger: true },
+      { label: t("Empty the trash…"), tip: t("everything in it, for good"), run: () => void this.purge(this.list.items, true), danger: true },
     ];
   }
 
@@ -92,7 +103,9 @@ export class TrashApp implements App {
     if (s === "o") return this.open(this.list.current), true;
     return false;
   }
-  onKey(_k: KeyInput): boolean {
+  onKey(k: KeyInput): boolean {
+    // del (⌘⌫ on a Mac): this one, for good — it asks first
+    if (k.combo === "delete" && this.list.current) return void this.purge([this.list.current]), true;
     return false;
   }
   onAction(a: Action): boolean {
@@ -119,11 +132,19 @@ export class TrashApp implements App {
     let y = r.y + 1;
     ui.text(x, y, `⌫ ${t("TRASH")}`, { fg: c.accent, attrs: BOLD });
     const count = !this.loaded ? `${ui.spinner()}` : items.length === 1 ? t("1 thing") : items.length ? t("{n} things", { n: items.length }) : t("empty");
-    ui.textRight(x + w, y, count, { fg: c.subtle });
+    // empty the whole trash (asks first, can't be undone)
+    let cx = x + w;
+    if (items.length) {
+      const label = `✕ ${t("empty the trash")}`;
+      cx -= strWidth(label) + 2;
+      ui.button(cx, y, label, () => void this.purge(items, true), { tip: `${t("everything in it, for good — it asks first")} · trash empty`, accent: c.error });
+      cx -= 2;
+    }
+    ui.textRight(cx, y, count, { fg: c.subtle });
     y++;
     ui.hline(x, y, w, { fg: mix(c.accent, c.bg, 0.6) }, "━");
     y++;
-    ui.text(x, y, t("deleted in the deck · stays in the vault's .trash until you empty it yourself"), { fg: c.faint }, w);
+    ui.text(x, y, t("put back with enter · delete for good with del (asks first, can't be undone)"), { fg: c.faint }, w);
     y += 2;
 
     const panelH = 4;
@@ -163,6 +184,7 @@ export class TrashApp implements App {
       btn(`${t("restore")}${cur.from ? ` → /${cur.from}` : ""}  ⏎`, () => this.restore(cur), "enter · trash restore");
       btn(`${t("restore to…")}  r`, () => void this.restoreTo(cur), "r · trash restore <n> <path>");
       if (!cur.isDir) btn(`${t("open")}  o`, () => this.open(cur), "o · read it");
+      btn(`${t("delete permanently")}  del`, () => void this.purge([cur]), `del · trash purge · ${t("can't be undone")}`, c.error);
     } else ui.text(x, py + 1, t("esc closes · trash in the shell lists it too"), { fg: c.faint, bg: c.panelAlt }, w);
   }
 
