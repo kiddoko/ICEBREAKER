@@ -7,6 +7,8 @@ import type { App } from "../apps/types";
 import type { Deck } from "../deck";
 import { basename, dirname, display, resolvePath } from "../vault/paths";
 import type { UI } from "../ui/ui";
+import { copyToClipboard } from "../core/clipboard";
+import { selectionHit, TextSelection, type SelectionSource, type TextPos } from "../ui/textselect";
 import pkg from "../../package.json";
 import type { Origin } from "./origin";
 
@@ -69,6 +71,18 @@ export class ShellApp implements App {
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
   /** An interactive command is waiting for an answer (ctx.read). */
   private reading: Reading | null = null;
+  /**
+   * Mouse selection over the output (ui/textselect.ts, the same engine as the real terminal's):
+   * lines are the wrapped rows at the width last drawn.
+   */
+  private readonly sel = new TextSelection();
+  /** the output's place on screen and its first row, as last drawn */
+  private outR: Rect = { x: 0, y: 0, w: 0, h: 0 };
+  private outFirst = 0;
+  private readonly src: SelectionSource = {
+    cells: (row) => this.term.rowCells(row, this.outR.w),
+    wrapped: (row) => this.term.rowWrapped(row, this.outR.w),
+  };
 
   constructor(private readonly deck: Deck) {
     this.exec = new ShellExecutor(
@@ -150,6 +164,36 @@ export class ShellApp implements App {
       this.cursor = 0;
     }
     this.deck.requestFrame();
+  }
+
+  // ── selection ────────────────────────────────────────────────────────────
+
+  hasSelection(): boolean {
+    return this.sel.has();
+  }
+
+  /** Copy the selection (⌘C on a Mac, ctrl+C elsewhere when something is selected, right-click → copy). */
+  copySelection(): boolean {
+    const t = this.sel.text(this.src);
+    if (!t) return false;
+    copyToClipboard(t);
+    this.deck.notify("copied", "success");
+    return true;
+  }
+
+  selectAll(): void {
+    const w = this.outR.w;
+    if (w > 0) this.sel.all(this.term.rowCount(w) - 1, w);
+    this.deck.requestFrame();
+  }
+
+  /** where a cell of the screen is in the output's rows (out of the area: it scrolls, a drag goes on) */
+  private posAt(x: number, y: number): TextPos {
+    const r = this.outR;
+    if (y < r.y) this.scroll++;
+    else if (y >= r.y + r.h && this.scroll > 0) this.scroll--;
+    const row = Math.max(0, Math.min(r.h - 1, y - r.y));
+    return { line: this.outFirst + row, col: Math.max(0, Math.min(r.w, x - r.x)) };
   }
 
   /** Print the login banner and load history (call once the vault is mounted). */
@@ -243,6 +287,7 @@ export class ShellApp implements App {
   // ── input ────────────────────────────────────────────────────────────────
 
   onText(t: string): boolean {
+    this.sel.clear();
     const r = this.reading;
     if (r) {
       const ch = r.opts.choices ?? [];
@@ -287,6 +332,13 @@ export class ShellApp implements App {
   }
 
   onKey(k: KeyInput): boolean {
+    // copy what the mouse selected: ⌘C on a Mac (the real Control+C still interrupts), ctrl+C
+    // elsewhere; with nothing selected ctrl+C interrupts, as always
+    if (this.sel.has() && k.key === "c" && k.ctrl && !k.alt && (IS_MAC ? !!k.rawMeta : true)) {
+      if (this.copySelection()) this.sel.clear();
+      return true;
+    }
+    if (!["shift", "control", "alt", "meta"].includes(k.key)) this.sel.clear(); // a key drops the selection
     if (isCancelKey(k)) return this.cancel(), true;
     if (k.combo === "ctrl+l") {
       this.term.clear();
@@ -346,7 +398,9 @@ export class ShellApp implements App {
         this.input = this.input.slice(0, this.cursor);
         return true;
       case "ctrl+w":
-      case "ctrl+backspace": {
+      case "ctrl+backspace":
+      case "shift+backspace":
+      case "alt+backspace": {
         const before = this.input.slice(0, this.cursor).replace(/\S+\s*$/, "");
         this.input = before + this.input.slice(this.cursor);
         this.cursor = before.length;
@@ -475,7 +529,13 @@ export class ShellApp implements App {
     const maxScroll = Math.max(0, total - outH);
     this.scroll = this.glide.follow(ui, Math.min(this.scroll, maxScroll), maxScroll);
     const first = total - outH - this.scroll;
-    this.term.render(ui, { x: r.x, y: r.y, w: r.w, h: outH }, first);
+    const out = { x: r.x, y: r.y, w: r.w, h: outH };
+    // the rows the selection counts are those of one width: another width, another text
+    if (r.w !== this.outR.w) this.sel.clear();
+    this.term.render(ui, out, first);
+    this.outR = out;
+    this.outFirst = first;
+    this.sel.paint(ui, out, first, this.src);
 
     const py = r.y + outH;
     if (this.scroll > 0) {
@@ -488,6 +548,8 @@ export class ShellApp implements App {
       this.drawPrompt(ui, r.x, py, r.w, focused);
     }
     ui.hit(r, { onWheel: (d) => this.glide.push(-d) });
+    // drag to select, double-click a word, triple-click a line; ⌘C / ctrl+C copies
+    if (outH > 0) ui.hit(out, { onWheel: (d) => this.glide.push(-d), ...selectionHit({ sel: this.sel, src: this.src, at: (m) => this.posAt(m.x, m.y), redraw: () => this.deck.requestFrame() }) });
   }
 
   /** The question line: numbered quick-answer chips, then "label ❯ answer". */
