@@ -9,6 +9,7 @@ import { ListView } from "../ui/list";
 import { q, type MenuEntry, type UI } from "../ui/ui";
 import { fileIcon } from "../ui/fileicon";
 import type { App, AppSpec } from "./types";
+import { Bar } from "../ui/layout";
 import { folders } from "../core/suggest";
 
 /**
@@ -117,9 +118,11 @@ export class TrashApp implements App {
     const x = r.x + artW + 2;
     const w = r.w - artW - 4;
     let y = r.y + 1;
-    ui.text(x, y, `⌫ ${t("TRASH")}`, { fg: c.accent, attrs: BOLD });
     const count = !this.loaded ? `${ui.spinner()}` : items.length === 1 ? t("1 thing") : items.length ? t("{n} things", { n: items.length }) : t("empty");
-    ui.textRight(x + w, y, count, { fg: c.subtle });
+    new Bar(ui, x, y, x + w)
+      .text(`⌫ ${t("TRASH")}`, { fg: c.accent, attrs: BOLD }, { priority: 9, fit: 3 })
+      .text(count, { fg: c.subtle }, { side: "right", priority: 5 })
+      .draw();
     y++;
     ui.hline(x, y, w, { fg: mix(c.accent, c.bg, 0.6) }, "━");
     y++;
