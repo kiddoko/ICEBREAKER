@@ -9,7 +9,8 @@ import { geocode, langOf, resolvePlace } from "../core/location";
 import { strWidth } from "../core/unicode";
 import type { Deck } from "../deck";
 import type { SystemStats } from "../platform/types";
-import { dots } from "../ui/dots";
+import { Bar, cards, INSET, stack } from "../ui/layout";
+import { drawSky, sceneFor, skyIcon } from "../apps/weathersky";
 import type { UI } from "../ui/ui";
 import { basename, dirname } from "../vault/paths";
 import { drawClock } from "./clockfaces";
@@ -74,14 +75,6 @@ export function drawDigits(ui: UI, x: number, y: number, s: string, k: number, c
   });
 }
 
-/** "label value", label dim. */
-function kv(ui: UI, x: number, y: number, label: string, value: string, maxX: number, valueColor?: RGB): void {
-  if (x >= maxX) return;
-  ui.text(x, y, label, { fg: ui.c.subtle }, maxX - x);
-  const vx = x + strWidth(label) + 1;
-  ui.text(vx, y, value, { fg: valueColor ?? ui.c.fg }, Math.max(0, maxX - vx));
-}
-
 /* ═══════════════════════ clock ═══════════════════════ */
 
 const clock: WidgetSpec = {
@@ -106,6 +99,8 @@ interface Weather {
   code: number;
   wind: number;
   windDir: number;
+  /** daytime at the place (the sky draws the sun or the moon) */
+  isDay: boolean;
   sunrise: string;
   sunset: string;
   hourly: number[];
@@ -142,7 +137,7 @@ async function loadWeather(key: string, deck: Deck, city = ""): Promise<void> {
     if (!place) throw new Error(city ? `no place called "${city}"` : "no location — run setup (ctrl+k → setup)");
     const q =
       `latitude=${place.lat}&longitude=${place.lon}&timezone=auto&forecast_days=7&forecast_hours=24` +
-      `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m` +
+      `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,is_day` +
       `&hourly=temperature_2m&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,precipitation_probability_max`;
     const res = await fetch(`https://api.open-meteo.com/v1/forecast?${q}`);
     const f = await res.json().catch(() => null);
@@ -162,6 +157,7 @@ async function loadWeather(key: string, deck: Deck, city = ""): Promise<void> {
       code: f.current.weather_code,
       wind: f.current.wind_speed_10m,
       windDir: f.current.wind_direction_10m,
+      isDay: f.current.is_day === undefined ? true : !!f.current.is_day,
       rainChance: f.daily.precipitation_probability_max?.[0] ?? 0,
       sunrise: hhmm(f.daily.sunrise[0]),
       sunset: hhmm(f.daily.sunset[0]),
@@ -199,60 +195,6 @@ export function sky(code: number): Sky {
 const SKY_LABEL: Record<Sky, string> = { sun: "clear", partly: "partly cloudy", cloud: "overcast", fog: "fog", rain: "rain", snow: "snow", storm: "thunderstorm" };
 export const SKY_ICON: Record<Sky, string> = { sun: "clear", partly: "mixed", cloud: "cloudy", fog: "fog", rain: "rain", snow: "snow", storm: "storm" };
 
-/**
- * Weather icon drawn in braille dots with true proportions (round sun, puffy
- * cloud outline). Animated: rays turn, rain and snow fall, fog drifts.
- */
-function drawSky(ui: UI, r: Rect, s: Sky, t: number, sunCol: RGB, cloudCol: RGB, dropCol: RGB): void {
-  const W = r.w * ui.cellAspect, H = r.h;
-  const cx = W / 2, cy = H / 2;
-  const hasCloud = s !== "sun";
-  // cloud: three bumps on a flat base, raised when something falls from it
-  const lift = s === "rain" || s === "snow" || s === "storm" ? -0.7 : s === "partly" ? 0.35 : 0;
-  const bumps: [number, number, number][] = [[cx - 1.0, cy + 0.25 + lift, 0.75], [cx + 0.05, cy - 0.25 + lift, 1.05], [cx + 1.15, cy + 0.3 + lift, 0.7]];
-  const base = cy + 0.95 + lift;
-  const inCloud = (x: number, y: number, shrink: number) => y < base - shrink && bumps.some(([bx, by, br]) => (x - bx) ** 2 + (y - by) ** 2 < (br - shrink) ** 2);
-  const sx = s === "partly" ? cx - 0.9 : cx, sy = s === "partly" ? cy - 0.75 : cy;
-  const spin = t / 4000;
-  dots(ui, r, [sunCol, cloudCol, dropCol], (x, y) => {
-    if (hasCloud && inCloud(x, y, 0)) return inCloud(x, y, 0.2) ? 0 : 2; // outline only
-    if (s === "sun" || s === "partly") {
-      const dx = x - sx, dy = y - sy, d = Math.hypot(dx, dy);
-      const R = s === "sun" ? 1.0 : 0.75;
-      if (d < R) return 1;
-      if (d > R * 1.45 && d < R * 2.0) {
-        const a = Math.atan2(dy, dx) / (Math.PI / 4) + spin;
-        if (Math.abs(a - Math.round(a)) * (Math.PI / 4) * d < 0.09) return 1;
-      }
-    }
-    const below = y > base + 0.15;
-    if (s === "rain" || s === "storm") {
-      // slanted streaks falling
-      const u = x + y * 0.35, v = y - t / 260;
-      if (below && Math.abs(u - Math.round(u / 0.7) * 0.7) < 0.07 && ((v % 0.9) + 0.9) % 0.9 < 0.4) return 3;
-    }
-    if (s === "storm" && below) {
-      // a zig-zag bolt that flashes now and then
-      if (Math.floor(t / 300) % 5 < 2) {
-        const k = (y - base) / 1.6;
-        const bx = cx + 0.1 + (k < 0.5 ? -k * 0.8 : -0.4 + (k - 0.5) * 0.9);
-        if (k < 1 && Math.abs(x - bx) < 0.1) return 1;
-      }
-    }
-    if (s === "snow" && below) {
-      const v = y - t / 900;
-      const col = Math.round(x / 0.55);
-      const yy = (((v + col * 0.37) % 0.8) + 0.8) % 0.8;
-      if (Math.abs(x - col * 0.55) < 0.08 && yy < 0.12) return 3;
-    }
-    if (s === "fog") {
-      const off = Math.sin(x * 1.6 + t / 700) * 0.12;
-      for (const ly of [cy + 0.95, cy + 1.45, cy + 1.95]) if (Math.abs(y - ly - off) < 0.07 && (x + t / 1500 + ly) % 1.3 < 1.0) return 2;
-    }
-    return 0;
-  });
-}
-
 const ARROWS = ["↓", "↙", "←", "↖", "↑", "↗", "→", "↘"]; // direction the wind blows toward
 
 const weatherWidget: WidgetSpec = {
@@ -279,66 +221,65 @@ const weatherWidget: WidgetSpec = {
     }
     const w = sl.w;
     const s = sky(w.code);
-    const artColor = s === "sun" ? c.warning : s === "storm" ? c.accentAlt : s === "snow" ? c.fg : c.info;
-    const showArt = r.w >= 36 && r.h >= 5;
-    if (showArt) {
-      drawSky(ui, { x: r.x + 1, y: r.y, w: 12, h: 5 }, s, ui.now, c.warning, mix(c.fg, c.bg, 0.25), artColor);
-      ui.animate(s === "sun" || s === "partly" || s === "cloud" ? 200 : 60);
+    const arrow = ARROWS[Math.round(w.windDir / 45) % 8];
+    // a tiny card: one line, the essentials
+    if (r.w < 14 || r.h < 3) {
+      ui.text(r.x + INSET, r.y + Math.floor((r.h - 1) / 2), `${w.place} ${Math.round(w.temp)}° ${SKY_LABEL[s]}`, { fg: c.accent, attrs: BOLD }, r.w - INSET * 2);
+      return;
     }
-    // big temperature + place
-    const tx = r.x + (showArt ? 14 : 1);
-    const temp = `${Math.round(w.temp)}°`;
-    const k = 0;
-    let infoX = tx;
-    let below = r.y + 1;
-    if (k) {
-      const d = digitsSize(temp, k);
-      drawDigits(ui, tx, r.y, temp, k, [c.accent, c.accentAlt], "weather-temp", false);
-      ui.text(tx, r.y + d.h, w.place, { fg: c.fg, attrs: BOLD }, d.w + 8);
-      infoX = tx + Math.max(d.w, strWidth(w.place)) + 3;
-      below = r.y + d.h + 1;
-    } else ui.text(tx, r.y, `${w.place}  ${Math.round(w.temp)}°C`, { fg: c.accent, attrs: BOLD }, r.x + r.w - tx);
-    // details: next to the big number, or under the place name
-    const maxX = r.x + r.w - 1;
-    const rows: [string, string, RGB?][] = [
-      ["", SKY_LABEL[s], c.fg],
-      ["feels", `${Math.round(w.feels)}°`],
-      ["wind ", `${Math.round(w.wind)} km/h ${ARROWS[Math.round(w.windDir / 45) % 8]}`],
-      ["humid", `${Math.round(w.humidity)}%`],
-      ["rain ", `${Math.round(w.rainChance)}%`],
-      ["sun  ", `↑${w.sunrise} ↓${w.sunset}`],
-    ];
-    const dy = k ? r.y : below;
-    const room = showArt ? 5 : r.h - (dy - r.y);
-    if (maxX - infoX >= 14)
-      rows.slice(0, Math.max(0, room)).forEach(([l, v, col], i) => (l ? kv(ui, infoX, dy + i, l, v, maxX, col) : ui.text(infoX, dy + i, v, { fg: col ?? c.fg, attrs: BOLD }, maxX - infoX)));
-
-    let y = r.y + Math.max(showArt ? 6 : 0, k ? digitsSize(temp, k).h + 2 : 0, Math.min(room, rows.length) + 1);
-    // next 24 h
-    if (r.h - (y - r.y) >= 5 && w.hourly.length) {
+    // the parts share the card (ui/layout.ts stack): the sky first, then the details, the week, the 24 h
+    const [skyR, detailR, hoursR, weekR] = stack(r, [
+      { min: 3, fill: 1, max: 9, priority: 9 },
+      { h: 1, priority: 7 },
+      { h: 2, priority: 3 },
+      { h: 4, priority: 5 },
+    ], 0);
+    if (skyR) {
+      // the same sky as the WEATHER page (apps/weathersky.ts), the place and the temperature on it
+      const scene = sceneFor(w.code, { isDay: w.isDay, wind: w.wind, windDir: w.windDir, rain: w.rainChance });
+      ui.clip(skyR, () => ui.art(() => drawSky(ui, skyR, scene, ui.now / 1000)));
+      new Bar(ui, skyR.x + INSET, skyR.y, skyR.x + skyR.w - INSET)
+        .text(w.place, { fg: c.fg, attrs: BOLD }, { priority: 7, fit: 4 })
+        .text(`${Math.round(w.temp)}°`, { fg: c.accent, attrs: BOLD }, { side: "right", priority: 9 })
+        .draw();
+      if (skyR.h >= 2) ui.text(skyR.x + INSET, skyR.y + 1, SKY_LABEL[s], { fg: c.subtle }, skyR.w - INSET * 2);
+    }
+    if (detailR) {
+      new Bar(ui, detailR.x + INSET, detailR.y, detailR.x + detailR.w - INSET)
+        .text(`${t("feels")} ${Math.round(w.feels)}°`, { fg: c.subtle }, { priority: 6 })
+        .text(`${arrow} ${Math.round(w.wind)} km/h`, { fg: c.subtle }, { priority: 5 })
+        .text(`☂ ${Math.round(w.rainChance)}%`, { fg: mix(0x7fb4ea, c.bg, 0.2) }, { priority: 7 })
+        .text(`${Math.round(w.humidity)}%rh`, { fg: c.faint }, { priority: 2 })
+        .text(`↑${w.sunrise} ↓${w.sunset}`, { fg: c.faint }, { side: "right", priority: 1 })
+        .draw();
+    }
+    if (hoursR && w.hourly.length && hoursR.w >= 12) {
       const lo = Math.min(...w.hourly), hi = Math.max(...w.hourly);
-      const cw = r.w - 7;
+      const lab = `${Math.round(hi)}°`;
+      const cw = hoursR.w - INSET * 2 - lab.length - 1;
       const vals = Array.from({ length: cw * 2 }, (_, i) => ((w.hourly[Math.floor((i / (cw * 2)) * w.hourly.length)] - lo) / Math.max(1, hi - lo)) * 0.85 + 0.1);
-      ui.chart({ x: r.x + 1, y, w: cw, h: 2 }, vals, mix(c.accent, c.bg, 0.15));
-      ui.text(r.x + cw + 2, y, `${Math.round(hi)}°`, { fg: c.subtle });
-      ui.text(r.x + cw + 2, y + 1, `${Math.round(lo)}°`, { fg: c.faint });
-      y += 3;
+      ui.chart({ x: hoursR.x + INSET, y: hoursR.y, w: cw, h: 2 }, vals, mix(c.accent, c.bg, 0.15));
+      ui.text(hoursR.x + INSET + cw + 1, hoursR.y, lab, { fg: c.subtle });
+      ui.text(hoursR.x + INSET + cw + 1, hoursR.y + 1, `${Math.round(lo)}°`, { fg: c.faint });
     }
-    // the week: as many days as fit, with a min→max bar on the week's scale
-    if (y < r.y + r.h) {
+    if (weekR) {
+      // the next days as cards: the day, a little sky, max and min
       const locale = deck.settings.data.user.locale || undefined;
-      const n = Math.max(1, Math.min(w.days.length, Math.floor((r.w - 2) / 13)));
-      const colW = Math.floor((r.w - 2) / n);
-      w.days.slice(0, n).forEach((d, i) => {
-        const x = r.x + 1 + i * colW;
+      const inner = { x: weekR.x + INSET, y: weekR.y, w: weekR.w - INSET * 2, h: weekR.h };
+      const { rects, perRow } = cards(inner, w.days.length, { minW: 7, maxW: 12, h: 4, gap: 1, gapY: 0 });
+      w.days.slice(0, perRow).forEach((d, i) => {
+        const cr = rects[i];
+        const k = sky(d.code);
+        const [i1, i2] = skyIcon(k);
+        const tint = k === "sun" || k === "partly" ? c.warning : k === "rain" || k === "storm" ? mix(0x7fb4ea, c.bg, 0.1) : k === "snow" ? c.fg : c.muted;
         const day = new Date(`${d.date}T12:00`).toLocaleDateString(locale, { weekday: "short" }).replace(".", "");
-        const sk = sky(d.code);
-        ui.text(x, y, day, { fg: c.fg, attrs: BOLD }, 5);
-        ui.text(x + 5, y, SKY_ICON[sk], { fg: sk === "sun" ? c.warning : sk === "storm" ? c.accentAlt : c.info }, colW - 6);
-        if (y + 1 < r.y + r.h) {
-          ui.text(x, y + 1, `↑${Math.round(d.max)}°`, { fg: c.fg });
-          ui.text(x + 5, y + 1, `↓${Math.round(d.min)}°`, { fg: c.subtle });
-        }
+        ui.text(cr.x, cr.y, day, { fg: c.fg, attrs: BOLD }, cr.w);
+        ui.text(cr.x, cr.y + 1, i1, { fg: tint }, cr.w);
+        ui.text(cr.x, cr.y + 2, i2, { fg: tint }, cr.w);
+        new Bar(ui, cr.x, cr.y + 3, cr.x + cr.w, 1)
+          .text(`${Math.round(d.max)}°`, { fg: c.fg }, { priority: 9 })
+          .text(`${Math.round(d.min)}°`, { fg: c.faint }, { priority: 5 })
+          .draw();
       });
     }
   },

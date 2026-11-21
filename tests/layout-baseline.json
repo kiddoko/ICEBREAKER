@@ -33,7 +33,7 @@
   "src/ui/list.ts": 2,
   "src/ui/pagebar.ts": 4,
   "src/ui/ui.ts": 14,
-  "src/widgets/builtin.ts": 26,
+  "src/widgets/builtin.ts": 18,
   "src/widgets/chatbox.ts": 20,
   "src/widgets/clockfaces.ts": 2,
   "src/widgets/extra.ts": 21,
