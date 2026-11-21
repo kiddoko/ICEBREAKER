@@ -300,6 +300,8 @@ export function activate(ib: IcebreakerAPI): void {
     }
     /** two periods of points per stat (the one shown and the one before), fetched once per range and change */
     private pts = new Map<string, Point[]>();
+    /** the first look starts on the first tile; after that, what you chose */
+    private picked = false;
     private points(st: Stat, days: number): Point[] {
       const key = `${st.id}:${days}:${st.updated}`;
       if (!this.pts.has(key)) {
@@ -337,6 +339,10 @@ export function activate(ib: IcebreakerAPI): void {
       head.item(strW(t("⚙ what shows")) + 2, (x) => ui.button(x, inner.y, t("⚙ what shows"), () => (this.setup = true), { tip: "s · stats setup" }), { side: "right", priority: 3 });
       head.draw();
       const list = visible();
+      if (!this.picked && list.length) {
+        this.picked = true;
+        this.sel = Math.max(0, list.indexOf(this.tiles()[0]));
+      }
       this.sel = Math.min(this.sel, Math.max(0, list.length - 1));
       const body = { x: inner.x, y: inner.y + 2, w: inner.w, h: Math.max(0, inner.h - 2) };
       if (!list.length) return void ui.text(body.x, body.y, t("no stats yet — a starts one; modules add theirs"), { fg: c.muted }, body.w);
@@ -417,7 +423,8 @@ export function activate(ib: IcebreakerAPI): void {
         b.text(counter ? show(st, f.total) : show(st), { fg: c.accent, attrs: BOLD }, { priority: 10 });
         b.text(counter ? t("in {d} days", { d: days }) : t("now"), { fg: c.muted }, { priority: 6 });
         const pct = pctText(f.changePct);
-        if (f.change !== null) b.text(t("{p} vs the {d} days before", { p: pct || show(st, f.change), d: days }), { fg: (f.change ?? 0) < 0 ? c.error : f.change ? c.success : c.subtle }, { side: "right", priority: 5 });
+        // nothing before to divide by: the change itself, signed ("+20")
+        if (f.change !== null) b.text(t("{p} vs the {d} days before", { p: pct || `${f.change > 0 ? "+" : f.change < 0 ? "−" : ""}${show(st, Math.abs(f.change))}`, d: days }), { fg: (f.change ?? 0) < 0 ? c.error : f.change ? c.success : c.subtle }, { side: "right", priority: 5 });
         b.draw();
       }
       if (plotR) {
@@ -451,7 +458,7 @@ export function activate(ib: IcebreakerAPI): void {
         if (counter) {
           b.text(t("{a}/day", { a: show(st, f.avg) }), { fg: c.fg }, { priority: 9 });
           if (f.best) b.text(t("best {v} ({d})", { v: show(st, f.best.value), d: dayText(f.best.day) }), { fg: c.success }, { priority: 7 });
-          b.text(t("{n} active days", { n: f.active }), { fg: c.subtle }, { priority: 5 });
+          b.text(f.active === 1 ? t("1 active day") : t("{n} active days", { n: f.active }), { fg: c.subtle }, { priority: 5 });
           if (f.streak > 1) b.text(t("{n} days in a row", { n: f.streak }), { fg: c.warning }, { priority: 6 });
         } else {
           b.text(t("min {a}", { a: show(st, f.min) }), { fg: c.fg }, { priority: 8 });
@@ -620,6 +627,7 @@ export function activate(ib: IcebreakerAPI): void {
     "{a}/day": "{a}/jour",
     "best {v} ({d})": "record {v} ({d})",
     "{n} active days": "{n} jours actifs",
+    "1 active day": "1 jour actif",
     "{n} days in a row": "{n} jours d'affilée",
     "min {a}": "min {a}",
     "max {a}": "max {a}",
