@@ -1,3 +1,4 @@
+import { strWidth, truncate } from "../core/unicode";
 /**
  * Vault paths are POSIX-style and relative to the vault root:
  * "journal/2026-11-17.md". The empty string is the root itself.
@@ -103,4 +104,13 @@ export function globToRegex(glob: string): RegExp {
 /** YYYY-MM-DD in local time. */
 export function isoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** A path that fits `max` columns: its start and its last part kept, the middle cut (/a/b/…/name.md). */
+export function middlePath(p: string, max: number): string {
+  if (strWidth(p) <= max) return p;
+  const name = p.slice(p.lastIndexOf("/") + 1);
+  const keep = max - strWidth(name) - 2; // "…/"
+  if (keep < 2) return truncate(name, Math.max(4, max), "…");
+  return `${truncate(p.slice(0, p.length - name.length), keep, "")}…/${name}`;
 }

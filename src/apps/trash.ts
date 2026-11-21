@@ -8,6 +8,7 @@ import { purgeItems, trashItems, type TrashItem } from "../shell/commands/trash"
 import { ListView } from "../ui/list";
 import { q, type MenuEntry, type UI } from "../ui/ui";
 import { strWidth } from "../core/unicode";
+import { middlePath } from "../vault/paths";
 import { fileIcon } from "../ui/fileicon";
 import type { App, AppSpec } from "./types";
 import { folders } from "../core/suggest";
@@ -181,10 +182,16 @@ export class TrashApp implements App {
       ui.text(x, py + 1, cur.isDir ? `${cur.name}/` : cur.name, { fg: c.accent, bg: c.panelAlt, attrs: BOLD }, w);
       let bx = x;
       const btn = (label: string, run: () => void, tip: string, accent?: number) => (bx += ui.button(bx, py + 2, label, run, { tip, accent }) + 2);
-      btn(`${t("restore")}${cur.from ? ` → /${cur.from}` : ""}  ⏎`, () => this.restore(cur), "enter · trash restore");
-      btn(`${t("restore to…")}  r`, () => void this.restoreTo(cur), "r · trash restore <n> <path>");
-      if (!cur.isDir) btn(`${t("open")}  o`, () => this.open(cur), "o · read it");
-      btn(`${t("delete permanently")}  del`, () => void this.purge([cur]), `del · trash purge · ${t("can't be undone")}`, c.error);
+      const rest = [`${t("restore to…")}  r`, ...(cur.isDir ? [] : [`${t("open")}  o`]), `${t("delete permanently")}  del`];
+      // the restore button gets what the others leave: a long path is cut in the middle,
+      // its start and the file's name kept (/journal/…/2026-11-20.md)
+      const room = w - rest.reduce((n, l) => n + strWidth(l) + 4, 0) - 4;
+      const head = `${t("restore")}  ⏎`;
+      const where = cur.from ? ` → ${middlePath(`/${cur.from}`, room - strWidth(head))}` : "";
+      btn(`${t("restore")}${where}  ⏎`, () => this.restore(cur), `enter · trash restore${cur.from ? `\n/${cur.from}` : ""}`);
+      btn(rest[0], () => void this.restoreTo(cur), "r · trash restore <n> <path>");
+      if (!cur.isDir) btn(rest[1], () => this.open(cur), "o · read it");
+      btn(rest[rest.length - 1], () => void this.purge([cur]), `del · trash purge · ${t("can't be undone")}`, c.error);
     } else ui.text(x, py + 1, t("esc closes · trash in the shell lists it too"), { fg: c.faint, bg: c.panelAlt }, w);
   }
 

@@ -44,3 +44,15 @@ describe("the text selection (ibsh and the real terminal)", () => {
     expect(s.text(bs)).toBe("abcdefghijKLM");
   });
 });
+
+import { middlePath } from "../src/vault/paths";
+describe("a long path on a button (TRASH → restore)", () => {
+  it("keeps its start and the file's name", () => {
+    const p = "/journal/2026/novembre/semaine-47/2026-11-20.md";
+    expect(middlePath(p, 80)).toBe(p);
+    const m = middlePath(p, 30);
+    expect(m.length).toBeLessThanOrEqual(30);
+    expect(m.startsWith("/journal")).toBe(true);
+    expect(m.endsWith("…/2026-11-20.md")).toBe(true);
+  });
+});
