@@ -120,6 +120,9 @@ export class Grid {
     const i = y * this.cols + x;
     if (fg !== NONE) this.fg[i] = fg;
     if (bg !== NONE) this.bg[i] = bg;
+    // a half block is two pixels (its colour on top, the background below): dimmed in one
+    // colour, both halves take it (the moon behind a pop-up came out in stripes)
+    else if (fg !== NONE && (this.ch[i] === 0x2580 || this.ch[i] === 0x2584) && this.bg[i] !== NONE) this.bg[i] = fg;
   }
 
   /** Overwriting half of a wide char would leave garbage: blank the other half. */

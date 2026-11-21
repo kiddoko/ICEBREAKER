@@ -258,6 +258,10 @@ were on come back as you left them next time.
 - **Clocks at any size**: every clock style (digital, segments, binary, dots,
   analog, minimal…) has a tiny, small, medium, large and huge version — make the
   widget as small as you like, it stays the style you chose.
+- **MOON** has its own page (\`moon open\`, or the MOON widget): the moon as it is
+  tonight, drawn and lit from the right side, its phase, the next four phases, and the
+  month as a calendar of moons. ←→ a day, ↑↓ a week, **t** today. All computed on your
+  computer, no network.
 - **News**: each news widget shows the **categories** you choose (science, AI,
   nature, economy, world…: click the widget → THIS WIDGET), so two news widgets
   can show different things. **Featured** mode: one story, big, with its

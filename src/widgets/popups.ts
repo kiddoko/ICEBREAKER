@@ -26,6 +26,9 @@ import { isoDay, mmss, streakOf } from "../core/time";
 import { focus, MATRIX_SETS, matrixLook, tickFocus } from "./extra";
 import type { PopupContext, WidgetPopupSpec, WidgetSpec } from "./types";
 import { Field } from "../ui/field";
+import { drawMoon } from "./moondraw";
+import { GAP, INSET } from "../ui/layout";
+import { moonAge, moonLit, phaseName, SYNODIC, upcoming } from "./moonphase";
 import { chatPopup } from "./chatbox";
 import { DURATIONS, NEWS_TOPICS, places } from "../core/suggest";
 import { Bar, INSET, stack } from "../ui/layout";
@@ -119,42 +122,38 @@ export const focusCommand: Command = {
 
 /* ─────────── moon: the next phases ─────────── */
 
-const SYNODIC = 29.530588853;
-const moonAge = (t = Date.now()) => (((t / 86400000 - 10957.76) % SYNODIC) + SYNODIC) % SYNODIC;
-/** when the moon next reaches `frac` of its cycle (0 new, .25 first quarter, .5 full, .75 last quarter) */
-const nextPhase = (frac: number) => {
-  const age = moonAge();
-  let days = frac * SYNODIC - age;
-  if (days <= 0.2) days += SYNODIC;
-  return new Date(Date.now() + days * 86400000);
-};
-const PHASES: [number, string, string][] = [[0, "●", "new moon"], [0.25, "◐", "first quarter"], [0.5, "○", "full moon"], [0.75, "◑", "last quarter"]];
-
+// the moon's phase is computed in moonphase.ts (the MOON page, its widget, this pop-up, `moon`)
 const moonPopup: WidgetPopupSpec = {
   title: "moon",
-  size: { w: 46, h: 8 },
+  size: { w: 50, h: 10 },
+  hint: "enter: the MOON page",
   render(ui, r) {
     const c = ui.c;
-    const age = moonAge();
-    ui.text(r.x + 2, r.y + 1, `day ${age.toFixed(1)} of ${SYNODIC.toFixed(1)}`, { fg: c.fg, attrs: BOLD });
-    PHASES.map(([f, g, name]) => ({ g, name, at: nextPhase(f) }))
-      .sort((a, b) => a.at.getTime() - b.at.getTime())
-      .forEach((p, i) => {
-        const y = r.y + 3 + i;
-        ui.text(r.x + 2, y, p.g, { fg: mix(c.fg, c.warning, 0.3) });
-        ui.text(r.x + 5, y, p.name, { fg: c.fg });
-        ui.textRight(r.x + r.w - 2, y, p.at.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }), { fg: c.accent });
-      });
+    const now = Date.now();
+    const mw = Math.min(Math.ceil((r.h - 1) / ui.cellAspect), Math.floor(r.w / 3));
+    drawMoon(ui, { x: r.x + INSET, y: r.y, w: mw, h: r.h - 1 }, now);
+    const x = r.x + INSET + mw + GAP, w = r.x + r.w - INSET - x;
+    ui.text(x, r.y, t(phaseName(now)), { fg: c.fg, attrs: BOLD }, w);
+    ui.text(x, r.y + 1, `${t("{n} % lit", { n: Math.round(moonLit(now) * 100) })} · ${t("day {d} of {all}", { d: moonAge(now).toFixed(1), all: SYNODIC.toFixed(1) })}`, { fg: c.muted }, w);
+    upcoming(now).forEach((p, i) => {
+      const y = r.y + 3 + i;
+      if (y >= r.y + r.h) return;
+      ui.text(x, y, `${p.glyph} ${t(p.name)}`, { fg: c.fg }, w - 12);
+      ui.textRight(x + w, y, p.at.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }), { fg: c.accent });
+    });
   },
+  onAction: (a, { deck }) => (a === "confirm" ? (deck.openApp("moon"), true) : false),
 };
 
 export const moonCommand: Command = {
   name: "moon",
-  summary: "tonight's moon and the next phases",
+  summary: "tonight's moon and the next phases (moon open: the MOON page)",
+  usage: "moon         the phase, how much is lit, the next four phases\nmoon open    the MOON page (the moon drawn, the month in moons)",
   run(ctx) {
-    const age = moonAge();
-    ctx.out(`${fmt.bold(`day ${age.toFixed(1)}`)} of the lunar cycle\n`);
-    for (const [f, g, name] of PHASES) ctx.out(`${g} ${name.padEnd(14)} ${fmt.dim(nextPhase(f).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }))}\n`);
+    if (ctx.args[0] === "open") return void ctx.deck.openApp("moon");
+    const now = Date.now();
+    ctx.out(`${fmt.bold(phaseName(now))} · ${Math.round(moonLit(now) * 100)}% lit · day ${moonAge(now).toFixed(1)} of ${SYNODIC.toFixed(1)}\n`);
+    for (const p of upcoming(now)) ctx.out(`${p.glyph} ${p.name.padEnd(14)} ${fmt.dim(p.at.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }))}\n`);
   },
 };
 
