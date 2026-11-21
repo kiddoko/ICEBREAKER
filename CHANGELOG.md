@@ -8,6 +8,10 @@
   the CRT lines through a barrel warp; the mouse goes through the same warp and the caret
   through its inverse, so a click lands on the letter you see. Only while the curve is above
   0 (the rim and reflection overlay stays); no WebGL: the flat picture with the overlay.
+- **The chat widget takes your typing** (HOME and the side panel): with it chosen, the letters
+  you type open its conversation with them already in the field (they used to fire the
+  page's shortcuts); a click on its "› type here…" line opens it too. Core widgets can take letters
+  (`WidgetSpec.onText`).
 - **The encoder pack** (`encoders install | remove`) and `ib.audio.encode`: modules export
   MP3, M4A, OGG and Opus (docs/PLUGINS.md, SECURITY_AUDIT.md).
 

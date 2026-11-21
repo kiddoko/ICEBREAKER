@@ -35,6 +35,11 @@ export interface WidgetSpec {
    * the mouse removes that entry, e for edit…
    */
   onKey?(k: KeyInput, ctx: WidgetContext): boolean;
+  /**
+   * A letter typed while the widget is selected (outside edit mode): true when the widget took
+   * it (the chat box opens its conversation with it) — else HOME's own letters (e edit, a add…).
+   */
+  onText?(t: string, ctx: WidgetContext): boolean;
   /** Enter pressed while the widget is selected (outside edit mode), when it has no pop-up. */
   activate?(ctx: WidgetContext): void;
   /**
