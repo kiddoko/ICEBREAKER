@@ -228,8 +228,9 @@ const weatherWidget: WidgetSpec = {
       return;
     }
     // the parts share the card (ui/layout.ts stack): the sky first, then the details, the week, the 24 h
+    // (the sky keeps 5 rows — enough for the sun or the moon: the 24 h give way first)
     const [skyR, detailR, hoursR, weekR] = stack(r, [
-      { min: 3, fill: 1, max: 9, priority: 9 },
+      { min: 5, fill: 1, max: 9, priority: 9 },
       { h: 1, priority: 7 },
       { h: 2, priority: 3 },
       { h: 4, priority: 5 },

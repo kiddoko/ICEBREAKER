@@ -141,7 +141,8 @@ export function drawSky(ui: UI, r: Rect, s: SkyScene, sec: number): void {
   if (showOrb) {
     const rows = Math.max(2, Math.min(6, Math.floor(airH * 0.6)));
     const cols = rows * 2;
-    const ox = r.x + Math.max(1, Math.floor(r.w * 0.22) - Math.floor(cols / 2)), oy = r.y + Math.max(0, Math.floor(airH * 0.12));
+    // (the top row stays free when there's room: the page, the widget and the pop-up write the place there)
+    const ox = r.x + Math.max(1, Math.floor(r.w * 0.22) - Math.floor(cols / 2)), oy = r.y + Math.max(airH >= rows + 2 ? 1 : 0, Math.floor(airH * 0.12));
     const d = new Dots(cols, rows);
     const R = Math.min(d.W, d.H) / 2 - 0.5;
     const cx = d.W / 2, cy = d.H / 2;
