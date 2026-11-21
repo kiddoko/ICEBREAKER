@@ -89,9 +89,15 @@ pub async fn app_update_download(app: AppHandle, state: State<'_, UpdateState>) 
 /// or not (`restart` false: on quit, the next launch is the new one).
 #[tauri::command]
 pub fn app_update_install(app: AppHandle, state: State<'_, UpdateState>, restart: bool) -> Result<(), String> {
-    let (update, bytes) = state.found.lock().map_err(|e| e.to_string())?.take().ok_or("nothing downloaded (update download)")?;
-    let bytes = bytes.ok_or("nothing downloaded (update download)")?;
-    update.install(bytes).map_err(|e| e.to_string())?;
+    // the downloaded update stays here until it's really installed: a failed install (a bad
+    // archive, a full disk…) can be tried again without checking and downloading again
+    let mut g = state.found.lock().map_err(|e| e.to_string())?;
+    match g.as_ref() {
+        Some((update, Some(bytes))) => update.install(bytes).map_err(|e| e.to_string())?,
+        _ => return Err("nothing downloaded (update download)".into()),
+    }
+    *g = None;
+    drop(g);
     if restart {
         app.restart();
     }

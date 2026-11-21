@@ -166,7 +166,19 @@ export class Updater {
     }
     if (!this.app || !this.deck.platform.appUpdate) return;
     if (!this.app.downloaded) await this.download();
-    if (restart) await this.deck.platform.appUpdate.install();
+    if (!restart) return;
+    try {
+      await this.deck.platform.appUpdate.install();
+    } catch (e) {
+      // the native side lost the download (an earlier failed try, a restart of the deck…):
+      // look again, download again, and try once more
+      if (!/nothing downloaded/.test(String(e))) throw e;
+      this.app.downloaded = false;
+      await this.check();
+      if (!this.app) throw e;
+      await this.download();
+      await this.deck.platform.appUpdate.install();
+    }
   }
 
   /** On quit, with "install by itself": the downloaded ICEBREAKER goes in (the next launch is the new one). */
