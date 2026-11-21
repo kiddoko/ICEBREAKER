@@ -1,3 +1,4 @@
+import { osKeys } from "../core/keyhints";
 import { Glide } from "../ui/glide";
 import { FilterBar } from "../ui/filterbar";
 import { fmt } from "../core/ansi";
@@ -244,7 +245,7 @@ const keysCmd: Command = {
     if (a === "menu" || a === "space") {
       const lead = { ...(d.settings.data.menu?.keys ?? {}) };
       if (!id) {
-        ctx.out(fmt.dim("THE MENU (⌘K · shift twice): a key, then enter\n"));
+        ctx.out(fmt.dim(osKeys("THE MENU (⌘K · shift twice): a key, then enter\n")));
         for (const s of DECK_KEYS) {
           const k = menuKeyOf(s, lead);
           if (k) ctx.out(`${fmt.bold(displayMenuKey(k).padEnd(6))} ${t(s.short ?? s.what)}${s.id! in lead ? fmt.yellow("  (changed)") : ""}\n`);

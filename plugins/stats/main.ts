@@ -45,7 +45,7 @@ export function activate(ib: IcebreakerAPI): void {
   const visible = () => all.filter((s) => !hidden.includes(s.id));
   /** the setup page opens next time the app is shown (`stats setup`) */
   let wantSetup = false;
-  const moduleName = (id: string) => (id === "deck" ? "DECK" : ib.modules.installed().find((m) => m.id === id)?.name ?? id.toUpperCase());
+  const moduleName = (id: string) => (id === "deck" ? "deck" : (ib.modules.installed().find((m) => m.id === id)?.name ?? id).toLowerCase());
   let loaded = false;
 
   const refresh = async () => {

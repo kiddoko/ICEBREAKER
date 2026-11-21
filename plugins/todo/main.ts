@@ -457,6 +457,18 @@ export function activate(ib: IcebreakerAPI): void {
 
   // ── what other modules can do with tasks (ib.modules.call("todo", …)) ──
   ib.modules.expose("list", { needs: "vault:read", doc: "list() → every task { id, text, prio, due, tags, done }", fn: async () => (await ready, tasks.map((t) => ({ ...t }))) });
+  // what TODO's page and widget count as open: its tasks AND the - [ ] of your notes (HOME's pulse said
+  // "0 open" next to a TODO showing 3 from the notes)
+  ib.modules.expose("count", {
+    needs: "vault:read",
+    doc: "count() → { open, inNotes, due } — open tasks, open checkboxes in your notes, tasks due today or late",
+    fn: async () => {
+      await ready;
+      await notes.refresh();
+      const open = tasks.filter((t) => !t.done);
+      return { open: open.length, inNotes: notes.list().length, due: open.filter((t) => t.due && daysUntil(t.due) <= 0).length };
+    },
+  });
   ib.modules.expose("add", {
     needs: "vault:write",
     doc: 'add(text, { due: "YYYY-MM-DD", prio: "urgent|high|moderate|low", tags: [] }) → the new task',
@@ -942,7 +954,7 @@ export function activate(ib: IcebreakerAPI): void {
       rows.slice(this.scroll, this.scroll + viewH).forEach((row, k) => {
         const ry = y + k;
         if ("head" in row) {
-          const label = row.head === "notes" ? ` ${ib.lib.t("IN YOUR NOTES")} ` : ` ${row.head.toUpperCase()} `;
+          const label = row.head === "notes" ? ` ${ib.lib.t("IN YOUR NOTES")} ` : ` ${row.head.toLowerCase()} `;
           ui.text(x0, ry, "──", { fg: c.faint });
           ui.text(x0 + 2, ry, label, { fg: row.head === "notes" ? c.accentAlt : pc(row.head), attrs: BOLD });
           ui.hline(x0 + 2 + strWidth(label), ry, w - strWidth(label) - 2, { fg: c.faint });

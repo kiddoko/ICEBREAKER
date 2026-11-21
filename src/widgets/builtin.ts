@@ -483,6 +483,11 @@ async function refreshPulse(deck: Deck): Promise<void> {
     return { icon: "▦", name: t("agenda"), text: next ? `${next.allDay ? t("today") : time(new Date(next.start))} ${next.title}` : t("nothing left today"), cmd: "cal open", hot: !!soon };
   });
   await tryLine(async () => {
+    // the same count as TODO's own page: its tasks and the - [ ] of your notes
+    if (has("todo", "count")) {
+      const n = (await deck.use("todo").count()) as { open: number; inNotes: number; due: number };
+      return { icon: "☑", name: "todo", text: n.due ? t("{n} due today", { n: n.due }) : t("{n} open", { n: n.open + n.inNotes }), cmd: "launch todo", hot: n.due > 0 };
+    }
     if (!has("todo", "list")) return null;
     const today = new Date().toISOString().slice(0, 10);
     const tasks = (await deck.use("todo").list()) as { done: boolean; due?: string }[];

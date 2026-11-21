@@ -30,7 +30,7 @@ export const layoutCommand: Command = {
       const name = parseArrangement(saved) ? (saved.preset ?? "your own") : "classic";
       ctx.out(`${fmt.bold("layout")} ${name}${fmt.dim("  (layout presets · frame move <frame> <side>)")}\n`);
       for (const line of describe(arr)) ctx.out(`  ${line}\n`);
-      ctx.out(fmt.dim("  hidden frames give their room to the others: ⌘B the tree, ⌘⇧P the panel, ctrl+` the shell\n"));
+      ctx.out(fmt.dim(osKeys("  hidden frames give their room to the others: ⌘B the tree, ⌘⇧P the panel, ctrl+` the shell\n")));
       return 0;
     }
     if (a === "presets") {

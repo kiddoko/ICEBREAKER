@@ -923,7 +923,7 @@ export function activate(ib: IcebreakerAPI): void {
 
       // weekday names, cyber caps
       for (let i = 0; i < 7; i++) {
-        const n = colDay(i).toLocaleDateString(undefined, { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "").toUpperCase();
+        const n = colDay(i).toLocaleDateString(undefined, { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "").toLowerCase();
         ui.text(X(i) + 1, gy, n.slice(0, cw), { fg: wkd(i) ? c.accentAlt : c.subtle, attrs: BOLD });
       }
       // the grid lines
@@ -1017,7 +1017,7 @@ export function activate(ib: IcebreakerAPI): void {
       const aw = wide ? r.x + r.w - ax - 1 : r.w - 2;
       const bottom = r.y + r.h - 2;
       const dayHead = (y: number, label: string, hot: boolean) => {
-        ui.text(ax, y, label.toUpperCase(), { fg: hot ? c.accent : c.fg, attrs: BOLD }, aw);
+        ui.text(ax, y, label.toLowerCase(), { fg: hot ? c.accent : c.fg, attrs: BOLD }, aw);
         ui.hline(ax + Math.min(aw - 1, strWidth(label) + 1), y, Math.max(0, aw - strWidth(label) - 1), { fg: c.faint });
       };
       dayHead(ay, dayTitle(this.day), ymd(this.day) === ymd(today));
@@ -1075,7 +1075,7 @@ export function activate(ib: IcebreakerAPI): void {
       };
       if (this.view === "month") {
         btn(" ‹ ", () => this.onText("["), "previous month · [");
-        const month = new Date(this.day.getFullYear(), this.day.getMonth(), 1).toLocaleDateString(undefined, { month: "long", year: "numeric" }).toUpperCase();
+        const month = new Date(this.day.getFullYear(), this.day.getMonth(), 1).toLocaleDateString(undefined, { month: "long", year: "numeric" }).toLowerCase();
         hx = ui.gradientText(hx + 1, r.y, month, ui.theme.gradient) + 2;
         btn(" › ", () => this.onText("]"), "next month · ]");
         btn(t(" today "), () => this.goto(new Date()), "t");
@@ -1098,7 +1098,7 @@ export function activate(ib: IcebreakerAPI): void {
         y += 2;
       };
       // where the calendar lives
-      section("WHERE");
+      section("where");
       const modeBtn = (m: "local" | "google", label: string, hint: string) => {
         const on = mode === m || (m === "local" && mode === "ask" && !connected);
         const rect = { x, y, w, h: 1 };
@@ -1112,7 +1112,7 @@ export function activate(ib: IcebreakerAPI): void {
       if (ib.google.available()) modeBtn("google", t("Vault + Google Calendar"), connected ? `connected · ${status()}` : t("signs in in your browser"));
       y++;
       // the calendars
-      section("CALENDARS");
+      section("calendars");
       const all = calendars();
       this.setSel = Math.max(0, Math.min(this.setSel, all.length - 1));
       all.forEach((cal, i) => {
@@ -1164,8 +1164,8 @@ export function activate(ib: IcebreakerAPI): void {
       const first = new Date(popDay.getFullYear(), popDay.getMonth(), 1);
       const offset = dow(first);
       const today = ymd(new Date());
-      ui.text(r.x + 2, r.y, first.toLocaleDateString(undefined, { month: "long", year: "numeric" }).toUpperCase(), { fg: c.accent, attrs: BOLD });
-      for (let i = 0; i < 7; i++) ui.text(r.x + 2 + i * 4, r.y + 2, colDay(i).toLocaleDateString(undefined, { weekday: "narrow" }).toUpperCase(), { fg: wkd(i) ? c.accentAlt : c.subtle });
+      ui.text(r.x + 2, r.y, first.toLocaleDateString(undefined, { month: "long", year: "numeric" }).toLowerCase(), { fg: c.accent, attrs: BOLD });
+      for (let i = 0; i < 7; i++) ui.text(r.x + 2 + i * 4, r.y + 2, colDay(i).toLocaleDateString(undefined, { weekday: "narrow" }).toLowerCase(), { fg: wkd(i) ? c.accentAlt : c.subtle });
       for (let k = 0; k < 42; k++) {
         const d = addDays(first, k - offset);
         if (d.getMonth() !== first.getMonth()) continue;
@@ -1181,7 +1181,7 @@ export function activate(ib: IcebreakerAPI): void {
       // the chosen day
       const ax = r.x + 32, aw = r.w - 34;
       ui.vline(ax - 2, r.y, r.h - 1, { fg: c.faint });
-      ui.text(ax, r.y, dayTitle(popDay).toUpperCase(), { fg: c.fg, attrs: BOLD }, aw);
+      ui.text(ax, r.y, dayTitle(popDay).toLowerCase(), { fg: c.fg, attrs: BOLD }, aw);
       const evs = between(popDay, addDays(popDay, 1));
       if (!evs.length) ui.text(ax, r.y + 2, t("nothing · a adds"), { fg: c.faint });
       evs.slice(0, r.h - 4).forEach((e, i) => {
@@ -1232,7 +1232,7 @@ export function activate(ib: IcebreakerAPI): void {
       const gx = r.x + Math.floor((r.w - cw * 7) / 2);
       const gy = r.y + 2 + Math.max(0, Math.floor((r.h - 2 - weeks * ch) / 2));
       const colX = (i: number) => gx + i * cw;
-      ui.textCenter(r, r.y, first.toLocaleDateString(undefined, { month: "long", year: "numeric" }).toUpperCase(), { fg: c.fg, attrs: BOLD });
+      ui.textCenter(r, r.y, first.toLocaleDateString(undefined, { month: "long", year: "numeric" }).toLowerCase(), { fg: c.fg, attrs: BOLD });
       if (r.h < 3) return;
       for (let i = 0; i < 7; i++) {
         const n = colDay(i).toLocaleDateString(undefined, { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "").slice(0, cw - 1);
@@ -1329,7 +1329,7 @@ export function activate(ib: IcebreakerAPI): void {
         if (key !== lastDay) {
           lastDay = key;
           const n = Math.round((startOfDay(s).getTime() - startOfDay(new Date()).getTime()) / DAY);
-          const label = n <= 0 ? "TODAY" : n === 1 ? "TOMORROW" : s.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" }).toUpperCase();
+          const label = n <= 0 ? "today" : n === 1 ? "tomorrow" : s.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" }).toLowerCase();
           ui.text(r.x + 1, y++, label, { fg: n <= 0 ? c.accent : c.subtle, attrs: BOLD }, r.w - 2);
         }
         const row = { x: r.x, y, w: r.w, h: 1 };
@@ -1362,7 +1362,7 @@ export function activate(ib: IcebreakerAPI): void {
           if (y + (key !== last ? 2 : 1) > r.y + r.h - 1) break;
           if (key !== last) {
             last = key;
-            ui.text(r.x + 2, y++, dayTitle(s).toUpperCase(), { fg: c.subtle, attrs: BOLD }, r.w - 4);
+            ui.text(r.x + 2, y++, dayTitle(s).toLowerCase(), { fg: c.subtle, attrs: BOLD }, r.w - 4);
           }
           const row = { x: r.x, y, w: r.w, h: 1 };
           const sel = i === nextSel;

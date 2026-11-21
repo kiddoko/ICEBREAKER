@@ -1,3 +1,4 @@
+import { osKeys } from "../core/keyhints";
 import { sayPerms } from "../plugins/permissions";
 import { fmt } from "../core/ansi";
 import { compareVersions } from "../plugins/deps";
@@ -527,7 +528,7 @@ export const storeCommand: Command = {
           },
           redo: remove,
         });
-        ctx.out(p.source === "builtin" ? `${arg}: removed · store install ${arg} brings it back (⌘Z too, right now)\n` : `${arg}: removed (in .trash · ⌘Z right now brings it back)\n`);
+        ctx.out(osKeys(p.source === "builtin" ? `${arg}: removed · store install ${arg} brings it back (⌘Z too, right now)\n` : `${arg}: removed (in .trash · ⌘Z right now brings it back)\n`));
         return 0;
       }
       case "sources": {

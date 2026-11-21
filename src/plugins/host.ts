@@ -220,7 +220,7 @@ export class PluginHost {
     const scope = parsePerm(name)?.scope;
     const what = want.base === "vault:write" ? t("It wants to write: {x}", { x: target || "?" }) : want.base === "net" ? t("It wants to reach: {x}", { x: target || "?" }) : "";
     const spec: PermDialogSpec = {
-      frame: t("{m} (module) asks", { m: m.name }),
+      frame: t("{m} (module) asks", { m: m.name.toLowerCase() }),
       heading: level === "total" ? `⚠ ${t("TOTAL: this command has all your rights on this computer")}` : what,
       command,
       lines: [{ icon: d.icon, label: d.label, scope: d.scope, level: d.level }],
@@ -403,7 +403,7 @@ export class PluginHost {
       } else {
         const answer = await this.deck.askPermission({
           frame: t(before ? "A MODULE ASKS FOR MORE" : "SWITCH A MODULE ON"),
-          heading: `${m.name} · v${m.version} · ${t("by {a}", { a: m.author ?? t("unknown") })}`,
+          heading: `${m.name.toLowerCase()} · v${m.version} · ${t("by {a}", { a: m.author ?? t("unknown") })}`,
           facts: [
             source && isOfficialSource(source) ? `✔ ${t("from the official STORE")}` : source ? `⚠ ${t("not from the official STORE: {s}", { s: source })}` : `⚠ ${t("put in the vault by hand: nobody checked it")}`,
             ...report.split("\n").filter(Boolean),

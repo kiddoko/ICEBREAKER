@@ -70,7 +70,7 @@ export class HomeApp implements App {
   status(): string {
     return this.editing
       ? t("EDIT · arrows move · shift+arrows resize · a add · x remove · r reset · esc done")
-      : t("←↑↓→ select · enter open · [ ] pages · ctrl+e edit layout · m modules · ctrl+k everything else");
+      : t("←↑↓→ select · enter open · [ ] pages · ⌘E edit layout · m modules · ctrl+k everything else");
   }
 
   private get layout(): WidgetPlacement[] {
@@ -247,7 +247,7 @@ export class HomeApp implements App {
   /** Right-click on an empty spot of HOME. */
   /** First in every right-click on HOME: into edit mode, or out of it. */
   private editEntry(): MenuEntry {
-    return { label: this.editing ? t("Done editing") : t("Edit layout"), cmd: this.editing ? "home done" : "home edit", hint: this.editing ? "esc" : IS_MAC ? "⌘E" : "ctrl+E" };
+    return { label: this.editing ? t("Done editing") : t("Edit layout"), cmd: this.editing ? "home done" : "home edit", hint: this.editing ? "esc" : IS_MAC ? "⌘E" : "Ctrl+E" };
   }
 
   menu(): MenuEntry[] {
@@ -618,7 +618,7 @@ export class HomeApp implements App {
     // right-click menu and ⌘E do the same); left of the ↑ shown when scrolled
     const edit = this.editing ? `✓ ${t("done")}` : `✎ ${t("edit")}`;
     const up = this.scroll > 0 ? strWidth(` ↑ ${this.scroll} `) : 0;
-    ui.button(r.x + r.w - INSET - (strWidth(edit) + INSET * 2) - up, r.y, edit, () => this.setEditing(!this.editing), { selected: this.editing, tip: this.editing ? t("done editing (esc)") : t("move, resize, add widgets (⌘E / ctrl+E)") });
+    ui.button(r.x + r.w - INSET - (strWidth(edit) + INSET * 2) - up, r.y, edit, () => this.setEditing(!this.editing), { selected: this.editing, tip: this.editing ? t("done editing (esc)") : t("move, resize, add widgets (⌘E)") });
 
     // pages: ‹ 1 2 3 + › at the bottom left (always while editing)
     const pages = this.pageCount();

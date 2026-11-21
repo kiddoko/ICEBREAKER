@@ -81,13 +81,13 @@ function permissionRows(d: Deck, head: (label: string) => Row): Row[] {
     const id = p.manifest.id;
     const perms = d.plugins.permissionsOf(id);
     if (!perms.length) continue;
-    out.push(head(`${p.manifest.name}${p.source === "builtin" ? ` · ${t("ships with the deck")}` : p.active ? "" : ` · ${t("off")}`}`));
+    out.push(head(`${p.manifest.name.toLowerCase()}${p.source === "builtin" ? ` · ${t("ships with the deck")}` : p.active ? "" : ` · ${t("off")}`}`));
     for (const x of perms) {
       const info = describePerm(x.perm, t);
       const level = info.level === "total" ? t("TOTAL") : info.level === "high" ? t("HIGH") : t(info.level);
       out.push({
         // (the module's name in the row too: a search shows rows without their headings)
-        label: `${p.manifest.name} · ${info.icon} ${info.label}${info.scope ? ` → ${info.scope}` : ""}`,
+        label: `${p.manifest.name.toLowerCase()} · ${info.icon} ${info.label}${info.scope ? ` → ${info.scope}` : ""}`,
         kind: "action",
         // (read again at each draw: the list is rebuilt when a module comes or goes)
         value: () => {
@@ -597,7 +597,7 @@ export function moduleSettingRows(deck: Deck, id: string): Row[] {
   const d = deck;
   const rows = d.moduleSettings.get(id) ?? [];
   if (!rows.length || !d.plugins.list().some((p) => p.manifest.id === id && p.active)) return [];
-  const out: Row[] = [{ section: `◇ ${d.plugins.list().find((p) => p.manifest.id === id)?.manifest.name ?? id.toUpperCase()}`, label: "", value: () => "" }];
+  const out: Row[] = [{ section: `◇ ${d.plugins.list().find((p) => p.manifest.id === id)?.manifest.name.toLowerCase() ?? id}`, label: "", value: () => "" }];
   for (const ms of rows) {
     const k = `plugin.${id}.${ms.key}`;
     if (ms.type === "action") {
