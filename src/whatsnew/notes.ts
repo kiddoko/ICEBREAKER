@@ -41,7 +41,7 @@ export const NOTES: VersionNotes[] = [
         "◆ ICEBREAKER, top left: the deck's menu (modules, store, settings…)",
         "Groups of tabs: drop one onto another · HOME is pinned, always first",
         "New pages for NEWS and MOON; WEATHER, CLOCKS, STATS, SYSMON redrawn",
-        "Wake-up alarms: `clock alarm 7:30 --days mon-fri`",
+        "Wake-up alarms (in ibsh): `clock alarm 7:30 --days mon-fri`",
         "Each news widget shows one thing: your area, country, topics or words",
       ],
       fixed: [
@@ -59,7 +59,7 @@ export const NOTES: VersionNotes[] = [
         "◆ ICEBREAKER, en haut à gauche : le menu du deck (modules, store…)",
         "Groupes d'onglets : lâche un onglet sur un autre · HOME épinglé, premier",
         "Des pages pour NEWS et MOON ; WEATHER, CLOCKS, STATS, SYSMON redessinés",
-        "Des réveils : `clock alarm 7:30 --days lun-ven`",
+        "Des réveils (dans ibsh) : `clock alarm 7:30 --days lun-ven`",
         "Chaque widget news montre une chose : région, pays, sujets ou tes mots",
       ],
       fixed: [

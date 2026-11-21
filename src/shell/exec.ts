@@ -172,7 +172,8 @@ export class ShellExecutor {
       return { status: 127, stdout: "" };
     }
 
-    if (origin && isPrivileged(cmd.name, args)) {
+    // (your real terminal is the origin "terminal" with every grant; a module named so isn't it)
+    if (origin && isPrivileged(cmd.name, args, origin.source === "terminal" && origin.grants === "all" ? "terminal" : `module:${origin.source}`)) {
       this.print(`${name}: not allowed from a module or your real terminal — type it in ibsh\n`, true);
       return { status: 126, stdout: "" };
     }

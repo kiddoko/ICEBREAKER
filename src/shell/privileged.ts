@@ -6,7 +6,10 @@
  * scripts (`script x` runs bash / python… in your real terminal), your macros,
  * shortcuts and THE MENU's keys, deleting things for good (`trash purge`, `trash empty`) (`bind`, `menu add`, `keys set`: your next key press
  * would run it as you), pins and shortcut squares (`pin`, `home link`), the settings
- * that hold commands or decide what runs, and undoing what YOU did (`undo`, `redo`). `modules call` is refused too: it calls any
+ * that hold commands or decide what runs, and undoing what YOU did (`undo`, `redo`) — and, since
+ * 0.6, rearranging the screen (`layout` beyond looking, `frame`, `tab move / group / ungroup /
+ * groupname`: a module could put its page where your shell is, with a fake prompt) and your
+ * alarms beyond listing them (your real terminal may set one, nothing else). `modules call` is refused too: it calls any
  * function with every permission. exec.ts refuses these (aliases and `;` / `&&` chains
  * included), and no module may register a command of these names (a fake `vault` could
  * ask for your password). Your own typing is never limited.
@@ -29,7 +32,7 @@ const flagless = (args: string[]): string[] => args.filter((a) => !a.startsWith(
  * isn't a flag (`vault --window decrypt`): BOTH readings must be allowed, so no flag placed
  * in front can make the check and the command disagree.
  */
-export function isPrivileged(name: string, args: string[]): boolean {
+export function isPrivileged(name: string, args: string[], from?: string): boolean {
   const words = flagless(args);
   const subs = [...new Set([(args[0] ?? "").toLowerCase(), words[0] ?? ""])];
   /** every reading of the sub-command is one of these */
@@ -90,10 +93,14 @@ export function isPrivileged(name: string, args: string[]): boolean {
       // switching tabs is fine; moving them between frames, grouping them: yours
       return any("move", "group", "ungroup", "groupname");
     case "clock": {
-      // your alarms: a module may look at them, never set, remove, switch off, snooze or ring one
+      // your alarms: a module may look at them, never set, remove, switch off, snooze or ring
+      // one; your real terminal may also SET one (`clock alarm 7:30 …`), nothing else
       if (!any("alarm", "alarms")) return false;
       const sub = [(args[1] ?? "").toLowerCase(), words[1] ?? ""];
-      return !sub.every((s) => s === "" || s === "list" || s === "ls");
+      if (sub.every((s) => s === "" || s === "list" || s === "ls")) return false;
+      const managing = ["rm", "remove", "delete", "on", "off", "stop", "snooze", "test", "list", "ls"];
+      if (from === "terminal" && sub.every((s) => s !== "" && !managing.includes(s))) return false;
+      return true;
     }
     default:
       return ["account", "passwd", "logout", "lock", "factory-reset", "script", "scripts", "bind", "unbind", "pin", "unpin", "exit", "quit", "reboot", "starthere", "undo", "redo"].includes(name);

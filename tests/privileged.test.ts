@@ -125,3 +125,17 @@ describe("0.6: the screen and your alarms are yours (Fable's review)", () => {
     expect(isPrivileged("clock", ["alarms", "rm", "1"])).toBe(true);
   });
 });
+
+describe("0.6: your real terminal may set an alarm (Main's decision, R2)", () => {
+  it("sets one from the real terminal, nothing else; a module can't", () => {
+    expect(isPrivileged("clock", ["alarm", "7:30", "wake", "up"], "terminal")).toBe(false);
+    expect(isPrivileged("clock", ["alarm", "--days", "mon-fri", "7:30"], "terminal")).toBe(false);
+    for (const sub of ["rm", "off", "on", "stop", "snooze", "test"]) expect(isPrivileged("clock", ["alarm", sub, "1"], "terminal")).toBe(true);
+    expect(isPrivileged("clock", ["alarm", "--x", "rm", "1"], "terminal")).toBe(true);
+    expect(isPrivileged("clock", ["alarm", "7:30"], "module:evil")).toBe(true);
+    expect(isPrivileged("clock", ["alarm", "7:30"])).toBe(true);
+    // the screen stays ibsh's, even from the real terminal
+    expect(isPrivileged("layout", ["preset", "shell-right"], "terminal")).toBe(true);
+    expect(isPrivileged("tab", ["move", "2", "shell"], "terminal")).toBe(true);
+  });
+});

@@ -41,8 +41,8 @@ the deck at an existing Obsidian vault with `vault mount /path` or in Settings.
   the manual, what's new, updates, log out.
 - **Frames and their tabs** — every frame has its tabs on its border. Drag a tab
   onto another frame to keep it there, or onto another tab to make a group. Drag the
-  border between two frames to resize them; `layout preset shell-right`, `frame fold
-  tree`, `layout reset`. **HOME** is pinned: always the first tab.
+  border between two frames to resize them; in ibsh: `layout preset shell-right`,
+  `frame fold tree`, `layout reset`. **HOME** is pinned: always the first tab.
 
 - **HOME** — widgets. `e` to edit (drag them, pull the corner ◢ to resize, gaps
   allowed), `a` to add one (the same widget several times if you like), `[` `]`

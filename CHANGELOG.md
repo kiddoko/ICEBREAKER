@@ -54,6 +54,12 @@ tabs, and six modules are redrawn.
   leaves the computer.
 - **WHAT'S NEW** for a minor version gets louder: sparks, a drifting starfield, the version
   decrypting in, its headline typing itself out (standing still with reduce motion).
+- **Security** (docs/SECURITY_AUDIT.md #60–62): rearranging the screen (`layout` beyond
+  looking, `frame`, `tab move / group / ungroup / groupname`) and your alarms beyond listing them
+  are refused to modules and to your real terminal (which may still set an alarm) — type them in
+  ibsh; `sysmon.stats` gives a module the vitals only; an alarm set by a line with an origin
+  rings (one clock per deck). A tab shown in the shell's frame gives way to the shell whenever
+  the shell is asked for, so nothing typed for the shell lands in a page.
 - Fixes: a second copy of a widget was refused ("already on the grid") while HOME still had
   its default layout; TODO's "↓ N more" badge was drawn over a task; the tree drew a row
   under its frame in a tiny window; `layout reset` puts the shell's height back; a half

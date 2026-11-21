@@ -268,13 +268,15 @@ were on come back as you left them next time.
   on it changes it. **À la une**: one story, big, with its summary (↻ another one). The
   **NEWS page** (\`news page\`) has the same four as tabs, the article read on the right.
   \`news show science ai\`, \`news show formula 1\`, \`news mode featured\`.
-- **Frames**: the tree, the page, the side panel and the shell can go anywhere —
+- **Frames**: the tree, the page, the side panel and the shell can go anywhere — in
+  **ibsh** (the deck's own shell: your real terminal and modules can't rearrange the screen):
   \`layout preset classic | shell-right | panel-left | tree-bottom\`, \`frame move shell
   top\`, drag the border between two frames to resize, \`frame fold tree\` folds one into a
   strip (a click opens it), \`layout reset\`; ⌘Z undoes. **Tab groups**: drop a tab onto
   another (\`▣ name 3\`; hover lists them, right-click renames or ungroups).
 - **Wake-up alarms**: \`clock alarm 7:30 wake up --days mon-fri\`, \`clock alarm\` lists
-  them, \`clock alarm rm 1\` · \`on\` · \`off\` · \`snooze\`; **a** on the CLOCKS page. A full
+  them, \`clock alarm rm 1\` · \`on\` · \`off\` · \`snooze\` (in ibsh; your real terminal can set
+  one, nothing else); **a** on the CLOCKS page. A full
   screen rings (s snooze 5 min, enter stop; the gamepad's B / A), with the sound and a
   notification — while ICEBREAKER is running. \`clock alarm test\` tries it.
 - **◆ ICEBREAKER ▾** (top left): the deck's menu — MODULES, STORE, NEXUS, settings,
@@ -288,7 +290,7 @@ were on come back as you left them next time.
   the first tab (⌘1), it can't be closed by mistake. A page from the menu (STORE,
   settings…) shows first, lit, with × to close it (or esc). **Drag a tab onto another
   frame** (the tree's, the panel's, the shell's) to keep it there, beside that frame's own
-  — or right-click → *Move to*, or \`tab move 3 panel\`. A click on the frame's own tab
+  — or right-click → *Move to*, or \`tab move 3 panel\` in ibsh. A click on the frame's own tab
   (VAULT, PANEL, a terminal) brings its content back.
 - **PULSE** (a HOME widget): what's happening in your modules, one line each —
   the next event, tasks due, the next reminder, the music, the focus timer…

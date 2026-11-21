@@ -258,6 +258,9 @@ export class Workspace {
 
   showShellTab(t: ShellTab): void {
     if (!this.terminalOn) return this.terminalOff();
+    // ibsh is a big tab already (term max): there, not a second ibsh in the panel
+    const big = t === "ibsh" ? this.tabs.findIndex((a) => a instanceof IbshApp) : -1;
+    if (big >= 0) return this.switchTab(big);
     this.unfold("shell");
     if (t === "term" && !this.termAvailable) t = "ibsh";
     this.ownContent("shell");
@@ -657,8 +660,15 @@ export class Workspace {
 
   /** frame `f` can be shown right now (the shell: not while it's a big tab itself, nor with TERMINAL off) */
   private canShow(f: PlaceFrame): boolean {
-    if (f === "shell") return this.terminalOn && !this.tabs.some((a) => a.kind === "ibsh" || a.kind === "terminal");
+    // (not "no shell tab open": `term open` keeps the panel; Fable's re-check R1)
+    if (f === "shell") return this.terminalOn;
     return true;
+  }
+
+  /** ibsh as a big tab (term max), when the shell panel would show ibsh too: that tab */
+  private ibshTab(): number {
+    if (this.shellTab === "term" && this.termAvailable && this.terms.length) return -1;
+    return this.tabs.findIndex((a) => a instanceof IbshApp);
   }
 
   /** Make frame `f` seen: shown, unfolded. */
@@ -687,7 +697,9 @@ export class Workspace {
     if (from === "main" && this.mainTabs().length < 2) return void this.notify(t("the page's frame keeps one tab at least")), false;
     if (groupOf(this.groups, app.key)) this.groups = takeOut(this.groups, app.key);
     const places = { ...this.places };
-    if (from !== "main" && this.shows[from] === app.key) this.showIn(from, null);
+    // its old frame shows its own content again — without opening it (term max: the shell panel
+    // came back, ibsh shown twice)
+    if (from !== "main" && this.shows[from] === app.key) this.ownContent(from);
     if (to === "main") delete places[app.key];
     else places[app.key] = to;
     this.places = places;
@@ -746,6 +758,9 @@ export class Workspace {
 
   focusShell(): void {
     if (!this.terminalOn) return this.terminalOff();
+    // ibsh is a big tab (term max): ctrl+` goes there (the panel showed ibsh a second time)
+    const big = this.ibshTab();
+    if (big >= 0) return this.switchTab(big);
     this.unfold("shell");
     if (!this.shellVisible || this.focus !== "shell" || this.shows.shell) {
       // ctrl+`: the shell itself, even when a moved tab was shown in its frame (it took the typing)
@@ -758,6 +773,9 @@ export class Workspace {
   /** An interactive shell command asks something: make sure it's seen. */
   focusShellIfHidden(): void {
     if (!this.terminalOn) return;
+    // the question shows in ibsh's big tab when there is one
+    const big = this.ibshTab();
+    if (big >= 0) return this.switchTab(big);
     this.unfold("shell");
     // the question is in the shell: a moved tab shown in its frame would hide it
     this.ownContent("shell");
