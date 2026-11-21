@@ -70,7 +70,7 @@ export class HomeApp implements App {
   status(): string {
     return this.editing
       ? t("EDIT · arrows move · shift+arrows resize · a add · x remove · r reset · esc done")
-      : t("←↑↓→ select · enter open · [ ] pages · e edit layout · m modules · ctrl+k everything else");
+      : t("←↑↓→ select · enter open · [ ] pages · ctrl+e edit layout · m modules · ctrl+k everything else");
   }
 
   private get layout(): WidgetPlacement[] {
@@ -247,7 +247,7 @@ export class HomeApp implements App {
   /** Right-click on an empty spot of HOME. */
   /** First in every right-click on HOME: into edit mode, or out of it. */
   private editEntry(): MenuEntry {
-    return { label: this.editing ? t("Done editing") : t("Edit layout"), cmd: this.editing ? "home done" : "home edit", hint: this.editing ? "esc" : "e" };
+    return { label: this.editing ? t("Done editing") : t("Edit layout"), cmd: this.editing ? "home done" : "home edit", hint: this.editing ? "esc" : "ctrl+e" };
   }
 
   menu(): MenuEntry[] {
@@ -382,6 +382,9 @@ export class HomeApp implements App {
   }
 
   onKey(k: KeyInput): boolean {
+    // ⌘E / ctrl+E: in and out of edit mode, before any widget sees it (the chat box would type
+    // an "e"); only here, so the shell keeps ctrl+E (end of line)
+    if (k.combo === "ctrl+e") return this.setEditing(!this.editing), true;
     if (!this.editing) {
       // the selected widget first (Delete on the entry under the mouse, its own letters…)
       const p = this.layout[this.selected];
@@ -604,6 +607,10 @@ export class HomeApp implements App {
     const more = [` ↓ ${t("more (wheel)")} `, " ↓ "].find((m) => strWidth(m) <= room);
     if (this.scroll < maxScroll && more) ui.art(() => ui.textRight(r.x + r.w - 1, r.y + r.h - 1, more, { fg: c.panel, bg: c.accent }));
     if (this.scroll > 0) ui.textRight(r.x + r.w - 1, r.y, ` ↑ ${this.scroll} `, { fg: c.muted });
+
+    // edit / done: a button on the bottom edge, right (the right-click menu and ⌘E do the same)
+    const edit = this.editing ? `✓ ${t("done")}` : `✎ ${t("edit")}`;
+    ui.button(r.x + r.w - INSET - (strWidth(edit) + INSET * 2) - (this.scroll < maxScroll && more ? strWidth(more) + 1 : 0), r.y + r.h - 1, edit, () => this.setEditing(!this.editing), { selected: this.editing, tip: this.editing ? t("done editing (esc)") : t("move, resize, add widgets (⌘E / ctrl+E)") });
 
     // pages: ‹ 1 2 3 + › at the bottom left (always while editing)
     const pages = this.pageCount();

@@ -44,7 +44,7 @@ the deck at an existing Obsidian vault with `vault mount /path` or in Settings.
   border between two frames to resize them; in ibsh: `layout preset shell-right`,
   `frame fold tree`, `layout reset`. **HOME** is pinned: always the first tab.
 
-- **HOME** — widgets. `e` to edit (drag them, pull the corner ◢ to resize, gaps
+- **HOME** — widgets. The **✎ edit** button (bottom right) or `⌘E` / `ctrl+E` to edit (drag them, pull the corner ◢ to resize, gaps
   allowed), `a` to add one (the same widget several times if you like), `[` `]`
   to change page.
 - **The side panel** (◧, `Ctrl+Shift+P`) — widgets that stay in view on every page.

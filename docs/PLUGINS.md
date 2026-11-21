@@ -214,7 +214,7 @@ anybody can `ib.use("<your id>").name(…)`.
 
 Inside the deck's own code it's the same: `deck.use("todo").add("…")` (with every permission).
 
-The user adds it from HOME: `e` (edit layout) then `a`. Widgets render every
+The user adds it from HOME: **✎ edit** (or `⌘E` / `ctrl+E`) then `a`. Widgets render every
 frame they're visible: keep `render` cheap, cache anything slow (network, AI)
 in a variable, and call `ui.animate(ms)` only if something moves.
 

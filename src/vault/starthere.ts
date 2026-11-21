@@ -244,7 +244,7 @@ were on come back as you left them next time.
 - Status bar, right: **♪** mutes everything · **☾** the screensaver (each theme
   has its own: a neon city, an 80s mainframe, sonar, warp, an e-reader).
 - **◧ side panel** (status bar, ⌘⇧P, or \`panel\`): a column on the right whose
-  widgets stay in view on every page. Click it: **a** adds a widget, **e** edits.
+  widgets stay in view on every page. Click it: **a** adds a widget; the **✎ edit** button (bottom right) or **⌘E / ctrl+E** edits.
   **Edit mode is shared** by HOME and the panel (e on either, esc ends it), and
   works the same way: tab chooses a widget, the arrows move it, **shift+arrows**
   make it bigger / smaller, drag it to move it (between HOME and the panel too),

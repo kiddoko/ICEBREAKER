@@ -85,7 +85,7 @@ export const SHORTCUTS: Shortcut[] = [
   // home
   { keys: "←↑↓→ · tab", what: "choose a widget", cat: "home" },
   { keys: "enter", what: "open the widget's pop-up", cat: "home" },
-  { keys: "e · right-click", what: "edit mode (arrows move, shift+arrows resize, a add, x remove; drag a widget onto the side panel)", cat: "home", cmd: "home edit" },
+  { keys: "ctrl+e · e · ✎ edit", what: "edit mode (arrows move, shift+arrows resize, a add, x remove; drag a widget onto the side panel)", cat: "home", cmd: "home edit" },
   { keys: "[ · ]", what: "previous · next HOME page", cat: "home" },
   { keys: "m", what: "MODULES", cat: "home", cmd: "modules" },
 
