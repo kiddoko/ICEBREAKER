@@ -9,6 +9,11 @@ unless it really wants its own, it never draws one.
 A test (`tests/kit.test.ts`) fails if a page or a module draws its own text field,
 checkbox or word wrapping again.
 
+**Every label is lowercase** — a button, a tab, a card's title, a menu entry, a module's
+name — except ICEBREAKER, acronyms (AI, RGB…), key names (⌘K, F1), proper names and the
+user's own content. `t()` lowers what it gives (`uiCase`), the right-click menu lowers each
+label's first word; never `.toUpperCase()` a title. The rule: [GUIDELINES.md](GUIDELINES.md#case-the-interface-is-lowercase).
+
 | what | the piece | for a module | looks like |
 |---|---|---|---|
 | a button | `ui.button(x, y, label, onClick, { cmd, tip, accent, selected, quiet, disabled })` | the same (`ui` in `render`) | ` install ` lit when hovered; `quiet`: muted until hovered; `disabled`: faint |

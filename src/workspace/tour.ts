@@ -44,7 +44,7 @@ const STEPS: TourStep[] = [
     at: (ws) => ws.rects.panel ?? ws.rects.shell ?? ws.rects.main,
   },
   {
-    title: "VAULT",
+    title: "vault",
     text: "Your notes, files and folders. One click selects, a double-click opens. ⌘N a new note, F2 renames, Delete (⌘⌫ on a Mac) sends to the trash — nothing is lost, ⌘Z brings it back. ⌘⇧T shows or hides the tree.",
     prep: (ws) => void (ws.sidebarVisible = true),
     at: (ws) => ws.rects.sidebar,
@@ -62,7 +62,7 @@ const STEPS: TourStep[] = [
     at: (ws) => ws.rects.panel,
   },
   {
-    title: "SHELL",
+    title: "shell",
     text: "ibsh is the deck's own shell: help lists the commands, man <command> explains one. + opens your computer's real terminal. The LOG tab keeps what happened: the commands your clicks ran, errors, messages — tick a filter to see only those.",
     prep: (ws) => void (ws.shellVisible = true),
     at: (ws) => ws.rects.shell,
@@ -223,7 +223,7 @@ export class Tour implements Overlay {
       // a card like the UPLINK widget's: opaque, framed, its name on top
       const card = { x: block.x, y: block.y + Math.floor((H - AVATAR_H - 4) / 2), w: AW + 4, h: AVATAR_H + 4 };
       ui.fill(card, { bg: c.panel });
-      ui.box(card, { title: "UPLINK", focused: true, bg: c.panel });
+      ui.box(card, { title: "uplink", focused: true, bg: c.panel });
       const fy = card.y + 2;
       const box = { x: card.x + 2, y: fy, w: AW, h: AVATAR_H };
       // talking: a voice wave; listening: an eye on what it shows, blinking now and then
@@ -248,7 +248,7 @@ export class Tour implements Overlay {
     if (face) ui.text(bb.x, bb.y + Math.min(3, bb.h - 2), "◀", { fg: c.borderFocus, attrs: BOLD }); // the speech tail
     if (k < 1) return;
     const title = t(st.title).replace("{handle}", this.deck.settings.data.user.handle || "netrunner");
-    ui.gradientText(b.x + 2, b.y + 1, title.toUpperCase(), ui.theme.gradient, BOLD, (ui.now / 2000) % 1);
+    ui.gradientText(b.x + 2, b.y + 1, title.toLowerCase(), ui.theme.gradient, BOLD, (ui.now / 2000) % 1);
     // typed out (with its blips), a cursor at the end while it talks
     // typed out (with its blips): whole letters, then the one coming in fades up
     let left = shown;

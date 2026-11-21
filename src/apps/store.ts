@@ -320,7 +320,7 @@ class StoreApp implements App {
     const row = this.list.current;
     if (!row || typeof row === "string") return;
     let y = top;
-    ui.text(dx, y++, row.name.toUpperCase(), { fg: c.accent, attrs: BOLD }, dw);
+    ui.text(dx, y++, row.name.toLowerCase(), { fg: c.accent, attrs: BOLD }, dw);
     if ("repo" in row) ui.text(dx, y++, `${row.kind === "theme" ? t("theme") : t("module")} · ${row.author}${row.version ? ` · v${row.version}` : ""}`, { fg: c.subtle }, dw);
     y++;
     // the description, wrapped (core/unicode.ts: one wrapping for the whole deck)

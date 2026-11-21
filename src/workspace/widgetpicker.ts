@@ -126,7 +126,7 @@ export class WidgetPicker implements Overlay {
       if ("group" in line) {
         const open = this.openGroups.has(line.group);
         let gx = ui.text(row.x + 1, row.y, open ? "▾" : "▸", { fg: c.accent });
-        gx = ui.text(gx + 1, row.y, line.label.toUpperCase(), { fg: selected ? c.fg : c.title, attrs: BOLD });
+        gx = ui.text(gx + 1, row.y, line.label.toLowerCase(), { fg: selected ? c.fg : c.title, attrs: BOLD });
         ui.text(gx + 1, row.y, `${line.count}`, { fg: c.faint });
         ui.hit(row, { onClick: () => this.toggle(line.group), tip: t("click: open / fold · → ←") });
         return;
@@ -135,7 +135,7 @@ export class WidgetPicker implements Overlay {
       const on = this.placed(w.id);
       const mod = w.id.includes(".") ? w.id.split(".")[0] : "";
       let x = ui.text(row.x + (this.input.text ? 1 : 3), row.y, on ? "●" : selected ? "▸" : "○", { fg: on ? c.success : selected ? c.accent : c.subtle });
-      x = ui.text(x + 1, row.y, t(w.title).toUpperCase(), { fg: selected ? c.fg : c.muted, attrs: BOLD });
+      x = ui.text(x + 1, row.y, t(w.title).toLowerCase(), { fg: selected ? c.fg : c.muted, attrs: BOLD });
       if (mod) x = ui.text(x + 1, row.y, `· ${mod}`, { fg: c.accentAlt });
       ui.text(x + 2, row.y, t(w.description ?? ""), { fg: selected ? c.muted : c.faint }, Math.max(0, row.x + row.w - x - 4 - (on ? 9 : 0)));
       if (on) ui.textRight(row.x + row.w - 1, row.y, "on HOME", { fg: c.success });
@@ -152,7 +152,7 @@ export class WidgetPicker implements Overlay {
     const colW = Math.max(4, (ui.cols - 26) / 12);
     const pw = Math.min(pr.w, Math.round(w.size.w * colW)), ph = Math.min(pr.h - 3, w.size.h * 2 - 1);
     const card = { x: pr.x, y: pr.y + 4, w: Math.max(12, pw), h: Math.max(3, Math.min(ph, pr.h - 4)) };
-    const cin = ui.box(card, { title: w.title.toUpperCase(), bg: c.panel });
+    const cin = ui.box(card, { title: w.title.toLowerCase(), bg: c.panel });
     ui.clip(cin, () => {
       try {
         w.render(ui, cin, { deck: this.deck, focused: false });

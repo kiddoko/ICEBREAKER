@@ -332,7 +332,7 @@ export class ModulesApp implements App {
     // the light and the name (decoding while it powers up)
     const led = cart.on ? (lit ? c.success : c.faint) : c.subtle;
     ui.text(x + w - 3, ty, cart.on ? "●" : "○", { fg: front ? led : fade(led), bg: body });
-    const name = ui.reveal(cart.name.toUpperCase(), boot);
+    const name = ui.reveal(cart.name.toLowerCase(), boot);
     ui.text(ix, ty, `${cart.icon} ${name}`, { fg: front ? c.fg : fade(cart.on ? c.fg : c.muted), bg: body, attrs: BOLD }, iw - 2);
     ty++;
     // the stripe: its colour, a light running along it on the one in front
@@ -364,7 +364,7 @@ export class ModulesApp implements App {
     ui.fill(r, { bg: c.panelAlt });
     ui.hline(r.x, r.y, r.w, { fg: mix(c.accent, c.bg, 0.4) }, "━");
     if (!cur) return;
-    ui.text(r.x + 2, r.y + 1, `${cur.icon}  ${cur.name.toUpperCase()}`, { fg: c.accent, bg: c.panelAlt, attrs: BOLD });
+    ui.text(r.x + 2, r.y + 1, `${cur.icon}  ${cur.name.toLowerCase()}`, { fg: c.accent, bg: c.panelAlt, attrs: BOLD });
     if (cur.module) ui.textRight(r.x + r.w - 2, r.y + 1, `${cur.builtin ? t("built-in") : t("from the store")} · ${cur.on ? t("on") : t("off")}`, { fg: cur.on ? c.success : c.subtle, bg: c.panelAlt });
     if (r.h > 2) ui.text(r.x + 2, r.y + 2, cur.description, { fg: c.fg, bg: c.panelAlt }, r.w - 4);
     if (r.h <= 3) return;

@@ -70,7 +70,25 @@ widget never change the data themselves, they run the command.
   numbers, arrays, objects). No class instances or UI objects: a caller may be
   a script.
 - **Palette / menu entries**: `id: "mymodule.thing"`, a title that reads like
-  an action ("Todo: add…").
+  an action ("todo: add…").
+
+### Case: the interface is lowercase
+
+Everything the interface writes is **lowercase**: titles, tabs, buttons, menus, hints,
+card headings, dialog text, **module names** (`todo`, `nexus`, `uplink`, not TODO,
+NEXUS, UPLINK). Kept as they are:
+
+- **ICEBREAKER**, the logo;
+- **acronyms**: AI, API, CPU, RGB, URL, USB, OK…;
+- **key names** as the OS writes them: ⌘K, F1, Ctrl+K;
+- **proper names**: Claude, Google Calendar, Obsidian, a city…;
+- **the user's content**: a note's name, a folder, what they typed, an event's title.
+
+What goes through `t()` is lowered for you (`core/i18n.ts uiCase`, before `{vars}` are filled
+in, so a name in a variable keeps its case), and a right-click menu lowers each label's first
+word. Write your strings lowercase anyway: a string drawn without `t()` is drawn as written.
+Never `.toUpperCase()` a title for style. A new acronym or proper name the lowering would
+break goes in `KEEP_CAPS` / `PROPER` (`core/i18n.ts`).
 
 ### Your API is a promise
 

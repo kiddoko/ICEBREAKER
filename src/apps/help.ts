@@ -108,7 +108,7 @@ interface Run {
  */
 function runsOf(line: string): { runs: Run[]; indent: string } {
   const h = /^(#{1,6})\s+(.*)$/.exec(line);
-  if (h) return { runs: [{ text: h[1].length === 1 ? h[2].toUpperCase() : h[2], kind: "title" }], indent: "" };
+  if (h) return { runs: [{ text: h[2], kind: "title" }], indent: "" };
   const q = /^>\s?(.*)$/.exec(line);
   if (q) return { runs: [{ text: q[1].replace(/\*\*|`/g, ""), kind: "quote" }], indent: "" };
   const li = /^(\s*)[-*]\s+(.*)$/.exec(line);

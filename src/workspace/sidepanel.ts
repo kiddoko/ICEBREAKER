@@ -164,7 +164,7 @@ export class SidePanel {
         const chosen = i === this.sel && (hasFocus || editing);
         const dragged = this.drag?.moved && this.drag.key === key;
         const wi = ui.box(box, {
-          title: t(spec.title).toUpperCase(),
+          title: t(spec.title).toLowerCase(),
           info: editing && chosen ? `${box.h}` : undefined,
           border: editing ? (chosen ? "heavy" : "dashed") : ui.theme.widgetFrame,
           focused: dragged || chosen,
@@ -260,7 +260,7 @@ export class SidePanel {
     // a panel widget being dragged: a ghost under the pointer
     const pd = this.drag;
     if (pd?.moved) {
-      const label = ` ${t(d.widgets.get(widgetIdOf(pd.key))?.title ?? pd.key).toUpperCase()} `;
+      const label = ` ${t(d.widgets.get(widgetIdOf(pd.key))?.title ?? pd.key).toLowerCase()} `;
       ui.text(Math.max(0, pd.x - Math.floor(strWidth(label) / 2)), pd.y, label, { fg: c.bg, bg: mix(c.accent, c.bg, 0.1), attrs: BOLD });
       ui.animate(16);
     }

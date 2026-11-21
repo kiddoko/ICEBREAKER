@@ -73,7 +73,7 @@ export class WidgetPopup implements Overlay {
     const h = Math.min(screen.h - 2, (p.size?.h ?? 14) + 3);
     const box = { x: screen.x + Math.floor((screen.w - w) / 2), y: screen.y + Math.floor((screen.h - h) / 3), w, h };
     ui.hit(box, { onClick: () => {}, block: true });
-    const inner = ui.box(box, { title: t(p.title ?? this.spec.title).toUpperCase(), focused: true, bg: c.panelAlt });
+    const inner = ui.box(box, { title: t(p.title ?? this.spec.title).toLowerCase(), focused: true, bg: c.panelAlt });
     const body = { x: inner.x, y: inner.y, w: inner.w, h: inner.h - 2 };
     ui.clip(body, () => p.render(ui, body, this.ctx));
     // footer: open the module · close

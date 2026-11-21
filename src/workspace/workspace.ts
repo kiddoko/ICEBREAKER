@@ -1344,7 +1344,7 @@ export class Workspace {
     // folded frames: a one-cell strip with their name; a click opens them again
     for (const id of strips) {
       const r = at.get(id);
-      if (r) drawStrip(ui, r, id === "vault" ? "VAULT" : id === "panel" ? "PANEL" : "SHELL", `frame unfold ${id === "vault" ? "tree" : id}`);
+      if (r) drawStrip(ui, r, id === "vault" ? "vault" : id === "panel" ? "panel" : "shell", `frame unfold ${id === "vault" ? "tree" : id}`);
     }
     const vaultR = strips.has("vault") ? undefined : at.get("vault");
     if (this.sidebarVisible && vaultR) {
@@ -1354,7 +1354,7 @@ export class Workspace {
       // a tab moved here (tab move <n> tree) may be the one shown instead of the tree
       const moved = this.shownIn("vault");
       const inner = tabbedBox(ui, vaultR, { focused, info: moved ? undefined : `${d.vault.markdown().length}` });
-      const own = soloTab(ui, vaultR, "VAULT", focused, { onClick: () => (moved ? this.showIn("vault", null) : (this.focus = "sidebar")), tip: t("your notes and files · ◧ or ⌘B hides the tree"), menu: () => [...frameMenu("tree"), "-", { label: t("Hide tree"), cmd: "view sidebar", hint: IS_MAC ? "⌘B" : "ctrl+B" }] }, !moved);
+      const own = soloTab(ui, vaultR, "vault", focused, { onClick: () => (moved ? this.showIn("vault", null) : (this.focus = "sidebar")), tip: t("your notes and files · ◧ or ⌘B hides the tree"), menu: () => [...frameMenu("tree"), "-", { label: t("Hide tree"), cmd: "view sidebar", hint: IS_MAC ? "⌘B" : "ctrl+B" }] }, !moved);
       placeChips(this, ui, own.x + own.w + INSET, vaultR.y, vaultR.x + vaultR.w - INSET, "vault", focused);
       // (clipped: in a tiny window the tree's list drew a row under its frame)
       if (moved) ui.clip(inner, () => moved.render(ui, inner, focused));

@@ -217,7 +217,7 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
   if (rx <= logoRect.x + logoRect.w) return;
   ui.text(rx, r.y, right, { fg: c.muted, bg: c.panelAlt });
   const lamp = !d.ai.ready ? c.error : d.ai.busy > 0 ? c.warning : c.success;
-  if (!narrow) ui.text(rx + 1, r.y, "UPLINK", { fg: d.ai.ready ? c.fg : c.muted, bg: c.panelAlt, attrs: BOLD });
+  if (!narrow) ui.text(rx + 1, r.y, "uplink", { fg: d.ai.ready ? c.fg : c.muted, bg: c.panelAlt, attrs: BOLD });
   ui.text(rx + strWidth(ai), r.y, "■", { fg: lamp, bg: c.panelAlt });
   // "◈ reads notes/ideas.md", left of UPLINK, while the AI reads (as much of the name as fits)
   if (reading) {
@@ -311,7 +311,7 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
 
   // the things touch: each right part carries its own "│ " and spaces
   const bar = new Bar(ui, r.x, r.y, r.x + r.w, 0);
-  const label = ` ${pane.toUpperCase()} `;
+  const label = ` ${pane.toLowerCase()} `;
   bar.item(strWidth(label) + 1, (x) => {
     const e = ui.text(x, r.y, label, { fg: c.panel, bg: c.accent, attrs: BOLD });
     ui.text(e, r.y, "", { fg: c.accent, bg: c.statusBg });

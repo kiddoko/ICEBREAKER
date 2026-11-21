@@ -4,7 +4,7 @@ import { t } from "../core/i18n";
 import { mix } from "../core/color";
 import { strWidth } from "../core/unicode";
 import { BOLD, type Rect } from "../core/grid";
-import type { Action, KeyInput } from "../core/input";
+import { IS_MAC, type Action, type KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import { drawBackground } from "../fx/backgrounds";
 import { inside, type MenuEntry, type UI } from "../ui/ui";
@@ -247,7 +247,7 @@ export class HomeApp implements App {
   /** Right-click on an empty spot of HOME. */
   /** First in every right-click on HOME: into edit mode, or out of it. */
   private editEntry(): MenuEntry {
-    return { label: this.editing ? t("Done editing") : t("Edit layout"), cmd: this.editing ? "home done" : "home edit", hint: this.editing ? "esc" : "ctrl+e" };
+    return { label: this.editing ? t("Done editing") : t("Edit layout"), cmd: this.editing ? "home done" : "home edit", hint: this.editing ? "esc" : IS_MAC ? "⌘E" : "ctrl+E" };
   }
 
   menu(): MenuEntry[] {
@@ -494,7 +494,7 @@ export class HomeApp implements App {
       const inner = flat
         ? (!spec.frameless || this.editing ? ui.fill(rect, { bg: sel ? mix(c.panel, c.accent, 0.3) : this.editing ? c.highlight : mix(c.panel, c.fg, 0.06) }) : undefined, rect)
         : ui.box(rect, {
-            title: t(spec.title).toUpperCase(),
+            title: t(spec.title).toLowerCase(),
             info: this.editing && sel ? `${p.w}×${p.h}` : undefined,
             focused: sel,
             border: this.editing && sel ? "heavy" : ui.theme.widgetFrame,
@@ -597,7 +597,7 @@ export class HomeApp implements App {
         if (dg.spot) ui.box(toRect(dg.spot), { border: "dashed", focused: true, fill: false, title: t("drop here") });
         const r0 = toRect(p);
         const ghost = { x: dg.mx - dg.dx, y: dg.my - dg.dy, w: r0.w, h: r0.h };
-        ui.box(ghost, { border: "double", focused: true, fill: false, title: spec.title.toUpperCase() });
+        ui.box(ghost, { border: "double", focused: true, fill: false, title: spec.title.toLowerCase() });
         if (!dg.spot) ui.textCenter(ghost, ghost.y + Math.floor(ghost.h / 2), t("no room here"), { fg: c.subtle });
       }
     }

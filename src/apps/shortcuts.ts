@@ -192,7 +192,7 @@ class ShortcutsApp implements App {
       col.slice(this.scroll, this.scroll + room).forEach((line, j) => {
         const ly = y + j;
         if (line.kind === "head") {
-          const name = t(line.cat).toUpperCase();
+          const name = t(line.cat).toLowerCase();
           ui.text(cx, ly, name, { fg: c.title, attrs: BOLD });
           ui.hline(cx + strWidth(name) + 1, ly, colW - strWidth(name) - 1, { fg: c.faint }, "─");
         } else if (line.kind === "none") {

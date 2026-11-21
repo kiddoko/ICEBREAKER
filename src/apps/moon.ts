@@ -122,7 +122,7 @@ class MoonApp implements App {
     const c = ui.c;
     const locale = this.deck.settings.data.user.locale || undefined;
     let y = r.y;
-    ui.text(r.x, y++, t(phaseName(when)).toUpperCase(), { fg: moonTone(ui), attrs: BOLD }, r.w);
+    ui.text(r.x, y++, t(phaseName(when)).toLowerCase(), { fg: moonTone(ui), attrs: BOLD }, r.w);
     const lit = Math.round(moonLit(when) * 100);
     const age = moonAge(when);
     new Bar(ui, r.x, y++, r.x + r.w)
@@ -168,7 +168,7 @@ class MoonApp implements App {
     const big = cellW >= 6 && r.h >= 2 + weeks * 3;
     const rowH = big ? 3 : 1;
     if (r.h < 2 + weeks * rowH) return;
-    ui.text(r.x, r.y, shown.toLocaleDateString(locale, { month: "long", year: "numeric" }).toUpperCase(), { fg: c.title, attrs: BOLD }, r.w);
+    ui.text(r.x, r.y, shown.toLocaleDateString(locale, { month: "long", year: "numeric" }).toLowerCase(), { fg: c.title, attrs: BOLD }, r.w);
     for (let d = 0; d < 7; d++) {
       const name = new Date(2024, 0, 1 + d).toLocaleDateString(locale, { weekday: "short" }).slice(0, cellW - 1);
       ui.text(r.x + d * cellW, r.y + 1, name, { fg: c.faint });
