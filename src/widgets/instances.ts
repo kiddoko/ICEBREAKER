@@ -24,8 +24,9 @@ export function allWidgetKeys(deck: Deck): string[] {
 }
 
 /** A key for one more copy of this widget (the id itself if it's the first). */
-export function newWidgetKey(deck: Deck, id: string): string {
-  const taken = new Set(allWidgetKeys(deck));
+export function newWidgetKey(deck: Deck, id: string, also: string[] = []): string {
+  // `also`: the keys on screen that aren't saved yet (HOME's default layout before you change it)
+  const taken = new Set([...allWidgetKeys(deck), ...also]);
   if (!taken.has(id)) return id;
   for (let n = 2; ; n++) if (!taken.has(`${id}#${n}`)) return `${id}#${n}`;
 }

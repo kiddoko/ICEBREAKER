@@ -189,6 +189,8 @@ export interface Settings {
   home: { widgets: WidgetPlacement[]; links: { id: string; label: string; icon: string; cmd: string }[]; weatherCity: string; worldClocks: string[]; newsTopic: string;
     /** news interests: categories (tech, politics…) and free words, mixed with your area's news */
     newsInterests: string[];
+    /** the NEWS page's own categories and words (apart from the widgets'; before it: newsInterests, newsTopic) */
+    newsPage: { cats?: string[]; words?: string };
     /** each widget copy's own settings ("clock#2" → { style: "flip" }), see widgets/instances.ts */
     widgetConfig: Record<string, Record<string, unknown>>;
     /** saved places of the WEATHER app */
@@ -256,7 +258,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // the community index: a JSON list of plugins/themes (see docs/COMMUNITY.md)
   plugins: { enabled: [], disabled: [], removed: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json", sources: [], granted: {}, pinned: {} },
   // empty = the default layout (widgets/builtin.ts)
-  home: { widgets: [], links: [], weatherCity: "Paris", worldClocks: ["America/New_York", "Europe/London", "Asia/Tokyo"], newsTopic: "", newsInterests: [], weatherPlaces: [], clockStyle: "dots", clockSeconds: false, widgetConfig: {} },
+  home: { widgets: [], links: [], weatherCity: "Paris", worldClocks: ["America/New_York", "Europe/London", "Asia/Tokyo"], newsTopic: "", newsInterests: [], newsPage: {}, weatherPlaces: [], clockStyle: "dots", clockSeconds: false, widgetConfig: {} },
 };
 
 type Listener = (path: string) => void;

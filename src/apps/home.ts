@@ -170,7 +170,9 @@ export class HomeApp implements App {
     // a widget can be placed several times: each copy has its own key (widgets/instances.ts);
     // `keep` (a widget moving here from the side panel) keeps its key, and its settings
     const id = widgetIdOf(what);
-    const key = keep || what.includes("#") ? what : newWidgetKey(this.deck, id);
+    // (the keys on screen count too: HOME's default layout isn't saved until it changes, and a
+    // second NEWS was refused as "already on the grid")
+    const key = keep || what.includes("#") ? what : newWidgetKey(this.deck, id, this.layout.map(keyOf));
     const spec = this.deck.widgets.get(id);
     if (!spec || this.layout.some((p) => keyOf(p) === key)) return false;
     const layout = this.layout.map((p) => ({ ...p }));

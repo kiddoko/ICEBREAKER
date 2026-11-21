@@ -11,12 +11,18 @@ import type { Overlay } from "../workspace/overlays";
 import type { WidgetSpec } from "./types";
 
 /*
- * News for your area or a topic.
- *  - a search (your city, a topic) comes from Bing News RSS, which has a short
- *    summary per article and the direct link; Google News RSS is the fallback
- *    and gives the national top stories when there's nothing to search for.
- *  - the card is compact: hover a headline ~1 s and it scrolls so you can read
- *    it all; click it (or `news 3`) for the summary and a link out.
+ * NEWS — headlines with their summaries (Refonte UI: the user's choice "A").
+ *
+ * Each news widget answers ONE question, "what do I show?": your area, your country's
+ * top stories, some categories (ticked), or your own words. It's chosen in the widget
+ * (its pop-up) and its header always says it (◉ Paris, ◉ science · AI, ◉ “formula 1”).
+ * The NEWS page (apps/news.ts) offers the same four as tabs.
+ *  - a search (your city, a category, your words) comes from Bing News RSS (a short
+ *    summary per article and the direct link); Google News RSS is the fallback and
+ *    gives the national top stories.
+ *  - Before this, a widget showed "the shared feed" (your area or a global topic, plus
+ *    global interests mixed in) unless it had categories: a widget with no source saved
+ *    is read the old way once (its categories, else the old topic, else your area).
  */
 
 export interface Headline { title: string; source: string; at: number; link: string; summary: string; /** the interest it came from */ tag?: string }
@@ -26,7 +32,8 @@ export const NEWS_CATEGORIES: Record<string, { en: string; fr: string; label: st
   tech: { en: "technology", fr: "technologie", label: "tech" },
   ai: { en: "artificial intelligence", fr: "intelligence artificielle", label: "AI" },
   science: { en: "science", fr: "science", label: "science" },
-  space: { en: "space exploration", fr: "espace astronomie", label: "space" },
+  // (labelled "astronomy": "space" is a key name, drawn as a keycap)
+  space: { en: "space exploration", fr: "espace astronomie", label: "astronomy" },
   politics: { en: "politics", fr: "politique", label: "politics" },
   world: { en: "world news", fr: "international", label: "world" },
   business: { en: "business economy", fr: "économie", label: "business" },
@@ -47,69 +54,6 @@ const interestQuery = (deck: Deck, i: string) => {
   const cat = NEWS_CATEGORIES[i.toLowerCase()];
   return cat ? (langOf(deck).startsWith("fr") ? cat.fr : cat.en) : i;
 };
-const interests = (deck: Deck) => deck.settings.data.home.newsInterests ?? [];
-
-const state = {
-  items: [] as Headline[],
-  at: 0,
-  key: "",
-  loaded: false,
-  error: null as string | null,
-  loading: false,
-  /** The local feed was thin: national news were added. */
-  widened: false,
-};
-const seenAt = new Map<string, number>();
-
-/**
- * A news widget copy can show only some categories (its own setting "cats"):
- * each set of categories has its own feed here. A copy without categories shows
- * the shared feed (your area + your interests, `state`).
- */
-interface Feed {
-  items: Headline[];
-  at: number;
-  loading: boolean;
-  error: string | null;
-}
-const feeds = new Map<string, Feed>();
-const catsOf = (deck: Deck, key?: string): string[] => widgetConfig<string[]>(deck, key, "cats", []).filter(Boolean);
-function feedOf(cats: string[]): Feed {
-  const id = [...cats].sort().join(",");
-  let f = feeds.get(id);
-  if (!f) feeds.set(id, (f = { items: [], at: 0, loading: false, error: null }));
-  return f;
-}
-
-/** Load the feed of some categories: a few recent headlines each, woven together. */
-async function loadCats(deck: Deck, cats: string[]): Promise<void> {
-  const f = feedOf(cats);
-  f.loading = true;
-  try {
-    const rss = deck.platform.newsRss;
-    if (!rss) throw new Error("news needs the desktop app");
-    const fresh = (l: Headline[]) => l.filter((h) => !h.at || Date.now() - h.at < 21 * 86400_000);
-    const per = Math.max(4, Math.floor(30 / cats.length));
-    const batches = await Promise.all(
-      cats.map((cat) =>
-        rss(interestQuery(deck, cat), langOf(deck), countryOf(deck), "bing")
-          .then(parse)
-          .catch(() => [] as Headline[])
-          .then((l) => fresh(l).slice(0, per).map((h) => ({ ...h, tag: NEWS_CATEGORIES[cat]?.label ?? cat }))),
-      ),
-    );
-    const woven: Headline[] = [];
-    for (let k = 0; k < per; k++) for (const list of batches) if (list[k] && !woven.some((w) => w.title === list[k].title)) woven.push(list[k]);
-    if (!woven.length) throw new Error("no recent news in these categories");
-    Object.assign(f, { items: woven.slice(0, 30), at: Date.now(), error: null });
-  } catch (e) {
-    f.error = e instanceof Error ? e.message : String(e);
-  } finally {
-    f.loading = false;
-    deck.requestFrame();
-  }
-}
-
 /** "à la une": the headline a featured copy shows now (a new one every 10 min, or on a click) */
 const featured = new Map<string, { i: number; at: number }>();
 function featuredIndex(key: string, n: number, next = false): number {
@@ -122,14 +66,9 @@ function featuredIndex(key: string, n: number, next = false): number {
   }
   return cur.i;
 }
-/** the headlines on screen (other modules read them through ib.modules: news.headlines) */
-export const currentHeadlines = (): Headline[] => state.items.slice();
-
-function query(deck: Deck): string {
-  const loc = deck.settings.data.user.location;
-  const topic = deck.settings.data.home.newsTopic;
-  return topic || (loc.precision === "city" || loc.precision === "precise" || loc.precision === "country" ? loc.name : "");
-}
+/** the headlines last on screen (other modules read them through ib.modules: news.headlines) */
+let lastShown: Headline[] = [];
+export const currentHeadlines = (): Headline[] => lastShown.slice();
 
 function text(el: Element | null | undefined): string {
   return (el?.textContent ?? "").trim();
@@ -164,89 +103,192 @@ function parse(xmlText: string): Headline[] {
   });
 }
 
-export async function loadNews(deck: Deck): Promise<void> {
-  const q = query(deck);
-  const key = `${q}|${langOf(deck)}|${countryOf(deck)}|${interests(deck).join(",")}`;
-  state.loading = true;
+// ── sources: what a feed shows (the NEWS page; Refonte UI) ────────────────────
+
+/** What a feed shows: your area, your country's top stories, some categories, or your own words. */
+export type NewsSource = { kind: "area" } | { kind: "country" } | { kind: "cats"; cats: string[] } | { kind: "topic"; words: string };
+
+/** a source's id (its feed in the cache, a tab's key) */
+export function sourceId(s: NewsSource): string {
+  return s.kind === "cats" ? `cats:${[...s.cats].sort().join(",")}` : s.kind === "topic" ? `topic:${s.words.trim().toLowerCase()}` : s.kind;
+}
+
+/** A source back from its id ("area", "country", "cats:ai,science", "topic:formula 1"); null if it isn't one. */
+export function parseSource(id: unknown): NewsSource | null {
+  if (typeof id !== "string") return null;
+  if (id === "area" || id === "country") return { kind: id };
+  if (id.startsWith("cats:")) {
+    const cats = id.slice(5).split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+    return cats.length ? { kind: "cats", cats } : null;
+  }
+  if (id.startsWith("topic:") && id.slice(6).trim()) return { kind: "topic", words: id.slice(6).trim() };
+  return null;
+}
+
+/**
+ * What widget copy `key` shows: its source; a copy saved before sources is read the
+ * old way (its categories, else the old global topic, else your area).
+ */
+export function widgetSource(deck: Deck, key: string | undefined): NewsSource {
+  const saved = parseSource(widgetConfig<string>(deck, key, "source", ""));
+  if (saved) return saved;
+  const cats = widgetConfig<string[]>(deck, key, "cats", []).filter(Boolean);
+  if (cats.length) return { kind: "cats", cats };
+  const topic = deck.settings.data.home.newsTopic;
+  return topic ? { kind: "topic", words: topic } : { kind: "area" };
+}
+
+/** the NEWS page's categories (its own; before it had them, your old interests) */
+export const followedCats = (deck: Deck): string[] => (deck.settings.data.home.newsPage?.cats ?? deck.settings.data.home.newsInterests ?? []).map((x) => x.toLowerCase()).filter((x) => !!NEWS_CATEGORIES[x]);
+/** the NEWS page's words (its own; before, the old topic, else an old interest that wasn't a category) */
+export const followedWords = (deck: Deck): string => deck.settings.data.home.newsPage?.words ?? (deck.settings.data.home.newsTopic || (deck.settings.data.home.newsInterests ?? []).find((x) => !NEWS_CATEGORIES[x.toLowerCase()]) || "");
+
+/** your area's name, when the location says one (a city or a country) */
+function areaName(deck: Deck): string {
+  const loc = deck.settings.data.user.location;
+  return loc.precision === "city" || loc.precision === "precise" || loc.precision === "country" ? loc.name : "";
+}
+
+/** a place is set (else "your area" is just your country: its button isn't shown beside ⚑) */
+export const hasArea = (deck: Deck): boolean => !!areaName(deck);
+
+/** What a source is called on screen: "Paris", "FR", "science · AI", "“formula 1”". */
+export function sourceLabel(deck: Deck, s: NewsSource): string {
+  // no place set: your area's feed is your country's top stories, and says so
+  if (s.kind === "area") return areaName(deck) || countryOf(deck) || t("your area");
+  if (s.kind === "country") return countryOf(deck) || t("top stories");
+  if (s.kind === "cats") return s.cats.map((x) => NEWS_CATEGORIES[x]?.label ?? x).join(" · ");
+  return `“${s.words}”`;
+}
+
+interface Feed {
+  items: Headline[];
+  at: number;
+  loading: boolean;
+  error: string | null;
+}
+interface SourceFeed extends Feed {
+  /** your area's feed was thin: the national news were added */
+  widened?: boolean;
+}
+const bySource = new Map<string, SourceFeed>();
+
+/** A source's feed: loaded (again) when it's missing or 20 minutes old. */
+export function sourceFeed(deck: Deck, s: NewsSource): SourceFeed {
+  const id = sourceId(s);
+  let f = bySource.get(id);
+  if (!f) bySource.set(id, (f = { items: [], at: 0, loading: false, error: null }));
+  if ((!f.at || Date.now() - f.at > 20 * 60_000) && !f.loading && !f.error) void loadSource(deck, s, f);
+  return f;
+}
+
+/** Load a source again now (↻, `news refresh`). */
+export function refreshSource(deck: Deck, s: NewsSource): void {
+  const f = sourceFeed(deck, s);
+  f.error = null;
+  if (!f.loading) void loadSource(deck, s, f);
+}
+
+async function loadSource(deck: Deck, s: NewsSource, f: SourceFeed): Promise<void> {
+  f.loading = true;
   try {
     const rss = deck.platform.newsRss;
     if (!rss) throw new Error("news needs the desktop app");
-    // only recent news; a quiet village gets its wider area added (then the national news)
     const fresh = (l: Headline[]) => l.filter((h) => !h.at || Date.now() - h.at < 21 * 86400_000);
     const add = (base: Headline[], more: Headline[]) => [...base, ...more.filter((m) => !base.some((b) => b.title === m.title))].slice(0, 30);
-    const get = (query: string, p: "bing" | "google") => rss(query, langOf(deck), countryOf(deck), p).then(parse).catch(() => [] as Headline[]);
-    let items: Headline[] = q ? fresh(await get(q, "bing")) : [];
-    if (q && items.length < 5) items = add(items, fresh(await get(q, "google")));
-    state.widened = items.length < 5;
-    if (items.length < 5) items = add(items, fresh(await get("", "google")));
-    // your interests, a few headlines each, woven in with the local ones
-    const mine = interests(deck);
-    if (mine.length) {
-      const per = Math.max(3, Math.floor(24 / (mine.length + 1)));
-      const batches = await Promise.all(mine.map((i) => get(interestQuery(deck, i), "bing").then((l) => fresh(l).slice(0, per).map((h) => ({ ...h, tag: NEWS_CATEGORIES[i.toLowerCase()]?.label ?? i })))));
-      const local = items.slice(0, per + 2);
-      const woven: Headline[] = [];
-      for (let k = 0; k < per + 2; k++) for (const list of [local, ...batches]) if (list[k] && !woven.some((w) => w.title === list[k].title)) woven.push(list[k]);
-      items = woven.slice(0, 30);
+    const get = (q: string, p: "bing" | "google") => rss(q, langOf(deck), countryOf(deck), p).then(parse).catch(() => [] as Headline[]);
+    let items: Headline[] = [];
+    let widened = false;
+    if (s.kind === "cats") {
+      // a few recent headlines of each category, woven together, each wearing its category
+      const per = Math.max(4, Math.floor(30 / Math.max(1, s.cats.length)));
+      // this week's: Bing (it has summaries) when it has enough of them, else Google News limited to
+      // the last 7 days ("when:7d") — a category word also matches old pages that just say it
+      const week = (l: Headline[]) => l.filter((h) => h.at && Date.now() - h.at < 7 * 86400_000);
+      const forCat = async (cat: string): Promise<Headline[]> => {
+        const q = interestQuery(deck, cat);
+        let l = week(await get(q, "bing"));
+        if (l.length < 4) l = [...l, ...week(await get(`${q} when:7d`, "google")).filter((g) => !l.some((b) => b.title === g.title))];
+        return l.sort((a, b) => b.at - a.at).slice(0, per).map((h) => ({ ...h, tag: NEWS_CATEGORIES[cat]?.label ?? cat }));
+      };
+      const batches = await Promise.all(s.cats.map(forCat));
+      for (let k = 0; k < per; k++) for (const list of batches) if (list[k] && !items.some((w) => w.title === list[k].title)) items.push(list[k]);
+    } else {
+      const q = s.kind === "topic" ? s.words : s.kind === "area" ? areaName(deck) : "";
+      if (q) items = fresh(await get(q, "bing"));
+      if (q && items.length < 5) items = add(items, fresh(await get(q, "google")));
+      // a quiet village (or nothing to search for): the national news added
+      if (s.kind !== "topic" && items.length < 5) {
+        widened = !!q;
+        items = add(items, fresh(await get("", "google")));
+      }
     }
-    if (!items.length) throw new Error("no recent news");
-    Object.assign(state, { items, at: Date.now(), key, loaded: true, error: null });
+    if (!items.length) throw new Error(t("no recent news"));
+    Object.assign(f, { items: items.slice(0, 30), at: Date.now(), error: null, widened });
   } catch (e) {
-    state.error = e instanceof Error ? e.message : String(e);
+    f.error = e instanceof Error ? e.message : String(e);
   } finally {
-    state.loading = false;
+    f.loading = false;
     deck.requestFrame();
   }
 }
 
-function stale(deck: Deck): boolean {
-  const key = `${query(deck)}|${langOf(deck)}|${countryOf(deck)}|${interests(deck).join(",")}`;
-  return !state.loaded || state.key !== key || Date.now() - state.at > 20 * 60_000;
+/** "3 min", "2 h", "4 d" — how long ago, short */
+export function ago(at: number, now = Date.now()): string {
+  if (!at) return "";
+  const m = Math.max(0, Math.round((now - at) / 60_000));
+  if (m < 60) return t("{n} min", { n: Math.max(1, m) });
+  const h = Math.round(m / 60);
+  return h < 48 ? t("{n} h", { n: h }) : t("{n} d", { n: Math.round(h / 24) });
+}
+
+/** Open a headline's article in the browser. */
+export function openArticle(deck: Deck, h: Headline | undefined): void {
+  if (h?.link && deck.platform.openUrl) void deck.platform.openUrl(h.link);
 }
 
 function when(deck: Deck, at: number): string {
   return at ? new Date(at).toLocaleString(deck.settings.data.user.locale || undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
 }
 
+const seenAt = new Map<string, number>();
+
 export const newsWidget: WidgetSpec = {
   id: "news",
   title: "news",
-  description: "headlines for your area or a topic, with summaries",
+  description: "headlines of your area, your country, some categories or your own words — with summaries",
   size: { w: 6, h: 5 },
   min: { w: 2, h: 2 },
+  open: "news page",
   render(ui, r, { deck, key }) {
     const c = ui.c;
-    // this copy: its categories (else the shared feed: your area + interests), list or "à la une"
-    const cats = catsOf(deck, key);
+    // this copy: what it shows (one source), as headlines or one "à la une"
+    const src = widgetSource(deck, key);
     const mode = widgetConfig<string>(deck, key, "mode", "list");
-    let items: Headline[], header: string;
-    if (cats.length) {
-      const f = feedOf(cats);
-      if ((!f.at || Date.now() - f.at > 20 * 60_000) && !f.loading && !f.error) void loadCats(deck, cats);
-      items = f.items;
-      const error = f.error;
-      header = `◉ ${cats.map((x) => NEWS_CATEGORIES[x]?.label ?? x).join(" · ")}`;
-      if (!f.at) return void ui.text(r.x + 1, r.y, error ? `⚠ ${error}` : `${ui.spinner()} pulling the feed…`, { fg: error ? c.error : c.muted }, r.w - 2);
-    } else {
-      if (stale(deck) && !state.loading && !state.error) void loadNews(deck);
-      if (!state.loaded) return void ui.text(r.x + 1, r.y, state.error ? `⚠ ${state.error}` : `${ui.spinner()} pulling the feed…`, { fg: state.error ? c.error : c.muted }, r.w - 2);
-      items = state.items;
-      const q = query(deck);
-      header = q ? `◉ ${q}${state.widened ? ` + ${countryOf(deck)}` : ""}` : `◉ top stories · ${countryOf(deck)}`;
+    const f = sourceFeed(deck, src);
+    const items = f.items;
+    if (items.length) lastShown = items;
+    const header = `◉ ${sourceLabel(deck, src)}${f.widened ? ` + ${countryOf(deck)}` : ""}`;
+    // the header says what it shows; a click on it: change it (the widget's pop-up)
+    const head = { x: r.x, y: r.y, w: r.w, h: 1 };
+    if (key) ui.hit(head, { cmd: `widget ${key}`, tip: t("what this widget shows: click to change it") });
+    if (!items.length) {
+      ui.text(r.x + 1, r.y, header, { fg: c.accentAlt, attrs: BOLD }, r.w - 2);
+      if (r.h > 1) ui.text(r.x + 1, r.y + 1, f.error ? `⚠ ${f.error}` : `${ui.spinner()} ${t("pulling the feed…")}`, { fg: f.error ? c.error : c.muted }, r.w - 2);
+      return;
     }
-    const open = (i: number) => (cats.length ? showCard(deck, items, i + 1) : void deck.act(`news ${i + 1}`));
+    const open = (i: number) => showCard(deck, items, i + 1);
 
-    if (mode === "featured" && items.length) {
+    if (mode === "featured") {
       // à la une: one headline, big, with its summary
-      const i = featuredIndex(key ?? "news", items.length);
+      const i = featuredIndex(`${key ?? "news"}|${sourceId(src)}`, items.length);
       const h = items[i];
       const tw = r.w - 2;
-      // "à la une" first (it said nothing when a long list of categories pushed it out), then
-      // this article's own category or, without one, the feed's
-      ui.text(r.x + 1, r.y, `◉ ${t("à la une")} · ${h.tag ? (NEWS_CATEGORIES[h.tag]?.label ?? h.tag) : header.replace(/^◉ /, "")}`, { fg: c.accentAlt, attrs: BOLD }, tw);
+      // "à la une" first, then this article's own category or, without one, what the widget shows
+      ui.text(r.x + 1, r.y, `◉ ${t("à la une")} · ${h.tag ? (NEWS_CATEGORIES[h.tag]?.label ?? h.tag) : sourceLabel(deck, src)}`, { fg: c.accentAlt, attrs: BOLD }, tw);
       let y = r.y + 2;
       for (const l of wrapWords(h.title, tw).slice(0, Math.max(1, Math.floor((r.h - 3) / 2)))) ui.text(r.x + 1, y++, l, { fg: c.accent, attrs: BOLD }, tw);
-      if (y < r.y + r.h) ui.text(r.x + 1, y++, `${h.tag ? `[${h.tag}] ` : ""}${h.source}${h.at ? ` · ${when(deck, h.at)}` : ""}`, { fg: c.subtle }, tw);
+      if (y < r.y + r.h) ui.text(r.x + 1, y++, `${h.source}${h.at ? ` · ${when(deck, h.at)}` : ""}`, { fg: c.subtle }, tw);
       y++;
       const lines = wrapWords(h.summary || t("no summary in the feed — click to read it"), tw);
       const room = Math.max(0, r.y + r.h - 1 - y);
@@ -258,7 +300,7 @@ export const newsWidget: WidgetSpec = {
       const nx = { x: r.x + r.w - 3, y: r.y + r.h - 1, w: 3, h: 1 };
       ui.text(nx.x, nx.y, " ↻ ", { fg: ui.hovered(nx) ? c.accent : c.subtle, attrs: BOLD });
       ui.hit({ x: r.x, y: r.y + 1, w: r.w, h: r.h - 2 }, { onClick: () => open(i), tip: t("the article · ↻ another one") });
-      ui.hit(nx, { onClick: () => void (featuredIndex(key ?? "news", items.length, true), deck.requestFrame()), tip: t("another headline") });
+      ui.hit(nx, { onClick: () => void (featuredIndex(`${key ?? "news"}|${sourceId(src)}`, items.length, true), deck.requestFrame()), tip: t("another headline") });
       ui.animate(60_000);
       return;
     }
@@ -275,31 +317,20 @@ export const newsWidget: WidgetSpec = {
       const p = Math.min(1, Math.max(0, (ui.now - first) / 500));
       const row = { x: r.x, y, w: r.w, h: 1 };
       const hot = ui.hovered(row);
-      const src = r.w >= 50 ? h.source.slice(0, 14) : "";
-      const room = r.w - 5 - (src ? strWidth(src) + 1 : 0);
+      const src2 = r.w >= 50 ? h.source.slice(0, 14) : "";
+      const room = r.w - 5 - (src2 ? strWidth(src2) + 1 : 0);
       ui.text(r.x + 1, y, ui.theme.glyphs.bullet, { fg: c.accent });
-      // an interest's headline wears its tag, dimly
-      const tagW = h.tag && r.w >= 34 ? strWidth(h.tag) + 3 : 0;
+      // several categories: each headline wears its own, dimly
+      const tagW = h.tag && src.kind === "cats" && src.cats.length > 1 && r.w >= 34 ? strWidth(h.tag) + 3 : 0;
       if (tagW) ui.text(r.x + 3, y, `[${h.tag}]`, { fg: c.subtle });
       const shown = ui.reveal(h.title, p);
-      // too long: it scrolls by itself under the mouse (ui.text does it everywhere)
       ui.text(r.x + 3 + tagW, y, shown, { fg: hot ? c.accent : i === 0 ? c.fg : c.muted }, room - tagW);
-      if (src) ui.textRight(r.x + r.w - 1, y, src, { fg: c.faint, attrs: DIM });
-      ui.hit(row, cats.length ? { onClick: () => open(i), tip: "summary, then open it in your browser" } : { cmd: `news ${i + 1}`, tip: "summary, then open it in your browser" });
+      if (src2) ui.textRight(r.x + r.w - 1, y, src2, { fg: c.faint, attrs: DIM });
+      ui.hit(row, { onClick: () => open(i), tip: t("summary, then open it in your browser") });
     });
     ui.marqueeZone = zone;
   },
-  activate: ({ deck, key }) => {
-    const cats = catsOf(deck, key);
-    if (cats.length) {
-      const f = feedOf(cats);
-      f.error = null;
-      return void loadCats(deck, cats);
-    }
-    state.loaded = false;
-    state.error = null;
-    void loadNews(deck);
-  },
+  activate: ({ deck, key }) => refreshSource(deck, widgetSource(deck, key)),
 };
 
 /** The article card: full title, source, time, summary and a way out to the browser. */
@@ -309,8 +340,8 @@ class NewsCard implements Overlay {
   constructor(
     private readonly deck: Deck,
     private readonly n: number,
-    /** the headlines it browses (a copy's own categories; else the shared feed) */
-    private readonly items: Headline[] = state.items,
+    /** the headlines it browses (the widget's, the page's, `news`'s) */
+    private readonly items: Headline[],
   ) {}
 
   private get h(): Headline | undefined {
@@ -375,6 +406,11 @@ class NewsCard implements Overlay {
   }
 }
 
+/** A headline of a list, on its card (←→ browse the list). */
+export function showHeadline(deck: Deck, items: Headline[], n: number): void {
+  showCard(deck, items, n);
+}
+
 /** A copy's own headline, on its card. */
 function showCard(deck: Deck, items: Headline[], n: number): void {
   if (!items[n - 1]) return;
@@ -382,80 +418,116 @@ function showCard(deck: Deck, items: Headline[], n: number): void {
   deck.requestFrame();
 }
 
-export function showNews(deck: Deck, n: number): boolean {
-  if (!state.items[n - 1]) return false;
-  deck.workspace.push(new NewsCard(deck, n));
+/** the NEWS page's tab (apps/news.ts reads and sets it; `news` lists that source's headlines) */
+export const newsPage = { tab: "area" as NewsSource["kind"] };
+
+/** the source of the page's tab: your area, your country, the categories you follow, your words */
+export function pageSource(deck: Deck): NewsSource {
+  const tab = newsPage.tab;
+  if (tab === "cats") {
+    const cats = followedCats(deck);
+    return cats.length ? { kind: "cats", cats } : { kind: "area" };
+  }
+  if (tab === "topic") {
+    const words = followedWords(deck);
+    return words ? { kind: "topic", words } : { kind: "area" };
+  }
+  return { kind: tab };
+}
+
+/**
+ * `news show …` → a source: area · country · categories (+cat / -cat change the ones there
+ * are) · anything else is your own words.
+ */
+export function sourceFromWords(words: string[], cur: NewsSource): NewsSource | null {
+  const w = words.map((x) => x.trim()).filter(Boolean);
+  if (!w.length) return null;
+  const one = w.join(" ").toLowerCase();
+  if (["area", "region", "local", "région", "region-locale", "-"].includes(one)) return { kind: "area" };
+  if (["country", "pays", "national", "top"].includes(one)) return { kind: "country" };
+  const bare = w.map((x) => x.toLowerCase().replace(/^[+-]/, ""));
+  if (bare.every((x) => NEWS_CATEGORIES[x])) {
+    const relative = w.some((x) => /^[+-]/.test(x));
+    let cats = relative && cur.kind === "cats" ? [...cur.cats] : [];
+    w.forEach((x, i) => {
+      if (x.startsWith("-")) cats = cats.filter((c) => c !== bare[i]);
+      else if (!cats.includes(bare[i])) cats.push(bare[i]);
+    });
+    return cats.length ? { kind: "cats", cats } : { kind: "area" };
+  }
+  return { kind: "topic", words: w.join(" ") };
+}
+
+/** The page shows `src`: its tab, and the categories / words it keeps (saved). */
+export function setPageSource(deck: Deck, src: NewsSource): void {
+  // the page's own (the widgets never read these: a widget follows only its own choice)
+  const page = deck.settings.data.home.newsPage ?? {};
+  if (src.kind === "cats") deck.settings.set("home.newsPage", { ...page, cats: src.cats });
+  if (src.kind === "topic") deck.settings.set("home.newsPage", { ...page, words: src.words });
+  newsPage.tab = src.kind;
   deck.requestFrame();
-  return true;
 }
 
 export const newsCommand: Command = {
   name: "news",
   examples: [
-    ["news", "numbered headlines"],
+    ["news", "numbered headlines (the NEWS page's tab, else your area)"],
     ["news 3", "summary of headline 3 (and the card on screen)"],
     ["news open 3", "read it in your browser"],
-    ["news topic intelligence artificielle", "follow a topic instead of your city"],
-    ["news topic -", "back to your city"],
+    ["news page", "the NEWS page"],
+    ["news show science ai", "what a news widget shows (its pop-up open): categories"],
+    ["news show formula 1", "…or your own words (area, country: those)"],
   ],
-  summary: "headlines for your area or topic; read one, open it",
-  usage: "news              list the headlines\nnews <n>          summary of headline n (a card on screen)\nnews open <n>     open it in your browser\nnews refresh\nnews topic <words> | news topic -   (follow a topic / back to your city)\nnews add <category | words>        an interest, mixed in (news add tech, news add \"formula 1\")\nnews rm <…> · news interests       (categories: tech ai science space politics world business people culture art music cinema gaming sports health environment nature security)\nnews show <categories> | +cat | -cat | all   a news widget's own categories (its pop-up open)\nnews mode list | featured          that widget: headlines, or one at a time in big with its summary",
-  complete: () => ["open", "refresh", "topic", "add", "rm", "interests", "show", "mode", "featured", "list", ...Object.keys(NEWS_CATEGORIES)],
+  summary: "headlines of your area, your country, categories or your words; read one, open it",
+  usage: "news              the headlines (the NEWS page's tab, else your area)\nnews <n>          summary of headline n (a card on screen)\nnews open <n>     open it in your browser\nnews refresh\nnews page         the NEWS page\nnews show area | country | <categories> | +cat | -cat | <your words>\n                  what a news widget shows (its pop-up open; else the page's tab)\nnews mode list | featured   that widget: headlines, or one at a time in big with its summary\nnews categories   the categories: tech ai science space politics world business people culture art music cinema gaming sports health environment nature security",
+  complete: () => ["open", "refresh", "page", "show", "mode", "featured", "list", "categories", "area", "country", ...Object.keys(NEWS_CATEGORIES)],
   async run(ctx) {
     const { deck } = ctx;
     const [a, b] = ctx.args;
-    // a news widget copy (its pop-up open, or selected): its categories and its mode
-    if (a === "show" || a === "mode") {
-      const target = widgetTarget("news");
-      if (!target) return ctx.err(`news ${a}: open a news widget's pop-up first (or select it on HOME)\n`), 1;
-      if (a === "mode") {
-        if (b !== "list" && b !== "featured") return ctx.err("usage: news mode list | featured\n"), 1;
-        setWidgetSetting(deck, "news", "mode", b);
-        return ctx.out(`news (${target}): ${b}\n`), 0;
+    if (a === "page") return void deck.openApp("news");
+    if (a === "categories" || a === "interests") {
+      ctx.out(`\x1b[2mcategories: ${Object.keys(NEWS_CATEGORIES).join(" ")}  (or your own words: news show formula 1)\x1b[0m\n`);
+      return 0;
+    }
+    const target = widgetTarget("news");
+    // the old words: topic <words> / topic - / add / rm — the same as show
+    const words = a === "topic" ? (b === "-" ? ["area"] : ctx.args.slice(1)) : a === "add" ? ctx.args.slice(1).map((x) => (NEWS_CATEGORIES[x.toLowerCase()] ? `+${x}` : x)) : a === "rm" ? ctx.args.slice(1).map((x) => `-${x}`) : a === "show" ? ctx.args.slice(1) : null;
+    if (words) {
+      // a widget (its pop-up open, or selected on HOME): what it shows
+      if (target) {
+        const next = sourceFromWords(words, widgetSource(deck, target));
+        if (!next) return ctx.err("usage: news show area | country | <categories> | <your words>\n"), 1;
+        setWidgetSetting(deck, "news", "source", sourceId(next));
+        return ctx.out(`news (${target}): ${sourceLabel(deck, next)}\n`), 0;
       }
-      const words = ctx.args.slice(1).map((x) => x.toLowerCase());
-      const cur = catsOf(deck, target);
-      // news show science ai · news show +nature · news show -ai · news show all (back to the shared feed)
-      let next = words[0] === "all" || words[0] === "-" ? [] : words.some((w) => /^[+-]/.test(w)) ? [...cur] : [];
-      for (const w of words) {
-        if (w === "all" || w === "-") continue;
-        const c2 = w.replace(/^[+-]/, "");
-        if (w.startsWith("-")) next = next.filter((x) => x !== c2);
-        else if (!next.includes(c2)) next.push(c2);
-      }
-      setWidgetSetting(deck, "news", "cats", next);
-      return ctx.out(`news (${target}): ${next.length ? next.join(", ") : "your area + interests"}\n`), 0;
+      // else the page: its tab, and the categories / words it keeps
+      const next = sourceFromWords(words, pageSource(deck));
+      if (!next) return ctx.err("usage: news show area | country | <categories> | <your words>\n"), 1;
+      setPageSource(deck, next);
+      return ctx.out(`news: ${sourceLabel(deck, next)}\n`), 0;
     }
-    if (a === "interests" || a === "categories") {
-      ctx.out(`${"\x1b[1m"}yours:\x1b[0m ${interests(deck).join(", ") || "\x1b[2mnone — news add tech\x1b[0m"}\n`);
-      ctx.out(`\x1b[2mcategories: ${Object.keys(NEWS_CATEGORIES).join(" ")}  (or any words: news add "formula 1")\x1b[0m\n`);
-      return 0;
+    if (a === "mode") {
+      if (!target) return ctx.err("news mode: open a news widget's pop-up first (or select it on HOME)\n"), 1;
+      if (b !== "list" && b !== "featured") return ctx.err("usage: news mode list | featured\n"), 1;
+      setWidgetSetting(deck, "news", "mode", b);
+      return ctx.out(`news (${target}): ${b}\n`), 0;
     }
-    if (a === "add" || a === "rm") {
-      const what = ctx.args.slice(1).join(" ").trim().toLowerCase();
-      if (!what) return ctx.err(`usage: news ${a} <category | words>\n`), 1;
-      const cur = interests(deck);
-      const next = a === "add" ? [...new Set([...cur, what])] : cur.filter((x) => x !== what);
-      if (next.length === cur.length) return ctx.err(a === "add" ? `news: already following ${what}\n` : `news: not following ${what}\n`), 1;
-      deck.settings.set("home.newsInterests", next);
-      await loadNews(deck);
-      ctx.out(`news: ${next.join(", ") || "your area only"}\n`);
-      return 0;
+    // the headlines of the page's tab (else your area)
+    const src = target ? widgetSource(deck, target) : pageSource(deck);
+    const f = sourceFeed(deck, src);
+    if (a === "refresh" || !f.items.length) {
+      refreshSource(deck, src);
+      for (let i = 0; i < 100 && f.loading; i++) await new Promise((r) => setTimeout(r, 100));
     }
-    if (a === "topic") {
-      deck.settings.set("home.newsTopic", b === "-" ? "" : ctx.args.slice(1).join(" "));
-      await loadNews(deck);
-      ctx.out(`news: ${query(deck) || "top stories"}\n`);
-      return 0;
-    }
-    if (a === "refresh" || stale(deck)) await loadNews(deck);
-    if (state.error) return ctx.err(`news: ${state.error}\n`), 1;
+    if (!f.items.length) return ctx.err(`news: ${f.error ?? t("no recent news")}\n`), 1;
+    lastShown = f.items;
     if (!a || a === "refresh") {
-      state.items.forEach((h, i) => ctx.out(`\x1b[35m${String(i + 1).padStart(2)}\x1b[0m ${h.tag ? `\x1b[36m[${h.tag}]\x1b[0m ` : ""}${h.title} \x1b[2m· ${h.source}\x1b[0m\n`));
+      ctx.out(`\x1b[1m◉ ${sourceLabel(deck, src)}\x1b[0m\n`);
+      f.items.forEach((h, i) => ctx.out(`\x1b[35m${String(i + 1).padStart(2)}\x1b[0m ${h.tag ? `\x1b[36m[${h.tag}]\x1b[0m ` : ""}${h.title} \x1b[2m· ${h.source}\x1b[0m\n`));
       return 0;
     }
     const n = Number(a === "open" ? b : a);
-    const h = state.items[n - 1];
+    const h = f.items[n - 1];
     if (!h) return ctx.err(`news: no headline ${a === "open" ? b : a} (news to list them)\n`), 1;
     if (a === "open") {
       if (!deck.platform.openUrl || !h.link) return ctx.err("news: can't open links here\n"), 1;
@@ -464,7 +536,7 @@ export const newsCommand: Command = {
       return 0;
     }
     ctx.out(`\x1b[1m${h.title}\x1b[0m\n\x1b[2m${h.source}${h.at ? ` · ${when(deck, h.at)}` : ""}\x1b[0m\n${h.summary ? `${h.summary}\n` : ""}\x1b[2mnews open ${n} → browser\x1b[0m\n`);
-    if (ctx.isTTY) showNews(deck, n);
+    if (ctx.isTTY) showCard(deck, f.items, n);
     return 0;
   },
 };

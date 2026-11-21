@@ -110,7 +110,7 @@ has the same bar. The tree's colour squares tick several colours too (\`tag view
 | **WEATHER** | any place, an animated ASCII sky, the week | \`weather Tokyo\` |
 | **CLOCKS** | timers (several), a stopwatch with laps, the world | \`timer 4m tea\` |
 | **FOCUS** | a pomodoro ring, zen mode | \`focus open\` |
-| **NEWS** | your area + your interests | \`news add tech\` |
+| **NEWS** | your area, your country, categories or your words — a page and a widget | \`news page\` · \`news show ai\` |
 | **MUSIC** | your music folder, what's playing | \`music play daft punk\` |
 | **UPLINK** | the AI: the chat (in tabs), the chatbox widget | ⌘⇧U |
 | **NEXUS** | the vault in pseudo-3D | \`explore\` |
@@ -262,10 +262,12 @@ were on come back as you left them next time.
   tonight, drawn and lit from the right side, its phase, the next four phases, and the
   month as a calendar of moons. ←→ a day, ↑↓ a week, **t** today. All computed on your
   computer, no network.
-- **News**: each news widget shows the **categories** you choose (science, AI,
-  nature, economy, world…: click the widget → THIS WIDGET), so two news widgets
-  can show different things. **Featured** mode: one story, big, with its
-  summary (↻ another one). \`news show science ai\`, \`news mode featured\`.
+- **News**: each news widget answers one question, *what do I show?* — **your area**,
+  **your country's** top stories, **categories** you tick (science, AI, world…) or **your
+  own words** ("formula 1"). Its header always says it (◉ Paris, ◉ science · AI); a click
+  on it changes it. **À la une**: one story, big, with its summary (↻ another one). The
+  **NEWS page** (\`news page\`) has the same four as tabs, the article read on the right.
+  \`news show science ai\`, \`news show formula 1\`, \`news mode featured\`.
 - **◆ ICEBREAKER ▾** (top left): the deck's menu — MODULES, STORE, NEXUS, settings,
   the manual, what's new, updates, and **⏻ log out** (back to the login page, ⌘⇧L).
 - **What's new**: after each update, a short page opens once — the version big,

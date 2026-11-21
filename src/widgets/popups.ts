@@ -1,7 +1,7 @@
 import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
-import { BOX_OFF, BOX_ON, checkbox, choice } from "../ui/controls";
+import { checkbox, choice } from "../ui/controls";
 import { parseTimer, clockState, dur, soonestTimer, swNow, type ClockTimer } from "./clockstate";
-import { NEWS_CATEGORIES } from "./news";
+import { followedCats, followedWords, hasArea, NEWS_CATEGORIES, sourceLabel, widgetSource, type NewsSource } from "./news";
 import { clockCommand } from "./clockfaces";
 import { t } from "../core/i18n";
 /**
@@ -30,7 +30,7 @@ import { drawMoon } from "./moondraw";
 import { moonAge, moonLit, phaseName, SYNODIC, upcoming } from "./moonphase";
 import { chatPopup } from "./chatbox";
 import { DURATIONS, NEWS_TOPICS, places } from "../core/suggest";
-import { Bar, GAP, INSET, stack } from "../ui/layout";
+import { Bar, GAP, INSET, SECTION, stack } from "../ui/layout";
 import { drawSky, sceneFor } from "../apps/weathersky";
 
 
@@ -305,72 +305,61 @@ const weatherPopup: WidgetPopupSpec = {
   },
 };
 
-/* ─────────── news: pick the topic ─────────── */
+/* ─────────── news: what this widget shows ─────────── */
 
 const newsPopup: WidgetPopupSpec = {
   title: "news",
-  size: { w: 66, h: 15 },
-  hint: "this widget: its categories, its mode · t: topic · i: interests",
+  size: { w: 66, h: 14 },
+  hint: "what this widget shows · its look · w: your own words",
   render(ui, r, { deck, key }) {
     const c = ui.c;
-    // this copy: list or "à la une", and the categories it shows (none: the shared feed)
+    // ONE question: what does this widget show? (the user's choice "A": widgets/news.ts)
+    const src = widgetSource(deck, key);
     const mode = widgetConfig<string>(deck, key, "mode", "list");
-    const cats = widgetConfig<string[]>(deck, key, "cats", []);
-    ui.text(r.x + 2, r.y, t("THIS WIDGET"), { fg: c.title, attrs: BOLD });
-    let x = r.x + 2;
-    x = ui.text(x, r.y + 1, `${t("show")} `, { fg: c.muted }) + 1;
-    x += ui.button(x, r.y + 1, t("headlines"), () => {}, { cmd: "news mode list", selected: mode !== "featured" }) + 1;
-    ui.button(x, r.y + 1, t("à la une (one, big, with its summary)"), () => {}, { cmd: "news mode featured", selected: mode === "featured" });
-    ui.text(r.x + 2, r.y + 3, cats.length ? t("only these categories (click to switch one):") : t("categories: none chosen — it shows your area + interests"), { fg: c.muted }, r.w - 4);
-    x = r.x + 2;
-    let y = r.y + 4;
-    for (const [id, cat] of Object.entries(NEWS_CATEGORIES)) {
-      const label = t(cat.label);
-      const w = label.length + 2;
-      if (x + w > r.x + r.w - 2) (x = r.x + 2), y++;
-      const on = cats.includes(id);
-      ui.button(x, y, label, () => {}, { cmd: `news show ${on ? "-" : "+"}${id}`, selected: on });
-      x += w + 1;
-    }
-    if (cats.length) ui.button(r.x + 2, y + 1, t("× all categories off (the shared feed)"), () => {}, { cmd: "news show all", accent: c.subtle });
-    // the shared feed (every copy without categories)
-    const sy = y + 3;
-    const topic = deck.settings.data.home.newsTopic;
-    const mine = deck.settings.data.home.newsInterests ?? [];
-    ui.text(r.x + 2, sy, t("SHARED FEED"), { fg: c.title, attrs: BOLD });
-    ui.text(r.x + 2, sy + 1, `${t("following:")} ${topic || t("your area (top stories)")} · ${t("interests:")} ${mine.join(", ") || "—"}`, { fg: c.muted }, r.w - 4);
-    x = r.x + 2;
-    x += ui.button(x, sy + 2, t("change topic"), () => void askTopic(deck), { tip: "t · news topic <words>" }) + 2;
-    x += ui.button(x, sy + 2, t("my area"), () => {}, { cmd: "news topic -", tip: "-" }) + 2;
-    x += ui.button(x, sy + 2, t("+ / − interests"), () => void pickInterests(deck), { tip: "i · news add tech · news rm tech" }) + 2;
-    ui.button(x, sy + 2, t("refresh"), () => {}, { cmd: "news refresh" });
+    const x0 = r.x + INSET * 2, x1 = r.x + r.w - INSET * 2;
+    let y = r.y;
+    ui.text(x0, y++, t("THIS WIDGET SHOWS"), { fg: c.title, attrs: BOLD });
+    const row = new Bar(ui, x0, y++, x1);
+    const pick = (kind: NewsSource["kind"], label: string, cmd: () => void, tip: string) => row.button(label, cmd, { selected: src.kind === kind, tip }, { priority: 5 });
+    // no place set: "your area" is your country — only ⚑ then (lit for either)
+    if (hasArea(deck)) pick("area", `⌖ ${sourceLabel(deck, { kind: "area" })}`, () => void deck.act("news show area"), t("your area (location: setup)"));
+    else row.button(`⚑ ${sourceLabel(deck, { kind: "country" })}`, () => void deck.act("news show country"), { selected: src.kind === "area" || src.kind === "country", tip: t("your country's top stories · set your place (setup) for your area's") }, { priority: 5 });
+    if (hasArea(deck)) pick("country", `⚑ ${sourceLabel(deck, { kind: "country" })}`, () => void deck.act("news show country"), t("your country's top stories"));
+    pick("cats", `▦ ${t("categories")}`, () => void (src.kind !== "cats" && deck.act(`news show ${(followedCats(deck).length ? followedCats(deck) : ["world"]).join(" ")}`)), t("the categories you tick, woven together"));
+    pick("topic", `❝ ${t("your own words")}`, () => void askWords(deck, src), "w");
+    row.draw();
+    y += SECTION;
+    if (src.kind === "cats") {
+      // tick them on and off (the last one off: back to your area)
+      ui.text(x0, y++, t("its categories (click to switch one):"), { fg: c.muted }, x1 - x0);
+      let x = x0;
+      for (const [id, cat] of Object.entries(NEWS_CATEGORIES)) {
+        const label = t(cat.label);
+        const w = label.length + GAP;
+        if (x + w > x1) (x = x0), y++;
+        const on = src.cats.includes(id);
+        ui.button(x, y, label, () => {}, { cmd: `news show ${on ? "-" : "+"}${id}`, selected: on });
+        x += w + INSET;
+      }
+      y++;
+    } else if (src.kind === "topic") {
+      const x = ui.text(x0, y, `“${src.words}”`, { fg: c.fg, attrs: BOLD }, x1 - x0 - 12) + GAP;
+      ui.button(x, y++, t("change"), () => void askWords(deck, src), { tip: "w" });
+    } else ui.text(x0, y++, src.kind === "area" ? t("the news where you are (a quiet place gets the national news added)") : t("your country's top stories"), { fg: c.muted }, x1 - x0);
+    y += SECTION;
+    ui.text(x0, y++, t("ITS LOOK"), { fg: c.title, attrs: BOLD });
+    new Bar(ui, x0, y++, x1)
+      .button(t("headlines"), () => {}, { cmd: "news mode list", selected: mode !== "featured" }, { priority: 6 })
+      .button(t("à la une (one, big, with its summary)"), () => {}, { cmd: "news mode featured", selected: mode === "featured" }, { priority: 5 })
+      .button(t("refresh"), () => {}, { cmd: "news refresh" }, { side: "right", priority: 3 })
+      .draw();
   },
-  onText: (t, { deck }) => (t === "t" ? (void askTopic(deck), true) : t === "i" ? (void pickInterests(deck), true) : t === "-" ? (void deck.act("news topic -"), true) : false),
+  onText: (s, { deck, key }) => (s === "w" ? (void askWords(deck, widgetSource(deck, key)), true) : false),
 };
-/** Tick categories on and off (and type your own words), one pick at a time. */
-async function pickInterests(deck: Deck): Promise<void> {
-  for (;;) {
-    const mine = deck.settings.data.home.newsInterests ?? [];
-    const cats = Object.entries(NEWS_CATEGORIES);
-    const opts = [
-      ...cats.map(([id, c]) => ({ label: `${mine.includes(id) ? BOX_ON : BOX_OFF} ${t(c.label)}`, hint: id })),
-      ...mine.filter((m) => !NEWS_CATEGORIES[m]).map((m) => ({ label: `☑ ${m}`, hint: t("your words") })),
-      { label: t("+ your own words…"), hint: "formula 1, linux, Lyon…" },
-    ];
-    const i = await deck.choose(t("News interests (esc when done)"), opts);
-    if (i === null) return;
-    if (i === opts.length - 1) {
-      const v = await deck.prompt(t("Follow what?"), { placeholder: "formula 1, linux, Lyon…", suggestions: NEWS_TOPICS });
-      if (v?.trim()) await deck.act(`news add ${v.trim()}`);
-      continue;
-    }
-    const id = i < cats.length ? cats[i][0] : mine.filter((m) => !NEWS_CATEGORIES[m])[i - cats.length];
-    await deck.act(`news ${mine.includes(id) ? "rm" : "add"} ${id}`);
-  }
-}
-async function askTopic(deck: Deck): Promise<void> {
-  const v = await deck.prompt("News topic", { initial: deck.settings.data.home.newsTopic, placeholder: "space, intelligence artificielle, F1…", suggestions: NEWS_TOPICS });
-  if (v !== null) void deck.act(v.trim() ? `news topic ${v.trim()}` : "news topic -");
+/** Your own words for this widget (a topic: "formula 1", "linux", "Lyon"…). */
+async function askWords(deck: Deck, cur: NewsSource): Promise<void> {
+  const v = await deck.prompt(t("This widget shows the news about…"), { initial: cur.kind === "topic" ? cur.words : followedWords(deck), placeholder: "formula 1, linux, Lyon…", suggestions: NEWS_TOPICS });
+  if (v?.trim()) void deck.act(`news show ${v.trim()}`);
 }
 
 /* ─────────── clock: a timer and a stopwatch ─────────── */
