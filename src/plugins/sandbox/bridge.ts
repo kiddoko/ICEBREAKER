@@ -39,7 +39,7 @@ export function sandboxed(deck: Deck, code: string, manifest: PluginManifest): P
 /** What the module may call on its `ib` (data in, data out). Everything else stays in its Worker or isn't there yet. */
 const CALLS = new Set([
   "apps.open",
-  "vault.read", "vault.exists", "vault.write", "vault.append", "vault.mkdir", "vault.modified",
+  "vault.read", "vault.exists", "vault.write", "vault.append", "vault.mkdir", "vault.modified", "vault.readBytes", "vault.writeBytes", "vault.list",
   "shell.run",
   "ui.notify", "ui.alert", "ui.say", "ui.confirm", "ui.prompt", "ui.choose", "ui.pickFolder", "ui.pickFile",
   "storage.get", "storage.set",
@@ -49,7 +49,18 @@ const CALLS = new Set([
   "ai.ask",
   "media.status", "media.control", "media.player.scan", "media.player.load", "media.player.control", "media.player.status",
   "google.status", "google.connect", "google.disconnect", "google.calendar", "google.cache.read", "google.cache.write",
+  "audio.now", "audio.sample", "audio.drop", "audio.schedule", "audio.stop", "audio.decode",
 ]);
+
+/** What goes back to the module: data only — JSON's, plus bytes and sound (typed arrays, ArrayBuffers) as they are. */
+function toData(v: unknown): unknown {
+  if (v === undefined) return undefined;
+  if (v instanceof ArrayBuffer || ArrayBuffer.isView(v)) return v;
+  if (Array.isArray(v)) return v.map((x) => toData(x) ?? null);
+  if (v && typeof v === "object" && Object.getPrototypeOf(v) === Object.prototype)
+    return Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined && typeof x !== "function").map(([k, x]) => [k, toData(x)]));
+  return JSON.parse(JSON.stringify(v) ?? "null");
+}
 
 /** keys a page of the module never takes: the deck's own (shortcuts, esc, tab, F-keys) */
 function deckKey(k: KeyInput): boolean {
@@ -93,8 +104,16 @@ class Sandbox {
 
   start(code: string): Promise<void> {
     const notes = this.notes();
+    // you silence it (`audio stop`, the ♪ in the status bar): it hears it, so its song stops too
+    if ((this.manifest.permissions ?? []).includes("audio")) {
+      try {
+        this.ib.audio.onStop(() => this.send({ t: "audioStop" }));
+      } catch {
+        /* not granted: it has no sound to stop */
+      }
+    }
     this.sentTheme = this.deck.theme;
-    this.send({ t: "load", code, manifest: JSON.parse(JSON.stringify(this.manifest)), version: this.ib.version, theme: JSON.parse(JSON.stringify(this.deck.theme)), notes: notes.notes, notesError: notes.error, settings: { ...((this.deck.settings.data.moduleSettings ?? {})[this.manifest.id] ?? {}) } });
+    this.send({ t: "load", code, manifest: JSON.parse(JSON.stringify(this.manifest)), version: this.ib.version, audio: this.ib.audio.available(), theme: JSON.parse(JSON.stringify(this.deck.theme)), notes: notes.notes, notesError: notes.error, settings: { ...((this.deck.settings.data.moduleSettings ?? {})[this.manifest.id] ?? {}) } });
     return new Promise((ok, no) => {
       this.ready = { ok, no };
       setTimeout(() => no(new Error("the module took more than 10 s to start")), 10_000);
@@ -158,13 +177,25 @@ class Sandbox {
           let value = await (fn as (...a: unknown[]) => unknown).apply(self, m.args);
           // what isn't data (an app object…) doesn't cross
           if (name === "apps.open") value = !!value;
-          this.send({ t: "rpc", id: m.id, ok: true, value: value === undefined ? undefined : JSON.parse(JSON.stringify(value)) });
+          this.send({ t: "rpc", id: m.id, ok: true, value: toData(value) });
         } catch (e) {
           this.send({ t: "rpc", id: m.id, ok: false, error: e instanceof Error ? e.message : String(e) });
         }
         return;
       }
       case "register": return this.register(m.what, m.spec);
+      case "streamReq": {
+        // its own audio node in the deck, and a port to it handed to its Worker (core/audiostream.ts):
+        // only with the "audio" permission; what the port carries is checked by the node
+        try {
+          if (!(this.manifest.permissions ?? []).includes("audio")) throw new Error(`plugin "${this.manifest.id}" needs the "audio" permission in its plugin.json`);
+          const port = await this.deck.mixer.openStream(this.manifest.id);
+          this.worker.postMessage({ t: "stream", id: m.id, port } satisfies ToModule, [port]);
+        } catch (e) {
+          this.send({ t: "stream", id: m.id, error: e instanceof Error ? e.message : String(e) });
+        }
+        return;
+      }
       case "frame": {
         // a frame is cells for a rectangle: sizes that are numbers, arrays that hold them
         const cells = m.w * m.h;
@@ -230,7 +261,7 @@ class Sandbox {
         this.ib.commands.register(cmd);
       } else if (what === "app") {
         const kind = String(s.kind);
-        this.ib.apps.register({ kind, title: String(s.title ?? kind), description: s.description as string | undefined, icon: s.icon as string | undefined, launcher: s.launcher as boolean | undefined, create: (_d, args) => new ModuleApp(this, kind, args) });
+        this.ib.apps.register({ kind, title: String(s.title ?? kind), description: s.description as string | undefined, icon: s.icon as string | undefined, launcher: s.launcher as boolean | undefined, rawKeys: s.rawKeys === true, create: (_d, args) => new ModuleApp(this, kind, args, s.rawKeys === true) });
       } else if (what === "action") {
         const id = String(s.id);
         this.ib.palette.register({ id, title: String(s.title ?? id), hint: s.hint as string | undefined, group: s.group as string | undefined, key: s.key as string | undefined, run: () => this.send({ t: "paletteRun", id }) });
@@ -370,6 +401,8 @@ class ModuleApp implements App {
     private readonly box: Sandbox,
     readonly kind: string,
     args?: unknown,
+    /** its page plays the keyboard (App.rawKeys) */
+    readonly rawKeys = false,
   ) {
     this.key = kind;
     this.inst = box.newInst();
@@ -386,7 +419,9 @@ class ModuleApp implements App {
     this.box.draw(ui, r, this.inst, { kind: "app" }, focused);
   }
   onKey(k: KeyInput): boolean {
-    if (deckKey(k)) return false;
+    // a page that plays the keyboard (App.rawKeys) undoes its own edits: ⌘Z / ⌘⇧Z go to it
+    const undo = this.rawKeys && k.ctrl && !k.alt && (k.key === "z" || k.code === "KeyZ");
+    if (deckKey(k) && !undo) return false;
     this.box.send2({ t: "key", inst: this.inst, target: { kind: "app" }, k: plainKey(k) });
     return true;
   }

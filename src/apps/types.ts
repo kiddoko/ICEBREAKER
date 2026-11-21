@@ -21,6 +21,12 @@ export interface App {
   onKey?(k: KeyInput): boolean;
   onText?(text: string): boolean;
   onAction?(a: Action): boolean;
+  /**
+   * Every key as a key, never as text, while this page is in front: letters, digits and
+   * space come to onKey with their place on the keyboard (`code`: KeyZ is Z on QWERTY, W on
+   * AZERTY) and `repeat` when held. For a piano, a game. onText gets nothing then.
+   */
+  rawKeys?: boolean;
   /** Text for the status bar when this app is focused. */
   status?(): string;
   /** Unsaved changes (shows ● in the tab). */
@@ -41,6 +47,8 @@ export interface AppSpec {
   description?: string;
   /** One or two characters, e.g. "✎". */
   icon?: string;
+  /** Its pages play the keyboard (App.rawKeys). */
+  rawKeys?: boolean;
   /** Show a tile on the home screen. */
   launcher?: boolean;
   create(deck: Deck, args?: unknown): App;

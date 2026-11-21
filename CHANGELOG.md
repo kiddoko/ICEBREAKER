@@ -1,6 +1,27 @@
 # Changelog
 
-## 0.5.3 — not released yet
+## 0.5.4 — not released yet
+
+- **Modules can play sound** (for a tracker, a drum machine, a game): a new permission
+  **`audio`** and `ib.audio` — a sampler the deck mixes on the exact frame (an AudioWorklet:
+  `src/core/mixer.ts`). A module loads samples and sends events dated on the audio clock;
+  `interp: "none"` gives the Amiga's stepped grit; `decode` reads wav, mp3, m4a…. 64 voices
+  and 32 MB per module, silenced when it's switched off. Settings → SOUND → mixer gets a
+  **Modules** fader, the status bar shows **♪ the module** while it plays (a click, or the new
+  `audio stop`, silences it — and tells the module, `ib.audio.onStop`, so its song stops too).
+  A module can also compute its own sound and stream it (`ib.audio.stream()`: one line to an
+  audio node of its own, ~30 ms from a key to the sound) — synths, effects, any instrument.
+  docs/PLUGINS.md, SANDBOX.md, SECURITY_AUDIT.md (O21).
+- **Binary files for modules**: `ib.vault.readBytes / writeBytes` (256 MB — a song's export —, the same permissions
+  and walls as notes); natively `vault_write_bytes`. `ib.vault.list(dir)`: a folder's files of
+  every kind (`vault:read`). Tested from the sandbox (`tests/sandbox/sbx-audio`, and the escape
+  tests try the new doors: closed).
+- **Pages that play the keyboard** (`rawKeys`: a piano, a tracker, a game): letters, digits and
+  space come as keys with their place (`code`), not as text — a piano works on AZERTY; every alt
+  combination is the page's on every system (alt + arrows too), ⌘Z / ⌘⇧Z reach it, esc gives the
+  keys back to the deck (the tree takes them). SHORTCUTS page, F1 manual.
+
+## 0.5.3 — 2026-11-21
 
 - **Select and copy text in ibsh**: drag over what a command printed, double-click a word,
   triple-click a line, then ⌘C (Ctrl+C on Windows / Linux). Ctrl+C with nothing selected still
@@ -52,7 +73,7 @@
   the one you're on (a colour opens the palette); ↑↓ skip the section titles and stop at the ends
   (a click changed the accent while enter still pointed at the theme row).
 
-## 0.5.2 — not released yet
+## 0.5.2 — 2026-11-21
 
 - **`exit` quits ICEBREAKER** (typed in ibsh), like ⌘Q / Alt+F4: open pages save, the vault
   locks, an update waiting to be installed "by itself" installs. `quit` does the same. In a

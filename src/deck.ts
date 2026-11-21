@@ -36,6 +36,7 @@ import { fontStack, loadFont, WEIGHTS } from "./core/fonts";
 import { Renderer } from "./core/renderer";
 import { bloomRadius, flickerSpeed } from "./core/fxlevels";
 import { Sound, SOUND_CHANNELS, type SoundName } from "./core/sound";
+import { Mixer } from "./core/mixer";
 import { DEFAULT_SETTINGS, type SettingsStore } from "./core/settings";
 import { UndoHistory } from "./core/undo";
 import { setTypewriterHost } from "./ui/typewriter";
@@ -151,6 +152,8 @@ export class Deck implements InputSink {
   readonly input: InputManager;
   readonly gamepad: GamepadInput;
   readonly sound = new Sound();
+  /** the modules' sampler (ib.audio, permission "audio"): core/mixer.ts */
+  readonly mixer = new Mixer();
   readonly voice: DeckVoice;
 
   private readonly ui = Object.assign(new UI(), { softCaret: true }); // the caret glides (renderer.setCaret)
@@ -374,10 +377,12 @@ export class Deck implements InputSink {
    */
   private releaseTimer: ReturnType<typeof setTimeout> | undefined;
   private watchVisibility(): void {
+    // a module starts or stops playing: the status bar's ♪ <module>
+    this.mixer.onActive = () => this.requestFrame();
     const update = () => {
       const hidden = document.hidden;
       this.loop.setPaused(hidden);
-      if (!hidden) this.sound.wake();
+      if (!hidden) this.sound.wake(), this.mixer.wake();
       clearTimeout(this.releaseTimer);
       if (hidden) this.releaseTimer = setTimeout(() => this.renderer.release(), 60_000);
       this.gamepad.setActive?.(!hidden && document.hasFocus());
@@ -387,12 +392,12 @@ export class Deck implements InputSink {
       this.loop.background = !on && this.settings.data.appearance.backgroundSlow !== false;
       this.gamepad.setActive?.(on && !document.hidden);
       if (on) this.loop.request();
-      if (on) this.sound.wake();
+      if (on) this.sound.wake(), this.mixer.wake();
     };
     window.addEventListener("focus", () => focus(true));
     // the sound can come back only after a gesture: the first click / key after a time away wakes it
-    window.addEventListener("pointerdown", () => this.sound.wake(), { capture: true });
-    window.addEventListener("keydown", () => this.sound.wake(), { capture: true });
+    window.addEventListener("pointerdown", () => (this.sound.wake(), this.mixer.wake()), { capture: true });
+    window.addEventListener("keydown", () => (this.sound.wake(), this.mixer.wake()), { capture: true });
     // what nobody caught still lands in the error log (with a sound, the LOG tab blinks)
     const caught = (msg: string) => {
       this.errors.add(msg);
@@ -592,6 +597,11 @@ export class Deck implements InputSink {
     if (this.lock) return this.lock.onKey(k), this.requestFrame();
     this.workspace.handleKey(k);
     this.requestFrame();
+  }
+
+  /** the page in front plays the keyboard (App.rawKeys): its keys come as keys, not text */
+  rawKeys(): boolean {
+    return !this.boot && !this.lock && this.workspace.rawKeys();
   }
 
   text(t: string): void {
@@ -922,8 +932,11 @@ export class Deck implements InputSink {
 
   /** The mixer (Settings → SOUND): each channel's volume, 0-100 → 0-1. */
   private applyMix(): void {
-    const mix = this.settings.data.sound.mix;
+    const s = this.settings.data.sound;
+    const mix = s.mix;
     for (const ch of SOUND_CHANNELS) this.sound.mix[ch] = Math.max(0, Math.min(100, mix?.[ch] ?? 100)) / 100;
+    // the modules' own sound (ib.audio): the main volume × its fader, nothing when the sound is off
+    this.mixer.setVolume(s.enabled && !s.muted ? (s.volume / 100) * (Math.max(0, Math.min(100, mix?.modules ?? 80)) / 100) : 0);
   }
 
   /**

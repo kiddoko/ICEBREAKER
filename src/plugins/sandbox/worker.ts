@@ -16,6 +16,7 @@ import type { Theme } from "../../core/theme";
 import { UI, type Hit, type MenuEntry } from "../../ui/ui";
 import { resolvePath } from "../../vault/paths";
 import * as lib from "../lib";
+import { AudioStream } from "../../core/audiostream";
 import { UNTOUCHED, type FromModule, type HitInfo, type MenuLine, type Target, type ToModule } from "./protocol";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
@@ -76,6 +77,17 @@ let theme: Theme;
 let notes: string[] | null = null;
 let notesError = "";
 let settings: Record<string, unknown> = {};
+let audio = false;
+/** ib.audio.stream(): the deck hands over a port to the module's own audio node */
+let streamId = 0;
+const streamWaits = new Map<number, { ok: (s: AudioStream) => void; no: (e: Error) => void }>();
+function openStream(): Promise<AudioStream> {
+  const id = ++streamId;
+  post({ t: "streamReq", id });
+  return new Promise((ok, no) => streamWaits.set(id, { ok, no }));
+}
+/** what the module asked to hear when the user silences it */
+const audioStops = new Set<() => void>();
 let mod: { activate?: (ib: unknown) => unknown; deactivate?: () => unknown } | null = null;
 
 // ── what the module registers ──────────────────────────────────────────────
@@ -126,7 +138,7 @@ function makeIb(manifest: unknown, version: string): unknown {
     apps: {
       register(spec: Record<string, unknown>) {
         appSpecs.set(String(spec.kind), spec as { create(deck: unknown, args?: unknown): AppLike });
-        post({ t: "register", what: "app", spec: plain(spec, ["kind", "title", "description", "icon", "launcher"]) });
+        post({ t: "register", what: "app", spec: plain(spec, ["kind", "title", "description", "icon", "launcher", "rawKeys"]) });
       },
       open: rpc("apps", "open"),
     },
@@ -153,6 +165,9 @@ function makeIb(manifest: unknown, version: string): unknown {
       append: rpc("vault", "append"),
       mkdir: rpc("vault", "mkdir"),
       modified: rpc("vault", "modified"),
+      readBytes: rpc("vault", "readBytes"),
+      list: rpc("vault", "list"),
+      writeBytes: rpc("vault", "writeBytes"),
       notes: () => {
         if (notes === null) throw new Error(notesError || "needs the vault:read permission");
         return [...notes];
@@ -201,6 +216,8 @@ function makeIb(manifest: unknown, version: string): unknown {
     backgrounds: { register: notYet("ib.backgrounds") },
     // functions can't cross into the deck: a sandboxed module's changes aren't ⌘Z steps (yet)
     history: { record: () => {} },
+    // its sound is played by the deck (core/mixer.ts): this Worker has none of its own
+    audio: { available: () => audio, stream: openStream, onStop: (fn: () => void) => (audioStops.add(fn), () => void audioStops.delete(fn)), now: rpc("audio", "now"), sample: rpc("audio", "sample"), drop: rpc("audio", "drop"), schedule: rpc("audio", "schedule"), stop: rpc("audio", "stop"), decode: rpc("audio", "decode") },
     lib,
   });
 }
@@ -346,6 +363,7 @@ scope.onmessage = async (ev: MessageEvent<ToModule>) => {
         notes = m.notes;
         notesError = m.notesError;
         settings = m.settings;
+        audio = !!m.audio;
         closeTheDoors();
         const url = URL.createObjectURL(new Blob([m.code], { type: "text/javascript" }));
         try {
@@ -427,6 +445,15 @@ scope.onmessage = async (ev: MessageEvent<ToModule>) => {
       case "readReply": runs.get(m.sid)?.reads.get(m.rid)?.(m.value); return;
       case "abort": runs.get(m.sid)?.abort.abort(); return;
       case "stop": await mod?.deactivate?.(); return;
+      case "stream": {
+        const w = streamWaits.get(m.id);
+        streamWaits.delete(m.id);
+        if (!w) return;
+        if (m.port) AudioStream.open(m.port).then(w.ok, w.no);
+        else w.no(new Error(m.error ?? "no sound stream"));
+        return;
+      }
+      case "audioStop": for (const fn of audioStops) await fn(); return post({ t: "redraw" });
     }
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);

@@ -13,6 +13,16 @@ export async function activate(ib) {
   await t("read secrets", () => ib.vault.read(".icebreaker/secrets.json"));
   await t("read account", () => ib.vault.read(".icebreaker/account.json"));
   await t("write other module", () => ib.vault.write(".icebreaker/plugins/sbx-demo/main.js", "x"));
+  await t("read secrets as bytes", () => ib.vault.readBytes(".icebreaker/secrets.json"));
+  await t("read account as bytes (capitals)", () => ib.vault.readBytes(".ICEBREAKER/account.json"));
+  await t("write other module as bytes", () => ib.vault.writeBytes(".icebreaker/plugins/sbx-demo/main.js", new TextEncoder().encode("x")));
+  await t("write bytes out of the vault", async () => {
+    await ib.vault.writeBytes("../escaped.bin", new Uint8Array([1]));
+    if (await ib.vault.exists("escaped.bin")) throw new Error("stayed in the vault: ../ stops at its root");
+    return "written outside?";
+  });
+  await t("write bytes that aren't bytes", () => ib.vault.writeBytes("notes/text.bin", "not bytes"));
+  await t("audio without the permission", () => ib.audio.schedule([{ voice: 0, stop: true }]));
   await t("take the vault command", () => ib.commands.register({ name: "vault", summary: "fake", run() {} }));
   await t("rpc not allowed", () => self.postMessage({ t: "rpc", id: 999999, path: ["vault", "tools"], args: [] }) || "sent (answer is an error)");
   // ── found by the 2026-11-20 review: every way round, now closed ──
