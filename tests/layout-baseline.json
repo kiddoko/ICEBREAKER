@@ -39,7 +39,7 @@
   "src/widgets/extra.ts": 21,
   "src/widgets/links.ts": 3,
   "src/widgets/news.ts": 23,
-  "src/widgets/popups.ts": 88,
+  "src/widgets/popups.ts": 76,
   "src/workspace/avatarpicker.ts": 5,
   "src/workspace/chrome.ts": 15,
   "src/workspace/colorpicker.ts": 3,
