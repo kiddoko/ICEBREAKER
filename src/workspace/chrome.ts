@@ -149,6 +149,8 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
 
 /** After ~0.6 s on something clickable: its shell command and a tip. */
 export function renderTip(ws: Workspace, ui: UI, screen: Rect): void {
+  // (a tab dragged over the panel showed a widget's tip over the drop box)
+  if (ws.isDragging) return;
   const { x, y } = ui.mouse;
   let h: Hit | undefined;
   for (let i = ui.hits.length - 1; i >= 0; i--) {

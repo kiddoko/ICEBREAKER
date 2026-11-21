@@ -143,6 +143,10 @@ export class Workspace {
     return a.kind === "split" && a.dir === "col" && a.children[a.children.length - 1].kind === "frame" && (a.children[a.children.length - 1] as { id: string }).id === "shell";
   }
   private dragging: Hit | null = null;
+  /** something is being dragged (a tab, a border…): no tips meanwhile */
+  get isDragging(): boolean {
+    return !!this.dragging;
+  }
   /** Hover tooltip: what's under the mouse and since when. */
   tip = { key: "", since: 0 };
   tipHidden = false;
