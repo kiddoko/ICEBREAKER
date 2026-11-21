@@ -381,8 +381,13 @@ export function activate(ib: IcebreakerAPI): void {
         row.draw();
         const w = Math.max(0, inn.w - INSET * 2);
         ui.text(inn.x + INSET, inn.y + 1, sparkline(this.points(st, days).slice(-days).map((p) => p.value), w), { fg: lit ? c.accent : c.subtle }, w);
-        const says = counter ? t("in {d} days · {a}/day", { d: days, a: show(st, f.avg) }) : t("min {a} · max {b}", { a: show(st, f.min), b: show(st, f.max) });
-        ui.text(inn.x + INSET, inn.y + 2, says, { fg: c.muted }, w);
+        // short enough for a 22-cell tile: "30 d · 4/day", "↓ 71 ↑ 72,4 kg", "steady"
+        const says = counter
+          ? `${RANGE_LABEL(days)} · ${t("{a}/day", { a: show(st, f.avg) })}`
+          : f.min === f.max
+            ? t("steady")
+            : `↓ ${show({ ...st, unit: "" }, f.min)} ↑ ${show(st, f.max)}`;
+        ui.text(inn.x + INSET, inn.y + 2, says, { fg: c.muted, raw: true }, w); // raw: ↓ ↑ are data, not keys
         ui.hit(box, { onClick: () => (this.sel = visible().indexOf(st)), tip: `stats show ${st.id} ${days}` });
       });
     }
@@ -477,8 +482,14 @@ export function activate(ib: IcebreakerAPI): void {
       const bySource = new Map<string, number>();
       for (const x of counters) bySource.set(x.source, (bySource.get(x.source) ?? 0) + facts(this.points(x, days), days, true).total);
       const parts = [...bySource.entries()].filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
-      const week = byWeekday(this.points(st, days).slice(-days));
-      const [pieR, weekR] = stack(r, [{ min: 8, fill: 1, priority: 6 }, { h: 9, priority: 8 }]);
+      // counters: the total per weekday; a level (weight): its average on the days it has one ("–" when none)
+      const wpts = this.points(st, days).slice(-days);
+      const sums = byWeekday(wpts);
+      const counts = byWeekday(wpts.map((p) => ({ ...p, value: 1 })));
+      const counter = st.kind === "counter";
+      const week = counter ? sums : sums.map((v, d) => (counts[d] ? v / counts[d] : 0));
+      // the pie first when rows are short: it's the picture this column is for
+      const [pieR, weekR] = stack(r, [{ min: 8, fill: 1, priority: 8 }, { h: 9, priority: 6 }]);
       if (pieR) {
         const inn = ui.box(pieR, { title: t("ACTIVITY BY MODULE") });
         const total = parts.reduce((a, [, n]) => a + n, 0);
@@ -501,19 +512,20 @@ export function activate(ib: IcebreakerAPI): void {
       }
       if (weekR) {
         const inn = ui.box(weekR, { title: t("BY WEEKDAY") });
-        const hi = Math.max(...week) || 1;
+        const lo = counter ? 0 : Math.min(...week.filter((_, d) => counts[d])) * 0.95;
+        const hi = Math.max(...week) - lo || 1;
         [1, 2, 3, 4, 5, 6, 0].forEach((d, i) => {
           const y = inn.y + i;
           if (y >= inn.y + inn.h) return;
-          const top = week[d] === hi && week[d] > 0;
+          const top = week[d] === Math.max(...week) && week[d] > 0;
           new Bar(ui, inn.x + INSET, y, inn.x + inn.w - INSET)
             .text(t(WEEKDAY[d]), { fg: top ? c.fg : c.subtle }, { priority: 9 })
             .item(Math.max(4, inn.w - INSET * 2 - 14), (x, w) => {
-              const n = Math.round((week[d] / hi) * w);
+              const n = counter || counts[d] ? Math.round(((week[d] - lo) / hi) * w) : 0;
               ui.text(x, y, "━".repeat(n), { fg: top ? c.accent : mix(c.accent, c.bg, 0.45) });
               ui.text(x + n, y, "─".repeat(w - n), { fg: c.faint });
             }, { priority: 5 })
-            .text(show(st, week[d]), { fg: top ? c.accent : c.subtle }, { side: "right", priority: 8 })
+            .text(counter || counts[d] ? show(st, week[d]) : "–", { fg: top ? c.accent : c.subtle }, { side: "right", priority: 8 })
             .draw();
         });
       }
@@ -628,6 +640,7 @@ export function activate(ib: IcebreakerAPI): void {
     "best {v} ({d})": "record {v} ({d})",
     "{n} active days": "{n} jours actifs",
     "1 active day": "1 jour actif",
+    "steady": "stable",
     "{n} days in a row": "{n} jours d'affilée",
     "min {a}": "min {a}",
     "max {a}": "max {a}",
