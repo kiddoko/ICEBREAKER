@@ -479,12 +479,13 @@ export const newsCommand: Command = {
     ["news show formula 1", "…or your own words (area, country: those)"],
   ],
   summary: "headlines of your area, your country, categories or your words; read one, open it",
-  usage: "news              the headlines (the NEWS page's tab, else your area)\nnews <n>          summary of headline n (a card on screen)\nnews open <n>     open it in your browser\nnews refresh\nnews page         the NEWS page\nnews show area | country | <categories> | +cat | -cat | <your words>\n                  what a news widget shows (its pop-up open; else the page's tab)\nnews mode list | featured   that widget: headlines, or one at a time in big with its summary\nnews categories   the categories: tech ai science space politics world business people culture art music cinema gaming sports health environment nature security",
+  usage: "news              the headlines (the NEWS page's tab, else your area)\nnews <n>          summary of headline n (a card on screen)\nnews open <n>     open it in your browser\nnews refresh\nnews page | news open   the NEWS page\nnews show area | country | <categories> | +cat | -cat | <your words>\n                  what a news widget shows (its pop-up open; else the page's tab)\nnews mode list | featured   that widget: headlines, or one at a time in big with its summary\nnews categories   the categories: tech ai science space politics world business people culture art music cinema gaming sports health environment nature security",
   complete: () => ["open", "refresh", "page", "show", "mode", "featured", "list", "categories", "area", "country", ...Object.keys(NEWS_CATEGORIES)],
   async run(ctx) {
     const { deck } = ctx;
     const [a, b] = ctx.args;
-    if (a === "page") return void deck.openApp("news");
+    // news page · news open (no number): the NEWS page, like `moon open`
+    if (a === "page" || (a === "open" && !b)) return void deck.openApp("news");
     if (a === "categories" || a === "interests") {
       ctx.out(`\x1b[2mcategories: ${Object.keys(NEWS_CATEGORIES).join(" ")}  (or your own words: news show formula 1)\x1b[0m\n`);
       return 0;
