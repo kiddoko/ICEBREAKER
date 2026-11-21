@@ -9,6 +9,7 @@ import { quoteCommand, worldclockCommand } from "../../widgets/extra";
 import { WidgetPopup } from "../../workspace/widgetpopup";
 import { fmt } from "../../core/ansi";
 import { frameArg } from "../../workspace/tabplaces";
+import { CORE_PACKAGES } from "../../plugins/core-packages";
 import { q } from "../../ui/ui";
 import { HomeApp } from "../../apps/home";
 import { DEFAULT_SETTINGS } from "../../core/settings";
@@ -199,8 +200,11 @@ const launch: Command = {
       for (const a of d.apps.list()) if (a.kind !== "note") ctx.out(`${(a.icon ?? "·").padEnd(2)} ${a.kind.padEnd(10)} ${fmt.dim(a.description ?? "")}\n`);
       return 0;
     }
-    if (!d.apps.get(kind)) return ctx.err(`launch: no app "${kind}" (launch to list)\n`), 1;
-    d.openApp(kind);
+    // a module's name works too: `launch nexus` is its page, explorer (it said "no app")
+    const name = kind.toLowerCase();
+    const found = d.apps.get(name) ? name : d.apps.list().find((x) => x.title.toLowerCase() === name)?.kind ?? CORE_PACKAGES.find((x) => x.id === name)?.apps?.find((k) => d.apps.get(k));
+    if (!found) return ctx.err(`launch: no app "${kind}" (launch to list)\n`), 1;
+    d.openApp(found);
   },
 };
 

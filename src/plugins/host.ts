@@ -248,7 +248,10 @@ export class PluginHost {
       s.set("plugins.pinned", pinned);
     } else s.set("plugins.disabled", [...new Set([...s.data.plugins.disabled, id])]);
     if (!p.active) return false;
+    // its pages close with it (a removed module's tab stayed open on a page that was gone)
+    const pages = this.deck.workspace.tabs.filter((a) => this.deck.apps.sourceOf(a.kind) === id);
     await this.deactivate(p);
+    for (const app of pages) this.deck.workspace.replaceTab(app, null);
     return true;
   }
 

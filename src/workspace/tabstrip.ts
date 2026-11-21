@@ -34,8 +34,13 @@ const MORE_W = 7;
 /** one cell between two tabs */
 const SEP = 1;
 
-/** what a tab shows before its title */
+/** what a tab shows before its title ("" when the title already starts with it: "♬ ♬ untitled") */
 function iconOf(ws: Workspace, i: number): string {
+  const icon = baseIcon(ws, i);
+  return ws.tabs[i]?.title().trim().startsWith(icon) ? "" : icon;
+}
+
+function baseIcon(ws: Workspace, i: number): string {
   const app = ws.tabs[i];
   if (!app) return "·";
   if (app.kind === "note") return "✎";
@@ -142,7 +147,7 @@ export function placeChips(ws: Workspace, ui: UI, x: number, y: number, maxX: nu
   for (const [k, i] of all.entries()) {
     const app = ws.tabs[i];
     const pin = isPinned(ws, i);
-    const label = `${pin ? "⌂" : iconOf(ws, i)} ${app.title().toLowerCase()}`;
+    const label = `${pin ? "⌂ " : iconOf(ws, i) ? `${iconOf(ws, i)} ` : ""}${app.title().toLowerCase()}`;
     // " label " and, unless pinned, " ×"; the one shown may be cut to fit
     const rest = all.length - k - 1;
     const room = maxX - x - (rest ? MORE_W : 0);
@@ -154,7 +159,7 @@ export function placeChips(ws: Workspace, ui: UI, x: number, y: number, maxX: nu
       const mr = { x, y, w: strWidth(more), h: 1 };
       if (x + mr.w > maxX) break;
       ui.text(x, y, more, { fg: ui.hovered(mr) ? c.panel : c.accent, bg: ui.hovered(mr) ? c.accent : c.highlight, attrs: BOLD });
-      ui.hit(mr, { onClick: () => ws.openMenu(left.map((j) => ({ label: `${iconOf(ws, j)} ${ws.tabs[j].title().toLowerCase()}`, cmd: `tab ${j + 1}` })), x, y + 1, t("more tabs")), tip: t("{n} more tabs: click for the list", { n: left.length }) });
+      ui.hit(mr, { onClick: () => ws.openMenu(left.map((j) => ({ label: `${iconOf(ws, j) ? `${iconOf(ws, j)} ` : ""}${ws.tabs[j].title().toLowerCase()}`, cmd: `tab ${j + 1}` })), x, y + 1, t("more tabs")), tip: t("{n} more tabs: click for the list", { n: left.length }) });
       return x + mr.w + SEP;
     }
     const rect = { x, y, w, h: 2 };
@@ -264,7 +269,7 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
       // the name comes first: the icon goes when it would leave the name under 6 cells
       const room = closeX - x - 2 - (numbers && i < 9 ? 2 : 0) - (unsaved ? 2 : 0);
       if (numbers && i < 9) tx = ui.text(tx, r.y, `${i + 1} `, { fg: on ? c.panel : c.accent, bg, attrs: BOLD });
-      if (room - 2 >= 6) tx = ui.text(tx, r.y, `${iconOf(ws, i)} `, { fg: on ? c.panel : c.subtle, bg });
+      if (room - 2 >= 6 && iconOf(ws, i)) tx = ui.text(tx, r.y, `${iconOf(ws, i)} `, { fg: on ? c.panel : c.subtle, bg });
       if (unsaved) tx = ui.text(tx, r.y, "● ", { fg: c.error, bg, attrs: BOLD });
       ui.text(tx, r.y, ws.tabs[i].title().toLowerCase(), { fg, bg, attrs: on ? BOLD : 0 }, Math.max(0, closeX - tx - 1));
       const closeHot = ui.hovered({ x: closeX - 1, y: r.y, w: 3, h: 1 });
@@ -314,7 +319,7 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
     const items = hidden.flatMap((ei) => {
       const e = entries[ei];
       const list = e.kind === "tab" ? [e.index] : e.indexes;
-      return list.map((i) => ({ label: `${e.kind === "group" ? "▣ " : ""}${iconOf(ws, i)} ${ws.tabs[i].title().toLowerCase()}`, cmd: `tab ${i + 1}`, hint: i < 9 ? (IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`) : "" }));
+      return list.map((i) => ({ label: `${e.kind === "group" ? "▣ " : ""}${iconOf(ws, i) ? `${iconOf(ws, i)} ` : ""}${ws.tabs[i].title().toLowerCase()}`, cmd: `tab ${i + 1}`, hint: i < 9 ? (IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`) : "" }));
     });
     ui.hit(rect, { onClick: () => ws.openMenu(items, rect.x, r.y + 1, t("more tabs")), tip: t("{n} more tabs: click for the list", { n: items.length }) });
     x += rect.w + SEP;
@@ -390,7 +395,7 @@ class GroupList implements Overlay {
       const bg = on ? mix(c.accent, c.panelAlt, 0.7) : hot ? c.highlight : c.panelAlt;
       ui.hit(row, { cmd: `tab ${i + 1}`, tip: t("click: show it") });
       const end = new Bar(ui, inner.x + INSET, y, inner.x + inner.w - INSET);
-      end.text(`${iconOf(ws, i)} ${ws.tabs[i].title().toLowerCase()}`, { fg: on ? c.fg : c.muted, bg, attrs: on ? BOLD : 0 }, { priority: 9, fit: 4 });
+      end.text(`${iconOf(ws, i) ? `${iconOf(ws, i)} ` : ""}${ws.tabs[i].title().toLowerCase()}`, { fg: on ? c.fg : c.muted, bg, attrs: on ? BOLD : 0 }, { priority: 9, fit: 4 });
       end.button("⇱", () => {}, { cmd: `tab ungroup ${i + 1}`, tip: t("take it out: a tab of its own") }, { side: "right", priority: 7 });
       end.button("×", () => {}, { cmd: `tab close ${i + 1}`, tip: t("close it") }, { side: "right", priority: 6 });
       end.draw();

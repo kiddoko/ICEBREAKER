@@ -194,11 +194,14 @@ export class WhatsNew implements Overlay {
     const g = ui.theme.gradient;
     const cx = screen.x + screen.w / 2, cy = screen.y + screen.h / 3;
     const color = (k: number) => g[Math.floor(k * g.length) % g.length] ?? ui.c.accent;
-    // only on empty cells: over the dimmed screen's words they read as typos ("ICE·REAKER")
-    const empty = (x: number, y: number) => {
+    // only where the cell AND its two neighbours are empty: over the dimmed screen's words
+    // (or between two of them: "◆·ICEBREAKER") they read as typos
+    const blank = (x: number, y: number) => {
+      if (x < 0 || x >= ui.grid.cols) return true;
       const ch = ui.grid.ch[y * ui.grid.cols + x];
       return ch === 32 || ch === 0 || (ch >= 0x2800 && ch <= 0x28ff);
     };
+    const empty = (x: number, y: number) => blank(x - 1, y) && blank(x, y) && blank(x + 1, y);
     // the stars
     const n = Math.floor((screen.w * screen.h) / 55);
     for (let i = 0; i < n; i++) {
