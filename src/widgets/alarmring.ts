@@ -281,7 +281,7 @@ class RingScreen implements Overlay {
       { label: `${t("[S]nooze")} ${SNOOZE_MIN} min`, run: this.snooze, selected: !this.stopLit, accent: c.warning },
       { label: t("■ stop  ⏎"), run: this.stop, selected: this.stopLit },
     ]);
-    if (hintX - inner.x > 14) ui.text(inner.x + INSET, inner.y + inner.h - 1, t("B snooze · A stop"), { fg: c.faint }, hintX - inner.x - INSET * 2);
+    if (hintX - inner.x > 14) ui.text(inner.x + INSET, inner.y + inner.h - 1, t("B snooze · A stop"), { fg: c.muted }, hintX - inner.x - INSET * 2);
   }
 }
 
