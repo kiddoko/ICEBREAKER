@@ -24,9 +24,18 @@ export class Rain {
   speed = 1;
   chars: string[] | null = null;
 
+  /** how often it asks for a frame (the boot screen slows it while it waits for a key) */
+  frameMs = 33;
+
   constructor(private density = 1) {}
 
+  /** Scenery: drawn in ui.art (no fade-in, no ink — core/grid.ts NOFADE). */
   render(ui: UI, r: Rect): void {
+    ui.art(() => this.draw(ui, r));
+    ui.animate(this.frameMs);
+  }
+
+  private draw(ui: UI, r: Rect): void {
     if (this.drops.length !== r.w) this.drops = Array.from({ length: r.w }, () => this.newDrop(r.h, true));
     const dt = this.last ? Math.min(0.1, (ui.now - this.last) / 1000) : 0;
     this.last = ui.now;
@@ -46,7 +55,6 @@ export class Rain {
         ui.grid.set(r.x + x, r.y + y, ch.codePointAt(0)!, color, NONE, k === 0 ? BOLD : 0);
       }
     });
-    ui.animate(33);
   }
 
   private newDrop(h: number, scatter: boolean): Drop {

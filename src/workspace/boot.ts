@@ -84,7 +84,11 @@ export class BootScreen {
   render(ui: UI): void {
     // "PRESS ANY KEY TO JACK IN" waits for a key: it never moves on by itself
     const t = Math.min(this.elapsed, this.end - 1);
-    ui.animate(16);
+    // 30 frames a second while it plays; 12 once it waits on "press any key" (the cursor
+    // blinks, the rain falls — a full core went to it at the screen's rate)
+    const waiting = this.elapsed >= this.end - 1;
+    this.rain.frameMs = waiting ? 80 : 33;
+    ui.animate(waiting ? 80 : 33);
     const c = ui.c;
     const screen = { x: 0, y: 0, w: ui.cols, h: ui.rows };
 
