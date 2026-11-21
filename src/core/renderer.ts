@@ -1,6 +1,6 @@
 import { GlyphAtlas } from "./atlas";
 import { css, NONE } from "./color";
-import { BOLD, Grid, ITALIC, PIXELS, STRIKE, UNDERLINE } from "./grid";
+import { BOLD, Grid, ITALIC, NOFADE, PIXELS, STRIKE, UNDERLINE } from "./grid";
 import { fontStack } from "./fonts";
 import { chromaStrength } from "./fxlevels";
 import { charWidth } from "./unicode";
@@ -548,7 +548,7 @@ export class Renderer {
     let appearing = 0;
     if (fade > 0 && !full) {
       const n = g.cols * g.rows;
-      for (let i = 0; i < n && appearing <= Renderer.FADE_MAX_PER_FRAME; i++) if (g.ch[i] > 32 && front!.ch[i] <= 32) appearing++;
+      for (let i = 0; i < n && appearing <= Renderer.FADE_MAX_PER_FRAME; i++) if (g.ch[i] > 32 && front!.ch[i] <= 32 && !(g.attr[i] & NOFADE)) appearing++;
     }
     const fadeNew = appearing <= Renderer.FADE_MAX_PER_FRAME;
 
@@ -576,7 +576,8 @@ export class Renderer {
           g.attr[i] !== front!.attr[i];
         if (fade > 0) {
           // born[i]: > 0 = fading in since then · < 0 = empty since -born[i] · 0 = settled
-          if (g.ch[i] <= 32) {
+          if (g.attr[i] & NOFADE) born[i] = 0; // scenery: drawn as it is
+          else if (g.ch[i] <= 32) {
             if (front!.ch[i] > 32 || born[i] > 0) born[i] = -now;
           } else if (d && !full && front!.ch[i] <= 32 && fadeNew) {
             // a letter where there was nothing — but not one that only blinked (a cursor,

@@ -477,12 +477,15 @@ export class UI {
    * drawn inside. Nothing else changes.
    */
   art(fn: () => void): void {
-    const p = this.probe;
+    const p = this.probe, amb = this.grid.ambient;
     this.probe = null;
+    // scenery: no fade-in, no ink (core/grid.ts NOFADE)
+    this.grid.ambient = true;
     try {
       fn();
     } finally {
       this.probe = p;
+      this.grid.ambient = amb;
     }
   }
 

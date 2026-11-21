@@ -46,14 +46,21 @@ export function drawBackground(ui: UI, r: Rect, theme: Theme, intensity = 1): vo
   const b = theme.background;
   const spec = REGISTRY.get(b.effect);
   if (!spec || b.effect === "none" || r.w <= 0 || r.h <= 0) return;
-  spec.render(ui, r, {
-    density: b.density * intensity,
-    speed: b.speed,
-    color: b.color ?? theme.c.ambient,
-    color2: b.color2 ?? theme.c.accent,
-    glyphs: b.glyphs,
-    t: (ui.now / 1000) * b.speed,
-  });
+  // scenery: its glyphs never fade in nor take the theme's ink (core/grid.ts NOFADE)
+  const amb = ui.grid.ambient;
+  ui.grid.ambient = true;
+  try {
+    spec.render(ui, r, {
+      density: b.density * intensity,
+      speed: b.speed,
+      color: b.color ?? theme.c.ambient,
+      color2: b.color2 ?? theme.c.accent,
+      glyphs: b.glyphs,
+      t: (ui.now / 1000) * b.speed,
+    });
+  } finally {
+    ui.grid.ambient = amb;
+  }
   // each background at its own pace, 20 fps at most: they move a cell at a time (more
   // frames wouldn't look smoother), and every frame drawn costs the effects (bloom,
   // glow) a full-window redo on macOS

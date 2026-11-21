@@ -552,7 +552,9 @@ export class Deck implements InputSink {
 
     // theme motion on the finished frame: changed cells, then page transitions
     if (this.settings.data.fx.glitch) {
-      if (this.cellFx.apply(this.grid, this.theme, performance.now())) ui.animate(16);
+      // a theme's ink / glow and the letters' fade are worked out on the clock: 30 frames a
+      // second show them as well, and the screen's own rate kept the deck drawing non-stop
+      if (this.cellFx.apply(this.grid, this.theme, performance.now())) ui.animate(33);
       if (this.transitions.apply(this.grid, this.theme, performance.now())) ui.animate(16);
     }
     const g = this.glitchUntil - performance.now();
@@ -583,7 +585,7 @@ export class Deck implements InputSink {
       const t2 = performance.now();
       if (t2 < this.perfRec.until) this.perfRec.frames.push({ at: t0, build: t1 - t0, paint: t2 - t1, cells: this.renderer.lastCells, glyphs: this.renderer.takeAtlasMisses(), wanted: this.loop.wanted });
     }
-    if (this.renderer.fading) ui.animate(0); // letters still fading in (renderer.fadeMs)
+    if (this.renderer.fading) ui.animate(33); // letters still fading in (renderer.fadeMs): 3–4 steps, on the clock
     if (ui.caret) this.input.placeCaret(ui.caret.x, ui.caret.y);
     this.renderer.setCaret(ui.softCaret ? ui.caret : null, css(ui.c.cursor), ui.caretTyped, !!this.settings.data.appearance.reduceMotion);
     this.hits = ui.hits;

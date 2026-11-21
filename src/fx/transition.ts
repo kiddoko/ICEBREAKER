@@ -1,5 +1,5 @@
 import { mix, NONE, type RGB } from "../core/color";
-import type { Grid } from "../core/grid";
+import { NOFADE, type Grid } from "../core/grid";
 import type { Theme } from "../core/theme";
 
 /**
@@ -90,6 +90,12 @@ export class CellFx {
     let busy = false;
     const bg = theme.c.bg, accent = theme.c.accent;
     for (let i = 0; i < n; i++) {
+      // scenery (a background, rain…) takes no ink: it changes all the time
+      if (g.attr[i] & NOFADE) {
+        this.prev[i] = g.ch[i];
+        this.at[i] = 0;
+        continue;
+      }
       if (g.ch[i] !== this.prev[i]) {
         this.prev[i] = g.ch[i];
         this.at[i] = pageChange || g.ch[i] === 32 ? 0 : now;
