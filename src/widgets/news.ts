@@ -264,6 +264,10 @@ export const newsWidget: WidgetSpec = {
     }
 
     ui.text(r.x + 1, r.y, header, { fg: c.accentAlt, attrs: BOLD }, r.w - 2);
+    // a chosen widget scrolls all its long texts; a list of headlines would all run at once:
+    // here only the headline under the mouse scrolls
+    const zone = ui.marqueeZone;
+    ui.marqueeZone = null;
     items.slice(0, Math.max(0, r.h - 1)).forEach((h, i) => {
       const y = r.y + 1 + i;
       // new headlines decrypt in, staggered
@@ -283,6 +287,7 @@ export const newsWidget: WidgetSpec = {
       if (src) ui.textRight(r.x + r.w - 1, y, src, { fg: c.faint, attrs: DIM });
       ui.hit(row, cats.length ? { onClick: () => open(i), tip: "summary, then open it in your browser" } : { cmd: `news ${i + 1}`, tip: "summary, then open it in your browser" });
     });
+    ui.marqueeZone = zone;
   },
   activate: ({ deck, key }) => {
     const cats = catsOf(deck, key);
