@@ -206,6 +206,9 @@ export class Renderer {
     this.cellW = Math.ceil(m.width);
     this.cellH = Math.ceil((ascent + descent) * this.lineHeight);
     this.baseline = Math.round((this.cellH - (ascent + descent)) / 2 + ascent);
+    // the old atlas's pages handed back now (canvases to 0×0), not whenever the GC gets to them:
+    // every theme / font / effect change made a new one (memory climbed past 1 GB)
+    (this.atlas as GlyphAtlas | undefined)?.release();
     this.atlas = new GlyphAtlas(this.cellW, this.cellH, this.baseline, (a) => this.font(a));
     this.atlas.softness = this.soft ?? 0;
     this.front = null;
