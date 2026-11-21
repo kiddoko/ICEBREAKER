@@ -8,6 +8,8 @@ src-tauri/gen/
 # ICEBREAKER's Google OAuth client (see docs/GOOGLE.md) — never committed
 src-tauri/google-client.json
 dist-update/
+# the encoder pack's builds (scripts/encoders/)
+/build/
 
 # Claude Code: per-machine files
 .claude/worktrees/
