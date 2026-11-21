@@ -120,6 +120,16 @@ Severity: 🔴 critical (your notes, keys or computer) · 🟠 high · 🟡 medi
   node, only with `audio`; the node reads blocks of frames and nothing else (types, sizes, values
   checked, two seconds at most queued), its output goes through the "Modules" fader; `audio stop`
   flushes it.
+- **The encoder pack** (2026-11-21, `encoders install`, `ib.audio.encode`): a program downloaded on
+  request, so it's held to `voice install`'s rule (#42): the archive's SHA-256 is written in
+  `encoders.rs`, a different file is deleted before it's unpacked; https only; refused in stealth
+  mode; `encoders` beyond looking is refused from a module. It's our own build (`scripts/encoders/`,
+  pinned sources and actions, `--disable-network --disable-autodetect`, LGPL checked in CI).
+  A module never gives it text: Rust builds the whole command line from a whitelist (format,
+  quality, rate, channels, a title cut to 100 printable characters, as one argument), no shell, an
+  empty environment, a private temp folder for the file, 256 MB in and out at most, killed after
+  10 minutes. `ib.audio.encode` needs `audio` (it turns the module's own sound into bytes that only
+  `vault:write` can then save).
 - **ICEBREAKER's own updates**: signature checked before installing, https only.
 
 ## How to repeat the test

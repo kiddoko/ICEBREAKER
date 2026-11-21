@@ -2,7 +2,7 @@
  * What a line that isn't you may never do — a module's (`ib.shell.run`, a click on one
  * of its areas, a function another module calls) or a program's in your real terminal
  * (shell/origin.ts): the vault's encryption and where it is, the accounts, factory-reset,
- * installing / switching / removing modules, updates, quitting or locking the deck — and anything that runs a program or plants a command for later:
+ * installing / switching / removing modules, updates, the encoder pack, quitting or locking the deck — and anything that runs a program or plants a command for later:
  * scripts (`script x` runs bash / python… in your real terminal), your macros,
  * shortcuts and THE MENU's keys, deleting things for good (`trash purge`, `trash empty`) (`bind`, `menu add`, `keys set`: your next key press
  * would run it as you), pins and shortcut squares (`pin`, `home link`), the settings
@@ -15,7 +15,7 @@
 /** Command names (and aliases) no module may take over. */
 export const PRIVILEGED_NAMES = new Set([
   "vault", "account", "passwd", "logout", "lock", "login", "password", "sudo", "factory-reset", "plugin", "plugins", "config", "set", "script", "scripts",
-  "bind", "unbind", "macro", "store", "update", "updates", "modules", "menu", "wheel", "keys", "shortcuts", "pin", "unpin", "stealth", "exit", "quit", "reboot",
+  "bind", "unbind", "macro", "store", "update", "updates", "modules", "menu", "wheel", "keys", "shortcuts", "pin", "unpin", "stealth", "encoders", "exit", "quit", "reboot",
 ]);
 
 /** the settings that hold commands, or decide what runs, where things go and what leaves the computer */
@@ -77,6 +77,9 @@ export function isPrivileged(name: string, args: string[]): boolean {
     case "voice":
       // downloads
       return any("install");
+    case "encoders":
+      // downloading a program, or deleting it: yours
+      return !only("", "status");
     default:
       return ["account", "passwd", "logout", "lock", "factory-reset", "script", "scripts", "bind", "unbind", "pin", "unpin", "exit", "quit", "reboot", "starthere", "undo", "redo"].includes(name);
   }

@@ -215,6 +215,19 @@ export interface Platform {
     /** downloads piper + a voice ("fr", "en"…); resolves with the voice id */
     install(lang: string): Promise<string>;
   };
+  /**
+   * The encoder pack (desktop, see encoders.rs): a small LGPL ffmpeg downloaded on request
+   * (`encoders install`) that turns raw sound into MP3, M4A, OGG or Opus.
+   */
+  encoders?: {
+    info(): Promise<EncodersInfo>;
+    /** downloads and checks the pack; resolves with its release ("encoders-v1") */
+    install(): Promise<string>;
+    /** resolves with whether there was one */
+    remove(): Promise<boolean>;
+    /** f32 interleaved sound → the file's bytes */
+    encode(pcm: Float32Array, opts: EncodeOptions): Promise<Uint8Array>;
+  };
   /** A system notification (desktop: the OS's own, with the app's name). */
   notify?(title: string, body: string): Promise<void>;
   /** Called (debounced) when files in the vault change outside the app. */
@@ -308,4 +321,21 @@ export interface AppUpdateInfo {
   notes: string;
   date: string;
   downloaded: boolean;
+}
+
+export interface EncodersInfo {
+  installed: boolean;
+  version: string | null;
+  formats: string[];
+  /** there's a pack for this computer (macOS, Windows, Linux x64) */
+  supported: boolean;
+}
+
+export interface EncodeOptions {
+  format: "mp3" | "m4a" | "ogg" | "opus";
+  /** mp3 v0 | v2 | 128 | 192 | 256 | 320 · m4a 128 | 192 | 256 · ogg q4 | q6 | q8 · opus 96 | 128 | 160; "" = the default */
+  quality?: string;
+  rate: number;
+  channels: 1 | 2;
+  title?: string;
 }

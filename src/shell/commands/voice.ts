@@ -107,7 +107,7 @@ export const stealthCommand: Command = {
   name: "stealth",
   summary: "stealth mode: 100 % local, no internet (on | off)",
   usage: "stealth            on or off?\nstealth on | off",
-  man: "Stealth mode cuts every internet connection: no cloud AI (a local model through Ollama still works, on this machine or your local network), no weather, news, Google, module installs or voice downloads. Your vault can still live on your own server (a network drive or a synced folder).",
+  man: "Stealth mode cuts every internet connection: no cloud AI (a local model through Ollama still works, on this machine or your local network), no weather, news, Google, module installs, voice or encoder pack downloads. Your vault can still live on your own server (a network drive or a synced folder).",
   run(ctx) {
     const on = ctx.deck.settings.data.privacy.stealth;
     const [a] = ctx.args;

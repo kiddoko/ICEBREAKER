@@ -4,6 +4,7 @@ import { redoCommand, tourCommand, changelogCommand, undoCommand } from "./undo"
 import { auditReport } from "../../plugins/audit";
 import { DEFAULT_SETTINGS } from "../../core/settings";
 import { sayCommand, stealthCommand, voiceCommand } from "./voice";
+import { encodersCommand } from "./encoders";
 import { fmt } from "../../core/ansi";
 import { askInShell, asker } from "../ask";
 import { padEnd } from "../../core/unicode";
@@ -822,7 +823,7 @@ const plugin: Command = {
   },
 };
 
-export const deckCommands: Command[] = [undoCommand, redoCommand, tourCommand, changelogCommand, contextCommand, ...uiCommands, voiceCommand, sayCommand, stealthCommand, newsCommand, daily, chat, account, lock, login, sound, mute, audioCommand, errorsCommand, logCommand, debugCommand, open, journal, note, checkboxes, ask, link, sysmon, theme, fx, config, vaultCmd, plugin];
+export const deckCommands: Command[] = [undoCommand, redoCommand, tourCommand, changelogCommand, contextCommand, ...uiCommands, voiceCommand, sayCommand, stealthCommand, encodersCommand, newsCommand, daily, chat, account, lock, login, sound, mute, audioCommand, errorsCommand, logCommand, debugCommand, open, journal, note, checkboxes, ask, link, sysmon, theme, fx, config, vaultCmd, plugin];
 
 /** A theme's current value for "section.key", for display. */
 export function knobValue(t: Theme, key: string): string {

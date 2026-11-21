@@ -49,7 +49,7 @@ const CALLS = new Set([
   "ai.ask",
   "media.status", "media.control", "media.player.scan", "media.player.load", "media.player.control", "media.player.status",
   "google.status", "google.connect", "google.disconnect", "google.calendar", "google.cache.read", "google.cache.write",
-  "audio.now", "audio.sample", "audio.drop", "audio.schedule", "audio.stop", "audio.decode",
+  "audio.now", "audio.sample", "audio.drop", "audio.schedule", "audio.stop", "audio.decode", "audio.encode", "audio.encoders",
 ]);
 
 /** What goes back to the module: data only — JSON's, plus bytes and sound (typed arrays, ArrayBuffers) as they are. */

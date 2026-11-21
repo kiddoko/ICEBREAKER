@@ -221,7 +221,7 @@ The full surface is typed and commented in
   `src/shell/privileged.ts`): `vault` beyond `status` and `rescan`, `account`, `lock`,
   `factory-reset`, `script`, `macro` (but show / hide), `bind` / `unbind`, `keys`, `menu add`,
   `pin`, `home link`, `plugin` and `store` beyond listing and searching, `update` beyond
-  looking, `modules call` / `set`, `stealth off`, `theme install`, `voice install`, `exit`,
+  looking, `modules call` / `set`, `stealth off`, `theme install`, `voice install`, `encoders` beyond looking, `exit`,
   `reboot`, and `config set` of the settings that hold commands or decide what runs
   (`keys`, `menu`, `shell`, `plugins`, `ai`, `privacy`, `updates`, `vault`, `home`, `favorites`…).
 - The functions you call (`ib.modules.call`, `ib.use`) follow the same rule: one that runs a
@@ -275,6 +275,12 @@ The full surface is typed and commented in
   wait, so a key played on your piano is heard ~30 ms later; a song is computed as it plays, an export the same code
   faster than real time. Example: `sbxaudio stream` in `tests/sandbox/sbx-audio/`; `drop(id?)` forgets samples, `decode(bytes)` turns an audio file (wav, aiff, mp3, m4a, ogg — what the system
   reads) into `{ rate, channels }`. Limits: 64 voices, 32 MB of samples, events 30 s ahead at most, 8192 per call.
+  **`encode(pcm, { format, quality?, rate, channels, title? })`** turns your sound (interleaved `Float32Array`, 1 or
+  2 channels, 256 MB at most) into an **MP3, M4A, OGG or Opus** file's bytes, to save with `vault.writeBytes`. It needs
+  the deck's encoder pack, which the **user** downloads once (`encoders install`; a module can't): ask
+  `encoders()` → `{ installed, supported, formats }` first and, if it isn't there, tell them to run it.
+  Qualities: mp3 `v0` (default) `v2 128 192 256 320` · m4a `128 192 256` (default) · ogg `q4 q6` (default) `q8` ·
+  opus `96 128` (default) `160`.
   Everything stops when your module is switched off; the volume is the user's (Settings → SOUND → Modules) and the
   status bar shows ♪ your name while you play (a click silences you). Example: `tests/sandbox/sbx-audio/`.
 - `ib.media.player` → play local audio files (permission `media`); `ib.google.*` → the user's Google Calendar (permission `google-calendar`; keep Google data in `ib.google.cache`, never in the vault).
