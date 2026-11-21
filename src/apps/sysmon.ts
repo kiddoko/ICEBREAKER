@@ -113,7 +113,8 @@ export class SysmonApp implements App {
     const [head, tiles, cores, more, foot] = stack(body, [
       { h: 1, priority: 9 },
       { min: 4, h: 8, max: 12, fill: 1, priority: 8 },
-      { min: 3, h: 4, max: 5, priority: 4 },
+      // the cores: 4 rows inside their box when there's room (2 read as blocks, not bars)
+      { min: 3, h: 6, max: 7, priority: 4 },
       { min: 5, h: 8, fill: 2, priority: hasMore ? 6 : 0 },
       { h: 1, priority: 3 },
     ], 0);
@@ -235,8 +236,10 @@ export class SysmonApp implements App {
     const inner = ui.box(r, { title: t("PROCESSES"), info: this.byMem ? t("by memory · s") : t("by cpu · s") });
     ui.hit(inner, { onClick: () => ((this.byMem = !this.byMem), this.deck.requestFrame()), tip: t("click / s: sort by cpu or by memory") });
     const list = [...(s.top ?? [])].sort((a, b) => (this.byMem ? b.mem - a.mem : b.cpu - a.cpu || b.mem - a.mem));
-    // cpu in % of one core: the bar's full length is one core, or the busiest if it's more
+    // cpu in % of one core: the bar's full length is one core, or the busiest if it's more;
+    // memory: the biggest of the list (a share of all the memory left every bar a sliver)
     const most = Math.max(100, ...list.map((p) => p.cpu));
+    const biggest = Math.max(1, ...list.map((p) => p.mem));
     list.slice(0, inner.h).forEach((p, i) => {
       const y = inner.y + i;
       const cpu = `${p.cpu >= 10 ? Math.round(p.cpu) : p.cpu.toFixed(1)}%`;
@@ -245,7 +248,14 @@ export class SysmonApp implements App {
       const right = `${cpu.padStart(6)} ${mem.padStart(6)}`;
       const nameW = inner.w - strWidth(right) - (barW ? barW + GAP : 0) - INSET;
       ui.text(inner.x, y, truncate(p.name, nameW), { fg: i === 0 ? c.fg : c.muted }, nameW);
-      if (barW) ui.bar(inner.x + nameW + INSET, y, barW, this.byMem ? p.mem / Math.max(1, s.memTotal) : p.cpu / most, this.byMem ? c.accentAlt : heat(ui, p.cpu / 100), c.faint);
+      if (barW) {
+        // a thin line (━ on ─), so the rows stay apart instead of one grey block
+        const v = Math.max(0, Math.min(1, this.byMem ? p.mem / biggest : p.cpu / most));
+        const on = Math.round(v * barW);
+        const bx = inner.x + nameW + INSET;
+        ui.text(bx, y, "─".repeat(barW), { fg: mix(c.faint, c.bg, 0.3) });
+        if (on) ui.text(bx, y, "━".repeat(on), { fg: this.byMem ? c.accentAlt : heat(ui, p.cpu / 100) });
+      }
       ui.textRight(inner.x + inner.w, y, right, { fg: c.subtle });
     });
   }
