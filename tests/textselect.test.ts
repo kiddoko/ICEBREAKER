@@ -56,3 +56,15 @@ describe("a long path on a button (TRASH → restore)", () => {
     expect(m.endsWith("…/2026-11-20.md")).toBe(true);
   });
 });
+
+import { UI } from "../src/ui/ui";
+describe("the decrypt reveal (NEWS headlines, MODULES names…)", () => {
+  it("shows the text at once when nothing animates, scrambled while it runs", () => {
+    const ui = new UI();
+    ui.now = 1234;
+    expect(ui.reveal("hello world", 0.2)).not.toBe("hello world");
+    expect(ui.reveal("hello world", 1)).toBe("hello world");
+    ui.still = true; // frames per second at 0, or reduce motion: no frame would finish it
+    expect(ui.reveal("hello world", 0.2)).toBe("hello world");
+  });
+});

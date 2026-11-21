@@ -456,6 +456,7 @@ export class Deck implements InputSink {
     const ui = this.ui;
     ui.begin(this.grid, this.theme, now, this.input.mouseCell);
     ui.cellAspect = this.renderer.cellW / this.renderer.cellH;
+    ui.still = this.loop.frozen || !!this.settings.data.appearance.reduceMotion;
     if (this.starting) {
       this.renderer.draw(this.grid);
       return 100;

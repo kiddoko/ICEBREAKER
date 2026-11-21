@@ -35,6 +35,11 @@
   - **CRT flicker speed** (Settings → APPEARANCE → Effects, `fx flicker 150`);
   - **CRT curvature** (`fx curve 0-100`, off by default; heavy 40, party 100): rounded screen
     corners, a darker rim and a soft reflection — a still overlay, no cost per frame.
+- **NEWS headlines no longer stay scrambled** ("RK=WD P[1I*U…"): their "decrypt" reveal waited
+  for frames that never came when animations are off (frames per second at 0) — now the text shows
+  at once then, and the same for every reveal that stays on screen (MODULES, NEXUS, widgets).
+- **TRASH**: the restore button cuts a long path in the middle (its start and the file name kept)
+  instead of running off the page.
 - **THEME STUDIO**: a colour **palette** (18 hues × 10 shades at the saturation you choose,
   greys, the theme's own colours; arrows, mouse, gamepad; the #hex field still typable), and
   **↺** on every changed knob to put the theme's value back.
