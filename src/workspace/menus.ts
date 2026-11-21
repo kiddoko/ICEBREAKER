@@ -68,6 +68,16 @@ export function termTabMenu(ws: Workspace, i: number): MenuEntry[] {
   ];
 }
 
+/** "Move to ▸" for a frame (the tree, the panel, the shell): along a side of the screen, or folded. */
+export function frameMenu(frame: "tree" | "panel" | "shell"): MenuEntry[] {
+  const sides: [string, string][] = [["left", t("the left")], ["right", t("the right")], ["top", t("the top")], ["bottom", t("the bottom")]];
+  return [
+    { label: t("Move to"), tip: t("this frame along a side of the screen (⌘Z undoes it)"), sub: sides.map(([side, label]) => ({ label, cmd: `frame move ${frame} ${side}` })) },
+    { label: t("Fold"), cmd: `frame fold ${frame}`, tip: t("a thin strip with its name: a click opens it again") },
+    { label: t("Layout…"), tip: t("ready-made layouts"), sub: [...["classic", "shell-right", "panel-left", "tree-bottom"].map((p) => ({ label: p, cmd: `layout preset ${p}` })), { label: t("back to the classic layout"), cmd: "layout reset" }] },
+  ];
+}
+
 /** Right-click in the shell panel. */
 export function shellMenu(ws: Workspace): MenuEntry[] {
   const term = ws.shellTab === "term" && ws.termAvailable;
@@ -94,6 +104,7 @@ export function shellMenu(ws: Workspace): MenuEntry[] {
     { label: t("Scripts"), tip: t("your saved scripts"), cmd: "script menu" },
     "-",
     { label: ws.shellMax ? t("Restore") : t("Maximize"), cmd: ws.shellMax ? "term dock" : "term max" },
+    ...frameMenu("shell"),
     { label: t("Hide"), cmd: "term hide", hint: "ctrl+`" },
   );
   return items;

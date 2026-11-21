@@ -39,6 +39,11 @@ const STEPS: TourStep[] = [
     at: (ws, s) => (ws.rects.main ? { ...ws.rects.main, h: 2 } : { x: 0, y: 0, w: s.w, h: 1 }),
   },
   {
+    title: "FRAMES",
+    text: "The tree, the page, the side panel and the shell are frames. Drag a tab onto another frame to keep it there. Drag the line between two frames to resize them (↔ shows where). Right-click a frame's name → Move to: left, right, top, bottom — or Settings → Layout. ⌘Z undoes.",
+    at: (ws) => ws.rects.panel ?? ws.rects.shell ?? ws.rects.main,
+  },
+  {
     title: "VAULT",
     text: "Your notes, files and folders. One click selects, a double-click opens. ⌘N a new note, F2 renames, Delete (⌘⌫ on a Mac) sends to the trash — nothing is lost, ⌘Z brings it back. ⌘⇧T shows or hides the tree.",
     prep: (ws) => void (ws.sidebarVisible = true),

@@ -1,5 +1,5 @@
 import { RecoveryDialog } from "./recoverydialog";
-import { editMenu, shellMenu } from "./menus";
+import { frameMenu, editMenu, shellMenu } from "./menus";
 import { editBand, renderNotchBand, renderShellPanel, renderStatusBar, renderSubtitles, renderTip, renderTopBar } from "./chrome";
 import { shortcutFor, type Shortcut } from "../core/shortcuts";
 import { SidePanel } from "./sidepanel";
@@ -10,7 +10,7 @@ import { QuickMenu } from "./quickmenu";
 import { drawScreensaver } from "../fx/screensaver";
 import { IbshApp, TerminalApp } from "../apps/terminal";
 import { t } from "../core/i18n";
-import { type Rect } from "../core/grid";
+import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC, type Action, type ActionSource, type KeyInput, type MouseInput } from "../core/input";
 import type { App } from "../apps/types";
 import type { Deck } from "../deck";
@@ -31,8 +31,8 @@ import { paneToward } from "./layout/focus";
 import { drawDropFrame, placeChips, renderTabStrip, soloTab, tabbedBox } from "./tabstrip";
 import { frameOfPane, PANE_OF, parsePlaces, parseShows, prunePlaces, type PlaceFrame, type Places, type Shows } from "./tabplaces";
 import { groupOf, joinGroup, parseGroups, pick, prune, renameGroup, stripEntries, takeOut, type StripEntry, type TabGroup } from "./tabgroups";
-import { INSET } from "../ui/layout";
-import { strWidth } from "../core/unicode";
+import { GAP, INSET } from "../ui/layout";
+import { strWidth, truncate } from "../core/unicode";
 
 export type ShellTab = "term" | "ibsh" | "log";
 
@@ -143,6 +143,24 @@ export class Workspace {
     return a.kind === "split" && a.dir === "col" && a.children[a.children.length - 1].kind === "frame" && (a.children[a.children.length - 1] as { id: string }).id === "shell";
   }
   private dragging: Hit | null = null;
+  /**
+   * What's being dragged, said under the pointer (a tab's name, a file's): set by whatever
+   * drags it, gone when the button comes up. Where it would land is lit by that source.
+   */
+  ghost: { label: string } | null = null;
+
+  /** the ghost: a small lit label just under-right of the pointer */
+  private drawGhost(ui: UI, screen: Rect): void {
+    if (!this.ghost || !this.dragging) return;
+    const c = ui.c;
+    const label = ` ${this.ghost.label} `;
+    const w = Math.min(strWidth(label), 32);
+    const x = Math.min(ui.mouse.x + GAP, screen.x + screen.w - w);
+    const y = Math.min(ui.mouse.y + INSET, screen.y + screen.h - 1);
+    ui.text(x, y, truncate(label, w), { fg: c.panel, bg: c.accent, attrs: BOLD });
+    ui.animate(16);
+  }
+
   /** something is being dragged (a tab, a border…): no tips meanwhile */
   get isDragging(): boolean {
     return !!this.dragging;
@@ -1214,6 +1232,7 @@ export class Workspace {
       case "up":
         this.dragging?.onUp?.(m);
         this.dragging = null;
+        this.ghost = null;
         break;
       case "dblclick":
         pick((x) => !!x.onDouble)?.onDouble?.(m);
@@ -1334,7 +1353,7 @@ export class Workspace {
       // a tab moved here (tab move <n> tree) may be the one shown instead of the tree
       const moved = this.shownIn("vault");
       const inner = tabbedBox(ui, vaultR, { focused, info: moved ? undefined : `${d.vault.markdown().length}` });
-      const own = soloTab(ui, vaultR, "VAULT", focused, { onClick: () => (moved ? this.showIn("vault", null) : (this.focus = "sidebar")), tip: t("your notes and files · ⌘B hides the tree"), menu: () => [{ label: t("Fold"), cmd: "frame fold tree" }, { label: t("Hide"), cmd: "tree", hint: IS_MAC ? "⌘B" : "ctrl+B" }] }, !moved);
+      const own = soloTab(ui, vaultR, "VAULT", focused, { onClick: () => (moved ? this.showIn("vault", null) : (this.focus = "sidebar")), tip: t("your notes and files · ⌘B hides the tree"), menu: () => [...frameMenu("tree"), "-", { label: t("Hide"), cmd: "tree", hint: IS_MAC ? "⌘B" : "ctrl+B" }] }, !moved);
       placeChips(this, ui, own.x + own.w + INSET, vaultR.y, vaultR.x + vaultR.w - INSET, "vault", focused);
       // (clipped: in a tiny window the tree's list drew a row under its frame)
       if (moved) ui.clip(inner, () => moved.render(ui, inner, focused));
@@ -1382,9 +1401,16 @@ export class Workspace {
     // lit every tab of that row)
     for (const b of borders) {
       const dragged = this.borderDrag?.b.a === b.a && this.borderDrag?.b.b === b.b;
-      if (b.dir === "row" && (dragged || ui.hovered(b.grip))) ui.vline(b.line.x, b.line.y, b.line.h, { fg: ui.c.accent }, "┃");
+      // lit, with a handle in its middle that says which way it goes
+      if (b.dir === "row" && (dragged || ui.hovered(b.grip))) {
+        ui.vline(b.line.x, b.line.y, b.line.h, { fg: ui.c.accent }, "┃");
+        ui.text(b.line.x, b.line.y + Math.floor(b.line.h / 2), "↔", { fg: ui.c.panel, bg: ui.c.accent, attrs: BOLD });
+      }
       const edge = { x: b.line.x, y: b.line.y + 1, w: b.line.w, h: 1 };
-      if (b.dir === "col" && (dragged || ui.hovered(edge))) ui.tint(edge, ui.c.accent);
+      if (b.dir === "col" && (dragged || ui.hovered(edge))) {
+        ui.tint(edge, ui.c.accent);
+        ui.text(edge.x + Math.floor(edge.w / 2), edge.y, "↕", { fg: ui.c.panel, bg: ui.c.accent, attrs: BOLD });
+      }
     }
 
     // a tab shown in a frame that isn't on screen (a narrow window drops the panel): back to the
@@ -1411,6 +1437,7 @@ export class Workspace {
     for (const o of this.overlays) if (!(o instanceof Osk)) o.render(ui, screen);
     for (const o of this.overlays) if (o instanceof Osk) o.render(ui, screen);
     this.toasts.render(ui, screen);
+    this.drawGhost(ui, screen);
     renderTip(this, ui, screen);
     if (ui.caret) this.lastCaret = { ...ui.caret };
   }

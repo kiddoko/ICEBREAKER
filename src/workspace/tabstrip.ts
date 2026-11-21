@@ -126,6 +126,8 @@ export function dragToFrame(ws: Workspace, i: number, from: PlaceFrame | "main")
   return {
     // true while the pointer is over another frame (the strip's own drag then stands aside)
     onDrag: (m) => {
+      // its name under the pointer, whatever it's dragged onto
+      ws.ghost = { label: `${iconOf(ws, i) || "·"} ${ws.tabs[i]?.title().toLowerCase() ?? ""}` };
       const to = frameUnder(ws, m);
       dropFrame = to && to !== from ? { from, to } : null;
       return !!dropFrame;
@@ -185,6 +187,11 @@ export function placeChips(ws: Workspace, ui: UI, x: number, y: number, maxX: nu
   return x;
 }
 
+/** the page strip's chips this frame (a tab dragged out of a group's list lands on one) */
+let chipsNow: { rect: Rect; first: number; group?: string }[] = [];
+/** a tab being dragged out of a group's list: which, and where the pointer is */
+let fromGroup: { i: number; group: string; m: { x: number; y: number } } | null = null;
+
 /** A tab being dragged: which, onto which chip, and whether it drops ON it (a group) or beside it. */
 let dragging: { from: number; to: number; onto: boolean } | null = null;
 
@@ -236,12 +243,14 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
     const e = entries[shown[k]];
     return e ? (e.kind === "tab" ? e.index : e.indexes[0]) : -1;
   };
+  chipsNow = [];
   shown.forEach((ei, k) => {
     const e = entries[ei];
     const pin = e.kind === "tab" && isPinned(ws, e.index);
     const w = pin && e.kind === "tab" ? pinW(ws, e.index) : tabW;
     const rect = { x, y: r.y, w, h: 2 };
     rects.push(rect);
+    chipsNow.push({ rect, first: e.kind === "tab" ? e.index : e.indexes[0], group: e.kind === "group" ? e.group.id : undefined });
     const i = e.kind === "tab" ? e.index : (e.indexes.find((j) => ws.tabs[j]?.key === e.group.active) ?? e.indexes[0]);
     const on = ei === activeEntry;
     const hot = ui.hovered(rect);
@@ -286,7 +295,7 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
       const toFrame = dragToFrame(ws, i, "main");
       ui.hit(rect, {
         cmd: `tab ${i + 1}`,
-        tip: `${ws.tabs[i].title()}\n${tabKey(i) ? `${tabKey(i)} · ` : ""}${t("drag: move it, or onto another tab: a group · right-click: close others…")}`,
+        tip: `${ws.tabs[i].title()}\n${tabKey(i) ? `${tabKey(i)} · ` : ""}${t("drag: move it · onto another tab: a group · onto another frame: it goes there · right-click: Move to…")}`,
         menu: () => tabMenu(ws, i),
         // drag it: beside another chip moves it there, onto the middle of one makes a group
         // (never before or onto the pinned HOME)
@@ -359,6 +368,20 @@ function groupMenu(ws: Workspace, i: number): MenuEntry[] {
   ];
 }
 
+/** A tab dragged out of a group's list, let go: into the chip under the pointer, another frame, or out. */
+async function dropFromGroup(ws: Workspace): Promise<void> {
+  const d = fromGroup;
+  fromGroup = null;
+  if (!d) return;
+  const n = d.i + 1;
+  const chip = chipsNow.find((cc) => d.m.x >= cc.rect.x && d.m.x < cc.rect.x + cc.rect.w && d.m.y >= cc.rect.y && d.m.y < cc.rect.y + cc.rect.h);
+  if (chip?.group === d.group) return; // back onto its own group: nothing changes
+  await ws.deck.act(`tab ungroup ${n}`);
+  if (chip) return void (await ws.deck.act(`tab group ${chip.first + 1} ${n}`));
+  const to = frameUnder(ws, d.m);
+  if (to && to !== "main") await ws.deck.act(`tab move ${n} ${to === "vault" ? "tree" : to}`);
+}
+
 /** Open the hover list of group `id` under its chip (once). */
 function openGroupList(ws: Workspace, id: string, anchor: Rect): void {
   if (ws.overlays.some((o) => o instanceof GroupList && !o.done && o.id === id)) return;
@@ -391,7 +414,7 @@ class GroupList implements Overlay {
     const w = Math.min(screen.w - this.anchor.x, Math.max(this.anchor.w, 30));
     const box = { x: this.anchor.x, y: this.anchor.y + this.anchor.h, w, h: rows.length + 2 };
     // gone once the pointer has been away from the chip and the list for a moment
-    if (ui.hovered(this.anchor) || ui.hovered(box)) this.outSince = 0;
+    if (ui.hovered(this.anchor) || ui.hovered(box) || fromGroup) this.outSince = 0;
     else if (!this.outSince) this.outSince = ui.now;
     else if (ui.now - this.outSince > 350) return void (this.done = true);
     ui.animate(this.outSince ? 60 : 250);
@@ -404,7 +427,17 @@ class GroupList implements Overlay {
       const hot = ui.hovered(row);
       if (on || hot) ui.fill(row, { bg: on ? mix(c.accent, c.panelAlt, 0.7) : c.highlight });
       const bg = on ? mix(c.accent, c.panelAlt, 0.7) : hot ? c.highlight : c.panelAlt;
-      ui.hit(row, { cmd: `tab ${i + 1}`, tip: t("click: show it") });
+      // drag it: onto another group or tab (it joins it), onto another frame, or anywhere else
+      // (it leaves the group, a tab of its own)
+      ui.hit(row, {
+        cmd: `tab ${i + 1}`,
+        tip: t("click: show it · drag: onto another group, or out of this one"),
+        onDrag: (m) => {
+          fromGroup = { i, group: g.id, m: { x: m.x, y: m.y } };
+          ws.ghost = { label: `${iconOf(ws, i) || "·"} ${ws.tabs[i].title().toLowerCase()}` };
+        },
+        onUp: () => void dropFromGroup(ws),
+      });
       const end = new Bar(ui, inner.x + INSET, y, inner.x + inner.w - INSET);
       end.text(`${iconOf(ws, i) ? `${iconOf(ws, i)} ` : ""}${ws.tabs[i].title().toLowerCase()}`, { fg: on ? c.fg : c.muted, bg, attrs: on ? BOLD : 0 }, { priority: 9, fit: 4 });
       end.button("⇱", () => {}, { cmd: `tab ungroup ${i + 1}`, tip: t("take it out: a tab of its own") }, { side: "right", priority: 7 });
