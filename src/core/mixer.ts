@@ -212,7 +212,13 @@ export class Mixer {
   stop(owner: string, byUser = false): void {
     const o = this.owners.get(owner);
     if (o?.voices.size) this.node?.port.postMessage({ t: "stop", voices: [...o.voices.values()] });
-    this.streams.get(owner)?.node.port.postMessage({ t: "flush" });
+    const st = this.streams.get(owner);
+    st?.node.port.postMessage({ t: "flush" });
+    // quiet from now on, as far as the deck says (`audio`, the ♪), without waiting for the worklet's next report
+    let changed = false;
+    for (const v of o?.voices.values() ?? []) changed = this.sounding.delete(v) || changed;
+    if (st?.loud) (st.loud = false), (changed = true);
+    if (changed) this.onActive?.();
     if (byUser) for (const fn of this.stopListeners.get(owner) ?? []) try { fn(); } catch { /* the module's own problem */ }
   }
 
