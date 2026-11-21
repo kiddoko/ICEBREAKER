@@ -1,3 +1,4 @@
+import { FX_LEVELS, getFx } from "../../core/fxlevels";
 import { isLogKind, LOG_KINDS } from "../../core/eventlog";
 import type { Command } from "../types";
 import { fmt } from "../../core/ansi";
@@ -115,7 +116,7 @@ export const debugCommand: Command = {
           `${fmt.bold("glyphs")}   ${stat(f.map((x) => x.glyphs))} new a frame  ${fmt.dim("(drawn for the first time: should be ~0 once things move)")}`,
           `${fmt.bold("gaps")}     ${stat(gaps)} ms between frames · ${moving} frames asked for at once`,
           `${fmt.bold("late")}     ${stat(late)} ms after they were asked for · ${janks ? fmt.yellow(`${janks} late frame(s) > 12 ms — the screen's work (effects, compositing), not JavaScript`) : fmt.green("none late")}`,
-          `${fmt.bold("fx")}       ${Object.entries(fx.levels ?? {}).filter(([, v]) => Number(v) > 0).map(([k, v]) => `${k} ${v}`).join(" · ") || "none"}${fx.ambient ? " · ambient" : ""}${fx.flicker ? " · flicker" : ""}${fx.glitch ? " · glitch" : ""} · theme ${d.theme.name}`,
+          `${fmt.bold("fx")}       ${FX_LEVELS.map((k) => [k, getFx(d, k)] as const).filter(([k, v]) => v > 0 && !(k === "sharpness" && v === 100)).map(([k, v]) => `${k} ${v}`).join(" · ") || "none"}${fx.ambient ? " · ambient" : ""}${fx.flicker ? " · flicker" : ""}${fx.glitch ? " · glitch" : ""} · theme ${d.theme.name}`,
           "",
         ].join("\n"),
       );
