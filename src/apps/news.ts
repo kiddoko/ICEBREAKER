@@ -1,13 +1,13 @@
 /**
- * NEWS — the module's own page: the headlines of a source (your area, your country,
- * some categories, your own words), the first one big ("à la une"), and the one you
- * pick read on the right with its summary.
+ * NEWS — the module's own page. The same four choices as a news widget, as tabs: your
+ * area, your country's top stories, the categories you tick, your own words. The first
+ * headline big ("à la une"), the others one per line; wide, the one you pick is read on
+ * the right with its summary.
  *
- *   ←→ / tab  another source     ↑↓  a headline     enter  open it in the browser
- *   r  refresh                   +  add a source    x  remove this source
+ *   ←→ / tab  another tab     ↑↓  a headline     enter  open it     r  refresh
+ *   w  your own words          (categories: click them on and off)
  *
- * Wide: the list on the left, the article on the right. Narrow: the list; enter shows
- * the article's card.
+ * Narrow: the list; enter shows the article's card.
  */
 import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
@@ -16,73 +16,58 @@ import { strWidth, truncate, wrapWords } from "../core/unicode";
 import type { Deck } from "../deck";
 import { Bar, GAP, INSET, SECTION } from "../ui/layout";
 import type { UI } from "../ui/ui";
-import { ago, NEWS_CATEGORIES, openArticle, refreshSource, showHeadline, sourceFeed, sourceId, sourceLabel, type Headline, type NewsSource } from "../widgets/news";
+import { NEWS_TOPICS } from "../core/suggest";
+import { ago, followedCats, followedWords, NEWS_CATEGORIES, newsPage, openArticle, pageSource, refreshSource, setPageSource, showHeadline, sourceFeed, sourceLabel, type Headline, type NewsSource } from "../widgets/news";
 import type { App, AppSpec } from "./types";
-
-/** The sources the page offers: your area, your country, then the ones you follow. */
-export function pageSources(deck: Deck): NewsSource[] {
-  const out: NewsSource[] = [{ kind: "area" }, { kind: "country" }];
-  const home = deck.settings.data.home;
-  for (const i of home.newsInterests ?? []) out.push(NEWS_CATEGORIES[i.toLowerCase()] ? { kind: "cats", cats: [i.toLowerCase()] } : { kind: "topic", words: i });
-  if (home.newsTopic) out.push({ kind: "topic", words: home.newsTopic });
-  const seen = new Set<string>();
-  return out.filter((s) => !seen.has(sourceId(s)) && !!seen.add(sourceId(s)));
-}
 
 /** the width at which the article gets its own column on the right */
 const SPLIT_W = 90;
+const TABS: NewsSource["kind"][] = ["area", "country", "cats", "topic"];
 
 class NewsApp implements App {
   readonly kind = "news";
   readonly key = "news";
-  /** the source shown (its id) and the headline picked in it */
-  private src = "area";
+  /** the headline picked, and the list's scroll */
   private sel = 0;
   private scroll = 0;
+  private lastW = 0;
   constructor(private readonly deck: Deck) {}
 
   title(): string {
     return "news";
   }
   status(): string {
-    return t("←→ source · ↑↓ headline · enter open · r refresh · + add a source");
+    return t("←→ tab · ↑↓ headline · enter open · r refresh · w your words");
   }
 
-  private get sources(): NewsSource[] {
-    return pageSources(this.deck);
-  }
   private get source(): NewsSource {
-    return this.sources.find((s) => sourceId(s) === this.src) ?? this.sources[0];
+    return pageSource(this.deck);
   }
   private get items(): Headline[] {
     return sourceFeed(this.deck, this.source).items;
   }
 
-  private pick(id: string): void {
-    this.src = id;
+  /** a tab: categories with none ticked yet starts with "world"; your words asks for them */
+  private tab(kind: NewsSource["kind"]): void {
     this.sel = 0;
     this.scroll = 0;
-    this.deck.requestFrame();
+    if (kind === "cats") return setPageSource(this.deck, { kind: "cats", cats: followedCats(this.deck).length ? followedCats(this.deck) : ["world"] });
+    if (kind === "topic" && !followedWords(this.deck)) return void this.askWords();
+    if (kind === "topic") return setPageSource(this.deck, { kind: "topic", words: followedWords(this.deck) });
+    setPageSource(this.deck, { kind });
   }
   private step(dir: 1 | -1): void {
-    const all = this.sources;
-    const k = all.findIndex((s) => sourceId(s) === sourceId(this.source));
-    this.pick(sourceId(all[(k + dir + all.length) % all.length]));
+    this.tab(TABS[(TABS.indexOf(newsPage.tab) + dir + TABS.length) % TABS.length]);
   }
-  private async addSource(): Promise<void> {
-    const v = await this.deck.prompt(t("Follow: a category or your own words"), { placeholder: "science · ai · space · “formula 1”", suggestions: Object.keys(NEWS_CATEGORIES) });
-    const w = v?.trim();
-    if (!w) return;
-    await this.deck.act(`news add ${w}`);
-    const cat = NEWS_CATEGORIES[w.toLowerCase()];
-    this.pick(sourceId(cat ? { kind: "cats", cats: [w.toLowerCase()] } : { kind: "topic", words: w }));
+  private async askWords(): Promise<void> {
+    const v = await this.deck.prompt(t("The news about…"), { initial: followedWords(this.deck), placeholder: "formula 1, linux, Lyon…", suggestions: NEWS_TOPICS });
+    if (v?.trim()) setPageSource(this.deck, { kind: "topic", words: v.trim() });
   }
-  private removeSource(): void {
-    const s = this.source;
-    const word = s.kind === "cats" ? s.cats[0] : s.kind === "topic" ? s.words : "";
-    if (!word) return;
-    void this.deck.act(s.kind === "topic" && word === this.deck.settings.data.home.newsTopic ? "news topic -" : `news rm ${word}`);
-    this.pick("area");
+  private toggleCat(id: string): void {
+    const cur = followedCats(this.deck);
+    const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    setPageSource(this.deck, next.length ? { kind: "cats", cats: next } : { kind: "area" });
+    this.sel = 0;
   }
   private open(i = this.sel): void {
     const h = this.items[i];
@@ -91,7 +76,6 @@ class NewsApp implements App {
     if (this.lastW < SPLIT_W) showHeadline(this.deck, this.items, i + 1);
     else openArticle(this.deck, h);
   }
-  private lastW = 0;
 
   onKey(k: KeyInput): boolean {
     if (k.combo === "tab" || k.combo === "right") return this.step(1), true;
@@ -100,8 +84,7 @@ class NewsApp implements App {
   }
   onText(s: string): boolean {
     if (s === "r") return refreshSource(this.deck, this.source), true;
-    if (s === "+") return void this.addSource(), true;
-    if (s === "x") return this.removeSource(), true;
+    if (s === "w") return void this.askWords(), true;
     if (s === "j") return this.onAction("down");
     if (s === "k") return this.onAction("up");
     if (s === "o") return openArticle(this.deck, this.items[this.sel]), true;
@@ -128,21 +111,43 @@ class NewsApp implements App {
     const f = sourceFeed(this.deck, source);
     const body = { x: r.x + INSET, y: r.y, w: r.w - INSET * 2, h: r.h };
 
-    // the sources, as tabs; refresh on the right
+    // the four choices, as tabs (the same as a news widget's); refresh on the right
+    const tab = newsPage.tab;
     const bar = new Bar(ui, body.x, body.y, body.x + body.w);
-    for (const s of this.sources) {
-      const id = sourceId(s);
-      const on = id === sourceId(source);
-      const label = `${s.kind === "area" ? "⌖ " : s.kind === "country" ? "⚑ " : ""}${sourceLabel(this.deck, s)}`;
-      bar.button(label, () => this.pick(id), { selected: on, tip: s.kind === "area" ? t("your area (location: setup)") : s.kind === "country" ? t("your country's top stories") : t("x removes it") }, { priority: on ? 9 : 5 });
-    }
-    bar.button("+", () => void this.addSource(), { tip: t("follow a category or your own words · news add …") }, { priority: 6 });
+    const label: Record<NewsSource["kind"], string> = {
+      area: `⌖ ${sourceLabel(this.deck, { kind: "area" })}`,
+      country: `⚑ ${sourceLabel(this.deck, { kind: "country" })}`,
+      cats: `▦ ${t("categories")}`,
+      topic: `❝ ${followedWords(this.deck) ? `“${followedWords(this.deck)}”` : t("your own words")}`,
+    };
+    const tips: Record<NewsSource["kind"], string> = { area: t("your area (location: setup)"), country: t("your country's top stories"), cats: t("the categories you tick, woven together"), topic: "w" };
+    for (const k of TABS) bar.button(label[k], () => this.tab(k), { selected: tab === k, tip: tips[k] }, { priority: tab === k ? 9 : 5 });
     const age = f.loading ? `${ui.spinner()} ${t("loading")}` : f.at ? `↻ ${ago(f.at)}` : "↻";
     bar.button(age, () => refreshSource(this.deck, source), { quiet: true, tip: t("refresh · r") }, { side: "right", priority: 4 });
     bar.draw();
-    ui.hline(body.x, body.y + 1, body.w, { fg: c.faint });
+    let top = body.y + 1;
+    // categories: tick them; your words: change them
+    if (tab === "cats") {
+      // every category, on as many rows as they need (at most 3)
+      const on = followedCats(this.deck);
+      let x = body.x;
+      const last = top + 2;
+      for (const [id, cat] of Object.entries(NEWS_CATEGORIES)) {
+        const name = t(cat.label);
+        const w = strWidth(name) + GAP;
+        if (x + w > body.x + body.w) {
+          if (top >= last) break;
+          (x = body.x), top++;
+        }
+        x += ui.button(x, top, name, () => this.toggleCat(id), { selected: on.includes(id), quiet: !on.includes(id), tip: on.includes(id) ? t("click: not this one") : t("click: this one too") }) + INSET;
+      }
+      top++;
+    } else if (tab === "topic") {
+      new Bar(ui, body.x, top++, body.x + body.w).button(t("change the words"), () => void this.askWords(), { tip: "w" }, { priority: 5 }).draw();
+    }
+    ui.hline(body.x, top, body.w, { fg: c.faint });
 
-    const main = { x: body.x, y: body.y + 1 + SECTION, w: body.w, h: body.h - 1 - SECTION };
+    const main = { x: body.x, y: top + SECTION, w: body.w, h: body.y + body.h - top - SECTION };
     if (!f.items.length) {
       const msg = f.error ? `⚠ ${f.error}` : `${ui.spinner()} ${t("pulling the feed…")}`;
       return void wrapWords(msg, main.w).forEach((l, i) => ui.text(main.x, main.y + i, l, { fg: f.error ? c.error : c.muted }));
