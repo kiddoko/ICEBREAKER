@@ -554,7 +554,9 @@ todo add "pack the books" --every sat --cycles 3
   (below). No cloud, no online account.
 - What goes online, and only when you use it: the AI you chose (or none — or
   a local model with Ollama), the weather (open-meteo.com), the news, Google
-  Calendar if you connect it, GitHub when you install from the STORE.
+  Calendar if you connect it, GitHub when you install from the STORE (or the
+  voice, or the encoder pack: \`encoders install\`, for modules that export MP3,
+  M4A, OGG or Opus).
 - **What the AI receives**: your messages, the notes you or it pick, and its
   **context page** (\`context\` opens it): your profile, the names of your folders,
   recent notes and pins, the modules that are on. With Ollama, none of it leaves
@@ -716,7 +718,7 @@ export function activate(ib) {
 | \`commands\` · \`apps\` · \`widgets\` · \`palette\` | add things to the deck (\`palette\` = THE MENU; \`key: "g"\` gives it a menu key if free) |
 | \`vault\` | read / write notes (permissions); \`readBytes\` / \`writeBytes\` for binary files (a song, a sample, an export: 256 MB at most) |
 | \`apps\` + \`rawKeys: true\` | a page that plays the keyboard (a piano, a game): every key with its place (\`code\`), never as text |
-| \`audio\` | sound of your own (permission "audio"): \`sample(id, data, { loopStart, loopLength })\`, then \`schedule([{ at, voice, play, rate, volume, pan, interp }])\` on the clock of \`now()\`; \`decode(bytes)\` reads wav, mp3, m4a… |
+| \`audio\` | sound of your own (permission "audio"): \`sample(id, data, { loopStart, loopLength })\`, then \`schedule([{ at, voice, play, rate, volume, pan, interp }])\` on the clock of \`now()\`; \`decode(bytes)\` reads wav, mp3, m4a…; \`encode(pcm, { format, rate, channels })\` makes an mp3, m4a, ogg or opus file (once the user ran \`encoders install\`) |
 | \`stats\` | numbers over time, shown by STATS |
 | \`modules\` | call other modules (\`todo.add\`, \`journal.append\`…), expose yours |
 | \`settings\` | your settings, shown in ⚙ under your name |

@@ -11,6 +11,7 @@ mod audio;
 mod claude_code;
 mod config;
 mod crypto;
+mod encoders;
 mod files;
 mod dev; // developer tools: refuse unless built with --features dev-tools
 mod google;
@@ -122,6 +123,10 @@ pub fn run() {
             voice::voice_list,
             voice::voice_speak,
             voice::voice_install,
+            encoders::encoders_info,
+            encoders::encoders_install,
+            encoders::encoders_remove,
+            encoders::encode_audio,
             account::account_status,
             account::account_session,
             account::account_count,

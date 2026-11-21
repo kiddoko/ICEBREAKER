@@ -63,6 +63,7 @@ names:
 | News widget | Google News / Bing News RSS | your search terms, language, country |
 | Google Calendar (optional) | googleapis.com | see below |
 | STORE: installing modules / themes | GitHub, or the sources you add yourself | the name of what you install |
+| `encoders install` (once) | GitHub (ICEBREAKER's `encoders-v1` release) | nothing but the download request; the encoding itself happens on your computer |
 | `voice install` (once) | GitHub (the sherpa-onnx engine and a piper voice) | nothing but the download request |
 | Updates (Settings → UPDATES; every day by default, never in stealth mode) | GitHub (ICEBREAKER's public releases; each module's own repo) | nothing but the download requests (your version and system are in the address of the file asked) |
 

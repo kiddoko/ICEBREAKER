@@ -149,6 +149,17 @@ export function createTauriPlatform(): Platform {
       speak: (text, engine, voice, rate) => invoke<ArrayBuffer>("voice_speak", { text, engine, voice, rate }),
       install: (lang) => invoke<string>("voice_install", { lang }),
     },
+    encoders: {
+      info: () => invoke("encoders_info"),
+      install: () => invoke<string>("encoders_install"),
+      remove: () => invoke<boolean>("encoders_remove"),
+      // the body is the sound, the rest headers (encoders.rs encode_audio)
+      encode: async (pcm, o) => {
+        const bytes = new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+        const headers = { format: o.format, quality: o.quality ?? "", rate: String(o.rate), channels: String(o.channels), title: encodeURIComponent(o.title ?? "") };
+        return new Uint8Array(await invoke<ArrayBuffer>("encode_audio", bytes, { headers }));
+      },
+    },
     google: {
       status: () => invoke<{ configured: boolean; custom: boolean; connected: boolean }>("google_status"),
       setup: (clientId, clientSecret) => invoke<void>("google_setup", { clientId, clientSecret }),

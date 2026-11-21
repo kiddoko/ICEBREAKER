@@ -60,6 +60,13 @@ describe("what modules may never do", () => {
     expect(isPrivileged("stealth", ["off"])).toBe(true);
     expect(isPrivileged("theme", ["install", "x/y"])).toBe(true);
     expect(isPrivileged("voice", ["install", "fr"])).toBe(true);
+    // the encoder pack: a downloaded program — looking is fine, installing or removing is yours
+    expect(isPrivileged("encoders", ["install"])).toBe(true);
+    expect(isPrivileged("encoders", ["remove"])).toBe(true);
+    expect(isPrivileged("encoders", ["--x", "install"])).toBe(true);
+    expect(isPrivileged("encoders", [])).toBe(false);
+    expect(isPrivileged("encoders", ["status"])).toBe(false);
+    expect(PRIVILEGED_NAMES.has("encoders")).toBe(true);
     expect(isPrivileged("vault", ["anything-new"])).toBe(true);
     // a flag in front never makes the check and the command read different words
     expect(isPrivileged("macro", ["--x", "run", "deploy"])).toBe(true);

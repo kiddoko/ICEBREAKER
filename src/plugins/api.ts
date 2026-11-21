@@ -149,6 +149,16 @@ export interface IcebreakerAPI {
     onStop(fn: () => void): () => void;
     /** decode an audio file (wav, aiff, mp3, m4a, ogg… what the system reads) into floats, one array per channel */
     decode(bytes: Uint8Array | ArrayBuffer): Promise<{ rate: number; channels: Float32Array[] }>;
+    /**
+     * Encode sound into an MP3, M4A (AAC), OGG (Vorbis) or Opus file's bytes, to write with
+     * `vault.writeBytes`. `pcm` is interleaved floats (-1…1), `channels` 1 or 2, at most 256 MB.
+     * Needs the deck's encoder pack (`encoders install`, once): see `encoders()`.
+     * Qualities: mp3 v0 | v2 | 128 | 192 | 256 | 320 · m4a 128 | 192 | 256 · ogg q4 | q6 | q8 ·
+     * opus 96 | 128 | 160 (kbps); left out, the default (mp3 v0, m4a 256, ogg q6, opus 128).
+     */
+    encode(pcm: Float32Array, opts: import("../platform/types").EncodeOptions): Promise<Uint8Array>;
+    /** whether the encoder pack is installed, and the formats `encode` makes */
+    encoders(): Promise<{ installed: boolean; supported: boolean; formats: string[] }>;
   };
 
   /** The AI provider the user configured (Claude, or a local model). */

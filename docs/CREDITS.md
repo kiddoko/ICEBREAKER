@@ -20,6 +20,7 @@ an issue.
 | what | when | from | terms |
 |---|---|---|---|
 | The natural voice engine (sherpa-onnx) | `voice install` | [k2-fsa/sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) releases | Apache-2.0 |
+| The encoder pack: a small ffmpeg (FFmpeg 7.1.2, LAME 3.100, libogg 1.3.5, libvorbis 1.3.7, libopus 1.5.2), built by ICEBREAKER's CI (`scripts/encoders/`) | `encoders install` (for modules that export MP3, M4A, OGG, Opus) | [ICEBREAKER's `encoders-v1` release](https://github.com/kiddoko/ICEBREAKER/releases/tag/encoders-v1), with the exact sources and build scripts | FFmpeg and LAME: **LGPL-2.1+** (no GPL or nonfree part); libogg, libvorbis, libopus: BSD-3-Clause. The licences are in the archive's `LICENSES/`. ICEBREAKER runs it as a separate program, never linked |
 | The voices (piper models: jenny_dioco, amy, siwis…) | `voice install` | sherpa-onnx's `tts-models` releases | **each voice has its own license**, written in the files it downloads (MODEL_CARD). Some are only for personal / non-commercial use: check before using what they say for anything commercial |
 
 ## Services the app talks to (only if you use them)

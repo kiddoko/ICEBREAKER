@@ -217,7 +217,7 @@ function makeIb(manifest: unknown, version: string): unknown {
     // functions can't cross into the deck: a sandboxed module's changes aren't ⌘Z steps (yet)
     history: { record: () => {} },
     // its sound is played by the deck (core/mixer.ts): this Worker has none of its own
-    audio: { available: () => audio, stream: openStream, onStop: (fn: () => void) => (audioStops.add(fn), () => void audioStops.delete(fn)), now: rpc("audio", "now"), sample: rpc("audio", "sample"), drop: rpc("audio", "drop"), schedule: rpc("audio", "schedule"), stop: rpc("audio", "stop"), decode: rpc("audio", "decode") },
+    audio: { available: () => audio, stream: openStream, onStop: (fn: () => void) => (audioStops.add(fn), () => void audioStops.delete(fn)), now: rpc("audio", "now"), sample: rpc("audio", "sample"), drop: rpc("audio", "drop"), schedule: rpc("audio", "schedule"), stop: rpc("audio", "stop"), decode: rpc("audio", "decode"), encode: rpc("audio", "encode"), encoders: rpc("audio", "encoders") },
     lib,
   });
 }

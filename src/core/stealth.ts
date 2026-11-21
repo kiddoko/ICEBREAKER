@@ -2,7 +2,7 @@ import type { Deck } from "../deck";
 
 /**
  * STEALTH MODE (`privacy.stealth`): 100 % local. Nothing goes to the internet —
- * no cloud AI, weather, news, Google, module installs, voice downloads. Only
+ * no cloud AI, weather, news, Google, module installs, voice and encoder downloads. Only
  * this machine and your local network are reachable: a local model (Ollama on
  * this computer or a box at home), a vault on your own server.
  *
@@ -69,5 +69,6 @@ export function installStealth(deck: Deck): void {
     g.calendar = guard("Google Calendar", g.calendar.bind(g))!;
   }
   if (p.voice) p.voice.install = guard("downloading a voice", p.voice.install.bind(p.voice))!;
+  if (p.encoders) p.encoders.install = guard("downloading the encoder pack", p.encoders.install.bind(p.encoders))!;
   if (p.claudeCode) p.claudeCode.run = guard("Claude Code (cloud AI)", p.claudeCode.run.bind(p.claudeCode))!;
 }

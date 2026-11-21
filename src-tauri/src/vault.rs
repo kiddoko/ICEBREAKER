@@ -588,7 +588,7 @@ pub fn vault_write_bytes(state: State<VaultState>, request: tauri::ipc::Request<
 }
 
 /// `%41` → `A`; the result must be UTF-8 (what `encodeURIComponent` makes).
-fn percent_decode(s: &str) -> CmdResult<String> {
+pub(crate) fn percent_decode(s: &str) -> CmdResult<String> {
     let b = s.as_bytes();
     let mut out = Vec::with_capacity(b.len());
     let mut i = 0;

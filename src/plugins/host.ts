@@ -557,6 +557,23 @@ export class PluginHost {
         onStop: (fn) => (need("audio"), deck.mixer.onStop(m.id, fn)),
         stream: async () => (need("audio"), AudioStream.open(await deck.mixer.openStream(m.id))),
         decode: async (bytes) => (need("audio"), deck.mixer.decode(bytes)),
+        // the encoder pack (encoders.rs): sound the module already has, as a file's bytes
+        encode: async (pcm, opts) => {
+          need("audio");
+          const enc = deck.platform.encoders;
+          if (!enc) throw new Error("audio.encode: needs the desktop app");
+          if (!(pcm instanceof Float32Array)) throw new Error("audio.encode: the sound must be a Float32Array (interleaved)");
+          const o = (opts ?? {}) as Partial<import("../platform/types").EncodeOptions>;
+          if (!["mp3", "m4a", "ogg", "opus"].includes(o.format as string)) throw new Error("audio.encode: format mp3, m4a, ogg or opus");
+          if (o.channels !== 1 && o.channels !== 2) throw new Error("audio.encode: channels 1 or 2");
+          if (!Number.isInteger(o.rate)) throw new Error("audio.encode: the rate in Hz");
+          if (!(await enc.info()).installed) throw new Error("the encoder pack isn't installed: run `encoders install` (once, ~3 MB)");
+          return enc.encode(pcm, { format: o.format!, quality: typeof o.quality === "string" ? o.quality : "", rate: o.rate!, channels: o.channels, title: typeof o.title === "string" ? o.title : "" });
+        },
+        encoders: async () => {
+          const i = await deck.platform.encoders?.info();
+          return { installed: !!i?.installed, supported: !!i?.supported, formats: i?.installed ? i.formats : [] };
+        },
       },
       ai: {
         ready: () => deck.ai.ready,
