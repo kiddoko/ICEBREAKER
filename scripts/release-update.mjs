@@ -11,9 +11,14 @@
 // - --publish owner/repo: adds every file to the release v<version> there (made by CI when
 //   the tag was pushed; created if it isn't there). Without --from, the Windows and Linux
 //   files are first taken from that release. The repository must be PUBLIC: an installed
-//   ICEBREAKER reads it without an account.
+//   ICEBREAKER reads it without an account. Then the release is tidied: its title and notes,
+//   and only this version's builds + latest.json on it (no other version's file, no .sig —
+//   latest.json carries the signatures).
+//
+// Everything is made in dist-update/<version>/, emptied first: a release never gets the
+// files of an earlier run (0.5.1–0.5.5 each carried every earlier version's installers).
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
 
@@ -27,7 +32,9 @@ const version = JSON.parse(readFileSync(join(here, "package.json"), "utf8")).ver
 const tag = `v${version}`;
 const publish = opt("--publish");
 const repo = publish ?? opt("--repo") ?? "kiddoko/ICEBREAKER";
-const out = join(here, "dist-update");
+// this version's own folder, emptied: nothing left over from an earlier run gets published
+const out = join(here, "dist-update", version);
+rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 
 const keyFile = join(homedir(), ".tauri", "icebreaker-updater.key");
@@ -53,13 +60,13 @@ if (args.includes("--mac")) {
   const bin = join(app, "Contents/MacOS", readdirSync(join(app, "Contents/MacOS"))[0]);
   const kind = readFileSync(bin).includes("ICEBREAKER-BUILD:dev-tools") ? "dev-tools" : readFileSync(bin).includes("ICEBREAKER-BUILD:release") ? "release" : "unknown";
   if (kind !== "release") throw new Error(`this macOS build is "${kind}", not a release build: run npm run app:mac:release (npm run app:mac is the testing build, with the developer tools)`);
-  const tar = join(out, "ICEBREAKER.app.tar.gz");
+  const arch = execFileSync("uname", ["-m"]).toString().trim() === "arm64" ? "aarch64" : "x86_64";
+  const tar = join(out, `ICEBREAKER_${version}_${arch}.app.tar.gz`);
   // the signed .app as it is (codesign kept): what the updater unpacks in place of the old one
   // no AppleDouble "._*" entries (macOS adds them for extended attributes such as
   // com.apple.provenance): the updater can't unpack them ("failed to unpack ._ICEBREAKER.app")
   execFileSync("tar", ["--no-mac-metadata", "--no-xattrs", "-czf", tar, "-C", join(app, ".."), "ICEBREAKER.app"], { env: { ...process.env, COPYFILE_DISABLE: "1" } });
   const sig = sign(tar);
-  const arch = execFileSync("uname", ["-m"]).toString().trim() === "arm64" ? "aarch64" : "x86_64";
   platforms[`darwin-${arch}`] = { signature: sig, url: url(tar) };
   files.push(tar);
   // and the .zip people download to install it the first time
@@ -83,7 +90,8 @@ if (from) {
   for (const f of readdirSync(from)) {
     const p = join(from, f);
     const kind = /-setup\.exe$/.test(f) ? "windows-x86_64" : /\.AppImage$/.test(f) ? "linux-x86_64" : null;
-    if (!kind) continue;
+    // only this version's installers (a --from folder may hold older ones)
+    if (!kind || !f.includes(`_${version}_`)) continue;
     const sig = existsSync(`${p}.sig`) ? readFileSync(`${p}.sig`, "utf8").trim() : sign(p);
     copyFileSync(p, join(out, f));
     platforms[kind] = { signature: sig, url: url(p) };
@@ -108,6 +116,23 @@ if (publish) {
   else execFileSync("gh", ["release", "create", tag, "-R", publish, "-t", `ICEBREAKER ${version}`, "-n", latest.notes, "--latest=false", ...all], { stdio: "inherit" });
   // only now, with latest.json on it, does this release become the one installed apps read
   // (CI creates it with make_latest false, so updates never see a release without latest.json)
-  execFileSync("gh", ["release", "edit", tag, "-R", publish, "--latest"], { stdio: "inherit" });
+  execFileSync("gh", ["release", "edit", tag, "-R", publish, "--latest", "--title", `ICEBREAKER ${version}`, "--notes", latest.notes], { stdio: "inherit" });
+  tidy(publish, tag, version);
   console.log(`published: https://github.com/${publish}/releases/tag/${tag}`);
+}
+
+/**
+ * A release holds this version's builds and latest.json, nothing else (GitHub adds the source
+ * code itself): any file naming another version goes, and the .sig files CI attached
+ * (latest.json carries each signature).
+ */
+function tidy(repoName, releaseTag, v) {
+  const names = execFileSync("gh", ["release", "view", releaseTag, "-R", repoName, "--json", "assets", "--jq", ".assets[].name"]).toString().split("\n").filter(Boolean);
+  for (const n of names) {
+    const named = n.match(/[_-](\d+\.\d+\.\d+)[_-]/)?.[1];
+    if (n.endsWith(".sig") || (named && named !== v)) {
+      execFileSync("gh", ["release", "delete-asset", releaseTag, n, "-R", repoName, "-y"], { stdio: "inherit" });
+      console.log(`removed from ${releaseTag}: ${n}`);
+    }
+  }
 }

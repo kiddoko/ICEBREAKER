@@ -60,6 +60,11 @@ install/remove/update` (src/shell/privileged.ts).
    finds it at `https://github.com/kiddoko/ICEBREAKER/releases/latest/download/latest.json`.
    (CI creates the release *not* as the latest, so installed apps keep reading the previous
    release's `latest.json` until this one is complete — never a release without it.)
+   The script then tidies the release: title *ICEBREAKER x.y.z*, the notes as its text, and only
+   this version's files — the macOS `.zip` (to install) and `.app.tar.gz` (to update), the
+   Windows `-setup.exe`, the Linux `.AppImage` and `.deb`, and `latest.json` (GitHub adds the
+   source code). No other version's file, no `.sig` (`latest.json` carries the signatures).
+   It works in `dist-update/<version>/`, emptied first, so nothing from an earlier run is sent.
 
 The repository must be **public** for that address to work without an account.
 
