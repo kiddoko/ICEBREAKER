@@ -12,6 +12,7 @@ import { q } from "./ui/ui";
 export function registerCoreActions(deck: Deck): void {
   const act = (id: string, title: string, run: () => void, hint?: string, group = "deck") => deck.actions.register({ id, title, run, hint, group });
   act("journal.today", "Journal: today", () => void deck.openJournal(new Date()), "ctrl+j", "journal");
+  act("journal.add", "Journal: add a line to today (without opening it)…", () => void deck.prompt("A line for today's journal", { placeholder: "café avec Léa" }).then((v) => v?.trim() && void deck.shell.runLine(`journal ${q(v.trim())}`)), undefined, "journal");
   act("journal.yesterday", "Journal: yesterday", () => void deck.openJournal(new Date(Date.now() - 86400_000)), undefined, "journal");
   act("note.new", "New note", () => void deck.newNote(), "ctrl+n", "notes");
   act("folder.new", "New folder", () => void deck.newFolder(), "ctrl+shift+n", "notes");

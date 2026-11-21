@@ -36,8 +36,9 @@ export function osKeys(s: string, mac = IS_MAC): string {
     if (key) parts.push(NAMED[key] ?? (key.length === 1 ? key.toUpperCase() : key));
     return parts.join("+") + (range ?? "");
   });
-  // "⌘Z / ctrl+Z" → "Ctrl+Z / ctrl+Z" → "Ctrl+Z"
+  // "⌘Z / ctrl+Z" → "Ctrl+Z / ctrl+Z" → "Ctrl+Z"; "⌘K (ctrl+K)" → "Ctrl+K"
   out = out.replace(/(?<![\w+])((?:Ctrl|Alt|Shift)\+\S+) \/ \1(?![\w+])/gi, "$1");
+  out = out.replace(/(?<![\w+])((?:Ctrl|Alt|Shift)\+[^\s()]+) \(\1\)/gi, "$1");
   if (cache.size > 2000) cache.clear();
   cache.set(s, out);
   return out;

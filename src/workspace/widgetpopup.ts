@@ -20,11 +20,16 @@ export class WidgetPopup implements Overlay {
 
   constructor(
     private readonly deck: Deck,
-    private readonly spec: WidgetSpec,
+    private readonly first: WidgetSpec,
     /** which copy ("clock#2"): its commands change that one */
     private readonly key?: string,
   ) {
-    focusWidget(key ?? spec.id);
+    focusWidget(key ?? first.id);
+  }
+
+  /** the widget as registered now: a module that reloads gives its new one (not the old, frozen) */
+  private get spec(): WidgetSpec {
+    return this.deck.widgets.get(this.first.id) ?? this.first;
   }
 
   private get ctx() {
@@ -72,16 +77,36 @@ export class WidgetPopup implements Overlay {
     // footer: open the module · close
     const fy = inner.y + inner.h - 1;
     ui.hline(inner.x, fy - 1, inner.w, { fg: c.border });
-    let x = inner.x + inner.w;
-    x -= 13;
     const close = t("close  esc");
-    x = inner.x + inner.w - close.length - 4;
+    const x = inner.x + inner.w - strWidth(close) - 4;
     ui.button(x, fy, close, () => (this.done = true), { accent: c.subtle });
+    // where the buttons start: the hint gets what's left of the line
+    let left = x;
     if (this.spec.open) {
       const words = this.spec.open.split(" ");
       const label = `${t("open")} ${words[0] === "launch" ? words[1] : words[0]}  ⏎`;
-      ui.button(x - strWidth(label) - 4, fy, label, () => this.open(), { tip: this.spec.open });
+      left = x - strWidth(label) - 4;
+      ui.button(left, fy, label, () => this.open(), { tip: this.spec.open });
     }
-    if (p.hint) ui.text(inner.x + 1, fy, t(p.hint), { fg: c.faint, attrs: 0 }, Math.max(0, x - inner.x - 30));
+    if (p.hint) {
+      const hint = t(p.hint);
+      const room = left - inner.x - 3;
+      // too long for beside the buttons: on the line above them; still too long: the whole
+      // "key what" pieces that fit, never one cut in the middle ("space s…")
+      if (strWidth(hint) <= room) ui.text(inner.x + 1, fy, hint, { fg: c.faint, attrs: 0 }, room);
+      else ui.text(inner.x + 1, fy - 1, ` ${fitPieces(hint, inner.w - 4)} `, { fg: c.faint, bg: c.panelAlt, attrs: 0 }, inner.w - 2);
+    }
   }
+}
+
+/** "a add · space done · del remove" cut to `room` columns at a " · ", never inside a piece. */
+export function fitPieces(hint: string, room: number): string {
+  if (strWidth(hint) <= room) return hint;
+  let out = "";
+  for (const piece of hint.split(" · ")) {
+    const next = out ? `${out} · ${piece}` : piece;
+    if (strWidth(next) > room) break;
+    out = next;
+  }
+  return out;
 }

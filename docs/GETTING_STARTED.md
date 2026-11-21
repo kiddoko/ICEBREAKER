@@ -49,7 +49,7 @@ the deck at an existing Obsidian vault with `vault mount /path` or in Settings.
 ## 3. Things to try
 
 ```bash
-journal add "first night on the deck"     # today's journal
+journal "first night on the deck"         # a line in today's journal
 note new "ideas"                          # a note
 todo add "walk the dog" --due tomorrow    # a task
 cal add "dentist" fri 14:30               # an event (in calendar/ in your vault)

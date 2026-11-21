@@ -6,13 +6,21 @@ theme, improve the docs. You don't need to be a developer — the project's crea
 
 ## Who decides
 
-For now the project has **one maintainer, [kiddoko](https://github.com/kiddoko)** (working
-with Claude, an AI, for most of the code). Every change to the `master` branch goes through
-a **pull request** reviewed and approved by a maintainer (`.github/CODEOWNERS`). People who
-contribute well and often can become maintainers too: then their approval counts the same.
-Decisions are taken in the open, in the issue or the pull request.
+Maintainers are **by invitation**. At first the project has **one maintainer, its creator,
+[kiddoko](https://github.com/kiddoko)** (working with Claude, an AI, for most of the code).
+The creator invites people who made **several good contributions** to become maintainers;
+their approval of a pull request then counts the same — but the creator **keeps the last
+word**. Every change to the `master` branch goes through a **pull request** reviewed and
+approved by a maintainer (`.github/CODEOWNERS`). Decisions are taken in the open, in the
+issue or the pull request.
 
-## Ideas and bugs: open an issue — or talk in Discussions
+## Languages
+
+Write your **issues and Discussions in English or in French**, whichever you're more at ease
+with. **The docs, the code, its comments and the commit messages stay in English**, so that
+everyone can read them.
+
+## Ideas and bugs: open an issue — or talk in Discussions (English or French)
 
 ICEBREAKER is test software ([DISCLAIMER.md](DISCLAIMER.md)): every bug report, every "this
 confused me", every idea helps. **A bug** → an issue. **An idea, feedback, a question, how it
@@ -98,4 +106,13 @@ setting / shortcut / translation, and the traps. House rules for modules and the
 - `npm run check` and `cargo test` pass; the app builds and you tried the change in it.
 - The docs follow the behaviour: README, `docs/`, the `man` text of commands, the F1 manual
   (`src/apps/help.ts`) **and the notes every vault gets** (`src/vault/starthere.ts`).
-- A line in the CHANGELOG (*Unreleased*), in plain words.
+- A line in the CHANGELOG (the next version's section, *not released yet*), in plain words.
+
+## Releases
+
+- **A patch version** (0.5.1, 0.5.2…) as soon as a batch of fixes is tested on macOS and on
+  Windows.
+- **A new minor version** (0.6, 0.7…) at the end of each big step of the roadmap — 0.6 is the
+  overhaul of the interface.
+- A release is a tag on `master`, made by the creator ([docs/UPDATES.md](docs/UPDATES.md));
+  installed ICEBREAKERs then update themselves.

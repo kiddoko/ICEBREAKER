@@ -72,7 +72,7 @@ compares versions there, Settings → UPDATES does it by itself (docs/UPDATES.md
 
 | permission    | allows                                              |
 |---------------|-----------------------------------------------------|
-| `vault:read`  | `ib.vault.read / exists / notes`, `ib.ai.vaultTools()` |
+| `vault:read`  | `ib.vault.read / exists / notes / modified`, `ib.ai.vaultTools()` |
 | `vault:write` | `ib.vault.write / append / mkdir`                   |
 | `ai`          | `ib.ai.ask / session` (uses the user's provider)    |
 | `media`       | `ib.media.status / control` (the system player), `ib.media.player.*` (local files) |
@@ -216,7 +216,7 @@ The full surface is typed and commented in
   only with `vault:write`, never touches `.icebreaker/`, and needs `ai` for `ask` / `chat`.
   Never allowed from a module (refused, aliases and `;` / `&&` chains included,
   `src/shell/privileged.ts`): `vault` beyond `status` and `rescan`, `account`, `lock`,
-  `self-destruct`, `script`, `macro` (but show / hide), `bind` / `unbind`, `keys`, `menu add`,
+  `factory-reset`, `script`, `macro` (but show / hide), `bind` / `unbind`, `keys`, `menu add`,
   `pin`, `home link`, `plugin` and `store` beyond listing and searching, `update` beyond
   looking, `modules call` / `set`, `stealth off`, `theme install`, `voice install`, `exit`,
   `reboot`, and `config set` of the settings that hold commands or decide what runs

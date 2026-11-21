@@ -4,6 +4,11 @@ ICEBREAKER is meant to be built by its users. Everything beyond the core (apps,
 widgets, shell commands, themes) can ship as a plugin or a theme, and installing
 one is a single shell command.
 
+**Talking**: [Issues](https://github.com/kiddoko/ICEBREAKER/issues) for bugs,
+[Discussions](https://github.com/kiddoko/ICEBREAKER/discussions) for ideas, questions and what
+you built — **in English or in French**. The docs and the code stay in English. Who decides
+and how releases come: [CONTRIBUTING.md](../CONTRIBUTING.md).
+
 ## Installing
 
 The easy way: the **STORE** (top bar → ⇣ store, or `store`). It lists the
@@ -80,7 +85,9 @@ hold many themes) and share `you/repo/name.toml`. A repo with a single
 The official index is [kiddoko/icebreaker-modules](https://github.com/kiddoko/icebreaker-modules)
 (`index.json`). **Only maintainers can change it**: every change is a pull request that a
 maintainer reviews and approves (CODEOWNERS + branch protection) — nobody can add something
-there by themselves.
+there by themselves. Maintainers are by invitation: the creator alone at first, who invites
+people after several good contributions and keeps the last word
+([CONTRIBUTING.md](../CONTRIBUTING.md)).
 
 A module is **verified** (✓ in the STORE) when it's listed there **and its code lives in that
 repository** (`modules/<id>/`): what was reviewed is exactly what people download, and every

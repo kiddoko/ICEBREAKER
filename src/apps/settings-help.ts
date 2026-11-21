@@ -72,7 +72,7 @@ export const SETTINGS_HELP: Record<string, [string, string]> = {
   "notifications.system": ["A notification in your computer's notification center.", "Une notification dans le centre de notifications de ton ordinateur."],
   "notifications.systemOnlyAway": ["Only when the deck is hidden or another app is in front (else the message in the deck is enough).", "Seulement quand le deck est caché ou qu'une autre app est devant (sinon le message dans le deck suffit)."],
   "notifications.voice": ["The voice reads it, if the voice is on (Settings → VOICE).", "La voix le lit, si la voix est activée (Réglages → VOICE)."],
-  "menu.doubleShift": ["Press shift twice, quickly, to open THE MENU from anywhere — even while you're typing. ⌘K (ctrl+K) always opens it.", "Appuie deux fois vite sur maj pour ouvrir LE MENU de partout — même en écrivant. ⌘K (ctrl+K) l'ouvre toujours."],
+  "menu.doubleShift": ["Press shift twice, quickly, to open THE MENU from anywhere — even while you're typing. ⌘K always opens it.", "Appuie deux fois vite sur maj pour ouvrir LE MENU de partout — même en écrivant. ⌘K l'ouvre toujours."],
   "voice.enabled": ["The deck speaks: greetings, timers, reminders, and LINK's answers if you want.", "Le deck parle : accueil, minuteurs, rappels, et les réponses de LINK si tu veux."],
   "voice.subtitles": ["While the voice speaks, its words type into a small box bottom-right, like the AI of a sci-fi film.", "Pendant que la voix parle, ses mots s'écrivent dans une petite boîte en bas à droite, comme l'IA d'un film de SF."],
   "voice.readAI": ["Reads LINK's (the AI's) answers aloud.", "Lit à voix haute les réponses de LINK (l'IA)."],
@@ -98,5 +98,4 @@ export const SETTINGS_HELP: Record<string, [string, string]> = {
   "journal.folder": ["The vault folder where the journal's daily pages go.", "Le dossier du vault où vont les pages du journal."],
   "editor.autosave": ["Notes save themselves as you type.", "Les notes s'enregistrent toutes seules pendant que tu écris."],
   "+ bind a key to anything": ["Pick a key combo, then the shell command it runs: open a note, a folder, a module, a script…", "Choisis une combinaison de touches, puis la commande shell qu'elle lance : ouvrir une note, un dossier, un module, un script…"],
-  "Self-destruct": ["Deletes everything in the vault for good, after four confirmations and a 10-second countdown. Copies elsewhere (iCloud, git, backups) aren't touched.", "Supprime tout le vault pour de bon, après quatre confirmations et un compte à rebours de 10 s. Les copies ailleurs (iCloud, git, sauvegardes) ne sont pas touchées."],
 };

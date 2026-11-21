@@ -23,7 +23,6 @@ export function createTauriPlatform(): Platform {
       write: (path, content) => invoke<void>("vault_write", { path, content }),
       mkdir: (path) => invoke<void>("vault_mkdir", { path }),
       trash: (path) => invoke<string>("vault_trash", { path }),
-      destroy: (confirm, password) => invoke<number>("vault_destroy", { confirm, password }),
       rename: (from, to) => invoke<void>("vault_rename", { from, to }),
       exists: (path) => invoke<boolean>("vault_exists", { path }),
       readBytes: (path) => invoke<ArrayBuffer>("vault_read_bytes", { path }),

@@ -34,7 +34,7 @@ Try these in the shell panel:
 ls -la
 tree
 grep -i ice *.md
-journal add "jacked in for the first time"
+journal "jacked in for the first time"
 cat Welcome.md | ask "summarize this in one line"
 neofetch
 \`\`\`

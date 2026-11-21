@@ -33,7 +33,7 @@ export const AI_COMMANDS = new Set(["ask", "chat"]);
 
 const READS = new Set(["read", "readMany", "trashLog", "toolFiles"]);
 const WRITES = new Set(["write", "append", "mkdir", "trash", "rename", "restore"]);
-const NEVER = new Set(["destroy", "mount"]);
+const NEVER = new Set(["mount"]);
 
 /** The vault as a module's line sees it: its permissions, and never the deck's own folder for writing. */
 export function guardedVault(vault: Vault, o: Origin): Vault {

@@ -349,6 +349,24 @@ export class Workspace {
     return opened;
   }
 
+  /**
+   * A page made again (its module reloaded): the new one takes the old one's place,
+   * focus and order unchanged. null: the module is gone, so is its tab.
+   */
+  replaceTab(old: App, fresh: App | null): void {
+    const i = this.tabs.indexOf(old);
+    if (i < 0) return void fresh?.close?.();
+    if (old === this.previewTab) this.previewTab = fresh;
+    if (fresh) this.tabs[i] = fresh;
+    else {
+      this.tabs.splice(i, 1);
+      if (i < this.active) this.active--;
+      this.active = Math.max(0, Math.min(this.active, this.tabs.length - 1));
+      if (!this.tabs.length) this.deck.openApp("home");
+    }
+    this.deck.requestFrame();
+  }
+
   findTab(key: string): App | undefined {
     return this.tabs.find((t) => t.key === key);
   }

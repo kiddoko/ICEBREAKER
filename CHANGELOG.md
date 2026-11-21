@@ -1,6 +1,40 @@
 # Changelog
 
-## 0.5.1 — not released yet (fixes from the first tests on Mac and Windows)
+## 0.5.2 — not released yet
+
+- **`exit` quits ICEBREAKER** (typed in ibsh), like ⌘Q / Alt+F4: open pages save, the vault
+  locks, an update waiting to be installed "by itself" installs. `quit` does the same. In a
+  script, `exit` only ends the script; in your real terminal, `exit` is still that shell's own.
+  Hiding the shell is ctrl+` (it used to be `exit`).
+- **One `journal` command**: `journal` opens today's page, `journal "text"` adds a line to it
+  without opening it (`date | journal` too); one word that names a day (`journal yesterday`,
+  `journal 2026-11-05`) opens that day. `today` is the same command. Ctrl+J still opens the
+  journal; THE MENU has *Journal: add a line*.
+- **TODO reads your notes**: every open `- [ ]` written in a note shows in the TODO page and
+  widget, under your tasks, with the note's name. Ticking it there writes `- [x]` on that very
+  line of the note — and refuses if the line changed since; ⌘Z unticks it. In the shell,
+  `todo` lists them (`notes/x.md:12`) and `todo done notes/x.md:12` ticks one. Each note is
+  read once, then again only when it changes (fast on a big vault, encrypted or not). HABITS
+  stays its own list. Modules get `ib.vault.modified()` for the same.
+- **`self-destruct` is gone**: the command, its setting (DANGER ZONE) and its native side.
+  Nothing in the deck deletes your vault for good; to get rid of one, delete its folder.
+- **The real terminal on Windows**: `exit` in PowerShell now ends that tab properly ("process
+  exited — press enter to start a new shell"); it used to stay dead.
+- **What you type right after a terminal (re)starts** isn't lost any more: it waits for the shell.
+- **Quotes**: “typographic” double quotes work like "…" in ibsh; a quote left open says so
+  (`a " isn't closed`) instead of doing nothing; `note` says which note it created or opened.
+- **Settings on Windows / Linux**: key hints read Ctrl+K, never "⌘K (ctrl+K)". A widget
+  pop-up's hint no longer ends cut in the middle of a word.
+- **⌘A / Ctrl+A** selects the text of the search fields of Settings, SHORTCUTS, BLOCKS and the
+  STORE (what you type next replaces it).
+- **`plugin reload`**: a module's page that was open switches to the new code (a sandboxed
+  module's tab no longer stays frozen on its last frame until reopened); its widget's pop-up too.
+- **Releases**: the installers' signatures (`.sig`) are attached to the release too; the CI's
+  actions are pinned to a commit. Docs: issues and Discussions in English or French;
+  maintainers by invitation; a patch version when a batch of fixes is tested on Mac and
+  Windows, a minor version at the end of each big step (0.6 = the interface overhaul).
+
+## 0.5.1 — 2026-11-21 (fixes from the first tests on Mac and Windows)
 
 - **Sliders move 1 by 1**: dragging follows the pointer to the pixel, holding speeds up
   smoothly (always one step), every wheel notch is one step (Mac mouse, trackpad,

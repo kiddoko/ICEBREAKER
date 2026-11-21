@@ -38,10 +38,10 @@ scanlines — and works with the keyboard, the mouse or a gamepad.
 
 ### Your notes
 - **Plain Markdown**, an Obsidian-compatible vault (`[[wikilinks]]`, `#tags`, frontmatter) — or point it at the vault you already have.
-- **Journal**: one file per day, a calendar, streaks; `journal add "…"` from the shell; `daily` asks a short end-of-day check-in.
+- **Journal**: one file per day, a calendar, streaks; `journal` opens today, `journal "…"` adds a line from the shell; `daily` asks a short end-of-day check-in.
 - **The tree**: one click selects, a double-click opens; drag & drop, colour tags and icons, pins at the top, shift + wheel to walk file by file with a live preview.
 - **Notes**: a toolbar (save, save as, new, previous / next, undo, redo), a red dot while unsaved, `⌘S`. A note changed elsewhere (Obsidian, a sync) reloads by itself, and never overwrites your unsaved edits.
-- **Undo anything** with `⌘Z` / `Ctrl+Z` — a setting, a widget moved, a file sent to the trash, a rename. The **trash** is a page you can browse and restore from; nothing is ever deleted for good from inside the deck (apart from `self-destruct`, which asks four times).
+- **Undo anything** with `⌘Z` / `Ctrl+Z` — a setting, a widget moved, a file sent to the trash, a rename. The **trash** is a page you can browse and restore from; nothing is ever deleted for good from inside the deck.
 - **NEXUS**: walk your vault in pseudo-3D — files on an endless ring above a synthwave floor (`explore`).
 
 ### HOME and the side panel

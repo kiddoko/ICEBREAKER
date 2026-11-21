@@ -10,7 +10,7 @@ import type { Permission } from "../src/plugins/api";
 function fakeVault() {
   const calls: string[] = [];
   const rec = (name: string) => (...a: unknown[]) => (calls.push(`${name} ${a.join(" ")}`), Promise.resolve(name === "read" ? "text" : undefined));
-  const v = { read: rec("read"), readMany: rec("readMany"), write: rec("write"), append: rec("append"), mkdir: rec("mkdir"), trash: rec("trash"), rename: rec("rename"), restore: rec("restore"), destroy: rec("destroy"), mount: rec("mount"), exists: rec("exists"), entries: [{ path: "a.md" }] };
+  const v = { read: rec("read"), readMany: rec("readMany"), write: rec("write"), append: rec("append"), mkdir: rec("mkdir"), trash: rec("trash"), rename: rec("rename"), restore: rec("restore"), mount: rec("mount"), exists: rec("exists"), entries: [{ path: "a.md" }] };
   return { vault: v as unknown as Vault, calls };
 }
 const origin = (...p: Permission[]): Origin => ({ source: "evil", grants: new Set(p) });
@@ -42,9 +42,8 @@ describe("a module's line reads and writes only what its permissions allow (shel
     await expect(g.readMany(["notes/a.md", ".ICEBREAKER/history"])).rejects.toThrow(/deck's own folder/);
     expect(calls).toEqual(["write notes/a.md x"]);
   });
-  it("never self-destructs or mounts, with any permission", async () => {
+  it("never mounts, with any permission", async () => {
     const g = guardedVault(fakeVault().vault, origin("vault:read", "vault:write"));
-    await expect(g.destroy("x", "y")).rejects.toThrow();
     await expect(g.mount("/tmp")).rejects.toThrow();
   });
   it("built-in modules and your terminal keep the whole vault", () => {

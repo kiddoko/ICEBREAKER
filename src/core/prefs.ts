@@ -92,11 +92,11 @@ export class SettingsRegistry {
     return out;
   }
 
-  /** the categories, in order, with their rows: GENERAL, then MODULES, then the danger zone */
-  sections(): { name: string; rows: (SettingRow & { from: string })[]; group: "GENERAL" | "MODULES" | "DANGER" }[] {
+  /** the categories, in order, with their rows: GENERAL, then MODULES */
+  sections(): { name: string; rows: (SettingRow & { from: string })[]; group: "GENERAL" | "MODULES" }[] {
     const out: ReturnType<SettingsRegistry["sections"]> = [];
     for (const r of this.rows()) {
-      if (!r.label && r.section) out.push({ name: r.section, rows: [], group: r.section === "DANGER ZONE" ? "DANGER" : r.section === "OVERVIEW" || r.section.startsWith("◇") ? "MODULES" : "GENERAL" });
+      if (!r.label && r.section) out.push({ name: r.section, rows: [], group: r.section === "OVERVIEW" || r.section.startsWith("◇") ? "MODULES" : "GENERAL" });
       else if (out.length) {
         const rows = out[out.length - 1].rows;
         // a heading inside a category gets an empty line above it (not the first one): groups breathe
@@ -104,7 +104,7 @@ export class SettingsRegistry {
         rows.push(r);
       }
     }
-    return [...out.filter((x) => x.group === "GENERAL"), ...out.filter((x) => x.group === "MODULES"), ...out.filter((x) => x.group === "DANGER")];
+    return [...out.filter((x) => x.group === "GENERAL"), ...out.filter((x) => x.group === "MODULES")];
   }
 }
 

@@ -98,6 +98,8 @@ export interface IcebreakerAPI {
     exists(path: string): Promise<boolean>;
     /** All Markdown note paths. */
     notes(): string[];
+    /** Every note's last change (ms since 1970), by path: to read again only what changed. */
+    modified(): Promise<Record<string, number>>;
     write(path: string, content: string): Promise<void>;
     append(path: string, text: string): Promise<void>;
     mkdir(path: string): Promise<void>;

@@ -97,6 +97,8 @@ export class Deck implements InputSink {
   readonly vault: Vault;
   readonly commands = new CommandRegistry();
   readonly apps = new AppRegistry();
+  /** what each open page was made with (`openApp(kind, args)`): a module's page is made again with it when the module reloads */
+  readonly appArgs = new WeakMap<App, unknown>();
   readonly actions = new ActionRegistry();
   /** every setting row, the deck's and the modules' (core/prefs.ts): Settings draws them */
   readonly prefs = new SettingsRegistry();
@@ -717,7 +719,9 @@ export class Deck implements InputSink {
         this.sound.play("open");
         this.pageTurn();
       }
-      const app = this.workspace.open(spec.create(this, args));
+      const made = spec.create(this, args);
+      this.appArgs.set(made, args);
+      const app = this.workspace.open(made);
       this.requestFrame();
       return app;
     } catch (e) {

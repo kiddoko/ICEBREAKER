@@ -16,7 +16,7 @@ import type { UI } from "./ui";
  *
  * What it leaves to you: esc, ↑↓ (lists), tab, and enter unless `onSubmit` is set.
  * `keys: "basic"` (a page you search by just typing, whose ←→ move in its list):
- * only typing, ⌫, ⌘V and ctrl+U.
+ * only typing, ⌫, ⌘V, ⌘A (select all) and ctrl+U.
  */
 export interface FieldOptions {
   placeholder?: string;
@@ -30,7 +30,7 @@ export interface FieldOptions {
   onChange?: (text: string) => void;
   /** the text it starts with */
   initial?: string;
-  /** "basic": only typing, ⌫, ctrl+U (←→ home end stay the page's) */
+  /** "basic": only typing, ⌫, ⌘V, ⌘A, ctrl+U (←→ home end stay the page's) */
   keys?: "full" | "basic";
 }
 
@@ -90,7 +90,8 @@ export class Field {
     if (mod && (k.key === "c" || k.key === "x") && !this.editor.selection()) return false;
     if (k.key === "tab" || k.key === "up" || k.key === "down" || k.key === "pageup" || k.key === "pagedown") return false;
     if (k.key === "enter" && !this.o.onSubmit) return false;
-    if (this.o.keys === "basic" && k.key !== "backspace" && k.key !== "enter" && !(mod && k.key === "v")) return false;
+    // basic: typing, ⌫, ⌘V, ctrl+U — and ⌘A / ctrl+A (all selected: what you type next replaces it)
+    if (this.o.keys === "basic" && k.key !== "backspace" && k.key !== "enter" && !(mod && (k.key === "v" || k.key === "a"))) return false;
     const before = this.editor.text;
     const used = this.editor.onKey(k);
     if (this.editor.text !== before) this.o.onChange?.(this.editor.text);

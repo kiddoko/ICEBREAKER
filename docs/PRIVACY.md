@@ -15,8 +15,8 @@ or in the app's configuration folder.
 
 **Accounts** are local: a name, a profile icon and a password. The password is
 never stored — only an Argon2id hash of it, in the app's configuration folder.
-**Modules** (the STORE's, yours) can't run the vault's encryption, accounts or
-self-destruct, can't read your account's card, settings or secrets in the vault, and
+**Modules** (the STORE's, yours) can't run the vault's encryption or accounts,
+can't read your account's card, settings or secrets in the vault, and
 can't pose as the deck's own commands or pages. They run in a **sandbox** (a Worker):
 no page, no native side, no network of their own — only what their permissions allow
 (docs/SANDBOX.md).
@@ -123,6 +123,10 @@ included. Read their README and code before enabling them.
 
 Open an issue on the project's repository.
 
-## Self-destruct
+## Deleting the vault
 
-`self-destruct` in the shell deletes everything inside the vault folder for good (not to the trash). It asks four times — a dialog, the folder's name, `DESTROY` in capitals, your account's password — then counts down from 10 (ctrl+c stops it). Copies elsewhere are **not** touched: iCloud / Dropbox / Syncthing copies on other devices, git remotes, Time Machine and other backups.
+There is no command for it: the deck never deletes your notes for good (`rm` sends to the
+trash, `.trash/`). `self-destruct`, which emptied the vault folder, was removed in 0.5.2.
+To get rid of a vault, delete its folder yourself (Finder, Explorer…) — and its copies
+elsewhere: iCloud / Dropbox / Syncthing copies on other devices, git remotes, Time Machine
+and other backups.

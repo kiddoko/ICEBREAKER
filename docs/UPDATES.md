@@ -43,7 +43,8 @@ install/remove/update` (src/shell/privileged.ts).
    (`plugins.updater.pubkey`). **Back the private key up** (a password manager): lost,
    installed ICEBREAKERs can't be updated any more — everyone would have to reinstall by hand.
 2. **CI** (Windows, Linux) signs when the repository has the secret `TAURI_SIGNING_PRIVATE_KEY`
-   (the content of the key file): each installer gets its `.sig`.
+   (the content of the key file): each installer gets its `.sig`, attached to the release
+   with it (and to the run's artifacts).
 3. **A release**: raise the version (`package.json`, `src-tauri/tauri.conf.json`,
    `src-tauri/Cargo.toml`), a CHANGELOG section, commit, then `git tag v0.5.0 && git push
    --tags` → CI builds Windows and Linux and attaches them to the release *v0.5.0*.
@@ -51,8 +52,17 @@ install/remove/update` (src/shell/privileged.ts).
    testing build, which carries the developer tools (`factory-reset`…); the script below
    refuses it — then
    `node scripts/release-update.mjs --mac --notes "what's new" --publish kiddoko/ICEBREAKER`
-   → takes CI's files from the release, signs the Mac app, writes `latest.json` and adds it
-   all to the release. From then on, every installed ICEBREAKER finds it at
+   → takes CI's files and their `.sig` from the release (a file without one is signed again
+   here, with the local key), signs the Mac app, writes `latest.json` and adds it all to the
+   release. From then on, every installed ICEBREAKER finds it at
    `https://github.com/kiddoko/ICEBREAKER/releases/latest/download/latest.json`.
 
 The repository must be **public** for that address to work without an account.
+
+### When a release comes
+
+- **A patch version** (0.5.1, 0.5.2…) as soon as a batch of fixes is tested on macOS and on
+  Windows.
+- **A new minor version** (0.6, 0.7…) at the end of each big step of the roadmap — 0.6 is the
+  overhaul of the interface.
+- Only from `master`, only when the creator says so.

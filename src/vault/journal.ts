@@ -1,4 +1,6 @@
 import { isoDate } from "./paths";
+import { parseDay } from "../core/dates";
+import { parseFlags } from "../shell/parser";
 import type { Vault } from "./vault";
 
 /**
@@ -85,4 +87,26 @@ export function streak(dates: Set<string>): number {
     d.setDate(d.getDate() - 1);
   }
   return n;
+}
+
+/**
+ * What `journal …` means: no words → today's page (or, with text piped in, a line);
+ * one word that names a day → that day's page; `ls` → the last entries; anything
+ * else (or `add …`) → a line for today, without opening anything.
+ */
+export function journalArgs(args: string[], stdin = "", now = new Date()): { kind: "open"; day: Date } | { kind: "log"; text: string } | { kind: "ls"; n: number } | { kind: "error"; error: string } {
+  const line = (s: string) => s.replace(/\s*\n+\s*/g, " ").trim();
+  if (args[0] === "add") {
+    const text = line(args.slice(1).join(" ")) || line(stdin);
+    return text ? { kind: "log", text } : { kind: "error", error: "nothing to add" };
+  }
+  if ((args[0] === "ls" || args[0] === "list") && args.length <= 3) {
+    const { flags } = parseFlags(args.slice(1), ["n"]);
+    return { kind: "ls", n: Number(flags.n ?? 15) || 15 };
+  }
+  if (!args.length) return line(stdin) ? { kind: "log", text: line(stdin) } : { kind: "open", day: now };
+  const day = args.length === 1 && !/\s/.test(args[0].trim()) ? parseDay(args[0], now) : null;
+  if (day) return { kind: "open", day };
+  const text = line(args.join(" "));
+  return text ? { kind: "log", text } : { kind: "open", day: now };
 }

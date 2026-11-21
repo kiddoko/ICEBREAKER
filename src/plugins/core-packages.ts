@@ -36,7 +36,7 @@ export interface CorePackage {
 export const CORE_PACKAGES: CorePackage[] = [
   { id: "nexus", name: "NEXUS", icon: "⬡", description: "the vault as a place: a pseudo-3D carousel to fly through folders, search, rename, sort", commands: ["explore"], apps: ["explorer"] },
   { id: "uplink", name: "UPLINK", icon: "◆", description: "your AI: LINK chat, ask and chat in the shell, the uplink widget", commands: ["link", "chat", "ask"], apps: ["link"], widgets: ["ai", "chat"], actions: ["link.open", "ai.key", "ai.provider"] },
-  { id: "journal", name: "JOURNAL", icon: "☾", description: "one page a day, the daily check-in, streaks and the journal calendar", commands: ["journal", "today", "daily"], apps: ["journal"], widgets: ["streak", "calendar"], actions: ["journal.today", "journal.yesterday", "daily.log"] },
+  { id: "journal", name: "JOURNAL", icon: "☾", description: "one page a day, the daily check-in, streaks and the journal calendar", commands: ["journal", "daily"], apps: ["journal"], widgets: ["streak", "calendar"], actions: ["journal.today", "journal.add", "journal.yesterday", "daily.log"] },
   { id: "sysmon", name: "SYSMON", icon: "▤", description: "the machine's vitals: cpu, memory, processes", commands: ["sysmon"], apps: ["sysmon"], widgets: ["system"] },
   { id: "studio", name: "THEME STUDIO", icon: "◐", description: "every knob of the current theme, with a live preview", apps: ["studio"] },
   { id: "voice", name: "VOICE", icon: "◖", description: "the deck's voice: local text-to-speech through a robot filter", commands: ["voice"], launcher: false },

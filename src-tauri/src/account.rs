@@ -328,15 +328,6 @@ pub fn vault_export(app: AppHandle, state: State<AccountState>, vault: State<Vau
     vault::export(&app, &vault, &dest)
 }
 
-/// SELF-DESTRUCT: everything in the vault folder deleted for good — after the account's
-/// password (checked here) and the folder's name (vault.rs).
-#[tauri::command(async)]
-pub fn vault_destroy(app: AppHandle, state: State<AccountState>, vault: State<VaultState>, password: String, confirm: String) -> Result<u64, String> {
-    let password = Zeroizing::new(password);
-    check_session(&app, &state, &password)?;
-    vault::destroy(&vault, &confirm)
-}
-
 /// `vault rekey`: a new vault key (everything encrypted again, a new recovery key), after the account's password.
 #[tauri::command(async)]
 pub fn vault_rekey(app: AppHandle, state: State<AccountState>, vault: State<VaultState>, password: String) -> Result<crate::store::Report, String> {

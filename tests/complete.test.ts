@@ -56,6 +56,9 @@ describe("key hints on Windows / Linux", () => {
   it("writes Mac glyphs the PC way", () => {
     expect(osKeys("⌘K menu · ⇧⌘Z redo · ⌘⇧P hide", false)).toBe("Ctrl+K menu · Ctrl+Shift+Z redo · Ctrl+Shift+P hide");
     expect(osKeys("⌘C ⌘V copy/paste", false)).toBe("Ctrl+C Ctrl+V copy/paste");
+    // a hint that gives both forms shows one ("⌘K (ctrl+K)" on Windows was the KEYS page's)
+    expect(osKeys("⌘K (ctrl+K) always opens it", false)).toBe("Ctrl+K always opens it");
+    expect(osKeys("⌘Z / ctrl+Z undo", false)).toBe("Ctrl+Z undo");
     expect(osKeys("⌘1…9 tabs · ⌥⌘← pane", false)).toBe("Ctrl+1…9 tabs · Ctrl+Alt+← pane");
   });
   it("leaves the Mac alone, and what's about the Mac on purpose", () => {

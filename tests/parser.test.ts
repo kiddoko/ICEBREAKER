@@ -8,6 +8,15 @@ describe("the shell parser", () => {
   it("splits words and keeps quoted ones whole", () => {
     expect(words('bind "menu g" "open notes/a b.md"')).toEqual(["bind", "menu g", "open notes/a b.md"]);
   });
+  it("reads a quoted title as one word, typographic quotes too", () => {
+    expect(words('note "dlgtest"')).toEqual(["note", "dlgtest"]);
+    expect(words("note “idées de cadeaux”")).toEqual(["note", "idées de cadeaux"]);
+    expect(words("journal l’idée du jour")).toEqual(["journal", "l’idée", "du", "jour"]);
+  });
+  it("says an unclosed quote is an error, never silence", () => {
+    expect(() => parse('note "dlgtest', {})).toThrow(/isn't closed/);
+    expect(() => parse("note 'dlgtest", {})).toThrow(/isn't closed/);
+  });
   it("chains with ; && ||", () => {
     const p = parse("a; b && c || d", {});
     expect(p.map((x) => x.next)).toEqual([";", "&&", "||", null]);
