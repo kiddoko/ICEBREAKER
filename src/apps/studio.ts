@@ -7,6 +7,7 @@ import { drawBackground } from "../fx/backgrounds";
 import { knobValue } from "../shell/commands/deck";
 import { ListView } from "../ui/list";
 import { q, type UI } from "../ui/ui";
+import { ColorPicker } from "../workspace/colorpicker";
 import type { App, AppSpec } from "./types";
 
 type Row =
@@ -24,7 +25,7 @@ const GROUP_TITLES: Record<Knob["group"], string> = {
  * never edits files: each change is a `theme tweak …` command (echoed in the
  * shell), kept in settings.json. "export" turns it all into a theme file.
  *
- *   ↑↓ choose · ←→ change · enter type a value · r reset that knob
+ *   ↑↓ choose · ←→ change · enter type a value (a colour: the palette) · r or ↺ reset that knob
  */
 export class StudioApp implements App {
   readonly kind = "studio";
@@ -43,7 +44,7 @@ export class StudioApp implements App {
     this.list.items = rows;
     this.list.select(1);
     this.list.onActivate = (row) => void this.enter(row);
-    this.list.tipOf = (row) => ("knob" in row ? `←→ change · enter type a value · r reset\ntheme tweak ${row.knob.name} <value>` : undefined);
+    this.list.tipOf = (row) => ("knob" in row ? `←→ change · enter ${row.knob.kind === "color" ? "the palette" : "type a value"} · r reset\ntheme tweak ${row.knob.name} <value>` : undefined);
   }
 
   title(): string {
@@ -51,7 +52,7 @@ export class StudioApp implements App {
   }
 
   status(): string {
-    return "↑↓ choose · ←→ change · enter type a value · r reset knob · every change is a `theme tweak` command";
+    return "↑↓ choose · ←→ change · enter type a value (colours: the palette) · r or ↺ reset knob · every change is a `theme tweak` command";
   }
 
   private get tweaks(): Record<string, string | number> {
@@ -92,7 +93,17 @@ export class StudioApp implements App {
       else void d.act(this.cmdFor(row, 1)!);
       return;
     }
-    if ("knob" in row && (row.knob.kind === "color" || row.knob.kind === "text" || row.knob.name === "font")) {
+    // a colour: the palette (ui: workspace/colorpicker.ts), #hex still typable there
+    if ("knob" in row && row.knob.kind === "color") {
+      const k = row.knob;
+      d.workspace.push(new ColorPicker(d, k.label, this.value(k), (v) => {
+        if (v === "reset") void d.act(`theme tweak reset ${k.name}`);
+        else if (v && v.toLowerCase() !== this.value(k).toLowerCase()) void d.act(`theme tweak ${k.name} ${q(v)}`);
+      }, this.tweaks[k.key] !== undefined));
+      d.requestFrame();
+      return;
+    }
+    if ("knob" in row && (row.knob.kind === "text" || row.knob.name === "font")) {
       const v = await d.prompt(`${row.knob.label} (${row.knob.kind === "color" ? "#hex or a palette name" : "value"})`, { initial: this.value(row.knob) });
       if (v?.trim()) void d.act(`theme tweak ${row.knob.name} ${q(v.trim())}`);
       return;
@@ -155,14 +166,25 @@ export class StudioApp implements App {
       const k = row.knob;
       const v = this.value(k);
       const tweaked = tw[k.key] !== undefined;
-      let x = ui.textRight(vx, rect.y, selected ? `◂ ${v} ▸` : v, { fg: tweaked ? c.warning : c.accent, attrs: selected ? BOLD : 0 });
+      // ↺ (back to the theme's value) on the row you're on or under the mouse: the value moves over for it
+      const undo = tweaked && (selected || ui.hovered(rect));
+      let x = ui.textRight(undo ? vx - 2 : vx, rect.y, selected ? `◂ ${v} ▸` : v, { fg: tweaked ? c.warning : c.accent, attrs: selected ? BOLD : 0 });
       const next = this.cmdFor(row, 1);
-      if (next) ui.hit({ x, y: rect.y, w: vx - x, h: 1 }, { cmd: next, tip: "←→ change · enter type a value · r reset" });
+      if (next) ui.hit({ x, y: rect.y, w: vx - x, h: 1 }, { cmd: next, tip: `←→ change · enter ${k.kind === "color" ? "the palette" : "type a value"} · r reset` });
       if (k.kind === "color" && /^#[0-9a-f]{6}$/i.test(v)) {
         x -= 3;
+        const sw = { x, y: rect.y, w: 2, h: 1 };
         ui.text(x, rect.y, "██", { fg: hex(v) });
+        // the swatch opens the palette
+        ui.hit(sw, { onClick: () => (this.list.select(this.list.items.indexOf(row)), void this.enter(row)), tip: "the palette · enter" });
       }
       if (tweaked) ui.text(rect.x, rect.y, "•", { fg: c.warning, attrs: BOLD });
+      // ↺ back to the theme's value, on the row you're on (or under the mouse) — like Settings
+      if (undo) {
+        const ur = { x: vx - 1, y: rect.y, w: 1, h: 1 };
+        ui.text(ur.x, ur.y, "↺", { fg: ui.hovered(ur) ? c.warning : c.subtle, attrs: BOLD });
+        ui.hit(ur, { cmd: `theme tweak reset ${k.name}`, tip: "back to the theme's value · r" });
+      }
     });
 
     if (previewW) this.preview(ui, { x: r.x + r.w - previewW - 2, y: r.y + 1, w: previewW, h: Math.min(r.h - 2, 26) });
