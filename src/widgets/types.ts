@@ -79,8 +79,10 @@ export interface WidgetContext {
    * widgetConfig(deck, key, name, fallback) (widgets/instances.ts).
    */
   key?: string;
-  /** Make this widget the chosen one on HOME (keys go to it): a click on its own field. */
+  /** Make this widget the chosen one and give its frame the keyboard (a click on its own field). */
   select?(): void;
+  /** It's the chosen one AND its frame has the keyboard: what's typed comes to it (a field's caret shows). */
+  typing?: boolean;
 }
 
 /** Where a widget sits on the grid (saved in settings.json → home.widgets). */

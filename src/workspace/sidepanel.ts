@@ -200,7 +200,7 @@ export class SidePanel {
           try {
             const zone = ui.marqueeZone;
             if (chosen && hasFocus) ui.marqueeZone = wi; // its long texts scroll, as under the mouse
-            spec.render(ui, wi, { deck: d, focused: chosen, key });
+            spec.render(ui, wi, { deck: d, focused: chosen, key, typing: chosen && hasFocus, select: () => ((this.sel = i), (ws.focus = "panel")) });
             ui.marqueeZone = zone;
           } catch {
             ui.text(wi.x, wi.y, "⚠", { fg: c.error });

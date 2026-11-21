@@ -296,6 +296,12 @@ export class HomeApp implements App {
     ];
   }
 
+  /** A widget chosen by a click on its own field: HOME takes the keyboard (it may have been the shell's). */
+  private choose(i: number): void {
+    this.selected = i;
+    this.deck.workspace.focus = "main";
+  }
+
   /** Edit mode on/off (`home edit`). */
   setEditing(on: boolean): void {
     if (this.editing && !on) this.settle();
@@ -549,7 +555,7 @@ export class HomeApp implements App {
           // the chosen widget's long texts scroll by themselves, as under the mouse
           const zone = ui.marqueeZone;
           if (sel && focused) ui.marqueeZone = inner;
-          spec.render(ui, inner, { deck: this.deck, focused: sel, key: keyOf(p), select: () => void (this.selected = i) });
+          spec.render(ui, inner, { deck: this.deck, focused: sel, key: keyOf(p), typing: sel && focused, select: () => this.choose(i) });
           ui.marqueeZone = zone;
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);

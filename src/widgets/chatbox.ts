@@ -94,7 +94,8 @@ export const chatWidget: WidgetSpec = {
     if (field.empty && (k.combo === "left" || k.combo === "right")) return false;
     return field.onKey(k);
   },
-  render(ui, r, { deck, focused, select }) {
+  render(ui, r, { deck, typing, select }) {
+    const focused = !!typing;
     const c = ui.c;
     if (chat.busy) ui.animate(80);
     if (!deck.ai.ready) {
