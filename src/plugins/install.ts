@@ -1,3 +1,5 @@
+import { missing, readPerms } from "./permissions";
+import { t } from "../core/i18n";
 import type { Deck } from "../deck";
 import { slugify } from "../vault/paths";
 
@@ -169,6 +171,33 @@ export async function installPlugin(deck: Deck, src: string): Promise<{ id: stri
   if (manifest.main !== undefined && !/^[\w.-]+\.m?js$/.test(manifest.main)) throw new Error(`plugin.json: "main" must be a file name like main.js (got "${manifest.main}")`);
   const main = await get(`${base}${manifest.main ?? "main.js"}`);
   const dir = `.icebreaker/plugins/${id}`;
+  // An update that asks for more than you approved is held: nothing is written until you
+  // say yes to what's new — say no and the version you have keeps running (it used to be
+  // installed anyway, and the module stayed off).
+  const approved = deck.settings.data.plugins.granted?.[id];
+  if (Array.isArray(approved) && (await deck.vault.exists(`${dir}/plugin.json`).catch(() => false))) {
+    const asks = readPerms(manifest.permissions, !(typeof manifest.api === "number" && manifest.api >= 2)).perms;
+    const more = missing(asks, approved);
+    if (more.length) {
+      const have = deck.plugins.list().find((p) => p.manifest.id === id)?.manifest.version ?? "?";
+      const answer = await deck.askPermission({
+        frame: `◆ ${t("AN UPDATE ASKS FOR MORE")}`,
+        heading: `${manifest.name} · v${have} → v${manifest.version ?? "?"}`,
+        facts: [isOfficialSource(repo) ? `✔ ${t("from the official STORE")}` : `⚠ ${t("not from the official STORE: {s}", { s: repo })}`],
+        intro: t("The new version asks for this, on top of what you approved:"),
+        lines: deck.plugins.permLines(more, manifest, more),
+        body: [t("Say no and nothing changes: the version you have keeps running, with what you approved.")],
+        buttons: [
+          { label: t("[N]o, keep v{v}", { v: have }), value: "no", key: "n", tone: "error" },
+          { label: t("[Y]es, update"), value: "yes", key: "y" },
+        ],
+        selected: 0,
+      });
+      if (answer !== "yes") throw new Error(`${manifest.name}: kept as it is (v${have}) — the update asks for more: ${more.join(", ")}`);
+      // what you just approved, on top of what you had (what you took away stays taken away)
+      deck.settings.set("plugins.granted", { ...(deck.settings.data.plugins.granted ?? {}), [id]: asks });
+    }
+  }
   await deck.vault.mkdir(dir);
   // remember where it came from, so `plugin update <id>` can fetch it again
   await deck.vault.write(`${dir}/plugin.json`, JSON.stringify({ ...manifest, source: repo }, null, 2));

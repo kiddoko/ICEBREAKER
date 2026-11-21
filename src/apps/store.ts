@@ -1,3 +1,4 @@
+import { sayPerms } from "../plugins/permissions";
 import { fmt } from "../core/ansi";
 import { compareVersions } from "../plugins/deps";
 import { FilterBar } from "../ui/filterbar";
@@ -115,7 +116,7 @@ async function storeInstall(ctx: ShellContext, arg: string, window: boolean, see
     const r = await installPlugin(d, src);
     await d.plugins.reload();
     id = r.id;
-    ctx.out(`${fmt.green("✓")} ${r.name} (${r.id}) installed — asks for: ${r.permissions.join(", ") || "nothing"}\n`);
+    ctx.out(`${fmt.green("✓")} ${r.name} (${r.id}) installed — asks for: ${sayPerms(r.permissions) || "nothing"}\n`);
   } catch (err) {
     ctx.err(`store install: ${err instanceof Error ? err.message : err}\n`);
     return 1;
@@ -326,7 +327,7 @@ class StoreApp implements App {
     y++;
     if ("repo" in row) {
       ui.text(dx, y++, row.repo, { fg: c.subtle }, dw);
-      if (row.permissions?.length) ui.text(dx, y++, `${t("asks for")}: ${row.permissions.join(", ")}`, { fg: c.warning }, dw);
+      if (row.permissions?.length) ui.text(dx, y++, `${t("asks for")}: ${sayPerms(row.permissions, t)}`, { fg: c.warning }, dw);
       if (row.index && row.index !== d.settings.data.plugins.registry) ui.text(dx, y++, `${t("from")} ${row.index}`, { fg: c.faint }, dw);
       // reviewed or not: always said (themes are only colours, modules are code)
       if (row.kind === "plugin") ui.text(dx, y++, isVerified(row) ? `✓ ${t("verified: reviewed in the official STORE")}` : `⚠ ${t("not verified: nobody from ICEBREAKER checked its code")}`, { fg: isVerified(row) ? c.success : c.warning }, dw);
@@ -436,7 +437,7 @@ export const storeCommand: Command = {
           ["kind", e?.kind === "theme" ? "theme" : "module"],
           ["by", `${e?.author ?? p?.manifest.author ?? "?"}${e?.builtin || p?.source === "builtin" ? " · ships with the deck" : ""}`],
           ["version", `${e?.version ? `${e.version} in the store` : "—"}${p ? ` · ${p.manifest.version} here` : ""}`],
-          ["asks for", (e?.permissions ?? p?.manifest.permissions ?? []).join(", ") || "nothing"],
+          ["asks for", sayPerms(e?.permissions ?? p?.manifest.permissions ?? []) || "nothing"],
           ["needs", Object.keys(req).length ? Object.entries(req).map(([k, v]) => (v && v !== "*" ? `${k} ${v}` : k)).join(", ") : "nothing"],
           ["state", p ? (p.active ? "on" : p.error ? `off — ${p.error}` : "installed, off") : (d.settings.data.plugins.removed ?? []).includes(arg) ? "removed (store install brings it back)" : "not installed"],
           ["source", e?.repo ?? "—"],
@@ -486,12 +487,14 @@ export const storeCommand: Command = {
         // done: never stray files restored from the trash later (core/undo.ts lastOnly)
         const dir = `.icebreaker/plugins/${arg}`;
         const pl = d.settings.data.plugins;
-        const before = JSON.parse(JSON.stringify({ enabled: pl.enabled, disabled: pl.disabled, removed: pl.removed ?? [], granted: pl.granted ?? {}, pinned: pl.pinned ?? {} })) as Record<string, unknown>;
+        const before = JSON.parse(JSON.stringify({ enabled: pl.enabled, disabled: pl.disabled, removed: pl.removed ?? [], granted: pl.granted ?? {}, pinned: pl.pinned ?? {}, always: pl.always ?? {}, revoked: pl.revoked ?? {} })) as Record<string, unknown>;
         let inTrash = "";
         const remove = async () => {
           for (const x of [...needers].reverse()) await d.plugins.disable(x).catch(() => false);
           if (p.source === "builtin") return d.plugins.removeBuiltin(arg);
-          if (d.plugins.list().some((x) => x.manifest.id === arg && x.active)) await d.plugins.disable(arg);
+          // removed: nothing of it stays approved, switched on or not (the same module installed
+          // again asks again — it used to come back on by itself, with no dialog)
+          await d.plugins.disable(arg);
           inTrash = await d.vault.trash(dir);
           await d.plugins.reload();
         };

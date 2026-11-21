@@ -232,6 +232,12 @@ export function describePerm(perm: string, tr: (s: string) => string = (s) => s)
   return { icon: s.icon, label: tr(s.label), scope: p.scope ?? "", level: s.level, means: tr(s.means) };
 }
 
+/** A list of names as one line a person reads: "Play sound, Read your notes, Change your notes → songs/". */
+export function sayPerms(list: readonly unknown[] | undefined, tr: (s: string) => string = (s) => s): string {
+  const { perms, unknown } = readPerms(list, false);
+  return [...perms.map((p) => { const d = describePerm(p, tr); return d.scope ? `${d.label} → ${d.scope}` : d.label; }), ...unknown.map((u) => `${u} (?)`)].join(", ");
+}
+
 /**
  * Approvals written before 0.6 (`plugins.granted`, the old names) in today's: what the module
  * could do stays what it can do — `media` both halves, notifying and the deck's commands

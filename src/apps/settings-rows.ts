@@ -11,6 +11,7 @@ import { PRESETS } from "../workspace/layout/arrange";
 import { followedCats, followedWords, newsPage, setPageSource } from "../widgets/news";
 import { AvatarPicker } from "../workspace/avatarpicker";
 import { SOUND_PACKS } from "../core/sound";
+import { describePerm } from "../plugins/permissions";
 import { t } from "../core/i18n";
 import { displayKeys, keysOf, menuKeyOf, SHORTCUT_CATEGORIES, SHORTCUTS } from "../core/shortcuts";
 import { rebind, rebindMenuKey } from "./shortcuts";
@@ -64,6 +65,48 @@ function runAsking(deck: Deck, line: string): void {
   crypt.at = -1e9;
   void deck.act(line).finally(() => (crypt.at = -1e9));
   deck.workspace.focusShell();
+}
+
+/**
+ * Settings → PERMISSIONS → the modules: each one's permissions, on or taken away, with the
+ * level and the last use (core/access.ts). A click takes one away or gives it back
+ * (`plugin revoke` / `plugin grant`): the module keeps running, what needs it says so.
+ */
+function permissionRows(d: Deck, head: (label: string) => Row): Row[] {
+  const out: Row[] = [];
+  const when = (at?: number) => (at ? new Date(at).toLocaleString(d.settings.data.user.locale || undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
+  // the modules from the STORE or the vault first (the ones you approved), then the deck's own
+  const mods = d.plugins.list().filter((p) => p.active || p.source === "vault").sort((a, b) => Number(a.source === "builtin") - Number(b.source === "builtin") || a.manifest.name.localeCompare(b.manifest.name));
+  for (const p of mods) {
+    const id = p.manifest.id;
+    const perms = d.plugins.permissionsOf(id);
+    if (!perms.length) continue;
+    out.push(head(`${p.manifest.name}${p.source === "builtin" ? ` · ${t("ships with the deck")}` : p.active ? "" : ` · ${t("off")}`}`));
+    for (const x of perms) {
+      const info = describePerm(x.perm, t);
+      const level = info.level === "total" ? t("TOTAL") : info.level === "high" ? t("HIGH") : t(info.level);
+      out.push({
+        label: `${info.icon} ${info.label}${info.scope ? ` → ${info.scope}` : ""}`,
+        kind: "toggle",
+        // (read again at each draw: the list is rebuilt when a module comes or goes)
+        value: () => {
+          const now = d.plugins.permissionsOf(id).find((y) => y.perm === x.perm);
+          if (!now) return "—";
+          if (!now.on) return t("taken away");
+          return `${level} · ${now.lastUse ? t("used {d}", { d: when(now.lastUse) }) : t("never used")}`;
+        },
+        cmd: () => `plugin ${d.plugins.permissionsOf(id).find((y) => y.perm === x.perm)?.on === false ? "grant" : "revoke"} ${id} ${x.perm}`,
+        change: () => {
+          const on = d.plugins.permissionsOf(id).find((y) => y.perm === x.perm)?.on !== false;
+          if (on) d.plugins.revoke(id, x.perm);
+          else d.plugins.grant(id, x.perm);
+        },
+        isDefault: () => d.plugins.permissionsOf(id).find((y) => y.perm === x.perm)?.on !== false,
+        reset: () => void d.plugins.grant(id, x.perm),
+      });
+    }
+  }
+  return out;
 }
 
 export function coreSettingRows(deck: Deck): Row[] {
@@ -349,6 +392,20 @@ export function coreSettingRows(deck: Deck): Row[] {
           },
         ] as Row[])
       : []),
+    // ── PERMISSIONS (docs/PERMISSIONS.md): who may reach what — everything can be taken away here ──
+    { section: "PERMISSIONS", label: "", value: () => "" },
+    head("ICEBREAKER itself"),
+    toggle("privacy.stealth", "Stealth mode: nothing goes online"),
+    cycle("ai.reads", "What the AI may read", ["nothing", "given", "all"], undefined, (v) => (v === "nothing" ? "nothing: only what I type" : v === "given" ? "what I give it" : "my whole vault")),
+    cycle("shell.bridge", "Your real terminal", ["off", "notes", "more"], undefined, (v) => (v === "off" ? "no deck command" : v === "notes" ? "my notes only" : "notes, timers and alarms")),
+    {
+      label: "Access journal",
+      kind: "action",
+      value: () => t("{n} lines · 30 days", { n: d.access.list.length }),
+      cmd: () => "log show access",
+      change: () => void d.act("log show access"),
+    },
+    ...permissionRows(d, head),
     { section: "SHELL", label: "", value: () => "" },
     // the TERMINAL module (core-packages.ts) off: no panel, these mean nothing
     needs(() => d.workspace.terminalOn, cycle("shell.mode", "Shell", ["system", "ibsh"], undefined, (v) => (v === "system" ? "my terminal + ICEBREAKER" : "ibsh only"))),

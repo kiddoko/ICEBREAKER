@@ -43,7 +43,7 @@ export interface PermLine {
 export interface PermButton {
   label: string;
   value: string;
-  /** a letter that answers it ("y") */
+  /** a letter that answers it ("y") — the letter its label shows in brackets comes first (translations) */
   key?: string;
   tone?: "error" | "warning";
 }
@@ -88,9 +88,17 @@ export class PermissionDialog implements Overlay {
     this.resolve(this.spec.buttons[i]?.value ?? this.spec.buttons[0].value);
   }
 
+  /** the letter that answers a button: the one its label shows in brackets ("[T]oujours" → t), in any language */
+  private letter(b: PermButton): string | undefined {
+    return (/\[(\p{L})\]/u.exec(b.label)?.[1] ?? b.key)?.toLowerCase();
+  }
+
   private byKey(s: string): boolean {
     const k = s.toLowerCase();
-    const i = this.spec.buttons.findIndex((b) => b.key === k);
+    const shown = this.spec.buttons.map((b) => this.letter(b));
+    let i = shown.indexOf(k);
+    // the English letter too, when no button shows it for something else ("y" where the label says "[O]ui")
+    if (i < 0) i = this.spec.buttons.findIndex((b) => b.key === k);
     if (i < 0) return false;
     this.finish(i);
     return true;

@@ -1,3 +1,4 @@
+import { describePerm, sayPerms } from "../../plugins/permissions";
 import { contextCommand } from "../../ai/context";
 import { BOX_OFF, BOX_ON } from "../../ui/controls";
 import { redoCommand, tourCommand, changelogCommand, undoCommand } from "./undo";
@@ -742,7 +743,7 @@ const plugin: Command = {
   name: "plugin",
   aliases: ["plugins"],
   summary: "list, enable, disable, scaffold plugins",
-  usage: "plugin [ls]\nplugin enable <id>   (what it needs and is off comes on first)\nplugin disable <id>  (what needs it goes off too, after asking)\nplugin reload\nplugin new <id>     (scaffold a plugin in .icebreaker/plugins/<id>)\nplugin install <user/repo | id>   (download from GitHub / the community index)\nplugin update <id>  (re-download an installed plugin — store update shows what's new)\nplugin search [words]  (= store search)\nplugin audit <id>   (what its code does that a module shouldn't need)\n  --window          (enable, disable) ask in dialogs instead of the shell",
+  usage: "plugin [ls]\nplugin enable <id>   (what it needs and is off comes on first)\nplugin disable <id>  (what needs it goes off too, after asking)\nplugin perms [id]    (what each module may do, and when it last did)\nplugin revoke <id> <permission>   (take one away: it keeps running)\nplugin grant <id> <permission>    (give it back)\nplugin reload\nplugin new <id>     (scaffold a plugin in .icebreaker/plugins/<id>)\nplugin install <user/repo | id>   (download from GitHub / the community index)\nplugin update <id>  (re-download an installed plugin — store update shows what's new)\nplugin search [words]  (= store search)\nplugin audit <id>   (what its code does that a module shouldn't need)\n  --window          (enable, disable) ask in dialogs instead of the shell",
   man: "Plugins live in <vault>/.icebreaker/plugins/<id>/ with a plugin.json and a main.js.\nVault plugins are disabled until you enable them; you'll see the permissions they ask for first.\nSee docs/PLUGINS.md.",
   async run(ctx) {
     const host = ctx.deck.plugins;
@@ -762,6 +763,39 @@ const plugin: Command = {
       }
       return;
     }
+    // ── permissions (docs/PERMISSIONS.md): see them, take one away, give it back ──
+    if (sub === "perms" || sub === "permissions") {
+      const list = id ? host.list().filter((p) => p.manifest.id === id) : host.list().filter((p) => p.active || p.source === "vault");
+      if (id && !list.length) return ctx.err(`plugin perms: no module "${id}" (plugin ls)\n`), 1;
+      const ago = (at?: number) => (at ? `${fmt.dim("last used")} ${new Date(at).toLocaleString(ctx.deck.settings.data.user.locale || undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : fmt.dim("never used"));
+      for (const p of list) {
+        const perms = host.permissionsOf(p.manifest.id);
+        ctx.out(`${fmt.bold(p.manifest.name)} ${fmt.dim(`(${p.manifest.id}) · ${p.source === "builtin" ? "ships with the deck" : "from the STORE or the vault"}${p.active ? "" : " · off"}`)}\n`);
+        if (!perms.length) ctx.out(fmt.dim("  asks for nothing\n"));
+        for (const x of perms) {
+          const d = describePerm(x.perm);
+          const level = d.level === "total" ? fmt.red("TOTAL ") : d.level === "high" ? fmt.yellow("HIGH  ") : fmt.dim(d.level.padEnd(6));
+          ctx.out(`  ${x.on ? fmt.green("●") : fmt.red("○")} ${level} ${padEnd(`${d.label}${d.scope ? ` → ${d.scope}` : ""}`, 44)} ${fmt.dim(padEnd(x.perm, 26))} ${x.on ? ago(x.lastUse) : fmt.red("taken away")}${x.always ? fmt.dim(" · always") : ""}\n`);
+        }
+        if (id) {
+          const used = ctx.deck.access.of(p.manifest.id, 12);
+          if (used.length) ctx.out(fmt.dim("  the last uses (the LOG's access filter has them all):\n"));
+          for (const a of used) ctx.out(fmt.dim(`    ${new Date(a.at).toLocaleString(ctx.deck.settings.data.user.locale || undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}  ${a.perm}${a.what ? ` · ${a.what}` : ""}\n`));
+        }
+      }
+      if (!id) ctx.out(fmt.dim("plugin perms <id> · plugin revoke <id> <permission> · plugin grant <id> <permission> · Settings → PERMISSIONS\n"));
+      return 0;
+    }
+    if (sub === "revoke" || sub === "grant") {
+      const perm = ctx.args.filter((a) => a !== "--window")[2];
+      if (!id || !perm) return ctx.err(`usage: plugin ${sub} <id> <permission>   (plugin perms <id> lists them)\n`), 1;
+      if (!host.list().some((p) => p.manifest.id === id)) return ctx.err(`plugin ${sub}: no module "${id}" (plugin ls)\n`), 1;
+      const ok = sub === "revoke" ? host.revoke(id, perm) : host.grant(id, perm);
+      if (!ok) return ctx.err(sub === "revoke" ? `plugin revoke: ${id} doesn't have "${perm}" (plugin perms ${id})\n` : `plugin grant: "${perm}" wasn't taken away from ${id} — a permission it never had is approved by switching it on (plugin enable ${id})\n`), 1;
+      const label = describePerm(host.permissionsOf(id).find((x) => x.perm === perm || x.perm.startsWith(`${perm}:`))?.perm ?? perm).label;
+      ctx.out(sub === "revoke" ? `${id}: “${label}” taken away — it keeps running, what needs it says so · plugin grant ${id} ${perm} gives it back\n` : `${id}: “${label}” given back\n`);
+      return 0;
+    }
     if (sub === "enable" || sub === "disable") {
       if (!id) {
         ctx.err(`usage: plugin ${sub} <id> [--window]\n`);
@@ -771,7 +805,8 @@ const plugin: Command = {
       try {
         if (sub === "enable") {
           const before = new Set(host.active().map((p) => p.manifest.id));
-          const ok = await host.enable(id, ask);
+          // --window (a click in the STORE, MODULES): the permission dialog; typed: asked here, in words
+          const ok = await host.enable(id, ctx.args.includes("--window") ? undefined : ask);
           // what it needed and was off came on with it (plugins/deps.ts)
           const along = host.active().map((p) => p.manifest.id).filter((x) => x !== id && !before.has(x));
           ctx.out(ok ? `${id}: enabled${along.length ? fmt.dim(` · with what it needs: ${along.join(", ")}`) : ""}\n` : `${id}: unchanged\n`);
@@ -822,7 +857,7 @@ const plugin: Command = {
       try {
         const p = await installPlugin(ctx.deck, src);
         await host.reload(sub === "update");
-        ctx.out(`${fmt.green("✓")} ${p.name} (${p.id}) ${sub === "update" ? "updated" : "installed"} — permissions: ${p.permissions.join(", ") || "none"}\n`);
+        ctx.out(`${fmt.green("✓")} ${p.name} (${p.id}) ${sub === "update" ? "updated" : "installed"} — asks for: ${sayPerms(p.permissions) || "nothing"}\n`);
         if (sub === "install") ctx.out(`read its code in .icebreaker/plugins/${p.id}/, then: ${fmt.magenta(`plugin enable ${p.id}`)}\n`);
       } catch (e) {
         ctx.err(`plugin ${sub}: ${e instanceof Error ? e.message : e}\n`);

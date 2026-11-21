@@ -240,6 +240,12 @@ export class Deck implements InputSink {
     this.ai = new AIManager(settings);
     // the AI wrote notes: pick them up in the tree, search, widgets…
     this.ai.onVaultWrite = () => void this.vault.rescan().then(() => this.requestFrame());
+    // what the AI reads is in the access journal, and lights the top bar for a moment
+    this.ai.onRead = (what) => {
+      this.access.note("ai", "vault:read", what);
+      this.requestFrame();
+      setTimeout(() => this.requestFrame(), 4100);
+    };
     this.ai.onMessage = () => void this.stats.add("uplink.messages", 1, "uplink", { label: "messages to the AI", kind: "counter" }).catch(() => {});
     this.plugins = new PluginHost(this);
     this.updater = new Updater(this);

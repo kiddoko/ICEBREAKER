@@ -208,6 +208,9 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
   // UPLINK ■: green when the AI is there and answering, amber while it thinks, red when it's off
   // (the provider and the model are in its tip); narrow: the ■ alone, the time without seconds
   const narrow = r.w < 70;
+  // the AI is reading a note right now (ai/tools.ts): said here for a moment, whatever page is in front
+  const reading = d.ai.reading && d.ai.reading.until > Date.now() ? d.ai.reading.what : "";
+  if (reading) ui.animate(500);
   const ai = narrow ? "■" : "UPLINK ■";
   const right = narrow ? ` ${ai}  ${time.slice(0, 5)} ` : ` ${ai}  │  ${date}  ${time} `;
   const rx = r.x + r.w - strWidth(right);
@@ -216,6 +219,12 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
   const lamp = !d.ai.ready ? c.error : d.ai.busy > 0 ? c.warning : c.success;
   if (!narrow) ui.text(rx + 1, r.y, "UPLINK", { fg: d.ai.ready ? c.fg : c.muted, bg: c.panelAlt, attrs: BOLD });
   ui.text(rx + strWidth(ai), r.y, "■", { fg: lamp, bg: c.panelAlt });
+  // "◈ reads notes/ideas.md", left of UPLINK, while the AI reads (as much of the name as fits)
+  if (reading) {
+    const room = rx - (logoRect.x + logoRect.w) - GAP * 2;
+    const label = `◈ ${t("the AI reads")} ${reading}`;
+    if (room >= 12) ui.textRight(rx - GAP, r.y, strWidth(label) > room ? `${label.slice(0, Math.max(0, room - 1))}…` : label, { fg: c.warning, bg: c.panelAlt, attrs: BOLD });
+  }
   const who = `${d.ai.provider.label}`;
   ui.hit({ x: rx, y: r.y, w: strWidth(ai) + 2, h: 1 }, d.ai.ready ? { cmd: "link", tip: `UPLINK: ${who}${d.ai.busy > 0 ? ` · ${t("thinking…")}` : ""}\nctrl+space · or \`chat\` right here in the shell` } : { cmd: "settings", tip: `UPLINK ${t("off")}: ${d.ai.problem ?? ""}` });
 }
