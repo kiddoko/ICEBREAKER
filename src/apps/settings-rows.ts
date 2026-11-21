@@ -413,7 +413,7 @@ export function coreSettingRows(deck: Deck): Row[] {
     needs(() => !s.data.privacy.stealth, { label: "Look now", kind: "action", value: () => t("check"), cmd: () => "update", change: () => void d.act("update") }),
     needs(() => d.updater.pending(), { label: "Install", kind: "action", value: () => t("install now"), cmd: () => "update install --window", change: () => void d.act("update install --window") }),
     // WHAT'S NEW (workspace/whatsnew.ts): this version's notes, then the ones before with ←→
-    { label: "What's new", kind: "action", value: () => `${d.updater.version} ›`, cmd: () => "changelog", change: () => void d.act("changelog") },
+    { label: "What's new", kind: "action", value: () => d.updater.version, cmd: () => "changelog", change: () => void d.act("changelog") },
     head("By itself"),
     needs(() => !s.data.privacy.stealth, cycle("updates.check", "Look for updates", ["daily", "start", "never"], undefined, (v) => (v === "daily" ? "every day" : v === "start" ? "at start" : "never"))),
     needs(() => !s.data.privacy.stealth && s.data.updates.check !== "never", toggle("updates.download", "Download by itself")),

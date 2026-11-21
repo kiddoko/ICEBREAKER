@@ -49,6 +49,10 @@
   in list mode only the headline under the mouse scrolls.
 - **FX panel**: a preset's description never covers its name (cut with … when the row is
   short).
+- **ibsh: `/dev/null`** works like in any shell: `> /dev/null` throws the output away (it
+  made a file `dev/null` in the vault), `< /dev/null` reads nothing.
+- **Tabs**: never narrower than 12 cells, so a bit of each name stays readable ("3:journ…";
+  with many tabs only the numbers were left); the others go in "▾ +N".
 - **Releases**: the CI's release only becomes "latest" once the update file (latest.json) is
   attached — installed apps never see a release they can't install.
 

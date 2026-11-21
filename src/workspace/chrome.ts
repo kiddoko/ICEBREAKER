@@ -247,7 +247,8 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
 export function renderTabs(ws: Workspace, ui: UI, r: Rect): void {
   const c = ui.c;
   const n = ws.tabCount;
-  const MAXW = 18, MINW = 8;
+  // 12 at least: "3:journ…" — at 8 only the number was left (the tab overhaul, 0.6, goes further)
+  const MAXW = 18, MINW = 12;
   const plusW = 3; // "+" (open anything) at the end
   const avail = r.w - plusW;
   let tabW = n ? Math.max(MINW, Math.min(MAXW, Math.floor(avail / n) - 1)) : MAXW;

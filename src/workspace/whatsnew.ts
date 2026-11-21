@@ -1,5 +1,6 @@
 import { BOLD, type Rect } from "../core/grid";
 import { lang, t } from "../core/i18n";
+import { osKeys } from "../core/keyhints";
 import type { Action, KeyInput } from "../core/input";
 import { readDevice, writeDevice } from "../core/device";
 import { strWidth } from "../core/unicode";
@@ -75,7 +76,9 @@ export class WhatsNew implements Overlay {
     const c = ui.c;
     const notes = NOTES[this.index];
     if (!notes) return void (this.done = true);
-    const text: NotesText = lang() === "fr" ? notes.fr : notes.en;
+    // the notes are written the Mac way (⌘C): Ctrl+C on Windows / Linux (core/keyhints.ts)
+    const raw: NotesText = lang() === "fr" ? notes.fr : notes.en;
+    const text: NotesText = { added: raw.added.map((l) => osKeys(l)), fixed: raw.fixed.map((l) => osKeys(l)), headline: raw.headline && osKeys(raw.headline) };
     const release = isRelease(notes.version);
     const still = this.deck.settings.data.appearance.reduceMotion || this.deck.settings.data.appearance.maxFps === 0;
     const now = performance.now();

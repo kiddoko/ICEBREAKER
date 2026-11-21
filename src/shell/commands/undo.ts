@@ -1,4 +1,5 @@
 import { lang, t } from "../../core/i18n";
+import { osKeys } from "../../core/keyhints";
 import { NOTES, notesFor } from "../../whatsnew/notes";
 import type { Command } from "../types";
 import { fmt } from "../../core/ansi";
@@ -75,7 +76,8 @@ export const changelogCommand: Command = {
     if (version && !notesFor(version)) return ctx.err(`changelog: no notes for ${version} — changelog --list\n`), 1;
     if (flags.includes("--print")) {
       const n = notesFor(version ?? ctx.deck.updater.version) ?? NOTES[0];
-      const text = lang() === "fr" ? n.fr : n.en;
+      const raw = lang() === "fr" ? n.fr : n.en;
+      const text = { added: raw.added.map((l) => osKeys(l)), fixed: raw.fixed.map((l) => osKeys(l)), headline: raw.headline && osKeys(raw.headline) };
       ctx.out(`${fmt.bold(`ICEBREAKER ${n.version}`)}${n.date ? fmt.dim(`  ${n.date}`) : ""}\n`);
       if (text.headline) ctx.out(`${text.headline}\n`);
       ctx.out(`${fmt.magenta(t("NEW"))}\n${text.added.map((l) => `  ▸ ${l}\n`).join("")}`);

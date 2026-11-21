@@ -12,6 +12,10 @@ import type { ReadOptions, ShellContext, ShellControls } from "./types";
  * Runs parsed command lines. Pipelines run one command after another, each
  * one's stdout becoming the next one's stdin (simple and predictable).
  */
+
+/** `> /dev/null` throws the output away and `< /dev/null` reads nothing, like any shell (no file is made). */
+const DEV_NULL = "/dev/null";
+
 export class ShellExecutor {
   cwd = "";
   env: Record<string, string> = {};
@@ -98,15 +102,16 @@ export class ShellExecutor {
     let status = 0;
     // a module's line: what it captures (a pipe, `<`) is reading, what it redirects (`>`) is writing
     if (origin) {
-      const captures = cmds.length > 1 || cmds.some((c) => c.input !== undefined);
+      const captures = cmds.length > 1 || cmds.some((c) => c.input !== undefined && c.input !== DEV_NULL);
       if (captures && !allows(origin, "vault:read")) return this.print(`ibsh: ${origin.source} needs the "vault:read" permission to pipe or read (| <)\n`, true), 126;
-      if (cmds.some((c) => c.output) && !allows(origin, "vault:write")) return this.print(`ibsh: ${origin.source} needs the "vault:write" permission to write (>)\n`, true), 126;
+      if (cmds.some((c) => c.output && c.output.path !== DEV_NULL) && !allows(origin, "vault:write")) return this.print(`ibsh: ${origin.source} needs the "vault:write" permission to write (>)\n`, true), 126;
     }
     const vault = origin ? guardedVault(this.deck.vault, origin) : this.deck.vault;
     for (let i = 0; i < cmds.length; i++) {
       const c = cmds[i];
       const last = i === cmds.length - 1;
-      if (c.input !== undefined) {
+      if (c.input === DEV_NULL) input = "";
+      else if (c.input !== undefined) {
         try {
           input = await vault.read(resolvePath(this.cwd, c.input));
         } catch (e) {
@@ -119,7 +124,7 @@ export class ShellExecutor {
       const res = await this.runCommand(this.expand(c.words, allows(origin, "vault:read")), input, toScreen, origin);
       status = res.status;
       input = res.stdout;
-      if (c.output) {
+      if (c.output && c.output.path !== DEV_NULL) {
         const path = resolvePath(this.cwd, c.output.path);
         const text = stripAnsi(res.stdout);
         try {

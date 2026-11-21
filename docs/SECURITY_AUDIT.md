@@ -131,7 +131,8 @@ normally. Copy the three into a **test** vault's `.icebreaker/plugins/`, `plugin
 them, run `sbxevil` and `sbxbare` (every line must say "closed", and `sbxbare` must end
 with "captured nothing"; "take the vault command" shows its refusal in the LOG tab) and
 `sbxdemo` / `launch sbx`; `tests/sandbox/sbx-audio/` (`sbxaudio`: a little tune twice, smooth then
-stepped, a binary file written and read back, a WAV decoded, the limits refused). `tests/origin.test.ts` and `tests/privileged.test.ts` check the
+stepped, a binary file written and read back, a WAV decoded, the limits refused; afterwards delete the
+`sbx-audio/` folder it writes in the vault, and the `escaped.bin` sbx-evil leaves at the vault's root — the proof that `../` stayed inside). `tests/origin.test.ts` and `tests/privileged.test.ts` check the
 same rules without the app. Run on 2026-11-20 in the macOS app (WKWebView) and in a
 Chromium browser (the web version): every door closed. Also checked that day, for real: a
 hook planted in a vault's `.claude/settings.json` runs with plain `claude -p` and does
