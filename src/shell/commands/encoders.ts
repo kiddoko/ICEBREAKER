@@ -26,6 +26,8 @@ export const encodersCommand: Command = {
           return 0;
         }
         case "install": {
+          // said before "downloading…", not after it
+          if (ctx.deck.settings.data.privacy.stealth) return ctx.err("encoders: stealth mode: downloading the encoder pack needs the internet (stealth off)\n"), 1;
           ctx.out(fmt.dim("downloading the encoder pack (~3 MB, once) from ICEBREAKER's GitHub release, then checking it…\n"));
           const v = await enc.install();
           ctx.out(`${fmt.green("✓")} encoder pack ${v} · mp3, m4a, ogg, opus · licences: LGPL (FFmpeg, LAME), BSD (Vorbis, Opus)\n`);
