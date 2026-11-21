@@ -30,7 +30,7 @@ stacked, moved, split, folded. This page is how it works and where it stands.
   was two rows (3b moved the tabs onto the frames): each tab is its name (an icon for what it is, the title, × on the one shown
   or hovered) with a half-block bar under it — a row and a half tall, the one shown in the
   accent. No number in front of the name: the numbers (⌘1…9) show only while ⌘ / ctrl is
-  held (`InputManager.modHeld`). 12–24 cells each; the icon goes before the name gets
+  held (`InputManager.modHeld`). 15–24 cells each; the icon goes before the name gets
   short; the rest in "▾ +N". Drag a tab sideways to move it (`tab move <n> <m>`).
 - **Tab groups (done)** (`src/workspace/tabgroups.ts`, pure): drop a tab onto the middle of
   another (or `tab group <n> <m> [name]`) and they become one chip `▣ name 3` at the first

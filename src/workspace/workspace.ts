@@ -161,6 +161,8 @@ export class Workspace {
     return this._editing;
   }
   set editing(on: boolean) {
+    // the widgets are what's edited: the panel shows them (not a tab moved there)
+    if (on) this.ownContent("panel");
     this._editing = on;
     this._editingOn = on ? this.activeApp : undefined;
   }
@@ -258,6 +260,7 @@ export class Workspace {
     if (!this.terminalOn) return this.terminalOff();
     this.unfold("shell");
     if (t === "term" && !this.termAvailable) t = "ibsh";
+    this.ownContent("shell");
     this.shellTab = t;
     this.shellTabChosen = true;
     this.shellVisible = true;
@@ -556,9 +559,10 @@ export class Workspace {
 
   /** shift+esc (or a page's esc): close it and show the tab before it (HOME stays). */
   async closeAndGoBack(): Promise<void> {
-    const app = this.activeApp;
+    // the page you're looking at: in the focused frame (a tab moved there), else the page's frame
+    const app = this.focusedPage ?? this.activeApp;
     if (!app || app.kind === "home") return;
-    await this.closeTab(this.active);
+    await this.closeTab(this.tabs.indexOf(app));
     this.deck.pageTurn();
   }
 
@@ -577,6 +581,9 @@ export class Workspace {
     const next = ((i % n) + n) % n;
     // a tab that lives in another frame: that frame shows it, and gets the focus
     const at = this.placeOf(next);
+    // a frame that can't be shown now (the shell is a big tab, TERMINAL is off): the tab comes
+    // back to the page's frame rather than staying out of reach
+    if (at !== "main" && !this.canShow(at)) return void this.moveTabTo(next, "main");
     if (at !== "main") return this.showIn(at, this.tabs[next].key);
     if (next !== this.active) this.deck.pageTurn(false, quick);
     this.active = next;
@@ -622,7 +629,11 @@ export class Workspace {
   }
 
   /** Frame `f` shows tab `key` (or its own content: null), opened if it was hidden, with the focus. */
+  /** the frame a tab was just asked to show in (checked after drawing: is it on screen?) */
+  private revealing: PlaceFrame | null = null;
+
   showIn(f: PlaceFrame, key: string | null): void {
+    if (key) this.revealing = f;
     if (key) this.shows = { ...this.shows, [f]: key };
     else {
       const { [f]: _gone, ...rest } = this.shows;
@@ -631,6 +642,23 @@ export class Workspace {
     this.reveal(f);
     this.focus = PANE_OF[f];
     this.deck.requestFrame();
+  }
+
+  /**
+   * Frame `f` shows its own content again (the shell, the tree, the widgets), not a tab
+   * moved there. Called whenever that content is asked for — ctrl+`, a question from a
+   * command, ⌘B, panel show, edit mode — or a moved page took what was typed for the shell.
+   */
+  ownContent(f: PlaceFrame): void {
+    if (!this.shows[f]) return;
+    const { [f]: _gone, ...rest } = this.shows;
+    this.shows = rest;
+  }
+
+  /** frame `f` can be shown right now (the shell: not while it's a big tab itself, nor with TERMINAL off) */
+  private canShow(f: PlaceFrame): boolean {
+    if (f === "shell") return this.terminalOn && !this.tabs.some((a) => a.kind === "ibsh" || a.kind === "terminal");
+    return true;
   }
 
   /** Make frame `f` seen: shown, unfolded. */
@@ -705,6 +733,7 @@ export class Workspace {
   toggleShell(show = !this.shellVisible): void {
     if (!this.terminalOn) return this.terminalOff();
     if (show) this.unfold("shell");
+    if (show) this.ownContent("shell");
     this.shellVisible = show;
     if (show) this.focus = "shell";
     else if (this.focus === "shell") this.focus = "main";
@@ -718,7 +747,9 @@ export class Workspace {
   focusShell(): void {
     if (!this.terminalOn) return this.terminalOff();
     this.unfold("shell");
-    if (!this.shellVisible || this.focus !== "shell") {
+    if (!this.shellVisible || this.focus !== "shell" || this.shows.shell) {
+      // ctrl+`: the shell itself, even when a moved tab was shown in its frame (it took the typing)
+      this.ownContent("shell");
       this.shellVisible = true;
       this.focus = "shell";
     } else this.focus = "main";
@@ -728,6 +759,8 @@ export class Workspace {
   focusShellIfHidden(): void {
     if (!this.terminalOn) return;
     this.unfold("shell");
+    // the question is in the shell: a moved tab shown in its frame would hide it
+    this.ownContent("shell");
     this.shellVisible = true;
     this.focus = "shell";
   }
@@ -736,11 +769,12 @@ export class Workspace {
     // folded into a strip: ⌘B opens it rather than hiding it
     if (this.sidebarVisible && isFolded(this.arrangement, "vault")) {
       this.unfold("vault");
+      this.ownContent("vault");
       this.focus = "sidebar";
       return;
     }
     this.sidebarVisible = !this.sidebarVisible;
-    if (this.sidebarVisible) this.focus = "sidebar";
+    if (this.sidebarVisible) (this.ownContent("vault"), (this.focus = "sidebar"));
     else if (this.focus === "sidebar") this.focus = "main";
   }
 
@@ -1284,6 +1318,14 @@ export class Workspace {
       else ui.tint(b.grip, ui.c.accent);
     }
 
+    // a tab shown in a frame that isn't on screen (a narrow window drops the panel): back to the
+    // page's frame, where it can be reached (it was in no list at all)
+    const asked = this.revealing;
+    this.revealing = null;
+    if (asked && this.shows[asked] && !this.rects[PANE_OF[asked]]) {
+      const i = this.tabs.findIndex((a) => a.key === this.shows[asked]);
+      if (i >= 0) this.moveTabTo(i, "main");
+    }
     // a tab dragged onto another frame: that frame, outlined
     drawDropFrame(this, ui);
 

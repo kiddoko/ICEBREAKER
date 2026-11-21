@@ -19,7 +19,7 @@ export const PRIVILEGED_NAMES = new Set([
 ]);
 
 /** the settings that hold commands, or decide what runs, where things go and what leaves the computer */
-const SETTINGS = /^(privacy|plugins|ai|keys|keyoverrides|menu|shell|updates|vault|favorites|gamepad|home|modulesettings|session|setup)(\.|$)/i;
+const SETTINGS = /^(privacy|plugins|ai|keys|keyoverrides|menu|shell|updates|vault|favorites|gamepad|home|modulesettings|session|setup|layout)(\.|$)/i;
 
 const flagless = (args: string[]): string[] => args.filter((a) => !a.startsWith("-")).map((a) => a.toLowerCase());
 
@@ -80,6 +80,21 @@ export function isPrivileged(name: string, args: string[]): boolean {
     case "encoders":
       // downloading a program, or deleting it: yours
       return !only("", "status");
+    case "layout":
+      // looking is fine; rearranging the screen is yours (a module could put its page where
+      // your shell is, with a fake prompt — Refonte UI 0.6, docs/SECURITY_AUDIT.md)
+      return !only("", "presets");
+    case "frame":
+      return true;
+    case "tab":
+      // switching tabs is fine; moving them between frames, grouping them: yours
+      return any("move", "group", "ungroup", "groupname");
+    case "clock": {
+      // your alarms: a module may look at them, never set, remove, switch off, snooze or ring one
+      if (!any("alarm", "alarms")) return false;
+      const sub = [(args[1] ?? "").toLowerCase(), words[1] ?? ""];
+      return !sub.every((s) => s === "" || s === "list" || s === "ls");
+    }
     default:
       return ["account", "passwd", "logout", "lock", "factory-reset", "script", "scripts", "bind", "unbind", "pin", "unpin", "exit", "quit", "reboot", "starthere", "undo", "redo"].includes(name);
   }

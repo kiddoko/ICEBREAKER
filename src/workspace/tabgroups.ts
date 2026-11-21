@@ -99,6 +99,9 @@ export function parseGroups(raw: unknown): TabGroup[] {
     if (!r || typeof r !== "object") continue;
     const o = r as Record<string, unknown>;
     if (typeof o.id !== "string" || typeof o.name !== "string" || !Array.isArray(o.keys)) continue;
+    // one group per id (two with the same id hid the second one's tabs)
+    const gid = String(o.id).slice(0, 16);
+    if (out.some((g) => g.id === gid)) continue;
     const keys = (o.keys as unknown[]).filter((k): k is string => typeof k === "string" && k.length < 500 && !seen.has(k)).slice(0, 50);
     if (keys.length < 2) continue;
     keys.forEach((k) => seen.add(k));

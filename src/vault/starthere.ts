@@ -108,7 +108,7 @@ has the same bar. The tree's colour squares tick several colours too (\`tag view
 | **JOURNAL** | one page a day, the evening check-in | \`journal\` · \`journal "a line"\` · \`daily\` |
 | **STATS** | numbers over time, from modules and from you | \`stats set weight 72 --unit kg\` |
 | **WEATHER** | any place, an animated ASCII sky, the week | \`weather Tokyo\` |
-| **CLOCKS** | timers (several), a stopwatch with laps, the world | \`timer 4m tea\` |
+| **CLOCKS** | timers (several), a stopwatch with laps, the world, wake-up alarms | \`timer 4m tea\` · \`clock alarm 7:30 --days mon-fri\` |
 | **FOCUS** | a pomodoro ring, zen mode | \`focus open\` |
 | **NEWS** | your area, your country, categories or your words — a page and a widget | \`news page\` · \`news show ai\` |
 | **MUSIC** | your music folder, what's playing | \`music play daft punk\` |
@@ -268,6 +268,15 @@ were on come back as you left them next time.
   on it changes it. **À la une**: one story, big, with its summary (↻ another one). The
   **NEWS page** (\`news page\`) has the same four as tabs, the article read on the right.
   \`news show science ai\`, \`news show formula 1\`, \`news mode featured\`.
+- **Frames**: the tree, the page, the side panel and the shell can go anywhere —
+  \`layout preset classic | shell-right | panel-left | tree-bottom\`, \`frame move shell
+  top\`, drag the border between two frames to resize, \`frame fold tree\` folds one into a
+  strip (a click opens it), \`layout reset\`; ⌘Z undoes. **Tab groups**: drop a tab onto
+  another (\`▣ name 3\`; hover lists them, right-click renames or ungroups).
+- **Wake-up alarms**: \`clock alarm 7:30 wake up --days mon-fri\`, \`clock alarm\` lists
+  them, \`clock alarm rm 1\` · \`on\` · \`off\` · \`snooze\`; **a** on the CLOCKS page. A full
+  screen rings (s snooze 5 min, enter stop; the gamepad's B / A), with the sound and a
+  notification — while ICEBREAKER is running. \`clock alarm test\` tries it.
 - **◆ ICEBREAKER ▾** (top left): the deck's menu — MODULES, STORE, NEXUS, settings,
   the manual, what's new, updates, and **⏻ log out** (back to the login page, ⌘⇧L).
 - **What's new**: after each update, a short page opens once — the version big,

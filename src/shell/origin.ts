@@ -84,6 +84,10 @@ export function guardedVault(vault: Vault, o: Origin): Vault {
  * keeps the origin. Once the command has returned (`live.on` false) it's the deck as
  * it is: what happens later is you, clicking in what the command opened.
  */
+/** The real deck behind a guarded one (guardedDeck's Proxy answers it): what's kept per deck (the alarm clock) is kept on it. */
+export const REAL_DECK = Symbol("realDeck");
+export const realDeck = (deck: Deck): Deck => ((deck as unknown as Record<symbol, Deck | undefined>)[REAL_DECK] ?? deck);
+
 export function guardedDeck(deck: Deck, o: Origin, run: (line: string) => Promise<number>, live: { on: boolean }): Deck {
   const vault = guardedVault(deck.vault, o);
   const shell = new Proxy(deck.shell, {
@@ -95,6 +99,7 @@ export function guardedDeck(deck: Deck, o: Origin, run: (line: string) => Promis
   });
   return new Proxy(deck, {
     get(target, prop) {
+      if (prop === REAL_DECK) return target;
       if (live.on) {
         if (prop === "vault") return vault;
         if (prop === "act") return (line: string) => run(line);

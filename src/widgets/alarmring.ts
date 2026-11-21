@@ -2,6 +2,7 @@ import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
+import { realDeck } from "../shell/origin";
 import { dialogButtons } from "../ui/dialog";
 import { fitMatrix, matrixSize, matrixText } from "../ui/dots";
 import { INSET, SECTION } from "../ui/layout";
@@ -167,6 +168,11 @@ export class AlarmClock {
   }
 
   private tick(): void {
+    // logged out (the login page): the last account's alarms don't ring there, with their labels
+    if (this.deck.locked) {
+      if (this.ringing) this.finishRinging();
+      return;
+    }
     const now = Date.now();
     if (this.ringing) {
       if (now - this.ringStart >= RING_MS) {
@@ -204,8 +210,11 @@ export class AlarmClock {
 const clocks = new WeakMap<Deck, AlarmClock>();
 /** The deck's alarm clock (one per deck). */
 export function alarmClock(deck: Deck): AlarmClock {
-  let c = clocks.get(deck);
-  if (!c) clocks.set(deck, (c = new AlarmClock(deck)));
+  // keyed on the REAL deck: a line with an origin gets a guarded Proxy of it, and a second
+  // clock made for that Proxy never ran — its alarm never rang, and was written away later
+  const real = realDeck(deck);
+  let c = clocks.get(real);
+  if (!c) clocks.set(real, (c = new AlarmClock(real)));
   return c;
 }
 

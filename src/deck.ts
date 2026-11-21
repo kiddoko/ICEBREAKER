@@ -372,7 +372,15 @@ export class Deck implements InputSink {
     this.ai.gate = () => (this.plugins.list().some((p) => p.manifest.id === "uplink" && p.active) ? null : "the UPLINK module is off (MODULES → UPLINK)");
     migrateWheel(this); // the old gamepad wheel's slots → keys on THE MENU (once)
     this.updater.start();
-    await step(() => this.plugins.init(), () => ({ text: `Plugins: ${this.plugins.active().map((p) => p.manifest.id).join(", ") || "none"}`, status: this.plugins.list().some((p) => p.error) ? "WARN" : "OK" }));
+    // short enough to read whole (the list of every module was cut with …); what's wrong, by name,
+    // with the whole reason in the LOG
+    await step(() => this.plugins.init(), () => {
+      const on = this.plugins.active().length;
+      const bad = this.plugins.list().filter((p) => p.error);
+      for (const p of bad) this.log.add("notify", `${p.manifest.name ?? p.manifest.id}: ${p.error}`, { source: "warning" });
+      if (!bad.length) return { text: `Plugins: ${on} on`, status: "OK" };
+      return { text: `Plugins: ${on} on · ${bad.map((p) => p.manifest.id).join(", ")} ${bad.length > 1 ? "need" : "needs"} you — see the LOG`, status: "WARN" };
+    });
     this.platform.bridge?.onRun((req) => void this.runBridged(req));
     // files changed in the terminal, Obsidian, Finder…: refresh the tree, search, widgets
     await step(() => this.platform.onVaultChange?.(() => void this.vault.rescan().then(() => this.requestFrame())), () => this.platform.onVaultChange ? { text: "Watching the vault for outside changes", status: "OK" } : null);

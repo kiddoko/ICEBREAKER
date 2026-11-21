@@ -132,8 +132,9 @@ export function tabMenu(ws: Workspace, i: number): MenuEntry[] {
   const items: MenuEntry[] = [
     // HOME is pinned: it can't be closed
     { label: t("Close"), cmd: `tab close ${i + 1}`, hint: IS_MAC ? "⌘W" : "ctrl+W", disabled: app?.kind === "home", tip: app?.kind === "home" ? t("HOME is pinned: always the first tab") : undefined },
-    { label: t("Close others"), run: () => closeMany(ws, (j) => j !== i), disabled: ws.tabs.length < 2 },
-    { label: t("Close tabs to the right"), run: () => closeMany(ws, (j) => j > i), disabled: i >= ws.tabs.length - 1 },
+    // (within the tab's own frame: the other frames' tabs aren't "others" here)
+    { label: t("Close others"), run: () => closeMany(ws, (j) => j !== i && ws.placeOf(j) === ws.placeOf(i)), disabled: ws.tabs.length < 2 },
+    { label: t("Close tabs to the right"), run: () => closeMany(ws, (j) => j > i && ws.placeOf(j) === ws.placeOf(i)), disabled: i >= ws.tabs.length - 1 },
   ];
   // into another frame (Refonte UI 3b): the tree's, the panel's, the shell's, or back to the page's
   if (i < ws.tabCount) {

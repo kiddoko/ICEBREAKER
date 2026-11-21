@@ -1,4 +1,5 @@
 import { fmt } from "../core/ansi";
+import { compareVersions } from "../plugins/deps";
 import { FilterBar } from "../ui/filterbar";
 import { tabs } from "../ui/controls";
 import { fuzzyFilter } from "../core/fuzzy";
@@ -321,7 +322,11 @@ class StoreApp implements App {
       const bar = new Row(ui, dx, y, dx + dw);
       bar.button(`${action}  ⏎`, () => this.primary(row));
       if (st) bar.button(t("remove  del"), () => void this.remove(row), { accent: c.error });
-      if (st && row.kind === "plugin") bar.button(t("update"), () => {}, { cmd: `store update ${row.id} --window` });
+      // "update" only when the index says there's a newer one (it showed on every installed
+      // module, even one installed a second ago); an entry without a version: still offered
+      const mine = d.plugins.list().find((p) => p.manifest.id === row.id)?.manifest.version;
+      const newer = !("version" in row) || !row.version || !mine || compareVersions(row.version, mine) > 0;
+      if (st && row.kind === "plugin" && newer) bar.button(row.version && mine ? `${t("update")} → ${row.version}` : t("update"), () => {}, { cmd: `store update ${row.id} --window` });
     } else {
       const bar = new Row(ui, dx, y, dx + dw);
       bar.button(row.kind === "theme" ? t("use it") : row.active ? t("switch off") : t("switch on"), () => this.primary(row));

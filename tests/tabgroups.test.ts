@@ -42,6 +42,8 @@ describe("tab groups", () => {
   it("saved groups are checked", () => {
     expect(parseGroups(null)).toEqual([]);
     expect(parseGroups([{ id: "g1", name: "x", keys: ["a"] }])).toEqual([]);
+    // one group per id (a second with the same id hid its tabs)
+    expect(parseGroups([{ id: "g1", name: "x", keys: ["a", "b"] }, { id: "g1", name: "y", keys: ["c", "d"] }]).map((g) => g.name)).toEqual(["x"]);
     expect(parseGroups([{ id: "g1", name: "x", keys: ["a", "b"], active: "zz" }])).toEqual([{ id: "g1", name: "x", keys: ["a", "b"], active: "a" }]);
     // a key in two groups: only the first keeps it
     expect(parseGroups([{ id: "g1", name: "", keys: ["a", "b"] }, { id: "g2", name: "", keys: ["b", "c"] }])).toHaveLength(1);

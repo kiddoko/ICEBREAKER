@@ -10,7 +10,7 @@
  * in the accent (dimmer when its frame hasn't the focus). HOME is pinned: always first,
  * ⌂, no ×. No number in front
  * of the name any more: the numbers (⌘1…9) show only while ⌘ / ctrl is held. Wide when
- * there are few, narrower as more open (10–24 cells); the rest in a "▾ +N" list, the one
+ * there are few, narrower as more open (15–24 cells); the rest in a "▾ +N" list, the one
  * shown always visible. Drag a tab sideways to put it elsewhere (`tab move <n> <m>`).
  */
 import { mix } from "../core/color";

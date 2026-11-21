@@ -100,3 +100,28 @@ describe("what modules may never do", () => {
     expect(isPrivileged("config", ["set", "updates.endpoint", "https://evil"])).toBe(true);
   });
 });
+
+describe("0.6: the screen and your alarms are yours (Fable's review)", () => {
+  it("refuses rearranging the screen to a module, lets it look", () => {
+    expect(isPrivileged("layout", [])).toBe(false);
+    expect(isPrivileged("layout", ["presets"])).toBe(false);
+    expect(isPrivileged("layout", ["preset", "shell-right"])).toBe(true);
+    expect(isPrivileged("layout", ["reset"])).toBe(true);
+    expect(isPrivileged("frame", ["fold", "tree"])).toBe(true);
+    expect(isPrivileged("frame", ["move", "shell", "top"])).toBe(true);
+    expect(isPrivileged("config", ["set", "layout.version", "7"])).toBe(true);
+  });
+  it("lets a module switch tabs, not move or group them", () => {
+    expect(isPrivileged("tab", ["3"])).toBe(false);
+    expect(isPrivileged("tab", ["next"])).toBe(false);
+    for (const sub of ["move", "group", "ungroup", "groupname"]) expect(isPrivileged("tab", [sub, "2", "shell"])).toBe(true);
+    expect(isPrivileged("tab", ["--x", "move", "2", "shell"])).toBe(true);
+  });
+  it("lets a module list your alarms, never set, remove, snooze or ring one", () => {
+    expect(isPrivileged("clock", ["alarm"])).toBe(false);
+    expect(isPrivileged("clock", ["alarm", "list"])).toBe(false);
+    expect(isPrivileged("clock", ["style", "next"])).toBe(false);
+    for (const sub of ["7:30", "rm", "off", "on", "snooze", "stop", "test"]) expect(isPrivileged("clock", ["alarm", sub])).toBe(true);
+    expect(isPrivileged("clock", ["alarms", "rm", "1"])).toBe(true);
+  });
+});

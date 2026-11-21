@@ -154,7 +154,9 @@ const tab: Command = {
       return 0;
     }
     if (a === "groupname") {
-      const name = ctx.args.slice(2).join(" ");
+      // "-" (what the menu sends for an empty name) or nothing: no name (it shows its tab's)
+      const raw = ctx.args.slice(2).join(" ").trim();
+      const name = raw === "-" ? "" : raw;
       if (!ws.renameGroupOf(Number(b) - 1, name)) return ctx.err("usage: tab groupname <n> <name> (a tab in a group)\n"), 1;
       return 0;
     }
@@ -172,7 +174,8 @@ const tab: Command = {
     }
     if (a === "prev") return ws.stepTab(-1), 0;
     if (a === "close") {
-      const n = b ? Number(b) - 1 : ws.active;
+      // no number: the tab you're looking at — in the focused frame (a tab moved there), else the page's
+      const n = b ? Number(b) - 1 : Math.max(0, ws.tabs.indexOf(ws.focusedPage ?? ws.tabs[ws.active]));
       if (!ws.tabs[n]) return ctx.err(`tab: no tab ${b}\n`), 1;
       await ws.closeTab(n);
       return 0;
@@ -474,6 +477,8 @@ const panelCmd: Command = {
     const keep = ctx.args.includes("--keep");
     const [a, id, n] = ctx.args.filter((x) => x !== "--keep");
     const save = (p: Partial<typeof cur>) => s.set("panel", { ...cur, ...p });
+    // shown: the widgets, not a tab moved into the panel's frame
+    if ((!a && !cur.shown) || a === "show") d.workspace.ownContent("panel");
     if (!a) return save({ shown: !cur.shown }), 0;
     if (a === "show" || a === "hide") return save({ shown: a === "show" }), 0;
     if (a === "ls") {

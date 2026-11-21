@@ -7,6 +7,7 @@ import { applyFxPreset, currentFxPreset, FX_PRESET_NAMES } from "../workspace/fx
  * Rows come in order: a row with `section` and no label starts a category.
  * Kinds and the drawing rules are in core/prefs.ts.
  */
+import { followedCats, followedWords, newsPage, setPageSource } from "../widgets/news";
 import { AvatarPicker } from "../workspace/avatarpicker";
 import { SOUND_PACKS } from "../core/sound";
 import { t } from "../core/i18n";
@@ -501,8 +502,9 @@ function moduleRows(deck: Deck, text: (k: string, l: string, sec?: string, ph?: 
   }
   if (on("news")) {
     head("NEWS");
-    out.push(text("home.newsTopic", "News topic", undefined, "space, F1…", () => ["tech", "science", "ai", "space", "world", "economy", "nature", "health", "culture", "sports", "games", "F1"]));
-    out.push({ label: "News interests", value: () => (d.settings.data.home.newsInterests ?? []).join(", ") || "—", cmd: () => "news interests", change: () => void d.act("news interests") });
+    // the NEWS page's own categories and words (each widget chooses in its pop-up: widgets/news.ts)
+    out.push({ label: "News page: categories", value: () => followedCats(d).join(", ") || "—", cmd: () => "news page", change: () => ((newsPage.tab = "cats"), void d.openApp("news")) });
+    out.push({ label: "News page: your words", value: () => followedWords(d) || "—", cmd: () => "news page", change: () => void d.prompt(t("The news about…"), { initial: followedWords(d), placeholder: "formula 1, linux, Lyon…" }).then((v) => v?.trim() && setPageSource(d, { kind: "topic", words: v.trim() })) });
   }
   if (on("focus")) {
     head("FOCUS");

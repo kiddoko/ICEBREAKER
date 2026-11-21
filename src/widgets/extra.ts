@@ -69,7 +69,7 @@ const moonWidget: WidgetSpec = {
   size: { w: 4, h: 4 },
   min: { w: 2, h: 2 },
   open: "launch moon",
-  render(ui, r) {
+  render(ui, r, { deck }) {
     const c = ui.c;
     const now = Date.now();
     // the moon drawn (moondraw.ts), its words beside it when there's room
@@ -83,7 +83,7 @@ const moonWidget: WidgetSpec = {
     const lines: [string, number, number][] = [
       [t(phaseName(now)), c.fg, BOLD],
       [t("{n} % lit", { n: Math.round(moonLit(now) * 100) }), c.muted, 0],
-      ...(full ? ([[`● ${t("full moon {d}", { d: full.at.toLocaleDateString(undefined, { weekday: "short", day: "numeric" }) })}`, c.subtle, 0]] as [string, number, number][]) : []),
+      ...(full ? ([[`● ${t("full moon {d}", { d: full.at.toLocaleDateString(deck.settings.data.user.locale || undefined, { weekday: "short", day: "numeric" }) })}`, c.subtle, 0]] as [string, number, number][]) : []),
     ];
     const ty = r.y + Math.max(0, Math.floor((r.h - lines.length) / 2));
     lines.slice(0, r.h).forEach(([s, fg, attrs], i) => ui.text(tx, ty + i, s, { fg, attrs }, tw));
