@@ -11,6 +11,8 @@
   translates first. Translations already made are reused.
 - **Alt+F4 closes ICEBREAKER** on Windows and Linux.
 - **The ◆ menu's lines line up.**
+- **⌘S / ⌘⇧S reach a module's page that plays the keyboard** (like ⌘Z): BreakerMED's save and
+  save as.
 - **Lighter**: the bloom keeps its own small copy of the screen instead of reading the whole
   screen 20 times a second (WebKit kept a full copy each time: hundreds of MB); the CRT
   curvature composes at most 30 times a second.

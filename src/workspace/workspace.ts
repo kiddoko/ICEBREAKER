@@ -1046,7 +1046,9 @@ export class Workspace {
     // a page that plays the keyboard (App.rawKeys) owns its keys, like an editor owns the arrows:
     // the ones that type (a piano's) and every ⌥ / alt combination (⌥ arrows, ⌥ letters, ⌥ digits —
     // on Windows and Linux the deck's pane and tab keys) are its own; ⌘ / ctrl ones stay the deck's
-    const owned = k.raw || (k.alt && !k.ctrl && !k.meta && this.rawKeys());
+    // ⌘S / ⌘⇧S too: its save and save as (⌘⇧S was the deck's "shell" key)
+    const saves = k.ctrl && !k.alt && (k.key === "s" || k.code === "KeyS") && this.rawKeys();
+    const owned = k.raw || saves || (k.alt && !k.ctrl && !k.meta && this.rawKeys());
     if (!owned && this.globalKey(k)) return;
     this.routeKey(k, false);
   }

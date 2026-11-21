@@ -420,9 +420,10 @@ class ModuleApp implements App {
     this.box.draw(ui, r, this.inst, { kind: "app" }, focused);
   }
   onKey(k: KeyInput): boolean {
-    // a page that plays the keyboard (App.rawKeys) undoes its own edits: ⌘Z / ⌘⇧Z go to it
-    const undo = this.rawKeys && k.ctrl && !k.alt && (k.key === "z" || k.code === "KeyZ");
-    if (deckKey(k) && !undo) return false;
+    // a page that plays the keyboard (App.rawKeys) undoes and saves its own work: ⌘Z / ⌘⇧Z and
+    // ⌘S / ⌘⇧S (save, save as — BreakerMED) go to it
+    const own = this.rawKeys && k.ctrl && !k.alt && (k.key === "z" || k.code === "KeyZ" || k.key === "s" || k.code === "KeyS");
+    if (deckKey(k) && !own) return false;
     this.box.send2({ t: "key", inst: this.inst, target: { kind: "app" }, k: plainKey(k) });
     return true;
   }
