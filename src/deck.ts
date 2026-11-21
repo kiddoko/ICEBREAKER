@@ -84,6 +84,7 @@ import type { ToastKind } from "./workspace/overlays";
 import { Workspace } from "./workspace/workspace";
 import { BUILTIN_WIDGETS } from "./widgets";
 import { WidgetRegistry } from "./widgets/types";
+import { LayoutProbe, type LayoutIssue } from "./ui/probe";
 
 /**
  * The composition root: creates every subsystem, wires them together and
@@ -123,6 +124,34 @@ export class Deck implements InputSink {
    */
   /** `debug hits`: tint every clickable area (green: runs a command, yellow: has a menu) */
   showHits = false;
+  /** `debug layout show`: what is cut (red) or drawn over another text (yellow), marked on the screen */
+  showLayout = false;
+  /** what the last frame found while `showLayout` is on */
+  layoutIssues: LayoutIssue[] = [];
+
+  /**
+   * `debug layout`: draw the screen as it is now, off screen, at another size, and
+   * say what is cut or overlaps there (ui/probe.ts). Nothing on screen changes; the
+   * next frame redraws the real one.
+   */
+  probeLayout(cols: number, rows: number): LayoutIssue[] {
+    const ui = this.ui;
+    const ws = this.workspace;
+    const probe = new LayoutProbe(cols, rows);
+    const notch = ws.notchRows;
+    try {
+      ws.notchRows = 0;
+      ui.begin(new Grid(cols, rows), this.theme, performance.now(), { x: -1, y: -1 });
+      ui.probe = probe;
+      if (this.lock) this.lock.render(ui);
+      else ws.render(ui);
+    } finally {
+      ui.probe = null;
+      ws.notchRows = notch;
+      this.requestFrame();
+    }
+    return probe.issues;
+  }
 
   debug(text: string, source = "deck"): void {
     this.log.add("debug", text, { source });
@@ -476,8 +505,10 @@ export class Deck implements InputSink {
       this.glitch(450);
       if (!this.lock) this.sessionReady();
     }
+    const probe = this.showLayout && !this.boot ? (ui.probe = new LayoutProbe(this.grid.cols, this.grid.rows)) : null;
     if (!this.boot && this.lock) this.lock.render(ui);
     else if (!this.boot) this.workspace.render(ui);
+    if (probe) (ui.probe = null), (this.layoutIssues = probe.issues);
 
     // theme motion on the finished frame: changed cells, then page transitions
     if (this.settings.data.fx.glitch) {
@@ -496,6 +527,14 @@ export class Deck implements InputSink {
         const col = h.cmd ? ui.c.success : h.menu ? ui.c.warning : ui.c.accentAlt;
         for (let y = Math.max(0, h.rect.y); y < Math.min(g.rows, h.rect.y + h.rect.h); y++)
           for (let x = Math.max(0, h.rect.x); x < Math.min(g.cols, h.rect.x + h.rect.w); x++) g.bg[y * g.cols + x] = mix(g.bg[y * g.cols + x], col, 0.25);
+      }
+    }
+    // `debug layout show`: a cut text's first hidden letter's cell in red, an overlap in yellow
+    if (probe) {
+      const g = this.grid;
+      for (const i of probe.issues) {
+        const x = Math.max(0, Math.min(g.cols - 1, i.x)), y = Math.max(0, Math.min(g.rows - 1, i.y));
+        g.bg[y * g.cols + x] = i.kind === "cut" ? ui.c.error : ui.c.warning;
       }
     }
     const t1 = performance.now();

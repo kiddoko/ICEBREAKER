@@ -42,4 +42,7 @@ describe("the UI kit is the only one", () => {
     it("no hand-made word wrapping (wrapWords)", () => {
     expect(offenders(/for \(const \w+ of [\w.()[\] ?|"—]+\.split\(" "\)\)/, ["src/core/unicode.ts"])).toEqual([]);
   });
+  it("dialog buttons only through dialogButtons (bottom right, No | Yes)", () => {
+    expect(offenders(/"\[Y\]es"|"\[N\]o"|"ok ⏎"|t\("(OK  ⏎|cancel  esc|close  esc)"\)/, ["src/ui/dialog.ts", "src/core/i18n-fr.ts"])).toEqual([]);
+  });
 });

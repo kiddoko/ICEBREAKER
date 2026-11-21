@@ -7,6 +7,8 @@ import type { UI } from "../ui/ui";
 import type { WidgetSpec } from "../widgets/types";
 import type { Overlay } from "./overlays";
 import { focusWidget } from "../widgets/instances";
+import { CLOSE, dialogButtons } from "../ui/dialog";
+import { GAP, INSET } from "../ui/layout";
 
 /**
  * A widget's pop-up (enter or double-click on HOME, or `widget <id>`): more
@@ -77,24 +79,19 @@ export class WidgetPopup implements Overlay {
     // footer: open the module · close
     const fy = inner.y + inner.h - 1;
     ui.hline(inner.x, fy - 1, inner.w, { fg: c.border });
-    const close = t("close  esc");
-    const x = inner.x + inner.w - strWidth(close) - 4;
-    ui.button(x, fy, close, () => (this.done = true), { accent: c.subtle });
-    // where the buttons start: the hint gets what's left of the line
-    let left = x;
-    if (this.spec.open) {
-      const words = this.spec.open.split(" ");
-      const label = `${t("open")} ${words[0] === "launch" ? words[1] : words[0]}  ⏎`;
-      left = x - strWidth(label) - 4;
-      ui.button(left, fy, label, () => this.open(), { tip: this.spec.open });
-    }
+    // bottom right: close (the way out) on the left, open (the way forward) on the right (ui/dialog.ts)
+    const words = this.spec.open?.split(" ") ?? [];
+    const x = dialogButtons(ui, inner, [
+      { label: CLOSE(), run: () => (this.done = true), accent: c.subtle },
+      ...(this.spec.open ? [{ label: `${t("open")} ${words[0] === "launch" ? words[1] : words[0]}  ⏎`, run: () => this.open(), tip: this.spec.open }] : []),
+    ], fy);
     if (p.hint) {
       const hint = t(p.hint);
-      const room = left - inner.x - 3;
+      const room = x - inner.x - INSET - GAP;
       // too long for beside the buttons: on the line above them; still too long: the whole
       // "key what" pieces that fit, never one cut in the middle ("space s…")
-      if (strWidth(hint) <= room) ui.text(inner.x + 1, fy, hint, { fg: c.faint, attrs: 0 }, room);
-      else ui.text(inner.x + 1, fy - 1, ` ${fitPieces(hint, inner.w - 4)} `, { fg: c.faint, bg: c.panelAlt, attrs: 0 }, inner.w - 2);
+      if (strWidth(hint) <= room) ui.text(inner.x + INSET, fy, hint, { fg: c.faint, attrs: 0 }, Math.max(0, room));
+      else ui.text(inner.x + INSET, fy - 1, ` ${fitPieces(hint, inner.w - INSET * 2 - 2)} `, { fg: c.faint, bg: c.panelAlt, attrs: 0 }, inner.w - INSET * 2);
     }
   }
 }

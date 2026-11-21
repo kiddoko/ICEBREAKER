@@ -11,6 +11,7 @@ import { strWidth } from "../core/unicode";
 import { middlePath } from "../vault/paths";
 import { fileIcon } from "../ui/fileicon";
 import type { App, AppSpec } from "./types";
+import { Bar } from "../ui/layout";
 import { folders } from "../core/suggest";
 
 /**
@@ -131,17 +132,18 @@ export class TrashApp implements App {
     const x = r.x + artW + 2;
     const w = r.w - artW - 4;
     let y = r.y + 1;
-    ui.text(x, y, `⌫ ${t("TRASH")}`, { fg: c.accent, attrs: BOLD });
     const count = !this.loaded ? `${ui.spinner()}` : items.length === 1 ? t("1 thing") : items.length ? t("{n} things", { n: items.length }) : t("empty");
-    // empty the whole trash (asks first, can't be undone)
-    let cx = x + w;
+    // title, the count, and "empty the whole trash" (asks first, can't be undone): when the
+    // row is short the count goes first, then the button (`trash empty` / del still work)
+    const bar = new Bar(ui, x, y, x + w)
+      .text(`⌫ ${t("TRASH")}`, { fg: c.accent, attrs: BOLD }, { priority: 9, fit: 3 })
+      .text(count, { fg: c.subtle }, { side: "right", priority: 5 });
     if (items.length) {
-      const label = `✕ ${t("empty the trash")}`;
-      cx -= strWidth(label) + 2;
-      ui.button(cx, y, label, () => void this.purge(items, true), { tip: `${t("everything in it, for good — it asks first")} · trash empty`, accent: c.error });
-      cx -= 2;
+      const empty = () => void this.purge(items, true);
+      const tip = `${t("everything in it, for good — it asks first")} · trash empty`;
+      bar.button(`✕ ${t("empty the trash")}`, empty, { tip, accent: c.error }, { side: "right", priority: 7 });
     }
-    ui.textRight(cx, y, count, { fg: c.subtle });
+    bar.draw();
     y++;
     ui.hline(x, y, w, { fg: mix(c.accent, c.bg, 0.6) }, "━");
     y++;

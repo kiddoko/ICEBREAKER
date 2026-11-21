@@ -42,7 +42,9 @@ only through `ib`, call by call, checked against its permissions — no page, no
 side, no network functions of its own. You write it exactly the same way; the few calls
 not there yet say so clearly (list: [SANDBOX.md](SANDBOX.md)). Draw with the deck's own
 pieces (`ib.lib.Field`, `ib.lib.checkbox`, `ib.lib.ListView`, `ib.lib.Row`…:
-[UI_KIT.md](UI_KIT.md)) and its spacing rules ([LAYOUT.md](LAYOUT.md)).
+[UI_KIT.md](UI_KIT.md)) and its spacing rules ([LAYOUT.md](LAYOUT.md)): `ib.lib.Bar`,
+`ib.lib.stack`, `ib.lib.cards` and `ib.lib.sizeClass` keep a page whole at any size, and
+`debug layout` shows what's cut at 14 screen sizes.
 
 ## plugin.json
 

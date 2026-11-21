@@ -4,6 +4,8 @@ import type { SystemStats } from "../platform/types";
 import { formatUptime } from "../shell/commands/system";
 import type { UI } from "../ui/ui";
 import type { App, AppSpec } from "./types";
+import { Bar, GAP, INSET, Row } from "../ui/layout";
+import { strWidth } from "../core/unicode";
 
 /** SYSMON — live CPU / memory with braille graphs. Polls once per second while open. */
 export class SysmonApp implements App {
@@ -59,8 +61,11 @@ export class SysmonApp implements App {
     const half = Math.floor(r.w / 2);
 
     // header
-    ui.text(r.x + 1, r.y, `${s.cpuBrand || "cpu"}`, { fg: c.muted }, half);
-    ui.textRight(r.x + r.w - 1, r.y, `${s.os} · ${s.arch}`, { fg: c.subtle });
+    // the cpu on the left, the system on the right: both shrink (…) rather than overlap
+    new Bar(ui, r.x + INSET, r.y, r.x + r.w - INSET)
+      .text(s.cpuBrand || "cpu", { fg: c.muted }, { priority: 9, fit: 8 })
+      .text(`${s.os} · ${s.arch}`, { fg: c.subtle }, { side: "right", priority: 5, fit: 6 })
+      .draw();
 
     // CPU graph
     const graphH = Math.max(3, Math.floor((r.h - 8) / 2));
@@ -95,10 +100,12 @@ export class SysmonApp implements App {
         ["vault", `${this.deck.vault.markdown().length} notes`],
         ["fps", `${this.deck.loop.fps} · ${this.deck.loop.frameMs.toFixed(1)}ms`],
       ];
-      let x = r.x + 1;
+      // as many as fit, in this order (the last ones go first)
+      const row = new Row(ui, r.x + INSET, fy, r.x + r.w - INSET);
       for (const [k, v] of parts) {
-        x = ui.text(x, fy, `${k} `, { fg: c.subtle });
-        x = ui.text(x, fy, v, { fg: c.fg, attrs: BOLD }) + 3;
+        if (row.room < strWidth(`${k} ${v}`) + GAP) break;
+        row.label(k);
+        row.text(v, { fg: c.fg, attrs: BOLD });
       }
     }
   }

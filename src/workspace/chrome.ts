@@ -11,6 +11,7 @@ import { IS_MAC } from "../core/input";
 import { osKeys } from "../core/keyhints";
 import { strWidth } from "../core/unicode";
 import { inside, q, type Hit, type UI } from "../ui/ui";
+import { Bar } from "../ui/layout";
 import { Osk } from "./overlays";
 import { SystemTerminal, terminalKeysHint } from "../shell/systerm";
 import type { ShellTab, Workspace } from "./workspace";
@@ -188,7 +189,9 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
   ui.animate(1000 - now.getMilliseconds());
   // narrow (small window, big interface scale): the right side shrinks so the tabs keep room
   const narrow = r.w < 110;
-  const ai = d.ai.ready ? (narrow ? ui.theme.glyphs.mark : `${ui.theme.glyphs.mark} ${d.ai.provider.label}`) : narrow ? "○" : `○ ${t("offline")}`;
+  // UPLINK ■: green when the AI is there and answering, amber while it thinks, red when it's off
+  // (the provider and the model are in its tip — they took the bar's room for nothing)
+  const ai = narrow ? "■" : "UPLINK ■";
   // settings stay one click away whatever is open
   const gear = narrow ? " ⚙ " : ` ⚙ ${t("settings")} `;
   const right = narrow ? ` ${ai} ${time.slice(0, 5)} ` : ` ${ai}  │  ${date}  ${time} `;
@@ -221,8 +224,11 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
     nx -= 1;
   }
   ui.text(rx, r.y, right, { fg: c.muted, bg: c.panelAlt });
-  ui.text(rx + 1, r.y, ai, { fg: d.ai.ready ? c.accent : c.error, bg: c.panelAlt });
-  ui.hit({ x: rx, y: r.y, w: strWidth(ai) + 2, h: 1 }, d.ai.ready ? { cmd: "link", tip: "ctrl+space · or `chat` right here in the shell" } : { cmd: "settings", tip: `AI offline: ${d.ai.problem ?? ""}` });
+  const lamp = !d.ai.ready ? c.error : d.ai.busy > 0 ? c.warning : c.success;
+  if (!narrow) ui.text(rx + 1, r.y, "UPLINK", { fg: d.ai.ready ? c.fg : c.muted, bg: c.panelAlt, attrs: BOLD });
+  ui.text(rx + strWidth(ai), r.y, "■", { fg: lamp, bg: c.panelAlt });
+  const who = `${d.ai.provider.label}`;
+  ui.hit({ x: rx, y: r.y, w: strWidth(ai) + 2, h: 1 }, d.ai.ready ? { cmd: "link", tip: `UPLINK: ${who}${d.ai.busy > 0 ? ` · ${t("thinking…")}` : ""}\nctrl+space · or \`chat\` right here in the shell` } : { cmd: "settings", tip: `UPLINK ${t("off")}: ${d.ai.problem ?? ""}` });
   const offRect = { x: ox, y: r.y, w: strWidth(off), h: 1 };
   const offHot = ui.hovered(offRect);
   ui.text(ox, r.y, off, { fg: offHot ? c.panel : c.error, bg: offHot ? c.error : mix(c.error, c.panelAlt, 0.82), attrs: BOLD });
@@ -250,10 +256,11 @@ export function renderTabs(ws: Workspace, ui: UI, r: Rect): void {
   const moreW = 7;
   if (n * (tabW + 1) > avail) {
     tabW = MINW;
-    const fit = Math.max(1, Math.floor((avail - moreW) / (tabW + 1)));
-    shown = shown.slice(0, fit);
+    // so narrow that not even one tab fits beside the list: only the list (▾ n), if that fits
+    const fit = Math.floor((avail - moreW) / (tabW + 1));
+    shown = shown.slice(0, Math.max(0, fit));
     const act = Math.min(ws.active, n - 1);
-    if (act >= fit) shown[fit - 1] = act;
+    if (fit > 0 && act >= fit) shown[fit - 1] = act;
   }
   const hidden = Array.from({ length: n }, (_, i) => i).filter((i) => !shown.includes(i));
   const nameOf = (i: number) => `${i + 1}:${ws.tabs[i].title().toLowerCase()}`;
@@ -277,8 +284,8 @@ export function renderTabs(ws: Workspace, ui: UI, r: Rect): void {
     x += tabW + 1;
   }
   // the tabs that didn't fit: a menu
-  if (hidden.length) {
-    const label = ` ▾ +${hidden.length} `;
+  if (hidden.length && x + strWidth(` ▾ +${hidden.length} `) <= r.x + r.w) {
+    const label = shown.length ? ` ▾ +${hidden.length} ` : ` ▾ ${hidden.length} `;
     const rect = { x, y: r.y, w: strWidth(label), h: 1 };
     const hot = ui.hovered(rect);
     ui.text(x, r.y, label, { fg: hot ? c.panel : c.accent, bg: hot ? c.accent : c.highlight, attrs: BOLD });
@@ -288,7 +295,7 @@ export function renderTabs(ws: Workspace, ui: UI, r: Rect): void {
     });
     x += rect.w + 1;
   }
-  if (x + 1 < r.x + r.w + plusW) {
+  if (x + 1 <= r.x + r.w) {
     const pr = { x, y: r.y, w: 1, h: 1 };
     ui.text(x, r.y, "+", { fg: ui.hovered(pr) ? c.accent : c.subtle, bg: c.panelAlt, attrs: BOLD });
     ui.hit(pr, { cmd: "palette", tip: t("open anything · ctrl+k") });
@@ -347,45 +354,52 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
   const d = ws.deck;
   ui.fill(r, { bg: c.statusBg });
   const pane = ws.focus === "main" ? (ws.activeApp?.kind ?? "deck") : ws.focus === "sidebar" ? "vault" : ws.focus === "panel" ? "panel" : "shell";
-  let x = ui.text(r.x, r.y, ` ${pane.toUpperCase()} `, { fg: c.panel, bg: c.accent, attrs: BOLD });
-  x = ui.text(x, r.y, "", { fg: c.accent, bg: c.statusBg });
   const status = ws.focus === "shell" && ws.shellTab === "term" && ws.termAvailable
     ? `${ws.sysTerm?.shellName ?? "terminal"} · ${terminalKeysHint()} · ⇧⇧ menu · F12 tabs`
     : ws.focus === "shell" ? d.shell.status() : ws.focus === "sidebar" ? "enter open · n new note · r rescan" : ws.focus === "panel" ? t("e edit · a add a widget · right-click: move, remove · ⌘⇧P hide") : osKeys(ws.activeApp?.status?.() ?? "");
 
-  // right side
-  const parts: { text: string; fg: number; cmd?: string; tip?: string }[] = [];
-  if (d.settings.data.privacy.stealth) parts.push({ text: `◉ ${t("stealth")}`, fg: c.success, cmd: "stealth", tip: t("100 % local: no internet · stealth off") });
-  if (d.voice.speaking) parts.push({ text: `◖ ${t("voice")}`, fg: c.accentAlt, cmd: "voice stop", tip: t("speaking · click to stop") });
-  if (d.gamepad.connected) parts.push({ text: "◈ pad", fg: c.success });
-  if (ws.terminalOn) parts.push(ws.shellVisible ? { text: "▾ shell", fg: c.muted, cmd: "term hide", tip: "fold the shell away · ctrl+`" } : { text: "▴ shell", fg: c.accent, cmd: "term show", tip: "bring the shell back · ctrl+`" });
-  parts.push({ text: "⌨", fg: ws.overlays.some((o) => o instanceof Osk) ? c.accent : c.muted, cmd: "osk", tip: "on-screen keyboard · pad: X" });
-  parts.push({ text: "✦ fx", fg: c.accentAlt, cmd: "view fx", tip: "bloom, scanlines… · `fx` in the shell" });
+  // right side: each with its priority — when the bar is too narrow, the least important go
+  // first (ui/layout.ts Bar), the keys on the left shrink (cut with …): nothing overlaps
+  const parts: { text: string; fg: number; cmd?: string; tip?: string; priority: number }[] = [];
+  if (d.settings.data.privacy.stealth) parts.push({ text: `◉ ${t("stealth")}`, fg: c.success, cmd: "stealth", tip: t("100 % local: no internet · stealth off"), priority: 9 });
+  if (d.voice.speaking) parts.push({ text: `◖ ${t("voice")}`, fg: c.accentAlt, cmd: "voice stop", tip: t("speaking · click to stop"), priority: 8 });
+  if (d.gamepad.connected) parts.push({ text: "◈ pad", fg: c.success, priority: 4 });
+  if (ws.terminalOn) parts.push(ws.shellVisible ? { text: "▾ shell", fg: c.muted, cmd: "term hide", tip: "fold the shell away · ctrl+`", priority: 6 } : { text: "▴ shell", fg: c.accent, cmd: "term show", tip: "bring the shell back · ctrl+`", priority: 6 });
+  parts.push({ text: "⌨", fg: ws.overlays.some((o) => o instanceof Osk) ? c.accent : c.muted, cmd: "osk", tip: "on-screen keyboard · pad: X", priority: 2 });
+  parts.push({ text: "✦ fx", fg: c.accentAlt, cmd: "view fx", tip: "bloom, scanlines… · `fx` in the shell", priority: 3 });
   // a module playing sound of its own (ib.audio): its name, one click silences it
-  for (const id of d.mixer.playing()) parts.push({ text: `♪ ${d.plugins.list().find((p) => p.manifest.id === id)?.manifest.name ?? id}`, fg: c.accent, cmd: `audio stop ${id}`, tip: t("a module is playing sound · click to stop it") });
+  for (const id of d.mixer.playing()) parts.push({ text: `♪ ${d.plugins.list().find((p) => p.manifest.id === id)?.manifest.name ?? id}`, fg: c.accent, cmd: `audio stop ${id}`, tip: t("a module is playing sound · click to stop it"), priority: 7 });
   const muted = !!d.settings.data.sound.muted;
-  parts.push({ text: muted ? "⊘ mute" : "♪", fg: muted ? c.error : c.muted, cmd: "mute", tip: muted ? t("muted: click to hear things again") : t("mute everything (sounds, voice, alerts)") });
-  parts.push({ text: "☾", fg: c.muted, cmd: "screensaver", tip: t("screensaver now (any key brings you back)") });
-  if (d.settings.data.appearance.showFps) parts.push({ text: `${d.loop.fps}fps ${d.loop.frameMs.toFixed(1)}ms`, fg: c.subtle });
-  parts.push({ text: `${IS_MAC ? "⌘K" : "^K"} ${t("menu")}`, fg: c.muted, cmd: "menu" });
-  parts.push({ text: `F1 ${t("help")}`, fg: c.muted, cmd: "manual" });
+  parts.push({ text: muted ? "⊘ mute" : "♪", fg: muted ? c.error : c.muted, cmd: "mute", tip: muted ? t("muted: click to hear things again") : t("mute everything (sounds, voice, alerts)"), priority: muted ? 7 : 3 });
+  parts.push({ text: "☾", fg: c.muted, cmd: "screensaver", tip: t("screensaver now (any key brings you back)"), priority: 1 });
+  if (d.settings.data.appearance.showFps) parts.push({ text: `${d.loop.fps}fps ${d.loop.frameMs.toFixed(1)}ms`, fg: c.subtle, priority: 2 });
+  parts.push({ text: `${IS_MAC ? "⌘K" : "^K"} ${t("menu")}`, fg: c.muted, cmd: "menu", priority: 9 });
+  parts.push({ text: `F1 ${t("help")}`, fg: c.muted, cmd: "manual", priority: 5 });
   // the side panel's switch: always the last thing on the right
-  parts.push({ text: `◧ ${t("panel")}`, fg: d.settings.data.panel?.shown ? c.accent : c.muted, cmd: "panel", tip: `${t("the side panel: widgets always in view · panel")} · ${IS_MAC ? "⌘⇧P" : "ctrl+shift+P"}` });
-  const rightW = parts.reduce((s, p) => s + strWidth(p.text) + 3, 0);
-  let rx = r.x + r.w - rightW;
-  ui.text(x + 1, r.y, status, { fg: c.statusFg, bg: c.statusBg }, Math.max(0, rx - x - 3));
+  parts.push({ text: `◧ ${t("panel")}`, fg: d.settings.data.panel?.shown ? c.accent : c.muted, cmd: "panel", tip: `${t("the side panel: widgets always in view · panel")} · ${IS_MAC ? "⌘⇧P" : "ctrl+shift+P"}`, priority: 8 });
+
+  // the things touch: each right part carries its own "│ " and spaces
+  const bar = new Bar(ui, r.x, r.y, r.x + r.w, 0);
+  const label = ` ${pane.toUpperCase()} `;
+  bar.item(strWidth(label) + 1, (x) => {
+    const e = ui.text(x, r.y, label, { fg: c.panel, bg: c.accent, attrs: BOLD });
+    ui.text(e, r.y, "", { fg: c.accent, bg: c.statusBg });
+  }, { priority: 10 });
+  if (status) bar.text(` ${status} `, { fg: c.statusFg, bg: c.statusBg }, { priority: 1, fit: 12 });
   for (const p of parts) {
     const w = strWidth(p.text);
-    ui.text(rx, r.y, "│ ", { fg: c.faint, bg: c.statusBg });
-    // the whole cell is the button (the separator and the spaces around the text too):
-    // a one-character button like ◧ is hard to hit otherwise
-    const cell = { x: rx, y: r.y, w: w + 3, h: 1 };
-    const hot = !!p.cmd && ui.hovered(cell);
-    if (hot) ui.fill({ x: rx + 1, y: r.y, w: w + 2, h: 1 }, { bg: c.highlight });
-    ui.text(rx + 2, r.y, p.text, { fg: hot ? c.accent : p.fg, bg: hot ? c.highlight : c.statusBg });
-    if (p.cmd) ui.hit(cell, { cmd: p.cmd, tip: p.tip });
-    rx += w + 3;
+    bar.item(w + 3, (rx) => {
+      ui.text(rx, r.y, "│ ", { fg: c.faint, bg: c.statusBg });
+      // the whole cell is the button (the separator and the spaces around the text too):
+      // a one-character button like ◧ is hard to hit otherwise
+      const cell = { x: rx, y: r.y, w: w + 3, h: 1 };
+      const hot = !!p.cmd && ui.hovered(cell);
+      if (hot) ui.fill({ x: rx + 1, y: r.y, w: w + 2, h: 1 }, { bg: c.highlight });
+      ui.text(rx + 2, r.y, p.text, { fg: hot ? c.accent : p.fg, bg: hot ? c.highlight : c.statusBg });
+      if (p.cmd) ui.hit(cell, { cmd: p.cmd, tip: p.tip });
+    }, { side: "right", priority: p.priority });
   }
+  bar.draw();
 }
 
 /**

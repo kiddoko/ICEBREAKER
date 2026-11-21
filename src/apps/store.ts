@@ -251,9 +251,10 @@ class StoreApp implements App {
     // the search on top, on its own line (where every page has it), then the tabs
     this.search.render(ui, { x: r.x + 2, y: r.y + 1, w: Math.min(r.w - 4, 100), h: 1 }, {}, { focused, placeholder: t("type to search a module, a theme…") });
     const ty = r.y + 3;
-    tabs(ui, r.x + 1, ty, TABS, this.tab, (tb) => ((this.tab = tb as typeof this.tab), this.list.select(0)), { tip: "tab", label: (tb) => t(tb) });
     const refreshLabel = cache.loading ? ` ${ui.spinner()} ` : " ⟳ ";
-    ui.button(r.x + r.w - 6, ty, refreshLabel.trim() || "⟳", () => {}, { cmd: "store refresh", tip: "store refresh" });
+    const rx = r.x + r.w - 6;
+    ui.button(rx, ty, refreshLabel.trim() || "⟳", () => {}, { cmd: "store refresh", tip: "store refresh" });
+    tabs(ui, r.x + 1, ty, TABS, this.tab, (tb) => ((this.tab = tb as typeof this.tab), this.list.select(0)), { tip: "tab", label: (tb) => t(tb), end: rx - 1 });
 
     const top = ty + 2;
     const listW = Math.min(Math.floor(r.w * 0.5), 60);

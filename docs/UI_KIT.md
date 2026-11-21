@@ -25,11 +25,15 @@ checkbox or word wrapping again.
 | **the search bar** (any list you filter) | `FilterBar` · `colourSquares` | `ib.lib.FilterBar` | `⌕ type to search      ■ ■ □ □ ■ □ □ □` — options: `typeToSearch` (a letter starts it: MODULES, NEXUS), `always` (every key types: Settings, BLOCKS, SHORTCUTS, the STORE), `colours: false` (no squares: those four), `onChange` |
 | a page's header line | `pageBar` | — | where you are · tools · its filter |
 | choose a file / a folder | `FileBrowser` · `pickFile` · `pickFolder` | `ib.ui.pickFile` · `ib.ui.pickFolder` (you get the path the user chose) | the deck's browser: ‹ › ↑ ⌂, ⏏ drives, *choose this folder* |
+| a dialog's buttons | `dialogButtons(ui, inner, [no, yes])` · `YES` `NO` `OK` `CANCEL` `CLOSE` | `ib.lib.dialogButtons` | always **bottom right**, the way out on the left, the way forward on the right: `[N]o  [Y]es` · `cancel  OK` · `close  open` — Yes never moves, whatever the text says (a test checks no dialog places its own) |
 | yes / no · a value · one of a list · a message | `deck.confirm` · `deck.prompt` · `deck.choose` · `workspace.message` | `ib.ui.confirm` · `ib.ui.prompt` · `ib.ui.choose` · `ib.ui.alert` | the dialogs (a message: one *ok*, red for a problem — "Wrong password") |
 | a setting that depends on another | `disabled: () => …` on the row (`needs(ok, row)` in settings-rows.ts) | — | **greyed and still** — never a sentence saying what to switch on |
 | a notification | `deck.notify` | `ib.ui.notify` | a toast |
 | text that fits | `wrapWords` · `truncate` · `strWidth` · `padEnd` | `ib.lib.*` | width-aware (emoji, Japanese, accents) |
 | things in a row | `Row` + `INSET` `GAP` `LABEL` `SECTION` | `ib.lib.Row` | see [LAYOUT.md](LAYOUT.md) |
+| a row that drops the least important first | `Bar` (`priority`, `side`, `fit`) | `ib.lib.Bar` | a status bar, a page's header: never overlaps, never cuts |
+| sections down a frame · cards that reflow | `stack` · `cards` | `ib.lib.stack` · `ib.lib.cards` | a header, a list, a help line that goes first · forecast days, 4 a row or 1 |
+| how big a frame is | `sizeClass` (`xs` `s` `m` `l`) · `atLeast` | `ib.lib.sizeClass` | choose a layout from your frame, not the window |
 
 ## How to use a field
 

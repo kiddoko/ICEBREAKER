@@ -7,6 +7,7 @@ import { Field } from "../ui/field";
 import { slider } from "../ui/slider";
 import type { UI } from "../ui/ui";
 import type { Overlay } from "./overlays";
+import { INSET } from "../ui/layout";
 
 /** the palette's columns: hues every 20° (red, orange, yellow… back to pink) */
 const HUES = Array.from({ length: 18 }, (_, i) => i * 20);
@@ -175,7 +176,7 @@ export class ColorPicker implements Overlay {
     ui.hit(r, { onClick: () => {} }); // a click inside doesn't close it
 
     // the palette, the greys, the theme's colours
-    const gx = inner.x + 1;
+    const gx = inner.x + INSET;
     const rows = LIGHTS.length + 2;
     for (let row = 0; row < rows; row++) {
       const y = inner.y + row + (row >= LIGHTS.length ? 1 : 0);

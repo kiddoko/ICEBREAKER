@@ -1,6 +1,9 @@
+import { drawPadGlyph } from "./padglyphs";
+
 /**
- * Procedural glyphs: box-drawing lines, block elements, braille dots and
- * powerline separators are drawn with rectangles instead of the font.
+ * Procedural glyphs: box-drawing lines, block elements, braille dots,
+ * powerline separators and the gamepad's buttons (core/padglyphs.ts) are drawn
+ * with rectangles instead of the font.
  *
  * Why: font glyphs for these rarely fill the cell exactly, which leaves
  * hairline gaps between panels and graphs. Drawing them ourselves makes
@@ -22,6 +25,8 @@ export function drawSpecialGlyph(
   if (cp >= 0x2800 && cp <= 0x28ff) return drawBraille(ctx, cp - 0x2800, x, y, w, h);
   if (cp >= 0xe0b0 && cp <= 0xe0b7) return drawPowerline(ctx, cp, x, y, w, h);
   if (cp === 0x25a0) return drawSquare(ctx, x, y, w, h);
+  // the gamepad's buttons in pixel art (core/padglyphs.ts): two cells each
+  if (cp >= 0xe100 && cp <= 0xe1ff) return drawPadGlyph(ctx, cp, x, y, w, h);
   return false;
 }
 
