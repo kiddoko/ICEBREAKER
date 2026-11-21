@@ -4,6 +4,7 @@ import { BOLD, Grid, ITALIC, STRIKE, UNDERLINE } from "./grid";
 import { fontStack } from "./fonts";
 import { chromaStrength } from "./fxlevels";
 import { charWidth } from "./unicode";
+import { CrtGlass, curveK, unwarpPoint, warpPoint, type GlassInput } from "./crt";
 
 export const FONT_STACK = fontStack("JetBrains Mono");
 
@@ -156,7 +157,8 @@ export class Renderer {
       const ease = "cubic-bezier(.22,1,.36,1)";
       el.style.transition = `transform ${ms}ms ${ease} ${wait}ms, height 80ms`;
       tr.style.transition = `transform ${Math.round(ms * 1.9)}ms ${ease} ${wait + 25}ms, height 80ms`;
-      const to = `translate(${Math.round(this.left + pos.x * cw)}px, ${Math.round(this.top + pos.y * ch + ch * 0.07)}px)`;
+      const at = this.toScreen(this.left + pos.x * cw, this.top + pos.y * ch + ch * 0.07);
+      const to = `translate(${Math.round(at.left)}px, ${Math.round(at.top)}px)`;
       el.style.transform = to;
       tr.style.transform = to;
     }
@@ -235,6 +237,7 @@ export class Renderer {
       el.style.top = `${this.top}px`;
     }
     this.sizeChroma();
+    this.glass?.fit(this.canvas);
     this.front = null;
     return { cols: this.cols, rows: this.rows };
   }
@@ -305,7 +308,8 @@ export class Renderer {
       this.chromaEl.style.display = this.chroma > 0 ? "block" : "none";
       // a real RGB split, saturated as it goes up; it fades in at the start (no harsh first step)
       const e = this.chromaE;
-      this.chromaEl.style.opacity = String(Math.min(0.95, 0.5 * Math.min(1, e / 10) + Math.sqrt(e / 200) * 0.45));
+      this.chromaAmt = Math.min(0.95, 0.5 * Math.min(1, e / 10) + Math.sqrt(e / 200) * 0.45);
+      this.chromaEl.style.opacity = String(this.chromaAmt);
     }
     this.sizeChroma();
     this.front = null;
@@ -336,6 +340,9 @@ export class Renderer {
       const k = this.glow / 100;
       // gentle: proportional to the level (8 % is a hint, 100 % a clear halo, 200 % a lot)
       this.glowEl.style.opacity = String(Math.min(1, k * 0.55));
+      this.glowAmt = Math.min(1, k * 0.55);
+      this.glowSigma = 0.3 + k * 0.25;
+      this.glowBright = 1 + Math.max(0, k - 1) * 0.8;
       this.glowEl.style.filter = `blur(${((0.3 + k * 0.25) * (this.cellH || 16)) / (this.dpr || 1)}px) saturate(1.6) brightness(${1 + Math.max(0, k - 1) * 0.8})`;
     }
     this.front = null;
@@ -384,6 +391,7 @@ export class Renderer {
     }
     const t0 = performance.now();
     this.drawChroma();
+    this.touchGlass("chroma");
     const cost = performance.now() - t0;
     this.chromaAt = now;
     // cheap (< 2 ms): every frame; else at most ~1/8 of the time goes to it (max 5 per second)
@@ -431,6 +439,7 @@ export class Renderer {
 
   /** Mouse position (CSS px) → cell coordinates. */
   cellAt(clientX: number, clientY: number): { x: number; y: number; fx: number } {
+    if (this.glass) ({ left: clientX, top: clientY } = this.toPicture(clientX, clientY));
     const fx = ((clientX - this.left) * this.dpr) / this.cellW;
     const x = Math.floor(fx);
     const y = Math.floor(((clientY - this.top) * this.dpr) / this.cellH);
@@ -439,7 +448,75 @@ export class Renderer {
 
   /** Cell → CSS pixel position (used to place the IME popup under the text cursor). */
   cellToPixels(x: number, y: number): { left: number; top: number } {
-    return { left: this.left + (x * this.cellW) / this.dpr, top: this.top + (y * this.cellH) / this.dpr };
+    return this.toScreen(this.left + (x * this.cellW) / this.dpr, this.top + (y * this.cellH) / this.dpr);
+  }
+
+  /**
+   * Real CRT curvature (crt.ts): 0 = flat (the cheap overlay alone), up to 1. `bloom` and `scan`
+   * are the --bloom and --scanlines strengths the CSS layers use. Needs WebGL and the bloom
+   * blurred in its canvas (an old webview's CSS-blurred bloom can't be composed): else flat.
+   */
+  setCurve(curve: number, bloom: number, scan: number): void {
+    this.glassBloom = bloom;
+    this.glassScan = scan;
+    const want = curve > 0 && this.canvasBlur;
+    if (want && !this.glass) {
+      this.glass = CrtGlass.create(this.canvas, () => this.setCurve(0, bloom, scan));
+      this.glass?.fit(this.canvas);
+    } else if (!want && this.glass) {
+      this.glass.destroy();
+      this.glass = null;
+    }
+    this.canvas.parentElement?.classList.toggle("glass", !!this.glass);
+    if (this.glass) {
+      this.glass.k = curveK(curve);
+      this.touchGlass("screen");
+    }
+    this.caretAt.x = -1; // placed again through the new bend
+    this.front = null;
+  }
+  /** the curved glass is on (`debug perf`) */
+  get curved(): boolean {
+    return !!this.glass;
+  }
+  private glass: CrtGlass | null = null;
+  private glassBloom = 0;
+  private glassScan = 0;
+  private chromaAmt = 0;
+  private glowAmt = 0;
+  private glowSigma = 0;
+  private glowBright = 1;
+  private glassInput = (): GlassInput => ({
+    screen: this.canvas,
+    bloom: this.bloomEnabled ? this.bloom : null,
+    bloomAmt: this.glassBloom,
+    chroma: this.chroma > 0 ? this.chromaEl : null,
+    chromaAmt: this.chromaAmt,
+    glow: this.glow > 0 ? this.glowEl : null,
+    glowAmt: this.glowAmt,
+    glowSigma: this.glowSigma,
+    glowBright: this.glowBright,
+    cellAspect: this.cellW / (this.cellH || 1),
+    scan: this.glassScan,
+    dpr: this.dpr,
+    top: this.top,
+  });
+  private touchGlass(layer: "screen" | "bloom" | "chroma" | "glow"): void {
+    this.glass?.touch(layer, this.glassInput);
+  }
+  /** a point on the page (CSS px) → the picture's point shown there (through the bend) */
+  private toPicture(x: number, y: number): { left: number; top: number } {
+    const w = this.canvas.width / this.dpr, h = this.canvas.height / this.dpr;
+    if (!this.glass || !w || !h) return { left: x, top: y };
+    const [u, v] = warpPoint((x - this.left) / w, (y - this.top) / h, this.glass.k);
+    return { left: this.left + u * w, top: this.top + v * h };
+  }
+  /** a point of the picture (CSS px) → where it shows on the page */
+  private toScreen(x: number, y: number): { left: number; top: number } {
+    const w = this.canvas.width / this.dpr, h = this.canvas.height / this.dpr;
+    if (!this.glass || !w || !h) return { left: x, top: y };
+    const [u, v] = unwarpPoint((x - this.left) / w, (y - this.top) / h, this.glass.k);
+    return { left: this.left + u * w, top: this.top + v * h };
   }
 
   /** Paint the cells of `g` that differ from what's on screen. Returns true if anything was painted. */
@@ -620,6 +697,7 @@ export class Renderer {
 
     if (painted && this.bloomEnabled) this.bloomFrame();
     if (painted && this.chroma > 0) this.chromaFrame();
+    if (painted) (this.touchGlass("screen"), this.glow > 0 && this.touchGlass("glow"));
     this.lastCells = cellsPainted;
     return painted;
   }
@@ -645,6 +723,7 @@ export class Renderer {
       b.drawImage(this.canvas, 0, 0, this.bloom.width, this.bloom.height);
       if (this.canvasBlur) b.filter = "none";
     }
+    this.touchGlass("bloom");
   }
 }
 

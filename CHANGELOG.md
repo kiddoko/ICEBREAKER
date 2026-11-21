@@ -1,6 +1,17 @@
 # Changelog
 
-## 0.5.4 — not released yet
+## Not released yet
+
+- **CRT curvature really bends the picture** (`fx curve`, Settings → Effects): the screen bulges
+  like the glass of a tube — lines of text bend towards the edges, the corners pull in. One
+  WebGL canvas (`src/core/crt.ts`) composes the screen, its glow, bloom, colour fringes and
+  the CRT lines through a barrel warp; the mouse goes through the same warp and the caret
+  through its inverse, so a click lands on the letter you see. Only while the curve is above
+  0 (the rim and reflection overlay stays); no WebGL: the flat picture with the overlay.
+- **The encoder pack** (`encoders install | remove`) and `ib.audio.encode`: modules export
+  MP3, M4A, OGG and Opus (docs/PLUGINS.md, SECURITY_AUDIT.md).
+
+## 0.5.4 — 2026-11-21
 
 - **Modules can play sound** (for a tracker, a drum machine, a game): a new permission
   **`audio`** and `ib.audio` — a sampler the deck mixes on the exact frame (an AudioWorklet:

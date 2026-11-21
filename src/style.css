@@ -141,10 +141,10 @@ body {
 }
 
 /*
- * CRT curvature ([fx] curve, Settings → Effects): the curved glass of an old tube, as a
- * still overlay — the screen's corners rounded more and more, its rim darker, a soft
- * reflection near the top. Nothing is resampled: it costs one more still layer for the
- * compositor (no per-frame work, the mouse stays where the cells are).
+ * CRT curvature ([fx] curve, Settings → Effects): the curved glass of an old tube. The
+ * picture itself bends in #glass (core/crt.ts, WebGL); this still overlay adds the glass —
+ * corners rounded more and more, its rim darker, a soft reflection near the top. Without
+ * WebGL the overlay alone remains (flat picture).
  */
 #curve {
   --curve-r: calc(var(--curve) * 6vmin + 6px);
@@ -166,6 +166,23 @@ body {
 }
 #deck.curved #curve {
   display: block;
+}
+/* the bend itself (core/crt.ts): one WebGL canvas composes the screen, glow, bloom, colour
+   fringes and CRT lines through the curve; the flat layers stay drawn but hidden */
+#glass {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+  contain: strict;
+}
+#deck.glass #screen,
+#deck.glass #bloom,
+#deck.glass #chroma,
+#deck.glass #glow {
+  visibility: hidden;
+}
+#deck.glass #scanlines {
+  background: none;
 }
 
 @keyframes flicker {

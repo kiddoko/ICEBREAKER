@@ -233,7 +233,7 @@ were on come back as you left them next time.
   slider sets how far and how strong), scanlines, vignette, **RGB split** (red and
   blue fringes on the text, the frames and the glyphs — never on the backgrounds),
   glow (bright things give off light), sharpness, **curvature** (the curved glass of
-  an old tube: rounded corners, a darker rim; off by default). 0 = off, up to 200 %.
+  an old tube: the picture bulges, lines bend towards the edges; off by default). 0 = off, up to 200 %.
   **Flicker speed** (Settings) sets how fast the CRT flicker goes (\`fx flicker 150\`).
   Or a preset: **none · light · medium · heavy · party** (\`fx heavy\`). Each
   theme remembers its own effects.
