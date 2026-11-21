@@ -9,6 +9,8 @@ import { ListView } from "../ui/list";
 import { q, type UI } from "../ui/ui";
 import { ColorPicker } from "../workspace/colorpicker";
 import type { App, AppSpec } from "./types";
+import { GAP, INSET } from "../ui/layout";
+import { truncate } from "../core/unicode";
 
 type Row =
   | { head: string }
@@ -167,21 +169,24 @@ export class StudioApp implements App {
         return;
       }
       const label = "theme" in row ? "theme" : "knob" in row ? row.knob.label : { export: "save as a new theme…", reset: "reset all tweaks", sounds: "hear the sounds", file: "open a copy of the file (by hand)" }[row.action];
-      ui.text(rect.x + 2, rect.y, label, { fg: selected ? c.fg : c.muted });
+      // the value on the right gets at most half the row (cut with …), the label what's left of it
       const vx = rect.x + rect.w - 2;
+      const fit = (v: string) => truncate(v, Math.max(6, Math.floor(rect.w / 2) - 4));
+      const drawLabel = (end: number) => ui.text(rect.x + 2, rect.y, label, { fg: selected ? c.fg : c.muted }, Math.max(0, end - rect.x - INSET * 2 - GAP));
       if ("theme" in row) {
-        const v = this.deck.settings.data.appearance.theme;
+        const v = fit(this.deck.settings.data.appearance.theme);
         const x = ui.textRight(vx, rect.y, selected ? `◂ ${v} ▸` : v, { fg: c.accent, attrs: BOLD });
+        drawLabel(x);
         ui.hit({ x, y: rect.y, w: vx - x, h: 1 }, { onClick: () => this.clickValue(row), tip: `←→ change theme\n${this.cmdFor(row, 1)}` });
         return;
       }
       if (!("knob" in row)) {
-        ui.textRight(vx, rect.y, selected ? "enter ⏎" : "›", { fg: selected ? c.accent : c.subtle });
+        drawLabel(ui.textRight(vx, rect.y, selected ? "enter ⏎" : "›", { fg: selected ? c.accent : c.subtle }));
         ui.hit({ x: rect.x, y: rect.y, w: vx - rect.x, h: 1 }, { onClick: () => void this.enter(row) });
         return;
       }
       const k = row.knob;
-      const v = this.value(k);
+      const v = fit(this.value(k));
       const tweaked = tw[k.key] !== undefined;
       // ↺ (back to the theme's value) on the row you're on or under the mouse: the value moves over for it
       const undo = tweaked && (selected || ui.hovered(rect));
@@ -195,6 +200,7 @@ export class StudioApp implements App {
         // the swatch opens the palette
         ui.hit(sw, { onClick: () => (this.list.select(this.list.items.indexOf(row)), void this.enter(row)), tip: "the palette · enter" });
       }
+      drawLabel(x);
       if (tweaked) ui.text(rect.x, rect.y, "•", { fg: c.warning, attrs: BOLD });
       // ↺ back to the theme's value, on the row you're on (or under the mouse) — like Settings
       if (undo) {

@@ -1,6 +1,62 @@
 # Changelog
 
-## 0.5.3 — not released yet
+## 0.5.4 — not released yet
+
+- **Modules can play sound** (for a tracker, a drum machine, a game): a new permission
+  **`audio`** and `ib.audio` — a sampler the deck mixes on the exact frame (an AudioWorklet:
+  `src/core/mixer.ts`). A module loads samples and sends events dated on the audio clock;
+  `interp: "none"` gives the Amiga's stepped grit; `decode` reads wav, mp3, m4a…. 64 voices
+  and 32 MB per module, silenced when it's switched off. Settings → SOUND → mixer gets a
+  **Modules** fader, the status bar shows **♪ the module** while it plays (a click, or the new
+  `audio stop`, silences it — and tells the module, `ib.audio.onStop`, so its song stops too).
+  A module can also compute its own sound and stream it (`ib.audio.stream()`: one line to an
+  audio node of its own, ~30 ms from a key to the sound) — synths, effects, any instrument.
+  docs/PLUGINS.md, SANDBOX.md, SECURITY_AUDIT.md (O21).
+- **Binary files for modules**: `ib.vault.readBytes / writeBytes` (256 MB — a song's export —, the same permissions
+  and walls as notes); natively `vault_write_bytes`. `ib.vault.list(dir)`: a folder's files of
+  every kind (`vault:read`). Tested from the sandbox (`tests/sandbox/sbx-audio`, and the escape
+  tests try the new doors: closed).
+- **Pages that play the keyboard** (`rawKeys`: a piano, a tracker, a game): letters, digits and
+  space come as keys with their place (`code`), not as text — a piano works on AZERTY; every alt
+  combination is the page's on every system (alt + arrows too), ⌘Z / ⌘⇧Z reach it, esc gives the
+  keys back to the deck (the tree takes them). SHORTCUTS page, F1 manual.
+- **What's new**: after an update, a short WHAT'S NEW page opens once (once per version and
+  per computer; never on a fresh install or during the setup): the version big, what's new,
+  what's fixed, in English or French. Again with `changelog` (`whatsnew`), Settings →
+  UPDATES → *What's new*, or THE MENU; ←→ or the version chips go through the older ones.
+  A minor version (0.6.0…) gets a bigger "release" page. The notes ship with the app
+  (`src/whatsnew/notes.ts`), not in your vault.
+- **Dialogs: the answers always bottom right** — the way out (No, close) on the left, the
+  way forward (Yes, open) on the right, in every dialog, widget pop-up and THEME STUDIO's palette; ← → point at them.
+  A question whose safe answer is no (delete for good) still starts on No.
+- **Top bar: UPLINK ■** instead of the AI's name and model: the square is green when your AI
+  is there, amber while it thinks, red when it's off (the theme's colours); its tip says which
+  AI, a click opens it. Narrow, the square alone.
+- **Nothing overlaps or gets cut in a small window**: the status bar and the page headers drop
+  the least useful things first. Pages fixed at small sizes: MODULES, NEXUS, BLOCKS,
+  SHORTCUTS, STORE, CLOCKS (titles shrink, buttons go), FOCUS (the buttons wrap), WEATHER (the
+  numbers and the 24 h curve stay above the week), SYSMON (as many facts as fit), TRASH (the
+  count never covers the title; a very narrow page shows its buttons' keys alone), THEME STUDIO (a value gets at most half its row), JOURNAL
+  (under 48 cells the page alone), the tab bar.
+- **Gamepad buttons in pixel art**, and which kind of pad is plugged in (Xbox, PlayStation,
+  Nintendo): `debug pad` shows them.
+- **For developers**: `debug layout` draws the screen at 14 sizes and lists what is cut or
+  drawn over another text (`debug layout pages`: every page, `debug layout show`: live
+  marks); `ui/layout.ts` has `Bar`, `stack`, `cards`, `sizeClass` (modules: `ib.lib`); a test
+  refuses new hand-made spacing (docs/LAYOUT.md).
+- **NEWS**: the featured article says "à la une" and its category first; a summary's line
+  breaks become spaces ("CULTURE Dakar", not "CULTUREDakar") and a cut summary ends with …;
+  in list mode only the headline under the mouse scrolls.
+- **FX panel**: a preset's description never covers its name (cut with … when the row is
+  short).
+- **ibsh: `/dev/null`** works like in any shell: `> /dev/null` throws the output away (it
+  made a file `dev/null` in the vault), `< /dev/null` reads nothing.
+- **Tabs**: never narrower than 12 cells, so a bit of each name stays readable ("3:journ…";
+  with many tabs only the numbers were left); the others go in "▾ +N".
+- **Releases**: the CI's release only becomes "latest" once the update file (latest.json) is
+  attached — installed apps never see a release they can't install.
+
+## 0.5.3 — 2026-11-21
 
 - **Select and copy text in ibsh**: drag over what a command printed, double-click a word,
   triple-click a line, then ⌘C (Ctrl+C on Windows / Linux). Ctrl+C with nothing selected still
@@ -52,7 +108,7 @@
   the one you're on (a colour opens the palette); ↑↓ skip the section titles and stop at the ends
   (a click changed the accent while enter still pointed at the theme row).
 
-## 0.5.2 — not released yet
+## 0.5.2 — 2026-11-21
 
 - **`exit` quits ICEBREAKER** (typed in ibsh), like ⌘Q / Alt+F4: open pages save, the vault
   locks, an update waiting to be installed "by itself" installs. `quit` does the same. In a

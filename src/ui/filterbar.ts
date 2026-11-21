@@ -123,11 +123,12 @@ export class FilterBar {
    */
   render(ui: UI, r: Rect, counts: Partial<Record<TagColor, number>> = {}, d: FilterBarDraw = {}): void {
     const c = ui.c;
-    const colours = this.o.colours !== false;
     // the squares end on the rect's last cell (under the last button of a page bar);
-    // the × that clears everything sits just left of them
-    const squaresW = colours ? TAG_NAMES.length * 2 - 1 : 0;
-    const fw = colours ? Math.max(8, Math.min(d.maxW ?? 28, r.w - squaresW - 5)) : Math.min(d.maxW ?? r.w, r.w);
+    // the × that clears everything sits just left of them. Too narrow for the field (8
+    // cells) and the squares: the squares go (the field is what you came for)
+    const squaresW = TAG_NAMES.length * 2 - 1;
+    const colours = this.o.colours !== false && r.w >= squaresW + 5 + 8;
+    const fw = colours ? Math.min(d.maxW ?? 28, r.w - squaresW - 5) : Math.min(d.maxW ?? r.w, r.w);
     const field = { x: r.x, y: r.y, w: fw, h: 1 };
     const placeholder = d.placeholder ?? t(this.o.typeToSearch || this.o.always ? "type to search" : "/ search");
     if (this.o.always) this.field.render(ui, field, { focused: d.focused ?? true, bg: d.bg, placeholder });

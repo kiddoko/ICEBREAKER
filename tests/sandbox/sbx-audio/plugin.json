@@ -1,0 +1,1 @@
+{ "id": "sbx-audio", "name": "Sandbox: sound", "version": "0.1.0", "description": "checks ib.audio (the modules' sampler) and binary files from the sandbox", "permissions": ["audio", "vault:read", "vault:write"] }

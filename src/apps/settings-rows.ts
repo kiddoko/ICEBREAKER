@@ -253,6 +253,7 @@ export function coreSettingRows(deck: Deck): Row[] {
     needs(soundOn, slide("sound.mix.text", "Text", 0, 100, () => num("sound.mix.text"), (v) => set("sound.mix.text", v), { zeroIsOff: true })),
     needs(soundOn, slide("sound.mix.typing", "Keyboard", 0, 100, () => num("sound.mix.typing"), (v) => set("sound.mix.typing", v), { zeroIsOff: true })),
     needs(soundOn, slide("sound.mix.boot", "Startup", 0, 100, () => num("sound.mix.boot"), (v) => set("sound.mix.boot", v), { zeroIsOff: true })),
+    needs(soundOn, slide("sound.mix.modules", "Modules", 0, 100, () => num("sound.mix.modules"), (v) => set("sound.mix.modules", v), { zeroIsOff: true })),
     needs(soundOn, toggle("sound.typing", "Keyboard sounds")),
     { section: "NOTIFICATIONS", label: "", value: () => "" },
     // how reminders, timers and modules call you: one box each (Deck.alert)
@@ -411,6 +412,8 @@ export function coreSettingRows(deck: Deck): Row[] {
     },
     needs(() => !s.data.privacy.stealth, { label: "Look now", kind: "action", value: () => t("check"), cmd: () => "update", change: () => void d.act("update") }),
     needs(() => d.updater.pending(), { label: "Install", kind: "action", value: () => t("install now"), cmd: () => "update install --window", change: () => void d.act("update install --window") }),
+    // WHAT'S NEW (workspace/whatsnew.ts): this version's notes, then the ones before with ←→
+    { label: "What's new", kind: "action", value: () => d.updater.version, cmd: () => "changelog", change: () => void d.act("changelog") },
     head("By itself"),
     needs(() => !s.data.privacy.stealth, cycle("updates.check", "Look for updates", ["daily", "start", "never"], undefined, (v) => (v === "daily" ? "every day" : v === "start" ? "at start" : "never"))),
     needs(() => !s.data.privacy.stealth && s.data.updates.check !== "never", toggle("updates.download", "Download by itself")),

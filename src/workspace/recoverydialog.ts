@@ -6,6 +6,7 @@ import { padEnd } from "../core/unicode";
 import { Field } from "../ui/field";
 import type { UI } from "../ui/ui";
 import type { Overlay } from "./overlays";
+import { dialogButtons, OK } from "../ui/dialog";
 
 /**
  * THE RECOVERY KEY, in a window (`vault encrypt --window`, `vault recovery
@@ -85,7 +86,7 @@ export class RecoveryDialog implements Overlay {
     const c = ui.c;
     ui.tint(screen, c.subtle);
     ui.hit(screen, { onClick: () => {}, onWheel: () => {}, block: true });
-    const w = Math.min(78, screen.w - 4), h = 18;
+    const w = Math.min(78, screen.w - 4), h = 19;
     const box = { x: screen.x + Math.floor((screen.w - w) / 2), y: screen.y + Math.max(1, Math.floor((screen.h - h) / 3)), w, h };
     const inner = ui.box(box, { title: t("RECOVERY KEY"), focused: true, bg: c.panelAlt });
     let y = inner.y;
@@ -113,9 +114,9 @@ export class RecoveryDialog implements Overlay {
     y += 2;
     ui.text(inner.x + 1, y, t("Type word {n} to close:", { n: this.ask + 1 }), { fg: c.fg, attrs: BOLD }, inner.w - 2);
     y += 1;
-    const fw = inner.w - 10;
-    this.field.render(ui, { x: inner.x + 1, y, w: fw, h: 1 }, { focused: true, placeholder: t("from your paper (or where you saved them)") });
-    ui.button(inner.x + fw + 3, y, "ok ⏎", () => this.check(this.field.text));
+    this.field.render(ui, { x: inner.x + 1, y, w: inner.w - 2, h: 1 }, { focused: true, placeholder: t("from your paper (or where you saved them)") });
     if (this.error) ui.text(inner.x + 1, y + 1, `⚠ ${this.error}`, { fg: c.error }, inner.w - 2);
+    // bottom right, like every dialog (ui/dialog.ts)
+    dialogButtons(ui, inner, [{ label: OK(), run: () => this.check(this.field.text), selected: true }]);
   }
 }

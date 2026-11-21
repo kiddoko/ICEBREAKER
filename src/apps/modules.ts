@@ -254,7 +254,10 @@ export class ModulesApp implements App {
     }
     visible.sort((a, b) => a.z - b.z);
     ui.hit(r, { onWheel: (lines) => { const st = this.spin.wheel(lines); if (st) this.turn(st); } });
-    for (const v of visible) this.drawModule(ui, r, v, horizon, floorBottom, focused);
+    // the shards stand in front of each other on purpose (ui.art: debug layout doesn't count it)
+    ui.art(() => {
+      for (const v of visible) this.drawModule(ui, r, v, horizon, floorBottom, focused);
+    });
 
     if (previewH) this.drawData(ui, { x: r.x, y: floorBottom + 1, w: r.w, h: r.y + r.h - floorBottom - 1 }, carts[this.sel]);
   }

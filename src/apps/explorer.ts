@@ -303,7 +303,10 @@ export class ExplorerApp implements App {
         ui.vline(fx + fw - 1, fy, fh, st, "│");
       }
     }
-    for (const v of visible) this.drawNode(ui, r, v, horizon, floorBottom, focused);
+    // the 3D nodes overlap on purpose (ui.art: debug layout doesn't count it)
+    ui.art(() => {
+      for (const v of visible) this.drawNode(ui, r, v, horizon, floorBottom, focused);
+    });
 
 
     // ── data panel: the one in front ──

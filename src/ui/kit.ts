@@ -17,8 +17,11 @@
  *   pageBar                       a page's header line: where you are, tools, its filter
  *   FileBrowser · pickFile · pickFolder   the one file browser (the vault, or the computer)
  *   Row · INSET · GAP · LABEL · SECTION   the spacing rules and a row that keeps them (docs/LAYOUT.md)
+ *   Bar · stack · cards · sizeClass      a row that drops the least important first, sections down a frame,
+ *                                        cards that reflow, a frame's size in four steps (docs/LAYOUT.md)
  *   wrapWords · truncate · strWidth · padEnd   text that fits (core/unicode.ts)
  *   dialogs (deck.*)              confirm · prompt · choose · recoveryWords · notify
+ *   dialogButtons · YES NO OK CANCEL CLOSE   a dialog's buttons: bottom right, the way out on the left
  */
 export { Field, type FieldOptions, type FieldDraw } from "./field";
 export { TextEditor } from "./editor";
@@ -28,5 +31,6 @@ export { ListView } from "./list";
 export { FilterBar, colourSquares } from "./filterbar";
 export { pageBar } from "./pagebar";
 export { FileBrowser, pickFile, pickFolder } from "../workspace/filebrowser";
-export { Row, INSET, GAP, LABEL, SECTION } from "./layout";
+export { Row, INSET, GAP, LABEL, SECTION, Bar, stack, cards, sizeClass, atLeast, type SizeClass, type StackPart } from "./layout";
 export { wrapWords, truncate, strWidth, padEnd } from "../core/unicode";
+export { dialogButtons, YES, NO, OK, CANCEL, CLOSE, type DialogButton } from "./dialog";

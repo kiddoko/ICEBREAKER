@@ -1,0 +1,190 @@
+import { BOLD, type Rect } from "../core/grid";
+import { lang, t } from "../core/i18n";
+import { osKeys } from "../core/keyhints";
+import type { Action, KeyInput } from "../core/input";
+import { readDevice, writeDevice } from "../core/device";
+import { strWidth } from "../core/unicode";
+import type { Deck } from "../deck";
+import { bigText } from "../ui/bigtext";
+import { CLOSE, dialogButtons } from "../ui/dialog";
+import { GAP, INSET } from "../ui/layout";
+import type { UI } from "../ui/ui";
+import { NOTES, notesFor, type NotesText } from "../whatsnew/notes";
+import { isRelease, whatsNewAtStart } from "../whatsnew/seen";
+import type { Overlay } from "./overlays";
+
+/** where a line's text starts: GAP, the bullet, a space */
+const BULLET = GAP + 2;
+
+/**
+ * WHAT'S NEW — a version's short notes (src/whatsnew/notes.ts) in a frame: the
+ * version big, its date, "New" and "Fixed". It opens by itself once after an
+ * update (whatsNewOnce, src/whatsnew/seen.ts), and with `changelog`, Settings →
+ * UPDATES → What's new, or THE MENU. ←→ (or the version chips) go through the
+ * versions; ↑↓ / the wheel scroll when it's taller than the window; esc, enter
+ * or the pad's A / B close it.
+ *
+ * A minor version (0.6.0…) gets the "release" layout: a shimmering banner and
+ * its headline. That's the hook for the big ones — give the version a `headline`.
+ */
+export class WhatsNew implements Overlay {
+  modal = true;
+  done = false;
+  private index: number;
+  private scroll = 0;
+  private readonly born = performance.now();
+
+  constructor(private readonly deck: Deck, version?: string) {
+    const i = NOTES.findIndex((n) => n.version === (version ?? deck.updater.version));
+    this.index = i >= 0 ? i : 0;
+  }
+
+  private go(dir: 1 | -1): void {
+    // → newer (up the list), ← older
+    const next = this.index - dir;
+    if (next < 0 || next >= NOTES.length) return;
+    this.index = next;
+    this.scroll = 0;
+  }
+
+  onKey(k: KeyInput): boolean {
+    if (k.key === "esc" || k.key === "enter") this.done = true;
+    else if (k.key === "left") this.go(-1);
+    else if (k.key === "right") this.go(1);
+    else if (k.key === "up") this.scroll = Math.max(0, this.scroll - 1);
+    else if (k.key === "down") this.scroll++;
+    else if (k.key === "pageup") this.scroll = Math.max(0, this.scroll - 8);
+    else if (k.key === "pagedown") this.scroll += 8;
+    else if (k.key === "home") this.scroll = 0;
+    return true;
+  }
+
+  onText(): boolean {
+    return true;
+  }
+
+  onAction(a: Action): boolean {
+    if (a === "back" || a === "confirm") this.done = true;
+    else if (a === "left") this.go(-1);
+    else if (a === "right") this.go(1);
+    else if (a === "up") this.scroll = Math.max(0, this.scroll - 1);
+    else if (a === "down") this.scroll++;
+    return true;
+  }
+
+  render(ui: UI, screen: Rect): void {
+    const c = ui.c;
+    const notes = NOTES[this.index];
+    if (!notes) return void (this.done = true);
+    // the notes are written the Mac way (⌘C): Ctrl+C on Windows / Linux (core/keyhints.ts)
+    const raw: NotesText = lang() === "fr" ? notes.fr : notes.en;
+    const text: NotesText = { added: raw.added.map((l) => osKeys(l)), fixed: raw.fixed.map((l) => osKeys(l)), headline: raw.headline && osKeys(raw.headline) };
+    const release = isRelease(notes.version);
+    const still = this.deck.settings.data.appearance.reduceMotion || this.deck.settings.data.appearance.maxFps === 0;
+    const now = performance.now();
+
+    ui.tint(screen, c.subtle);
+    ui.hit(screen, { onClick: () => (this.done = true), onWheel: () => {}, block: true });
+
+    // the frame: wide enough for the lines, never wider than the screen
+    // a line: the frame's borders, INSET on both sides, the bullet's indent, the text
+    const lineW = Math.max(...[...text.added, ...text.fixed].map((l) => strWidth(l.replaceAll("`", "")) + BULLET + INSET * 2 + 2), 50);
+    const headW = text.headline ? strWidth(text.headline) + INSET * 2 + 4 : 0;
+    const w = Math.min(screen.w - GAP * 2, Math.max(lineW, headW, 60), 92);
+    const want = 6 + 3 + text.added.length + text.fixed.length + 6 + (release ? 4 : 0);
+    const h = Math.min(screen.h - 2, want);
+    const r = { x: screen.x + Math.floor((screen.w - w) / 2), y: screen.y + Math.max(1, Math.floor((screen.h - h) / 3)), w, h };
+    const title = release ? `✦ ${t("RELEASE")} ✦` : t("WHAT'S NEW");
+    const inner = ui.box(r, { title, focused: true, bg: c.panelAlt, info: NOTES.length > 1 ? t("←→ versions") : undefined });
+    ui.hit(r, { onClick: () => {}, onWheel: (d) => (this.scroll = Math.max(0, this.scroll + Math.sign(d))) });
+
+    // what goes in the frame, line by line (scrolls when the window is short)
+    type Line = (y: number) => void;
+    const lines: Line[] = [];
+    const x = inner.x + INSET;
+    const room = inner.w - INSET * 2;
+    const phase = still ? 0 : (now - this.born) / 60;
+    const big = bigText(notes.version);
+    const bigW = strWidth(big[0]);
+    const tall = inner.h >= want - 2 && bigW <= room;
+    if (release) {
+      // the banner: a shimmering rule above and below the version
+      const rule = "━".repeat(Math.max(0, room));
+      lines.push((y) => void ui.gradientText(x, y, rule, ui.theme.gradient, 0, phase));
+    }
+    if (tall) {
+      for (const row of big) lines.push((y) => void ui.gradientText(inner.x + Math.floor((inner.w - bigW) / 2), y, row, ui.theme.gradient, BOLD, release ? phase : 0));
+    } else {
+      lines.push((y) => {
+        const s = `ICEBREAKER ${notes.version}`;
+        ui.gradientText(inner.x + Math.floor((inner.w - strWidth(s)) / 2), y, s, ui.theme.gradient, BOLD, release ? phase : 0);
+      });
+    }
+    if (release) {
+      lines.push((y) => void ui.gradientText(x, y, "━".repeat(Math.max(0, room)), ui.theme.gradient, 0, -phase));
+      if (text.headline) lines.push((y) => void ui.textCenter(inner, y, text.headline!, { fg: c.accent, attrs: BOLD }));
+    }
+    const when = notes.date ? formatDate(notes.date) : notes.version === this.deck.updater.version ? t("this version") : "";
+    // under the big version: "ICEBREAKER · the date" (the one-line title already says ICEBREAKER)
+    const sub = tall ? `ICEBREAKER${when ? ` · ${when}` : ""}` : when;
+    if (sub) lines.push((y) => void ui.textCenter(inner, y, sub, { fg: c.muted }));
+    lines.push(() => {});
+    const group = (head: string, items: string[], fg: number, bullet: string, itemFg: number) => {
+      if (!items.length) return;
+      lines.push((y) => void ui.text(x, y, head, { fg, attrs: BOLD }));
+      for (const item of items) {
+        lines.push((y) => {
+          ui.text(x + GAP, y, bullet, { fg });
+          // `a command` in the theme's second colour, without the backticks
+          let cx = x + BULLET;
+          const end = x + room;
+          item.split("`").forEach((part, i) => {
+            if (part && cx < end) cx = ui.text(cx, y, part, { fg: i % 2 ? c.accentAlt : itemFg }, end - cx);
+          });
+        });
+      }
+      lines.push(() => {});
+    };
+    group(`✦ ${t("NEW")}`, text.added, c.accent, "▸", c.fg);
+    group(`✓ ${t("FIXED")}`, text.fixed, c.success, "·", c.muted);
+
+    // the body, then the footer on the last line
+    const bodyH = inner.h - 1;
+    const maxScroll = Math.max(0, lines.length - bodyH);
+    this.scroll = Math.min(this.scroll, maxScroll);
+    lines.slice(this.scroll, this.scroll + bodyH).forEach((draw, i) => draw(inner.y + i));
+    if (maxScroll > 0) ui.text(inner.x + inner.w - INSET, inner.y + (this.scroll < maxScroll ? bodyH - 1 : 0), this.scroll < maxScroll ? "▾" : "▴", { fg: c.subtle });
+
+    // footer: every version as a chip on the left ("all versions"), close on the right
+    const fy = inner.y + inner.h - 1;
+    const bx = dialogButtons(ui, inner, [{ label: CLOSE(), run: () => (this.done = true), selected: true }], fy);
+    let cx = x;
+    for (let i = NOTES.length - 1; i >= 0; i--) {
+      // oldest on the left, newest on the right: → goes right
+      const v = NOTES[i].version;
+      const label = i === this.index ? `◆ ${v}` : v;
+      if (cx + strWidth(label) + 2 > bx - GAP) break;
+      cx += ui.button(cx, fy, label, () => ((this.index = i), (this.scroll = 0)), { selected: i === this.index, quiet: i !== this.index, tip: `changelog ${v}` }) + 1;
+    }
+    if (release && !still) ui.animate(50);
+  }
+}
+
+/** "21 November 2026" / "21 novembre 2026" */
+function formatDate(iso: string): string {
+  const d = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(lang() === "fr" ? "fr-FR" : "en-GB", { day: "numeric", month: "long", year: "numeric" });
+}
+
+/**
+ * At start, once the desktop is there (Deck.sessionReady): WHAT'S NEW if the
+ * app was updated since this device last showed it (src/whatsnew/seen.ts).
+ */
+export async function whatsNewOnce(deck: Deck): Promise<void> {
+  const current = deck.updater.version;
+  const device = await readDevice(deck.platform);
+  const { show, remember } = whatsNewAtStart(device.whatsNew, current, !!deck.settings.data.setup.done, !!notesFor(current));
+  if (remember) await writeDevice(deck.platform, (d) => void (d.whatsNew = current));
+  if (show) deck.workspace.whatsNew();
+}

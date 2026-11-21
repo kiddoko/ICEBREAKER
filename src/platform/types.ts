@@ -36,8 +36,10 @@ export interface VaultBackend {
   purge(path: string): Promise<void>;
   rename(from: string, to: string): Promise<void>;
   exists(path: string): Promise<boolean>;
-  /** Raw bytes of a small file (desktop only). */
+  /** Raw bytes of a file, at most 256 MB. */
   readBytes?(path: string): Promise<ArrayBuffer>;
+  /** Write raw bytes (atomic, like `write`), at most 256 MB. */
+  writeBytes?(path: string, data: ArrayBuffer | Uint8Array): Promise<void>;
   /** Vault encryption (desktop only; src-tauri/src/store.rs, docs/ENCRYPTION.md). */
   crypt?: VaultCrypt;
   /** Move the whole vault to a new or empty folder (every file copied and checked; the deck switches to it). Returns the new path. */

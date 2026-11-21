@@ -75,11 +75,13 @@ export type FromModule =
   | { t: "read"; sid: number; rid: number; label: string; opts: Record<string, unknown> }
   | { t: "done"; sid: number; code: number; error?: string }
   | { t: "menu"; rid: number; lines: MenuLine[] }
-  | { t: "log"; text: string };
+  | { t: "log"; text: string }
+  /** ib.audio.stream(): a line for its own sound, please (permission "audio") */
+  | { t: "streamReq"; id: number };
 
 /** Deck → worker */
 export type ToModule =
-  | { t: "load"; code: string; manifest: unknown; version: string; theme: unknown; notes: string[] | null; notesError: string; settings: Record<string, unknown> }
+  | { t: "load"; code: string; manifest: unknown; version: string; audio: boolean; theme: unknown; notes: string[] | null; notesError: string; settings: Record<string, unknown> }
   | { t: "rpc"; id: number; ok: boolean; value?: unknown; error?: string }
   | { t: "theme"; theme: unknown }
   | { t: "notes"; notes: string[] | null; notesError: string }
@@ -98,4 +100,8 @@ export type ToModule =
   | { t: "run"; sid: number; name: string; args: string[]; stdin: string; isTTY: boolean; cwd: string }
   | { t: "readReply"; sid: number; rid: number; value: string | null }
   | { t: "abort"; sid: number }
-  | { t: "stop" };
+  | { t: "stop" }
+  /** the user silenced the module (ib.audio.onStop) */
+  | { t: "audioStop" }
+  /** the line asked for (transferred), or why not */
+  | { t: "stream"; id: number; port?: MessagePort; error?: string };

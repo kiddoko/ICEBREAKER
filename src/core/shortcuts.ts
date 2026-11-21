@@ -55,7 +55,7 @@ export const SHORTCUTS: Shortcut[] = [
   // panes & tabs
   { keys: "tab", what: "next thing on the screen: widget, card, line", cat: "panes & tabs" },
   { keys: "shift+tab", what: "next part of the screen: tree → deck → shell", cat: "panes & tabs" },
-  { keys: IS_MAC ? "ctrl+alt+←↑↓→" : "alt+←↑↓→", what: "move to the pane in that direction", cat: "panes & tabs" },
+  { keys: IS_MAC ? "ctrl+alt+←↑↓→" : "alt+←↑↓→", what: IS_MAC ? "move to the pane in that direction" : "move to the pane in that direction (not in a page that plays the keyboard: esc first)", cat: "panes & tabs" },
   { id: "tab-next", keys: "ctrl+tab", what: "next tab", cat: "panes & tabs", cmd: "tab next", global: true, menuKey: "]", short: "next tab" },
   { id: "tab-prev", keys: "ctrl+shift+tab", what: "previous tab", cat: "panes & tabs", cmd: "tab prev", global: true, menuKey: "[", short: "previous tab" },
   { keys: IS_MAC ? "ctrl+1…9" : "alt+1…9 · ctrl+1…9", what: "go to tab 1…9", cat: "panes & tabs" },
@@ -103,6 +103,8 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: "pageup · pagedown · home · end", what: "jump", cat: "lists & pages" },
   { keys: "type", what: "in a list with a search field: filter", cat: "lists & pages" },
   { keys: "space · x · s", what: "MODULES: switch on/off · remove · store", cat: "lists & pages" },
+  { keys: "letters · digits · alt+any key", what: "a page that plays the keyboard (a piano, a tracker, a game) keeps them all, alt+arrows too, like an editor keeps the arrows", cat: "lists & pages" },
+  { keys: "esc", what: "leave a page that plays the keyboard: the tree takes the keys back (a click brings them back)", cat: "lists & pages" },
 
   // gamepad
   { keys: "d-pad · left stick", what: "move", cat: "gamepad" },

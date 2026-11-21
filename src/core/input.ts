@@ -26,6 +26,10 @@ export interface KeyInput {
   /** The physical keys (on macOS `ctrl` above also covers ⌘): terminals need the real Control. */
   rawCtrl?: boolean;
   rawMeta?: boolean;
+  /** a key that would have typed text, sent as a key because the page asked (App.rawKeys: a piano, a game) */
+  raw?: boolean;
+  /** held down: the system repeats it */
+  repeat?: boolean;
 }
 
 export type MouseKind = "down" | "up" | "move" | "drag" | "wheel" | "dblclick";
@@ -67,6 +71,8 @@ export type ActionSource = "keyboard" | "gamepad" | "mouse";
 
 export interface InputSink {
   key(k: KeyInput): void;
+  /** the page in front wants every key as a key (its place on the keyboard), not as text */
+  rawKeys?(): boolean;
   text(t: string): void;
   mouse(m: MouseInput): void;
   action(a: Action, source: ActionSource): void;
@@ -98,7 +104,22 @@ export function toKeyInput(e: KeyboardEvent): KeyInput {
   if (e.shiftKey) parts.push("shift");
   if (meta) parts.push("meta");
   parts.push(key);
-  return { key, code: e.code, ctrl, alt: e.altKey, shift: e.shiftKey, meta, combo: parts.join("+"), rawCtrl: e.ctrlKey, rawMeta: e.metaKey };
+  return { key, code: e.code, ctrl, alt: e.altKey, shift: e.shiftKey, meta, combo: parts.join("+"), rawCtrl: e.ctrlKey, rawMeta: e.metaKey, repeat: e.repeat };
+}
+
+/**
+ * A key that types text, as a key (App.rawKeys): with ⌥ / AltGr the name comes from its place
+ * (⌥X is "x", not "≈"); `code` is always the place.
+ */
+export function rawKeyInput(e: KeyboardEvent): KeyInput {
+  const k = toKeyInput(e);
+  let key = k.key;
+  if (e.altKey || e.key === "Dead") {
+    if (/^Key[A-Z]$/.test(e.code)) key = e.code.slice(3).toLowerCase();
+    else if (/^Digit\d$/.test(e.code)) key = e.code.slice(5);
+  }
+  const parts = [k.alt && "alt", k.shift && "shift", key].filter(Boolean);
+  return { ...k, key, combo: parts.join("+"), raw: true, repeat: e.repeat };
 }
 
 /** A synthetic ctrl+<letter> press (used to turn native menu commands into our shortcuts). */
@@ -181,6 +202,12 @@ export class InputManager {
       }
       this.shiftAt = 0;
       const printable = [...e.key].length === 1 && (!(e.ctrlKey || e.metaKey || e.altKey) || altGr || macOption);
+      // a page that plays the keyboard (a piano, a game) gets those keys as keys: their place, never text
+      if ((printable || e.key === "Dead") && !e.ctrlKey && !e.metaKey && this.sink.rawKeys?.()) {
+        e.preventDefault();
+        this.sink.key(rawKeyInput(e));
+        return;
+      }
       // a plain space: given to the deck here, never left to the webview (which may scroll the page with it)
       if (e.key === " " && !e.ctrlKey && !e.metaKey && !e.altKey) return e.preventDefault(), this.sink.text(" ");
       if (printable || e.key === "Dead") return; // becomes an `input` event

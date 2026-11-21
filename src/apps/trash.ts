@@ -11,6 +11,7 @@ import { strWidth } from "../core/unicode";
 import { middlePath } from "../vault/paths";
 import { fileIcon } from "../ui/fileicon";
 import type { App, AppSpec } from "./types";
+import { Bar } from "../ui/layout";
 import { folders } from "../core/suggest";
 
 /**
@@ -131,17 +132,18 @@ export class TrashApp implements App {
     const x = r.x + artW + 2;
     const w = r.w - artW - 4;
     let y = r.y + 1;
-    ui.text(x, y, `⌫ ${t("TRASH")}`, { fg: c.accent, attrs: BOLD });
     const count = !this.loaded ? `${ui.spinner()}` : items.length === 1 ? t("1 thing") : items.length ? t("{n} things", { n: items.length }) : t("empty");
-    // empty the whole trash (asks first, can't be undone)
-    let cx = x + w;
+    // title, the count, and "empty the whole trash" (asks first, can't be undone): when the
+    // row is short the count goes first, then the button (`trash empty` / del still work)
+    const bar = new Bar(ui, x, y, x + w)
+      .text(`⌫ ${t("TRASH")}`, { fg: c.accent, attrs: BOLD }, { priority: 9, fit: 3 })
+      .text(count, { fg: c.subtle }, { side: "right", priority: 5 });
     if (items.length) {
-      const label = `✕ ${t("empty the trash")}`;
-      cx -= strWidth(label) + 2;
-      ui.button(cx, y, label, () => void this.purge(items, true), { tip: `${t("everything in it, for good — it asks first")} · trash empty`, accent: c.error });
-      cx -= 2;
+      const empty = () => void this.purge(items, true);
+      const tip = `${t("everything in it, for good — it asks first")} · trash empty`;
+      bar.button(`✕ ${t("empty the trash")}`, empty, { tip, accent: c.error }, { side: "right", priority: 7 });
     }
-    ui.textRight(cx, y, count, { fg: c.subtle });
+    bar.draw();
     y++;
     ui.hline(x, y, w, { fg: mix(c.accent, c.bg, 0.6) }, "━");
     y++;
@@ -187,13 +189,15 @@ export class TrashApp implements App {
       const fits = (labels: string[]) => labels.reduce((n, l) => n + strWidth(l) + 4, 0) <= w;
       const long = [`${t("restore to…")}  r`, ...(cur.isDir ? [] : [`${t("open")}  o`]), `${t("delete permanently")}  del`];
       const short = [`${t("to…")} r`, ...(cur.isDir ? [] : [`${t("open")} o`]), `✕ ${t("delete")} del`];
-      const rest = fits([`${t("restore")}  ⏎`, ...long]) ? long : short;
-      const head = rest === long ? `${t("restore")}  ⏎` : `↩ ⏎`;
+      // a very narrow page: the keys alone (each still a button, its tip says what it does)
+      const tiny = ["r", ...(cur.isDir ? [] : ["o"]), "✕ del"];
+      const rest = fits([`${t("restore")}  ⏎`, ...long]) ? long : fits([`↩ ⏎`, ...short]) ? short : tiny;
+      const head = rest === long ? `${t("restore")}  ⏎` : rest === short ? `↩ ⏎` : "↩";
       // the restore button gets what the others leave: a long path is cut in the middle,
       // its start and the file's name kept (/journal/…/2026-11-20.md); no room: no path
       const room = w - rest.reduce((n, l) => n + strWidth(l) + 4, 0) - strWidth(head) - 4;
       const where = cur.from && room >= 12 ? ` → ${middlePath(`/${cur.from}`, room)}` : "";
-      btn(`${head.replace(/\s*⏎$/, "")}${where}  ⏎`, () => this.restore(cur), `${t("restore")} · enter · trash restore${cur.from ? `\n/${cur.from}` : ""}`);
+      btn(rest === tiny ? head : `${head.replace(/\s*⏎$/, "")}${where}  ⏎`, () => this.restore(cur), `${t("restore")} · enter · trash restore${cur.from ? `\n/${cur.from}` : ""}`);
       btn(rest[0], () => void this.restoreTo(cur), `${t("restore to…")} · r · trash restore <n> <path>`);
       if (!cur.isDir) btn(rest[1], () => this.open(cur), "o · read it");
       btn(rest[rest.length - 1], () => void this.purge([cur]), `${t("delete permanently")} · del · trash purge · ${t("can't be undone")}`, c.error);

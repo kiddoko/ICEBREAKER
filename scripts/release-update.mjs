@@ -55,7 +55,9 @@ if (args.includes("--mac")) {
   if (kind !== "release") throw new Error(`this macOS build is "${kind}", not a release build: run npm run app:mac:release (npm run app:mac is the testing build, with the developer tools)`);
   const tar = join(out, "ICEBREAKER.app.tar.gz");
   // the signed .app as it is (codesign kept): what the updater unpacks in place of the old one
-  execFileSync("tar", ["-czf", tar, "-C", join(app, ".."), "ICEBREAKER.app"]);
+  // no AppleDouble "._*" entries (macOS adds them for extended attributes such as
+  // com.apple.provenance): the updater can't unpack them ("failed to unpack ._ICEBREAKER.app")
+  execFileSync("tar", ["--no-mac-metadata", "--no-xattrs", "-czf", tar, "-C", join(app, ".."), "ICEBREAKER.app"], { env: { ...process.env, COPYFILE_DISABLE: "1" } });
   const sig = sign(tar);
   const arch = execFileSync("uname", ["-m"]).toString().trim() === "arm64" ? "aarch64" : "x86_64";
   platforms[`darwin-${arch}`] = { signature: sig, url: url(tar) };
@@ -103,6 +105,9 @@ if (publish) {
     exists = false;
   }
   if (exists) execFileSync("gh", ["release", "upload", tag, "-R", publish, "--clobber", ...all], { stdio: "inherit" });
-  else execFileSync("gh", ["release", "create", tag, "-R", publish, "-t", `ICEBREAKER ${version}`, "-n", latest.notes, ...all], { stdio: "inherit" });
+  else execFileSync("gh", ["release", "create", tag, "-R", publish, "-t", `ICEBREAKER ${version}`, "-n", latest.notes, "--latest=false", ...all], { stdio: "inherit" });
+  // only now, with latest.json on it, does this release become the one installed apps read
+  // (CI creates it with make_latest false, so updates never see a release without latest.json)
+  execFileSync("gh", ["release", "edit", tag, "-R", publish, "--latest"], { stdio: "inherit" });
   console.log(`published: https://github.com/${publish}/releases/tag/${tag}`);
 }

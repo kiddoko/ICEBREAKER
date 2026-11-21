@@ -9,6 +9,7 @@ import { hex } from "../core/color";
 import { TextEditor } from "../ui/editor";
 import { ListView } from "../ui/list";
 import { typed } from "../ui/typewriter";
+import { CANCEL, dialogButtons, NO, OK, YES } from "../ui/dialog";
 import type { UI } from "../ui/ui";
 
 /**
@@ -82,7 +83,10 @@ export class ConfirmDialog implements Overlay {
     if (k.key === "esc" || k.key === "n") this.finish(false);
     else if (k.key === "y") this.finish(true);
     else if (k.key === "enter") this.finish(this.choice);
-    else if (k.key === "left" || k.key === "right" || k.key === "tab") this.choice = !this.choice;
+    // No is on the left, Yes on the right (ui/dialog.ts): the arrows point at them
+    else if (k.key === "left") this.choice = false;
+    else if (k.key === "right") this.choice = true;
+    else if (k.key === "tab") this.choice = !this.choice;
     return true;
   }
 
@@ -100,7 +104,8 @@ export class ConfirmDialog implements Overlay {
     }
     if (a === "back") this.finish(false);
     else if (a === "confirm") this.finish(this.choice);
-    else if (a === "left" || a === "right") this.choice = !this.choice;
+    else if (a === "left") this.choice = false;
+    else if (a === "right") this.choice = true;
     return true;
   }
 
@@ -126,14 +131,12 @@ export class ConfirmDialog implements Overlay {
       const part = shown(l);
       if (inner.y + 2 + i < inner.y + inner.h - 2) ui.text(inner.x + 1, inner.y + 2 + i, part, { fg: c.muted }, inner.w - 2);
     });
-    const by = inner.y + inner.h - 1;
-    if (this.message) {
-      ui.button(inner.x + inner.w - 8, by, "ok ⏎", () => this.finish(true), { selected: true, ...(tone ? { accent: tone } : {}) });
-      return;
-    }
-    let x = inner.x + inner.w - 22;
-    x += ui.button(x, by, "[Y]es", () => this.finish(true), { selected: this.choice }) + 2;
-    ui.button(x, by, "[N]o", () => this.finish(false), { selected: !this.choice, accent: c.error });
+    // bottom right, the way out on the left, Yes always in the same place (ui/dialog.ts)
+    if (this.message) return void dialogButtons(ui, inner, [{ label: OK(), run: () => this.finish(true), selected: true, accent: tone }]);
+    dialogButtons(ui, inner, [
+      { label: NO(), run: () => this.finish(false), selected: !this.choice, accent: c.error },
+      { label: YES(), run: () => this.finish(true), selected: this.choice },
+    ]);
   }
 }
 
@@ -283,10 +286,10 @@ export class PromptDialog implements Overlay {
         this.drop.render(ui, { x: inner.x + 1, y: inner.y + 3, w: fw, h: shown }, true, (s, row, on) => void ui.text(row.x + 1, row.y, s, { fg: on ? c.fg : c.muted, attrs: on ? BOLD : 0 }, row.w - 2));
       }
     }
-    const by = inner.y + 3 + (shown ? shown + 1 : 0);
-    let x = inner.x + inner.w - 20;
-    x += ui.button(x, by, "ok ⏎", () => this.finish(this.editor.text)) + 2;
-    ui.button(x, by, "cancel", () => this.finish(null), { accent: c.subtle });
+    dialogButtons(ui, inner, [
+      { label: CANCEL(), run: () => this.finish(null), accent: c.subtle },
+      { label: OK(), run: () => this.finish(this.editor.text), selected: true },
+    ], inner.y + 3 + (shown ? shown + 1 : 0));
   }
 }
 

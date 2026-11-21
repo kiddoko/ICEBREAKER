@@ -1,6 +1,6 @@
 import { contextCommand } from "../../ai/context";
 import { BOX_OFF, BOX_ON } from "../../ui/controls";
-import { redoCommand, tourCommand, undoCommand } from "./undo";
+import { redoCommand, tourCommand, changelogCommand, undoCommand } from "./undo";
 import { auditReport } from "../../plugins/audit";
 import { DEFAULT_SETTINGS } from "../../core/settings";
 import { sayCommand, stealthCommand, voiceCommand } from "./voice";
@@ -19,7 +19,7 @@ import { applyTweaks, tweaksToToml, type Theme } from "../../core/theme";
 import { knob, KNOBS, parseKnobValue } from "../../core/tweaks";
 import { account, lock, login } from "./account";
 import { chat, daily } from "./daily";
-import { errorsCommand, mute, sound } from "./sound";
+import { audioCommand, errorsCommand, mute, sound } from "./sound";
 import { debugCommand, logCommand } from "./log";
 import { FX_LEVELS, fxMax, getFx, setFx, type FxLevel } from "../../core/fxlevels";
 import { uiCommands } from "./ui";
@@ -822,7 +822,7 @@ const plugin: Command = {
   },
 };
 
-export const deckCommands: Command[] = [undoCommand, redoCommand, tourCommand, contextCommand, ...uiCommands, voiceCommand, sayCommand, stealthCommand, newsCommand, daily, chat, account, lock, login, sound, mute, errorsCommand, logCommand, debugCommand, open, journal, note, checkboxes, ask, link, sysmon, theme, fx, config, vaultCmd, plugin];
+export const deckCommands: Command[] = [undoCommand, redoCommand, tourCommand, changelogCommand, contextCommand, ...uiCommands, voiceCommand, sayCommand, stealthCommand, newsCommand, daily, chat, account, lock, login, sound, mute, audioCommand, errorsCommand, logCommand, debugCommand, open, journal, note, checkboxes, ask, link, sysmon, theme, fx, config, vaultCmd, plugin];
 
 /** A theme's current value for "section.key", for display. */
 export function knobValue(t: Theme, key: string): string {

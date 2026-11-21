@@ -7,6 +7,7 @@ import { isoDate } from "../vault/paths";
 import type { TextEditor } from "../ui/editor";
 import { NoteApp } from "./note";
 import type { App, AppSpec } from "./types";
+import { INSET } from "../ui/layout";
 
 /**
  * Journal: a month calendar on the left (days with an entry are lit), the
@@ -121,12 +122,16 @@ export class JournalApp implements App {
   }
 
   render(ui: UI, r: Rect, focused: boolean): void {
-    const calW = Math.min(30, Math.max(24, Math.floor(r.w * 0.3)));
-    const cal = { x: r.x, y: r.y, w: calW, h: r.h };
+    // the calendar needs 24 cells and the page beside it as many: narrower, the page alone
+    // (`journal <day>` still opens another day)
+    const withCal = r.w >= 48;
+    if (!withCal && this.focus === "calendar") this.focus = "editor";
+    const calW = withCal ? Math.min(30, Math.max(24, Math.floor(r.w * 0.3))) : 0;
     const body = { x: r.x + calW, y: r.y, w: r.w - calW, h: r.h };
-    this.drawCalendar(ui, cal, focused && this.focus === "calendar");
-
-    ui.vline(body.x, body.y, body.h, { fg: ui.c.faint });
+    if (withCal) {
+      this.drawCalendar(ui, { x: r.x, y: r.y, w: calW, h: r.h }, focused && this.focus === "calendar");
+      ui.vline(body.x, body.y, body.h, { fg: ui.c.faint });
+    }
     const title = titleFor(this.day, this.deck.settings.data.user.locale);
     ui.text(body.x + 2, body.y, title, { fg: ui.c.accent, attrs: BOLD }, body.w - 4);
     if (this.note) {
@@ -160,9 +165,12 @@ export class JournalApp implements App {
     // registered first so the day cells (registered later) sit on top of it
     ui.hit(r, { onClick: () => (this.focus = "calendar") });
 
-    ui.button(gridX, y0, "◂", () => this.shiftMonth(-1));
-    ui.textCenter({ x: gridX + 3, y: y0, w: 15, h: 1 }, y0, label, { fg: focused ? c.accent : c.fg, attrs: BOLD });
-    ui.button(gridX + 18, y0, "▸", () => this.shiftMonth(1));
+    // ◂ month ▸ — narrower than the calendar's 21 cells: the month shrinks (…) between its arrows
+    const head = Math.min(21, r.w - INSET * 2);
+    const hx = head < 21 ? r.x + INSET : gridX;
+    ui.button(hx, y0, "◂", () => this.shiftMonth(-1));
+    ui.textCenter({ x: hx + 3, y: y0, w: Math.max(0, head - 6), h: 1 }, y0, label, { fg: focused ? c.accent : c.fg, attrs: BOLD });
+    ui.button(hx + head - 3, y0, "▸", () => this.shiftMonth(1));
 
     const names = [...Array(7)].map((_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(locale, { weekday: "short" }).slice(0, 2));
     names.forEach((n, i) => ui.text(gridX + i * 3, y0 + 2, n, { fg: i >= 5 ? c.accentAlt : c.subtle }));

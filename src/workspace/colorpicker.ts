@@ -7,6 +7,8 @@ import { Field } from "../ui/field";
 import { slider } from "../ui/slider";
 import type { UI } from "../ui/ui";
 import type { Overlay } from "./overlays";
+import { INSET } from "../ui/layout";
+import { dialogButtons } from "../ui/dialog";
 
 /** the palette's columns: hues every 20° (red, orange, yellow… back to pink) */
 const HUES = Array.from({ length: 18 }, (_, i) => i * 20);
@@ -175,7 +177,7 @@ export class ColorPicker implements Overlay {
     ui.hit(r, { onClick: () => {} }); // a click inside doesn't close it
 
     // the palette, the greys, the theme's colours
-    const gx = inner.x + 1;
+    const gx = inner.x + INSET;
     const rows = LIGHTS.length + 2;
     for (let row = 0; row < rows; row++) {
       const y = inner.y + row + (row >= LIGHTS.length ? 1 : 0);
@@ -211,10 +213,12 @@ export class ColorPicker implements Overlay {
     const hy = inner.y + inner.h - 1;
     this.field.render(ui, { x: gx, y: hy, w: 12, h: 1 }, { focused: this.focus === "hex", active: this.focus === "hex" });
     ui.hit({ x: gx, y: hy, w: 12, h: 1 }, { onClick: () => (this.focus = "hex"), tip: t("type a #hex colour") });
-    let bx = gx + 14;
-    bx += ui.button(bx, hy, `${t("keep")} ⏎`, () => this.finish(css(this.value)), { selected: true }) + 1;
-    if (this.tweaked) bx += ui.button(bx, hy, `↺ ${t("theme's value")}`, () => this.finish("reset"), { tip: t("back to the theme's own colour · del"), accent: c.warning }) + 1;
-    ui.button(bx, hy, t("cancel"), () => this.finish(null), { accent: c.subtle });
+    // bottom right like every dialog (ui/dialog.ts): the way out on the left, keep on the right
+    dialogButtons(ui, inner, [
+      { label: t("cancel"), run: () => this.finish(null), accent: c.subtle },
+      ...(this.tweaked ? [{ label: `↺ ${t("theme's value")}`, run: () => this.finish("reset"), tip: t("back to the theme's own colour · del"), accent: c.warning }] : []),
+      { label: `${t("keep")} ⏎`, run: () => this.finish(css(this.value)), selected: true },
+    ], hy);
 
     // the preview: the new colour and the one before, as blocks and on text
     const px = inner.x + inner.w - 16, pw = 15;

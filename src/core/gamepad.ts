@@ -1,4 +1,5 @@
 import type { Action } from "./input";
+import { padKind, STANDARD_BUTTONS, type PadButton, type PadKind } from "./padglyphs";
 
 /**
  * Gamepad support via the standard Web Gamepad API (Xbox / PlayStation / Switch Pro
@@ -17,6 +18,17 @@ const BUTTON_ACTIONS: Record<number, Action> = {
   8: "focus-next", 9: "menu",
   12: "up", 13: "down", 14: "left", 15: "right",
 };
+
+/**
+ * The button that does an action, by its place on the pad (core/padglyphs.ts draws it
+ * for the pad you hold): "confirm" → south (A, ✕, B on a Nintendo pad). RB's tap is
+ * "tab-next", held it's THE MENU ("palette" is Y's).
+ */
+export function padButtonFor(a: Action): PadButton | null {
+  if (a === "tab-next") return "rb";
+  const i = Object.entries(BUTTON_ACTIONS).find(([, act]) => act === a)?.[0];
+  return i === undefined ? null : (STANDARD_BUTTONS[Number(i)] ?? null);
+}
 
 /** RB (button 5): a tap = next tab, held = THE MENU */
 const RB = 5, LB = 4, B = 1;
@@ -51,6 +63,11 @@ export class GamepadInput {
       this.connected = navigator.getGamepads().some((p) => p);
       if (!this.connected) this.stop();
     });
+  }
+
+  /** which pad it is (Xbox, PlayStation, Nintendo…), for its icons (core/padglyphs.ts) */
+  get kind(): PadKind {
+    return padKind(this.name);
   }
 
   /** Polling only while the deck is visible and focused (a connected pad otherwise costs a wake-up every 16 ms). */

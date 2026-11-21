@@ -7,7 +7,8 @@ import type { Platform, SystemStats, VaultEntry } from "./types";
  */
 export function createWebPlatform(): Platform {
   const KEY = "icebreaker.web-vault";
-  const files = new Map<string, { content: string; modified: number }>();
+  // a binary file (ib.vault.writeBytes) is kept as one character per byte, `binary` set
+  const files = new Map<string, { content: string; modified: number; binary?: boolean }>();
   const dirs = new Set<string>([""]);
 
   try {
@@ -99,6 +100,22 @@ export function createWebPlatform(): Platform {
         persist();
       },
       exists: async (p) => files.has(p) || dirs.has(p),
+      readBytes: async (p) => {
+        const f = files.get(p);
+        if (!f) throw notFound(p);
+        if (!f.binary) return new TextEncoder().encode(f.content).buffer;
+        const out = new Uint8Array(f.content.length);
+        for (let i = 0; i < out.length; i++) out[i] = f.content.charCodeAt(i) & 0xff;
+        return out.buffer;
+      },
+      writeBytes: async (p, data) => {
+        const b = new Uint8Array(data);
+        let content = "";
+        for (let i = 0; i < b.length; i += 8192) content += String.fromCharCode(...b.subarray(i, i + 8192));
+        files.set(p, { content, modified: Date.now(), binary: true });
+        addParents(p);
+        persist();
+      },
     },
     config: {
       // like the desktop app: device.json is the deck's, the rest the unlocked account's

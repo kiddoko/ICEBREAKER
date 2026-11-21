@@ -6,6 +6,8 @@ import type { UI } from "../ui/ui";
 import type { Overlay } from "./overlays";
 import { askNumber, heldStep, slider } from "../ui/slider";
 import { fxMax, getFx, setFx, type FxLevel } from "../core/fxlevels";
+import { truncate } from "../core/unicode";
+import { GAP, INSET } from "../ui/layout";
 
 type FxKey = "ambient" | "glitch" | "bloom" | "scanlines" | "vignette" | "flicker";
 
@@ -126,14 +128,17 @@ export class FxPanel implements Overlay {
         });
         return;
       }
+      let end: number;
       if (row.key) {
         const on = this.deck.settings.data.fx[row.key];
         ui.text(rr.x + 1, rr.y, on ? "■" : "□", { fg: on ? c.accent : c.subtle, attrs: BOLD });
-        ui.text(rr.x + 3, rr.y, row.label, { fg: selected || on ? c.fg : c.muted });
+        end = ui.text(rr.x + 3, rr.y, row.label, { fg: selected || on ? c.fg : c.muted });
       } else {
-        ui.text(rr.x + 1, rr.y, row.label, { fg: selected ? c.accentAlt : c.muted, attrs: BOLD });
+        end = ui.text(rr.x + 1, rr.y, row.label, { fg: selected ? c.accentAlt : c.muted, attrs: BOLD });
       }
-      ui.textRight(rr.x + rr.w - 2, rr.y, row.hint, { fg: c.faint });
+      // the hint goes right of the name, never over it: cut with … when the row is short
+      const room = rr.x + rr.w - INSET * 2 - (end + GAP);
+      if (room >= 4) ui.textRight(rr.x + rr.w - INSET * 2, rr.y, truncate(row.hint, room), { fg: c.faint });
       ui.hit(rr, { cmd: row.key ? `fx ${row.key} ${this.deck.settings.data.fx[row.key] ? "off" : "on"}` : `fx ${row.preset}` });
     });
     ui.text(inner.x + 1, inner.y + inner.h - 1, "esc close · `fx` in the shell", { fg: c.faint });

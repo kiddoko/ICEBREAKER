@@ -5,7 +5,6 @@
  *   t  a new timer      space  stopwatch start / stop    l  lap
  *   r  reset the stopwatch     x  stop the next timer    w  add a city
  */
-import { strWidth } from "../core/unicode";
 import { mix } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
@@ -16,6 +15,7 @@ import { fitMatrix, matrixSize, matrixText } from "../ui/dots";
 import { drawClock } from "../widgets/clockfaces";
 import { clockState, dur, swNow } from "../widgets/clockstate";
 import type { App, AppSpec } from "./types";
+import { Bar, Row } from "../ui/layout";
 import { DURATIONS, timeZones } from "../core/suggest";
 
 class ClocksApp implements App {
@@ -65,9 +65,12 @@ class ClocksApp implements App {
     const y0 = top.y + top.h + 1;
     const colW = Math.floor((r.w - 6) / 3);
     const cols = [r.x + 2, r.x + 3 + colW, r.x + 4 + colW * 2];
+    // a column's title, its button on the right — the title shrinks (…), the button goes if there's no room
     const head = (x: number, label: string, btn: string, cmd: () => void, tip: string) => {
-      ui.text(x, y0, label, { fg: c.title, attrs: BOLD });
-      ui.button(x + colW - strWidth(btn) - 3, y0, btn, cmd, { tip });
+      new Bar(ui, x, y0, x + colW - 1)
+        .text(label, { fg: c.title, attrs: BOLD }, { priority: 9, fit: 4 })
+        .button(btn, cmd, { tip }, { side: "right", priority: 5 })
+        .draw();
       ui.hline(x, y0 + 1, colW - 1, { fg: c.faint }, "─");
     };
 
@@ -94,16 +97,19 @@ class ClocksApp implements App {
       matrixText(ui, cols[1], sy, sw, k, () => (clockState.swStart ? c.accent : c.subtle));
       sy += matrixSize(sw, k).h + 1;
     } else ui.text(cols[1], sy++, sw, { fg: c.accent, attrs: BOLD });
-    let bx = cols[1];
-    bx += ui.button(bx, sy, clockState.swStart ? t("❚❚ stop") : t("▶ start"), () => {}, { cmd: "stopwatch toggle", tip: "space" }) + 1;
-    bx += ui.button(bx, sy, t("lap"), () => {}, { cmd: "stopwatch lap", tip: "l" }) + 1;
-    ui.button(bx, sy, t("↺ reset"), () => {}, { cmd: "stopwatch reset", tip: "r" });
+    // start · lap · reset: what doesn't fit the column isn't drawn (space, l, r still work)
+    const row = new Row(ui, cols[1], sy, cols[1] + colW - 1);
+    row.button(clockState.swStart ? t("❚❚ stop") : t("▶ start"), () => {}, { cmd: "stopwatch toggle", tip: "space" });
+    row.button(t("lap"), () => {}, { cmd: "stopwatch lap", tip: "l" });
+    row.button(t("↺ reset"), () => {}, { cmd: "stopwatch reset", tip: "r" });
     const laps = clockState.laps;
     laps.slice(-Math.max(0, r.y + r.h - sy - 3)).reverse().forEach((lap, i) => {
       const n = laps.length - i;
       const prev = laps[n - 2] ?? 0;
-      ui.text(cols[1], sy + 2 + i, `${t("lap")} ${n}`, { fg: c.muted });
-      ui.textRight(cols[1] + colW - 2, sy + 2 + i, `${dur(lap)}  +${dur(lap - prev)}`, { fg: i === 0 ? c.fg : c.subtle });
+      new Bar(ui, cols[1], sy + 2 + i, cols[1] + colW - 1)
+        .text(`${t("lap")} ${n}`, { fg: c.muted }, { priority: 5 })
+        .text(`${dur(lap)}  +${dur(lap - prev)}`, { fg: i === 0 ? c.fg : c.subtle }, { side: "right", priority: 9, fit: 5 })
+        .draw();
     });
 
     // the world

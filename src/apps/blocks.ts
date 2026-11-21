@@ -8,6 +8,7 @@ import type { Action, KeyInput } from "../core/input";
 import { strWidth, truncate, wrapWords } from "../core/unicode";
 import type { Deck } from "../deck";
 import { ListView } from "../ui/list";
+import { GAP, INSET } from "../ui/layout";
 import type { UI } from "../ui/ui";
 import type { App, AppSpec } from "./types";
 
@@ -92,11 +93,12 @@ class BlocksApp implements App {
     // a setting changes from anywhere: read the catalog again now and then
     if (Math.floor(ui.now / 1000) !== Math.floor((ui.now - 16) / 1000)) this.builtFor = "";
     this.refresh();
-    const x = r.x + 2, w = r.w - 4;
+    const x = r.x + INSET * 2, w = r.w - INSET * 4;
     let y = r.y + 1;
-    // the search
-    this.search.render(ui, { x, y, w, h: 1 }, {}, { focused, placeholder: t("search every block: a name, a module, a word of its doc…") });
-    ui.textRight(x + w - 1, y, `${this.list.items.length}`, { fg: c.subtle, bg: c.highlight });
+    // the search, then how many match (beside it, never over its text)
+    const count = `${this.list.items.length}`;
+    this.search.render(ui, { x, y, w: Math.max(8, w - strWidth(count) - GAP), h: 1 }, {}, { focused, placeholder: t("search every block: a name, a module, a word of its doc…") });
+    ui.textRight(x + w, y, count, { fg: c.subtle });
     y += 2;
     // the kinds: all · command · action…
     const counts = this.deck.catalog.counts();
@@ -115,8 +117,9 @@ class BlocksApp implements App {
     BLOCK_KINDS.forEach((k, i) => cx + strWidth(k) + 8 < x + w && chip(`${t(k)} ${counts[k]}`, i));
     y += 2;
 
-    // left: the list · right: the block chosen
-    const listW = Math.max(30, Math.floor(w * 0.55));
+    // left: the list · right: the block chosen (narrow: the list alone, enter still runs it)
+    const twoCols = w >= 64;
+    const listW = twoCols ? Math.max(30, Math.floor(w * 0.55)) : w;
     const h = r.y + r.h - y - 1;
     const kindW = 10;
     this.list.render(ui, { x, y, w: listW, h }, focused, (b, row, selected) => {
@@ -129,14 +132,16 @@ class BlocksApp implements App {
       ui.textRight(row.x + row.w - 1, row.y, truncate(b.from, fromW), { fg: b.from === "core" ? c.faint : c.accent, ...st });
     });
     if (!this.list.items.length) ui.text(x + 1, y, t("nothing matches — esc clears the search"), { fg: c.muted });
+    if (!twoCols) return;
     ui.vline(x + listW + 1, y, h, { fg: c.faint });
 
     const b = this.list.current;
     if (!b) return;
     const dx = x + listW + 3, dw = x + w - dx;
     let dy = y;
-    ui.text(dx, dy, b.kind.toUpperCase(), { fg: c.subtle, attrs: BOLD });
-    ui.textRight(dx + dw, dy, b.from === "core" ? t("the deck") : b.from, { fg: c.accent });
+    const from = b.from === "core" ? t("the deck") : b.from;
+    ui.text(dx, dy, b.kind.toUpperCase(), { fg: c.subtle, attrs: BOLD }, Math.max(0, dw - strWidth(from) - GAP));
+    ui.textRight(dx + dw, dy, truncate(from, Math.max(0, dw - 8)), { fg: c.accent });
     dy += 1;
     ui.text(dx, dy, b.name, { fg: c.title, attrs: BOLD }, dw);
     dy += 1;
