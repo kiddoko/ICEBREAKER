@@ -63,7 +63,8 @@ stacked, moved, split, folded. This page is how it works and where it stands.
   the rest in "+N".
 - The terminals stay together in the shell's frame: `term new` opens beside them
   (`term max` still turns the shell into a big tab of the page's frame, `term dock` puts it back).
-- Step 4: each tab's history (back / forward). Step 5: the INFO panel.
+- **Step 3 is done (0.6.0).** Next: step 4, each tab's history (back / forward); step 5,
+  the INFO panel; the battery in the top bar (it needs a native call).
 
 ## The model
 

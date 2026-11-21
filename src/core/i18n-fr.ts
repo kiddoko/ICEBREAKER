@@ -1277,7 +1277,6 @@ export const FR: Record<string, string> = {
   "skip": "passer",
   "can't undo": "impossible d'annuler",
   "can't redo": "impossible de rétablir",
-  "Every page you open is a tab up here: click one, or ⌘1…9. ⌘W closes it, ctrl+tab goes to the next one. Top right: ⚙ the settings and ⏻ to log out.": "Chaque page ouverte est un onglet, ici en haut : clique dessus, ou ⌘1…9. ⌘W le ferme, ctrl+tab passe au suivant. En haut à droite : ⚙ les réglages et ⏻ pour te déconnecter.",
   "Every page you open is a tab on top of its frame: click one, or ⌘1…9. ⌘W closes it, ctrl+tab goes to the next one; HOME is pinned, always first. Top left, ◆ ICEBREAKER is the deck's menu: modules, the store, settings, log out.": "Chaque page ouverte est un onglet, en haut de son cadre : clique dessus, ou ⌘1…9. ⌘W le ferme, ctrl+tab passe au suivant ; HOME est épinglé, toujours le premier. En haut à gauche, ◆ ICEBREAKER est le menu du deck : modules, store, réglages, déconnexion.",
   "the deck's menu: modules, store, NEXUS, settings, log out…": "le menu du deck : modules, store, NEXUS, réglages, déconnexion…",
   "Modules": "Modules",

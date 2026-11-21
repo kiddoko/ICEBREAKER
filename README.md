@@ -76,7 +76,8 @@ scanlines — and works with the keyboard, the mouse or a gamepad.
 - **THE MENU** (`⌘K` or shift twice) searches everything; every shortcut is listed (`⌘/`) and can be changed; right-click works everywhere.
 - **English or French**, chosen at setup. A **guided tour** after the setup (`tour` plays it again).
 - **Docs in your vault**: START HERE/ (the tour, modules, interface, shell, keys, the AI, privacy) and FOR DEVELOPERS/ (themes, the module API), written into every vault and kept up to date.
-- **Picks up where you left**: tabs, open folders and the page you were on come back at the next start. Mouse back / forward and a two-finger swipe switch tabs; pinch zooms.
+- **Frames you arrange**: the tree, the page, the side panel and the shell, each with its tabs on its border — drag a tab onto any frame, group tabs, resize or fold a frame, presets (`layout preset`), ⌘Z.
+- **Picks up where you left**: tabs (in their frames), open folders and the page you were on come back at the next start. Mouse back / forward and a two-finger swipe switch tabs; pinch zooms.
 
 ### Accounts and privacy
 - **Accounts**: each one is its own deck — settings, theme, sounds, vault, Google connection — behind its password (Argon2id, never stored). It locks the app; its vault can also be encrypted (`vault encrypt`: names, folders and notes, XChaCha20-Poly1305, the key opened by your password — [docs/ENCRYPTION.md](docs/ENCRYPTION.md); a plain backup zip is made first, `vault decrypt` and `vault export <folder>` give plain files back). It also gives a **recovery key** (24 words, shown once, one asked back): forgot the password → login page → *forgot password?*; `vault recovery` makes a new one, `vault rekey` a new key for the whole vault (everything encrypted again). Encryption is an option (the setup asks, Settings → PRIVACY switches it, either way, as often as you like).
@@ -195,13 +196,15 @@ themes/          built-in themes (nightshade.toml is the annotated reference)
 ## Roadmap
 
 Done in 0.5.0: vault encryption with a recovery key, portable vaults, modules from the STORE
-in a sandbox, signed in-app updates, module dependencies. Next, in this order:
+in a sandbox, signed in-app updates, module dependencies. Done in 0.6.0, the first half of the
+UI overhaul: frames you arrange (move, resize, fold the tree, the panel, the shell), tabs on
+every frame and in any frame, tab groups, the deck menu, and WEATHER, CLOCKS, STATS, NEWS,
+MOON and SYSMON redrawn ([docs/FRAMES.md](docs/FRAMES.md)). Next, in this order:
 
-1. **UI overhaul** — a fully modular interface (frames that hold tabs; move the shell, the
-   side panel, the tree anywhere; tab groups, terminals as tabs), perfect scaling on every
-   resolution and screen ratio, one spacing rule everywhere, an Ableton-style info panel
-   instead of hover tips, every module redrawn in ASCII — and moved into the Worker sandbox
-   on the way, then the native bridge locked ([docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md) O2–O4).
+1. **UI overhaul, the rest** — each tab's history, an Ableton-style info panel instead of
+   hover tips, perfect scaling on every resolution and screen ratio, the other modules
+   redrawn — and moved into the Worker sandbox on the way, then the native bridge locked
+   ([docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md) O2–O4).
 2. **STORE and files** — filters and categories, install a module / theme / sound pack from a file, a fuller theme studio.
 3. **Voice and AI** — one voice path for everything, several AIs at once, tool use for local models (Ollama), an evening JOURNAL.
 4. **Automations** — an ALERTS module (your own rules → notifications), a more useful NEXUS.
