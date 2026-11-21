@@ -13,7 +13,7 @@ import type { Deck } from "../deck";
 import type { UI } from "../ui/ui";
 import { fitMatrix, matrixSize, matrixText } from "../ui/dots";
 import { drawClock } from "../widgets/clockfaces";
-import { clockState, dur, swNow } from "../widgets/clockstate";
+import { clockState, dur, durTenths, swNow } from "../widgets/clockstate";
 import type { App, AppSpec } from "./types";
 import { Bar, cards, GAP, INSET, Row, SECTION, stack } from "../ui/layout";
 import { Braille, ring } from "../ui/braille";
@@ -72,7 +72,7 @@ class ClocksApp implements App {
     const lowH = Math.max(worldH, alarmsH);
     const cardsMin = across === 3 ? alarmsH + SECTION + 3 : across === 2 ? 7 + SECTION + lowH : 5 * 2 + alarmsH + worldH + SECTION * 3;
     const [clockR, dayR, cardsR] = stack(body, [
-      { min: 3, fill: 1, max: 9, priority: 9 },
+      { min: 3, fill: 1, max: 9, priority: 7 },
       { h: 1, priority: 4 },
       { min: Math.min(cardsMin, 7), h: cardsMin, fill: 3, priority: 8 },
     ]);
@@ -109,9 +109,11 @@ class ClocksApp implements App {
     const list = clock.list();
     if (!list.length) return void ui.text(inner.x + INSET, inner.y, t("none — a sets one"), { fg: c.muted }, inner.w - INSET * 2);
     const next = clock.soonest()?.alarm;
+    const room = list.length > inner.h ? Math.max(0, inner.h - 1) : inner.h;
+    if (list.length > room && inner.h > 0) ui.text(inner.x + INSET, inner.y + room, `+${list.length - room} · clock alarm`, { fg: c.faint }, inner.w - INSET * 2);
     list.forEach((al, i) => {
       const y = inner.y + i;
-      if (y >= inner.y + inner.h) return;
+      if (i >= room) return;
       const at = clock.nextOf(al);
       const lit = al === next;
       const bar = new Bar(ui, inner.x + INSET, y, inner.x + inner.w - INSET);
@@ -239,8 +241,8 @@ class ClocksApp implements App {
       const col = sp === best ? c.success : sp === worst ? c.error : c.subtle;
       new Bar(ui, inner.x + INSET, y, inner.x + inner.w - INSET)
         .text(`${t("lap")} ${i + 1}`, { fg: c.muted }, { priority: 5 })
-        .text(`+${dur(sp)}`, { fg: col, attrs: sp === best ? BOLD : 0 }, { side: "right", priority: 9 })
-        .text(dur(laps[i]), { fg: c.faint }, { side: "right", priority: 3 })
+        .text(`+${durTenths(sp)}`, { fg: col, attrs: sp === best ? BOLD : 0 }, { side: "right", priority: 9 })
+        .text(durTenths(laps[i]), { fg: c.faint }, { side: "right", priority: 3 })
         .draw();
     }
   }
@@ -251,9 +253,13 @@ class ClocksApp implements App {
     const inner = this.card(ui, r, t("WORLD"), "+", () => void this.addCity(), "w · worldclock add Asia/Tokyo");
     const now = new Date();
     const hereOff = -now.getTimezoneOffset();
-    this.deck.settings.data.home.worldClocks.forEach((tz, i) => {
+    const zones = this.deck.settings.data.home.worldClocks;
+    // more cities than rows: the last row says how many are left (the pop-up and `worldclock` list them all)
+    const room = zones.length > inner.h ? Math.max(0, inner.h - 1) : inner.h;
+    if (zones.length > room && inner.h > 0) ui.text(inner.x + INSET, inner.y + room, `+${zones.length - room} · worldclock`, { fg: c.faint }, inner.w - INSET * 2);
+    zones.forEach((tz, i) => {
       const y = inner.y + i;
-      if (y >= inner.y + inner.h) return;
+      if (i >= room) return;
       let time = "--:--", hour = 12, min = 0, off = 0;
       try {
         time = now.toLocaleTimeString(undefined, { timeZone: tz, hour: "2-digit", minute: "2-digit" });
