@@ -1,4 +1,5 @@
 import { fmt } from "../../core/ansi";
+import { osKeys } from "../../core/keyhints";
 import type { Command } from "../types";
 import { CLASSIC, describe, moveFrame, parseArrangement, PRESETS, type FrameId, type Side } from "../../workspace/layout/arrange";
 
@@ -44,7 +45,7 @@ export const layoutCommand: Command = {
       if (!p) return ctx.err(`usage: layout preset ${Object.keys(PRESETS).join("|")}\n`), 1;
       d.settings.set("layout", b === "classic" ? {} : { version: 1, preset: b, root: JSON.parse(JSON.stringify(p.root)) });
       d.requestFrame();
-      return ctx.out(`layout: ${b} — ⌘Z puts the last one back\n`), 0;
+      return ctx.out(osKeys(`layout: ${b} — ⌘Z puts the last one back\n`)), 0;
     }
     return ctx.err("usage: layout [presets | preset <name> | reset]\n"), 1;
   },
@@ -83,6 +84,6 @@ export const frameCommand: Command = {
     if (id === "vault" && !ws.sidebarVisible) ws.toggleSidebar();
     if (id === "shell" && !ws.shellVisible) ws.toggleShell(true);
     d.requestFrame();
-    return ctx.out(`${who} → ${side} — ⌘Z puts it back · layout reset for the classic layout\n`), 0;
+    return ctx.out(osKeys(`${who} → ${side} — ⌘Z puts it back · layout reset for the classic layout\n`)), 0;
   },
 };

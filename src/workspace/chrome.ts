@@ -82,14 +82,15 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
     tx += chip(tx, text, style);
     ui.hit(rect, { onClick: () => (ti >= 0 && (ws.termIndex = ti), ws.showShellTab(id)), menu: ti >= 0 ? () => termTabMenu(ws, ti) : undefined, tip: id === "term" ? `right-click: rename, close… · term rename <name> · F12 next tab\n${ws.terms[ti]?.shellName ?? ""}: your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)` : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash · F12 next tab" : "the log: what you typed, what clicks ran, errors, messages, debug — tick what you want to see · log" });
     // the terminal shown, when there are several: its × is part of its chip
-    if (id === "term" && on && ws.terms.length > 1) {
+    if (id === "term" && on && ws.terms.length > 1 && tx + 2 <= bxr) {
       const xr = { x: tx, y: r.y, w: 2, h: 1 };
       tx += chip(tx, "× ", { fg: ui.hovered(xr) ? c.error : c.bg, bg: onBg, attrs: BOLD });
       ui.hit(xr, { cmd: "term close", tip: t("close this terminal") });
     }
     tx += 1;
     // [+] a new terminal, right after the last one
-    if (id === "term" && ti === ws.terms.length - 1) {
+    // (only where it fits before the panel's buttons: a narrow shell — on the right — keeps `term new`)
+    if (id === "term" && ti === ws.terms.length - 1 && tx + 3 <= bxr) {
       const pr = { x: tx, y: r.y, w: 3, h: 1 };
       tx += chip(tx, " + ", { fg: ui.hovered(pr) ? c.bg : c.accent, bg: ui.hovered(pr) ? c.accent : chipBg, attrs: BOLD }) + 1;
       ui.hit(pr, { cmd: "term new", tip: t("another terminal · term new") });

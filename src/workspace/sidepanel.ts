@@ -232,7 +232,8 @@ export class SidePanel {
         }
       }
     });
-    if (maxScroll > 0) ui.textRight(inner.x + inner.w, this.scroll < maxScroll ? inner.y + inner.h - 1 : inner.y, this.scroll < maxScroll ? "↓" : "↑", { fg: c.accent, attrs: BOLD });
+    // more below / above: an arrow in the corner, over a widget's frame on purpose (ui.art)
+    if (maxScroll > 0) ui.art(() => ui.textRight(inner.x + inner.w, this.scroll < maxScroll ? inner.y + inner.h - 1 : inner.y, this.scroll < maxScroll ? "↓" : "↑", { fg: c.accent, attrs: BOLD }));
     if (!slots.length) {
       ui.textCenter(inner, inner.y + 1, t("empty"), { fg: c.muted });
       ui.textCenter(inner, inner.y + 3, t("a: add a widget · right-click"), { fg: c.faint });
