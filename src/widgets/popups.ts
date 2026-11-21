@@ -251,7 +251,8 @@ const weatherPopup: WidgetPopupSpec = {
   render(ui, r, { deck, key }) {
     const c = ui.c;
     const w = currentWeather(widgetConfig(deck, key, "city", ""));
-    if (!w) return void ui.text(r.x + 2, r.y + 1, "no forecast yet (location: setup or config set home.weatherCity)", { fg: c.muted }, r.w - 4);
+    // (wrapped: on one line it was cut at both ends while it scrolled)
+    if (!w) return void wrapWords("no forecast yet — location: setup, or config set home.weatherCity <city>", r.w - 4).forEach((l, i) => ui.text(r.x + 2, r.y + 1 + i, l, { fg: c.muted }));
     ui.text(r.x + 2, r.y, w.place, { fg: c.fg, attrs: BOLD });
     ui.textRight(r.x + r.w - 2, r.y, `${Math.round(w.temp)}° · feels ${Math.round(w.feels)}° · ${w.humidity}% · wind ${Math.round(w.wind)} km/h`, { fg: c.muted });
     ui.text(r.x + 2, r.y + 1, `sunrise ${w.sunrise} · sunset ${w.sunset} · rain ${w.rainChance}%`, { fg: c.subtle });

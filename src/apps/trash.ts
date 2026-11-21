@@ -182,16 +182,21 @@ export class TrashApp implements App {
       ui.text(x, py + 1, cur.isDir ? `${cur.name}/` : cur.name, { fg: c.accent, bg: c.panelAlt, attrs: BOLD }, w);
       let bx = x;
       const btn = (label: string, run: () => void, tip: string, accent?: number) => (bx += ui.button(bx, py + 2, label, run, { tip, accent }) + 2);
-      const rest = [`${t("restore to…")}  r`, ...(cur.isDir ? [] : [`${t("open")}  o`]), `${t("delete permanently")}  del`];
+      // the buttons' labels: long ones when they fit, else short ones (a narrow window cut
+      // "delete permanently" off the right edge); each button is ` label ` + 2 between them
+      const fits = (labels: string[]) => labels.reduce((n, l) => n + strWidth(l) + 4, 0) <= w;
+      const long = [`${t("restore to…")}  r`, ...(cur.isDir ? [] : [`${t("open")}  o`]), `${t("delete permanently")}  del`];
+      const short = [`${t("to…")} r`, ...(cur.isDir ? [] : [`${t("open")} o`]), `✕ ${t("delete")} del`];
+      const rest = fits([`${t("restore")}  ⏎`, ...long]) ? long : short;
+      const head = rest === long ? `${t("restore")}  ⏎` : `↩ ⏎`;
       // the restore button gets what the others leave: a long path is cut in the middle,
-      // its start and the file's name kept (/journal/…/2026-11-20.md)
-      const room = w - rest.reduce((n, l) => n + strWidth(l) + 4, 0) - 4;
-      const head = `${t("restore")}  ⏎`;
-      const where = cur.from ? ` → ${middlePath(`/${cur.from}`, room - strWidth(head))}` : "";
-      btn(`${t("restore")}${where}  ⏎`, () => this.restore(cur), `enter · trash restore${cur.from ? `\n/${cur.from}` : ""}`);
-      btn(rest[0], () => void this.restoreTo(cur), "r · trash restore <n> <path>");
+      // its start and the file's name kept (/journal/…/2026-11-20.md); no room: no path
+      const room = w - rest.reduce((n, l) => n + strWidth(l) + 4, 0) - strWidth(head) - 4;
+      const where = cur.from && room >= 12 ? ` → ${middlePath(`/${cur.from}`, room)}` : "";
+      btn(`${head.replace(/\s*⏎$/, "")}${where}  ⏎`, () => this.restore(cur), `${t("restore")} · enter · trash restore${cur.from ? `\n/${cur.from}` : ""}`);
+      btn(rest[0], () => void this.restoreTo(cur), `${t("restore to…")} · r · trash restore <n> <path>`);
       if (!cur.isDir) btn(rest[1], () => this.open(cur), "o · read it");
-      btn(rest[rest.length - 1], () => void this.purge([cur]), `del · trash purge · ${t("can't be undone")}`, c.error);
+      btn(rest[rest.length - 1], () => void this.purge([cur]), `${t("delete permanently")} · del · trash purge · ${t("can't be undone")}`, c.error);
     } else ui.text(x, py + 1, t("esc closes · trash in the shell lists it too"), { fg: c.faint, bg: c.panelAlt }, w);
   }
 

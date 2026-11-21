@@ -202,6 +202,7 @@ export class Deck implements InputSink {
     this.updater = new Updater(this);
     this.renderer = new Renderer(el("screen") as HTMLCanvasElement, el("bloom") as HTMLCanvasElement, settings.data.appearance.fontSize);
     this.loop = new FrameLoop(this.frame, settings.data.appearance.maxFps);
+    this.loop.mustAnimate = () => !!this.boot || !!this.lock;
     this.input = new InputManager(this, this.renderer, el("deck"), el("keyboard-sink") as HTMLTextAreaElement);
     this.input.onKeyPress = (kind) => this.typingSound(kind);
     // shift twice: THE MENU, from anywhere (Settings → KEYS can switch it off)
@@ -456,7 +457,7 @@ export class Deck implements InputSink {
     const ui = this.ui;
     ui.begin(this.grid, this.theme, now, this.input.mouseCell);
     ui.cellAspect = this.renderer.cellW / this.renderer.cellH;
-    ui.still = this.loop.frozen || !!this.settings.data.appearance.reduceMotion;
+    ui.still = this.loop.still || !!this.settings.data.appearance.reduceMotion;
     if (this.starting) {
       this.renderer.draw(this.grid);
       return 100;

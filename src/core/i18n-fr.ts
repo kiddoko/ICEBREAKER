@@ -1504,6 +1504,8 @@ export const FR: Record<string, string> = {
   "theme's value": "valeur du thème",
   "this theme's colours": "les couleurs de ce thème",
   "type a #hex colour": "tape une couleur #hex",
+  "to…": "vers…",
+  "delete": "supprimer",
   "{n} things deleted for good": "{n} éléments supprimés définitivement",
   "↑↓ choose · enter restore · r restore to… · o open · del delete for good · esc close": "↑↓ choisir · entrée restaurer · r restaurer vers… · o ouvrir · suppr supprimer définitivement · échap fermer",
 };

@@ -130,12 +130,29 @@ export class StudioApp implements App {
   }
 
   onAction(a: Action): boolean {
+    // ↑↓: the next knob, section titles skipped, no going round from the top to the bottom
+    if (a === "up" || a === "down") {
+      const items = this.list.items;
+      let i = this.list.selected;
+      do i += a === "down" ? 1 : -1;
+      while (i >= 0 && i < items.length && "head" in items[i]);
+      if (i >= 0 && i < items.length) this.list.select(i);
+      return true;
+    }
     const before = this.list.selected;
     const handled = this.list.onAction(a);
     // skip section titles
     const row = this.list.current;
     if (row && "head" in row) this.list.select(this.list.selected + (this.list.selected >= before ? 1 : -1));
     return handled;
+  }
+
+  /** a click on a row's value: that row becomes the one you're on, then it acts (a colour: the palette) */
+  private clickValue(row: Row): void {
+    this.list.select(this.list.items.indexOf(row));
+    if ("knob" in row && row.knob.kind === "color") return void this.enter(row);
+    const c = this.cmdFor(row, 1);
+    if (c) void this.deck.act(c);
   }
 
   render(ui: UI, r: Rect, focused: boolean): void {
@@ -155,7 +172,7 @@ export class StudioApp implements App {
       if ("theme" in row) {
         const v = this.deck.settings.data.appearance.theme;
         const x = ui.textRight(vx, rect.y, selected ? `◂ ${v} ▸` : v, { fg: c.accent, attrs: BOLD });
-        ui.hit({ x, y: rect.y, w: vx - x, h: 1 }, { cmd: this.cmdFor(row, 1), tip: "←→ change theme" });
+        ui.hit({ x, y: rect.y, w: vx - x, h: 1 }, { onClick: () => this.clickValue(row), tip: `←→ change theme\n${this.cmdFor(row, 1)}` });
         return;
       }
       if (!("knob" in row)) {
@@ -170,7 +187,7 @@ export class StudioApp implements App {
       const undo = tweaked && (selected || ui.hovered(rect));
       let x = ui.textRight(undo ? vx - 2 : vx, rect.y, selected ? `◂ ${v} ▸` : v, { fg: tweaked ? c.warning : c.accent, attrs: selected ? BOLD : 0 });
       const next = this.cmdFor(row, 1);
-      if (next) ui.hit({ x, y: rect.y, w: vx - x, h: 1 }, { cmd: next, tip: `←→ change · enter ${k.kind === "color" ? "the palette" : "type a value"} · r reset` });
+      if (next) ui.hit({ x, y: rect.y, w: vx - x, h: 1 }, { onClick: () => this.clickValue(row), tip: `${k.kind === "color" ? "click: the palette" : "click: next value"} · ←→ change · r reset\n${next}` });
       if (k.kind === "color" && /^#[0-9a-f]{6}$/i.test(v)) {
         x -= 3;
         const sw = { x, y: rect.y, w: 2, h: 1 };

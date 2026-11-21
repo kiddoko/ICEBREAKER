@@ -38,11 +38,19 @@
 - **NEWS headlines no longer stay scrambled** ("RK=WD P[1I*U…"): their "decrypt" reveal waited
   for frames that never came when animations are off (frames per second at 0) — now the text shows
   at once then, and the same for every reveal that stays on screen (MODULES, NEXUS, widgets).
+- **Frames per second at 0** (no animations): the boot logo and the login page still play (the
+  logo froze mid-scramble until a key).
+- **WEATHER**: when open-meteo answers without a forecast (an error, the network not up yet at
+  start), the widget says so and tries again a minute later — no more "Cannot read properties of
+  undefined"; the pop-up's "no forecast yet" is wrapped instead of cut at both ends.
 - **TRASH**: the restore button cuts a long path in the middle (its start and the file name kept)
-  instead of running off the page.
+  instead of running off the page; in a narrow window the buttons take short labels (↩, to…,
+  open, ✕ delete) so "delete permanently" never falls off the edge.
 - **THEME STUDIO**: a colour **palette** (18 hues × 10 shades at the saturation you choose,
   greys, the theme's own colours; arrows, mouse, gamepad; the #hex field still typable), and
-  **↺** on every changed knob to put the theme's value back.
+  **↺** on every changed knob to put the theme's value back. A click on a value makes that row
+  the one you're on (a colour opens the palette); ↑↓ skip the section titles and stop at the ends
+  (a click changed the accent while enter still pointed at the theme row).
 
 ## 0.5.2 — not released yet
 
