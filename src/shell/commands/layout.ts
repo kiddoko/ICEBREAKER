@@ -53,14 +53,23 @@ export const layoutCommand: Command = {
 /** Move one frame along a side of the screen. */
 export const frameCommand: Command = {
   name: "frame",
-  summary: "move a frame (the tree, the panel, the shell) along a side of the screen",
-  usage: "frame move <tree|panel|shell> <left|right|top|bottom>   it goes along that edge, the rest keeps its places (⌘Z undoes it)",
-  examples: [["frame move shell right", "the shell along the right edge"], ["frame move tree bottom", "the tree along the bottom"], ["frame move panel left", "the panel on the left"]],
-  complete: () => ["move", "tree", "panel", "shell", ...SIDES],
+  summary: "move a frame (the tree, the panel, the shell) along a side of the screen, fold it into a strip",
+  usage:
+    "frame move <tree|panel|shell> <left|right|top|bottom>   it goes along that edge, the rest keeps its places\n" +
+    "frame fold <tree|panel|shell>     a thin strip with its name (a click on it opens it again)\n" +
+    "frame unfold <tree|panel|shell>   open it again\n" +
+    "(⌘Z undoes any of these; drag the border between two frames to resize them)",
+  examples: [["frame move shell right", "the shell along the right edge"], ["frame move tree bottom", "the tree along the bottom"], ["frame fold panel", "the panel folded into a strip"]],
+  complete: () => ["move", "fold", "unfold", "tree", "panel", "shell", ...SIDES],
   run(ctx) {
     const d = ctx.deck;
     const [a, who, side] = ctx.args;
     const id = who ? NAMES[who.toLowerCase()] : undefined;
+    if (a === "fold" || a === "unfold") {
+      if (!id || id === "main") return ctx.err("usage: frame fold|unfold <tree|panel|shell> (the page never folds)\n"), 1;
+      d.workspace.setFrameFolded(id, a === "fold");
+      return ctx.out(`${who} ${a === "fold" ? "folded — a click on its strip opens it" : "open"}\n`), 0;
+    }
     if (a !== "move" || !id || !SIDES.includes(side as Side)) return ctx.err(`usage: ${frameCommand.usage}\n`), 1;
     if (id === "main") return ctx.err("frame: the page stays where it is — move the others around it\n"), 1;
     const arr = parseArrangement(d.settings.data.layout) ?? CLASSIC;

@@ -34,6 +34,8 @@ export interface ASplit {
 export interface AFrame {
   kind: "frame";
   id: FrameId;
+  /** folded into a one-cell strip (`frame fold`); the page never folds */
+  folded?: boolean;
 }
 export type ANode = ASplit | AFrame;
 
@@ -97,6 +99,7 @@ export function parseArrangement(raw: unknown): ANode | null {
     const o = n as Record<string, unknown>;
     if (o.kind === "frame") {
       if (typeof o.id !== "string" || !FRAME_IDS.includes(o.id as FrameId) || seen.has(o.id)) return false;
+      if (o.folded !== undefined && (typeof o.folded !== "boolean" || o.id === "main")) return false;
       seen.add(o.id);
       return true;
     }
@@ -151,22 +154,29 @@ function toFrame(id: FrameId): Frame {
  */
 export function effectiveLayout(arr: ANode, s: Today): Node {
   const shown = (id: FrameId) => id === "main" || (id === "vault" ? s.sidebar : id === "panel" ? s.panel : s.shell);
-  const build = (n: ANode): { node: Node; first: FrameId } | null => {
-    if (n.kind === "frame") return shown(n.id) ? { node: toFrame(n.id), first: n.id } : null;
+  const build = (n: ANode): { node: Node; first: FrameId; strip?: boolean } | null => {
+    if (n.kind === "frame") return shown(n.id) ? (n.folded && n.id !== "main" ? { node: { ...toFrame(n.id), strip: true, foldable: false }, first: n.id, strip: true } : { node: toFrame(n.id), first: n.id }) : null;
     const parts: [Node, Size][] = [];
+    const strips = new Set<number>();
     let first: FrameId | null = null;
     n.children.forEach((c, i) => {
       const b = build(c);
       if (!b) return;
       first ??= b.first;
+      if (b.strip) strips.add(parts.length);
       const size = n.sizes[i];
-      parts.push([b.node, "auto" in size ? { cells: autoLength(size.auto, n.dir, s) } : size]);
+      // a folded frame: one cell along the split, whatever its size was
+      parts.push([b.node, b.strip ? { cells: 1 } : "auto" in size ? { cells: autoLength(size.auto, n.dir, s) } : size]);
     });
     if (!parts.length || !first) return null;
     // one child left: it is the split (its size is the split's own, decided by the parent)
     if (parts.length === 1) return { node: parts[0][0], first };
-    // the page must always be able to grow: a split with no fill child gets its last one as fill
-    if (!parts.some(([, sz]) => "fill" in sz)) parts[parts.length - 1][1] = { fill: 1 };
+    // the page must always be able to grow: a split with no fill child gets its last one as
+    // fill (not a folded strip: that stays one cell)
+    if (!parts.some(([, sz]) => "fill" in sz)) {
+      const open = parts.map((_, k) => k).filter((k) => !strips.has(k));
+      parts[open.length ? open[open.length - 1] : parts.length - 1][1] = { fill: 1 };
+    }
     return { node: n.dir === "row" ? row(n.gap, parts) : col(n.gap, parts), first };
   };
   return build(arr)?.node ?? toFrame("main");
@@ -223,4 +233,51 @@ export function describe(arr: ANode): string[] {
 /** The ids of the frames, in reading order. */
 export function arrangedIds(arr: ANode): FrameId[] {
   return arr.kind === "frame" ? [arr.id] : arr.children.flatMap(arrangedIds);
+}
+
+/** Frame `id` folded into a strip (or opened again); the page never folds. */
+export function setFolded(arr: ANode, id: FrameId, folded: boolean): ANode {
+  if (id === "main") return arr;
+  const walk = (n: ANode): ANode => (n.kind === "frame" ? (n.id === id ? (folded ? { ...n, folded: true } : { kind: "frame", id: n.id }) : n) : { ...n, children: n.children.map(walk) });
+  return walk(arr);
+}
+
+/** Is frame `id` folded in this arrangement? */
+export function isFolded(arr: ANode, id: FrameId): boolean {
+  const walk = (n: ANode): boolean => (n.kind === "frame" ? n.id === id && !!n.folded : n.children.some(walk));
+  return walk(arr);
+}
+
+/**
+ * A border dragged: the border between the part holding frame `a` and the part holding
+ * frame `b` (neighbours in a split along `dir`) moves so that `a`'s part is `aLen` cells
+ * and `b`'s `bLen` along it. The part with a fixed size (auto or cells) takes its new
+ * length in cells; two fill parts change their shares. Returns the arrangement unchanged
+ * when `a` and `b` aren't neighbours along `dir`.
+ */
+export function resizeBetween(arr: ANode, a: FrameId, b: FrameId, dir: "row" | "col", aLen: number, bLen: number): ANode {
+  const holds = (n: ANode, id: FrameId): boolean => (n.kind === "frame" ? n.id === id : n.children.some((c) => holds(c, id)));
+  const walk = (n: ANode): ANode => {
+    if (n.kind === "frame") return n;
+    const ia = n.children.findIndex((c) => holds(c, a));
+    const ib = n.children.findIndex((c) => holds(c, b));
+    if (ia < 0 || ib < 0) return n;
+    // both inside one child: the border is further down
+    if (ia === ib) return { ...n, children: n.children.map((c, i) => (i === ia ? walk(c) : c)) };
+    if (n.dir !== dir) return n;
+    const sizes = [...n.sizes];
+    const sa = sizes[ia], sb = sizes[ib];
+    const fill = (s: ArrangedSize) => "fill" in s;
+    if (fill(sa) && fill(sb)) {
+      const total = (sa as { fill: number }).fill + (sb as { fill: number }).fill;
+      const share = Math.max(0.05, Math.min(0.95, aLen / Math.max(1, aLen + bLen)));
+      sizes[ia] = { fill: Math.round(total * share * 1000) / 1000 };
+      sizes[ib] = { fill: Math.round(total * (1 - share) * 1000) / 1000 };
+    } else {
+      if (!fill(sa)) sizes[ia] = { cells: Math.max(1, Math.round(aLen)) };
+      if (!fill(sb)) sizes[ib] = { cells: Math.max(1, Math.round(bLen)) };
+    }
+    return { ...n, sizes };
+  };
+  return walk(arr);
 }

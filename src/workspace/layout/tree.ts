@@ -45,6 +45,8 @@ export interface Frame {
   /** may be folded away when a neighbour is below its minimum (the lowest foldOrder goes first) */
   foldable?: boolean;
   foldOrder?: number;
+  /** folded by you into a one-cell strip (its name; a click opens it again) */
+  strip?: boolean;
 }
 
 export type Node = Split | Frame;

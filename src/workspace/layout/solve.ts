@@ -92,3 +92,46 @@ function place(n: Node, r: Rect, out: Solved): void {
     out.folded.add(foldable[0].id);
   }
 }
+
+/** A border between two neighbours of a split, where it was drawn (layout/arrange.ts resizeBetween moves it). */
+export interface Border {
+  dir: "row" | "col";
+  /** a frame inside each side (the one to name in resizeBetween) */
+  a: string;
+  b: string;
+  /** where each side was drawn (the union of its frames) */
+  ra: Rect;
+  rb: Rect;
+  /** the cells to grab: the gap column between two side-by-side parts, or the top line of the lower part */
+  grip: Rect;
+  /** a side is a folded strip (its border doesn't move) */
+  strip: boolean;
+}
+
+/** Every border of a solved tree, outermost first. */
+export function bordersOf(root: Node, rects: Map<string, Rect>): Border[] {
+  const out: Border[] = [];
+  const framesIn = (n: Node): Frame[] => (n.kind === "frame" ? [n] : n.children.flatMap(framesIn));
+  const bounds = (n: Node): Rect | null => {
+    const rs = framesIn(n).map((f) => rects.get(f.id)).filter((r): r is Rect => !!r);
+    if (!rs.length) return null;
+    const x = Math.min(...rs.map((r) => r.x)), y = Math.min(...rs.map((r) => r.y));
+    return { x, y, w: Math.max(...rs.map((r) => r.x + r.w)) - x, h: Math.max(...rs.map((r) => r.y + r.h)) - y };
+  };
+  const walk = (n: Node) => {
+    if (n.kind === "frame") return;
+    const live = n.children.map((c) => ({ c, r: bounds(c) })).filter((x): x is { c: Node; r: Rect } => !!x.r);
+    for (let i = 0; i + 1 < live.length; i++) {
+      const A = live[i], B = live[i + 1];
+      const fa = framesIn(A.c).find((f) => rects.has(f.id))!, fb = framesIn(B.c).find((f) => rects.has(f.id))!;
+      const strip = (A.c.kind === "frame" && !!A.c.strip) || (B.c.kind === "frame" && !!B.c.strip);
+      const grip = n.dir === "row"
+        ? { x: A.r.x + A.r.w, y: Math.min(A.r.y, B.r.y), w: Math.max(1, B.r.x - (A.r.x + A.r.w)), h: Math.max(A.r.h, B.r.h) }
+        : { x: B.r.x, y: B.r.y, w: B.r.w, h: 1 };
+      out.push({ dir: n.dir, a: fa.id, b: fb.id, ra: A.r, rb: B.r, grip, strip });
+    }
+    n.children.forEach(walk);
+  };
+  walk(root);
+  return out;
+}

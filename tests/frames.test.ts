@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Rect } from "../src/core/grid";
-import { solveLayout } from "../src/workspace/layout/solve";
+import { bordersOf, solveLayout } from "../src/workspace/layout/solve";
 import { paneToward } from "../src/workspace/layout/focus";
 import { col, findFrame, frame, frameOf, frames, row, todayLayout, type Today } from "../src/workspace/layout/tree";
-import { CLASSIC, effectiveLayout, moveFrame, parseArrangement, PRESETS, arrangedIds, type ANode } from "../src/workspace/layout/arrange";
+import { CLASSIC, effectiveLayout, isFolded, moveFrame, parseArrangement, PRESETS, arrangedIds, resizeBetween, setFolded, type ANode } from "../src/workspace/layout/arrange";
 
 /**
  * THE PROOF of step 1 (docs/FRAMES.md): the frames drawn from the layout tree are
@@ -253,5 +253,72 @@ describe("⌘⌥ arrows go to the part really in that direction", () => {
     // the tree and the shell side by side under the page: down goes to the one under most of it, left from the shell to the tree
     expect(paneToward(rectsOf(PRESETS["tree-bottom"].root, s), "main", "down")).toBe("shell");
     expect(paneToward(rectsOf(PRESETS["tree-bottom"].root, s), "shell", "left")).toBe("sidebar");
+  });
+});
+
+// ── step 2b: folding and dragging borders ────────────────────────────────────
+
+describe("folding a frame into a strip", () => {
+  const S: Today = { sidebar: true, panel: true, shell: true, shellMax: false, shellRatio: 0.3, cols: 200, bodyH: 54 };
+  const body = { x: 1, y: 1, w: 198, h: 54 };
+  const solve = (a: ANode) => solveLayout(effectiveLayout(a, S), body).rects;
+  it("one cell along its split, the page takes the rest", () => {
+    const r = solve(setFolded(CLASSIC, "vault", true));
+    expect(r.get("vault")!.w).toBe(1);
+    expect(r.get("main")!.x).toBe(body.x + 2);
+    const shell = solve(setFolded(CLASSIC, "shell", true)).get("shell")!;
+    expect(shell.h).toBe(1);
+    expect(shell.y + shell.h).toBe(body.y + body.h);
+  });
+  it("a folded strip never becomes the one that grows", () => {
+    // the tree and the shell side by side at the bottom, the shell folded: the tree takes the rest, the shell stays one cell
+    const a = setFolded(PRESETS["tree-bottom"].root, "shell", true);
+    const r = solve(a);
+    expect(r.get("shell")!.w).toBe(1);
+    expect(r.get("vault")!.w).toBeGreaterThan(100);
+  });
+  it("the page never folds; unfolding gives the frame back; a saved fold is checked", () => {
+    expect(setFolded(CLASSIC, "main", true)).toBe(CLASSIC);
+    const f = setFolded(CLASSIC, "panel", true);
+    expect(isFolded(f, "panel")).toBe(true);
+    expect(isFolded(setFolded(f, "panel", false), "panel")).toBe(false);
+    expect(parseArrangement({ version: 1, root: f })).not.toBeNull();
+    const bad = JSON.parse(JSON.stringify(CLASSIC).replace('"id":"main"}', '"id":"main","folded":true}'));
+    expect(parseArrangement({ version: 1, root: bad })).toBeNull();
+  });
+});
+
+describe("dragging the border between two frames", () => {
+  const S: Today = { sidebar: true, panel: true, shell: true, shellMax: false, shellRatio: 0.3, cols: 200, bodyH: 54 };
+  const body = { x: 1, y: 1, w: 198, h: 54 };
+  const solve = (a: ANode) => solveLayout(effectiveLayout(a, S), body).rects;
+  it("finds every border, with the cells to grab", () => {
+    const layout = effectiveLayout(CLASSIC, S);
+    const bs = bordersOf(layout, solveLayout(layout, body).rects);
+    expect(bs.map((b) => `${b.dir} ${b.a}|${b.b}`)).toEqual(["col vault|shell", "row vault|main", "row main|panel"]);
+    const tree = bs.find((b) => b.a === "vault" && b.b === "main")!;
+    expect(tree.grip.w).toBe(1);
+    expect(tree.grip.x).toBe(tree.ra.x + tree.ra.w);
+  });
+  it("the fixed side takes its new length in cells, the page the rest", () => {
+    const a = resizeBetween(CLASSIC, "vault", "main", "row", 50, 100);
+    const r = solve(a);
+    expect(r.get("vault")!.w).toBe(50);
+    expect(r.get("main")!.x).toBe(body.x + 51);
+    const p = resizeBetween(CLASSIC, "main", "panel", "row", 100, 40);
+    expect(solve(p).get("panel")!.w).toBe(40);
+    expect(parseArrangement({ version: 1, root: p })).not.toBeNull();
+  });
+  it("the shell's height, dragged from its top border", () => {
+    const a = resizeBetween(CLASSIC, "vault", "shell", "col", 40, 14);
+    expect(solve(a).get("shell")!.h).toBe(14);
+  });
+  it("two fill sides share by the new lengths", () => {
+    const a = resizeBetween(PRESETS["tree-bottom"].root, "vault", "shell", "row", 100, 97);
+    const r = solve(a);
+    expect(Math.abs(r.get("vault")!.w - 100)).toBeLessThanOrEqual(1);
+  });
+  it("frames that aren't neighbours along that way: nothing changes", () => {
+    expect(resizeBetween(CLASSIC, "vault", "main", "col", 10, 10)).toEqual(CLASSIC);
   });
 });

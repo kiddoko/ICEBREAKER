@@ -20,8 +20,12 @@ stacked, moved, split, folded. This page is how it works and where it stands.
   rects, and on a copy of a real account's settings). What's shown stays today's
   switches (⌘B the tree, ⌘⇧P the panel, ctrl+` the shell): a hidden frame gives its room
   to its neighbours. ⌘⌥ arrows go to the part really in that direction.
-- Step 2b: drag any border between two frames (today only the shell's top border, when
-  the shell is along the bottom), fold a frame to a strip.
+- **Step 2b (done): drag any border, fold a frame.** The border between two frames —
+  the gap column between side-by-side frames, the top line of the lower one — drags to
+  resize (one ⌘Z step per drag; a dragged size becomes fixed cells, a fill side keeps
+  sharing). `frame fold <tree|panel|shell>` folds a frame into a one-cell strip with its
+  name; a click on the strip (or `frame unfold`, ⌘B for the tree, anything that needs the
+  shell) opens it again. A folded frame never keeps the focus.
 - Step 3: tabs on every frame, tab groups, terminals as a group of tabs, thicker tabs.
 - Step 4: each tab's history (back / forward). Step 5: the INFO panel.
 
@@ -73,6 +77,9 @@ settings.layout  ──parseArrangement──►  arrangement (or CLASSIC)
   child; a split with no `fill` child gives its last one the rest.
 - `moveFrame(arr, id, side)`: the frame goes along that edge of the whole screen at its own
   size; the rest keeps its arrangement. The page never moves: the others move around it.
+- `setFolded`, `resizeBetween(arr, a, b, dir, aLen, bLen)` (the border between the parts
+  holding frames `a` and `b`), and `bordersOf(tree, rects)` (layout/solve.ts: every border
+  and the cells to grab) are pure and tested.
 - The maximized shell (`term max` from the panel's □, or `shellMax`) keeps its own layout.
 - The shell's top border resizes it only when the shell is along the bottom; HOME's edit
   band spans the page and the panel wherever the panel sits.

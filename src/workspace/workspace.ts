@@ -24,10 +24,11 @@ import { WhatsNew } from "./whatsnew";
 import { Sidebar } from "./sidebar";
 import { unplaceSquares } from "./favorites";
 import { SystemTerminal } from "../shell/systerm";
-import { todayLayout, type Node as LayoutNode, type Today } from "./layout/tree";
-import { CLASSIC, effectiveLayout, parseArrangement, type ANode } from "./layout/arrange";
-import { solveLayout } from "./layout/solve";
+import { frames, todayLayout, type Node as LayoutNode, type Today } from "./layout/tree";
+import { CLASSIC, effectiveLayout, isFolded, parseArrangement, resizeBetween, setFolded, type ANode, type FrameId } from "./layout/arrange";
+import { bordersOf, solveLayout, type Border } from "./layout/solve";
 import { paneToward } from "./layout/focus";
+import { INSET } from "../ui/layout";
 
 export type ShellTab = "term" | "ibsh" | "log";
 
@@ -90,6 +91,37 @@ export class Workspace {
   }
   private arrangedFrom: unknown = undefined;
   private arranged: ANode = CLASSIC;
+
+  /** a border being dragged: which, the arrangement when it was grabbed */
+  private borderDrag: { b: Border; arr: ANode; m: MouseInput } | null = null;
+
+  /** Move the border being dragged to the pointer: both sides' new lengths, saved (⌘Z: one step per drag). */
+  private dragBorder(m: MouseInput): void {
+    const g = this.borderDrag;
+    if (!g) return;
+    const { b } = g;
+    const MIN = 6;
+    const row = b.dir === "row";
+    const start = row ? b.ra.x : b.ra.y;
+    const end = row ? b.rb.x + b.rb.w : b.rb.y + b.rb.h;
+    const gap = row ? b.rb.x - (b.ra.x + b.ra.w) : 0;
+    const pos = Math.max(start + MIN, Math.min(end - MIN - gap, row ? m.x : m.y));
+    const aLen = pos - start, bLen = end - pos - gap;
+    const next = resizeBetween(g.arr, b.a as FrameId, b.b as FrameId, b.dir, aLen, bLen);
+    this.deck.settings.set("layout", { version: 1, root: next });
+  }
+
+  /** Open frame `id` if it's folded (asked to show or focus it: a question in the shell, ⌘B…). */
+  private unfold(id: FrameId): void {
+    if (isFolded(this.arrangement, id)) this.deck.settings.set("layout", { version: 1, root: setFolded(this.arrangement, id, false) });
+  }
+
+  /** Fold frame `id` into a strip, or open it again (frame fold / unfold, a click on the strip). */
+  setFrameFolded(id: FrameId, folded: boolean): void {
+    this.deck.settings.set("layout", { version: 1, root: setFolded(this.arrangement, id, folded) });
+    if (!folded) this.focus = id === "vault" ? "sidebar" : id === "shell" ? "shell" : id === "panel" ? "panel" : "main";
+    this.deck.requestFrame();
+  }
 
   /** the shell sits along the bottom, the whole width (its top border drags to resize it then) */
   get shellAtBottom(): boolean {
@@ -206,6 +238,7 @@ export class Workspace {
 
   showShellTab(t: ShellTab): void {
     if (!this.terminalOn) return this.terminalOff();
+    this.unfold("shell");
     if (t === "term" && !this.termAvailable) t = "ibsh";
     this.shellTab = t;
     this.shellTabChosen = true;
@@ -443,6 +476,7 @@ export class Workspace {
 
   toggleShell(show = !this.shellVisible): void {
     if (!this.terminalOn) return this.terminalOff();
+    if (show) this.unfold("shell");
     this.shellVisible = show;
     if (show) this.focus = "shell";
     else if (this.focus === "shell") this.focus = "main";
@@ -455,6 +489,7 @@ export class Workspace {
 
   focusShell(): void {
     if (!this.terminalOn) return this.terminalOff();
+    this.unfold("shell");
     if (!this.shellVisible || this.focus !== "shell") {
       this.shellVisible = true;
       this.focus = "shell";
@@ -464,11 +499,18 @@ export class Workspace {
   /** An interactive shell command asks something: make sure it's seen. */
   focusShellIfHidden(): void {
     if (!this.terminalOn) return;
+    this.unfold("shell");
     this.shellVisible = true;
     this.focus = "shell";
   }
 
   toggleSidebar(): void {
+    // folded into a strip: ⌘B opens it rather than hiding it
+    if (this.sidebarVisible && isFolded(this.arrangement, "vault")) {
+      this.unfold("vault");
+      this.focus = "sidebar";
+      return;
+    }
     this.sidebarVisible = !this.sidebarVisible;
     if (this.sidebarVisible) this.focus = "sidebar";
     else if (this.focus === "sidebar") this.focus = "main";
@@ -924,9 +966,21 @@ export class Workspace {
     const layout = max ? todayLayout(today) : effectiveLayout(this.arrangement, today);
     const at = solveLayout(layout, body).rects;
     this.layout = layout;
+    const arr = this.arrangement;
+    const strips = new Set(frames(layout).filter((f) => f.strip).map((f) => f.id));
+
+    // the borders between frames: grab one to resize (registered first: what the frames draw on
+    // their top line — the shell's tabs, a title — wins the click; the gap between columns is free)
+    const borders = max ? [] : bordersOf(layout, at).filter((b) => !b.strip && !(b.dir === "col" && b.b === "shell" && this.shellAtBottom));
+    for (const b of borders) ui.hit(b.grip, { onClick: (m) => (this.borderDrag = { b, arr, m }), onDrag: (m) => this.dragBorder(m), onUp: () => (this.borderDrag = null), tip: t("drag: resize · layout reset puts everything back") });
 
     this.rects = {};
-    const vaultR = at.get("vault");
+    // folded frames: a one-cell strip with their name; a click opens them again
+    for (const id of strips) {
+      const r = at.get(id);
+      if (r) drawStrip(ui, r, id === "vault" ? "VAULT" : id === "panel" ? "PANEL" : "SHELL", `frame unfold ${id === "vault" ? "tree" : id}`);
+    }
+    const vaultR = strips.has("vault") ? undefined : at.get("vault");
     if (this.sidebarVisible && vaultR) {
       this.rects.sidebar = vaultR;
       const inner = ui.box(vaultR, { title: "VAULT", focused: this.focus === "sidebar", info: `${d.vault.markdown().length}` });
@@ -936,7 +990,7 @@ export class Workspace {
     // the side panel on the right: widgets that stay in view (panel show · ◧ in the status bar);
     // folded by the solver when the page would keep less than 40 cells
     this.sidePanel.area = null;
-    const panelR = at.get("panel");
+    const panelR = strips.has("panel") ? undefined : at.get("panel");
     if (panelR) {
       this.rects.panel = panelR; // a click there gives it the focus
       this.sidePanel.render(ui, panelR);
@@ -952,9 +1006,17 @@ export class Workspace {
     if (app) ui.clip(inner, () => app.render(ui, inner, mainFocused));
     if (this.editing) editBand(this, ui, inner, this.sidePanel.area);
 
-    const shellR = at.get("shell");
-    // its top border resizes it only where it's along the bottom (frames elsewhere: step 2b drags every border)
+    const shellR = strips.has("shell") ? undefined : at.get("shell");
+    // its own top border resizes it (its share of the height) where it's along the bottom
     if (this.shellVisible && shellR) renderShellPanel(this, ui, shellR, body, max || !this.shellAtBottom);
+    // a folded frame can't keep the focus (keys would go somewhere you can't see)
+    if (this.focus === "sidebar" && strips.has("vault")) this.focus = "main";
+    if (this.focus === "shell" && strips.has("shell")) this.focus = "main";
+    // the border under the pointer (or being dragged), lit
+    for (const b of borders) if (ui.hovered(b.grip) || this.borderDrag?.b.a === b.a && this.borderDrag?.b.b === b.b) {
+      if (b.dir === "row") ui.vline(b.grip.x, b.grip.y, b.grip.h, { fg: ui.c.accent }, "┃");
+      else ui.tint(b.grip, ui.c.accent);
+    }
 
     renderStatusBar(this, ui, { x: 0, y: N + H - 1, w: W, h: 1 });
     renderSubtitles(this, ui, W, N + H);
@@ -1002,4 +1064,14 @@ export function undoKey(k: KeyInput): "undo" | "redo" | null {
 /** The same key press as Delete (⌘⌫ / ctrl+⌫ where nothing else uses it). */
 function asDelete(k: KeyInput): KeyInput {
   return { ...k, key: "delete", code: "Delete", ctrl: false, combo: "delete" };
+}
+
+/** A folded frame: a one-cell strip with its name (down a column, or along a row); a click opens it. */
+function drawStrip(ui: UI, r: Rect, name: string, cmd: string): void {
+  const c = ui.c;
+  ui.fill(r, { bg: c.highlight });
+  const label = `▸${name}`;
+  if (r.w <= r.h) [...label].slice(0, r.h).forEach((ch, i) => ui.text(r.x, r.y + i, ch, { fg: c.muted, bg: c.highlight }));
+  else ui.text(r.x + INSET, r.y, `▸ ${name}`, { fg: c.muted, bg: c.highlight }, r.w - INSET * 2);
+  ui.hit(r, { cmd, tip: t("click: open it again") });
 }
