@@ -207,7 +207,9 @@ export class ModulesApp implements App {
     const left = this.spin.ease(this.sel, n, dt);
     this.travel += (this.spin.pos - before) * 0.8 + dt * 0.15;
     const booting = ui.now - this.shownAt < 1100;
-    ui.animate(left > 0.001 || booting || this.inserting ? 16 : 60);
+    // at rest only the floor drifts and a light runs along the front stripe: 8 frames a
+    // second (16 kept ~700 cells repainting for nothing you'd see)
+    ui.animate(left > 0.001 || booting || this.inserting ? 16 : 125);
 
     ui.fill(r, { bg: c.bg });
     const sceneH = Math.min(r.h, 36);
@@ -337,9 +339,9 @@ export class ModulesApp implements App {
     ty++;
     // the stripe: its colour, a light running along it on the one in front
     if (ty < bot) {
-      const run = front ? Math.floor((ui.now / 70) % (iw + 6)) - 3 : -99;
+      const run = front ? Math.floor((ui.now / 125) % (iw + 6)) - 3 : -99;
       for (let i = 0; i < iw; i++) ui.text(ix + i, ty, "▬", { fg: Math.abs(i - run) <= 1 ? mix(hue, c.fg, 0.6) : fade(front ? hue : mix(hue, c.bg, 0.35)), bg: body });
-      if (front) ui.animate(70);
+      if (front) ui.animate(125);
       ty++;
     }
     // a few facts, as room allows: what it is, its state
