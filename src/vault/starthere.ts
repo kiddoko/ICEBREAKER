@@ -274,12 +274,19 @@ were on come back as you left them next time.
   fader each for moving around, notifications, the text that types itself out,
   your keys, the start-up, and the sound **modules** play themselves (a module
   allowed to — permission "audio" — shows ♪ its name in the status bar while it
-  plays: a click, or \`audio stop\`, silences it).
+  plays: a click, or \`audio stop\`, silences it). *A click on your keys* (off by
+  default) gives your typing the theme's own key sound — another one when you
+  erase — played the moment the key goes down.
 - A page that **plays the keyboard** (a piano, a tracker, a game) keeps every key while
   it's in front, alt + arrows too: **esc** gives them back to the deck (the tree takes
-  them), a click on the page brings them back. *A click on your keys* (off by default) gives your
-  typing the theme's own key sound — another one when you erase — played the
-  moment the key goes down.
+  them), a click on the page brings them back.
+- **Dialogs**: the answers are always **bottom right** — the way out (No, close) on
+  the left, the way forward (Yes, open) on the right; ← → choose, y / n answer. A
+  question whose safe answer is no (delete for good…) starts on No.
+- Top bar: **UPLINK ■** — the square is green when your AI is there, amber while
+  it thinks, red when it's off (its tip says which AI; a click opens it).
+- **A small window**: the status bar and the page headers drop the least useful
+  things first instead of overlapping or cutting them.
 - **Text that types itself out** — the tour, notifications, dialogs, the setup,
   UPLINK's answers, the shell's output — with a little blip, like an old RPG,
   never more than a second behind. Settings → APPEARANCE → *Text speed* (50 by
@@ -625,7 +632,7 @@ The full map is \`docs/ARCHITECTURE.md\` in the repository. In short:
 |---|---|
 | \`src/deck.ts\` | the object everything hangs off; start-up; \`deck.act("command")\` |
 | \`src/core/\` | the engine: grid, renderer, input, gamepad, settings, themes, sounds, voice, shortcuts, \`prefs.ts\` (every setting row), \`catalog.ts\` (everything as blocks), \`undo.ts\` (⌘Z: \`deck.history.record({ label, undo, redo })\`) |
-| \`src/ui/\` | drawing pieces: \`UI\`, lists, editor, sliders, the ring wheel, \`glide.ts\` (scrolling) |
+| \`src/ui/\` | drawing pieces: \`UI\`, lists, editor, sliders, the ring wheel, \`glide.ts\` (scrolling), \`layout.ts\` (\`INSET\` / \`GAP\`, \`Row\`, \`Bar\`, \`stack\`, \`cards\`, \`sizeClass\`: things placed so they never overlap or cut), \`dialog.ts\` (the answers bottom right) |
 | \`src/workspace/\` | the screen: panes and input (\`workspace.ts\`), the frame (\`chrome.ts\`), right-click menus (\`menus.ts\`), THE MENU (\`quickmenu.ts\`), the guided tour (\`tour.ts\`), the tree, the side panel, dialogs |
 | \`src/apps/\` | what opens in a tab or a page: HOME, notes, settings, MODULES, NEXUS… |
 | \`src/widgets/\` | HOME widgets |
@@ -649,6 +656,12 @@ Try things live: \`npm run dev\` opens the deck in a browser with a demo vault,
 and \`window.deck\` is there in the console (\`await deck.act("panel show")\`).
 \`npm run check\` checks the types and runs the tests (\`tests/\`, including one that
 refuses import cycles); \`cargo test\` in \`src-tauri\` checks the vault's walls.
+
+**At any size**: \`debug layout\` draws the screen off screen at 14 sizes and lists
+what is cut or drawn over another text (\`debug layout pages\`: every page,
+\`debug layout show\`: marks it live). A test (the "ratchet") refuses new hand-made
+spacing (a position plus a number of cells): use \`INSET\`, \`GAP\`, \`Row\`, \`Bar\` (docs/LAYOUT.md).
+\`debug pad\` shows the gamepad's buttons in pixel art for each kind of pad.
 `,
 
   "../FOR DEVELOPERS/themes.md": `# Themes

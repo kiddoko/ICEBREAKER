@@ -79,6 +79,9 @@ ${cmds}
 
 ## Look
 - Effects: Settings → APPEARANCE → Effects, the ✦ fx button, or \`fx\`. **Bloom**: bright things bleed a soft halo of light onto what's around them (the slider sets how far and how strong). **RGB split** (\`fx chroma\`): red and blue fringes on the text, the frames and the glyphs, never the backgrounds. **CRT curvature** (\`fx curve 0-100\`, off by default): rounded screen corners, a darker rim, a soft reflection. **Flicker speed** (\`fx flicker 150\`): how fast the CRT flicker goes. Presets: \`fx none | light | medium | heavy | party\`. \`debug perf\` measures what the screen costs.
+- Top bar: **UPLINK ■** — green when your AI is there, amber while it thinks, red when it's off (its tip says which AI; a click opens it).
+- **Dialogs**: the answers are always bottom right — No (or close) on the left, Yes (or open) on the right; ← → choose, \`y\` / \`n\` answer, esc is no. A question whose safe answer is no starts on No.
+- A small window: the status bar and the page headers drop the least useful things first, never overlapping or cutting them. Developers: \`debug layout\` lists what is cut at 14 sizes, \`debug pad\` shows the gamepad's buttons.
 - THEME STUDIO (\`launch studio\`): every knob of the theme, live. Enter on a colour opens the **palette** — 18 hues × 10 shades at the saturation you pick, greys, the theme's own colours; arrows / mouse choose, tab reaches the saturation and the #hex field (still typable), enter keeps it. ↺ on a changed knob (or \`r\`) puts the theme's value back.
 
 ## Days and times

@@ -20,6 +20,31 @@
   space come as keys with their place (`code`), not as text — a piano works on AZERTY; every alt
   combination is the page's on every system (alt + arrows too), ⌘Z / ⌘⇧Z reach it, esc gives the
   keys back to the deck (the tree takes them). SHORTCUTS page, F1 manual.
+- **Dialogs: the answers always bottom right** — the way out (No, close) on the left, the
+  way forward (Yes, open) on the right, in every dialog and widget pop-up; ← → point at them.
+  A question whose safe answer is no (delete for good) still starts on No.
+- **Top bar: UPLINK ■** instead of the AI's name and model: the square is green when your AI
+  is there, amber while it thinks, red when it's off (the theme's colours); its tip says which
+  AI, a click opens it. Narrow, the square alone.
+- **Nothing overlaps or gets cut in a small window**: the status bar and the page headers drop
+  the least useful things first. Pages fixed at small sizes: MODULES, NEXUS, BLOCKS,
+  SHORTCUTS, STORE, CLOCKS (titles shrink, buttons go), FOCUS (the buttons wrap), WEATHER (the
+  numbers and the 24 h curve stay above the week), SYSMON (as many facts as fit), TRASH (the
+  count never covers the title), THEME STUDIO (a value gets at most half its row), JOURNAL
+  (under 48 cells the page alone), the tab bar.
+- **Gamepad buttons in pixel art**, and which kind of pad is plugged in (Xbox, PlayStation,
+  Nintendo): `debug pad` shows them.
+- **For developers**: `debug layout` draws the screen at 14 sizes and lists what is cut or
+  drawn over another text (`debug layout pages`: every page, `debug layout show`: live
+  marks); `ui/layout.ts` has `Bar`, `stack`, `cards`, `sizeClass` (modules: `ib.lib`); a test
+  refuses new hand-made spacing (docs/LAYOUT.md).
+- **NEWS**: the featured article says "à la une" and its category first; a summary's line
+  breaks become spaces ("CULTURE Dakar", not "CULTUREDakar") and a cut summary ends with …;
+  in list mode only the headline under the mouse scrolls.
+- **FX panel**: a preset's description never covers its name (cut with … when the row is
+  short).
+- **Releases**: the CI's release only becomes "latest" once the update file (latest.json) is
+  attached — installed apps never see a release they can't install.
 
 ## 0.5.3 — 2026-11-21
 

@@ -469,6 +469,7 @@ export const FR: Record<string, string> = {
   "Weather where?": "La météo où ?",
   "no place called {q}": "aucun lieu nommé {q}",
   "reading the sky…": "lecture du ciel…",
+  "thinking…": "réfléchit…",
   "no data": "pas de données",
   "⌕ search a place": "⌕ chercher un lieu",
   "⌕ search": "⌕ chercher",
