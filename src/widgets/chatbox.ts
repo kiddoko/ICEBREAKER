@@ -21,6 +21,8 @@ interface Msg {
 }
 const chat = { msgs: [] as Msg[], session: null as ChatSession | null, busy: false, error: "" };
 const field = new Field({ icon: "❯" });
+/** each copy's field was on screen at its last frame (a widget taller than the side panel's view has it cut off) */
+const fieldShown = new Map<string, boolean>();
 
 /** The conversation as styled lines, newest last. */
 function lines(ui: UI, w: number): { text: string; fg: number; bold?: boolean }[] {
@@ -78,8 +80,13 @@ export const chatWidget: WidgetSpec = {
   open: "launch link",
   // a field of its own: chosen (a click on it, or the arrows), you type here and enter sends;
   // enter on an empty field, or a double-click, opens the big view
-  onText(s, { deck }) {
-    return deck.ai.ready && field.onText(s);
+  onText(s, { deck, key }) {
+    if (!deck.ai.ready) return false;
+    field.onText(s);
+    // its field out of view (the widget cut off by the panel's edge): the pop-up opens with the
+    // letter in it, as in 0.5.5 — never typing into something you can't see
+    if (!fieldShown.get(key ?? "chat")) void deck.act(`widget ${key ?? "chat"}`);
+    return true;
   },
   onKey(k, { deck }) {
     if (!deck.ai.ready) return false;
@@ -94,11 +101,11 @@ export const chatWidget: WidgetSpec = {
     if (field.empty && (k.combo === "left" || k.combo === "right")) return false;
     return field.onKey(k);
   },
-  render(ui, r, { deck, typing, select }) {
-    const focused = !!typing;
+  render(ui, r, { deck, typing, select, key }) {
     const c = ui.c;
     if (chat.busy) ui.animate(80);
     if (!deck.ai.ready) {
+      fieldShown.set(key ?? "chat", false);
       ui.text(r.x + INSET, r.y, `○ ${t("uplink offline")}`, { fg: c.error }, r.w - INSET * 2);
       ui.text(r.x + INSET, r.y + 1, deck.ai.problem ?? "", { fg: c.muted }, r.w - INSET * 2);
       return;
@@ -109,6 +116,10 @@ export const chatWidget: WidgetSpec = {
     if (!all.length && room > 0) ui.text(r.x + INSET, r.y, t("say something — just type"), { fg: c.faint }, w);
     all.slice(-room).forEach((l, i) => ui.text(r.x + INSET, r.y + i, l.text, { fg: l.fg, attrs: l.bold ? BOLD : 0 }, w));
     const row = { x: r.x, y: r.y + r.h - 1, w: r.w, h: 1 };
+    // the caret only where you can see the field (cut off, it was drawn over the shell below)
+    const shown = ui.grid.inClip(row.x + INSET, row.y);
+    fieldShown.set(key ?? "chat", shown);
+    const focused = !!typing && shown;
     field.render(ui, row, { focused, placeholder: focused ? t("type, enter to send") : t("type here…") });
     // a click on the field chooses the widget (keys come here) and puts the caret there
     ui.hit(row, {

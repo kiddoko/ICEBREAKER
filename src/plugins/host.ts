@@ -213,7 +213,7 @@ export class PluginHost {
     const key = `${m.id}|${name}`;
     if (level !== "total" && (this.once.get(key) ?? 0) > Date.now()) return;
     const d = describePerm(name, t);
-    const no = () => new Error(t("{m}: you said no to “{p}”", { m: m.name, p: d.label }));
+    const no = () => new Error(t("{m}: you said no to “{p}”", { m: m.name.toLowerCase(), p: d.label }));
     // you just said no to this: the rest of the same action (an export's file after its folder) stops
     // without a second question
     if (level !== "total" && (this.refused.get(key) ?? 0) > Date.now()) throw no();
