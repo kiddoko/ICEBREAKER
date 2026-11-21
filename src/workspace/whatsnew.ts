@@ -194,6 +194,11 @@ export class WhatsNew implements Overlay {
     const g = ui.theme.gradient;
     const cx = screen.x + screen.w / 2, cy = screen.y + screen.h / 3;
     const color = (k: number) => g[Math.floor(k * g.length) % g.length] ?? ui.c.accent;
+    // only on empty cells: over the dimmed screen's words they read as typos ("ICE·REAKER")
+    const empty = (x: number, y: number) => {
+      const ch = ui.grid.ch[y * ui.grid.cols + x];
+      return ch === 32 || ch === 0 || (ch >= 0x2800 && ch <= 0x28ff);
+    };
     // the stars
     const n = Math.floor((screen.w * screen.h) / 55);
     for (let i = 0; i < n; i++) {
@@ -201,6 +206,7 @@ export class WhatsNew implements Overlay {
       const drift = still ? 0 : (age / 1000) * (0.4 + rand(i + 9) * 1.2);
       const y = screen.y + Math.floor((((rand(i + 3) * screen.h - drift) % screen.h) + screen.h) % screen.h);
       const tw = still ? 0.6 : (Math.sin(age / 400 + i) + 1) / 2;
+      if (!empty(x, y)) continue;
       ui.text(x, y, tw > 0.85 ? "✦" : tw > 0.4 ? "·" : "˙", { fg: mix(ui.c.bg, color(rand(i + 5)), 0.25 + 0.5 * tw) });
     }
     // the burst: sparks flying out for a second and a half
@@ -211,7 +217,7 @@ export class WhatsNew implements Overlay {
       const v = 0.35 + rand(i + 40) * 0.65;
       const d = (1 - (1 - k) ** 3) * v;
       const x = Math.round(cx + Math.cos(a) * d * screen.w * 0.5), y = Math.round(cy + Math.sin(a) * d * screen.h * 0.45);
-      if (x < screen.x || y < screen.y || x >= screen.x + screen.w || y >= screen.y + screen.h) continue;
+      if (x < screen.x || y < screen.y || x >= screen.x + screen.w || y >= screen.y + screen.h || !empty(x, y)) continue;
       ui.text(x, y, k < 0.35 ? "✦" : k < 0.7 ? "+" : "·", { fg: mix(color(rand(i + 60)), ui.c.bg, k * 0.7), attrs: BOLD });
     }
   }

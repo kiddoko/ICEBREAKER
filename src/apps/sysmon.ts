@@ -253,8 +253,8 @@ export class SysmonApp implements App {
         const v = Math.max(0, Math.min(1, this.byMem ? p.mem / biggest : p.cpu / most));
         const on = Math.round(v * barW);
         const bx = inner.x + nameW + INSET;
-        ui.text(bx, y, "─".repeat(barW), { fg: mix(c.faint, c.bg, 0.3) });
         if (on) ui.text(bx, y, "━".repeat(on), { fg: this.byMem ? c.accentAlt : heat(ui, p.cpu / 100) });
+        if (on < barW) ui.text(bx + on, y, "─".repeat(barW - on), { fg: mix(c.faint, c.bg, 0.3) });
       }
       ui.textRight(inner.x + inner.w, y, right, { fg: c.subtle });
     });

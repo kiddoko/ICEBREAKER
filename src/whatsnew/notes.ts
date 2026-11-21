@@ -39,7 +39,7 @@ export const NOTES: VersionNotes[] = [
         "Arrange the screen: move, resize and fold the tree, panel and shell",
         "Every frame has its tabs; drag a tab onto any frame to keep it there",
         "◆ ICEBREAKER, top left: the deck's menu (modules, store, settings…)",
-        "Tab groups: drop a tab onto another · HOME is pinned, always first",
+        "Groups of tabs: drop one onto another · HOME is pinned, always first",
         "New pages for NEWS and MOON; WEATHER, CLOCKS, STATS, SYSMON redrawn",
         "Wake-up alarms: `clock alarm 7:30 --days mon-fri`",
         "Each news widget shows one thing: your area, country, topics or words",
