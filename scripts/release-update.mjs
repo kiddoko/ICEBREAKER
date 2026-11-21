@@ -103,6 +103,9 @@ if (publish) {
     exists = false;
   }
   if (exists) execFileSync("gh", ["release", "upload", tag, "-R", publish, "--clobber", ...all], { stdio: "inherit" });
-  else execFileSync("gh", ["release", "create", tag, "-R", publish, "-t", `ICEBREAKER ${version}`, "-n", latest.notes, ...all], { stdio: "inherit" });
+  else execFileSync("gh", ["release", "create", tag, "-R", publish, "-t", `ICEBREAKER ${version}`, "-n", latest.notes, "--latest=false", ...all], { stdio: "inherit" });
+  // only now, with latest.json on it, does this release become the one installed apps read
+  // (CI creates it with make_latest false, so updates never see a release without latest.json)
+  execFileSync("gh", ["release", "edit", tag, "-R", publish, "--latest"], { stdio: "inherit" });
   console.log(`published: https://github.com/${publish}/releases/tag/${tag}`);
 }

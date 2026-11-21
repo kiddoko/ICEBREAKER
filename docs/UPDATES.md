@@ -54,8 +54,10 @@ install/remove/update` (src/shell/privileged.ts).
    `node scripts/release-update.mjs --mac --notes "what's new" --publish kiddoko/ICEBREAKER`
    → takes CI's files and their `.sig` from the release (a file without one is signed again
    here, with the local key), signs the Mac app, writes `latest.json` and adds it all to the
-   release. From then on, every installed ICEBREAKER finds it at
-   `https://github.com/kiddoko/ICEBREAKER/releases/latest/download/latest.json`.
+   release, then makes it the **latest** release. From then on, every installed ICEBREAKER
+   finds it at `https://github.com/kiddoko/ICEBREAKER/releases/latest/download/latest.json`.
+   (CI creates the release *not* as the latest, so installed apps keep reading the previous
+   release's `latest.json` until this one is complete — never a release without it.)
 
 The repository must be **public** for that address to work without an account.
 
