@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.1 — not released yet
+
+- **The chat widget**: one click and you type. Its field is on its top line; a click (or a
+  letter) scrolls HOME or the side panel to the widget's top. A click never opens the pop-up
+  (double-click, or enter on an empty field, does).
+- **Smoothness** (Settings → APPEARANCE → Motion): with V-Sync, 60 or 120 frames a second at
+  most; *auto* (the default) is 60 on battery and 120 on the mains, following the plug.
+- **`say` speaks at once**, in Japanese mode too (it waited on an AI translation); `say -t`
+  translates first. Translations already made are reused.
+- **Alt+F4 closes ICEBREAKER** on Windows and Linux.
+- **The ◆ menu's lines line up.**
+- **Lighter**: the bloom keeps its own small copy of the screen instead of reading the whole
+  screen 20 times a second (WebKit kept a full copy each time: hundreds of MB); the CRT
+  curvature composes at most 30 times a second.
+
 ## 0.6.0 — 2026-11-21
 
 The UI overhaul ("Refonte UI"): the screen is made of frames you arrange, every frame has its

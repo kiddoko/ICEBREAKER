@@ -32,6 +32,32 @@ export interface VersionNotes {
 
 export const NOTES: VersionNotes[] = [
   {
+    version: "0.6.1",
+    date: "",
+    en: {
+      headline: "One click and you type",
+      added: ["Smoothness: 60 or 120 frames a second, auto follows the plug (Settings)", "`say -t`: translated first in Japanese mode", "Chat widget: its field on its top line, always in view"],
+      fixed: [
+        "Chat widget: one click and you type, no pop-up",
+        "`say` speaks at once (no translation wait)",
+        "Alt+F4 closes the app on Windows",
+        "The ◆ menu's lines line up",
+        "Less memory with the bloom; the CRT curvature costs less",
+      ],
+    },
+    fr: {
+      headline: "Un clic et tu écris",
+      added: ["Fluidité : 60 ou 120 images/s, auto suit la prise (Réglages)", "`say -t` : traduit d'abord en mode japonais", "Widget chat : son champ sur sa première ligne, toujours visible"],
+      fixed: [
+        "Widget chat : un clic et tu écris, sans pop-up",
+        "`say` parle tout de suite (plus d'attente de traduction)",
+        "Alt+F4 ferme l'app sous Windows",
+        "Les lignes du menu ◆ sont alignées",
+        "Moins de mémoire avec le bloom ; la courbure CRT coûte moins",
+      ],
+    },
+  },
+  {
     version: "0.6.0",
     date: "2026-11-21",
     en: {
