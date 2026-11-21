@@ -1,6 +1,6 @@
 # Changelog
 
-## Not released yet
+## 0.5.5 — 2026-11-21
 
 - **CRT curvature really bends the picture** (`fx curve`, Settings → Effects): the screen bulges
   like the glass of a tube — lines of text bend towards the edges, the corners pull in. One

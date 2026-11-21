@@ -32,7 +32,36 @@ export interface VersionNotes {
 
 export const NOTES: VersionNotes[] = [
   {
+    version: "0.5.5",
+    date: "2026-11-21",
+    en: {
+      added: [
+        "CRT curvature now really bends the picture, like the glass of a tube",
+        "Clicks follow the curve: they land on the letter you see",
+        "Modules can export MP3, M4A, OGG and Opus (`encoders install`)",
+      ],
+      fixed: [
+        "The chat widget takes your typing: just type, the chat opens with it",
+        "A click on the chat widget's “type here” line opens the chat",
+        "With the curve on, CRT lines, glow and colour fringes bend with it",
+      ],
+    },
+    fr: {
+      added: [
+        "La courbure CRT courbe vraiment l'image, comme le verre d'un tube",
+        "Les clics suivent la courbe : ils tombent sur la lettre que tu vois",
+        "Les modules exportent en MP3, M4A, OGG et Opus (`encoders install`)",
+      ],
+      fixed: [
+        "Le widget de conversation prend la frappe : tape, le chat s'ouvre avec",
+        "Un clic sur la ligne « écris ici » du widget ouvre le chat",
+        "Courbure active : lignes CRT, glow et franges couleur se courbent aussi",
+      ],
+    },
+  },
+  {
     version: "0.5.4",
+    date: "2026-11-21",
     en: {
       added: [
         "Modules can play sound — with their own fader in Settings → SOUND",
