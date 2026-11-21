@@ -36,6 +36,8 @@ export type ShellTab = "term" | "ibsh" | "log";
 
 /** the top bar's rows: one (the deck menu, UPLINK, the clock — the tabs are on the frames) */
 export const TOP_H = 1;
+/** the shell's share of the height to begin with (and after `layout reset`) */
+export const SHELL_RATIO = 0.3;
 
 /** the parts of the screen that can have the focus (the side panel only while shown) */
 export type Pane = "sidebar" | "main" | "shell" | "panel";
@@ -73,7 +75,7 @@ export class Workspace {
     if (!on && this.focus === "shell") this.focus = "main";
     this.deck.requestFrame();
   }
-  shellRatio = 0.3;
+  shellRatio = SHELL_RATIO;
   overlays: Overlay[] = [];
   readonly toasts = new Toasts();
   readonly sidebar: Sidebar;
@@ -1072,7 +1074,8 @@ export class Workspace {
       const focused = this.focus === "sidebar" && !this.topModal;
       const inner = tabbedBox(ui, vaultR, { focused, info: `${d.vault.markdown().length}` });
       soloTab(ui, vaultR, "VAULT", focused, { onClick: () => (this.focus = "sidebar"), tip: t("your notes and files · ⌘B hides the tree"), menu: () => [{ label: t("Fold"), cmd: "frame fold tree" }, { label: t("Hide"), cmd: "tree", hint: IS_MAC ? "⌘B" : "ctrl+B" }] });
-      this.sidebar.render(ui, inner, this.focus === "sidebar");
+      // (clipped: in a tiny window the tree's list drew a row under its frame)
+      ui.clip(inner, () => this.sidebar.render(ui, inner, this.focus === "sidebar"));
     }
 
     // the side panel on the right: widgets that stay in view (panel show · ◧ in the status bar);

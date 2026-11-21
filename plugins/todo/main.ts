@@ -923,7 +923,9 @@ export function activate(ib: IcebreakerAPI): void {
       });
       if (inNotes.length) rows.push({ head: "notes" });
       inNotes.forEach((note, i) => rows.push({ note, index: list.length + i }));
-      const viewH = r.y + r.h - y;
+      // when it doesn't all fit, the last row is the "↓ N more" badge's, not a task's (it was drawn over one)
+      const fullH = r.y + r.h - y;
+      const viewH = rows.length > fullH ? Math.max(0, fullH - 1) : Math.max(0, fullH);
       const selRow = rows.findIndex((row) => "index" in row && row.index === this.sel);
       if (selRow - 1 < this.scroll) this.scroll = Math.max(0, selRow - 1);
       if (selRow >= this.scroll + viewH) this.scroll = selRow - viewH + 1;
@@ -1005,7 +1007,7 @@ export function activate(ib: IcebreakerAPI): void {
         const end = ui.text(tx, ry, t.text, { fg: t.done ? c.faint : sel ? c.fg : c.fg, bg: rbg, attrs: t.done ? STRIKE | DIM : 0 }, Math.max(1, room));
         if (tags && room > 4) ui.text(end + 1, ry, tags, { fg: c.accentAlt, bg: rbg }, rx - end - 1);
       });
-      if (this.scroll + viewH < rows.length) ui.textRight(x0 + w, r.y + r.h - 1, ` ↓ ${rows.length - this.scroll - viewH} more `, { fg: c.panel, bg: c.accent });
+      if (this.scroll + viewH < rows.length && fullH >= 1) ui.textRight(x0 + w, r.y + r.h - 1, ` ↓ ${rows.length - this.scroll - viewH} more `, { fg: c.panel, bg: c.accent });
     }
   }
 

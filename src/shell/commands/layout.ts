@@ -1,6 +1,7 @@
 import { fmt } from "../../core/ansi";
 import { osKeys } from "../../core/keyhints";
 import type { Command } from "../types";
+import { SHELL_RATIO } from "../../workspace/workspace";
 import { CLASSIC, describe, moveFrame, parseArrangement, PRESETS, type FrameId, type Side } from "../../workspace/layout/arrange";
 
 /** what you call a frame → its id ("tree" is the vault frame) */
@@ -37,6 +38,8 @@ export const layoutCommand: Command = {
     }
     if (a === "reset") {
       d.settings.set("layout", {});
+      // the shell's height too (dragging its top border changes it, apart from the arrangement)
+      d.workspace.shellRatio = SHELL_RATIO;
       d.requestFrame();
       return ctx.out("layout: classic\n"), 0;
     }

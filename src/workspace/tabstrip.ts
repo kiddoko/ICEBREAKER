@@ -37,6 +37,9 @@ function iconOf(ws: Workspace, i: number): string {
   const app = ws.tabs[i];
   if (!app) return "·";
   if (app.kind === "note") return "✎";
+  // the shell as a tab (term max): its own marks, as on the shell's tabs
+  if (app.kind === "ibsh") return ws.deck.theme.glyphs.mark;
+  if (app.kind === "terminal") return "❯";
   return ws.deck.apps.get(app.kind)?.icon?.trim()?.slice(0, 2) || "·";
 }
 
@@ -47,6 +50,8 @@ function iconOf(ws: Workspace, i: number): string {
  * row under (each tab's half-block bar is drawn on the box's top line). Returns the box.
  */
 export function tabbedBox(ui: UI, r: Rect, o: BoxOptions = {}): Rect {
+  // the tabs' row is clear: the ambient background's glyphs drifting between the tabs looked like noise
+  ui.fill({ x: r.x, y: r.y, w: r.w, h: Math.min(1, r.h) });
   return ui.box({ x: r.x, y: r.y + 1, w: r.w, h: Math.max(0, r.h - 1) }, o);
 }
 
