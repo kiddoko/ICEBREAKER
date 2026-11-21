@@ -299,6 +299,7 @@ export class HomeApp implements App {
   /** A widget chosen by a click on its own field: HOME takes the keyboard (it may have been the shell's). */
   private choose(i: number): void {
     this.selected = i;
+    this.reveal = true;
     this.deck.workspace.focus = "main";
   }
 
@@ -462,7 +463,8 @@ export class HomeApp implements App {
       if (p) {
         const top = Math.round(p.y * this.rowH), bot = Math.round((p.y + p.h) * this.rowH) - 1;
         if (top < this.scroll) this.scroll = top;
-        else if (bot > this.scroll + area.h) this.scroll = bot - area.h + 1;
+        // its bottom into view, but never past its top (a widget taller than HOME shows its top: its title, a chat's field)
+        else if (bot > this.scroll + area.h) this.scroll = Math.min(top, bot - area.h + 1);
       }
       this.reveal = false;
     }
@@ -508,6 +510,7 @@ export class HomeApp implements App {
       const frameHit = {
         onClick: (m: { x: number; y: number }) => {
           this.selected = i;
+          this.reveal = true; // half out of view: scrolled in (its top first)
           if (!this.editing && spec.clickActivates && spec.activate) return void spec.activate({ deck: this.deck, focused: true });
           if (this.editing) this.drag = { index: i, dx: m.x - rect.x, dy: m.y - rect.y, mx: m.x, my: m.y, spot: null };
         },
