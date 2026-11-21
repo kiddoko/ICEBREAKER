@@ -44,6 +44,7 @@ fn info(u: &Update, downloaded: bool) -> UpdateInfo {
 /// Is there a newer ICEBREAKER? `endpoint`: where to look (Settings → UPDATES; empty = tauri.conf.json's).
 #[tauri::command]
 pub async fn app_update_check(app: AppHandle, state: State<'_, UpdateState>, endpoint: Option<String>) -> Result<Option<UpdateInfo>, String> {
+    crate::config::online(&app, "looking for updates")?;
     let mut b = app.updater_builder();
     if let Some(e) = endpoint.filter(|e| !e.trim().is_empty()) {
         let url = e.trim().parse().map_err(|_| format!("{e}: not a URL"))?;
@@ -61,6 +62,7 @@ pub async fn app_update_check(app: AppHandle, state: State<'_, UpdateState>, end
 /// Download the update found (progress: the "app-update-progress" event). Nothing is installed.
 #[tauri::command]
 pub async fn app_update_download(app: AppHandle, state: State<'_, UpdateState>) -> Result<UpdateInfo, String> {
+    crate::config::online(&app, "downloading an update")?;
     let update = {
         let g = state.found.lock().map_err(|e| e.to_string())?;
         match g.as_ref() {

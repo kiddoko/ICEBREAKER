@@ -174,10 +174,12 @@ function makeIb(manifest: unknown, version: string): unknown {
       },
     },
     shell: { run: rpc("shell", "run") },
+    // the internet, one approved host at a time, through the deck (the Worker itself has none)
+    net: { get: rpc("net", "get") },
     ui: {
-      notify: (...a: unknown[]) => void call(["ui", "notify"], a),
-      alert: (...a: unknown[]) => void call(["ui", "alert"], a),
-      say: (...a: unknown[]) => void call(["ui", "say"], a),
+      notify: (...a: unknown[]) => void call(["ui", "notify"], a).catch((e) => console.warn(String(e))),
+      alert: (...a: unknown[]) => void call(["ui", "alert"], a).catch((e) => console.warn(String(e))),
+      say: (...a: unknown[]) => void call(["ui", "say"], a).catch((e) => console.warn(String(e))),
       confirm: rpc("ui", "confirm"),
       prompt: rpc("ui", "prompt"),
       choose: rpc("ui", "choose"),

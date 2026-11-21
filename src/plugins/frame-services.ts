@@ -21,6 +21,7 @@ import type { Deck } from "../deck";
 import { q } from "../ui/ui";
 import { isTagColor } from "../vault/marks";
 import type { Caller, ServiceSpec } from "./services";
+import { trusted } from "../shell/origin";
 import { DECK_KEYS, keysOf, menuKeyOf } from "../core/shortcuts";
 import { quickItems } from "../workspace/quickmenu";
 
@@ -37,34 +38,44 @@ export function frameServices(deck: Deck): Record<string, Record<string, Service
   // the deck's own code or your `modules call`, as you. Every argument is quoted: a ";" in
   // one can never start another command.
   const run = (c: Caller | undefined, l: string) => (!l ? 0 : c?.origin ? deck.shell.runUntrusted(l, c.origin) : deck.act(l));
-  const line = (doc: string, make: (...a: any[]) => string, needs?: ServiceSpec["needs"]): ServiceSpec => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+  // (the shell asks every module's line for "shell" itself: shell/exec.ts)
+  const line = (doc: string, make: (...a: any[]) => string, needs: ServiceSpec["needs"] = "shell"): ServiceSpec => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
     doc,
     needs,
     fn: (...a) => run(undefined, make(...a)),
     by: (c: Caller) => (...a) => run(c, make(...a)),
   });
+  /** a STORE / vault module that calls: its name, to sign what it shows you (null: the deck's own, or you) */
+  const signer = (c: Caller): string | null => (c.origin && !trusted(c.origin) ? (deck.plugins.list().find((p) => p.manifest.id === c.id)?.manifest.name ?? c.id) : null);
+  /** your real terminal, for a STORE / vault module: each command is shown to you first (plugins/host.ts gate) */
+  const typed = (c: Caller, text: string, enter: boolean) => async () => {
+    if (c.origin && !trusted(c.origin)) await deck.plugins.gateById(c.id, "terminal", "", text);
+    deck.access.note(c.id, "terminal", text.trim().split(/\s+/)[0] ?? "");
+    if (enter) ws().showShellTab("term");
+    ws().sysTerm?.write(enter ? `${text}\r` : text);
+  };
   return {
     tree: {
-      reveal: { doc: "reveal(path) → opens its folders and selects it in the tree", fn: (path: string) => ws().sidebar.reveal(String(path)) },
-      filter: { doc: 'filter(["red", "blue"]) → the tree shows only those colours; [] = everything', fn: (cs: string[] | string | null) => ws().sidebar.setFilter((Array.isArray(cs) ? cs : cs ? [cs] : []).filter(isTagColor)) },
-      selected: { doc: "selected() → the path selected in the tree (or null)", fn: () => ws().sidebar.selectedPath() },
-      toggle: { doc: "toggle() → shows / hides the tree", fn: () => ws().toggleSidebar() },
+      reveal: { doc: "reveal(path) → opens its folders and selects it in the tree", needs: "shell", fn: (path: string) => ws().sidebar.reveal(String(path)) },
+      filter: { doc: 'filter(["red", "blue"]) → the tree shows only those colours; [] = everything', needs: "shell", fn: (cs: string[] | string | null) => ws().sidebar.setFilter((Array.isArray(cs) ? cs : cs ? [cs] : []).filter(isTagColor)) },
+      selected: { doc: 'selected() → the path selected in the tree (or null) (needs "vault:read")', needs: "vault:read", fn: () => ws().sidebar.selectedPath() },
+      toggle: { doc: "toggle() → shows / hides the tree", needs: "shell", fn: () => ws().toggleSidebar() },
     },
     terminal: {
-      run: { doc: 'run(command) → types it in your system terminal and presses enter (needs "terminal")', needs: "terminal", fn: (cmd: string) => { ws().showShellTab("term"); ws().sysTerm?.write(`${String(cmd)}\r`); } },
-      write: { doc: 'write(text) → types text in your system terminal, no enter (needs "terminal")', needs: "terminal", fn: (text: string) => ws().sysTerm?.write(String(text)) },
-      open: { doc: "open() → shows the shell panel on your system terminal", fn: () => ws().showShellTab("term") },
-      new: { doc: "new() → one more terminal tab", fn: () => ws().newTerminal() },
+      run: { doc: 'run(command) → types it in your system terminal and presses enter (needs "terminal": a STORE / vault module\'s command is shown to you first)', needs: "terminal", fn: (cmd: string) => { ws().showShellTab("term"); ws().sysTerm?.write(`${String(cmd)}\r`); }, by: (c: Caller) => (cmd: string) => typed(c, String(cmd), true)() },
+      write: { doc: 'write(text) → types text in your system terminal, no enter (needs "terminal")', needs: "terminal", fn: (text: string) => ws().sysTerm?.write(String(text)), by: (c: Caller) => (text: string) => typed(c, String(text), false)() },
+      open: { doc: "open() → shows the shell panel on your system terminal", needs: "shell", fn: () => ws().showShellTab("term") },
+      new: { doc: "new() → one more terminal tab", needs: "shell", fn: () => ws().newTerminal() },
     },
     shell: {
       run: line("run(line) → runs an ICEBREAKER command (`open notes/a.md`, `theme e-ink`…) — as the module that calls it: what modules may not run stays refused", (l: string) => String(l)),
-      show: { doc: "show() → opens the shell panel", fn: () => ws().toggleShell(true) },
-      hide: { doc: "hide() → folds the shell panel away", fn: () => ws().toggleShell(false) },
+      show: { doc: "show() → opens the shell panel", needs: "shell", fn: () => ws().toggleShell(true) },
+      hide: { doc: "hide() → folds the shell panel away", needs: "shell", fn: () => ws().toggleShell(false) },
     },
     theme: {
       current: { doc: "current() → the theme's name", fn: () => deck.theme.name },
       list: { doc: "list() → every theme's name", fn: () => deck.themes.list().map((t) => t.name) },
-      set: { doc: "set(name) → switches theme (true if it exists)", fn: (name: string) => deck.setTheme(String(name)) },
+      set: { doc: "set(name) → switches theme (true if it exists)", needs: "shell", fn: (name: string) => deck.setTheme(String(name)) },
       colors: { doc: "colors() → the theme's colours as #rrggbb: { bg, fg, accent, accentAlt, panel, muted, success, warning, error… }", fn: () => Object.fromEntries(Object.entries(deck.theme.c).filter(([, v]) => typeof v === "number").map(([k, v]) => [k, hexOf(v as number)])) },
       mix: { doc: 'mix("#ff0000", "#0000ff", 0.5) → a colour between two (#rrggbb)', fn: (a: string, b: string, k: number) => hexOf(mix(parseInt(String(a).slice(1), 16), parseInt(String(b).slice(1), 16), Number(k))) },
     },
@@ -82,37 +93,52 @@ export function frameServices(deck: Deck): Record<string, Record<string, Service
     },
     tabs: {
       list: { doc: "list() → [{ n, title, kind }] the open tabs", fn: () => ws().tabs.slice(0, ws().tabCount).map((t, i) => ({ n: i + 1, title: t.title(), kind: t.kind })) },
-      go: { doc: "go(n) → shows tab n", fn: (n: number) => ws().switchTab(Number(n) - 1) },
-      open: { doc: 'open(app) → opens an app ("weather", "todo"…)', fn: (kind: string) => !!deck.openApp(String(kind)) },
+      go: { doc: "go(n) → shows tab n", needs: "shell", fn: (n: number) => ws().switchTab(Number(n) - 1) },
+      open: { doc: 'open(app) → opens an app ("weather", "todo"…)', needs: "shell", fn: (kind: string) => !!deck.openApp(String(kind)) },
     },
     notes: {
-      open: { doc: "open(path) → opens a note in a tab", fn: (path: string) => deck.openFile(String(path)) },
-      current: { doc: "current() → the path of the note shown (or null)", fn: () => (ws().activeApp?.kind === "note" ? ws().activeApp!.key.slice(5) : null) },
-      new: { doc: 'new(folder?) → a new note (asks its title)', fn: (folder?: string) => deck.newNote(folder ?? "notes") },
+      open: { doc: "open(path) → opens a note in a tab", needs: "shell", fn: (path: string) => deck.openFile(String(path)) },
+      current: { doc: 'current() → the path of the note shown (or null) (needs "vault:read")', needs: "vault:read", fn: () => (ws().activeApp?.kind === "note" ? ws().activeApp!.key.slice(5) : null) },
+      new: { doc: 'new(folder?) → a new note (asks its title)', needs: "shell", fn: (folder?: string) => deck.newNote(folder ?? "notes") },
     },
     sound: {
-      play: { doc: 'play(name) → one of the UI sounds: move, open, confirm, back, success, error, notify, alert, tick, select…', fn: (name: string) => deck.sound.play(name as never) },
+      play: { doc: 'play(name) → one of the UI sounds: move, open, confirm, back, success, error, notify, alert, tick, select…', needs: "notify", fn: (name: string) => deck.sound.play(name as never) },
     },
     menu: {
-      open: { doc: "open() → THE MENU (search everything, menu keys)", fn: () => void ws().menu() },
+      open: { doc: "open() → THE MENU (search everything, menu keys)", needs: "shell", fn: () => void ws().menu() },
       items: { doc: "items() → [{ key, label, from }] every quick key on THE MENU", fn: () => quickItems(deck).map(({ key, label, from }) => ({ key, label, from })) },
       add: line("add(key, command) → ⌘K, then key runs the command (the deck's own code only: a module can't plant a command)", (key: string, cmd: string) => `menu add ${q(String(key))} ${q(String(cmd))}`),
     },
     keys: {
       list: { doc: "list() → [{ id, keys, menuKey, what }] every deck shortcut, with the user's changes", fn: () => DECK_KEYS.map((s) => ({ id: s.id, keys: keysOf(s, deck.settings.data.keyOverrides), menuKey: menuKeyOf(s, deck.settings.data.menu?.keys), what: s.what })) },
-      run: { doc: 'run(id) → does what a deck shortcut does ("tree", "home", "menu"…)', fn: (id: string) => { const s = DECK_KEYS.find((x) => x.id === String(id)); if (s) ws().runShortcut(s); return !!s; } },
+      run: {
+        doc: 'run(id) → does what a deck shortcut does ("tree", "home", "menu"…) — for a module, as that module: what only you may do stays refused',
+        needs: "shell",
+        fn: (id: string) => { const s = DECK_KEYS.find((x) => x.id === String(id)); if (s) ws().runShortcut(s); return !!s; },
+        // a module's call runs the shortcut's command as that module (`keys.run("lock")` logged you
+        // out: `logout` is yours only); a shortcut that has no command isn't for a STORE / vault module
+        by: (c: Caller) => async (id: string) => {
+          const s = DECK_KEYS.find((x) => x.id === String(id));
+          if (!s) return false;
+          if (!c.origin) return ws().runShortcut(s), true;
+          if (s.cmd) return (await run(c, s.cmd)) === 0;
+          if (!trusted(c.origin)) throw new Error(`keys.run: "${s.id}" has no command a module can run`);
+          return ws().runShortcut(s), true;
+        },
+      },
       bind: line('bind(keys, command) → one of the user\'s shortcuts ("ctrl+shift+1") (the deck\'s own code only: a module can\'t plant a command)', (keys: string, cmd: string) => `bind ${q(String(keys))} ${q(String(cmd))}`),
     },
     deck: {
-      alert: { doc: "alert(title, body?) → calls the user the way they chose (Settings → NOTIFICATIONS: screen, sound, notification center, voice)", fn: (title: string, body = "") => deck.alert(String(title), String(body)) },
-      notify: { doc: 'notify(text, kind?) → a toast ("info" · "success" · "warning" · "error")', fn: (text: string, kind?: "info" | "success" | "warning" | "error") => deck.notify(String(text), kind) },
-      say: { doc: "say(text, topic?) → the voice says it, if that topic may speak (Settings → VOICE)", fn: (text: string, topic = "modules") => deck.speak(topic as never, String(text)) },
+      // (a STORE / vault module's are signed with its name, like ib.ui.notify / alert)
+      alert: { doc: 'alert(title, body?) → calls the user the way they chose (Settings → NOTIFICATIONS: screen, sound, notification center, voice) (needs "notify")', needs: "notify", fn: (title: string, body = "") => deck.alert(String(title), String(body)), by: (c: Caller) => (title: string, body = "") => deck.alert(signer(c) ? `${signer(c)} (module) — ${String(title)}` : String(title), String(body)) },
+      notify: { doc: 'notify(text, kind?) → a toast ("info" · "success" · "warning" · "error") (needs "notify")', needs: "notify", fn: (text: string, kind?: "info" | "success" | "warning" | "error") => deck.notify(String(text), kind), by: (c: Caller) => (text: string, kind?: "info" | "success" | "warning" | "error") => deck.notify(signer(c) ? `${signer(c)}: ${String(text)}` : String(text), kind) },
+      say: { doc: 'say(text, topic?) → the voice says it, if that topic may speak (Settings → VOICE) (needs "notify")', needs: "notify", fn: (text: string, topic = "modules") => deck.speak(topic as never, String(text)), by: (c: Caller) => (text: string, topic = "modules") => deck.speak((signer(c) ? "modules" : topic) as never, String(text)) },
       setting: {
         doc: 'setting(key) → a setting\'s value ("appearance.theme", "user.handle"…) — a STORE / vault module reads how the deck looks and sounds, not where you are, your vault\'s place, your keys or your module list',
         fn: (key: string) => settingOf(String(key)),
         by: (c: Caller) => (key: string) => {
           const k = String(key);
-          if (c.origin && c.origin.grants !== "all" && !/^(appearance|fx|sound|editor|journal|boot|notifications|voice|user\.(handle|language|locale))(\.|$)/.test(k)) throw new Error(`deck.setting: "${k}" isn't for modules`);
+          if (c.origin && !trusted(c.origin) && !/^(appearance|fx|sound|editor|journal|boot|notifications|voice|user\.(handle|language|locale))(\.|$)/.test(k)) throw new Error(`deck.setting: "${k}" isn't for modules`);
           return settingOf(k);
         },
       },

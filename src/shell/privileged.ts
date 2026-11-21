@@ -89,6 +89,9 @@ export function isPrivileged(name: string, args: string[], from?: string): boole
       return !only("", "presets");
     case "frame":
       return true;
+    case "term":
+      // showing the shell is fine; closing, renaming or restarting your terminals is yours
+      return any("close", "rename", "restart", "mode");
     case "tab":
       // switching tabs is fine; moving them between frames, grouping them: yours
       return any("move", "group", "ungroup", "groupname");

@@ -231,6 +231,7 @@ pub fn google_setup(app: AppHandle, state: State<GoogleState>, client_id: String
 /// at once: a thread waits (up to 5 minutes) — ask `google_connect_result`.
 #[tauri::command]
 pub fn google_connect(app: AppHandle, state: State<GoogleState>) -> Result<u64, String> {
+    crate::config::online(&app, "Google")?;
     let c = load(&app)?.unwrap_or_default();
     let (client_id, client_secret) = c.client()?;
     // listening before the browser opens, so it can't come back to a closed port
@@ -371,6 +372,7 @@ pub async fn google_disconnect(app: AppHandle, state: State<'_, GoogleState>) ->
 /// One Calendar API call: `path` is under /calendar/v3/ (e.g. "users/me/calendarList").
 #[tauri::command]
 pub async fn google_calendar(app: AppHandle, method: String, path: String, query: Option<String>, body: Option<String>) -> Result<String, String> {
+    crate::config::online(&app, "Google Calendar")?;
     let method = method.to_uppercase();
     if !["GET", "POST", "PATCH", "PUT", "DELETE"].contains(&method.as_str()) {
         return Err("bad method".into());

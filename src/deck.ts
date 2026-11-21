@@ -1,3 +1,5 @@
+import { AccessLog } from "./core/access";
+import { PermissionDialog, type PermDialogSpec } from "./workspace/permdialog";
 import { startHereCommand } from "./vault/starthere";
 import { PRESETS } from "./workspace/layout/arrange";
 import type { ModuleSettingSpec } from "./plugins/api";
@@ -121,6 +123,8 @@ export class Deck implements InputSink {
   readonly errors = new ErrorLog();
   /** everything that happens (commands, clicks, errors, messages, debug): the shell's LOG tab */
   readonly log = new EventLog();
+  /** who used which permission, when, on what (core/access.ts): Settings → PERMISSIONS, the LOG's "access" filter */
+  readonly access: AccessLog;
 
   /**
    * A line for developers, in the LOG tab under "debug" (modules: `ib.debug`).
@@ -228,6 +232,9 @@ export class Deck implements InputSink {
       blip: () => this.sound.play("blip"),
     });
     this.vault.history = this.history;
+    // the access journal: its lines show in the LOG too ("◈ [todo] vault:write · notes/a.md")
+    this.access = new AccessLog(platform);
+    this.access.onAdd = (a) => void this.log.add("access", `${a.perm}${a.what ? ` · ${a.what}` : ""}`, { source: a.who });
     this.stats = new StatsStore(this.vault);
     this.marks = new Marks(this.vault);
     this.ai = new AIManager(settings);
@@ -377,6 +384,7 @@ export class Deck implements InputSink {
     this.updater.start();
     // short enough to read whole (the list of every module was cut with …); what's wrong, by name,
     // with the whole reason in the LOG
+    await this.access.load().catch(() => {});
     await step(() => this.plugins.init(), () => {
       const on = this.plugins.active().length;
       const bad = this.plugins.list().filter((p) => p.error);
@@ -697,6 +705,9 @@ export class Deck implements InputSink {
     // a plain vault's run untrusted, like a module's (shell/privileged.ts).
     const crypt = await this.platform.vault.crypt?.status().catch(() => null);
     if (crypt?.encrypted) return b.send(req.id, "\x1b[33mICEBREAKER: the vault is encrypted — its commands stay in ibsh (your terminal only sees noise)\x1b[0m\n", true, true, 1);
+    // Settings → PERMISSIONS → Your real terminal: nothing at all
+    if (this.settings.data.shell.bridge === "off") return b.send(req.id, "\x1b[33mICEBREAKER: its commands are switched off in your real terminal (Settings → PERMISSIONS) — type them in ibsh\x1b[0m\n", true, true, 1);
+    this.access.note("terminal", "shell", args[0] ?? "");
     const line = args.map((a, i) => (i === 0 ? a : q(a))).join(" ");
     if (cmd.interactive) {
       void this.shell.runUntrusted(line, { source: "terminal", grants: "all" });
@@ -751,6 +762,19 @@ export class Deck implements InputSink {
     }
     this.workspace.notify(text, kind);
     this.requestFrame();
+  }
+
+  /**
+   * A question about what a module may do (workspace/permdialog.ts): switching it on, a
+   * high-risk permission used for the first time, a command for your real terminal. Gives
+   * the chosen button's value (the first one, the way out, for esc).
+   */
+  askPermission(spec: PermDialogSpec): Promise<string> {
+    return new Promise((resolve) => {
+      this.workspace.push(new PermissionDialog(spec, resolve));
+      this.sound.play("alert");
+      this.requestFrame();
+    });
   }
 
   confirm(title: string, detail = "", preselected = true): Promise<boolean> {

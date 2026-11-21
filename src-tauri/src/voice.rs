@@ -291,6 +291,7 @@ fn file_sha256(path: &std::path::Path) -> std::io::Result<String> {
 /// Download the neural engine (once) and one voice — "fr" or "en" — into the app data dir.
 #[tauri::command]
 pub async fn voice_install(app: AppHandle, lang: String) -> Result<String, String> {
+    crate::config::online(&app, "downloading a voice")?;
     let d = dir(&app)?;
     let has_engine = piper_bin(&app).is_some();
     tauri::async_runtime::spawn_blocking(move || {

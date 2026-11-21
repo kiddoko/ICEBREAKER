@@ -23,6 +23,10 @@
  *   google-calendar   read and change the user's Google Calendar
  *   stats:read   read the stats other modules keep (your own need nothing)
  *   audio        play sound of its own through the speakers (ib.audio: a sampler)
+ *   — since 0.6 (with `"api": 2` in plugin.json; docs/PERMISSIONS.md):
+ *   vault:read:songs/   only that folder        media:control / media:files  (`media` is both)
+ *   notify       toasts, alerts, the voice      shell   run the deck's commands (ib.shell.run)
+ *   system       the computer's details         net:api.example.com   go online, to that host
  *
  * See docs/PLUGINS.md for a walkthrough, and `plugin new <id>` in the shell
  * for a ready-to-edit template.
@@ -43,7 +47,15 @@ export type { AudioEvent, SampleOptions } from "../core/mixer";
 /** "terminal": type commands in the user's real shell (terminal.run / write) */
 import type { BlockInfo, BlockKind } from "../core/catalog";
 
-export type Permission = "vault:read" | "vault:write" | "ai" | "media" | "google-calendar" | "stats:read" | "terminal" | "audio";
+/**
+ * A permission's name (plugins/permissions.ts — docs/PERMISSIONS.md says them in plain words).
+ * `media` is the name from before 0.6: both `media:control` and `media:files`.
+ */
+export type Permission =
+  | "vault:read" | "vault:write" | `vault:read:${string}` | `vault:write:${string}`
+  | "ai" | "audio" | "media" | "media:control" | "media:files"
+  | "google-calendar" | "google-calendar:read" | "stats:read" | "system" | "notify" | "shell"
+  | `net:${string}` | "terminal";
 
 export interface PluginManifest {
   id: string;
@@ -52,6 +64,12 @@ export interface PluginManifest {
   description?: string;
   author?: string;
   permissions?: Permission[];
+  /**
+   * The permission model the module was written for: 2 since ICEBREAKER 0.6 (it gets
+   * exactly what it lists). Without it the module is read the old way: it may also notify
+   * you and run the deck's commands, as every module could (plugins/permissions.ts).
+   */
+  api?: number;
   /** Entry file, default "main.js". */
   main?: string;
   /** A glyph for the module launcher ("♪"). */
@@ -178,6 +196,15 @@ export interface IcebreakerAPI {
    * (Hits can also take `{ cmd: "…" }` directly: `ui.hit(rect, { cmd, tip })`.)
    */
   shell: { run(line: string): Promise<number> };
+
+  /**
+   * The internet, one host at a time (permission "net:<host>", asked again the first time
+   * you really go there). A plain GET over https, text back (4 MB at most), through the
+   * deck's native side — a module has no network of its own. Nothing in stealth mode.
+   *
+   *   const text = await ib.net.get("https://api.example.com/v1/today");   // needs "net:api.example.com"
+   */
+  net: { get(url: string): Promise<string> };
 
   /**
    * Add an animated background a theme can use ([background] effect = "<id>.<name>"):

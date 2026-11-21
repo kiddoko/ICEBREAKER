@@ -32,13 +32,14 @@ export function coreServices(deck: Deck): Record<string, Record<string, ServiceS
     },
     sysmon: {
       // a module gets the vitals (cpu, memory, uptime, the system); the busiest programs, the
-      // disks, the network and the load are the deck's own (SYSMON) — docs/SECURITY_AUDIT.md
+      // disks, the network and the load only with "system" (docs/PERMISSIONS.md)
       stats: {
-        doc: "stats() → { cpu, cores, memUsed, memTotal, swapUsed, swapTotal, uptime, host, os, kernel, cpuBrand, processes, arch }",
+        doc: 'stats() → { cpu, cores, memUsed, memTotal, swapUsed, swapTotal, uptime, host, os, kernel, cpuBrand, processes, arch } — with "system": also { top, disks, netRx, netTx, load }',
         fn: () => deck.platform.system.stats(),
         by: (caller) => async () => {
           const s = await deck.platform.system.stats();
-          if (caller.permissions === "all") return s;
+          // the details are a permission of their own ("system": See the computer's details)
+          if (caller.permissions === "all" || caller.permissions.has("system")) return (deck.access.note(caller.id, "system"), s);
           const { top: _t, disks: _d, netRx: _r, netTx: _x, load: _l, ...vitals } = s;
           return vitals;
         },

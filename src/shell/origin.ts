@@ -16,33 +16,59 @@
  *    commands stay refused all the same.
  */
 import type { Deck } from "../deck";
-import type { Permission } from "../plugins/api";
+import type { PermSet } from "../plugins/permissions";
 import { isDeckPath } from "../vault/paths";
 import type { Vault } from "../vault/vault";
 
 export interface Origin {
   /** a module's id, or "terminal" */
   source: string;
-  grants: ReadonlySet<Permission> | "all";
+  /**
+   * What it may reach (plugins/permissions.ts): "all" for your real terminal; a module's own
+   * set otherwise — `everything` on it for a module that ships with the deck (all but what
+   * you took away from it).
+   */
+  grants: (PermSet & { everything?: boolean }) | "all";
+  /**
+   * A high-risk permission is about to be really used (a note written, a host reached): asks
+   * you the first time — this time / always / no — and throws when you say no. Set for the
+   * STORE / vault modules (plugins/host.ts).
+   */
+  gate?: (perm: string, target: string) => Promise<void>;
+  /** the access journal (core/access.ts): which permission, on what */
+  note?: (perm: string, what: string) => void;
 }
 
-export const allows = (o: Origin | null | undefined, perm: Permission): boolean => !o || o.grants === "all" || o.grants.has(perm);
+/** May this origin use `perm` — on `target` (a note's path, a host) when given, at all otherwise? */
+export const allows = (o: Origin | null | undefined, perm: string, target?: string): boolean => !o || o.grants === "all" || o.grants.has(perm, target);
+
+/** One of the deck's own: you, your real terminal, a module that ships with it — not a STORE / vault module. */
+export const trusted = (o: Origin | null | undefined): boolean => !o || o.grants === "all" || o.grants.everything === true;
 
 /** Commands that talk to the AI provider (your key, your plan): a module needs "ai". */
 export const AI_COMMANDS = new Set(["ask", "chat"]);
 
-const READS = new Set(["read", "readMany", "trashLog", "toolFiles"]);
-const WRITES = new Set(["write", "append", "mkdir", "trash", "rename", "restore"]);
+const READS = new Set(["read", "readMany", "readBytes", "trashLog", "toolFiles"]);
+const WRITES = new Set(["write", "append", "mkdir", "writeBytes", "trash", "rename", "restore"]);
 const NEVER = new Set(["mount"]);
+/** which arguments are paths (the rest is content: never read as one) */
+const PATHS: Record<string, number[]> = { read: [0], readMany: [0], readBytes: [0], write: [0], append: [0], mkdir: [0], writeBytes: [0], trash: [0], rename: [0, 1], restore: [0, 1] };
+const pathsOf = (name: string, a: unknown[]): string[] => (PATHS[name] ?? []).flatMap((i) => (Array.isArray(a[i]) ? (a[i] as unknown[]) : [a[i]])).filter((p): p is string => typeof p === "string");
 
 /** The vault as a module's line sees it: its permissions, and never the deck's own folder for writing. */
 export function guardedVault(vault: Vault, o: Origin): Vault {
   if (o.grants === "all") return vault;
-  const need = (perm: Permission, what: string): void => {
+  // a module that ships with the deck keeps the deck's own folder (its data is there); it only
+  // loses what you took away from it
+  const own = trusted(o);
+  /** the permission, at all — and on every path named (a module allowed in one folder only) */
+  const need = (perm: string, what: string, paths: string[]): void => {
     if (!allows(o, perm)) throw new Error(`${o.source} needs the "${perm}" permission to ${what}`);
+    for (const p of paths) if (!allows(o, perm, p)) throw new Error(`${o.source} may ${what} only in the folders you allowed — not ${p}`);
   };
-  const mine = (...paths: unknown[]): void => {
-    for (const p of paths.flat()) if (typeof p === "string" && isDeckPath(p)) throw new Error(`${o.source}: .icebreaker/ is the deck's own folder`);
+  const mine = (paths: string[]): void => {
+    if (own) return;
+    for (const p of paths) if (isDeckPath(p)) throw new Error(`${o.source}: .icebreaker/ is the deck's own folder`);
   };
   return new Proxy(vault, {
     get(target, prop) {
@@ -53,25 +79,34 @@ export function guardedVault(vault: Vault, o: Origin): Vault {
       if (NEVER.has(name)) return () => Promise.reject(new Error(`${o.source}: not allowed from a module`));
       if (READS.has(name))
         return (...a: unknown[]) => {
+          const paths = pathsOf(name, a);
           try {
-            need("vault:read", "read notes");
+            need("vault:read", "read notes", paths);
             // notes, not the deck's own folder (other modules' data and code, the shell's history)
-            if (name !== "trashLog") mine(...a);
+            if (name === "toolFiles") mine([`.icebreaker/${String(a[0])}`]);
+            else mine(paths);
           } catch (e) {
             return Promise.reject(e);
           }
+          for (const p of paths) o.note?.("vault:read", p);
           return fn(...a);
         };
       if (WRITES.has(name))
         return (...a: unknown[]) => {
+          const paths = pathsOf(name, a);
           try {
-            need("vault:write", "change notes");
+            need("vault:write", "change notes", paths);
             // trash / rename / restore: where it comes from and where it goes
-            mine(...a);
+            mine(paths);
           } catch (e) {
             return Promise.reject(e);
           }
-          return fn(...a);
+          // the first time it really writes, you're asked (a high-risk permission)
+          return (async () => {
+            if (o.gate) await o.gate("vault:write", paths[0] ?? "");
+            for (const p of paths) o.note?.("vault:write", p);
+            return fn(...a);
+          })();
         };
       return fn;
     },

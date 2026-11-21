@@ -9,11 +9,13 @@
  *   debug   what modules and the deck report for developers (`deck.debug`,
  *           `ib.debug`); `debug on` adds the deck's own events (slow frames,
  *           pages opened, settings changed)
+ *   access  a module, the AI or your real terminal used a permission (core/access.ts:
+ *           who, which one, on what — a note's name, never what it says)
  *
  * Writing to it: `deck.log.add(kind, text, { detail, code, source })`.
  * Reading it: `deck.log.list` (oldest first), `log tail` in the shell.
  */
-export type LogKind = "cmd" | "action" | "error" | "notify" | "debug";
+export type LogKind = "cmd" | "action" | "error" | "notify" | "debug" | "access";
 
 /** The kinds in the order the filter shows them, with their glyph. */
 export const LOG_KINDS: { kind: LogKind; label: string; glyph: string }[] = [
@@ -22,6 +24,7 @@ export const LOG_KINDS: { kind: LogKind; label: string; glyph: string }[] = [
   { kind: "error", label: "errors", glyph: "⚠" },
   { kind: "notify", label: "messages", glyph: "✉" },
   { kind: "debug", label: "debug", glyph: "⚙" },
+  { kind: "access", label: "access", glyph: "◈" },
 ];
 
 export const isLogKind = (s: string): s is LogKind => LOG_KINDS.some((k) => k.kind === s);
@@ -64,7 +67,7 @@ export class EventLog {
     if (last && last.kind === kind && last.text === e.text && e.at - last.at < 1000) return last;
     this.list.push(e);
     if (this.list.length > 1000) this.list.shift();
-    if (kind !== "debug") this.unseen++;
+    if (kind !== "debug" && kind !== "access") this.unseen++;
     if (kind === "error") this.unseenErrors++;
     this.onAdd(e);
     return e;
