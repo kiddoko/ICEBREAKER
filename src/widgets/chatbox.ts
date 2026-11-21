@@ -1,6 +1,7 @@
 /**
- * UPLINK chatbox — a small conversation that lives on HOME. The widget shows
- * the last lines; enter (or a double-click) opens it bigger to type. It's one
+ * UPLINK chatbox — a small conversation that lives on HOME or the side panel. The widget
+ * shows the last lines; typing while it's chosen, a click on its "type here" line, enter or a
+ * double-click open it bigger with the field ready (the letter typed already in it). It's one
  * running conversation (ctrl+l starts a new one); LINK is the full chat app.
  */
 import { BOLD } from "../core/grid";
@@ -70,11 +71,18 @@ function resetChat(): void {
 export const chatWidget: WidgetSpec = {
   id: "chat",
   title: "chat",
-  description: "a conversation with your AI, right on HOME (UPLINK) — enter to type",
+  description: "a conversation with your AI, right on HOME (UPLINK) — just type",
   size: { w: 4, h: 5 },
   min: { w: 3, h: 2 },
   open: "launch link",
-  render(ui, r, { deck }) {
+  // typing while it's chosen opens the conversation, the letter already in the field
+  onText(s, { deck, key }) {
+    if (!deck.ai.ready) return false;
+    field.onText(s);
+    void deck.act(`widget ${key ?? "chat"}`);
+    return true;
+  },
+  render(ui, r, { deck, key }) {
     const c = ui.c;
     if (chat.busy) ui.animate(80);
     if (!deck.ai.ready) {
@@ -84,9 +92,12 @@ export const chatWidget: WidgetSpec = {
     }
     const all = lines(ui, r.w - 2);
     const room = r.h - 1;
-    if (!all.length) ui.text(r.x + 1, r.y, t("say something — enter opens the chat"), { fg: c.faint }, r.w - 2);
+    if (!all.length) ui.text(r.x + 1, r.y, t("say something — just type"), { fg: c.faint }, r.w - 2);
     all.slice(-room).forEach((l, i) => ui.text(r.x + 1, r.y + i, l.text, { fg: l.fg, attrs: l.bold ? BOLD : 0 }, r.w - 2));
-    ui.text(r.x + 1, r.y + r.h - 1, `› ${t("type here…")}`, { fg: c.subtle }, r.w - 2);
+    const typeRow = { x: r.x, y: r.y + r.h - 1, w: r.w, h: 1 };
+    ui.text(r.x + 1, typeRow.y, `› ${field.text || t("type here…")}`, { fg: field.text ? c.fg : c.subtle }, r.w - 2);
+    // a click on the line opens the conversation, ready to type (the widget's own hit is under it)
+    ui.hit(typeRow, { cmd: `widget ${key ?? "chat"}`, tip: t("type to UPLINK") });
   },
 };
 

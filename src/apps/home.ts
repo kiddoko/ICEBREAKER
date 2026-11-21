@@ -360,6 +360,12 @@ export class HomeApp implements App {
 
   /** Letters arrive as text (they're printable), so route them to the same shortcuts. */
   onText(t: string): boolean {
+    // the selected widget first: it may type (the chat box)
+    if (!this.editing) {
+      const p = this.layout[this.selected];
+      const spec = p && (p.page ?? 0) === this.page ? this.deck.widgets.get(p.id) : undefined;
+      if (spec?.onText?.(t, { deck: this.deck, focused: true, key: keyOf(p) })) return true;
+    }
     // edit mode: [ ] take the chosen widget to the page before / after (and go there with it)
     const chosen = this.editing ? this.layout[this.selected] : undefined;
     if (chosen && (t === "[" || t === "]")) {

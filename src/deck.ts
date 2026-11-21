@@ -918,7 +918,7 @@ export class Deck implements InputSink {
     document.getElementById("vignette")!.style.display = fx.vignette ? "block" : "none";
     document.getElementById("deck")!.classList.toggle("flicker", fx.flicker && t.fx.flicker);
     root.setProperty("--flicker-speed", String(flickerSpeed(fx.flickerSpeed)));
-    // the curved glass: a still overlay (style.css #curve), 0 = flat
+    // the curved glass: its rim and reflection (style.css #curve), 0 = flat; the bend itself is renderer.setCurve
     const curve = Math.max(0, Math.min(100, lv.curve ?? 0)) / 100;
     root.setProperty("--curve", String(curve));
     document.getElementById("deck")!.classList.toggle("curved", curve > 0);
@@ -929,6 +929,8 @@ export class Deck implements InputSink {
     this.renderer.setBloomRadius(bloomRadius(fx.bloom ? lv.bloom : 0));
     this.renderer.setChroma(lv.chroma ?? 0);
     this.renderer.setGlow(lv.glow ?? 0, t.c.bg);
+    // the curved glass bends the whole picture (crt.ts) — composed with the bloom and the CRT lines
+    this.renderer.setCurve(curve, this.renderer.bloomEnabled ? bloomNow : 0, fx.scanlines ? (t.fx.scanlines * lv.scanlines) / 100 : 0);
     const sharp = fx.levels.sharpness ?? 100 - (fx.levels.softness ?? 0);
     // a gentler curve: 80 % is a light CRT softness, 0 % still readable
     this.renderer.setSoftness((100 - sharp) * 0.6);

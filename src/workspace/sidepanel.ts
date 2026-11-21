@@ -328,6 +328,9 @@ export class SidePanel {
   /** Letters: e edit mode, a add, x remove (edit mode). */
   onText(ch: string): boolean {
     const ws = this.deck.workspace;
+    // the chosen widget first: it may type (the chat box)
+    const chosen = this.layout()[this.sel]?.key;
+    if (!ws.editing && chosen && this.deck.widgets.get(chosen.split("#")[0])?.onText?.(ch, { deck: this.deck, focused: true, key: chosen })) return true;
     if (ch === "e") return (ws.editing = !ws.editing), true;
     if (ch === "a") return void this.pick(), true;
     const key = this.layout()[this.sel]?.key;
