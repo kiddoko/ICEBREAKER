@@ -17,7 +17,7 @@ import type { Deck } from "../deck";
 import { Bar, GAP, INSET, SECTION } from "../ui/layout";
 import type { UI } from "../ui/ui";
 import { NEWS_TOPICS } from "../core/suggest";
-import { ago, followedCats, followedWords, NEWS_CATEGORIES, newsPage, openArticle, pageSource, refreshSource, setPageSource, showHeadline, sourceFeed, sourceLabel, type Headline, type NewsSource } from "../widgets/news";
+import { ago, followedCats, hasArea, followedWords, NEWS_CATEGORIES, newsPage, openArticle, pageSource, refreshSource, setPageSource, showHeadline, sourceFeed, sourceLabel, type Headline, type NewsSource } from "../widgets/news";
 import type { App, AppSpec } from "./types";
 
 /** the width at which the article gets its own column on the right */
@@ -57,7 +57,9 @@ class NewsApp implements App {
     setPageSource(this.deck, { kind });
   }
   private step(dir: 1 | -1): void {
-    this.tab(TABS[(TABS.indexOf(newsPage.tab) + dir + TABS.length) % TABS.length]);
+    const tabs = TABS.filter((k) => k !== "area" || hasArea(this.deck));
+    const at = Math.max(0, tabs.indexOf(newsPage.tab === "area" && !hasArea(this.deck) ? "country" : newsPage.tab));
+    this.tab(tabs[(at + dir + tabs.length) % tabs.length]);
   }
   private async askWords(): Promise<void> {
     const v = await this.deck.prompt(t("The news about…"), { initial: followedWords(this.deck), placeholder: "formula 1, linux, Lyon…", suggestions: NEWS_TOPICS });
@@ -121,7 +123,12 @@ class NewsApp implements App {
       topic: `❝ ${followedWords(this.deck) ? `“${followedWords(this.deck)}”` : t("your own words")}`,
     };
     const tips: Record<NewsSource["kind"], string> = { area: t("your area (location: setup)"), country: t("your country's top stories"), cats: t("the categories you tick, woven together"), topic: "w" };
-    for (const k of TABS) bar.button(label[k], () => this.tab(k), { selected: tab === k, tip: tips[k] }, { priority: tab === k ? 9 : 5 });
+    // no place set: "your area" would be a second "FR" beside ⚑ — only ⚑ then (lit for either)
+    const tabs = TABS.filter((k) => k !== "area" || hasArea(this.deck));
+    for (const k of tabs) {
+      const on = tab === k || (k === "country" && tab === "area" && !hasArea(this.deck));
+      bar.button(label[k], () => this.tab(k), { selected: on, tip: tips[k] }, { priority: on ? 9 : 5 });
+    }
     const age = f.loading ? `${ui.spinner()} ${t("loading")}` : f.at ? `↻ ${ago(f.at)}` : "↻";
     bar.button(age, () => refreshSource(this.deck, source), { quiet: true, tip: t("refresh · r") }, { side: "right", priority: 4 });
     bar.draw();

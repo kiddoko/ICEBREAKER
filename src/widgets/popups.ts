@@ -2,7 +2,7 @@ import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
 import { checkbox, choice } from "../ui/controls";
 import { Bar, GAP, INSET, SECTION } from "../ui/layout";
 import { clockState, dur, soonestTimer, swNow, type ClockTimer } from "./clockstate";
-import { followedCats, followedWords, NEWS_CATEGORIES, sourceLabel, widgetSource, type NewsSource } from "./news";
+import { followedCats, followedWords, hasArea, NEWS_CATEGORIES, sourceLabel, widgetSource, type NewsSource } from "./news";
 import { clockCommand } from "./clockfaces";
 import { t } from "../core/i18n";
 /**
@@ -296,8 +296,10 @@ const newsPopup: WidgetPopupSpec = {
     ui.text(x0, y++, t("THIS WIDGET SHOWS"), { fg: c.title, attrs: BOLD });
     const row = new Bar(ui, x0, y++, x1);
     const pick = (kind: NewsSource["kind"], label: string, cmd: () => void, tip: string) => row.button(label, cmd, { selected: src.kind === kind, tip }, { priority: 5 });
-    pick("area", `⌖ ${sourceLabel(deck, { kind: "area" })}`, () => void deck.act("news show area"), t("your area (location: setup)"));
-    pick("country", `⚑ ${sourceLabel(deck, { kind: "country" })}`, () => void deck.act("news show country"), t("your country's top stories"));
+    // no place set: "your area" is your country — only ⚑ then (lit for either)
+    if (hasArea(deck)) pick("area", `⌖ ${sourceLabel(deck, { kind: "area" })}`, () => void deck.act("news show area"), t("your area (location: setup)"));
+    else row.button(`⚑ ${sourceLabel(deck, { kind: "country" })}`, () => void deck.act("news show country"), { selected: src.kind === "area" || src.kind === "country", tip: t("your country's top stories · set your place (setup) for your area's") }, { priority: 5 });
+    if (hasArea(deck)) pick("country", `⚑ ${sourceLabel(deck, { kind: "country" })}`, () => void deck.act("news show country"), t("your country's top stories"));
     pick("cats", `▦ ${t("categories")}`, () => void (src.kind !== "cats" && deck.act(`news show ${(followedCats(deck).length ? followedCats(deck) : ["world"]).join(" ")}`)), t("the categories you tick, woven together"));
     pick("topic", `❝ ${t("your own words")}`, () => void askWords(deck, src), "w");
     row.draw();

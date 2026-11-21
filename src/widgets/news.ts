@@ -149,6 +149,9 @@ function areaName(deck: Deck): string {
   return loc.precision === "city" || loc.precision === "precise" || loc.precision === "country" ? loc.name : "";
 }
 
+/** a place is set (else "your area" is just your country: its button isn't shown beside ⚑) */
+export const hasArea = (deck: Deck): boolean => !!areaName(deck);
+
 /** What a source is called on screen: "Paris", "FR", "science · AI", "“formula 1”". */
 export function sourceLabel(deck: Deck, s: NewsSource): string {
   // no place set: your area's feed is your country's top stories, and says so
@@ -199,9 +202,16 @@ async function loadSource(deck: Deck, s: NewsSource, f: SourceFeed): Promise<voi
     if (s.kind === "cats") {
       // a few recent headlines of each category, woven together, each wearing its category
       const per = Math.max(4, Math.floor(30 / Math.max(1, s.cats.length)));
-      // this week's first (a category search also finds old pages that just say the word); older only if too few
-      const week = (l: Headline[]) => l.filter((h) => !h.at || Date.now() - h.at < 7 * 86400_000);
-      const batches = await Promise.all(s.cats.map((cat) => get(interestQuery(deck, cat), "bing").then((l) => (week(l).length >= 3 ? week(l) : fresh(l)).slice(0, per).map((h) => ({ ...h, tag: NEWS_CATEGORIES[cat]?.label ?? cat })))));
+      // this week's: Bing (it has summaries) when it has enough of them, else Google News limited to
+      // the last 7 days ("when:7d") — a category word also matches old pages that just say it
+      const week = (l: Headline[]) => l.filter((h) => h.at && Date.now() - h.at < 7 * 86400_000);
+      const forCat = async (cat: string): Promise<Headline[]> => {
+        const q = interestQuery(deck, cat);
+        let l = week(await get(q, "bing"));
+        if (l.length < 4) l = [...l, ...week(await get(`${q} when:7d`, "google")).filter((g) => !l.some((b) => b.title === g.title))];
+        return l.sort((a, b) => b.at - a.at).slice(0, per).map((h) => ({ ...h, tag: NEWS_CATEGORIES[cat]?.label ?? cat }));
+      };
+      const batches = await Promise.all(s.cats.map(forCat));
       for (let k = 0; k < per; k++) for (const list of batches) if (list[k] && !items.some((w) => w.title === list[k].title)) items.push(list[k]);
     } else {
       const q = s.kind === "topic" ? s.words : s.kind === "area" ? areaName(deck) : "";

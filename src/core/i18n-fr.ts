@@ -1562,4 +1562,5 @@ export const FR: Record<string, string> = {
   "headlines of your area, your country, some categories or your own words — with summaries": "l'actualité de ta région, de ton pays, de catégories ou de tes mots — avec les résumés",
   "headlines for your area, your country, the categories and words you follow": "l'actualité de ta région, de ton pays, des catégories et des mots que tu suis",
   "astronomy": "espace",
+  "your country's top stories · set your place (setup) for your area's": "les grands titres de ton pays · règle ton lieu (setup) pour ceux de ta région",
 };
