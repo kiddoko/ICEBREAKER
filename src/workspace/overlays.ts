@@ -36,7 +36,7 @@ function centered(screen: Rect, w: number, h: number, top?: number): Rect {
 
 /** Swallow clicks outside a modal (and optionally close it). */
 function backdrop(ui: UI, screen: Rect, onOutside?: () => void): void {
-  ui.tint(screen, ui.c.subtle);
+  ui.dim(screen, ui.c.subtle);
   ui.hit(screen, { onClick: () => onOutside?.(), onWheel: () => {}, block: true });
 }
 

@@ -84,7 +84,7 @@ export class RecoveryDialog implements Overlay {
 
   render(ui: UI, screen: Rect): void {
     const c = ui.c;
-    ui.tint(screen, c.subtle);
+    ui.dim(screen, c.subtle);
     ui.hit(screen, { onClick: () => {}, onWheel: () => {}, block: true });
     const w = Math.min(78, screen.w - 4), h = 19;
     const box = { x: screen.x + Math.floor((screen.w - w) / 2), y: screen.y + Math.max(1, Math.floor((screen.h - h) / 3)), w, h };

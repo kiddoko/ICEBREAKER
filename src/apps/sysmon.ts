@@ -264,7 +264,13 @@ export class SysmonApp implements App {
     const c = ui.c;
     const inner = ui.box(r, { title: t("DISKS") });
     let y = inner.y;
-    for (const d of s.disks ?? []) {
+    // one line a disk: macOS shows the same one twice ("/" and "/System/Volumes/Data")
+    const seen = new Set<string>();
+    const disks = (s.disks ?? []).filter((d) => {
+      const id = `${d.total}:${d.available}`;
+      return !seen.has(id) && !!seen.add(id);
+    });
+    for (const d of disks) {
       if (y + 1 >= inner.y + inner.h + 1) break;
       const used = 1 - d.available / Math.max(1, d.total);
       new Bar(ui, inner.x, y, inner.x + inner.w)

@@ -251,6 +251,8 @@ export class Deck implements InputSink {
       if (g === "back" || g === "forward") {
         if (ws.topModal) return;
         this.sound.play("move");
+        // "back" on the note opened from NEXUS: NEXUS again; else the tab before
+        if (g === "back" && ws.backToParked()) return void this.requestFrame();
         ws.stepTab(g === "forward" ? 1 : -1, true);
       } else this.zoom(g === "zoom-in" ? 1 : -1);
       this.requestFrame();
@@ -379,7 +381,7 @@ export class Deck implements InputSink {
       const bad = this.plugins.list().filter((p) => p.error);
       for (const p of bad) this.log.add("notify", `${p.manifest.name ?? p.manifest.id}: ${p.error}`, { source: "warning" });
       if (!bad.length) return { text: `Plugins: ${on} on`, status: "OK" };
-      return { text: `Plugins: ${on} on · ${bad.map((p) => p.manifest.id).join(", ")} ${bad.length > 1 ? "need" : "needs"} you — see the LOG`, status: "WARN" };
+      return { text: `Plugins: ${on} on · ${bad.map((p) => p.manifest.id).join(", ")} off — switch ${bad.length > 1 ? "them" : "it"} on again in MODULES (the LOG says why)`, status: "WARN" };
     });
     this.platform.bridge?.onRun((req) => void this.runBridged(req));
     // files changed in the terminal, Obsidian, Finder…: refresh the tree, search, widgets

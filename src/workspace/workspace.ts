@@ -355,6 +355,27 @@ export class Workspace {
     this.deck.requestFrame();
   }
 
+  /**
+   * NEXUS set aside while the note opened from it is shown (not closed: it keeps where you
+   * were); esc on that note brings it back (the user's call: a page from the ◆ menu has no tab,
+   * but NEXUS is for exploring).
+   */
+  private parked: { app: App; opened: string } | null = null;
+
+  /** Esc on the note opened from NEXUS: NEXUS again, as you left it. True if it did. */
+  backToParked(): boolean {
+    const p = this.parked;
+    if (!p || this.activeApp?.key !== p.opened) return false;
+    this.parked = null;
+    if (this.page) this.dropPage();
+    this.pageReturn = this.active;
+    this.tabs.push(p.app);
+    this.active = this.tabs.length - 1;
+    this.focus = "main";
+    this.deck.requestFrame();
+    return true;
+  }
+
   /** Close the button-page without going anywhere. */
   private dropPage(): void {
     const p = this.page;
@@ -415,6 +436,8 @@ export class Workspace {
         void app.close?.();
         this.active = this.tabs.length - 1;
       } else {
+        // another page: a NEXUS set aside closes for good
+        if (this.parked) void this.parked.app.close?.(), (this.parked = null);
         if (cur) this.dropPage();
         else this.pageReturn = this.active;
         this.tabs.push(app);
@@ -423,7 +446,13 @@ export class Workspace {
       this.focus = "main";
       return this.tabs[this.active];
     }
-    if (this.page) this.dropPage();
+    // a note (or any page with a tab) opened from NEXUS: NEXUS is set aside, esc brings it back
+    let parkNexus: App | null = null;
+    if (this.page?.kind === "explorer") {
+      if (this.parked) void this.parked.app.close?.();
+      parkNexus = this.tabs.pop()!;
+      this.active = Math.max(0, Math.min(this.pageReturn, this.tabs.length - 1));
+    } else if (this.page) this.dropPage();
     const existing = this.tabs.findIndex((t) => t.key === app.key);
     // already open in another frame: shown there
     if (existing >= 0 && this.reachOf(existing) !== "main") {
@@ -442,6 +471,7 @@ export class Workspace {
     }
     this.focus = "main";
     const opened = this.tabs[this.active];
+    if (parkNexus) this.parked = { app: parkNexus, opened: opened.key };
     if (opened.kind === "note") this.sidebar.reveal(opened.key.slice(5));
     return opened;
   }
@@ -1070,6 +1100,7 @@ export class Workspace {
       // Tabs close with shift+esc (or ctrl+W), so a stray esc never loses one. The gamepad's B still closes.
       case "back":
         // leaving a page that plays the keyboard (App.rawKeys): esc gives the keys back to the deck
+        if (this.focus === "main" && this.backToParked()) break; // the note opened from NEXUS: NEXUS again
         if (this.focus === "main" && this.activeApp?.rawKeys && this.activeApp !== this.page && source !== "gamepad") this.focus = this.sidebarVisible ? "sidebar" : this.shellVisible ? "shell" : "main";
         else if (this.focus !== "main") this.focus = "main";
         else if (this.activeApp === this.page || source === "gamepad") void this.closeAndGoBack();
@@ -1284,7 +1315,9 @@ export class Workspace {
     // the borders between frames: grab one to resize (registered first: what the frames draw on
     // their top line — the shell's tabs, a title — wins the click; the gap between columns is free)
     // (a frame's top is two rows now — its tabs' row and its line: both grab its top border)
-    const borders = max ? [] : bordersOf(layout, at).filter((b) => !b.strip && !(b.dir === "col" && b.b === "shell" && this.shellAtBottom)).map((b) => (b.dir === "col" ? { ...b, grip: { ...b.grip, h: 2 } } : b));
+    // what you grab: side by side, the gap AND the two frames' edges beside it (one cell was
+    // too thin to hit); stacked, the lower frame's two top rows (its tabs' row and its line)
+    const borders = max ? [] : bordersOf(layout, at).filter((b) => !b.strip && !(b.dir === "col" && b.b === "shell" && this.shellAtBottom)).map((b) => ({ ...b, line: b.grip, grip: b.dir === "col" ? { ...b.grip, h: 2 } : { ...b.grip, x: b.grip.x - INSET, w: b.grip.w + INSET * 2 } }));
     for (const b of borders) ui.hit(b.grip, { onClick: (m) => (this.borderDrag = { b, arr, m }), onDrag: (m) => this.dragBorder(m), onUp: () => (this.borderDrag = null), tip: t("drag: resize · layout reset puts everything back") });
 
     this.rects = {};
@@ -1345,9 +1378,13 @@ export class Workspace {
     if (this.focus === "sidebar" && strips.has("vault")) this.focus = "main";
     if (this.focus === "shell" && strips.has("shell")) this.focus = "main";
     // the border under the pointer (or being dragged), lit
-    for (const b of borders) if (ui.hovered(b.grip) || this.borderDrag?.b.a === b.a && this.borderDrag?.b.b === b.b) {
-      if (b.dir === "row") ui.vline(b.grip.x, b.grip.y, b.grip.h, { fg: ui.c.accent }, "┃");
-      else ui.tint(b.grip, ui.c.accent);
+    // (stacked: only the line is lit, and only when the pointer is on it — over the tabs' row it
+    // lit every tab of that row)
+    for (const b of borders) {
+      const dragged = this.borderDrag?.b.a === b.a && this.borderDrag?.b.b === b.b;
+      if (b.dir === "row" && (dragged || ui.hovered(b.grip))) ui.vline(b.line.x, b.line.y, b.line.h, { fg: ui.c.accent }, "┃");
+      const edge = { x: b.line.x, y: b.line.y + 1, w: b.line.w, h: 1 };
+      if (b.dir === "col" && (dragged || ui.hovered(edge))) ui.tint(edge, ui.c.accent);
     }
 
     // a tab shown in a frame that isn't on screen (a narrow window drops the panel): back to the
@@ -1418,7 +1455,8 @@ function drawStrip(ui: UI, r: Rect, name: string, cmd: string): void {
   const c = ui.c;
   ui.fill(r, { bg: c.highlight });
   const label = `▸${name}`;
-  if (r.w <= r.h) [...label].slice(0, r.h).forEach((ch, i) => ui.text(r.x, r.y + i, ch, { fg: c.muted, bg: c.highlight }));
-  else ui.text(r.x + INSET, r.y, `▸ ${name}`, { fg: c.muted, bg: c.highlight }, r.w - INSET * 2);
+  // (the theme's text colour: muted on the highlight was too pale to read)
+  if (r.w <= r.h) [...label].slice(0, r.h).forEach((ch, i) => ui.text(r.x, r.y + i, ch, { fg: c.fg, bg: c.highlight }));
+  else ui.text(r.x + INSET, r.y, `▸ ${name}`, { fg: c.fg, bg: c.highlight }, r.w - INSET * 2);
   ui.hit(r, { cmd, tip: t("click: open it again") });
 }

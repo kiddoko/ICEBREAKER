@@ -23,6 +23,7 @@ import { Bar, GAP, INSET } from "../ui/layout";
 import { frameOfPane, PANE_OF, type PlaceFrame } from "./tabplaces";
 import type { Pane } from "./workspace";
 import type { Overlay } from "./overlays";
+import { ContextMenu } from "./contextmenu";
 import { groupOf } from "./tabgroups";
 import type { Workspace } from "./workspace";
 import { tabMenu } from "./menus";
@@ -255,7 +256,9 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
       ui.hit(rect, { cmd: `tab ${i + 1}`, tip: `${ws.tabs[i].title()} · ${t("pinned: always first")}\n${IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`} · ${t("drag it onto another frame to move it")}`, menu: () => tabMenu(ws, i), onDrag: (m) => void toFrame.onDrag(m), onUp: () => void toFrame.onUp() });
     } else if (e.kind === "group") {
       // ▣ the group: its name (or its shown tab's), how many; hover lists them
-      const name = e.group.name || ws.tabs[i]?.title().toLowerCase() || t("group");
+      // a named group says which of its tabs is shown too ("boulot · ideas")
+      const shownTitle = ws.tabs[i]?.title().toLowerCase() ?? "";
+      const name = e.group.name ? `${e.group.name}${shownTitle ? ` · ${shownTitle}` : ""}` : shownTitle || t("group");
       const count = ` ${e.indexes.length}`;
       tx = ui.text(tx, r.y, "▣ ", { fg: on ? c.panel : c.accent, bg, attrs: BOLD });
       // cut with "…", never a moving marquee: a chip is read at a glance
@@ -377,6 +380,8 @@ class GroupList implements Overlay {
     const g = ws.groups.find((x) => x.id === this.id);
     const rows = (g?.keys ?? []).map((k) => ws.tabs.findIndex((a) => a.key === k)).filter((i) => i >= 0);
     if (!g || rows.length < 2) return void (this.done = true);
+    // a right-click menu opened over it: the list goes (the two overlapped)
+    if (ws.overlays.some((o) => o instanceof ContextMenu && !o.done)) return void (this.done = true);
     const w = Math.min(screen.w - this.anchor.x, Math.max(this.anchor.w, 30));
     const box = { x: this.anchor.x, y: this.anchor.y + this.anchor.h, w, h: rows.length + 2 };
     // gone once the pointer has been away from the chip and the list for a moment

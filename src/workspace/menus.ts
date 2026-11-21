@@ -112,14 +112,15 @@ export function deckMenu(ws: Workspace): MenuEntry[] {
   const page = (kind: string, label: string, cmd: string, hint: string, tip: string): MenuEntry[] =>
     d.apps.get(kind) ? [{ label, cmd, hint, tip, checked: ws.activeApp?.kind === kind }] : []; // its module is off or removed
   return [
-    ...page("modules", `▦ ${t("Modules")}`, "launch modules", "m", t("all apps and modules")),
+    // every line with its mark, so they all start at the same place; the deck's real keys
+    ...page("modules", `▦ ${t("Modules")}`, "launch modules", IS_MAC ? "⌘⇧M" : "ctrl+shift+M", t("all apps and modules")),
     ...page("store", `⇣ ${t("Store")}`, "store", "", t("modules and themes from GitHub")),
-    ...page("explorer", `⬡ NEXUS`, "launch explorer", "", t("the vault in 3D")),
+    ...page("explorer", `⬡ NEXUS`, "launch explorer", IS_MAC ? "⌘⇧E" : "ctrl+shift+E", t("the vault in 3D")),
     { label: `⚙ ${t("Settings")}`, cmd: "settings", hint: IS_MAC ? "⌘," : "ctrl+,", checked: ws.activeApp?.kind === "settings" },
     "-",
-    { label: t("Manual"), cmd: "manual", hint: "F1" },
-    { label: t("What's new"), cmd: "changelog" },
-    { label: t("Check for updates"), cmd: "update" },
+    { label: `? ${t("Manual")}`, cmd: "manual", hint: "F1" },
+    { label: `✦ ${t("What's new")}`, cmd: "changelog" },
+    { label: `⇡ ${t("Check for updates")}`, cmd: "update" },
     "-",
     { label: `⏻ ${t("Log out")}`, cmd: "logout", hint: IS_MAC ? "⌘⇧L" : "ctrl+shift+L", danger: true },
   ];

@@ -86,7 +86,7 @@ export class WhatsNew implements Overlay {
     const still = this.deck.settings.data.appearance.reduceMotion || this.deck.settings.data.appearance.maxFps === 0;
     const now = performance.now();
 
-    ui.tint(screen, c.subtle);
+    ui.dim(screen, c.subtle);
     ui.hit(screen, { onClick: () => (this.done = true), onWheel: () => {}, block: true });
     const age = still ? 1e9 : now - this.born;
     if (release) this.sky(ui, screen, age, still);

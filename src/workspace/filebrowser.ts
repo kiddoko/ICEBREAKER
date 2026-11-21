@@ -211,7 +211,7 @@ export class FileBrowser implements Overlay {
   render(ui: UI, screen: Rect): void {
     const c = ui.c;
     ui.hit(screen, { onClick: () => this.close(), onWheel: () => {}, block: true });
-    if (!this.o.anchor) ui.tint(screen, c.subtle);
+    if (!this.o.anchor) ui.dim(screen, c.subtle);
     const items = this.entries();
     this.list.items = items;
     const w = Math.min(this.o.anchor ? 42 : 72, screen.w - 2);

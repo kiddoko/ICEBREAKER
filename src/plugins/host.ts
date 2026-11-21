@@ -191,7 +191,8 @@ export class PluginHost {
    * isn't there (or is too old) stops it with the command that fixes it. `ask` asks the
    * person (a dialog by default; the shell asks in the shell).
    */
-  async enable(id: string, ask: (title: string, detail: string) => Promise<boolean> = (t, d) => this.deck.confirm(t, d), seen = new Set<string>()): Promise<boolean> {
+  // (the safe answer is no: Yes was lit for a module asking to write in your vault)
+  async enable(id: string, ask: (title: string, detail: string) => Promise<boolean> = (t, d) => this.deck.confirm(t, d, false), seen = new Set<string>()): Promise<boolean> {
     const p = this.plugins.find((x) => x.manifest.id === id);
     if (!p) throw new Error(`no plugin "${id}" (plugin ls)`);
     if (p.active) return false;
@@ -210,8 +211,9 @@ export class PluginHost {
       // what its code does that a module shouldn't need (plugins/audit.ts)
       const report = auditReport(await this.audit(id).catch(() => []));
       const ok = await ask(
-        `Enable plugin "${p.manifest.name}"?`,
-        `${p.manifest.description ?? ""}\nby ${p.manifest.author ?? "unknown"} · v${p.manifest.version}\n\npermissions: ${perms}\n\n${report}\n\nIt runs in a sandbox: only what its permissions allow, nothing of the deck, the page or the network. Its code: ${VAULT_PLUGIN_DIR}/${id}/.`,
+        // "module" as everywhere else, its one name, and which copy this is (the STORE's number can be newer)
+        `Switch the module ${p.manifest.name} on?`,
+        `${p.manifest.description ?? ""}\nby ${p.manifest.author ?? "unknown"} · this copy: v${p.manifest.version}\n\npermissions: ${perms}\n\n${report}\n\nIt runs in a sandbox: only what its permissions allow, nothing of the deck, the page or the network. Its code: ${VAULT_PLUGIN_DIR}/${id}/.`,
       );
       if (!ok) return false;
       const s = this.deck.settings;

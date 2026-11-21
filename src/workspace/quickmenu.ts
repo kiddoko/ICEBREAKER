@@ -114,7 +114,12 @@ export class QuickMenu implements Overlay {
     const exact = this.items
       .filter((i) => i.key === q)
       .map((i): PaletteAction => ({ id: `menu.${i.key}`, title: i.from === "deck" ? t(i.label) : i.label, group: `≡ ${i.key}`, hint: t("enter"), run: () => i.run() }));
-    return [...exact, ...fuzzyFilter(q, this.deck.paletteEntries(), (a) => `${a.group ?? ""} ${a.title}`, 300)];
+    // what's named like you typed first, and among those a module's page before its command
+    // ("weather" + enter wrote the forecast into ibsh; the page came second)
+    const found = fuzzyFilter(q, this.deck.paletteEntries(), (a) => `${a.group ?? ""} ${a.title}`, 300);
+    const ql = q.trim().toLowerCase();
+    const rank = (a: PaletteAction) => (a.title.toLowerCase().startsWith(ql) ? (a.group === "open" ? 0 : 1) : 2);
+    return [...exact, ...found.map((a, i) => ({ a, i })).sort((x, y) => rank(x.a) - rank(y.a) || x.i - y.i).map((x) => x.a)];
   }
 
   // ── the grid (empty search) ─────────────────────────────────────────────
@@ -189,7 +194,7 @@ export class QuickMenu implements Overlay {
         this.list.scrollTop = 0;
       }
     }
-    ui.tint(screen, c.subtle);
+    ui.dim(screen, c.subtle);
     ui.hit(screen, { onClick: () => (this.done = true), onWheel: () => {}, block: true });
 
     const w = Math.min(screen.w - 4, 92);

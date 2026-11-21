@@ -70,12 +70,13 @@ class ClocksApp implements App {
     // alarms · world. Narrow: one a row. The clock on top gets what's left (up to 9 rows).
     const across = body.w >= 36 * 3 + GAP * 2 ? 3 : body.w >= 26 * 2 + GAP ? 2 : 1;
     const lowH = Math.max(worldH, alarmsH);
-    const cardsMin = across === 3 ? alarmsH + SECTION + 3 : across === 2 ? 7 + SECTION + lowH : 5 * 2 + alarmsH + worldH + SECTION * 3;
+    // (across 3: room for every city under the alarms — WORLD showed one city, cut, over an empty half page)
+    const cardsMin = across === 3 ? alarmsH + SECTION + worldH : across === 2 ? 7 + SECTION + lowH : 5 * 2 + alarmsH + worldH + SECTION * 3;
     const [clockR, dayR, cardsR] = stack(body, [
       { min: 3, fill: 1, max: 9, priority: 7 },
       { h: 1, priority: 4 },
       // (min, not h: a stack part's h is also its minimum, and the whole part would go)
-      { min: Math.min(cardsMin, 7), max: cardsMin, fill: 3, priority: 8 },
+      { min: Math.min(cardsMin, 7), fill: 3, priority: 8 },
     ]);
     if (clockR) drawClock(ui, clockR, this.deck);
     if (dayR) this.drawDay(ui, dayR);
@@ -84,17 +85,19 @@ class ClocksApp implements App {
     if (across === 3) {
       let col: Rect | undefined;
       [tr, sr, col] = cards(cardsR, 3, { minW: 36, h: cardsR.h }).rects;
-      if (col) [ar, wr] = stack(col, [{ min: 3, h: alarmsH, priority: 9 }, { min: 3, fill: 1, priority: 6 }]);
+      if (col) [ar, wr] = stack(col, [{ min: 3, max: alarmsH, fill: 1, priority: 9 }, { min: 3, fill: 2, priority: 6 }]);
     } else if (across === 2) {
-      const [top, low] = stack(cardsR, [{ min: 5, fill: 1, priority: 9 }, { min: 3, h: lowH, priority: 7 }]);
+      // (the alarms · world row shrinks rather than going: with five cities it asked for 8 rows
+      // and vanished whole when the page had 7)
+      const [top, low] = stack(cardsR, [{ min: 5, fill: 2, priority: 9 }, { min: 3, max: lowH, fill: 1, priority: 7 }]);
       if (top) [tr, sr] = cards(top, 2, { minW: 26, h: top.h }).rects;
       if (low) [ar, wr] = cards(low, 2, { minW: 26, h: low.h }).rects;
     } else
       [tr, sr, ar, wr] = stack(cardsR, [
         { min: 5, fill: 1, priority: 9 },
         { min: 5, fill: 1, priority: 7 },
-        { min: 3, h: alarmsH, priority: 8 },
-        { min: 3, h: worldH, priority: 6 },
+        { min: 3, max: alarmsH, fill: 1, priority: 8 },
+        { min: 3, max: worldH, fill: 1, priority: 6 },
       ]);
     if (tr) this.drawTimers(ui, tr);
     if (sr) this.drawStopwatch(ui, sr);
@@ -131,9 +134,17 @@ class ClocksApp implements App {
     });
   }
 
+  /** A new alarm by mouse: the time (and what for), then which days from a list — no syntax to know. */
   private async newAlarm(): Promise<void> {
-    const v = await this.deck.prompt(t("Alarm: what time, and what for?"), { placeholder: "7:30 wake up --days mon-fri · 6h45 · 8am --days weekend" });
-    if (v?.trim()) void this.deck.act(`clock alarm ${v.trim()}`);
+    const v = await this.deck.prompt(t("Alarm: what time, and what for?"), { placeholder: "7:30 wake up · 6h45 · 8am" });
+    const line = v?.trim();
+    if (!line) return;
+    // typed the days already (--days …): as typed
+    if (/--days\b/.test(line)) return void this.deck.act(`clock alarm ${line}`);
+    const days: [string, string][] = [["", t("once")], ["mon-fri", t("weekdays (mon–fri)")], ["weekend", t("the weekend")], ["daily", t("every day")]];
+    const i = await this.deck.choose(t("Which days?"), days.map(([, label]) => ({ label })));
+    if (i === null) return;
+    void this.deck.act(`clock alarm ${line}${days[i][0] ? ` --days ${days[i][0]}` : ""}`);
   }
 
   /** A card's frame and title, its button on its top line. Returns the inside. */
@@ -211,7 +222,9 @@ class ClocksApp implements App {
     const ms = swNow();
     const aspect = 2 * ui.cellAspect || 1;
     // the dial: a ring of 60 ticks, the hand where the second is
-    const rows = Math.max(3, Math.min(5, inner.h - 1 - Math.min(2, clockState.laps.length)));
+    // a fixed size (room kept for the buttons and two laps): the buttons moved up a row once the
+    // first lap appeared, and a second click at the same place missed
+    const rows = Math.max(3, Math.min(5, inner.h - 3));
     const cols = Math.ceil((rows * 4) / aspect / 2) + 1;
     const b = new Braille(cols, rows);
     const R = Math.min(rows * 2, cols * aspect) - 1;
@@ -243,7 +256,7 @@ class ClocksApp implements App {
       new Bar(ui, inner.x + INSET, y, inner.x + inner.w - INSET)
         .text(`${t("lap")} ${i + 1}`, { fg: c.muted }, { priority: 5 })
         .text(`+${durTenths(sp)}`, { fg: col, attrs: sp === best ? BOLD : 0 }, { side: "right", priority: 9 })
-        .text(durTenths(laps[i]), { fg: c.faint }, { side: "right", priority: 3 })
+        .text(durTenths(laps[i]), { fg: c.subtle }, { side: "right", priority: 3 })
         .draw();
     }
   }

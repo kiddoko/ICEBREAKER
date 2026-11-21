@@ -309,6 +309,21 @@ export class UI {
   }
 
   /** Recolor a rect without changing its characters (highlights, selections). */
+  /**
+   * What's behind a dialog, a menu, a pop-up: every text in `fg` and every background pushed
+   * towards the page's (a light background — the tab shown, a chosen button — kept its colour
+   * while its text went grey: unreadable). A picture's half blocks go flat (PIXELS).
+   */
+  dim(r: Rect, fg: RGB): void {
+    const g = this.grid;
+    for (let y = Math.max(0, r.y); y < Math.min(g.rows, r.y + r.h); y++)
+      for (let x = Math.max(0, r.x); x < Math.min(g.cols, r.x + r.w); x++) {
+        const i = y * g.cols + x;
+        if (g.bg[i] !== NONE) g.bg[i] = mix(g.bg[i], this.c.bg, 0.6);
+      }
+    this.tint(r, fg);
+  }
+
   tint(r: Rect, fg: RGB = NONE, bg: RGB = NONE): void {
     for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) this.grid.tint(x, y, fg, bg);
   }

@@ -167,7 +167,7 @@ export class ColorPicker implements Overlay {
 
   render(ui: UI, screen: Rect): void {
     const c = ui.c;
-    ui.tint(screen, c.subtle);
+    ui.dim(screen, c.subtle);
     ui.hit(screen, { onClick: () => this.finish(null), onWheel: () => {}, block: true });
     const gridW = HUES.length * 3;
     const w = Math.min(screen.w - 2, gridW + 24);

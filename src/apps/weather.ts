@@ -269,7 +269,7 @@ class WeatherApp implements App {
     const step = cw >= 72 ? 3 : 6;
     for (let i = 0; i < f.hours.length; i += step) {
       const hx = r.x + Math.floor((i / f.hours.length) * cw);
-      if (hx + 2 <= r.x + r.w) ui.text(hx, ry + 1, f.hours[i].t.slice(0, 2), { fg: c.faint });
+      if (hx + 2 <= r.x + r.w) ui.text(hx, ry + 1, f.hours[i].t.slice(0, 2), { fg: c.subtle });
     }
   }
 

@@ -40,7 +40,7 @@ export class AlarmClock {
   private unlisten: (() => void) | null = null;
   private loadedFor = "";
 
-  constructor(private readonly deck: Deck) {}
+  constructor(readonly deck: Deck) {}
 
   /** CLOCKS switched on (or the deck started with it on). */
   start(): void {
@@ -290,7 +290,10 @@ class RingScreen implements Overlay {
       { label: `${t("[S]nooze")} ${SNOOZE_MIN} min`, run: this.snooze, selected: !this.stopLit, accent: c.warning },
       { label: t("■ stop  ⏎"), run: this.stop, selected: this.stopLit },
     ]);
-    if (hintX - inner.x > 14) ui.text(inner.x + INSET, inner.y + inner.h - 1, t("B snooze · A stop"), { fg: c.muted }, hintX - inner.x - INSET * 2);
+    // the keys that work: the gamepad's when one is plugged in, the keyboard's otherwise
+    // (B / A showed without a pad, and typing a or b did nothing)
+    const hint = this.clock.deck.gamepad.connected ? t("B snooze · A stop") : t("s snooze · enter stop");
+    if (hintX - inner.x > 14) ui.text(inner.x + INSET, inner.y + inner.h - 1, hint, { fg: c.muted }, hintX - inner.x - INSET * 2);
   }
 }
 

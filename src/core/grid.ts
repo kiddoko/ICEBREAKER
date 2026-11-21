@@ -9,6 +9,8 @@ export const DIM = 8;
 export const STRIKE = 16;
 /** Swap fg/bg — only interpreted by the terminal buffer (ANSI code 7). */
 export const INVERSE = 32;
+/** A half block that is two pixels of a picture (the moon): dimmed as one colour (tint), never in stripes. */
+export const PIXELS = 64;
 
 export interface Rect {
   x: number;
@@ -120,9 +122,10 @@ export class Grid {
     const i = y * this.cols + x;
     if (fg !== NONE) this.fg[i] = fg;
     if (bg !== NONE) this.bg[i] = bg;
-    // a half block is two pixels (its colour on top, the background below): dimmed in one
-    // colour, both halves take it (the moon behind a pop-up came out in stripes)
-    else if (fg !== NONE && (this.ch[i] === 0x2580 || this.ch[i] === 0x2584) && this.bg[i] !== NONE) this.bg[i] = fg;
+    // a picture's half block (two pixels: PIXELS) dimmed in one colour: both halves take it (the
+    // moon came out in stripes). Only those: a tab's bar or a logo's ▀ keep their background
+    // (every one turned into a light block)
+    else if (fg !== NONE && this.attr[i] & PIXELS && this.bg[i] !== NONE) this.bg[i] = fg;
   }
 
   /** Overwriting half of a wide char would leave garbage: blank the other half. */

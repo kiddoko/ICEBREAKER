@@ -93,7 +93,7 @@ export class KeyCapture implements Overlay {
 
   render(ui: UI, screen: Rect): void {
     const c = ui.c;
-    ui.tint(screen, c.subtle);
+    ui.dim(screen, c.subtle);
     ui.hit(screen, { onClick: () => {}, onWheel: () => {}, block: true });
     const w = Math.min(60, screen.w - 4);
     const h = 12 + this.actions.length;

@@ -453,7 +453,7 @@ export function activate(ib: IcebreakerAPI): void {
           // the x axis: the first day, the middle, today
           const ax = new Bar(ui, px, axisR.y, px + pw);
           ax.text(dayText(now[0].day), { fg: c.subtle }, { priority: 8 });
-          ax.text(t("avg") + " ┄ " + show(st, f.avg), { fg: c.faint }, { priority: 3 });
+          ax.text(t("avg") + " ┄ " + show(st, f.avg), { fg: c.subtle }, { priority: 3 });
           ax.text(t("today"), { fg: c.subtle }, { side: "right", priority: 9 });
           ax.draw();
         }

@@ -8,7 +8,7 @@
  * rows it's a glyph (moonphase.ts phaseGlyph).
  */
 import { channels, mix, type RGB } from "../core/color";
-import type { Rect } from "../core/grid";
+import { PIXELS, type Rect } from "../core/grid";
 import type { UI } from "../ui/ui";
 import { moonPhase, phaseGlyph } from "./moonphase";
 
@@ -114,9 +114,10 @@ export function drawMoon(ui: UI, r: Rect, t = Date.now(), o: { earthshine?: numb
       const x = (col + 0.5) * a;
       const top = px(x, row + 0.25), bot = px(x, row + 0.75);
       if (!top && !bot) continue;
-      if (top && bot) ui.text(x0 + col, y0 + row, "▀", { fg: top, bg: bot });
-      else if (top) ui.text(x0 + col, y0 + row, "▀", { fg: top });
-      else ui.text(x0 + col, y0 + row, "▄", { fg: bot! });
+      // PIXELS: dimmed behind a pop-up as one colour (core/grid.ts tint)
+      if (top && bot) ui.text(x0 + col, y0 + row, "▀", { fg: top, bg: bot, attrs: PIXELS });
+      else if (top) ui.text(x0 + col, y0 + row, "▀", { fg: top, attrs: PIXELS });
+      else ui.text(x0 + col, y0 + row, "▄", { fg: bot!, attrs: PIXELS });
     }
   }
 }

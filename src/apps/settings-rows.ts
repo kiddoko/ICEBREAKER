@@ -7,6 +7,7 @@ import { applyFxPreset, currentFxPreset, FX_PRESET_NAMES } from "../workspace/fx
  * Rows come in order: a row with `section` and no label starts a category.
  * Kinds and the drawing rules are in core/prefs.ts.
  */
+import { PRESETS } from "../workspace/layout/arrange";
 import { followedCats, followedWords, newsPage, setPageSource } from "../widgets/news";
 import { AvatarPicker } from "../workspace/avatarpicker";
 import { SOUND_PACKS } from "../core/sound";
@@ -183,6 +184,14 @@ export function coreSettingRows(deck: Deck): Row[] {
     cycle("appearance.fontWeight", "Font weight", ["thin", "light", "regular"]),
     toggle("appearance.startFullscreen", "Start in full screen"),
     slide("appearance.brightness", "Brightness", 50, 150, () => num("appearance.brightness") || 100, (v) => set("appearance.brightness", v)),
+    // the frames (Refonte UI): a ready-made layout, and back to the classic one (docs/FRAMES.md)
+    head("Layout"),
+    { label: "Layout", steps: true, value: () => (s.data.layout as { preset?: string } | undefined)?.preset ?? "classic", cmd: () => "layout presets", change: (dir) => {
+      const names = Object.keys(PRESETS);
+      const cur = (s.data.layout as { preset?: string } | undefined)?.preset ?? "classic";
+      void d.act(`layout preset ${names[(names.indexOf(cur) + dir + names.length) % names.length]}`);
+    } },
+    { label: "Reset layout", value: () => "", cmd: () => "layout reset", change: () => void d.act("layout reset") },
     head("Motion"),
     // the pace of frames: vsync (the screen's rate) or your own cap, greyed while vsync is on
     toggle("appearance.vsync", "V-Sync"),

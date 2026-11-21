@@ -1663,4 +1663,9 @@ export const FR: Record<string, string> = {
   "click: open it again": "clic : le rouvrir",
   "News page: categories": "Page NEWS : catégories",
   "News page: your words": "Page NEWS : tes mots",
+  "Layout": "Disposition",
+  "weekdays (mon–fri)": "en semaine (lun–ven)",
+  "the weekend": "le week-end",
+  "Which days?": "Quels jours ?",
+  "s snooze · enter stop": "s rappel · entrée arrêt",
 };
