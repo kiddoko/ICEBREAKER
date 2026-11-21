@@ -1,0 +1,162 @@
+# The encoder pack (scripts/encoders/): a small LGPL ffmpeg for AAC, MP3, Vorbis and
+# Opus, built for macOS (universal), Windows and Linux, checked, and — when asked —
+# published as the release `encoders-v<N>`: a PRE-release, never "latest" (the app's
+# updater reads releases/latest/download/latest.json: this release must never be it).
+#
+#   gh workflow run encoders.yml -f version=1 -f publish=true
+#
+# A push to the encoders-ci branch only builds and checks (nothing is published).
+name: encoders
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "the release number: encoders-v<N>"
+        required: true
+        default: "1"
+      publish:
+        description: "publish the release (else build and check only)"
+        type: boolean
+        default: false
+  push:
+    branches: [encoders-ci]
+    paths: ["scripts/encoders/**", ".github/workflows/encoders.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: encoders-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sources:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - run: bash scripts/encoders/fetch.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sources
+          path: build/src/
+
+  linux:
+    needs: sources
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: sources
+          path: build/src
+      - run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config
+      - run: bash scripts/encoders/build.sh linux-x64
+      - run: bash scripts/encoders/check.sh build/out/linux-x64/ffmpeg
+      - run: ldd build/out/linux-x64/ffmpeg
+      - run: bash scripts/encoders/package.sh build/out/linux-x64 linux-x64
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: linux-x64
+          path: build/dist/
+
+  windows:
+    needs: sources
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: sources
+          path: build/src
+      - run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config mingw-w64 zip
+      - run: bash scripts/encoders/build.sh windows-x64
+      - run: bash scripts/encoders/package.sh build/out/windows-x64 windows-x64
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-x64
+          path: build/dist/
+
+  windows-check:
+    # the cross-built program, run on a real Windows
+    needs: windows
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: windows-x64
+          path: dist
+      - run: cd dist && unzip -q icebreaker-encoders-windows-x64.zip
+      - run: PY=python bash scripts/encoders/check.sh dist/icebreaker-encoders-windows-x64/ffmpeg.exe
+
+  macos:
+    needs: sources
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: sources
+          path: build/src
+      - run: command -v pkg-config || brew install pkgconf
+      - run: bash scripts/encoders/build.sh macos-arm64
+      - run: bash scripts/encoders/build.sh macos-x64
+      - name: one universal program, signed ad hoc (arm64 runs no unsigned code)
+        run: |
+          mkdir -p build/out/macos-universal
+          cp -R build/out/macos-arm64/. build/out/macos-universal/
+          lipo -create build/out/macos-arm64/ffmpeg build/out/macos-x64/ffmpeg -output build/out/macos-universal/ffmpeg
+          sed -i '' 's/macos-arm64/macos-universal (arm64 + x86_64)/' build/out/macos-universal/BUILD.txt
+          codesign -s - --force build/out/macos-universal/ffmpeg
+          lipo -info build/out/macos-universal/ffmpeg
+          otool -L build/out/macos-universal/ffmpeg
+      - run: bash scripts/encoders/check.sh build/out/macos-universal/ffmpeg
+      - name: the Intel half starts too (through Rosetta, when the runner has it)
+        continue-on-error: true
+        run: arch -x86_64 build/out/macos-universal/ffmpeg -hide_banner -version
+      - run: bash scripts/encoders/package.sh build/out/macos-universal macos-universal
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: macos-universal
+          path: build/dist/
+
+  release:
+    needs: [linux, windows-check, macos]
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: encoders-v${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: art
+      - name: the files, their hashes, and the build scripts
+        run: |
+          mkdir -p rel
+          cp art/linux-x64/* art/windows-x64/* art/macos-universal/* rel/
+          cp art/sources/* rel/
+          tar -czf rel/icebreaker-encoders-build-scripts.tar.gz scripts/encoders .github/workflows/encoders.yml
+          (cd rel && sha256sum * > SHA256SUMS && for f in icebreaker-encoders-*.{tar.gz,zip}; do sha256sum "$f" > "$f.sha256"; done)
+          cat rel/SHA256SUMS
+      - name: publish (a pre-release, never the latest)
+        run: |
+          gh release create "$TAG" rel/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --prerelease --latest=false --title "Encoder pack $TAG (not an ICEBREAKER release)" \
+            --notes-file scripts/encoders/RELEASE.md
+      - name: the app's update address still points to an ICEBREAKER release
+        run: |
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" -q .tag_name)
+          echo "latest release: $latest"
+          if [ "$latest" = "$TAG" ]; then
+            echo "::error::$TAG became the latest release — deleting it so app updates keep working"
+            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag
+            exit 1
+          fi
