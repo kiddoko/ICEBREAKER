@@ -27,11 +27,10 @@ import { focus, MATRIX_SETS, matrixLook, tickFocus } from "./extra";
 import type { PopupContext, WidgetPopupSpec, WidgetSpec } from "./types";
 import { Field } from "../ui/field";
 import { drawMoon } from "./moondraw";
-import { GAP, INSET } from "../ui/layout";
 import { moonAge, moonLit, phaseName, SYNODIC, upcoming } from "./moonphase";
 import { chatPopup } from "./chatbox";
 import { DURATIONS, NEWS_TOPICS, places } from "../core/suggest";
-import { Bar, INSET, stack } from "../ui/layout";
+import { Bar, GAP, INSET, stack } from "../ui/layout";
 import { drawSky, sceneFor } from "../apps/weathersky";
 
 
