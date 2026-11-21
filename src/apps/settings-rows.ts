@@ -239,6 +239,7 @@ export function coreSettingRows(deck: Deck): Row[] {
     head("Motion"),
     // the pace of frames: vsync (the screen's rate) or your own cap, greyed while vsync is on
     toggle("appearance.vsync", "V-Sync"),
+    needs(() => s.data.appearance.vsync !== false, cycle("appearance.smooth", "Smoothness", ["auto", "60", "120"])),
     (() => {
       const row = slide("appearance.maxFps", "Frame rate", 0, 240, () => num("appearance.maxFps"), (v) => set("appearance.maxFps", v), { show: (v) => (v === 0 ? t("still") : `${v}fps`) });
       const vsync = () => s.data.appearance.vsync !== false;

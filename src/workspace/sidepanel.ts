@@ -150,7 +150,8 @@ export class SidePanel {
     const chosenSlot = slots[this.sel];
     if (this.reveal && chosenSlot) {
       if (chosenSlot.top < this.scroll) this.scroll = chosenSlot.top;
-      else if (chosenSlot.top + chosenSlot.h > this.scroll + inner.h) this.scroll = chosenSlot.top + chosenSlot.h - inner.h;
+      // its bottom into view, never past its top (taller than the panel: its top shows — its title, a chat's field)
+      else if (chosenSlot.top + chosenSlot.h > this.scroll + inner.h) this.scroll = Math.min(chosenSlot.top, chosenSlot.top + chosenSlot.h - inner.h);
       this.reveal = false;
     }
     this.scroll = this.glide.follow(ui, Math.min(this.scroll, maxScroll), maxScroll);
@@ -171,7 +172,7 @@ export class SidePanel {
         });
         const frameHit: Omit<Hit, "rect"> = {
           onDouble: () => !editing && void d.act(`widget ${key}`),
-          onClick: (m) => ((this.sel = i), editing && (this.drag = { key, grab: m.y - box.y, x: m.x, y: m.y, moved: false })),
+          onClick: (m) => ((this.sel = i), (this.reveal = true), editing && (this.drag = { key, grab: m.y - box.y, x: m.x, y: m.y, moved: false })),
           onDrag: (m) => {
             const pd = this.drag;
             if (!pd || pd.key !== key) return;
@@ -200,7 +201,7 @@ export class SidePanel {
           try {
             const zone = ui.marqueeZone;
             if (chosen && hasFocus) ui.marqueeZone = wi; // its long texts scroll, as under the mouse
-            spec.render(ui, wi, { deck: d, focused: chosen, key, typing: chosen && hasFocus, select: () => ((this.sel = i), (ws.focus = "panel")) });
+            spec.render(ui, wi, { deck: d, focused: chosen, key, typing: chosen && hasFocus, select: () => ((this.sel = i), (this.reveal = true), (ws.focus = "panel")) });
             ui.marqueeZone = zone;
           } catch {
             ui.text(wi.x, wi.y, "⚠", { fg: c.error });

@@ -47,6 +47,8 @@ export interface Settings {
     scale: number;
     startFullscreen: boolean;
     fontWeight: "thin" | "light" | "regular";
+    /** with vsync on, the frames a second at most: "auto" = 60 on battery, 120 on the mains */
+    smooth?: "auto" | "60" | "120";
     /** the frame-rate cap when vsync is off: 0–240 (0 = no animations: the deck only redraws when you act) */
     maxFps: number;
     /** follow the screen's refresh rate (vertical sync); the fps cap is ignored then */
@@ -224,7 +226,7 @@ export const DEFAULT_SETTINGS: Settings = {
   user: { handle: "netrunner", locale: "", language: "en", gender: "", genderOther: "", pronouns: "", avatar: { id: "visor", color: "accent" }, location: { precision: "none", name: "", country: "", lat: null, lon: null } },
   setup: { done: false },
   vault: { path: "" },
-  appearance: { theme: "nightshade", tweaks: {}, fontSize: 13, scale: 100, startFullscreen: false, fontWeight: "thin", maxFps: 60, vsync: true, brightness: 100, reduceMotion: false, showFps: true, lineNumbers: true, backgroundSlow: true, textSpeed: 50, fadeIn: true },
+  appearance: { theme: "nightshade", tweaks: {}, fontSize: 13, scale: 100, startFullscreen: false, fontWeight: "thin", maxFps: 60, vsync: true, smooth: "auto", brightness: 100, reduceMotion: false, showFps: true, lineNumbers: true, backgroundSlow: true, textSpeed: 50, fadeIn: true },
   // Minimal by default: the animated background and short glitch transitions.
   // The heavy CRT stuff (bloom, scanlines, vignette, flicker) is one click away in the FX panel.
   fx: { bloom: false, scanlines: false, vignette: false, ambient: true, flicker: false, glitch: true, screensaverMinutes: 0, levels: { bloom: 100, scanlines: 100, vignette: 100, chroma: 0, sharpness: 80, glow: 0, curve: 0 }, flickerSpeed: 100 },
@@ -319,6 +321,7 @@ const RANGES: Record<string, [number, number]> = {
 };
 const CHOICES: Record<string, string[]> = {
   "appearance.fontWeight": ["thin", "light", "regular"],
+  "appearance.smooth": ["auto", "60", "120"],
   "boot.mode": ["full", "fast", "off"],
   "shell.mode": ["system", "ibsh"],
   "shell.prompt": ["icebreaker", "mine"],

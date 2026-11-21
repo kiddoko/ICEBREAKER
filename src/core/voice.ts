@@ -14,6 +14,9 @@ import type { Deck } from "../deck";
  * `voice.robot` (0–100) sets how much of the wet paths you hear. Long text is
  * spoken sentence by sentence; the next one is synthesized while one plays.
  */
+/** Japanese translations already asked for (piece → its Japanese), the last 200 */
+const jaCache = new Map<string, string>();
+
 export class DeckVoice {
   private ctx: AudioContext | null = null;
   private queue: { text: string; lang: string }[] = [];
@@ -95,10 +98,18 @@ export class DeckVoice {
     // read as soon as it's there and its turn has come. Stop (or a new answer) drops the rest.
     const gen = this.gen;
     const pieces = chunks(sentences(speakable(answer).slice(0, 2400)), 220);
-    const translate = (p: string) =>
-      this.deck.ai
+    // the same piece twice (a notification, a repeated line): translated once
+    const translate = (p: string) => {
+      const known = jaCache.get(p);
+      if (known) return Promise.resolve(known);
+      return this.deck.ai
         .ask(`Translate into natural spoken Japanese for a voice to read aloud. Japanese text only, no romaji, no notes:\n\n${p}`, { system: "You are a translator. Output only Japanese." })
+        .then((ja) => {
+          if (ja) jaCache.set(p, ja), jaCache.size > 200 && jaCache.delete(jaCache.keys().next().value!);
+          return ja;
+        })
         .catch(() => "");
+    };
     // at most three translations ahead of the piece being read
     const running: Promise<string>[] = [];
     const fill = (i: number) => {

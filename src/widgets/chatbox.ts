@@ -21,8 +21,9 @@ interface Msg {
 }
 const chat = { msgs: [] as Msg[], session: null as ChatSession | null, busy: false, error: "" };
 const field = new Field({ icon: "❯" });
-/** each copy's field was on screen at its last frame (a widget taller than the side panel's view has it cut off) */
+/** each copy's field was on screen at its last frame, and how to bring it into view (HOME / the panel scroll to it) */
 const fieldShown = new Map<string, boolean>();
+const showers = new Map<string, () => void>();
 
 /** The conversation as styled lines, newest last. */
 function lines(ui: UI, w: number): { text: string; fg: number; bold?: boolean }[] {
@@ -78,14 +79,13 @@ export const chatWidget: WidgetSpec = {
   size: { w: 4, h: 5 },
   min: { w: 3, h: 2 },
   open: "launch link",
-  // a field of its own: chosen (a click on it, or the arrows), you type here and enter sends;
-  // enter on an empty field, or a double-click, opens the big view
+  // a field of its own, on its top line: one click and you type there, enter sends. Enter on an
+  // empty field, or a double-click, opens the big view — a click never does
   onText(s, { deck, key }) {
     if (!deck.ai.ready) return false;
     field.onText(s);
-    // its field out of view (the widget cut off by the panel's edge): the pop-up opens with the
-    // letter in it, as in 0.5.5 — never typing into something you can't see
-    if (!fieldShown.get(key ?? "chat")) void deck.act(`widget ${key ?? "chat"}`);
+    // out of view (the widget scrolled away): HOME / the panel scroll to it, you see what you type
+    if (!fieldShown.get(key ?? "chat")) showers.get(key ?? "chat")?.();
     return true;
   },
   onKey(k, { deck }) {
@@ -113,9 +113,12 @@ export const chatWidget: WidgetSpec = {
     const w = r.w - INSET * 2;
     const all = lines(ui, w);
     const room = r.h - 1;
-    if (!all.length && room > 0) ui.text(r.x + INSET, r.y, t("say something — just type"), { fg: c.faint }, w);
-    all.slice(-room).forEach((l, i) => ui.text(r.x + INSET, r.y + i, l.text, { fg: l.fg, attrs: l.bold ? BOLD : 0 }, w));
-    const row = { x: r.x, y: r.y + r.h - 1, w: r.w, h: 1 };
+    // the field on top (it's in view as soon as the widget's top is: HOME and the panel scroll a
+    // chosen widget's top into view), the conversation under it, its newest lines
+    if (!all.length && room > 0) ui.text(r.x + INSET, r.y + 1, t("say something — just type"), { fg: c.faint }, w);
+    all.slice(-room).forEach((l, i) => ui.text(r.x + INSET, r.y + 1 + i, l.text, { fg: l.fg, attrs: l.bold ? BOLD : 0 }, w));
+    const row = { x: r.x, y: r.y, w: r.w, h: 1 };
+    if (select) showers.set(key ?? "chat", select);
     // the caret only where you can see the field (cut off, it was drawn over the shell below)
     const shown = ui.grid.inClip(row.x + INSET, row.y);
     fieldShown.set(key ?? "chat", shown);

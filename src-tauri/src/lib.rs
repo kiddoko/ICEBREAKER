@@ -102,6 +102,7 @@ pub fn run() {
             config::env_api_key,
             config::app_quit,
             system::system_stats,
+            system::power_on_battery,
             claude_code::claude_code_detect,
             claude_code::claude_code_run,
             claude_code::claude_code_cancel,
