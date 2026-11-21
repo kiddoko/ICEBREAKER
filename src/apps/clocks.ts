@@ -224,7 +224,7 @@ class ClocksApp implements App {
     // the dial: a ring of 60 ticks, the hand where the second is
     // a fixed size (room kept for the buttons and two laps): the buttons moved up a row once the
     // first lap appeared, and a second click at the same place missed
-    const rows = Math.max(3, Math.min(5, inner.h - 3));
+    const rows = Math.max(3, Math.min(5, inner.h - 3 - SECTION));
     const cols = Math.ceil((rows * 4) / aspect / 2) + 1;
     const b = new Braille(cols, rows);
     const R = Math.min(rows * 2, cols * aspect) - 1;
@@ -237,8 +237,8 @@ class ClocksApp implements App {
     const k = fitMatrix(sw, inner.x + inner.w - tx - INSET, rows, 2);
     if (k) matrixText(ui, tx, inner.y + Math.max(0, Math.floor((rows - matrixSize(sw, k).h) / 2)), sw, k, () => (running ? c.accent : c.subtle));
     else ui.text(tx, inner.y + Math.floor(rows / 2), sw, { fg: running ? c.accent : c.subtle, attrs: BOLD }, inner.x + inner.w - tx - INSET);
-    // start · lap · reset: what doesn't fit isn't drawn (space, l, r still work)
-    let y = inner.y + rows;
+    // start · lap · reset, a row of air under the dial: what doesn't fit isn't drawn (space, l, r still work)
+    let y = inner.y + rows + (inner.h > rows + 1 ? SECTION : 0);
     if (y < inner.y + inner.h) {
       const row = new Row(ui, inner.x + INSET, y, inner.x + inner.w - INSET);
       row.button(running ? t("❚❚ stop") : t("▶ start"), () => {}, { cmd: "stopwatch toggle", tip: "space" });
@@ -272,6 +272,10 @@ class ClocksApp implements App {
     // (one row only: the first city, with "+N" on its line)
     const room = zones.length > inner.h ? Math.max(1, inner.h - 1) : inner.h;
     if (zones.length > room && inner.h > 1) ui.text(inner.x + INSET, inner.y + room, `+${zones.length - room} · worldclock`, { fg: c.faint }, inner.w - INSET * 2);
+    // the names in a column of one width (the longest, a third of the card at most): every
+    // day strip then starts at the same place
+    const cityOf = (tz: string) => tz.split("/").pop()!.replace(/_/g, " ");
+    const nameW = Math.max(5, Math.min(Math.floor(inner.w / 3), Math.max(...zones.map((tz) => strWidth(cityOf(tz))))));
     zones.forEach((tz, i) => {
       const y = inner.y + i;
       if (i >= room) return;
@@ -287,11 +291,11 @@ class ClocksApp implements App {
       }
       void hereOff;
       const day = hour >= 7 && hour < 19;
-      const name = tz.split("/").pop()!.replace(/_/g, " ");
+      const name = cityOf(tz);
       const rel = off === 0 ? "" : `${off > 0 ? "+" : "−"}${Math.abs(off / 60) % 1 ? (Math.abs(off) / 60).toFixed(1) : Math.abs(off / 60)}h`;
       const bar = new Bar(ui, inner.x + INSET, y, inner.x + inner.w - INSET);
       bar.text(day ? "☀" : "☾", { fg: day ? c.warning : 0xf2eedd }, { priority: 9 });
-      bar.text(name, { fg: c.fg }, { priority: 8, fit: 5 });
+      bar.item(nameW, (x, w) => void ui.text(x, y, name, { fg: c.fg }, w), { priority: 8 });
       // its day: 12 cells from midnight to midnight, the night shaded, now lit
       bar.item(12, (x, w) => {
         const pos = Math.min(w - 1, Math.floor(((hour * 60 + min) / 1440) * w));

@@ -31,7 +31,7 @@ import { paneToward } from "./layout/focus";
 import { drawDropFrame, placeChips, renderTabStrip, soloTab, tabbedBox } from "./tabstrip";
 import { frameOfPane, PANE_OF, parsePlaces, parseShows, prunePlaces, type PlaceFrame, type Places, type Shows } from "./tabplaces";
 import { groupOf, joinGroup, parseGroups, pick, prune, renameGroup, stripEntries, takeOut, type StripEntry, type TabGroup } from "./tabgroups";
-import { GAP, INSET } from "../ui/layout";
+import { GAP, INSET, SECTION } from "../ui/layout";
 import { strWidth, truncate } from "../core/unicode";
 
 export type ShellTab = "term" | "ibsh" | "log";
@@ -1322,7 +1322,8 @@ export class Workspace {
     // the frames: the arrangement (settings.layout — today's when nothing's saved) with the
     // switches applied (tree, panel, shell shown), solved into one rect each (layout/solve.ts).
     // The maximized shell keeps its own layout (the page in a strip at the bottom).
-    const body = { x: 1, y: N + TOP_H, w: W - 2, h: H - TOP_H - 1 };
+    // a row of air under the top bar: the frames' tabs (VAULT, home…, PANEL) sat right against it
+    const body = { x: 1, y: N + TOP_H + SECTION, w: W - 2, h: H - TOP_H - SECTION - 1 };
     const max = this.shellVisible && this.shellMax;
     const today: Today = { sidebar: this.sidebarVisible, shell: this.shellVisible, shellMax: this.shellMax, panel: !!d.settings.data.panel?.shown, shellRatio: this.shellRatio, cols: W, bodyH: body.h };
     const layout = max ? todayLayout(today) : effectiveLayout(this.arrangement, today);
