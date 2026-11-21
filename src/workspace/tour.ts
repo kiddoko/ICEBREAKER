@@ -51,7 +51,7 @@ const STEPS: TourStep[] = [
   },
   {
     title: "HOME",
-    text: "Your widgets. Double-click one (or enter) for its pop-up and its settings. Press e to edit: drag them anywhere, pull the corner ◢ to resize, a to add one — the same widget as many times as you like.",
+    text: "Your widgets. Double-click one (or enter) for its pop-up and its settings. ✎ edit (top right) or ⌘E to edit: drag them anywhere, pull the corner ◢ to resize, a to add one — the same widget as many times as you like.",
     prep: (ws) => ws.deck.openApp("home"),
     at: (ws) => ws.rects.main,
   },
@@ -244,7 +244,7 @@ export class Tour implements Overlay {
     if (k < 1) ui.animate(16);
     const bb = { ...b, w: bw };
     ui.fill(bb, { bg: c.panel });
-    ui.box(bb, { title: `UPLINK · ${this.i + 1}/${STEPS.length}`, focused: true });
+    ui.box(bb, { title: `uplink · ${this.i + 1}/${STEPS.length}`, focused: true });
     if (face) ui.text(bb.x, bb.y + Math.min(3, bb.h - 2), "◀", { fg: c.borderFocus, attrs: BOLD }); // the speech tail
     if (k < 1) return;
     const title = t(st.title).replace("{handle}", this.deck.settings.data.user.handle || "netrunner");

@@ -509,7 +509,7 @@ export class SetupApp implements App {
 
     // ── top: the chapters, and how far along ───────────────────────────────
     let y = r.y + 1;
-    const brand = "◢◤ ICEBREAKER // SETUP";
+    const brand = "◢◤ ICEBREAKER // setup";
     ui.text(r.x + 2, y, brand, { fg: c.accent, attrs: BOLD });
     if (this.deck.account) ui.text(r.x + 3 + strWidth(brand), y, `· ${this.deck.account}`, { fg: c.title });
     const cur = chapterOf(st.id);
