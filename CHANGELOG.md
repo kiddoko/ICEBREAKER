@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.5.3 — not released yet
+
+- **Select and copy text in ibsh**: drag over what a command printed, double-click a word,
+  triple-click a line, then ⌘C (Ctrl+C on Windows / Linux). Ctrl+C with nothing selected still
+  stops the command. Right-click → Copy / Select all too. ibsh and the real terminal use the same
+  selection now (the terminal gets the triple-click).
+- **⇧⌫ deletes the whole previous word** in notes and every text field (⌥⌫ on a Mac and Ctrl+⌫
+  on Windows / Linux still do), and in ibsh's command line.
+- **The tree: ⇧↑ / ⇧↓** walk file by file with the preview tab, like ⇧ + wheel.
+- **Settings and the trackpad**: the wheel or a two-finger swipe moves the row you're on (over
+  the categories: the category) — it did nothing when the category fit on the screen. Over a
+  slider a trackpad steps it 1 at a time, a step every 10 px (a swipe and its momentum used to run
+  it far away); a mouse notch is still one step.
+- **Suggestion lists show when the field already has text** (Settings → YOU → Date format, a
+  model, a city…): ↓ or ▾ opens every choice with the current one picked; typing shows what
+  fits. Fixed once in the shared prompt.
+- **`say` speaks with the voice and language chosen in Settings → VOICE**, like UPLINK: in your
+  real terminal too (it was macOS's own `say`, with the system's voice — `command say` still is);
+  a voice chosen for another language is no longer used for this one; in Japanese a text that
+  isn't Japanese is translated first by your AI, like UPLINK's answers.
+- **TRASH: delete permanently**: a button and `del` on the TRASH page, *✕ empty the trash*, and
+  `trash purge <n>` / `trash empty` in ibsh. It asks first and says it can't be undone (no ⌘Z, no
+  copy). It is the only way the deck erases anything, only inside .trash (the native side refuses
+  anything else), and only yours: a module or your real terminal can't.
+- **Effects**:
+  - the **RGB split** only splits what's drawn — text, frames, glyphs — never a background (it
+    tinted every panel red and blue). It's drawn from a layer of its own: about 3× cheaper
+    (8.5 → 2.7 ms a pass in the browser);
+  - **bloom** now comes from bright things only (it used to blur the whole screen, backgrounds
+    too: a grey haze) and its slider sets how far the halo spreads as well as how strong it is
+    (50 % ≈ 3 px, 100 % 5 px, 200 % 8.5 px); its help says what it does in one sentence. No copy
+    of the screen is made for a theme without bloom;
+  - **CRT flicker speed** (Settings → APPEARANCE → Effects, `fx flicker 150`);
+  - **CRT curvature** (`fx curve 0-100`, off by default; heavy 40, party 100): rounded screen
+    corners, a darker rim and a soft reflection — a still overlay, no cost per frame.
+- **THEME STUDIO**: a colour **palette** (18 hues × 10 shades at the saturation you choose,
+  greys, the theme's own colours; arrows, mouse, gamepad; the #hex field still typable), and
+  **↺** on every changed knob to put the theme's value back.
+
 ## 0.5.2 — not released yet
 
 - **`exit` quits ICEBREAKER** (typed in ibsh), like ⌘Q / Alt+F4: open pages save, the vault

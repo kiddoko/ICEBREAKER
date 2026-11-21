@@ -171,9 +171,10 @@ duplicate, pin, copy the path or a [[link]], a **colour** (red, orange, yellow,
 green, cyan, blue, purple, pink — like Ableton), an **icon**, the trash.
 In the shell: \`tag notes/ideas.md red\`, \`tag view red\`, \`icon projects ϟ\`.
 Tags and icons live in your vault (.icebreaker/tags.json, icons.json).
-**Shift + wheel over the tree** walks file by file (a little click each time) and
-shows each file at once in a preview tab that the next one replaces — open one
-for real (click, enter) and it stays. The plain wheel scrolls the tree.
+**Shift + wheel over the tree** (or **⇧↑ / ⇧↓** in the tree) walks file by file (a
+little click each time) and shows each file at once in a preview tab that the next
+one replaces — open one for real (click, enter) and it stays. The plain wheel
+scrolls the tree.
 **Drag & drop**: drag a note or a folder onto another folder to move it there
 (below the last row = the vault's root; \`mv\` does the same). Drag files from
 the Finder / Explorer onto a folder of the tree: they're **copied** into it
@@ -196,7 +197,10 @@ were on come back as you left them next time.
   **Space** acts on the line you're on (the one under the mouse, else the one chosen
   with ↑↓): it ticks a box, turns a ‹ choice ›, and puts a slider to 0 and back to
   where it was (mute / unmute; with no 0, like brightness: its default and back). Sliders always go **1 at a time** — drag the handle,
-  hold on the bar, the wheel or ←→; held, they go faster, still 1 by 1. A **greyed** line depends on another setting
+  hold on the bar, the wheel or ←→; held, they go faster, still 1 by 1. The **wheel**
+  (a two-finger trackpad swipe too) moves the line you're on; over a slider it steps
+  it, 1 by 1. A field with a list (Date format, a model…) opens it with ↓ or ▾ — all
+  the choices, the current one picked. A **greyed** line depends on another setting
   (the voice's lines while the voice is off, Vault key on a plain vault…).
 - **Settings → KEYS**: every shortcut on one page — click its keys to change them,
   click its **≡** key to change its key on THE MENU, del for the default.
@@ -224,10 +228,19 @@ were on come back as you left them next time.
   takes back three things. **Uninstalling a module** can be undone too, but only right
   after (its files come back and it's on again): once you've done something else, the
   STORE reinstalls it.
-- **✦ fx** (status bar): a slider per effect — bloom, scanlines, vignette, RGB
-  split, glow (bright things give off light), sharpness. 0 = off, up to 200 %.
+- **✦ fx** (status bar, or Settings → APPEARANCE → Effects): a slider per effect —
+  **bloom** (bright things bleed a soft halo of light onto what's around them: the
+  slider sets how far and how strong), scanlines, vignette, **RGB split** (red and
+  blue fringes on the text, the frames and the glyphs — never on the backgrounds),
+  glow (bright things give off light), sharpness, **curvature** (the curved glass of
+  an old tube: rounded corners, a darker rim; off by default). 0 = off, up to 200 %.
+  **Flicker speed** (Settings) sets how fast the CRT flicker goes (\`fx flicker 150\`).
   Or a preset: **none · light · medium · heavy · party** (\`fx heavy\`). Each
   theme remembers its own effects.
+- **THEME STUDIO** (\`launch studio\`): enter on a colour opens a **palette** — 18
+  hues × 10 shades at the saturation you choose, greys, the theme's own colours;
+  arrows or the mouse, tab for the saturation and the #hex field, enter keeps it.
+  A changed knob shows **•** and, on its line, **↺**: back to the theme's value.
 - Status bar, right: **♪** mutes everything · **☾** the screensaver (each theme
   has its own: a neon city, an 80s mainframe, sonar, warp, an e-reader).
 - **◧ side panel** (status bar, ⌘⇧P, or \`panel\`): a column on the right whose
@@ -376,7 +389,7 @@ it, ⌘\` brings it back):
 | \`catalog function todo\` | what you can call — \`--json\` for scripts |
 | \`notify --alert "tea" "it's ready"\` | call yourself like a reminder does |
 | \`account\` · \`lock\` | who you're logged in as · log out (the login page) |
-| \`say "tea's ready"\` | the deck's voice says it (silent when muted or the voice is off) |
+| \`say "tea's ready"\` | the deck's voice says it — the voice and language of Settings → VOICE, like UPLINK (silent when muted or the voice is off) |
 | \`plugin audit <id>\` | what a module's code does before you trust it |
 
 ## Scripts (≡)
@@ -396,13 +409,20 @@ news
 □ (top right of the shell) turns it into a big tab after the others (the page you
 were on stays a tab); \`term dock\` puts a terminal back in the panel.
 
+## Copy what's on screen
+Drag over the output of ibsh (or of your real terminal) to select it; a double-click
+takes a word, a triple-click the line. ⌘C copies it (ctrl+C on Windows / Linux —
+with nothing selected, ctrl+C still stops the command). Right-click → Copy too.
+
 ## The trash
-\`rm\`, Delete in the tree and right-click → trash move things to .trash (never
-deleted for good). A note sent there closes its tabs and leaves the pins; ⌘Z brings
+\`rm\`, Delete in the tree and right-click → trash move things to .trash (not
+deleted yet). A note sent there closes its tabs and leaves the pins; ⌘Z brings
 the note and its pins back (not the tab: open it again). \`trash\` lists it, \`trash restore 2\` puts one back where it
 lived. ⌫ above the tree (or \`trash open\`) opens the TRASH page: everything in
 it, newest first, with where it lived — enter puts it back, r somewhere else,
-o opens it to read.
+o opens it to read. **Delete permanently** (del), or *✕ empty the trash* at the
+top: it asks first and it **can't be undone** — no ⌘Z, no copy kept
+(\`trash purge 2\`, \`trash empty\`). Only you can: never a module, nor your real terminal.
 
 ## Macros
 Buttons above your terminal that type a command: \`macro add deploy "git pull"\`.
@@ -438,6 +458,7 @@ On a Mac, ⌘ plays the role of Ctrl.
 | ⌘Z · ⌘⇧Z | undo · redo — the last thing done (settings, widgets, trash, renames, new notes, tasks, reminders…) |
 | ⌘⇧⌫ | the trash |
 | ⇧Esc · ⌘W | close the tab |
+| ⇧⌫ (⌥⌫) | delete the whole previous word — notes and every text field |
 | 1…9 | go to that tab (when not typing) |
 | Tab · ⇧Tab | next thing · next part of the screen |
 
@@ -450,6 +471,7 @@ and its key on THE MENU, changed with one click.
 |---|---|
 | click | does it — and the shell's **log** tab shows the command |
 | double-click | open (in the tree too: one click selects, one click folds a folder) |
+| drag · double · triple-click | select text in a note, ibsh or the terminal (a word, a line) — ⌘C copies |
 | back / forward buttons | the tab before / after |
 | two-finger swipe → ← (trackpad) | the tab after / before |
 | pinch · ctrl+wheel | interface bigger / smaller |
@@ -756,7 +778,9 @@ Only share sounds you made or may share, and say the licence in \`pack.toml\`.
 
 - **Every setting** has a command: \`config list\`, \`config set fx.bloom true\`;
   effects take one number: \`fx glow 60\`, \`fx chroma 120\` (0 = off, up to 200;
-  the colour fringes start gently: 50 is a light touch, 100 a strong one).
+  the colour fringes start gently: 50 is a light touch, 100 a strong one), \`fx curve 60\`
+  (0–100), \`fx flicker 150\` (the flicker on, at that speed). \`debug perf\` says what
+  a frame costs.
 - Settings live in the system's config folder (\`config path\`); the API key in
   a separate secrets file.
 - Your files: \`.icebreaker/themes\`, \`.icebreaker/plugins\`, \`.icebreaker/scripts\`,
