@@ -33,7 +33,7 @@ export interface VersionNotes {
 export const NOTES: VersionNotes[] = [
   {
     version: "0.6.1",
-    date: "",
+    date: "2026-11-21",
     en: {
       headline: "One click and you type",
       added: ["Smoothness: 60 or 120 frames a second, auto follows the plug (Settings)", "`say -t`: translated first in Japanese mode", "Chat widget: its field on its top line, always in view"],

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.6.1 — not released yet
+## 0.6.1 — 2026-11-21
 
 - **The chat widget**: one click and you type. Its field is on its top line; a click (or a
   letter) scrolls HOME or the side panel to the widget's top. A click never opens the pop-up
