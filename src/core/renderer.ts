@@ -56,6 +56,15 @@ export class Renderer {
   private lineHeight = 1.12;
   bloomEnabled = true;
   /**
+   * The bloom's source: the screen at the bloom canvas's size (a quarter), kept up to date cell
+   * by cell in draw() like the chroma's foreground layer. The bloom used to read the whole screen
+   * canvas 20 times a second, and each read made WebKit keep a full copy of it (~28 MB each:
+   * 600–700 MB at rest). `bsrcFresh`: it holds the whole screen (false: repaint all next draw).
+   */
+  private bsrc: HTMLCanvasElement | null = null;
+  private bsrcCtx: CanvasRenderingContext2D | null = null;
+  private bsrcFresh = false;
+  /**
    * Only what's bright blooms: the copy's contrast is raised first, so dark backgrounds
    * drop to black and give nothing (0.5.2 bloomed the whole screen, backgrounds too: a grey
    * haze over everything rather than a halo around the bright things)
@@ -228,6 +237,11 @@ export class Renderer {
     this.canvas.height = h;
     this.bloom.width = Math.ceil(w / Renderer.BLOOM_DIV);
     this.bloom.height = Math.ceil(h / Renderer.BLOOM_DIV);
+    this.bsrc ??= document.createElement("canvas");
+    this.bsrcCtx ??= this.bsrc.getContext("2d");
+    this.bsrc.width = this.bloom.width;
+    this.bsrc.height = this.bloom.height;
+    this.bsrcFresh = false;
 
     const cssW = w / this.dpr;
     const cssH = h / this.dpr;
@@ -533,6 +547,9 @@ export class Renderer {
   draw(g: Grid): boolean {
     const { cellW: cw, cellH: ch, ctx } = this;
     let cellsPainted = 0;
+    // the bloom's small copy: switched on (or resized) since the last draw, every cell is drawn again
+    if (!this.bloomEnabled) this.bsrcFresh = false;
+    else if (!this.bsrcFresh) this.front = null;
     let front = this.front;
     const full = !front || front.cols !== g.cols || front.rows !== g.rows;
     if (full) front = this.front = new Grid(g.cols, g.rows);
@@ -556,6 +573,11 @@ export class Renderer {
     const fadeNew = appearing <= Renderer.FADE_MAX_PER_FRAME;
 
     // the foreground layer for the colour fringes (half size: cells in half pixels)
+    const bctx = this.bloomEnabled && this.bsrc?.width ? this.bsrcCtx : null;
+    if (bctx) {
+      bctx.setTransform(1 / Renderer.BLOOM_DIV, 0, 0, 1 / Renderer.BLOOM_DIV, 0, 0);
+      this.bsrcFresh = true;
+    }
     const fctx = this.chroma > 0 && this.fgEl?.width ? this.fgCtx : null;
     if (fctx) {
       fctx.setTransform(0.5, 0, 0, 0.5, 0, 0);
@@ -622,6 +644,10 @@ export class Renderer {
         while (end < g.cols && dirty[end] && g.bg[base + end] === bg) end++;
         ctx.fillStyle = css(this.L(bg));
         ctx.fillRect(x * cw, y * ch, (end - x) * cw, ch);
+        if (bctx) {
+          bctx.fillStyle = ctx.fillStyle;
+          bctx.fillRect(x * cw, y * ch, (end - x) * cw, ch);
+        }
         x = end;
       }
 
@@ -660,6 +686,11 @@ export class Renderer {
           const fgc = this.L(g.fg[i]), cells = charWidth(cp) === 2 ? 2 : 1;
           this.atlas.draw(ctx, cp, fgc, attrs, x * cw, y * ch, cells);
           ctx.globalAlpha = 1;
+          if (bctx) {
+            bctx.globalAlpha = alpha;
+            this.atlas.draw(bctx, cp, fgc, attrs, x * cw, y * ch, cells);
+            bctx.globalAlpha = 1;
+          }
           // block glyphs (▀ █ ░ — a tab's bar, a picture's pixels, shaded fills) are surfaces, not
           // text: they stay out of the fringes, or every bar and picture tinted red and blue
           if (fctx && !(cp >= 0x2580 && cp <= 0x259f) && !(attrs & PIXELS)) {
@@ -726,7 +757,8 @@ export class Renderer {
         // the halo's spread (CSS px), in bloom pixels
         b.filter = `${Renderer.BRIGHT_PASS} blur(${((this.bloomR * this.dpr) / Renderer.BLOOM_DIV).toFixed(2)}px) saturate(1.4)`;
       }
-      b.drawImage(this.canvas, 0, 0, this.bloom.width, this.bloom.height);
+      // from its own small copy: the screen canvas is never read for it (G3)
+      b.drawImage(this.bsrcFresh && this.bsrc ? this.bsrc : this.canvas, 0, 0, this.bloom.width, this.bloom.height);
       if (this.canvasBlur) b.filter = "none";
     }
     this.touchGlass("bloom");
