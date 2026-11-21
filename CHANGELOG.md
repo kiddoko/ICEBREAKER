@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.6.0 — not released yet
+## 0.6.0 — 2026-11-21
 
 The UI overhaul ("Refonte UI"): the screen is made of frames you arrange, every frame has its
 tabs, and six modules are redrawn.

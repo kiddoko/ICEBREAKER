@@ -33,6 +33,7 @@ export interface VersionNotes {
 export const NOTES: VersionNotes[] = [
   {
     version: "0.6.0",
+    date: "2026-11-21",
     en: {
       headline: "Your screen, your frames — six modules reborn",
       added: [
