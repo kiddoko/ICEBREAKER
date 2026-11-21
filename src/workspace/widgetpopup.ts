@@ -67,13 +67,13 @@ export class WidgetPopup implements Overlay {
   render(ui: UI, screen: Rect): void {
     const c = ui.c;
     const p = this.spec.popup!;
-    ui.tint(screen, c.subtle);
+    ui.dim(screen, c.subtle);
     ui.hit(screen, { onClick: () => (this.done = true), onWheel: () => {}, block: true });
     const w = Math.min(screen.w - 4, p.size?.w ?? 60);
     const h = Math.min(screen.h - 2, (p.size?.h ?? 14) + 3);
     const box = { x: screen.x + Math.floor((screen.w - w) / 2), y: screen.y + Math.floor((screen.h - h) / 3), w, h };
     ui.hit(box, { onClick: () => {}, block: true });
-    const inner = ui.box(box, { title: t(p.title ?? this.spec.title).toUpperCase(), focused: true, bg: c.panelAlt });
+    const inner = ui.box(box, { title: t(p.title ?? this.spec.title).toLowerCase(), focused: true, bg: c.panelAlt });
     const body = { x: inner.x, y: inner.y, w: inner.w, h: inner.h - 2 };
     ui.clip(body, () => p.render(ui, body, this.ctx));
     // footer: open the module · close
@@ -90,8 +90,9 @@ export class WidgetPopup implements Overlay {
       const room = x - inner.x - INSET - GAP;
       // too long for beside the buttons: on the line above them; still too long: the whole
       // "key what" pieces that fit, never one cut in the middle ("space s…")
-      if (strWidth(hint) <= room) ui.text(inner.x + INSET, fy, hint, { fg: c.faint, attrs: 0 }, Math.max(0, room));
-      else ui.text(inner.x + INSET, fy - 1, ` ${fitPieces(hint, inner.w - INSET * 2 - 2)} `, { fg: c.faint, bg: c.panelAlt, attrs: 0 }, inner.w - INSET * 2);
+      // muted, not faint: the keys stood out as keycaps and what they do couldn't be read
+      if (strWidth(hint) <= room) ui.text(inner.x + INSET, fy, hint, { fg: c.muted, attrs: 0 }, Math.max(0, room));
+      else ui.text(inner.x + INSET, fy - 1, ` ${fitPieces(hint, inner.w - INSET * 2 - 2)} `, { fg: c.muted, bg: c.panelAlt, attrs: 0 }, inner.w - INSET * 2);
     }
   }
 }

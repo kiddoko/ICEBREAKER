@@ -94,6 +94,7 @@ export function createTauriPlatform(): Platform {
       syncVault: (accept) => invoke<"none" | "ask" | "taken">("account_vault_sync", { accept: accept ?? null }),
     },
     onVaultChange: (cb) => void listen("vault-fs", () => cb()),
+    onMenu: (cb) => void listen<string>("menu", (e) => cb(e.payload)),
     files: {
       home: () => invoke<string>("fs_home"),
       list: (path) => invoke("fs_list", { path }),

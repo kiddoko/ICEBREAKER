@@ -1,6 +1,6 @@
 import type { ChatSession } from "../ai/types";
 import { linkSystemPrompt } from "../ai/prompts";
-import { vaultTools } from "../ai/tools";
+import { givenNotes, vaultTools } from "../ai/tools";
 import { refreshContext } from "../ai/context";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
@@ -29,6 +29,10 @@ class Conversation {
   transcript: string[] = [];
   /** the first question, short: the tab's name */
   name = "";
+  /** what you typed in it: the notes named there are the ones you gave the AI (`ai.reads` = "given") */
+  said: string[] = [];
+  /** the given notes already handed to Claude Code in this conversation (not sent twice) */
+  handed = new Set<string>();
 }
 
 export class LinkApp implements App {
@@ -50,6 +54,9 @@ export class LinkApp implements App {
     void this.deck.platform.vault.crypt
       ?.status()
       .then((st) => {
+        const reads = this.deck.settings.data.ai.reads;
+        if (!st.encrypted && this.deck.ai.provider.id === "claude-code" && reads !== "all")
+          this.c.chat.push("info", reads === "given" ? t("The AI reads only the notes you give it: name one in your message (“summarize ideas”) and it gets it. Your whole vault: Settings → PERMISSIONS → What the AI may read.") : t("The AI reads no note by itself — only what you type. Settings → PERMISSIONS → What the AI may read."));
         if (st.encrypted && this.deck.ai.provider.id === "claude-code")
           this.c.chat.push("info", t("This vault is encrypted: Claude Code can't read or write its notes — it only gets what you type.\nGive it a note from the shell (cat notes/x.md | ask \"summarize\"), or use an API key or a local model (Settings → UPLINK): those read notes through the deck."));
       })
@@ -117,7 +124,9 @@ export class LinkApp implements App {
   private ensureSession(c: Conversation): ChatSession {
     if (!c.session) {
       const ai = this.deck.ai;
-      const toolsEnabled = ai.provider.id === "anthropic";
+      // what the AI may read by itself (Settings → PERMISSIONS): nothing → no tool at all
+      const reads = () => this.deck.settings.data.ai.reads;
+      const toolsEnabled = ai.provider.id === "anthropic" && reads() !== "nothing";
       c.session = ai.session({
         system: linkSystemPrompt({
           providerId: ai.provider.id,
@@ -129,14 +138,40 @@ export class LinkApp implements App {
           context: this.context,
           spokenJapanese: this.readsAloud() && this.deck.settings.data.voice.language === "ja",
         }),
-        tools: toolsEnabled ? vaultTools(this.deck.vault, (t, d) => this.deck.confirm(t, d)) : [],
+        tools: toolsEnabled ? vaultTools(this.deck.vault, (title, d) => this.deck.confirm(title, d), { level: reads, given: () => this.given(c), onRead: (p) => ai.noteRead(p) }) : [],
       });
     }
     return c.session;
   }
 
+  /** The notes you gave the AI in this conversation: named in what you typed, or in front. */
+  private given(c: Conversation): string[] {
+    const front = this.deck.workspace.activeApp;
+    return givenNotes(this.deck.vault, c.said, front?.kind === "note" ? front.key.slice(5) : null);
+  }
+
+  /**
+   * Claude Code has no tool of the deck's: when it may read only what you give it, the notes
+   * you named are handed to it with your message (each once per conversation, 200 000
+   * characters at most). Returns what to add to the message.
+   */
+  private async handOver(c: Conversation): Promise<string> {
+    if (this.deck.ai.provider.id !== "claude-code" || this.deck.settings.data.ai.reads !== "given") return "";
+    let out = "";
+    for (const path of this.given(c)) {
+      if (c.handed.has(path) || out.length > 200_000) continue;
+      const text = await this.deck.vault.read(path).catch(() => null);
+      if (text === null) continue;
+      c.handed.add(path);
+      this.deck.ai.noteRead(path);
+      out += `\n\n--- the note ${path} (given by the user) ---\n${text.slice(0, 100_000)}\n--- end of ${path} ---`;
+    }
+    return out;
+  }
+
   private async handle(text: string, c: Conversation = this.c): Promise<void> {
     if (text.startsWith("/")) return this.slash(text, c);
+    c.said.push(text);
     this.deck.voice.stop(); // a new question interrupts the reading
     c.chat.push("user", text);
     if (!c.name) c.name = text.replace(/\s+/g, " ").trim().slice(0, 24);
@@ -169,7 +204,7 @@ export class LinkApp implements App {
 
     try {
       await session.send(
-        text,
+        text + (await this.handOver(c)),
         {
           onText: (d) => {
             answer ??= chat.push("assistant", "");
@@ -197,6 +232,8 @@ export class LinkApp implements App {
             raw = "";
             shown = 0;
             const arg = String(input.path ?? input.query ?? input.folder ?? "");
+            // Claude Code reads with its own tools: the journal and the top bar know it too
+            if (name === "Read" || name === "Grep" || name === "Glob") this.deck.ai.noteRead(String(input.file_path ?? input.pattern ?? input.path ?? name));
             chat.push("tool", `${name}${arg ? ` ${arg}` : ""}`);
             chat.busyLabel = name.replace("_", " ");
             // text after a tool call starts a new block

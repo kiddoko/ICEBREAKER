@@ -36,6 +36,10 @@ pub struct RunRequest {
     /// Let the model create and edit notes — inside the vault only.
     #[serde(default)]
     writes: bool,
+    /// What the AI may read by itself (`ai.reads`), as the page knows it: used only when the
+    /// account's settings file doesn't say yet (it's read here first).
+    #[serde(default)]
+    reads: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -84,11 +88,17 @@ pub async fn claude_code_run(
     req: RunRequest,
     on_line: Channel<String>,
 ) -> Result<RunResult, String> {
+    // stealth mode: no cloud AI (checked here too, not only in the page)
+    crate::config::online(&app, "Claude Code")?;
     let exe = find_claude().ok_or("Claude Code isn't installed (https://claude.com/claude-code)")?;
     // an encrypted vault: Claude Code can't read its files (only noise on disk) and
     // must never write plain ones into it — it gets an empty folder and no file tools;
     // it only gets what you type (or pipe to `ask`): the LINK page says so
     let encrypted = crate::vault::is_encrypted(&vault);
+    // `ai.reads` (Settings → PERMISSIONS): unless it's "all", Claude Code gets no file tool
+    // and an empty folder, as for an encrypted vault — the deck hands it the notes you gave
+    let reads = crate::config::ai_reads(&app).or(req.reads.clone()).unwrap_or_else(|| "given".into());
+    let encrypted = encrypted || reads != "all";
     let cwd = if encrypted {
         // an empty folder of ours (the app's cache, yours only) — never a shared /tmp one
         // another user could fill with a CLAUDE.md

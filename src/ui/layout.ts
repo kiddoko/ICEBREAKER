@@ -168,7 +168,7 @@ interface BarItem {
  *   bar.text(" HOME ", { fg, bg }, { priority: 10 });                  // left, always
  *   bar.text(status, { fg: c.muted }, { priority: 1, fit: 8 });        // left, shrinks to 8 cells
  *   bar.text("⌘K menu", { fg: c.muted }, { side: "right", priority: 9 });
- *   bar.button("◧", togglePanel, { cmd: "panel" }, { side: "right", priority: 8 });
+ *   bar.button("◨", togglePanel, { cmd: "panel" }, { side: "right", priority: 8 });
  *   bar.draw();                                                         // bar.dropped: what didn't fit
  */
 export class Bar {

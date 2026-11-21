@@ -4,7 +4,7 @@ import { t } from "../core/i18n";
 import { mix } from "../core/color";
 import { strWidth } from "../core/unicode";
 import { BOLD, type Rect } from "../core/grid";
-import type { Action, KeyInput } from "../core/input";
+import { IS_MAC, type Action, type KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import { drawBackground } from "../fx/backgrounds";
 import { inside, type MenuEntry, type UI } from "../ui/ui";
@@ -70,7 +70,7 @@ export class HomeApp implements App {
   status(): string {
     return this.editing
       ? t("EDIT · arrows move · shift+arrows resize · a add · x remove · r reset · esc done")
-      : t("←↑↓→ select · enter open · [ ] pages · e edit layout · m modules · ctrl+k everything else");
+      : t("←↑↓→ select · enter open · [ ] pages · ⌘E edit layout · m modules · ctrl+k everything else");
   }
 
   private get layout(): WidgetPlacement[] {
@@ -170,7 +170,9 @@ export class HomeApp implements App {
     // a widget can be placed several times: each copy has its own key (widgets/instances.ts);
     // `keep` (a widget moving here from the side panel) keeps its key, and its settings
     const id = widgetIdOf(what);
-    const key = keep || what.includes("#") ? what : newWidgetKey(this.deck, id);
+    // (the keys on screen count too: HOME's default layout isn't saved until it changes, and a
+    // second NEWS was refused as "already on the grid")
+    const key = keep || what.includes("#") ? what : newWidgetKey(this.deck, id, this.layout.map(keyOf));
     const spec = this.deck.widgets.get(id);
     if (!spec || this.layout.some((p) => keyOf(p) === key)) return false;
     const layout = this.layout.map((p) => ({ ...p }));
@@ -245,7 +247,7 @@ export class HomeApp implements App {
   /** Right-click on an empty spot of HOME. */
   /** First in every right-click on HOME: into edit mode, or out of it. */
   private editEntry(): MenuEntry {
-    return { label: this.editing ? t("Done editing") : t("Edit layout"), cmd: this.editing ? "home done" : "home edit", hint: this.editing ? "esc" : "e" };
+    return { label: this.editing ? t("Done editing") : t("Edit layout"), cmd: this.editing ? "home done" : "home edit", hint: this.editing ? "esc" : IS_MAC ? "⌘E" : "Ctrl+E" };
   }
 
   menu(): MenuEntry[] {
@@ -292,6 +294,12 @@ export class HomeApp implements App {
       "-",
       { label: t("Remove"), cmd: `home rm ${keyOf(p)}`, danger: true, hint: "x" },
     ];
+  }
+
+  /** A widget chosen by a click on its own field: HOME takes the keyboard (it may have been the shell's). */
+  private choose(i: number): void {
+    this.selected = i;
+    this.deck.workspace.focus = "main";
   }
 
   /** Edit mode on/off (`home edit`). */
@@ -380,6 +388,9 @@ export class HomeApp implements App {
   }
 
   onKey(k: KeyInput): boolean {
+    // ⌘E / ctrl+E: in and out of edit mode, before any widget sees it (the chat box would type
+    // an "e"); only here, so the shell keeps ctrl+E (end of line)
+    if (k.combo === "ctrl+e") return this.setEditing(!this.editing), true;
     if (!this.editing) {
       // the selected widget first (Delete on the entry under the mouse, its own letters…)
       const p = this.layout[this.selected];
@@ -489,7 +500,7 @@ export class HomeApp implements App {
       const inner = flat
         ? (!spec.frameless || this.editing ? ui.fill(rect, { bg: sel ? mix(c.panel, c.accent, 0.3) : this.editing ? c.highlight : mix(c.panel, c.fg, 0.06) }) : undefined, rect)
         : ui.box(rect, {
-            title: t(spec.title).toUpperCase(),
+            title: t(spec.title).toLowerCase(),
             info: this.editing && sel ? `${p.w}×${p.h}` : undefined,
             focused: sel,
             border: this.editing && sel ? "heavy" : ui.theme.widgetFrame,
@@ -544,7 +555,7 @@ export class HomeApp implements App {
           // the chosen widget's long texts scroll by themselves, as under the mouse
           const zone = ui.marqueeZone;
           if (sel && focused) ui.marqueeZone = inner;
-          spec.render(ui, inner, { deck: this.deck, focused: sel, key: keyOf(p) });
+          spec.render(ui, inner, { deck: this.deck, focused: sel, key: keyOf(p), typing: sel && focused, select: () => this.choose(i) });
           ui.marqueeZone = zone;
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
@@ -592,7 +603,7 @@ export class HomeApp implements App {
         if (dg.spot) ui.box(toRect(dg.spot), { border: "dashed", focused: true, fill: false, title: t("drop here") });
         const r0 = toRect(p);
         const ghost = { x: dg.mx - dg.dx, y: dg.my - dg.dy, w: r0.w, h: r0.h };
-        ui.box(ghost, { border: "double", focused: true, fill: false, title: spec.title.toUpperCase() });
+        ui.box(ghost, { border: "double", focused: true, fill: false, title: spec.title.toLowerCase() });
         if (!dg.spot) ui.textCenter(ghost, ghost.y + Math.floor(ghost.h / 2), t("no room here"), { fg: c.subtle });
       }
     }
@@ -602,6 +613,12 @@ export class HomeApp implements App {
     const more = [` ↓ ${t("more (wheel)")} `, " ↓ "].find((m) => strWidth(m) <= room);
     if (this.scroll < maxScroll && more) ui.art(() => ui.textRight(r.x + r.w - 1, r.y + r.h - 1, more, { fg: c.panel, bg: c.accent }));
     if (this.scroll > 0) ui.textRight(r.x + r.w - 1, r.y, ` ↑ ${this.scroll} `, { fg: c.muted });
+
+    // edit / done: a button on HOME's top row, right — the widgets start under it (the
+    // right-click menu and ⌘E do the same); left of the ↑ shown when scrolled
+    const edit = this.editing ? `✓ ${t("done")}` : `✎ ${t("edit")}`;
+    const up = this.scroll > 0 ? strWidth(` ↑ ${this.scroll} `) : 0;
+    ui.button(r.x + r.w - INSET - (strWidth(edit) + INSET * 2) - up, r.y, edit, () => this.setEditing(!this.editing), { selected: this.editing, tip: this.editing ? t("done editing (esc)") : t("move, resize, add widgets (⌘E)") });
 
     // pages: ‹ 1 2 3 + › at the bottom left (always while editing)
     const pages = this.pageCount();

@@ -37,12 +37,18 @@ export function setFx(deck: Deck, e: FxLevel, value: number): number {
 /**
  * Bloom: a blurred copy of the screen laid over it, so bright things bleed a soft halo onto
  * what's around them. The slider sets how far the halo spreads (CSS px of blur) as well as
- * how strong it is: 0.5.2 only changed its opacity over a fixed 3 px blur, which hardly
- * showed — 50 % ≈ 3 px, 100 % 5 px, 200 % 8.5 px.
+ * how strong it is (bloomStrength). 0.6.0: 100 % hardly showed (a 5 px halo at 0.4) —
+ * now 50 % ≈ 5 px, 100 % 8 px, 200 % 14 px.
  */
 export function bloomRadius(level: number): number {
   const k = Math.max(0, Math.min(200, level)) / 100;
-  return 1.5 + 3.5 * k;
+  return 2 + 6 * k;
+}
+
+/** Bloom: how opaque the halo is, from the theme's own bloom (0…1) and the slider (%): 100 % ≈ 0.7 on most themes. */
+export function bloomStrength(theme: number, level: number): number {
+  const k = Math.max(0, Math.min(200, level)) / 100;
+  return Math.min(1, theme * k * 1.8);
 }
 
 /** CRT flicker speed (fx.flickerSpeed, %): 100 = the tube's flicker every 4 s and its rolling band every 9 s; 200 = twice as fast. */

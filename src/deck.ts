@@ -1,7 +1,12 @@
+import { AccessLog } from "./core/access";
+import { PermissionDialog, type PermDialogSpec } from "./workspace/permdialog";
 import { startHereCommand } from "./vault/starthere";
+import { PRESETS } from "./workspace/layout/arrange";
 import type { ModuleSettingSpec } from "./plugins/api";
 import { focusSpec } from "./apps/focus";
 import { clocksSpec } from "./apps/clocks";
+import { moonSpec } from "./apps/moon";
+import { newsSpec } from "./apps/news";
 import { weatherCommand, weatherSpec } from "./apps/weather";
 import { pinCommand, pinnedWidget, unpinCommand } from "./workspace/favorites";
 import { terminalSpec } from "./apps/terminal";
@@ -34,7 +39,8 @@ import { InputManager, type Action, type ActionSource, type InputSink, type KeyI
 import { FrameLoop } from "./core/loop";
 import { fontStack, loadFont, WEIGHTS } from "./core/fonts";
 import { Renderer } from "./core/renderer";
-import { bloomRadius, flickerSpeed } from "./core/fxlevels";
+import { macMenuActions } from "./workspace/macmenu";
+import { bloomRadius, bloomStrength, flickerSpeed } from "./core/fxlevels";
 import { Sound, SOUND_CHANNELS, type SoundName } from "./core/sound";
 import { Mixer } from "./core/mixer";
 import { DEFAULT_SETTINGS, type SettingsStore } from "./core/settings";
@@ -104,6 +110,8 @@ export class Deck implements InputSink {
   /** what each open page was made with (`openApp(kind, args)`): a module's page is made again with it when the module reloads */
   readonly appArgs = new WeakMap<App, unknown>();
   readonly actions = new ActionRegistry();
+  /** the macOS menu bar's items are listened to (once, whatever the logins) */
+  private menuBarOn = false;
   /** every setting row, the deck's and the modules' (core/prefs.ts): Settings draws them */
   readonly prefs = new SettingsRegistry();
   /** everything the deck can do, as blocks (core/catalog.ts): the BLOCKS page, `catalog`, ib.catalog */
@@ -118,6 +126,8 @@ export class Deck implements InputSink {
   readonly errors = new ErrorLog();
   /** everything that happens (commands, clicks, errors, messages, debug): the shell's LOG tab */
   readonly log = new EventLog();
+  /** who used which permission, when, on what (core/access.ts): Settings → PERMISSIONS, the LOG's "access" filter */
+  readonly access: AccessLog;
 
   /**
    * A line for developers, in the LOG tab under "debug" (modules: `ib.debug`).
@@ -225,11 +235,20 @@ export class Deck implements InputSink {
       blip: () => this.sound.play("blip"),
     });
     this.vault.history = this.history;
+    // the access journal: its lines show in the LOG too ("◈ [todo] vault:write · notes/a.md")
+    this.access = new AccessLog(platform);
+    this.access.onAdd = (a) => void this.log.add("access", `${a.perm}${a.what ? ` · ${a.what}` : ""}`, { source: a.who });
     this.stats = new StatsStore(this.vault);
     this.marks = new Marks(this.vault);
     this.ai = new AIManager(settings);
     // the AI wrote notes: pick them up in the tree, search, widgets…
     this.ai.onVaultWrite = () => void this.vault.rescan().then(() => this.requestFrame());
+    // what the AI reads is in the access journal, and lights the top bar for a moment
+    this.ai.onRead = (what) => {
+      this.access.note("ai", "vault:read", what);
+      this.requestFrame();
+      setTimeout(() => this.requestFrame(), 4100);
+    };
     this.ai.onMessage = () => void this.stats.add("uplink.messages", 1, "uplink", { label: "messages to the AI", kind: "counter" }).catch(() => {});
     this.plugins = new PluginHost(this);
     this.updater = new Updater(this);
@@ -249,7 +268,9 @@ export class Deck implements InputSink {
       if (g === "back" || g === "forward") {
         if (ws.topModal) return;
         this.sound.play("move");
-        ws.switchTab(ws.active + (g === "forward" ? 1 : -1), true);
+        // "back" on the note opened from NEXUS: NEXUS again; else the tab before
+        if (g === "back" && ws.backToParked()) return void this.requestFrame();
+        ws.stepTab(g === "forward" ? 1 : -1, true);
       } else this.zoom(g === "zoom-in" ? 1 : -1);
       this.requestFrame();
     };
@@ -370,8 +391,26 @@ export class Deck implements InputSink {
     this.ai.gate = () => (this.plugins.list().some((p) => p.manifest.id === "uplink" && p.active) ? null : "the UPLINK module is off (MODULES → UPLINK)");
     migrateWheel(this); // the old gamepad wheel's slots → keys on THE MENU (once)
     this.updater.start();
-    await step(() => this.plugins.init(), () => ({ text: `Plugins: ${this.plugins.active().map((p) => p.manifest.id).join(", ") || "none"}`, status: this.plugins.list().some((p) => p.error) ? "WARN" : "OK" }));
+    // short enough to read whole (the list of every module was cut with …); what's wrong, by name,
+    // with the whole reason in the LOG
+    await this.access.load().catch(() => {});
+    await step(() => this.plugins.init(), () => {
+      const on = this.plugins.active().length;
+      const bad = this.plugins.list().filter((p) => p.error);
+      for (const p of bad) this.log.add("notify", `${p.manifest.name ?? p.manifest.id}: ${p.error}`, { source: "warning" });
+      if (!bad.length) return { text: `Plugins: ${on} on`, status: "OK" };
+      // each one by name with why, in a few words, and what to do; said again once the desktop
+      // is there (the boot text goes by fast) — the whole reason is in the LOG
+      this.modulesOff = bad.map((p) => ({ id: p.manifest.id, name: p.manifest.name ?? p.manifest.id, why: PluginHost.shortReason(p.error ?? "") }));
+      return { text: `Plugins: ${on} on · off: ${this.modulesOff.map((m) => `${m.id} (${m.why})`).join(", ")} — plugin enable <id>`, status: "WARN" };
+    });
     this.platform.bridge?.onRun((req) => void this.runBridged(req));
+    // the macOS menu bar's deck items (workspace/macmenu.ts): listened to once, ignored while locked
+    if (!this.menuBarOn && this.platform.onMenu) {
+      this.menuBarOn = true;
+      const actions = macMenuActions(this);
+      this.platform.onMenu((id) => !this.locked && actions[id]?.());
+    }
     // files changed in the terminal, Obsidian, Finder…: refresh the tree, search, widgets
     await step(() => this.platform.onVaultChange?.(() => void this.vault.rescan().then(() => this.requestFrame())), () => this.platform.onVaultChange ? { text: "Watching the vault for outside changes", status: "OK" } : null);
     if (s.privacy.stealth) boot?.log({ text: "Stealth mode: no internet — this machine and the local network only", status: "OK" });
@@ -455,6 +494,9 @@ export class Deck implements InputSink {
       this.speak("errors", t("error {code}: {title}", { code: e.code.split("").join(" "), title: t(e.title) }));
     };
     window.addEventListener("blur", () => focus(false));
+    // started without the focus (launched behind another window, the login done elsewhere): no
+    // blur ever comes, so ask now — or the boot screen ran at full rate, unseen (perf R7)
+    this.loop.background = !document.hasFocus() && this.settings.data.appearance.backgroundSlow !== false;
     // some webviews don't report a minimized window as hidden: ask the window itself
     void this.platform.onMinimized?.((min) => {
       this.loop.setPaused(min || document.hidden);
@@ -476,7 +518,7 @@ export class Deck implements InputSink {
     // the frame's own parts, callable like modules: deck.use("tree").reveal(…), ib.use("terminal")…
     for (const [id, fns] of Object.entries(frameServices(this))) this.services.exposeAll(id, fns);
     syncLinkWidgets(this); // the 1×1 shortcut squares
-    for (const a of [homeSpec, modulesSpec, storeSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec, shortcutsSpec, terminalSpec, weatherSpec, clocksSpec, focusSpec, trashSpec, blocksSpec]) this.apps.register(a);
+    for (const a of [homeSpec, modulesSpec, storeSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec, shortcutsSpec, terminalSpec, weatherSpec, clocksSpec, newsSpec, moonSpec, focusSpec, trashSpec, blocksSpec]) this.apps.register(a);
 
     registerCoreActions(this); // THE MENU's searchable actions (deck-actions.ts)
   }
@@ -513,7 +555,9 @@ export class Deck implements InputSink {
 
     // theme motion on the finished frame: changed cells, then page transitions
     if (this.settings.data.fx.glitch) {
-      if (this.cellFx.apply(this.grid, this.theme, performance.now())) ui.animate(16);
+      // a theme's ink / glow and the letters' fade are worked out on the clock: 30 frames a
+      // second show them as well, and the screen's own rate kept the deck drawing non-stop
+      if (this.cellFx.apply(this.grid, this.theme, performance.now())) ui.animate(33);
       if (this.transitions.apply(this.grid, this.theme, performance.now())) ui.animate(16);
     }
     const g = this.glitchUntil - performance.now();
@@ -544,7 +588,7 @@ export class Deck implements InputSink {
       const t2 = performance.now();
       if (t2 < this.perfRec.until) this.perfRec.frames.push({ at: t0, build: t1 - t0, paint: t2 - t1, cells: this.renderer.lastCells, glyphs: this.renderer.takeAtlasMisses(), wanted: this.loop.wanted });
     }
-    if (this.renderer.fading) ui.animate(0); // letters still fading in (renderer.fadeMs)
+    if (this.renderer.fading) ui.animate(33); // letters still fading in (renderer.fadeMs): 3–4 steps, on the clock
     if (ui.caret) this.input.placeCaret(ui.caret.x, ui.caret.y);
     this.renderer.setCaret(ui.softCaret ? ui.caret : null, css(ui.c.cursor), ui.caretTyped, !!this.settings.data.appearance.reduceMotion);
     this.hits = ui.hits;
@@ -684,6 +728,9 @@ export class Deck implements InputSink {
     // a plain vault's run untrusted, like a module's (shell/privileged.ts).
     const crypt = await this.platform.vault.crypt?.status().catch(() => null);
     if (crypt?.encrypted) return b.send(req.id, "\x1b[33mICEBREAKER: the vault is encrypted — its commands stay in ibsh (your terminal only sees noise)\x1b[0m\n", true, true, 1);
+    // Settings → PERMISSIONS → Your real terminal: nothing at all
+    if (this.settings.data.shell.bridge === "off") return b.send(req.id, "\x1b[33mICEBREAKER: its commands are switched off in your real terminal (Settings → PERMISSIONS) — type them in ibsh\x1b[0m\n", true, true, 1);
+    this.access.note("terminal", "shell", args[0] ?? "");
     const line = args.map((a, i) => (i === 0 ? a : q(a))).join(" ");
     if (cmd.interactive) {
       void this.shell.runUntrusted(line, { source: "terminal", grants: "all" });
@@ -738,6 +785,19 @@ export class Deck implements InputSink {
     }
     this.workspace.notify(text, kind);
     this.requestFrame();
+  }
+
+  /**
+   * A question about what a module may do (workspace/permdialog.ts): switching it on, a
+   * high-risk permission used for the first time, a command for your real terminal. Gives
+   * the chosen button's value (the first one, the way out, for esc).
+   */
+  askPermission(spec: PermDialogSpec): Promise<string> {
+    return new Promise((resolve) => {
+      this.workspace.push(new PermissionDialog(spec, resolve));
+      this.sound.play("alert");
+      this.requestFrame();
+    });
   }
 
   confirm(title: string, detail = "", preselected = true): Promise<boolean> {
@@ -899,10 +959,10 @@ export class Deck implements InputSink {
     const root = document.documentElement.style;
     root.setProperty("--deck-bg", css(t.c.bg));
     const lv = { ...DEFAULT_SETTINGS.fx.levels, ...fx.levels };
-    root.setProperty("--bloom", String(fx.bloom ? (t.fx.bloom * lv.bloom) / 100 : 0));
+    const bloomNow = fx.bloom ? bloomStrength(t.fx.bloom, lv.bloom) : 0;
+    root.setProperty("--bloom", String(bloomNow));
     // the bloom adds light, and each theme is tuned with it: lowered or off, the
     // picture itself gets that light back (no dimmer screen)
-    const bloomNow = fx.bloom ? (t.fx.bloom * lv.bloom) / 100 : 0;
     const boost = Math.min(1.35, 1 + Math.max(0, t.fx.bloom - bloomNow) * 0.6);
     const screenEl = document.getElementById("screen");
     // and the user's brightness (Settings → APPEARANCE), on top
@@ -1196,10 +1256,15 @@ export class Deck implements InputSink {
    * voice said nothing at all (a module's missed reminder, an error while loading, the
    * CPU busy starting…): its first words are the greeting.
    */
+  /** the modules that should be on and aren't, with why (said once the desktop appears) */
+  private modulesOff: { id: string; name: string; why: string }[] = [];
+
   private sessionReady(): void {
     if (!this.started || this.voice.open) return;
     this.voice.open = true;
     this.greet();
+    // a module that's off for a reason you can act on: said here, where you can read it
+    for (const m of this.modulesOff.splice(0, 3)) this.notify(t("{m} is off: {why} — switch it on again in the STORE (or: plugin enable {id})", { m: m.name, why: t(m.why), id: m.id }), "warning");
     // updated since this device last saw it: WHAT'S NEW, once (never during the setup)
     void whatsNewOnce(this);
   }
@@ -1291,6 +1356,9 @@ export class Deck implements InputSink {
       out.push({ id: `app.${spec.kind}`, title: spec.title, group: "open", hint: spec.description, run: () => void this.openApp(spec.kind) });
     }
     for (const t of this.themes.list()) out.push({ id: `theme.${t.name}`, title: t.name, group: "theme", hint: t.description, run: () => void this.setTheme(t.name) });
+    // the ready-made layouts (the user's: THE MENU runs them as you, like ibsh)
+    for (const [name, p] of Object.entries(PRESETS)) out.push({ id: `layout.${name}`, title: `layout preset ${name}`, group: "layout", hint: p.doc, run: () => void this.act(`layout preset ${name}`) });
+    out.push({ id: "layout.reset", title: "layout reset", group: "layout", hint: "the classic layout back", run: () => void this.act("layout reset") });
     for (const e of this.vault.markdown().slice(0, 3000)) out.push({ id: `file.${e.path}`, title: e.path, group: "file", run: () => void this.openFile(e.path) });
     for (const c of this.commands.all()) out.push({ id: `cmd.${c.name}`, title: c.name, group: "$", hint: c.summary, run: () => void this.shell.runLine(c.name).then(() => this.workspace.focusShell()) });
     return out;

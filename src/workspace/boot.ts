@@ -84,7 +84,11 @@ export class BootScreen {
   render(ui: UI): void {
     // "PRESS ANY KEY TO JACK IN" waits for a key: it never moves on by itself
     const t = Math.min(this.elapsed, this.end - 1);
-    ui.animate(16);
+    // 30 frames a second while it plays; 12 once it waits on "press any key" (the cursor
+    // blinks, the rain falls — a full core went to it at the screen's rate)
+    const waiting = this.elapsed >= this.end - 1;
+    this.rain.frameMs = waiting ? 80 : 33;
+    ui.animate(waiting ? 80 : 33);
     const c = ui.c;
     const screen = { x: 0, y: 0, w: ui.cols, h: ui.rows };
 
@@ -107,11 +111,11 @@ export class BootScreen {
       const shown = decrypt(line, Math.min(1, p * 1.3 - i * 0.05), ui.now, SCRAMBLE_BLOCKS);
       ui.gradientText(lx, ly + i, shown, ui.theme.gradient, BOLD, p < 1 ? 0 : (ui.now / 3000) % 0.15);
     });
-    const tag = "OPEN-SOURCE CYBERDECK ENVIRONMENT";
+    const tag = "open-source cyberdeck environment";
     ui.textCenter(screen, ly + logo.length + 1, decrypt(tag, p, ui.now), { fg: c.muted, attrs: BOLD });
     if (t > this.logoEnd) {
       const blink = Math.floor(ui.now / 450) % 2 === 0;
-      ui.textCenter(screen, ly + logo.length + 3, blink ? "[ PRESS ANY KEY TO JACK IN ]" : "", { fg: c.accent, attrs: BOLD });
+      ui.textCenter(screen, ly + logo.length + 3, blink ? "[ press any key to jack in ]" : "", { fg: c.accent, attrs: BOLD });
     }
   }
 

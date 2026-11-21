@@ -207,7 +207,9 @@ export class ModulesApp implements App {
     const left = this.spin.ease(this.sel, n, dt);
     this.travel += (this.spin.pos - before) * 0.8 + dt * 0.15;
     const booting = ui.now - this.shownAt < 1100;
-    ui.animate(left > 0.001 || booting || this.inserting ? 16 : 60);
+    // at rest only the floor drifts and a light runs along the front stripe: 8 frames a
+    // second (16 kept ~700 cells repainting for nothing you'd see)
+    ui.animate(left > 0.001 || booting || this.inserting ? 16 : 125);
 
     ui.fill(r, { bg: c.bg });
     const sceneH = Math.min(r.h, 36);
@@ -332,14 +334,14 @@ export class ModulesApp implements App {
     // the light and the name (decoding while it powers up)
     const led = cart.on ? (lit ? c.success : c.faint) : c.subtle;
     ui.text(x + w - 3, ty, cart.on ? "●" : "○", { fg: front ? led : fade(led), bg: body });
-    const name = ui.reveal(cart.name.toUpperCase(), boot);
+    const name = ui.reveal(cart.name.toLowerCase(), boot);
     ui.text(ix, ty, `${cart.icon} ${name}`, { fg: front ? c.fg : fade(cart.on ? c.fg : c.muted), bg: body, attrs: BOLD }, iw - 2);
     ty++;
     // the stripe: its colour, a light running along it on the one in front
     if (ty < bot) {
-      const run = front ? Math.floor((ui.now / 70) % (iw + 6)) - 3 : -99;
+      const run = front ? Math.floor((ui.now / 125) % (iw + 6)) - 3 : -99;
       for (let i = 0; i < iw; i++) ui.text(ix + i, ty, "▬", { fg: Math.abs(i - run) <= 1 ? mix(hue, c.fg, 0.6) : fade(front ? hue : mix(hue, c.bg, 0.35)), bg: body });
-      if (front) ui.animate(70);
+      if (front) ui.animate(125);
       ty++;
     }
     // a few facts, as room allows: what it is, its state
@@ -364,7 +366,7 @@ export class ModulesApp implements App {
     ui.fill(r, { bg: c.panelAlt });
     ui.hline(r.x, r.y, r.w, { fg: mix(c.accent, c.bg, 0.4) }, "━");
     if (!cur) return;
-    ui.text(r.x + 2, r.y + 1, `${cur.icon}  ${cur.name.toUpperCase()}`, { fg: c.accent, bg: c.panelAlt, attrs: BOLD });
+    ui.text(r.x + 2, r.y + 1, `${cur.icon}  ${cur.name.toLowerCase()}`, { fg: c.accent, bg: c.panelAlt, attrs: BOLD });
     if (cur.module) ui.textRight(r.x + r.w - 2, r.y + 1, `${cur.builtin ? t("built-in") : t("from the store")} · ${cur.on ? t("on") : t("off")}`, { fg: cur.on ? c.success : c.subtle, bg: c.panelAlt });
     if (r.h > 2) ui.text(r.x + 2, r.y + 2, cur.description, { fg: c.fg, bg: c.panelAlt }, r.w - 4);
     if (r.h <= 3) return;

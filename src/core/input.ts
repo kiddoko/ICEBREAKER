@@ -123,13 +123,20 @@ export function rawKeyInput(e: KeyboardEvent): KeyInput {
 }
 
 /** A synthetic ctrl+<letter> press (used to turn native menu commands into our shortcuts). */
-function ctrlKey(letter: string, shift = false): KeyInput {
+export function ctrlKey(letter: string, shift = false): KeyInput {
   return { key: letter, code: `Key${letter.toUpperCase()}`, ctrl: true, alt: false, shift, meta: false, combo: `ctrl+${shift ? "shift+" : ""}${letter}` };
 }
 
 export class InputManager {
   /** Last known mouse cell (for hover effects). */
   mouseCell = { x: -1, y: -1 };
+  /** ⌘ (Mac) / ctrl held right now, alone: the tabs show their numbers (⌘1…9) while it's down */
+  modHeld = false;
+  private setMod(on: boolean): void {
+    if (on === this.modHeld) return;
+    this.modHeld = on;
+    this.onActivity();
+  }
   private mouseFx = -1;
   private wheelPx = 0;
   private wheelAt = 0;
@@ -181,6 +188,8 @@ export class InputManager {
     const ta = this.textarea;
     ta.addEventListener("keydown", (e) => {
       this.onActivity();
+      // ⌘ / ctrl down alone (not part of a shortcut being typed): the tab numbers show
+      this.setMod(e.key === (IS_MAC ? "Meta" : "Control"));
       // the typing click (settings.sound.typing): right now, on the key going down —
       // not later, when the browser turns it into text
       if (!e.ctrlKey && !e.metaKey) {
@@ -256,7 +265,13 @@ export class InputManager {
         this.sink.key(ctrlKey("z", e.inputType === "historyRedo"));
       }
     });
-    ta.addEventListener("blur", () => setTimeout(() => this.focus(), 0));
+    ta.addEventListener("keyup", (e) => {
+      if (e.key === (IS_MAC ? "Meta" : "Control") || !(IS_MAC ? e.metaKey : e.ctrlKey)) this.setMod(false);
+    });
+    ta.addEventListener("blur", () => {
+      this.setMod(false);
+      setTimeout(() => this.focus(), 0);
+    });
   }
 
   private flushText(): void {

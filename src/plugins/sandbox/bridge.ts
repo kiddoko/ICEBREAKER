@@ -41,6 +41,7 @@ const CALLS = new Set([
   "apps.open",
   "vault.read", "vault.exists", "vault.write", "vault.append", "vault.mkdir", "vault.modified", "vault.readBytes", "vault.writeBytes", "vault.list",
   "shell.run",
+  "net.get",
   "ui.notify", "ui.alert", "ui.say", "ui.confirm", "ui.prompt", "ui.choose", "ui.pickFolder", "ui.pickFile",
   "storage.get", "storage.set",
   "settings.set",

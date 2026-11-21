@@ -63,7 +63,7 @@ the keyboard, the mouse or a gamepad.
 | see every shortcut | **⌘/ / Ctrl+/** |
 | write a note | **⌘N / Ctrl+N**, or *+ note* in the tree |
 | the journal (today) | **⌘J / Ctrl+J**, or \`journal\` · \`journal "a line"\` adds a line without opening it |
-| change the look | ⚙ settings → APPEARANCE, or \`theme\` |
+| change the look | settings (◆ ICEBREAKER ▾ top left, or **⌘, / Ctrl+,**) → APPEARANCE, or \`theme\` |
 | switch a feature off | **MODULES** (⌘⇧M) → space |
 | learn the shell | click anything: the command it runs shows in the shell's **log** tab |
 | see everything the deck can do | **BLOCKS** (\`blocks\`): every command, setting, shortcut, function… and how to call it |
@@ -108,9 +108,9 @@ has the same bar. The tree's colour squares tick several colours too (\`tag view
 | **JOURNAL** | one page a day, the evening check-in | \`journal\` · \`journal "a line"\` · \`daily\` |
 | **STATS** | numbers over time, from modules and from you | \`stats set weight 72 --unit kg\` |
 | **WEATHER** | any place, an animated ASCII sky, the week | \`weather Tokyo\` |
-| **CLOCKS** | timers (several), a stopwatch with laps, the world | \`timer 4m tea\` |
+| **CLOCKS** | timers (several), a stopwatch with laps, the world, wake-up alarms | \`timer 4m tea\` · \`clock alarm 7:30 --days mon-fri\` |
 | **FOCUS** | a pomodoro ring, zen mode | \`focus open\` |
-| **NEWS** | your area + your interests | \`news add tech\` |
+| **NEWS** | your area, your country, categories or your words — a page and a widget | \`news page\` · \`news show ai\` |
 | **MUSIC** | your music folder, what's playing | \`music play daft punk\` |
 | **UPLINK** | the AI: the chat (in tabs), the chatbox widget | ⌘⇧U |
 | **NEXUS** | the vault in pseudo-3D | \`explore\` |
@@ -229,8 +229,8 @@ were on come back as you left them next time.
   after (its files come back and it's on again): once you've done something else, the
   STORE reinstalls it.
 - **✦ fx** (status bar, or Settings → APPEARANCE → Effects): a slider per effect —
-  **bloom** (bright things bleed a soft halo of light onto what's around them: the
-  slider sets how far and how strong), scanlines, vignette, **RGB split** (red and
+  **bloom** (a soft glow around the bright things — the logo, the selected tab, accent
+  text — like neon tubes; at 100 % a clear halo a few letters wide), scanlines, vignette, **RGB split** (red and
   blue fringes on the text, the frames and the glyphs — never on the backgrounds),
   glow (bright things give off light), sharpness, **curvature** (the curved glass of
   an old tube: the picture bulges, lines bend towards the edges; off by default). 0 = off, up to 200 %.
@@ -243,8 +243,8 @@ were on come back as you left them next time.
   A changed knob shows **•** and, on its line, **↺**: back to the theme's value.
 - Status bar, right: **♪** mutes everything · **☾** the screensaver (each theme
   has its own: a neon city, an 80s mainframe, sonar, warp, an e-reader).
-- **◧ side panel** (status bar, ⌘⇧P, or \`panel\`): a column on the right whose
-  widgets stay in view on every page. Click it: **a** adds a widget, **e** edits.
+- **◨ side panel** (status bar, ⌘⇧P, or \`panel\`): a column on the right whose
+  widgets stay in view on every page. Click it: **a** adds a widget; the **✎ edit** button (bottom right) or **⌘E / ctrl+E** edits.
   **Edit mode is shared** by HOME and the panel (e on either, esc ends it), and
   works the same way: tab chooses a widget, the arrows move it, **shift+arrows**
   make it bigger / smaller, drag it to move it (between HOME and the panel too),
@@ -258,16 +258,40 @@ were on come back as you left them next time.
 - **Clocks at any size**: every clock style (digital, segments, binary, dots,
   analog, minimal…) has a tiny, small, medium, large and huge version — make the
   widget as small as you like, it stays the style you chose.
-- **News**: each news widget shows the **categories** you choose (science, AI,
-  nature, economy, world…: click the widget → THIS WIDGET), so two news widgets
-  can show different things. **Featured** mode: one story, big, with its
-  summary (↻ another one). \`news show science ai\`, \`news mode featured\`.
-- **⏻** (top right): log out — back to the login page.
+- **MOON** has its own page (\`moon open\`, or the MOON widget): the moon as it is
+  tonight, drawn and lit from the right side, its phase, the next four phases, and the
+  month as a calendar of moons. ←→ a day, ↑↓ a week, **t** today. All computed on your
+  computer, no network.
+- **News**: each news widget answers one question, *what do I show?* — **your area**,
+  **your country's** top stories, **categories** you tick (science, AI, world…) or **your
+  own words** ("formula 1"). Its header always says it (◉ Paris, ◉ science · AI); a click
+  on it changes it. **À la une**: one story, big, with its summary (↻ another one). The
+  **NEWS page** (\`news page\`) has the same four as tabs, the article read on the right.
+  \`news show science ai\`, \`news show formula 1\`, \`news mode featured\`.
+- **Frames**: the tree, the page, the side panel and the shell can go anywhere — in
+  **ibsh** (the deck's own shell: your real terminal and modules can't rearrange the screen):
+  \`layout preset classic | shell-right | panel-left | tree-bottom\`, \`frame move shell
+  top\`, drag the border between two frames to resize, \`frame fold tree\` folds one into a
+  strip (a click opens it), \`layout reset\`; **⌘Z / Ctrl+Z** undoes. **Tab groups**: drop a tab onto
+  another (\`▣ name 3\`; hover lists them, right-click renames or ungroups).
+- **Wake-up alarms**: \`clock alarm 7:30 wake up --days mon-fri\`, \`clock alarm\` lists
+  them, \`clock alarm rm 1\` · \`on\` · \`off\` · \`snooze\` (in ibsh; your real terminal can set
+  one, nothing else); **a** on the CLOCKS page. A full
+  screen rings (s snooze 5 min, enter stop; the gamepad's B / A), with the sound and a
+  notification — while ICEBREAKER is running. \`clock alarm test\` tries it.
+- **◆ ICEBREAKER ▾** (top left): the deck's menu — MODULES, STORE, NEXUS, settings,
+  the manual, what's new, updates, and **⏻ log out** (back to the login page, ⌘⇧L / Ctrl+Shift+L).
 - **What's new**: after each update, a short page opens once — the version big,
   what's new, what's fixed. To see it again: \`changelog\`, Settings → UPDATES →
   *What's new*, or THE MENU; ← → for the versions before.
-- **Tabs** are wide when there are few and get narrower as you open more; when
-  they don't fit any more, **▾ +N** lists the others.
+- **Tabs** sit on top of their frame (the page's, the shell's; VAULT and PANEL have
+  one each). They're wide when there are few and get narrower as you open more; when
+  they don't fit any more, **▾ +N** lists the others. **⌂ HOME is pinned**: always
+  the first tab (⌘1 / Ctrl+1), it can't be closed by mistake. A page from the menu (STORE,
+  settings…) shows first, lit, with × to close it (or esc). **Drag a tab onto another
+  frame** (the tree's, the panel's, the shell's) to keep it there, beside that frame's own
+  — or right-click → *Move to*, or \`tab move 3 panel\` in ibsh. A click on the frame's own tab
+  (VAULT, PANEL, a terminal) brings its content back.
 - **PULSE** (a HOME widget): what's happening in your modules, one line each —
   the next event, tasks due, the next reminder, the music, the focus timer…
 - **Your profile icon**: Settings → YOU → profile icon (or \`avatar\`): a little
@@ -598,6 +622,26 @@ todo add "pack the books" --every sat --cycles 3
   update asks for more, or its code changed without you, it stays off until you
   switch it on again (\`plugin reload\` approves the code of a module you're writing). What a module asks you is headed
   with its name.
+- **Permissions, in plain words** — no surprise: what a module may reach has a name
+  you can read (*Read your notes*, *Change your notes* — the whole vault or one
+  folder —, *Use your AI*, *Play sound*, *Go online* to a named site, *Type in your
+  real terminal*…) and a level. The riskiest are **asked again the first time
+  they're really used** (no · this time · always), and every command for your real
+  terminal is shown first. **Settings → PERMISSIONS** lists every module with each
+  permission, its level and its last use: enter takes one away or gives it back,
+  the module keeps running. In the shell: \`plugin perms\`, \`plugin revoke todo
+  vault:write\`, \`plugin grant todo vault:write\`. An update that asks for more
+  waits for your yes: say no and you keep the version you have.
+- **The access journal**: who used which permission, when, on what — a module, the
+  AI, your real terminal. Names only (a note's path, a site), 30 days, on this
+  computer only. The LOG tab's **◈ access** filter, or \`plugin perms <module>\`.
+- **What the AI may read** (Settings → PERMISSIONS): nothing · what you give it — a
+  note you name in your message ("summarize ideas"), pipe to it or have in front ·
+  your whole vault. The top bar says **◈ the AI reads …** while it does. Writing a
+  note always asks.
+- **Your real terminal** (Settings → PERMISSIONS): what a program you run there may
+  ask the deck — nothing · your notes only · notes, timers and alarms. What only you
+  may do is always typed in ibsh.
 `,
 
   "../FOR DEVELOPERS/README.md": `# For developers
@@ -734,6 +778,13 @@ What a module has the deck do runs **as that module**: \`ib.shell.run\` and the 
 command (\`shell.run\`, \`home.add\`…) refuse what only you may do (the vault's encryption, accounts,
 scripts, macros, shortcuts, THE MENU's keys, pins, the STORE, updates…) and read, pipe or write notes
 only with \`vault:read\` / \`vault:write\` — never \`.icebreaker/\`. A module's id is its folder's name.
+
+**Permissions** (docs/PERMISSIONS.md): put \`"api": 2\` in plugin.json and list the narrowest that
+do the job — a folder (\`vault:write:songs/\`), \`notify\`, \`shell\` (to run the deck's commands),
+\`system\`, \`net:api.example.com\` (\`await ib.net.get(url)\`: an https GET through the deck).
+\`vault.write\`, \`net.get\` and \`terminal.run\` can be refused when first used, and any
+permission can be taken away while you run: catch the error and say what you couldn't do.
+A module's line runs only the commands classed for modules (\`src/shell/classes.ts\`).
 \`modules api\` in the shell lists every function; the deck's own parts include
 \`menu\` (open, items), \`keys\` (list, run) and \`deck\` (notify, alert, say, setting: the look
 and sound settings). \`menu.add\`, \`keys.bind\` and \`home.link\` plant a command behind a key or

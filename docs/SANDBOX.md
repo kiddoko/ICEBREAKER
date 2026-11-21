@@ -63,6 +63,20 @@ the deck and still run inside it.
   `ai.session` / `vaultTools` / `ready` / `problem`, `backgrounds`,
   `media.available`, `google.available / setup`, a widget's `open` command. They need
   a callback across the wall; they come when a module needs them.
+- **Permissions in plain words, in four levels** (0.6, [PERMISSIONS.md](PERMISSIONS.md)):
+  notes by folder (`vault:write:songs/`), `notify`, `shell`, `system`, `net:<host>` (an https
+  GET through the deck's native side — the Worker still has no network of its own). A
+  high-risk one is asked again the first time it's really used; every command for your real
+  terminal is shown first; any of them can be taken away while the module runs (Settings →
+  PERMISSIONS, `plugin revoke`): the list is read at every call. Every use is in the access
+  journal (names only).
+- **Its shell lines run only what modules may run**: an allow-list (`src/shell/classes.ts`,
+  guarded by a test) — a command that isn't classed is refused, `weather` and `news` (they
+  go online) too.
+- What its shell lines can't do (0.6, `src/shell/privileged.ts`): rearrange the screen
+  (`layout` beyond looking, `frame`, `tab move / group / ungroup / groupname`) — its page put
+  where your shell is, with a fake prompt — or touch your alarms beyond listing them. And
+  `sysmon.stats` gives it the vitals only.
 
 ### Tested
 
@@ -83,6 +97,8 @@ worked unchanged.
 
 - **The vault is closed**: the native side refuses any path outside it (`..`,
   absolute paths, links that lead out — `src-tauri/src/vault.rs`).
+- **Stealth mode is checked twice**: in the page, and by the native side before any of its
+  own commands goes online.
 - **The network is closed** by the Content-Security-Policy (`tauri.conf.json`): only
   the AI endpoints, the weather service, the module index and the local Ollama.
 - **Within its permissions a module can still do harm**: one allowed to write notes can

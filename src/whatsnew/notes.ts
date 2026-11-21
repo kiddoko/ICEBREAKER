@@ -32,6 +32,48 @@ export interface VersionNotes {
 
 export const NOTES: VersionNotes[] = [
   {
+    version: "0.6.0",
+    date: "2026-11-21",
+    en: {
+      headline: "Your screen, your frames — six modules reborn",
+      added: [
+        "Arrange the screen: move, resize and fold the tree, panel and shell",
+        "Every frame has its tabs; drag a tab onto any frame to keep it there",
+        "◆ ICEBREAKER, top left: the deck's menu (modules, store, settings…)",
+        "Groups of tabs: drop one onto another · HOME is pinned, always first",
+        "New pages for NEWS and MOON; WEATHER, CLOCKS, STATS, SYSMON redrawn",
+        "Wake-up alarms (in ibsh): `clock alarm 7:30 --days mon-fri`",
+        "Each news widget shows one thing: your area, country, topics or words",
+        "Permissions in plain words: see them, take one away (Settings)",
+      ],
+      fixed: [
+        "The moon's phase was five days off: now right to the hour",
+        "`timer 15s` is 15 seconds (it was read as 1:05)",
+        "A second copy of a widget can be added to HOME again",
+        "Pop-ups dim what's behind them evenly (no more stripes)",
+      ],
+    },
+    fr: {
+      headline: "Ton écran, tes cadres — six modules renaissent",
+      added: [
+        "Arrange l'écran : déplace, redimensionne, replie arbre, panneau, shell",
+        "Chaque cadre a ses onglets ; glisse un onglet sur un cadre pour l'y mettre",
+        "◆ ICEBREAKER, en haut à gauche : le menu du deck (modules, store…)",
+        "Groupes d'onglets : lâche un onglet sur un autre · HOME épinglé, premier",
+        "Des pages pour NEWS et MOON ; WEATHER, CLOCKS, STATS, SYSMON redessinés",
+        "Des réveils (dans ibsh) : `clock alarm 7:30 --days lun-ven`",
+        "Chaque widget news montre une chose : région, pays, sujets ou tes mots",
+        "Autorisations en clair : les voir, en retirer une (Réglages)",
+      ],
+      fixed: [
+        "La phase de la lune avait cinq jours d'écart : juste à l'heure près",
+        "`timer 15s` dure 15 secondes (il était lu 1:05)",
+        "On peut de nouveau ajouter une deuxième copie d'un widget sur HOME",
+        "Les pop-ups assombrissent l'arrière-plan uniformément (plus de rayures)",
+      ],
+    },
+  },
+  {
     version: "0.5.5",
     date: "2026-11-21",
     en: {

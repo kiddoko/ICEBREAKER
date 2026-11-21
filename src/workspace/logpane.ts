@@ -26,7 +26,7 @@ interface Line {
  * the bottom, with a row of filters on top — tick what you want to see
  * (nothing ticked = everything):
  *
- *   ❯ commands  ◂ clicks  ⚠ errors  ✉ messages  ⚙ debug          214 · clear
+ *   ❯ commands  ◂ clicks  ⚠ errors  ✉ messages  ⚙ debug  ◈ access   214 · clear
  *   18:06:20 ❯ ls notes
  *   18:06:24 ◂ theme e-ink
  *            theme: e-ink
@@ -72,13 +72,13 @@ export class LogPane {
   }
 
   private lines(c: UI["c"], list: LogEntry[]): Line[] {
-    const colour: Record<LogKind, number> = { cmd: c.accent, action: c.accentAlt, error: c.error, notify: c.warning, debug: c.subtle };
+    const colour: Record<LogKind, number> = { cmd: c.accent, action: c.accentAlt, error: c.error, notify: c.warning, debug: c.subtle, access: c.success };
     const out: Line[] = [];
     for (const e of list) {
       const time = new Date(e.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
       const glyph = LOG_KINDS.find((k) => k.kind === e.kind)?.glyph ?? "·";
-      const head = e.kind === "debug" && e.source && e.source !== "deck" ? `[${e.source}] ${e.text}` : e.text;
-      out.push({ time, glyph, gfg: colour[e.kind], text: head, fg: e.kind === "error" || e.failed ? c.error : e.kind === "debug" ? c.muted : c.fg, attrs: e.kind === "error" ? BOLD : 0, cmd: e.code ? `errors ${e.code}` : undefined });
+      const head = (e.kind === "debug" || e.kind === "access") && e.source && e.source !== "deck" ? `[${e.source}] ${e.text}` : e.text;
+      out.push({ time, glyph, gfg: colour[e.kind], text: head, fg: e.kind === "error" || e.failed ? c.error : e.kind === "debug" || e.kind === "access" ? c.muted : c.fg, attrs: e.kind === "error" ? BOLD : 0, cmd: e.code ? `errors ${e.code}` : undefined });
       for (const l of (e.detail ?? "").replace(/\n+$/, "").split("\n")) if (l) out.push({ text: l, fg: c.muted });
       if (e.code) {
         out.push({ text: `→ ${t(describe(e.code).hint)}`, fg: c.subtle });

@@ -26,7 +26,8 @@ src/
   widgets/         HOME widgets (and their pop-ups)
   shell/           ibsh (the deck's shell), its commands, the system-terminal bridge;
                    origin.ts = who a line comes from (you, a module, your real terminal) and what it may
-                   read and write; privileged.ts = the commands only you may run
+                   read and write; privileged.ts = the commands only you may run;
+                   classes.ts = every command classed for modules (an allow-list, guarded by a test)
   vault/           the notes folder: files, journal, tags & icons, START HERE
   plugins/         the module system: host, API given to modules, core packages (TERMINAL among them:
                    workspace.terminalOn hides the shell panel; shell.readLine asks in dialogs then);
@@ -43,9 +44,9 @@ src-tauri/src/     the native side, one file per area (see §8)
 |---|---|
 | `core/` | `grid.ts` cells · `renderer.ts` paints them · `loop.ts` frames on demand · `input.ts` keys/mouse/gestures · `gamepad.ts` pad (hold RB: THE MENU; `kind`: Xbox / PlayStation / Nintendo; `padButtonFor(action)`) · `padglyphs.ts` the pad's buttons in pixel art (two cells each, U+E100…, drawn by `glyphs.ts`; `padIcon(button, kind)`, `debug pad` shows them) · `settings.ts` **every setting and its default** · `theme.ts` TOML themes · `shortcuts.ts` the shortcut table (some keys are bound right there: `global`) · `sound.ts` synthesized UI sounds, packs · `mixer.ts` the modules' sampler (`ib.audio`: an AudioWorklet, `mixer-worklet.ts`, maths in `mixer-dsp.ts`) · `voice.ts` · `errors.ts` error codes · `i18n.ts` + `i18n-fr.ts` · `avatar.ts` profile icons · `time.ts` `ago()` · `dates.ts` day / time parsing (`ib.lib.dates`) · `undo.ts` the ⌘Z history · `eventlog.ts` what the LOG tab shows · `fxlevels.ts` effect strengths · `stealth.ts` the offline guard · `updater.ts` ICEBREAKER's and the modules' updates (Settings → UPDATES, docs/UPDATES.md); WHAT'S NEW after an update: `src/whatsnew/` (the notes, the once-per-version rule) and `workspace/whatsnew.ts` (the page) · `prefs.ts` **the settings registry** (every row, the deck's and the modules', with its kind and its way back to default) · `catalog.ts` **the catalog**: everything the deck can do as blocks (commands, actions, shortcuts, settings, functions, widgets, apps, themes, modules) |
 | `ui/` | `ui.ts` the `UI` class (text, box, fill, button, **hit**) · `list.ts` `ListView` (selection, scroll, drag & drop, wheel hook) · `editor.ts` text editing · `slider.ts` sliders + `askNumber` · `wheelspin.ts` the wheel/trackpad feel of rings (`WheelSpin`: a critically damped spring, `ring()`) · `filterbar.ts` **the** search + colours bar (`FilterBar`) every list of things uses · `keycaps.ts` keys drawn as keycaps · `typewriter.ts` text that types itself out · `uplinkcore.ts` UPLINK's face (widget and tour) · `layout.ts` the spacing rules and `Row` / `Bar` / `stack` / `cards` (docs/LAYOUT.md) · `probe.ts` what `debug layout` finds cut or overlapping · `pagebar.ts`, `floor.ts`, `glide.ts`, `markdown.ts`, `chatview.ts`, `bigtext.ts`, `dots.ts` |
-| `workspace/` | `workspace.ts` layout, tabs, focus, input routing · `chrome.ts` the frame around the page: top bar, tabs, status bar, shell panel, tips, subtitles · `sidebar.ts` the tree · `sidepanel.ts` the right panel · `overlays.ts` prompt, choose, confirm, toasts, on-screen keyboard · `quickmenu.ts` **THE MENU** (⌘K / shift twice: search everything, or a key + enter) · `contextmenu.ts` right-click menus · `keycapture.ts` "press the keys" dialog · `avatarpicker.ts` · `widgetpicker.ts`, `widgetpopup.ts` · `fxpanel.ts` · `filebrowser.ts` **the** little file browser (a vault folder, or picking a file on the computer) · `lock.ts` login · `boot.ts` · `favorites.ts` pins |
-| `apps/` | `types.ts` the `App` interface · `home.ts` the widget grid · `note.ts` editor · `settings.ts` draws the settings (its rows come from `settings-rows.ts` through `deck.prefs`; `settings-help.ts` one sentence per setting) · `blocks.ts` the BLOCKS page (the catalog) · `modules.ts` the shard ring · `explorer.ts` NEXUS · `trash.ts` · `shortcuts.ts` · `store.ts` · `setup.ts` · `terminal.ts` · weather / clocks / focus / journal / sysmon / studio / link / help |
-| `widgets/` | `types.ts` `WidgetSpec` · `builtin.ts` core widgets · `extra.ts` more · `links.ts` the shortcut squares (one per pin) · `popups.ts` widget pop-ups · shared state in dependency-free files (`clockstate.ts`, `focusstate.ts`) |
+| `workspace/` | `workspace.ts` layout, tabs, focus, input routing · `layout/tree.ts` + `layout/solve.ts` the screen as a tree of frames, solved into rects · `layout/arrange.ts` where the frames sit (`settings.layout`, `layout preset`, `frame move`) · `layout/focus.ts` ⌘⌥ arrows by geometry (docs/FRAMES.md) · `chrome.ts` the top bar (the deck menu), the status bar, the shell panel, tips, subtitles · `tabstrip.ts` the tabs on each frame's border (two rows, drag to move or onto another frame, groups, HOME pinned) · `tabgroups.ts` tab groups, `tabplaces.ts` which frame a tab lives in (both pure) · `menus.ts` the right-click menus and the deck menu · `sidebar.ts` the tree · `sidepanel.ts` the right panel · `overlays.ts` prompt, choose, confirm, toasts, on-screen keyboard · `quickmenu.ts` **THE MENU** (⌘K / shift twice: search everything, or a key + enter) · `contextmenu.ts` right-click menus · `keycapture.ts` "press the keys" dialog · `avatarpicker.ts` · `widgetpicker.ts`, `widgetpopup.ts` · `fxpanel.ts` · `filebrowser.ts` **the** little file browser (a vault folder, or picking a file on the computer) · `lock.ts` login · `boot.ts` · `favorites.ts` pins |
+| `apps/` | `types.ts` the `App` interface · `home.ts` the widget grid · `note.ts` editor · `settings.ts` draws the settings (its rows come from `settings-rows.ts` through `deck.prefs`; `settings-help.ts` one sentence per setting) · `blocks.ts` the BLOCKS page (the catalog) · `modules.ts` the shard ring · `explorer.ts` NEXUS · `trash.ts` · `shortcuts.ts` · `store.ts` · `setup.ts` · `terminal.ts` · weather (its sky: `weathersky.ts`, a pure drawing) / clocks / news (the NEWS page) / moon (the MOON page) / focus / journal / sysmon / studio / link / help |
+| `widgets/` | `types.ts` `WidgetSpec` · `builtin.ts` core widgets · `extra.ts` more · `links.ts` the shortcut squares (one per pin) · `popups.ts` widget pop-ups · `news.ts` NEWS (sources, feeds, the widget, `news`) · `moonphase.ts` the moon's phase (Meeus, pure) and `moondraw.ts` the moon drawn in half blocks · `alarms.ts` alarms (pure: days, next ring) and `alarmring.ts` the clock that rings them and the ringing screen · shared state in dependency-free files (`clockstate.ts`, `focusstate.ts`) |
 | `shell/` | `shell.ts` ibsh · `parser.ts` (pipes, `;` `&&` `\|\|`, quotes) · `exec.ts` · `commands/*.ts` every command, by area · `systerm.ts` your real shell in a PTY · `terminal.ts` the terminal emulator |
 | `vault/` | `vault.ts` (cached entries, events `changed` / `renamed` / `trashed`, trash log) · `marks.ts` colour tags & icons · `journal.ts` · `paths.ts` · `starthere.ts` the START HERE notes |
 | `plugins/` | `api.ts` **the API modules get** (`ib.*`) · `host.ts` loading, on/off, remove · `core-packages.ts` core features presented as modules · `services.ts` modules calling each other |
@@ -109,7 +110,7 @@ Deck.frame(now)
 - **After the frame**: `fx/transition.ts` plays the theme's page transition,
   `fx/glitch.ts` the glitch for big moments.
 
-**The screen** (`Workspace.render`): top bar (tabs, page buttons) · the tree
+**The screen** (`Workspace.render`, drawn from a layout tree of frames: [FRAMES.md](FRAMES.md)): top bar (the deck menu ◆ ICEBREAKER, UPLINK, the clock) · each frame with its tabs on its border · the tree
 (left) · the page (an `App`) · the side panel (right, optional) · the shell panel
 (bottom, or a big tab when maximized) · status bar · overlays · toasts · tooltip.
 
@@ -322,7 +323,22 @@ Three things can ask the deck to do something, and they aren't trusted the same:
 | **a module** — `ib.shell.run`, a click on one of its areas, a function it calls (`ib.modules.call`, `ib.use`) | an `Origin { source, grants }` that travels with the line for its whole run (`src/shell/origin.ts`) | never the privileged commands (`src/shell/privileged.ts`); a STORE / vault module reads, pipes and writes notes only with its permissions, never `.icebreaker/` |
 | **a program in your real terminal** (the bridge, `term.rs`) | origin `"terminal"` | never the privileged commands; nothing at all on an encrypted vault |
 
+What each may reach is named ([PERMISSIONS.md](PERMISSIONS.md), `src/plugins/permissions.ts`):
+a module's `grants` are the permissions you approved minus the ones you took away, read at
+every question (`Grants`), sometimes narrowed to a folder or a host; a high-risk one passes
+through `origin.gate` the first time it's really used; every use goes to the access journal
+(`origin.note`, `src/core/access.ts`). The AI has its own setting (`ai.reads`), your real
+terminal too (`shell.bridge`).
+
 Rules to keep when you add code:
+
+- **A new command is classed** in `src/shell/classes.ts` (open, mixed, notify, ai, online,
+  yours) — `tests/classes.test.ts` fails until it is; unclassed, it's refused to modules.
+- **A new function exposed to modules says what it needs** (`needs: "shell"` when it drives
+  the deck, `"notify"` when it shows or says something, `"vault:read"` when it tells what
+  you're looking at) — and signs what it shows with the caller's name.
+- **A new way out to the internet** on the native side starts with `config::online(&app, …)?`
+  (stealth mode), and a new one for modules goes through `ib.net` (a named host).
 
 - A command never calls `deck.act()` or `deck.shell.runLine()` blindly for someone else: it gets a
   `ctx.deck` that already keeps the origin, and `ctx.shell.run()`. A new command that plants

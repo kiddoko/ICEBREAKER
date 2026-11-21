@@ -1,6 +1,6 @@
 import { gradient as sampleGradient, mix, NONE, type RGB } from "../core/color";
 import { keySpans } from "./keycaps";
-import { BOLD, Grid, type Rect, type Style } from "../core/grid";
+import { BOLD, Grid, PIXELS, type Rect, type Style } from "../core/grid";
 import type { MouseInput } from "../core/input";
 import type { Theme } from "../core/theme";
 import { charWidth, strWidth, truncate } from "../core/unicode";
@@ -309,6 +309,25 @@ export class UI {
   }
 
   /** Recolor a rect without changing its characters (highlights, selections). */
+  /**
+   * What's behind a dialog, a menu, a pop-up: every text in `fg` and every background pushed
+   * towards the page's (a light background — the tab shown, a chosen button — kept its colour
+   * while its text went grey: unreadable). A picture's half blocks go flat (PIXELS).
+   */
+  dim(r: Rect, fg: RGB): void {
+    const g = this.grid;
+    for (let y = Math.max(0, r.y); y < Math.min(g.rows, r.y + r.h); y++)
+      for (let x = Math.max(0, r.x); x < Math.min(g.cols, r.x + r.w); x++) {
+        const i = y * g.cols + x;
+        if (g.bg[i] !== NONE) g.bg[i] = mix(g.bg[i], this.c.bg, 0.6);
+        const ch = g.ch[i];
+        // block glyphs (▀ ▄ █ ▌…: a tab's bar, a logo) are shapes, not text: their own colour,
+        // darkened — in the text's grey a tab's dark bar came out as a light one
+        if (ch >= 0x2580 && ch <= 0x259f && !(g.attr[i] & PIXELS)) g.fg[i] = mix(g.fg[i], this.c.bg, 0.6);
+        else if (g.inClip(x, y)) g.tint(x, y, fg, NONE);
+      }
+  }
+
   tint(r: Rect, fg: RGB = NONE, bg: RGB = NONE): void {
     for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) this.grid.tint(x, y, fg, bg);
   }
@@ -458,12 +477,15 @@ export class UI {
    * drawn inside. Nothing else changes.
    */
   art(fn: () => void): void {
-    const p = this.probe;
+    const p = this.probe, amb = this.grid.ambient;
     this.probe = null;
+    // scenery: no fade-in, no ink (core/grid.ts NOFADE)
+    this.grid.ambient = true;
     try {
       fn();
     } finally {
       this.probe = p;
+      this.grid.ambient = amb;
     }
   }
 

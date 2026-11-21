@@ -46,7 +46,7 @@ scanlines — and works with the keyboard, the mouse or a gamepad.
 
 ### HOME and the side panel
 - **Widgets** anywhere on HOME, gaps included, on several pages; drag them, pull a corner to resize, open one for its pop-up and settings. TODO, REMINDERS and HABITS entries are edited and removed right in their widget. The **same widget several times**, each copy with its own settings (two clocks, two news feeds…).
-- **The side panel** (◧): widgets that stay in view on every page, edited together with HOME.
+- **The side panel** (◨): widgets that stay in view on every page, edited together with HOME.
 - **Pins and shortcut squares are one list**: pin a note, folder, module, page, macro or command — it shows at the top of the tree, in the pinned widget, and as a square on HOME if you like.
 - **PULSE**: one widget for what's happening — the next event, tasks due, reminders, music, focus, weather, errors.
 
@@ -66,6 +66,7 @@ scanlines — and works with the keyboard, the mouse or a gamepad.
 - **MODULES** shows them on a turning ring, each one a cyberdeck shard in its colour.
 - Modules have a documented API and declared permissions; the built-in ones use the very same API ([docs/PLUGINS.md](docs/PLUGINS.md)). Everything is callable: `ib.use("tree").reveal("notes/a.md")`.
 - **Modules from the STORE run in a sandbox** (a Worker: no page, no native side, no network of their own — only what their permissions allow; [docs/SANDBOX.md](docs/SANDBOX.md)).
+- **Permissions in plain words**: what a module, the AI or a program in your terminal may reach has a name, a level and a switch — the riskiest asked again when first used, every one shown with its last use and taken away in one click (Settings → PERMISSIONS, [docs/PERMISSIONS.md](docs/PERMISSIONS.md)).
 - **One UI kit**: the field, the checkbox, the slider, the list, the file browser… exist once and modules get the same ones ([docs/UI_KIT.md](docs/UI_KIT.md), spacing rules: [docs/LAYOUT.md](docs/LAYOUT.md)).
 
 ### Look and feel
@@ -76,7 +77,9 @@ scanlines — and works with the keyboard, the mouse or a gamepad.
 - **THE MENU** (`⌘K` or shift twice) searches everything; every shortcut is listed (`⌘/`) and can be changed; right-click works everywhere.
 - **English or French**, chosen at setup. A **guided tour** after the setup (`tour` plays it again).
 - **Docs in your vault**: START HERE/ (the tour, modules, interface, shell, keys, the AI, privacy) and FOR DEVELOPERS/ (themes, the module API), written into every vault and kept up to date.
-- **Picks up where you left**: tabs, open folders and the page you were on come back at the next start. Mouse back / forward and a two-finger swipe switch tabs; pinch zooms.
+- **Frames you arrange**: the tree, the page, the side panel and the shell, each with its tabs on its border — drag a tab onto any frame, group tabs, resize or fold a frame, presets (`layout preset`, in ibsh), ⌘Z / Ctrl+Z. The top bar is one row: **◆ ICEBREAKER ▾**, the deck's menu (MODULES, STORE, NEXUS, settings, log out), UPLINK ■ and the clock. **HOME** is pinned, always the first tab.
+- **Wake-up alarms** (`clock alarm 7:30 --days mon-fri`): a full screen rings, with the sound and a notification, while ICEBREAKER runs. **MOON** has its own page (the moon drawn, the month in moons), **NEWS** too (each widget shows one thing: your area, your country, categories or your own words), **SYSMON** shows the busiest programs, the disks and the network.
+- **Picks up where you left**: tabs (in their frames), open folders and the page you were on come back at the next start. Mouse back / forward and a two-finger swipe switch tabs; pinch zooms.
 
 ### Accounts and privacy
 - **Accounts**: each one is its own deck — settings, theme, sounds, vault, Google connection — behind its password (Argon2id, never stored). It locks the app; its vault can also be encrypted (`vault encrypt`: names, folders and notes, XChaCha20-Poly1305, the key opened by your password — [docs/ENCRYPTION.md](docs/ENCRYPTION.md); a plain backup zip is made first, `vault decrypt` and `vault export <folder>` give plain files back). It also gives a **recovery key** (24 words, shown once, one asked back): forgot the password → login page → *forgot password?*; `vault recovery` makes a new one, `vault rekey` a new key for the whole vault (everything encrypted again). Encryption is an option (the setup asks, Settings → PRIVACY switches it, either way, as often as you like).
@@ -143,7 +146,9 @@ To talk to Claude: get an API key at [console.anthropic.com](https://console.ant
 | THE MENU: search everything, or a key + enter | `Ctrl+K` (⌘K) · `Shift` twice (anywhere, even typing) | hold RB · Y |
 | today's journal / new note | `Ctrl+J` / `Ctrl+N` | — |
 | UPLINK, the AI | `Ctrl+Shift+U` · `Ctrl+Space` | — |
-| tree · side panel · shell | `Ctrl+Shift+T` · `Ctrl+Shift+P` · ``Ctrl+` `` / `Ctrl+Shift+S` | — |
+| tree · side panel · shell | `Ctrl+Shift+T` / `Ctrl+B` · `Ctrl+Shift+P` · ``Ctrl+` `` / `Ctrl+Shift+S` | — |
+| the deck's menu (MODULES, STORE, NEXUS, settings, log out) | a click on **◆ ICEBREAKER ▾**, top left | — |
+| a tab into another frame · a group | drag it onto the frame · onto another tab (or right-click → *Move to*) | — |
 | HOME · MODULES · NEXUS | `Ctrl+Shift+H` · `Ctrl+Shift+M` · `Ctrl+Shift+E` | Start (HOME) |
 | macros · effects | `Ctrl+Shift+K` · `Ctrl+Shift+F` | — |
 | shell | ``Ctrl+` `` (key under Esc) | Select (switch pane) |
@@ -184,6 +189,7 @@ themes/          built-in themes (nightshade.toml is the annotated reference)
 - Make a theme → [docs/THEMES.md](docs/THEMES.md)
 - Make a sound pack → [docs/SOUND_PACKS.md](docs/SOUND_PACKS.md)
 - The house rules for modules and themes → [docs/GUIDELINES.md](docs/GUIDELINES.md)
+- Permissions (the names, the levels, what's asked when) → [docs/PERMISSIONS.md](docs/PERMISSIONS.md)
 - Modules and safety (the audit, the sandbox) → [docs/SANDBOX.md](docs/SANDBOX.md) · what was found and fixed → [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md)
 - The UI kit and the spacing rules → [docs/UI_KIT.md](docs/UI_KIT.md) · [docs/LAYOUT.md](docs/LAYOUT.md)
 - Share them, install other people's → [docs/COMMUNITY.md](docs/COMMUNITY.md)
@@ -195,13 +201,15 @@ themes/          built-in themes (nightshade.toml is the annotated reference)
 ## Roadmap
 
 Done in 0.5.0: vault encryption with a recovery key, portable vaults, modules from the STORE
-in a sandbox, signed in-app updates, module dependencies. Next, in this order:
+in a sandbox, signed in-app updates, module dependencies. Done in 0.6.0, the first half of the
+UI overhaul: frames you arrange (move, resize, fold the tree, the panel, the shell), tabs on
+every frame and in any frame, tab groups, the deck menu, and WEATHER, CLOCKS, STATS, NEWS,
+MOON and SYSMON redrawn ([docs/FRAMES.md](docs/FRAMES.md)). Next, in this order:
 
-1. **UI overhaul** — a fully modular interface (frames that hold tabs; move the shell, the
-   side panel, the tree anywhere; tab groups, terminals as tabs), perfect scaling on every
-   resolution and screen ratio, one spacing rule everywhere, an Ableton-style info panel
-   instead of hover tips, every module redrawn in ASCII — and moved into the Worker sandbox
-   on the way, then the native bridge locked ([docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md) O2–O4).
+1. **UI overhaul, the rest** — each tab's history, an Ableton-style info panel instead of
+   hover tips, perfect scaling on every resolution and screen ratio, the other modules
+   redrawn — and moved into the Worker sandbox on the way, then the native bridge locked
+   ([docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md) O2–O4).
 2. **STORE and files** — filters and categories, install a module / theme / sound pack from a file, a fuller theme studio.
 3. **Voice and AI** — one voice path for everything, several AIs at once, tool use for local models (Ollama), an evening JOURNAL.
 4. **Automations** — an ALERTS module (your own rules → notifications), a more useful NEXUS.

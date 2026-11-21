@@ -12,7 +12,7 @@ export const logCommand: Command = {
   summary: "the log: what you typed, what clicks ran, errors, messages, debug — the shell's LOG tab",
   usage:
     "log                     open the LOG tab\n" +
-    "log show <kinds…>       show only these: cmd action error notify debug (several at once)\n" +
+    "log show <kinds…>       show only these: cmd action error notify debug access (several at once)\n" +
     "log show all            show everything again\n" +
     "log tail [n]            print the last n lines here (default 20)\n" +
     "log clear [kinds…]      empty it (or only those kinds)",

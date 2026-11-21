@@ -336,6 +336,9 @@ export function activate(ib: IcebreakerAPI): void {
     nextId = await ib.storage.get<number>("next", tasks.reduce((m, t) => Math.max(m, t.id + 1), 1));
     savedJson = snapshot();
     loaded = true;
+    // today's count for STATS at start too (it was only sent on a change: STATS said 0 open
+    // while TODO said 3)
+    void ib.stats.set("open", tasks.filter((t) => !t.done).length, { label: "tasks open" }).catch(() => {});
     ib.ui.redraw();
   })();
   const write = async () => {
@@ -454,6 +457,18 @@ export function activate(ib: IcebreakerAPI): void {
 
   // ── what other modules can do with tasks (ib.modules.call("todo", …)) ──
   ib.modules.expose("list", { needs: "vault:read", doc: "list() → every task { id, text, prio, due, tags, done }", fn: async () => (await ready, tasks.map((t) => ({ ...t }))) });
+  // what TODO's page and widget count as open: its tasks AND the - [ ] of your notes (HOME's pulse said
+  // "0 open" next to a TODO showing 3 from the notes)
+  ib.modules.expose("count", {
+    needs: "vault:read",
+    doc: "count() → { open, inNotes, due } — open tasks, open checkboxes in your notes, tasks due today or late",
+    fn: async () => {
+      await ready;
+      await notes.refresh();
+      const open = tasks.filter((t) => !t.done);
+      return { open: open.length, inNotes: notes.list().length, due: open.filter((t) => t.due && daysUntil(t.due) <= 0).length };
+    },
+  });
   ib.modules.expose("add", {
     needs: "vault:write",
     doc: 'add(text, { due: "YYYY-MM-DD", prio: "urgent|high|moderate|low", tags: [] }) → the new task',
@@ -923,7 +938,9 @@ export function activate(ib: IcebreakerAPI): void {
       });
       if (inNotes.length) rows.push({ head: "notes" });
       inNotes.forEach((note, i) => rows.push({ note, index: list.length + i }));
-      const viewH = r.y + r.h - y;
+      // when it doesn't all fit, the last row is the "↓ N more" badge's, not a task's (it was drawn over one)
+      const fullH = r.y + r.h - y;
+      const viewH = rows.length > fullH ? Math.max(0, fullH - 1) : Math.max(0, fullH);
       const selRow = rows.findIndex((row) => "index" in row && row.index === this.sel);
       if (selRow - 1 < this.scroll) this.scroll = Math.max(0, selRow - 1);
       if (selRow >= this.scroll + viewH) this.scroll = selRow - viewH + 1;
@@ -937,7 +954,7 @@ export function activate(ib: IcebreakerAPI): void {
       rows.slice(this.scroll, this.scroll + viewH).forEach((row, k) => {
         const ry = y + k;
         if ("head" in row) {
-          const label = row.head === "notes" ? ` ${ib.lib.t("IN YOUR NOTES")} ` : ` ${row.head.toUpperCase()} `;
+          const label = row.head === "notes" ? ` ${ib.lib.t("IN YOUR NOTES")} ` : ` ${row.head.toLowerCase()} `;
           ui.text(x0, ry, "──", { fg: c.faint });
           ui.text(x0 + 2, ry, label, { fg: row.head === "notes" ? c.accentAlt : pc(row.head), attrs: BOLD });
           ui.hline(x0 + 2 + strWidth(label), ry, w - strWidth(label) - 2, { fg: c.faint });
@@ -1005,7 +1022,7 @@ export function activate(ib: IcebreakerAPI): void {
         const end = ui.text(tx, ry, t.text, { fg: t.done ? c.faint : sel ? c.fg : c.fg, bg: rbg, attrs: t.done ? STRIKE | DIM : 0 }, Math.max(1, room));
         if (tags && room > 4) ui.text(end + 1, ry, tags, { fg: c.accentAlt, bg: rbg }, rx - end - 1);
       });
-      if (this.scroll + viewH < rows.length) ui.textRight(x0 + w, r.y + r.h - 1, ` ↓ ${rows.length - this.scroll - viewH} more `, { fg: c.panel, bg: c.accent });
+      if (this.scroll + viewH < rows.length && fullH >= 1) ui.textRight(x0 + w, r.y + r.h - 1, ` ↓ ${rows.length - this.scroll - viewH} more `, { fg: c.panel, bg: c.accent });
     }
   }
 
@@ -1026,6 +1043,8 @@ export function activate(ib: IcebreakerAPI): void {
   let quickSel = 0;
   /** the task under the mouse in the HOME widget (Delete / ⌘⌫ removes it) */
   let hoverId: number | null = null;
+  /** the HOME widget's first shown line (the wheel scrolls a list longer than the widget) */
+  let wTop = 0;
   const isDelete = (k: KeyInput) => k.combo === "delete" || k.combo === "ctrl+backspace" || k.combo === "backspace";
   const editTask = async (t: Task) => {
     const v = await ib.ui.prompt(`edit #${t.id}`, { initial: t.text });
@@ -1084,7 +1103,11 @@ export function activate(ib: IcebreakerAPI): void {
       if (!total) return void ui.text(r.x + 1, r.y + 1, "nothing to do. suspicious.", { fg: c.muted });
       const pc = (p: Prio) => (p === "urgent" ? c.error : p === "high" ? c.warning : p === "moderate" ? c.accent : c.subtle);
       const fits = total > r.h - 1 ? r.h - 2 : r.h - 1;
-      open.slice(0, fits).forEach((t, i) => {
+      // a list longer than the widget: the wheel scrolls it (first the module's tasks, then the notes')
+      wTop = Math.max(0, Math.min(wTop, total - fits));
+      if (fits < total) ui.hit({ x: r.x, y: r.y + 1, w: r.w, h: r.h - 1 }, { onWheel: (d) => (wTop = Math.max(0, Math.min(total - fits, wTop + Math.sign(d)))) });
+      const shownOpen = open.slice(wTop, wTop + fits);
+      shownOpen.forEach((t, i) => {
         const y = r.y + 1 + i;
         const row = { x: r.x, y, w: r.w, h: 1 };
         const hot = ui.hovered(row);
@@ -1099,8 +1122,9 @@ export function activate(ib: IcebreakerAPI): void {
         ui.text(tx, y, t.text, { fg: hot ? c.accent : c.fg, attrs: hot ? STRIKE : 0 }, Math.max(1, dx - tx - 1));
       });
       // then the `- [ ]` of your notes, the note's name on the right
-      inNotes.slice(0, Math.max(0, fits - open.length)).forEach((n, i) => {
-        const y = r.y + 1 + open.length + i;
+      const noteTop = Math.max(0, wTop - open.length);
+      inNotes.slice(noteTop, noteTop + fits - shownOpen.length).forEach((n, i) => {
+        const y = r.y + 1 + shownOpen.length + i;
         const row = { x: r.x, y, w: r.w, h: 1 };
         const hot = ui.hovered(row);
         const box = hot ? g.done : g.todo;
@@ -1111,7 +1135,8 @@ export function activate(ib: IcebreakerAPI): void {
         const dx = r.w > 24 ? ui.textRight(r.x + r.w - 1, y, truncate(name, Math.floor(r.w / 3)), { fg: c.subtle }) : r.x + r.w;
         ui.text(tx, y, n.text, { fg: hot ? c.accent : c.fg, attrs: hot ? STRIKE : 0 }, Math.max(1, dx - tx - 1));
       });
-      if (fits < total) ui.text(r.x + 1, r.y + r.h - 1, `+${total - fits} more · enter opens the list`, { fg: c.faint }, r.w - 2);
+      const below = total - fits - wTop;
+      if (fits < total) ui.text(r.x + 1, r.y + r.h - 1, below > 0 ? `↓ ${below} more · wheel · enter opens the list` : `↑ ${wTop} above · wheel`, { fg: c.faint }, r.w - 2);
     },
     open: "todo open",
     popup: {
@@ -1131,7 +1156,7 @@ export function activate(ib: IcebreakerAPI): void {
         const top = Math.max(0, quickSel - rows + 1);
         open.slice(top, top + rows).forEach((t, k) => {
           const i = top + k;
-          const y = r.y + 2 + i;
+          const y = r.y + 2 + k;
           const row = { x: r.x, y, w: r.w, h: 1 };
           const sel = i === quickSel && !quick;
           if (sel) ui.fill(row, { bg: mix(c.accent, c.bg, 0.8) });
@@ -1155,6 +1180,8 @@ export function activate(ib: IcebreakerAPI): void {
           ui.hit(row, { cmd: `todo done ${q(refOf(n))}`, tip: `${refOf(n)}\nclick: done (written in the note) · right-click: open the note`, menu: () => noteMenu(n) });
         });
         if (!open.length && !inNotes.length) ui.text(r.x + 2, r.y + 2, "nothing to do. suspicious.", { fg: c.muted });
+        // the wheel over the list moves the chosen line (the list follows it)
+        else ui.hit({ x: r.x, y: r.y + 2, w: r.w, h: rows }, { onWheel: (d) => (quickSel = Math.max(0, Math.min(open.length + inNotes.length - 1, quickSel + Math.sign(d)))) });
       },
       onText: (t) => {
         if (t === " " && !quickField.text) {

@@ -1,3 +1,4 @@
+import { IS_MAC } from "../core/input";
 import { BOLD, type Rect } from "../core/grid";
 import { strWidth } from "../core/unicode";
 import { t } from "../core/i18n";
@@ -8,6 +9,8 @@ import { Glide } from "../ui/glide";
 import { inside, type Hit, type UI } from "../ui/ui";
 import { focusWidget, widgetIdOf } from "../widgets/instances";
 import { WidgetPicker } from "./widgetpicker";
+import { soloTab, tabbedBox } from "./tabstrip";
+import { frameMenu } from "./menus";
 
 /** One widget of the panel: where it starts (lines from the top) and how tall it is. */
 interface Slot {
@@ -17,7 +20,7 @@ interface Slot {
 }
 
 /**
- * The side panel on the right (◧ in the status bar, ⌘⇧P, `panel`): a column of
+ * The side panel on the right (◨ in the status bar, ⌘⇧P, `panel`): a column of
  * widgets that stay in view on every page. Like HOME, widgets stay exactly where
  * you put them — gaps included — and when they go further down than the panel,
  * it scrolls (the wheel). settings.panel: the widgets (copy keys: the same widget
@@ -134,9 +137,11 @@ export class SidePanel {
     const hasFocus = ws.focus === "panel";
     const slots = this.layout();
     this.sel = Math.max(0, Math.min(this.sel, slots.length - 1));
-    const inner = ui.box(r, { title: t("PANEL"), info: editing ? t("edit · esc done") : hasFocus ? t("e edit · a add") : undefined, border: editing ? "heavy" : undefined, focused: editing || hasFocus });
+    // its tab on its border, like every frame (workspace/tabstrip.ts)
+    const inner = tabbedBox(ui, r, { info: editing ? t("edit · esc done") : hasFocus ? t("e edit · a add") : undefined, border: editing ? "heavy" : undefined, focused: editing || hasFocus });
+    soloTab(ui, r, t("PANEL"), (editing || hasFocus) && !ws.topModal, { onClick: () => (ws.focus = "panel"), tip: t("widgets always in view · panel hide · ◨ in the status bar"), menu: () => [{ label: t("Add widget…"), run: () => void this.pick() }, "-", ...frameMenu("panel"), "-", { label: t("Hide panel"), cmd: "panel hide", hint: IS_MAC ? "⌘⇧P" : "ctrl+shift+P" }] });
     ui.hit(inner, {
-      menu: () => [{ label: editing ? t("Done editing") : t("Edit layout"), run: () => void (ws.editing = !editing), hint: editing ? "esc" : "e" }, { label: t("Add widget…"), run: () => void this.pick() }, { label: t("Hide panel"), cmd: "panel hide" }],
+      menu: () => [{ label: editing ? t("Done editing") : t("Edit layout"), run: () => void (ws.editing = !editing), hint: editing ? "esc" : "e" }, { label: t("Add widget…"), run: () => void this.pick() }, { label: t("Hide panel"), cmd: "panel hide", hint: IS_MAC ? "⌘⇧P" : "ctrl+shift+P" }],
       onWheel: (dy) => this.glide.push(dy),
     });
     // the content can be taller than the panel: it scrolls (in edit mode, room below to drop into)
@@ -159,7 +164,7 @@ export class SidePanel {
         const chosen = i === this.sel && (hasFocus || editing);
         const dragged = this.drag?.moved && this.drag.key === key;
         const wi = ui.box(box, {
-          title: t(spec.title).toUpperCase(),
+          title: t(spec.title).toLowerCase(),
           info: editing && chosen ? `${box.h}` : undefined,
           border: editing ? (chosen ? "heavy" : "dashed") : ui.theme.widgetFrame,
           focused: dragged || chosen,
@@ -195,7 +200,7 @@ export class SidePanel {
           try {
             const zone = ui.marqueeZone;
             if (chosen && hasFocus) ui.marqueeZone = wi; // its long texts scroll, as under the mouse
-            spec.render(ui, wi, { deck: d, focused: chosen, key });
+            spec.render(ui, wi, { deck: d, focused: chosen, key, typing: chosen && hasFocus, select: () => ((this.sel = i), (ws.focus = "panel")) });
             ui.marqueeZone = zone;
           } catch {
             ui.text(wi.x, wi.y, "⚠", { fg: c.error });
@@ -232,7 +237,8 @@ export class SidePanel {
         }
       }
     });
-    if (maxScroll > 0) ui.textRight(inner.x + inner.w, this.scroll < maxScroll ? inner.y + inner.h - 1 : inner.y, this.scroll < maxScroll ? "↓" : "↑", { fg: c.accent, attrs: BOLD });
+    // more below / above: an arrow in the corner, over a widget's frame on purpose (ui.art)
+    if (maxScroll > 0) ui.art(() => ui.textRight(inner.x + inner.w, this.scroll < maxScroll ? inner.y + inner.h - 1 : inner.y, this.scroll < maxScroll ? "↓" : "↑", { fg: c.accent, attrs: BOLD }));
     if (!slots.length) {
       ui.textCenter(inner, inner.y + 1, t("empty"), { fg: c.muted });
       ui.textCenter(inner, inner.y + 3, t("a: add a widget · right-click"), { fg: c.faint });
@@ -254,7 +260,7 @@ export class SidePanel {
     // a panel widget being dragged: a ghost under the pointer
     const pd = this.drag;
     if (pd?.moved) {
-      const label = ` ${t(d.widgets.get(widgetIdOf(pd.key))?.title ?? pd.key).toUpperCase()} `;
+      const label = ` ${t(d.widgets.get(widgetIdOf(pd.key))?.title ?? pd.key).toLowerCase()} `;
       ui.text(Math.max(0, pd.x - Math.floor(strWidth(label) / 2)), pd.y, label, { fg: c.bg, bg: mix(c.accent, c.bg, 0.1), attrs: BOLD });
       ui.animate(16);
     }

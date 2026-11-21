@@ -123,7 +123,7 @@ export class LockScreen {
     if (!this.deck.platform.files) return;
     this.browser = new FileBrowser(this.deck, {
       source: "computer",
-      title: "THE VAULT'S FOLDER",
+      title: "the vault's folder",
       start: this.val("path").trim() || undefined,
       pickDir: (p) => {
         this.browser = null;
@@ -352,7 +352,7 @@ export class LockScreen {
             : "new account · step 2 of 2";
     ui.textCenter({ x: 0, y, w: W, h: 1 }, y, p < 1 ? decrypt(title, p, ui.now) : title, { fg: c.muted });
     y += 2;
-    const boxTitle = this.mode === "open" ? "OPEN A VAULT" : this.mode === "recover" ? "RECOVERY" : this.first ? "FIRST ACCOUNT" : this.mode === "login" ? "ACCESS" : "NEW ACCOUNT";
+    const boxTitle = this.mode === "open" ? "open a vault" : this.mode === "recover" ? "recovery" : this.first ? "first account" : this.mode === "login" ? "access" : "new account";
     const card = ui.box({ x, y, w, h: cardH }, { title: boxTitle, focused: true, bg: c.panel });
     const ix = card.x + 2, iw = card.w - 4;
     let cy = card.y;
@@ -368,11 +368,11 @@ export class LockScreen {
     for (const line of whyLines) ui.text(ix, cy++, line, { fg: c.subtle, bg: c.panel }, iw);
     if (whyLines.length) cy++;
     const labels: Record<string, string> = {
-      path: "THE VAULT'S FOLDER (~/… or /Volumes/…)",
-      user: this.mode === "new" ? "NEW ACCOUNT NAME" : this.mode === "approve" ? "AN ACCOUNT OF THIS DECK" : "ACCOUNT",
-      words: "RECOVERY KEY (24 words)",
-      pass: this.mode === "new" ? "ITS PASSWORD (8+ characters)" : this.mode === "recover" ? "NEW PASSWORD (8+ characters)" : "PASSWORD",
-      pass2: "THE PASSWORD AGAIN",
+      path: "the vault's folder (~/… or /volumes/…)",
+      user: this.mode === "new" ? "new account name" : this.mode === "approve" ? "an account of this deck" : "account",
+      words: "recovery key (24 words)",
+      pass: this.mode === "new" ? "its password (8+ characters)" : this.mode === "recover" ? "new password (8+ characters)" : "password",
+      pass2: "the password again",
     };
     for (const f of fields) {
       // the recovery key shows as you type it from the paper (its end, when it's longer than the box)

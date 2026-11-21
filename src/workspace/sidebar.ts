@@ -465,6 +465,9 @@ export class Sidebar {
     const guide = { fg: mix(c.subtle, c.bg, 0.35) };
     const marks = this.deck.marks;
     const mono = ui.theme.fx.monochrome;
+    // a file or folder dragged: its name under the pointer (workspace ghost)
+    const dragged = this.list.dragging;
+    if (dragged) this.deck.workspace.ghost = { label: `${dragged.entry.isDir ? "▸" : "✎"} ${dragged.entry.name}` };
     this.list.render(ui, list, focused, ({ entry, depth, last, rails, count, flat }, row, selected) => {
       const isOpen = activeKey === `note:${entry.path}`;
       const tag = marks.tagOf(entry.path);

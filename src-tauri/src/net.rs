@@ -17,7 +17,8 @@ fn encode(s: &str) -> String {
 /// News RSS: Google News (top stories, or a search) or Bing News (a search,
 /// with a short summary per article and the direct link).
 #[tauri::command]
-pub async fn news_rss(query: String, lang: String, country: String, provider: Option<String>) -> Result<String, String> {
+pub async fn news_rss(app: tauri::AppHandle, query: String, lang: String, country: String, provider: Option<String>) -> Result<String, String> {
+    crate::config::online(&app, "the news")?;
     let clean = |s: &str, n: usize| s.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').take(n).collect::<String>();
     let (lang, country) = (clean(&lang, 5), clean(&country, 2).to_uppercase());
     let (lang, country) = (if lang.is_empty() { "en".into() } else { lang }, if country.is_empty() { "US".into() } else { country });
@@ -75,7 +76,7 @@ pub fn open_url(url: String) -> Result<(), String> {
 /// your own server) — and from plain http only on your local network (a NAS, a
 /// home server). Text only, 4 MB at most.
 #[tauri::command]
-pub async fn net_get(url: String) -> Result<String, String> {
+pub async fn net_get(app: tauri::AppHandle, url: String) -> Result<String, String> {
     let u = url.trim().to_string();
     // the host as curl will read it: what's between "://" and the first / ? or #, a port
     // dropped. An address with "user@" in it is refused ("http://10.0.0.1@evil.example" is
@@ -91,6 +92,10 @@ pub async fn net_get(url: String) -> Result<String, String> {
     let odd = authority.is_empty() || authority.contains('@') || authority.contains('\\') || u.chars().any(|c| c.is_whitespace() || c.is_control() || matches!(c, '"' | '{' | '}' | '[' | ']'));
     if odd || !(u.starts_with("https://") || (u.starts_with("http://") && local)) {
         return Err("only https:// (or http:// on your local network)".into());
+    }
+    // stealth mode: this computer and your local network only (checked here too, not only in the page)
+    if !local {
+        crate::config::online(&app, &host)?;
     }
     tauri::async_runtime::spawn_blocking(move || {
         let mut cmd = Command::new("curl");

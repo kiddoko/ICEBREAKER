@@ -1,6 +1,6 @@
 # Privacy policy
 
-*ICEBREAKER desktop app · last updated 20 November 2026*
+*ICEBREAKER desktop app · last updated 21 November 2026*
 
 ICEBREAKER runs on your computer. Its authors run **no server** and **no online
 accounts** (the deck's accounts live on your computer only), and the app sends
@@ -10,8 +10,15 @@ share any of your data.
 ## What stays on your computer
 
 Everything you create: notes, journal, tasks, calendar events of the local
-calendar, settings, your music library index. They are plain files in your vault
-or in the app's configuration folder.
+calendar, settings, your music library index, your wake-up alarms
+(`.icebreaker/alarms.json`), where your tabs and frames are. They are plain files in your
+vault or in the app's configuration folder.
+
+**SYSMON** reads your computer's vitals on your computer: the CPU, the memory, the busiest
+programs' names, the disks (their names and space), the network's byte counters, the load.
+They're shown, never sent anywhere; a module only gets the CPU, memory and uptime, not the
+programs, disks or network (0.6). **MOON**'s phases are computed on your computer — no
+network.
 
 **Accounts** are local: a name, a profile icon and a password. The password is
 never stored — only an Argon2id hash of it, in the app's configuration folder.
@@ -45,11 +52,20 @@ paper can open the vault. If an old copy of the vault may be in someone's hands,
 key: the old copy's password and words open nothing new.
 
 **On your computer, other people's eyes**: the files with your secrets (API key, Google
-sign-in, accounts, the vault's key) are readable only by your user. Dictation's sound
-and text stay in the app's private folder, deleted once read. The shell's history doesn't
+sign-in, accounts, the vault's key) are readable only by your user. The shell's history doesn't
 keep lines that look like a key or start with a space. Programs you run in your own
 terminal don't get the deck's powers over an encrypted vault. Copying the 24 recovery
 words warns you first: a clipboard history app may keep them.
+
+**Permissions** ([PERMISSIONS.md](PERMISSIONS.md)): what a module, the AI or a program in
+your real terminal may reach has a name, a level and a switch (Settings → PERMISSIONS). The
+**access journal** — who used which permission, when, on what — keeps names only (a note's
+path, a host; never what a note says), for 30 days, in the app's configuration folder on
+this computer: it never goes into the vault, so it doesn't travel or sync.
+
+**What the AI may read** is yours to set: nothing, what you give it (a note you name in your
+message, pipe to it or have in front), or your whole vault. A new account starts on "what I
+give it". The top bar says when it reads.
 
 ## When the app uses the network
 
@@ -60,7 +76,7 @@ names:
 |---------|---------|-------|
 | AI (UPLINK, AI-powered modules) | the provider *you* choose: Claude (Anthropic) via Claude Code or an API key, or a local model (Ollama, nothing leaves your machine) | your messages, the notes you or the AI pick, and UPLINK's context page (below); with the Japanese voice, the answers to translate |
 | Weather widget | open-meteo.com | the location you entered (city or coordinates) |
-| News widget | Google News / Bing News RSS | your search terms, language, country |
+| NEWS (the page and the widgets) | Google News / Bing News RSS | what it shows: your area's name, your country, the categories you tick or your own words; your language and country |
 | Google Calendar (optional) | googleapis.com | see below |
 | STORE: installing modules / themes | GitHub, or the sources you add yourself | the name of what you install |
 | `encoders install` (once) | GitHub (ICEBREAKER's `encoders-v1` release) | nothing but the download request; the encoding itself happens on your computer |
@@ -76,6 +92,10 @@ and of your pins, your colour tags, the modules that are on, the date — plus w
 you wrote in it yourself. Read it and change your part whenever you like (the
 automatic part is rebuilt before each conversation). With
 a local model (Ollama) none of it leaves your machine.
+
+A module from the STORE has no network of its own. One that asks to go online names each
+host (`net:api.example.com`); you approve it when you switch the module on and again the
+first time it really goes there, and the journal keeps it.
 
 Each of these can be left off. **Stealth mode** (`stealth on`, or "Stealth" in
 the setup) turns all of them off at once and blocks any connection outside this

@@ -1,3 +1,4 @@
+import { levelOf, levelRank, migrateGranted } from "../plugins/permissions";
 import type { UndoHistory } from "./undo";
 import type { Platform } from "../platform/types";
 import type { WidgetPlacement } from "../widgets/types";
@@ -75,6 +76,11 @@ export interface Settings {
     mode: "system" | "ibsh";
     /** the system terminal's prompt: ICEBREAKER's own (the same for everyone) or yours */
     prompt: "icebreaker" | "mine";
+    /**
+     * What a program in your real terminal may ask the deck (a plain vault; an encrypted one
+     * answers nothing): nothing · read and write your notes · that and your timers and alarms.
+     */
+    bridge: "off" | "notes" | "more";
     /** Buttons above the system terminal: a click types `cmd` + enter. {name} parts are asked for first. */
     macros: { label: string; cmd: string }[];
     /** the macro row above the system terminal is shown (macro hide / show) */
@@ -116,7 +122,10 @@ export interface Settings {
   /** your effects, per theme: switching theme brings back what you had set on it */
   fxByTheme?: Record<string, Record<string, unknown>>;
   /** what was open when you quit, to come back to it: the tree's open folders, the tabs */
-  session?: { tree?: string[]; tabs?: string[]; active?: number };
+  /** places / shows: tabs moved to another frame, and the one each of those frames shows (workspace/tabplaces.ts) */
+  session?: { tree?: string[]; tabs?: string[]; active?: number; groups?: unknown[]; places?: Record<string, string>; shows?: Record<string, string> };
+  /** where the frames sit (workspace/layout/arrange.ts, docs/FRAMES.md): {} = today's arrangement; `layout preset`, `frame move` */
+  layout: { version?: number; preset?: string; root?: unknown };
   /** pinned notes, folders, modules (`pin`): top of the tree and the pinned widget */
   /** pins (workspace/favorites.ts): notes, folders, modules, pages, macros, commands — also HOME's squares */
   favorites: { kind: "note" | "folder" | "module" | "page" | "macro" | "command"; target: string; label: string; id?: string; icon?: string; cmd?: string }[];
@@ -126,6 +135,11 @@ export interface Settings {
     claudeCodeModel: string;
     /** Claude Code may create and edit notes (inside the vault only, never .icebreaker/). */
     allowWrites: boolean;
+    /**
+     * What the AI may read by itself: nothing · what you give it (a note you name, pipe or have
+     * in front) · your whole vault. Writing always asks (ai/tools.ts).
+     */
+    reads: "nothing" | "given" | "all";
     model: string;
     effort: "low" | "medium" | "high" | "xhigh" | "max";
     ollamaHost: string;
@@ -181,11 +195,19 @@ export interface Settings {
     /** the permissions you approved for each STORE / vault module when you switched it on (it never runs with more) */
     granted: Record<string, string[]>;
     /** the fingerprint (SHA-256) of each STORE / vault module's code when you switched it on: changed since, it stays off until you approve again */
-    pinned: Record<string, string> };
+    pinned: Record<string, string>;
+    /** the permissions you took away from a module, built-in ones too (Settings → PERMISSIONS, `plugin revoke`) */
+    revoked: Record<string, string[]>;
+    /** the high-risk permissions you answered "always" for (asked again at first use otherwise) */
+    always: Record<string, string[]>;
+    /** 2: `granted` is in the names of 0.6 (plugins/permissions.ts); before, it's translated once at start */
+    model?: number };
   /** links: the 1×1 shortcut widgets (widgets/links.ts) */
   home: { widgets: WidgetPlacement[]; links: { id: string; label: string; icon: string; cmd: string }[]; weatherCity: string; worldClocks: string[]; newsTopic: string;
     /** news interests: categories (tech, politics…) and free words, mixed with your area's news */
     newsInterests: string[];
+    /** the NEWS page's own categories and words (apart from the widgets'; before it: newsInterests, newsTopic) */
+    newsPage: { cats?: string[]; words?: string };
     /** each widget copy's own settings ("clock#2" → { style: "flip" }), see widgets/instances.ts */
     widgetConfig: Record<string, Record<string, unknown>>;
     /** saved places of the WEATHER app */
@@ -212,6 +234,7 @@ export const DEFAULT_SETTINGS: Settings = {
   keys: {},
   favorites: [],
   session: {},
+  layout: {},
   fxByTheme: {},
   moduleSettings: {},
   moduleTags: {},
@@ -222,6 +245,7 @@ export const DEFAULT_SETTINGS: Settings = {
   shell: {
     mode: "system",
     prompt: "icebreaker",
+    bridge: "more",
     macrosShown: true,
     macros: [
       { label: "ls", cmd: "ls -la" },
@@ -238,6 +262,7 @@ export const DEFAULT_SETTINGS: Settings = {
     provider: "claude-code",
     claudeCodeModel: "",
     allowWrites: true,
+    reads: "given",
     model: "claude-opus-5-5",
     effort: "medium",
     ollamaHost: "http://localhost:11434",
@@ -250,9 +275,9 @@ export const DEFAULT_SETTINGS: Settings = {
   voice: { subtitles: true, enabled: false, engine: "auto", name: "", rate: 1.1, robot: 100, volume: 50, readAI: false, greet: true, language: "en", speak: { errors: true, reminders: true, timers: true, calendar: true, weather: false, time: false, system: true, modules: true } },
   editor: { autosave: true, tabSize: 2, treeWheel: true },
   // the community index: a JSON list of plugins/themes (see docs/COMMUNITY.md)
-  plugins: { enabled: [], disabled: [], removed: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json", sources: [], granted: {}, pinned: {} },
+  plugins: { enabled: [], disabled: [], removed: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json", sources: [], granted: {}, pinned: {}, revoked: {}, always: {}, model: 2 },
   // empty = the default layout (widgets/builtin.ts)
-  home: { widgets: [], links: [], weatherCity: "Paris", worldClocks: ["America/New_York", "Europe/London", "Asia/Tokyo"], newsTopic: "", newsInterests: [], weatherPlaces: [], clockStyle: "dots", clockSeconds: false, widgetConfig: {} },
+  home: { widgets: [], links: [], weatherCity: "Paris", worldClocks: ["America/New_York", "Europe/London", "Asia/Tokyo"], newsTopic: "", newsInterests: [], newsPage: {}, weatherPlaces: [], clockStyle: "dots", clockSeconds: false, widgetConfig: {} },
 };
 
 type Listener = (path: string) => void;
@@ -297,6 +322,8 @@ const CHOICES: Record<string, string[]> = {
   "boot.mode": ["full", "fast", "off"],
   "shell.mode": ["system", "ibsh"],
   "shell.prompt": ["icebreaker", "mine"],
+  "shell.bridge": ["off", "notes", "more"],
+  "ai.reads": ["nothing", "given", "all"],
   "voice.engine": ["auto", "piper", "system"],
   "voice.language": ["en", "fr", "ja"],
   "updates.check": ["daily", "start", "never"],
@@ -349,6 +376,35 @@ export function limitAll(data: Settings): void {
   }
 }
 
+/**
+ * 0.6's permissions (plugins/permissions.ts), for an account made before: what each module
+ * was approved for stays what it may do — the old names are translated, what every module
+ * could do without asking (notify, run the deck's commands) is written down, and the
+ * high-risk ones it already had aren't asked again. The AI keeps reading the whole vault
+ * as it did (a new account starts on "what you give it").
+ */
+export function migratePermissions(data: Settings, raw: Record<string, unknown>): void {
+  const had = raw && typeof raw === "object" && Object.keys(raw).length > 0;
+  const p = data.plugins;
+  p.revoked = isRecord(p.revoked) ? p.revoked : {};
+  p.always = isRecord(p.always) ? p.always : {};
+  const rawPlugins = (raw?.plugins ?? {}) as Record<string, unknown>;
+  if (had && rawPlugins.model !== 2) {
+    const granted: Record<string, string[]> = {};
+    for (const [id, list] of Object.entries(isRecord(p.granted) ? p.granted : {})) {
+      if (!Array.isArray(list)) continue;
+      granted[id] = migrateGranted(list);
+      p.always[id] = granted[id].filter((x) => levelRank(levelOf(x)) >= levelRank("high"));
+    }
+    p.granted = granted;
+  }
+  p.model = 2;
+  const rawAi = (raw?.ai ?? {}) as Record<string, unknown>;
+  if (had && rawAi.reads === undefined) data.ai.reads = "all";
+}
+
+const isRecord = (v: unknown): v is Record<string, string[]> => !!v && typeof v === "object" && !Array.isArray(v);
+
 export class SettingsStore {
   data: Settings;
   secrets: Secrets;
@@ -374,6 +430,7 @@ export class SettingsStore {
     // (migrations from before 0.4.0 are gone: update through 0.4.x first)
     // the community index moved to icebreaker-modules
     if (data.plugins.registry === "https://raw.githubusercontent.com/kiddoko/icebreaker-community/main/index.json") data.plugins.registry = DEFAULT_SETTINGS.plugins.registry;
+    migratePermissions(data, safeJson(raw));
     limitAll(data); // whatever the file holds: every value in its range
     const secrets = { anthropicApiKey: "", ...(safeJson(rawSecrets) as Partial<Secrets>) };
     const store = new SettingsStore(platform, data, secrets);

@@ -9,6 +9,11 @@ unless it really wants its own, it never draws one.
 A test (`tests/kit.test.ts`) fails if a page or a module draws its own text field,
 checkbox or word wrapping again.
 
+**Every label is lowercase** — a button, a tab, a card's title, a menu entry, a module's
+name — except ICEBREAKER, acronyms (AI, RGB…), key names (⌘K, F1), proper names and the
+user's own content. `t()` lowers what it gives (`uiCase`), the right-click menu lowers each
+label's first word; never `.toUpperCase()` a title. The rule: [GUIDELINES.md](GUIDELINES.md#case-the-interface-is-lowercase).
+
 | what | the piece | for a module | looks like |
 |---|---|---|---|
 | a button | `ui.button(x, y, label, onClick, { cmd, tip, accent, selected, quiet, disabled })` | the same (`ui` in `render`) | ` install ` lit when hovered; `quiet`: muted until hovered; `disabled`: faint |
@@ -34,6 +39,8 @@ checkbox or word wrapping again.
 | a row that drops the least important first | `Bar` (`priority`, `side`, `fit`) | `ib.lib.Bar` | a status bar, a page's header: never overlaps, never cuts |
 | sections down a frame · cards that reflow | `stack` · `cards` | `ib.lib.stack` · `ib.lib.cards` | a header, a list, a help line that goes first · forecast days, 4 a row or 1 |
 | how big a frame is | `sizeClass` (`xs` `s` `m` `l`) · `atLeast` | `ib.lib.sizeClass` | choose a layout from your frame, not the window |
+| fine drawing: braille dots and rings | `Braille` · `ring(b, cx, cy, r, lit)` (`src/ui/braille.ts`) | — | CLOCKS' timer rings and stopwatch dial: 2×4 dots a cell, layers in two colours |
+| a frame's tabs on its border (the deck's own frames) | `tabbedBox` · `soloTab` · `chipStyle` · `drawChip` (`src/workspace/tabstrip.ts`) | — | the tabs' names above the frame's line, a half-block bar under each; lit when the frame has the focus |
 
 ## How to use a field
 

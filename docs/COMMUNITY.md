@@ -11,7 +11,7 @@ and how releases come: [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## Installing
 
-The easy way: the **STORE** (top bar → ⇣ store, or `store`). It lists the
+The easy way: the **STORE** (◆ ICEBREAKER, top left → ⇣ Store, or `store`). It lists the
 modules and themes of every index it knows, shows what each asks for, and
 installs, enables, updates or removes them in a click — or a command:
 
@@ -67,8 +67,12 @@ It's one `main.js`: read it before enabling.
    below: the code goes into the STORE's repository through a reviewed pull request.
 
 Tips:
-- Ask only for the permissions you use. Plugins that don't need `ai` or
-  `vault:write` get enabled more often.
+- Ask only for the permissions you use, and the narrowest that do the job: a folder
+  (`vault:write:songs/`) rather than the whole vault, `google-calendar:read` when you only
+  read. Put `"api": 2` in your plugin.json (you get exactly what you list —
+  [PERMISSIONS.md](PERMISSIONS.md)). Plugins that don't need `ai` or `vault:write` get
+  enabled more often; a high-risk permission is asked again when you first use it, so say
+  in your README why you need it.
 - Bump `version` in `plugin.json` when you publish changes; users get them with
   `plugin update <id>`.
 - Prefix the ids of your THE MENU actions (`ib.palette.register`) with your plugin id (`pomodoro.start`). Widget and
@@ -107,7 +111,8 @@ written to harm. It still runs in the sandbox with only the permissions you give
    one entry in `index.json` with `"repo": "kiddoko/icebreaker-modules/tree/main/modules/<id>"`.
 3. Open a pull request. A maintainer reads every line, tries it, and checks:
    - it does what its README says, and nothing else; no hidden network calls, no obfuscation;
-   - it asks only for the permissions it needs, and says why;
+   - it asks only for the permissions it needs — a folder when a folder is enough, each
+     host it reaches named (`net:<host>`), `"api": 2` — and says why;
    - it's legal (no piracy, no scraping against a site's terms, licenses respected) and
      follows the [code of conduct](../CODE_OF_CONDUCT.md);
    - `node scripts/check-index.mjs` passes.
@@ -151,7 +156,8 @@ module warning.
 Modules from the STORE or the vault run in a **sandbox** (a Web Worker): no page, no native
 access, no network of their own — only the `ib` calls their permissions allow, each one
 checked by the deck ([SANDBOX.md](SANDBOX.md)). They can't run the vault's encryption,
-accounts, scripts, shortcuts, the STORE or updates ([../src/shell/privileged.ts](../src/shell/privileged.ts)).
+accounts, scripts, shortcuts, the STORE or updates, rearrange your screen or touch your alarms
+([../src/shell/privileged.ts](../src/shell/privileged.ts)).
 Within their permissions they can still do damage (a module allowed to write notes can
 overwrite them). So: prefer verified modules, read the code of the others, give the fewest
 permissions, keep backups. See [../DISCLAIMER.md](../DISCLAIMER.md).

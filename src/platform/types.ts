@@ -107,6 +107,15 @@ export interface SystemStats {
   cpuBrand: string;
   processes: number;
   arch: string;
+  /** the busiest processes, by cpu (cpu in % of ONE core); absent from older builds */
+  top?: { name: string; cpu: number; mem: number }[];
+  /** the disks: mount point, name, bytes */
+  disks?: { mount: string; name: string; total: number; available: number; removable: boolean }[];
+  /** bytes received / sent since the computer started (the rate is the difference over time) */
+  netRx?: number;
+  netTx?: number;
+  /** load average over 1, 5, 15 minutes (0 where there's none: Windows) */
+  load?: [number, number, number];
 }
 
 export interface Platform {
@@ -114,9 +123,9 @@ export interface Platform {
   vault: VaultBackend;
   /** App config files (settings.json, secrets.json). */
   config: {
-    /** settings.json, secrets.json: the unlocked account's (nothing while locked) · device.json: the deck's own */
-    read(name: "settings.json" | "secrets.json" | "device.json"): Promise<string | null>;
-    write(name: "settings.json" | "secrets.json" | "device.json", content: string): Promise<void>;
+    /** settings.json, secrets.json, access.json (the access journal): the unlocked account's (nothing while locked) · device.json: the deck's own */
+    read(name: "settings.json" | "secrets.json" | "device.json" | "access.json"): Promise<string | null>;
+    write(name: "settings.json" | "secrets.json" | "device.json" | "access.json", content: string): Promise<void>;
   };
   system: { stats(): Promise<SystemStats> };
   /** ANTHROPIC_API_KEY from the environment, if set. */
@@ -141,7 +150,7 @@ export interface Platform {
   openUrl?(url: string): Promise<void>;
   claudeCode?: {
     detect(): Promise<string | null>;
-    run(req: { id: string; prompt: string; system: string; resume?: string | null; model?: string; writes?: boolean }, onLine: (line: string) => void): Promise<{ code: number; stderr: string }>;
+    run(req: { id: string; prompt: string; system: string; resume?: string | null; model?: string; writes?: boolean; reads?: "nothing" | "given" | "all" }, onLine: (line: string) => void): Promise<{ code: number; stderr: string }>;
     cancel(id: string): Promise<void>;
   };
   /**
@@ -232,6 +241,8 @@ export interface Platform {
   notify?(title: string, body: string): Promise<void>;
   /** Called (debounced) when files in the vault change outside the app. */
   onVaultChange?(cb: () => void): void;
+  /** A deck item of the macOS menu bar was clicked: its id (workspace/macmenu.ts). */
+  onMenu?(cb: (id: string) => void): void;
   /** The window got minimized (true) or restored (false). */
   onMinimized?(cb: (minimized: boolean) => void): Promise<void>;
   /** The whole computer, read-only, for the deck's own file picker (desktop). */

@@ -1,6 +1,6 @@
 [package]
 name = "icebreaker"
-version = "0.5.5"
+version = "0.6.0"
 description = "ICEBREAKER — open-source terminal-styled cyberdeck for notes, journaling and AI plugins"
 license = "MIT"
 edition = "2021"
@@ -33,7 +33,7 @@ portable-pty = "0.9"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 # only the CPU/memory/process part — keeps compile times and binary size down
-sysinfo = { version = "0.40.4", default-features = false, features = ["system"] }
+sysinfo = { version = "0.40.4", default-features = false, features = ["system", "disk", "network"] }
 tauri = { version = "2", features = [] }
 tiny_http = "0.12"
 tauri-plugin-notification = "2"

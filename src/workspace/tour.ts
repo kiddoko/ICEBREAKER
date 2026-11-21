@@ -35,36 +35,41 @@ const STEPS: TourStep[] = [
   },
   {
     title: "TABS",
-    text: "Every page you open is a tab up here: click one, or ⌘1…9. ⌘W closes it, ctrl+tab goes to the next one. Top right: ⚙ the settings and ⏻ to log out.",
-    at: (_ws, s) => ({ x: 0, y: 0, w: s.w, h: 1 }),
+    text: "Every page you open is a tab on top of its frame: click one, or ⌘1…9. ⌘W closes it, ctrl+tab goes to the next one; HOME is pinned, always first. Drag a tab onto another frame to keep it there, or onto another tab: a group. Top left, ◆ ICEBREAKER is the deck's menu: modules, the store, settings, log out.",
+    at: (ws, s) => (ws.rects.main ? { ...ws.rects.main, h: 2 } : { x: 0, y: 0, w: s.w, h: 1 }),
   },
   {
-    title: "VAULT",
+    title: "FRAMES",
+    text: "The tree, the page, the side panel and the shell are frames. Drag a tab onto another frame to keep it there. Drag the line between two frames to resize them (↔ shows where). Right-click a frame's name → Move to: left, right, top, bottom — or Settings → Layout. ⌘Z undoes.",
+    at: (ws) => ws.rects.panel ?? ws.rects.shell ?? ws.rects.main,
+  },
+  {
+    title: "vault",
     text: "Your notes, files and folders. One click selects, a double-click opens. ⌘N a new note, F2 renames, Delete (⌘⌫ on a Mac) sends to the trash — nothing is lost, ⌘Z brings it back. ⌘⇧T shows or hides the tree.",
     prep: (ws) => void (ws.sidebarVisible = true),
     at: (ws) => ws.rects.sidebar,
   },
   {
     title: "HOME",
-    text: "Your widgets. Double-click one (or enter) for its pop-up and its settings. Press e to edit: drag them anywhere, pull the corner ◢ to resize, a to add one — the same widget as many times as you like.",
+    text: "Your widgets. Double-click one (or enter) for its pop-up and its settings. ✎ edit (top right) or ⌘E to edit: drag them anywhere, pull the corner ◢ to resize, a to add one — the same widget as many times as you like.",
     prep: (ws) => ws.deck.openApp("home"),
     at: (ws) => ws.rects.main,
   },
   {
     title: "THE PANEL",
-    text: "Widgets that stay in view whatever page you're on. ◧ in the status bar or ⌘⇧P shows or hides it; e edits it together with HOME.",
+    text: "Widgets that stay in view whatever page you're on. ◨ in the status bar or ⌘⇧P shows or hides it; e edits it together with HOME.",
     prep: (ws) => ws.deck.history.quiet(() => ws.deck.settings.set("panel.shown", true)),
     at: (ws) => ws.rects.panel,
   },
   {
-    title: "SHELL",
+    title: "shell",
     text: "ibsh is the deck's own shell: help lists the commands, man <command> explains one. + opens your computer's real terminal. The LOG tab keeps what happened: the commands your clicks ran, errors, messages — tick a filter to see only those.",
     prep: (ws) => void (ws.shellVisible = true),
     at: (ws) => ws.rects.shell,
   },
   {
     title: "STATUS BAR",
-    text: "On the left, what the keys do where you are. On the right: ▾ the shell, ⌨ the on-screen keyboard, ✦ the effects, ♪ sound on / off, ☾ the screensaver, ⌘K the menu, F1 the manual, ◧ the panel.",
+    text: "On the left, what the keys do where you are. On the right: ▾ the shell, ⌨ the on-screen keyboard, ✦ the effects, ♪ sound on / off, ☾ the screensaver, ⌘K the menu, F1 the manual, ◧ the tree, ◨ the panel.",
     at: (_ws, s) => ({ x: 0, y: s.h - 1, w: s.w, h: 1 }),
   },
   {
@@ -218,7 +223,7 @@ export class Tour implements Overlay {
       // a card like the UPLINK widget's: opaque, framed, its name on top
       const card = { x: block.x, y: block.y + Math.floor((H - AVATAR_H - 4) / 2), w: AW + 4, h: AVATAR_H + 4 };
       ui.fill(card, { bg: c.panel });
-      ui.box(card, { title: "UPLINK", focused: true, bg: c.panel });
+      ui.box(card, { title: "uplink", focused: true, bg: c.panel });
       const fy = card.y + 2;
       const box = { x: card.x + 2, y: fy, w: AW, h: AVATAR_H };
       // talking: a voice wave; listening: an eye on what it shows, blinking now and then
@@ -239,11 +244,11 @@ export class Tour implements Overlay {
     if (k < 1) ui.animate(16);
     const bb = { ...b, w: bw };
     ui.fill(bb, { bg: c.panel });
-    ui.box(bb, { title: `UPLINK · ${this.i + 1}/${STEPS.length}`, focused: true });
+    ui.box(bb, { title: `uplink · ${this.i + 1}/${STEPS.length}`, focused: true });
     if (face) ui.text(bb.x, bb.y + Math.min(3, bb.h - 2), "◀", { fg: c.borderFocus, attrs: BOLD }); // the speech tail
     if (k < 1) return;
     const title = t(st.title).replace("{handle}", this.deck.settings.data.user.handle || "netrunner");
-    ui.gradientText(b.x + 2, b.y + 1, title.toUpperCase(), ui.theme.gradient, BOLD, (ui.now / 2000) % 1);
+    ui.gradientText(b.x + 2, b.y + 1, title.toLowerCase(), ui.theme.gradient, BOLD, (ui.now / 2000) % 1);
     // typed out (with its blips), a cursor at the end while it talks
     // typed out (with its blips): whole letters, then the one coming in fades up
     let left = shown;

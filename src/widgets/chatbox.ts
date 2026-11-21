@@ -1,7 +1,7 @@
 /**
  * UPLINK chatbox — a small conversation that lives on HOME or the side panel. The widget
- * shows the last lines; typing while it's chosen, a click on its "type here" line, enter or a
- * double-click open it bigger with the field ready (the letter typed already in it). It's one
+ * shows the last lines over a field of its own: click it (or choose the widget) and type, enter
+ * sends. Enter on an empty field or a double-click opens it bigger (the same conversation). It's one
  * running conversation (ctrl+l starts a new one); LINK is the full chat app.
  */
 import { BOLD } from "../core/grid";
@@ -12,6 +12,7 @@ import { wrapWords } from "../core/unicode";
 import { q } from "../ui/ui";
 import type { UI } from "../ui/ui";
 import { Field } from "../ui/field";
+import { INSET } from "../ui/layout";
 import type { WidgetPopupSpec, WidgetSpec } from "./types";
 
 interface Msg {
@@ -20,6 +21,8 @@ interface Msg {
 }
 const chat = { msgs: [] as Msg[], session: null as ChatSession | null, busy: false, error: "" };
 const field = new Field({ icon: "❯" });
+/** each copy's field was on screen at its last frame (a widget taller than the side panel's view has it cut off) */
+const fieldShown = new Map<string, boolean>();
 
 /** The conversation as styled lines, newest last. */
 function lines(ui: UI, w: number): { text: string; fg: number; bold?: boolean }[] {
@@ -75,29 +78,58 @@ export const chatWidget: WidgetSpec = {
   size: { w: 4, h: 5 },
   min: { w: 3, h: 2 },
   open: "launch link",
-  // typing while it's chosen opens the conversation, the letter already in the field
+  // a field of its own: chosen (a click on it, or the arrows), you type here and enter sends;
+  // enter on an empty field, or a double-click, opens the big view
   onText(s, { deck, key }) {
     if (!deck.ai.ready) return false;
     field.onText(s);
-    void deck.act(`widget ${key ?? "chat"}`);
+    // its field out of view (the widget cut off by the panel's edge): the pop-up opens with the
+    // letter in it, as in 0.5.5 — never typing into something you can't see
+    if (!fieldShown.get(key ?? "chat")) void deck.act(`widget ${key ?? "chat"}`);
     return true;
   },
-  render(ui, r, { deck, key }) {
+  onKey(k, { deck }) {
+    if (!deck.ai.ready) return false;
+    if (k.combo === "enter") {
+      if (field.empty) return false;
+      const text = field.text;
+      field.text = "";
+      sendChat(deck, text);
+      return true;
+    }
+    // ←→ choose another widget while the field is empty
+    if (field.empty && (k.combo === "left" || k.combo === "right")) return false;
+    return field.onKey(k);
+  },
+  render(ui, r, { deck, typing, select, key }) {
     const c = ui.c;
     if (chat.busy) ui.animate(80);
     if (!deck.ai.ready) {
-      ui.text(r.x + 1, r.y, `○ ${t("uplink offline")}`, { fg: c.error }, r.w - 2);
-      ui.text(r.x + 1, r.y + 1, deck.ai.problem ?? "", { fg: c.muted }, r.w - 2);
+      fieldShown.set(key ?? "chat", false);
+      ui.text(r.x + INSET, r.y, `○ ${t("uplink offline")}`, { fg: c.error }, r.w - INSET * 2);
+      ui.text(r.x + INSET, r.y + 1, deck.ai.problem ?? "", { fg: c.muted }, r.w - INSET * 2);
       return;
     }
-    const all = lines(ui, r.w - 2);
+    const w = r.w - INSET * 2;
+    const all = lines(ui, w);
     const room = r.h - 1;
-    if (!all.length) ui.text(r.x + 1, r.y, t("say something — just type"), { fg: c.faint }, r.w - 2);
-    all.slice(-room).forEach((l, i) => ui.text(r.x + 1, r.y + i, l.text, { fg: l.fg, attrs: l.bold ? BOLD : 0 }, r.w - 2));
-    const typeRow = { x: r.x, y: r.y + r.h - 1, w: r.w, h: 1 };
-    ui.text(r.x + 1, typeRow.y, `› ${field.text || t("type here…")}`, { fg: field.text ? c.fg : c.subtle }, r.w - 2);
-    // a click on the line opens the conversation, ready to type (the widget's own hit is under it)
-    ui.hit(typeRow, { cmd: `widget ${key ?? "chat"}`, tip: t("type to UPLINK") });
+    if (!all.length && room > 0) ui.text(r.x + INSET, r.y, t("say something — just type"), { fg: c.faint }, w);
+    all.slice(-room).forEach((l, i) => ui.text(r.x + INSET, r.y + i, l.text, { fg: l.fg, attrs: l.bold ? BOLD : 0 }, w));
+    const row = { x: r.x, y: r.y + r.h - 1, w: r.w, h: 1 };
+    // the caret only where you can see the field (cut off, it was drawn over the shell below)
+    const shown = ui.grid.inClip(row.x + INSET, row.y);
+    fieldShown.set(key ?? "chat", shown);
+    const focused = !!typing && shown;
+    field.render(ui, row, { focused, placeholder: focused ? t("type, enter to send") : t("type here…") });
+    // a click on the field chooses the widget (keys come here) and puts the caret there
+    ui.hit(row, {
+      onClick: (m) => {
+        select?.();
+        field.editor.cursor = field.editor.posAt(m.x, m.y);
+        field.editor.anchor = null;
+      },
+      tip: t("type to UPLINK · enter sends"),
+    });
   },
 };
 

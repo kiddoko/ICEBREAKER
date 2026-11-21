@@ -113,6 +113,7 @@ fn random_tag() -> String {
 /// the release's name.
 #[tauri::command]
 pub async fn encoders_install(app: AppHandle) -> Result<String, String> {
+    crate::config::online(&app, "downloading the encoder pack")?;
     let d = dir(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let (name, sum, folder) = asset().ok_or_else(|| format!("no encoder pack for {}/{} yet (macOS, Windows, Linux x64)", std::env::consts::OS, std::env::consts::ARCH))?;

@@ -1,5 +1,11 @@
 import { PRIVILEGED_NAMES } from "../shell/privileged";
 import type { Origin } from "../shell/origin";
+import { describePerm, Grants, levelOf, levelRank, missing, parsePerm, readPerms, sortPerms } from "./permissions";
+import type { PermDialogSpec, PermLine } from "../workspace/permdialog";
+import { isOfficialSource } from "./install";
+import { stealth } from "../core/stealth";
+import { t } from "../core/i18n";
+import { NO } from "../ui/dialog";
 import { isDeckPath } from "../vault/paths";
 import { FRAME_PARTS, frameServices } from "./frame-services";
 import { sandboxed } from "./sandbox/bridge";
@@ -14,7 +20,7 @@ import { registerBackground } from "../fx/backgrounds";
 import { vaultTools } from "../ai/tools";
 import type { Deck } from "../deck";
 import { spokenAlert } from "../core/voice";
-import type { IcebreakerAPI, Permission, PluginManifest, PluginModule } from "./api";
+import type { IcebreakerAPI, PluginManifest, PluginModule } from "./api";
 import * as lib from "./lib";
 import type { App } from "../apps/types";
 
@@ -91,13 +97,16 @@ export class PluginHost {
         continue;
       }
       if (more.length) {
-        p.error = `asks for more than you approved (${more.join(", ")}): plugin enable ${id}`;
+        p.error = `asks for more than you approved (${more.map((x) => describePerm(x).label + (parsePerm(x)?.scope ? ` → ${parsePerm(x)!.scope}` : "")).join(", ")}): plugin enable ${id}`;
         continue;
       }
       // …and with the code you approved: changed since (another program or a sync wrote in the
       // vault, another vault holds a module of the same name), it stays off until you look again
       if (p.source === "vault" && !(await this.sameCode(p, trustChanges))) {
-        p.error = (this.deck.settings.data.plugins.pinned ?? {})[id] ? `its code changed since you approved it: plugin enable ${id}` : `not approved on this deck yet: plugin enable ${id}`;
+        // (said as what happened and what to do: "needs you — see the LOG" said neither)
+        p.error = (this.deck.settings.data.plugins.pinned ?? {})[id]
+          ? `its code changed since you approved it — the copy in the vault isn't the one you approved (an update, a sync, a file put there by hand). Read it and switch it on again: plugin enable ${id} (or the STORE)`
+          : `not approved on this deck yet: plugin enable ${id}`;
         continue;
       }
       await this.activate(p);
@@ -111,9 +120,175 @@ export class PluginHost {
   unapproved(p: LoadedPlugin): string[] | null {
     if (p.source !== "vault") return [];
     const granted = this.deck.settings.data.plugins.granted ?? {};
-    const asks = [...new Set(p.manifest.permissions ?? [])];
     if (!Array.isArray(granted[p.manifest.id])) return null;
-    return asks.filter((x) => !granted[p.manifest.id].includes(x));
+    return missing(this.asks(p.manifest), granted[p.manifest.id]);
+  }
+
+  // ── permissions (plugins/permissions.ts, docs/PERMISSIONS.md) ─────────────
+
+  /** written before 0.6's permissions (no `"api": 2`): it also notifies and runs the deck's commands, as every module could */
+  static legacy(m: PluginManifest): boolean {
+    return !(typeof m.api === "number" && m.api >= 2);
+  }
+
+  /** What a module's plugin.json asks for, in today's names. */
+  asks(m: PluginManifest): string[] {
+    return readPerms(m.permissions, PluginHost.legacy(m)).perms;
+  }
+
+  /**
+   * What a module may use right now: what you approved (a STORE / vault module) or what it
+   * declares (one that ships with the deck), minus what you took away.
+   */
+  effective(id: string): string[] {
+    const p = this.plugins.find((x) => x.manifest.id === id);
+    if (!p) return [];
+    const s = this.deck.settings.data.plugins;
+    const base = p.source === "vault" ? (Array.isArray(s.granted?.[id]) ? s.granted[id] : []) : this.asks(p.manifest);
+    const off = s.revoked?.[id] ?? [];
+    return off.length ? base.filter((x) => !off.includes(x)) : base;
+  }
+
+  /** A module's permissions, for the page and `plugin perms`: each with whether it's on and when it was last used. */
+  permissionsOf(id: string): { perm: string; on: boolean; always: boolean; lastUse?: number }[] {
+    const p = this.plugins.find((x) => x.manifest.id === id);
+    if (!p) return [];
+    const s = this.deck.settings.data.plugins;
+    const all = p.source === "vault" ? (Array.isArray(s.granted?.[id]) ? s.granted[id] : this.asks(p.manifest)) : this.asks(p.manifest);
+    const off = s.revoked?.[id] ?? [];
+    const always = s.always?.[id] ?? [];
+    return sortPerms(all).map((perm) => ({ perm, on: !off.includes(perm), always: always.includes(perm), lastUse: this.deck.access.lastUse(id, parsePerm(perm)?.base ?? perm) }));
+  }
+
+  /** Take a permission away from a module (it keeps running; what needs it says so). False: it didn't have it. */
+  revoke(id: string, perm: string): boolean {
+    const name = this.permissionsOf(id).find((x) => x.perm === perm || parsePerm(x.perm)?.base === perm)?.perm;
+    if (!name) return false;
+    const s = this.deck.settings;
+    const off = s.data.plugins.revoked ?? {};
+    if (!(off[id] ?? []).includes(name)) s.set("plugins.revoked", { ...off, [id]: [...(off[id] ?? []), name] });
+    // taken away: "always" goes with it (given back, it's asked again at first use)
+    const always = s.data.plugins.always ?? {};
+    if ((always[id] ?? []).includes(name)) s.set("plugins.always", { ...always, [id]: always[id].filter((x) => x !== name) });
+    if (parsePerm(name)?.base === "audio") this.deck.mixer.stop(id);
+    this.deck.requestFrame();
+    return true;
+  }
+
+  /** Give back a permission you took away. Never more than what was approved: that's `plugin enable`. */
+  grant(id: string, perm: string): boolean {
+    const s = this.deck.settings;
+    const off = s.data.plugins.revoked ?? {};
+    const name = (off[id] ?? []).find((x) => x === perm || parsePerm(x)?.base === perm);
+    if (!name) return false;
+    const left = off[id].filter((x) => x !== name);
+    const { [id]: _gone, ...rest } = off;
+    s.set("plugins.revoked", left.length ? { ...rest, [id]: left } : rest);
+    this.deck.requestFrame();
+    return true;
+  }
+
+  /** the high-risk questions being asked now (two writes at once ask once) */
+  private asking = new Map<string, Promise<string>>();
+  /** "this time": until when (ms), by module and permission */
+  private once = new Map<string, number>();
+  /** "no": until when (ms) — the same action's next steps (the file after its folder) aren't asked again */
+  private refused = new Map<string, number>();
+
+  /**
+   * A high-risk permission is about to be really used by a STORE / vault module: the first
+   * time, you're asked — this time / always / no. A "total" one (your real terminal) shows
+   * every command unless you said always. Throws when you say no.
+   */
+  async gate(m: PluginManifest, perm: string, target: string, command?: string): Promise<void> {
+    const want = parsePerm(perm) ?? (perm === "net" ? { base: "net" as const } : null);
+    if (!want) return;
+    // the name you approved that covers this use ("vault:write:songs/" for songs/a.bmed)
+    const name = this.effective(m.id).find((g) => new Grants(() => [g]).has(want.base, target || undefined));
+    if (!name) return; // (not allowed at all: `need` already said so)
+    const level = levelOf(name);
+    if (levelRank(level) < levelRank("high")) return;
+    const s = this.deck.settings;
+    if ((s.data.plugins.always?.[m.id] ?? []).includes(name)) return;
+    const key = `${m.id}|${name}`;
+    if (level !== "total" && (this.once.get(key) ?? 0) > Date.now()) return;
+    const d = describePerm(name, t);
+    const no = () => new Error(t("{m}: you said no to “{p}”", { m: m.name.toLowerCase(), p: d.label }));
+    // you just said no to this: the rest of the same action (an export's file after its folder) stops
+    // without a second question
+    if (level !== "total" && (this.refused.get(key) ?? 0) > Date.now()) throw no();
+    const scope = parsePerm(name)?.scope;
+    const what = want.base === "vault:write" ? t("It wants to write: {x}", { x: target || "?" }) : want.base === "net" ? t("It wants to reach: {x}", { x: target || "?" }) : "";
+    const spec: PermDialogSpec = {
+      frame: t("{m} (module) asks", { m: m.name.toLowerCase() }),
+      heading: level === "total" ? `⚠ ${t("TOTAL: this command has all your rights on this computer")}` : what,
+      command,
+      lines: [{ icon: d.icon, label: d.label, scope: d.scope, level: d.level }],
+      body: level === "total" ? [] : [d.means],
+      buttons: [
+        { label: NO(), value: "no", key: "n", tone: "error" },
+        { label: t("[T]his time"), value: "once", key: "t" },
+        { label: level === "total" ? t("[A]lways for this module") : scope ? t("[A]lways in {x}", { x: scope }) : t("[A]lways"), value: "always", key: "a", tone: level === "total" ? "warning" : undefined },
+      ],
+      selected: level === "total" ? 0 : 1,
+    };
+    // a command for the terminal is its own question each time; the rest: one question at a time
+    let ask = level === "total" ? undefined : this.asking.get(key);
+    if (!ask) {
+      const asked = this.deck.askPermission(spec);
+      ask = asked;
+      if (level !== "total") {
+        this.asking.set(key, asked);
+        void asked.finally(() => this.asking.delete(key));
+      }
+    }
+    const answer = await ask;
+    if (answer === "always") {
+      const always = s.data.plugins.always ?? {};
+      if (!(always[m.id] ?? []).includes(name)) s.set("plugins.always", { ...always, [m.id]: [...(always[m.id] ?? []), name] });
+      return;
+    }
+    if (answer === "once") {
+      // "this time" is this action: what it does in the next moments (several files of one export)
+      if (level !== "total") this.once.set(key, Date.now() + 10_000);
+      return;
+    }
+    if (level !== "total") this.refused.set(key, Date.now() + 10_000);
+    throw no();
+  }
+
+  /**
+   * Why a module that should be on is off, in a few words a person reads at start
+   * ("its code changed", "asks for more", "not approved yet", "needs todo") — the whole
+   * reason is `p.error`, in the LOG and in `plugin ls`.
+   */
+  static shortReason(error: string): string {
+    if (error.startsWith("its code changed")) return "its code changed since you approved it";
+    if (error.startsWith("asks for more")) return "asks for more than you approved";
+    if (error.startsWith("not approved")) return "not approved here yet";
+    if (error.startsWith("needs ")) return error.split(" — ")[0];
+    return error.split("\n")[0].slice(0, 60);
+  }
+
+  /** `gate` for a module known by its id (the deck's functions it calls: plugins/frame-services.ts). */
+  async gateById(id: string, perm: string, target: string, command?: string): Promise<void> {
+    const p = this.plugins.find((x) => x.manifest.id === id);
+    if (p && p.source === "vault") await this.gate(p.manifest, perm, target, command);
+  }
+
+  /** The lines of the dialog for a list of permissions (what's `fresh` is marked new). */
+  permLines(perms: string[], m: PluginManifest, fresh: string[] = []): PermLine[] {
+    const implied = PluginHost.legacy(m) ? new Set(["notify", "shell"].filter((x) => !(m.permissions ?? []).includes(x as never))) : new Set<string>();
+    return sortPerms(perms).map((perm) => {
+      const d = describePerm(perm, t);
+      const note =
+        d.level === "total" ? t("every command is shown to you first")
+        : d.level === "high" ? t("asked again the first time it's really used")
+        : implied.has(perm) ? t("every module could before 0.6 — this one was written then")
+        : d.level === "medium" ? d.means
+        : undefined;
+      return { icon: d.icon, label: d.label, scope: d.scope, level: d.level, note, fresh: fresh.includes(perm) };
+    });
   }
 
   /** What a module lacks to run: not installed, too old, switched off — or a newer deck. */
@@ -191,7 +366,8 @@ export class PluginHost {
    * isn't there (or is too old) stops it with the command that fixes it. `ask` asks the
    * person (a dialog by default; the shell asks in the shell).
    */
-  async enable(id: string, ask: (title: string, detail: string) => Promise<boolean> = (t, d) => this.deck.confirm(t, d), seen = new Set<string>()): Promise<boolean> {
+  // (the safe answer is no: Yes was lit for a module asking to write in your vault)
+  async enable(id: string, ask?: (title: string, detail: string) => Promise<boolean>, seen = new Set<string>()): Promise<boolean> {
     const p = this.plugins.find((x) => x.manifest.id === id);
     if (!p) throw new Error(`no plugin "${id}" (plugin ls)`);
     if (p.active) return false;
@@ -206,17 +382,59 @@ export class PluginHost {
     for (const n of needs) if (!seen.has(n.id)) await this.enable(n.id, ask, seen);
     if (this.needsOf(p).length) return false; // a need was refused: it stays off
     if (p.source === "vault") {
-      const perms = p.manifest.permissions?.length ? p.manifest.permissions.map((x) => (x === "terminal" ? "terminal (it can type commands in your real terminal: any program on this computer)" : x === "audio" ? "audio (it plays sound of its own through your speakers)" : x)).join(", ") : "none";
+      const m = p.manifest;
+      const { perms, unknown } = readPerms(m.permissions, PluginHost.legacy(m));
+      const s = this.deck.settings;
       // what its code does that a module shouldn't need (plugins/audit.ts)
       const report = auditReport(await this.audit(id).catch(() => []));
-      const ok = await ask(
-        `Enable plugin "${p.manifest.name}"?`,
-        `${p.manifest.description ?? ""}\nby ${p.manifest.author ?? "unknown"} · v${p.manifest.version}\n\npermissions: ${perms}\n\n${report}\n\nIt runs in a sandbox: only what its permissions allow, nothing of the deck, the page or the network. Its code: ${VAULT_PLUGIN_DIR}/${id}/.`,
-      );
+      // what's new since what you approved (an update that asks for more): marked
+      const before = Array.isArray(s.data.plugins.granted?.[id]) ? s.data.plugins.granted[id] : null;
+      const fresh = before ? missing(perms, before) : [];
+      const source = (m as { source?: string }).source;
+      const risky = perms.some((x) => levelRank(levelOf(x)) >= levelRank("high")) || unknown.length > 0;
+      let ok: boolean;
+      if (ask) {
+        // asked in the shell (`plugin enable`): the same words, as text
+        const lines = this.permLines(perms, m, fresh).map((l) => `  ${l.icon} ${l.label}${l.scope ? ` → ${l.scope}` : ""}  [${l.level}]${l.fresh ? " (new)" : ""}${l.note ? `\n      ${l.note}` : ""}`);
+        ok = await ask(
+          `Switch the module ${m.name} on?`,
+          `${m.description ?? ""}\nby ${m.author ?? "unknown"} · this copy: v${m.version}\n\nIt asks for:\n${lines.join("\n") || "  nothing"}${unknown.length ? `\n\n⚠ it also names permissions this deck doesn't know (ignored): ${unknown.join(", ")}` : ""}\n\n${report}\n\nIt runs in a sandbox: only what its permissions allow, nothing of the deck, the page or the network. Its code: ${VAULT_PLUGIN_DIR}/${id}/. You can take any permission away later: plugin revoke ${id} <permission>.`,
+        );
+      } else {
+        const answer = await this.deck.askPermission({
+          frame: t(before ? "A MODULE ASKS FOR MORE" : "SWITCH A MODULE ON"),
+          heading: `${m.name.toLowerCase()} · v${m.version} · ${t("by {a}", { a: m.author ?? t("unknown") })}`,
+          facts: [
+            source && isOfficialSource(source) ? `✔ ${t("from the official STORE")}` : source ? `⚠ ${t("not from the official STORE: {s}", { s: source })}` : `⚠ ${t("put in the vault by hand: nobody checked it")}`,
+            ...report.split("\n").filter(Boolean),
+            ...(unknown.length ? [`⚠ ${t("it also names permissions this deck doesn't know (ignored): {l}", { l: unknown.join(", ") })}`] : []),
+          ],
+          intro: perms.length ? t(fresh.length ? "This version asks for (new ones marked):" : "This module asks for:") : t("This module asks for nothing."),
+          lines: this.permLines(perms, m, fresh),
+          body: [
+            t("Without asking, it can: show its page and widgets, keep its own data and settings, ask you questions under its name."),
+            t("It never can: go online by itself, touch your accounts, the encryption, other modules, your screen's layout or your alarms."),
+            t("You can take any of these away later: Settings → PERMISSIONS."),
+          ],
+          buttons: [
+            { label: NO(), value: "no", key: "n", tone: "error" },
+            { label: t("[R]ead its code"), value: "code", key: "r" },
+            { label: t("[Y]es, switch it on"), value: "yes", key: "y" },
+          ],
+          // the safe answer is no as soon as one line is high-risk
+          selected: risky ? 0 : 2,
+        });
+        if (answer === "code") void this.deck.openFile(`${VAULT_PLUGIN_DIR}/${id}/${m.main ?? "main.js"}`);
+        ok = answer === "yes";
+      }
       if (!ok) return false;
-      const s = this.deck.settings;
       // what you just read and approved: the module never runs with more (init, unapproved)
-      s.set("plugins.granted", { ...(s.data.plugins.granted ?? {}), [id]: [...new Set(p.manifest.permissions ?? [])] });
+      s.set("plugins.granted", { ...(s.data.plugins.granted ?? {}), [id]: perms });
+      // a fresh approval: nothing is "always" yet, nothing is taken away
+      const { [id]: _a, ...always } = s.data.plugins.always ?? {};
+      const { [id]: _r, ...revoked } = s.data.plugins.revoked ?? {};
+      s.set("plugins.always", always);
+      s.set("plugins.revoked", revoked);
       await this.pin(p); // …and this code
       s.set("plugins.enabled", [...new Set([...s.data.plugins.enabled, id])]);
     } else {
@@ -244,11 +462,18 @@ export class PluginHost {
       // switched off: nothing stays approved (switching it on again shows its permissions and its code's audit)
       const { [id]: _g, ...granted } = s.data.plugins.granted ?? {};
       const { [id]: _p, ...pinned } = s.data.plugins.pinned ?? {};
+      const { [id]: _a, ...always } = s.data.plugins.always ?? {};
+      const { [id]: _r, ...revoked } = s.data.plugins.revoked ?? {};
       s.set("plugins.granted", granted);
       s.set("plugins.pinned", pinned);
+      s.set("plugins.always", always);
+      s.set("plugins.revoked", revoked);
     } else s.set("plugins.disabled", [...new Set([...s.data.plugins.disabled, id])]);
     if (!p.active) return false;
+    // its pages close with it (a removed module's tab stayed open on a page that was gone)
+    const pages = this.deck.workspace.tabs.filter((a) => this.deck.apps.sourceOf(a.kind) === id);
     await this.deactivate(p);
+    for (const app of pages) this.deck.workspace.replaceTab(app, null);
     return true;
   }
 
@@ -403,15 +628,49 @@ export class PluginHost {
       // the deck's own, or another module's (a fake `todo` or `cal` could ask for anything)
       throw new Error(source === "core" ? `${m.id}: the ${what} "${name}" is the deck's own` : `${m.id}: the ${what} "${name}" belongs to the module ${source}`);
     };
-    const granted = new Set<Permission>(m.permissions ?? []);
+    // what it may use is read at every call (plugins.granted / revoked): a permission you take
+    // away stops working at once, without a restart
+    const granted = new Grants(() => this.effective(m.id));
+    /** the access journal (core/access.ts): which permission, on what — a name, never the content */
+    const note = (perm: string, what = "") => {
+      const base = parsePerm(perm)?.base ?? perm;
+      // a module that ships with the deck reads notes all day (TODO, CALENDAR…): its reads aren't
+      // journaled — what it writes, asks the AI or sends is
+      if (!thirdParty && (base === "vault:read" || base === "notify" || base === "media:control")) return;
+      deck.access.note(m.id, base, what);
+    };
     // the lines it runs carry its origin (shell/origin.ts): privileged commands refused for every
-    // module; a STORE / vault module's lines read and write only what its permissions allow
-    const origin: Origin = { source: m.id, grants: thirdParty ? granted : "all" };
+    // module; a STORE / vault module's lines read and write only what its permissions allow, and
+    // one that ships with the deck everything but what you took away from it
+    const origin: Origin = {
+      source: m.id,
+      grants: thirdParty ? granted : new Grants(() => deck.settings.data.plugins.revoked?.[m.id] ?? [], true),
+      gate: thirdParty ? (perm, target) => this.gate(m, perm, target) : undefined,
+      note,
+    };
     const caller = { id: m.id, permissions: granted, origin };
     // a window a STORE / vault module opens says who is asking (it could ask "your password")
     const from = (title: string) => (thirdParty ? `${m.name} (module) — ${String(title)}` : title);
-    const need = (perm: Permission) => {
-      if (!granted.has(perm)) throw new Error(`plugin "${m.id}" needs the "${perm}" permission in its plugin.json`);
+    /** `perm` — on `target` (a note's path, a host) when given — or a clear error */
+    const need = (perm: string, target?: string) => {
+      if (granted.has(perm, target)) return;
+      const label = describePerm(perm).label;
+      const want = parsePerm(perm) ?? (perm === "net" ? { base: "net" as const } : null);
+      const off = (deck.settings.data.plugins.revoked?.[m.id] ?? []).some((x) => parsePerm(x)?.base === want?.base);
+      if (off) throw new Error(`${m.name}: you took “${label}” away from it (Settings → PERMISSIONS, or: plugin grant ${m.id} ${perm})`);
+      if (target !== undefined && granted.has(perm)) throw new Error(`${m.name}: “${label}” is allowed only ${want?.base === "net" ? "for the hosts" : "in the folders"} you approved — not ${target}`);
+      throw new Error(`plugin "${m.id}" needs the "${perm}${want?.base === "net" && target ? `:${target}` : ""}" permission in its plugin.json`);
+    };
+    /** a high-risk permission really used: asked the first time (a STORE / vault module) */
+    const gate = async (perm: string, target: string, command?: string) => {
+      if (thirdParty) await this.gate(m, perm, target, command);
+    };
+    /** the folders a narrowed vault permission is limited to: is this entry in (or on the way to) one? */
+    const inScope = (path: string, isDir = false) => {
+      const folders = granted.folders("vault:read");
+      if (!folders) return true;
+      const p = path.toLowerCase();
+      return folders.some((f) => (p + "/").startsWith(f.toLowerCase()) || (isDir && f.toLowerCase().startsWith(p + "/")));
     };
     const dataPath = `.icebreaker/plugin-data/${m.id}.json`;
     // vault:write is for notes: the deck's own folder (modules' code, themes, settings) is never a
@@ -465,35 +724,58 @@ export class PluginHost {
         open: (kind, args) => deck.openApp(kind, !thirdParty || deck.apps.sourceOf(kind) === m.id || typeof args === "string" || args instanceof Date ? args : undefined),
       },
       palette: { register: (a) => (mine("action", a.id, deck.actions.sourceOf(a.id)), deck.actions.register(a, m.id)) },
+      // (the shell checks "shell" itself, on every line with an origin — a click on one of its areas too)
       shell: { run: (line) => deck.shell.runUntrusted(String(line), origin) },
+      // the internet, one approved host at a time, through the deck's native side
+      net: {
+        get: async (url) => {
+          let u: URL;
+          try {
+            u = new URL(String(url));
+          } catch {
+            throw new Error(`net.get: "${String(url)}" isn't an address`);
+          }
+          if (u.protocol !== "https:" || u.username || u.password) throw new Error("net.get: only https:// addresses, without a user name");
+          need("net", u.hostname.toLowerCase());
+          if (stealth.on) throw new Error(`stealth mode: ${m.name} can't go online (stealth off to allow it)`);
+          if (!deck.platform.netGet) throw new Error("net.get needs the desktop app");
+          await gate("net", u.hostname.toLowerCase());
+          note("net", u.hostname.toLowerCase());
+          return deck.platform.netGet(u.toString());
+        },
+      },
       media: {
         available: () => !!deck.platform.media,
         status: async () => {
-          need("media");
+          need("media:control");
           if (!deck.platform.media) throw new Error("music control needs the desktop app");
           return deck.platform.media.status();
         },
         control: async (action) => {
-          need("media");
+          need("media:control");
           if (!deck.platform.media) throw new Error("music control needs the desktop app");
+          note("media:control", String(action));
           return deck.platform.media.control(action);
         },
+        // the audio files of any folder of the computer: its own permission (not the vault's)
         player: {
           available: () => !!deck.platform.player,
-          scan: (folder) => (need("media"), player().scan(folder)),
-          load: (path, play = true, duration) => (need("media"), player().load(path, play, duration)),
-          control: (action) => (need("media"), player().control(action)),
-          status: () => (need("media"), player().status()),
+          scan: (folder) => (need("media:files"), note("media:files", String(folder)), player().scan(folder)),
+          load: (path, play = true, duration) => (need("media:files"), note("media:files", String(path)), player().load(path, play, duration)),
+          control: (action) => (need("media:files"), player().control(action)),
+          status: () => (need("media:files"), player().status()),
         },
       },
       google: {
         available: () => !!deck.platform.google,
-        status: () => (need("google-calendar"), google().status()),
+        status: () => (need("google-calendar:read"), google().status()),
         setup: (id, secret) => (need("google-calendar"), google().setup(id, secret)),
         connect: (onPhase) => (need("google-calendar"), google().connect(onPhase)),
         disconnect: () => (need("google-calendar"), google().disconnect()),
         calendar: async (method, path, opts = {}) => {
-          need("google-calendar");
+          // reading is its own, narrower permission; anything that changes needs the whole one
+          need(String(method).toUpperCase() === "GET" ? "google-calendar:read" : "google-calendar");
+          note("google-calendar", `${String(method).toUpperCase()} ${String(path).split("?")[0]}`);
           const query = Object.entries(opts.query ?? {})
             .filter(([, v]) => v !== undefined)
             .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
@@ -503,7 +785,7 @@ export class PluginHost {
         },
         cache: {
           read: async <T,>(fallback: T) => {
-            need("google-calendar");
+            need("google-calendar:read");
             try {
               const t = await google().cache();
               return t ? (JSON.parse(t) as T) : fallback;
@@ -512,7 +794,7 @@ export class PluginHost {
             }
           },
           write: async (value) => {
-            need("google-calendar");
+            need("google-calendar:read");
             await google().cache(JSON.stringify(value));
           },
         },
@@ -524,25 +806,29 @@ export class PluginHost {
       vault: {
         // a STORE / vault module reads notes — not the deck's own folder (other modules' data
         // and code, the shell's history): its own data is ib.storage
-        read: (p) => (need("vault:read"), thirdParty && notDeck(p), deck.vault.read(p)),
-        exists: (p) => (need("vault:read"), thirdParty && notDeck(p), deck.vault.exists(p)),
-        notes: () => (need("vault:read"), deck.vault.markdown().map((e) => e.path)),
-        modified: async () => (need("vault:read"), Object.fromEntries(deck.vault.markdown().map((e) => [e.path, e.modified]))),
-        write: (p, c) => (need("vault:write"), notDeck(p), deck.vault.write(p, c)),
-        append: (p, t) => (need("vault:write"), notDeck(p), deck.vault.append(p, t)),
-        mkdir: (p) => (need("vault:write"), notDeck(p), deck.vault.mkdir(p)),
-        readBytes: async (p) => (need("vault:read"), thirdParty && notDeck(p), deck.vault.readBytes(p)),
+        read: async (p) => (need("vault:read", String(p)), thirdParty && notDeck(p), note("vault:read", String(p)), deck.vault.read(p)),
+        exists: async (p) => (need("vault:read", String(p)), thirdParty && notDeck(p), deck.vault.exists(p)),
+        // (allowed in some folders only: their notes)
+        notes: () => (need("vault:read"), deck.vault.markdown().map((e) => e.path).filter((x) => inScope(x))),
+        modified: async () => (need("vault:read"), Object.fromEntries(deck.vault.markdown().filter((e) => inScope(e.path)).map((e) => [e.path, e.modified]))),
+        // changing notes is high-risk: the first time it really writes, you're asked
+        write: async (p, c) => (need("vault:write", String(p)), notDeck(p), await gate("vault:write", String(p)), note("vault:write", String(p)), deck.vault.write(p, c)),
+        append: async (p, text) => (need("vault:write", String(p)), notDeck(p), await gate("vault:write", String(p)), note("vault:write", String(p)), deck.vault.append(p, text)),
+        mkdir: async (p) => (need("vault:write", String(p)), notDeck(p), await gate("vault:write", String(p)), note("vault:write", String(p)), deck.vault.mkdir(p)),
+        readBytes: async (p) => (need("vault:read", String(p)), thirdParty && notDeck(p), note("vault:read", String(p)), deck.vault.readBytes(p)),
         // never the deck's own folders' contents (other modules' code, the trash's log…) for a STORE / vault module
         list: async (dir) => {
           need("vault:read");
           if (thirdParty) notDeck(dir);
           const all = await deck.vault.list(String(dir ?? ""));
-          return all.filter((e) => !thirdParty || !isDeckPath(e.path)).map((e) => ({ path: e.path, name: e.name, isDir: e.isDir, size: e.size, modified: e.modified }));
+          return all.filter((e) => (!thirdParty || !isDeckPath(e.path)) && inScope(e.path, e.isDir)).map((e) => ({ path: e.path, name: e.name, isDir: e.isDir, size: e.size, modified: e.modified }));
         },
         writeBytes: async (p, data) => {
-          need("vault:write");
+          need("vault:write", String(p));
           notDeck(p);
           if (!(data instanceof Uint8Array || data instanceof ArrayBuffer)) throw new Error("vault.writeBytes: the data must be a Uint8Array");
+          await gate("vault:write", String(p));
+          note("vault:write", String(p));
           return deck.vault.writeBytes(p, data);
         },
       },
@@ -552,10 +838,10 @@ export class PluginHost {
         now: async () => (need("audio"), deck.mixer.now()),
         sample: async (id, data, opts) => (need("audio"), deck.mixer.sample(m.id, id, data, opts)),
         drop: async (id) => (need("audio"), deck.mixer.drop(m.id, id)),
-        schedule: async (events) => (need("audio"), deck.mixer.schedule(m.id, events)),
+        schedule: async (events) => (need("audio"), note("audio"), deck.mixer.schedule(m.id, events)),
         stop: async () => (need("audio"), deck.mixer.stop(m.id)),
         onStop: (fn) => (need("audio"), deck.mixer.onStop(m.id, fn)),
-        stream: async () => (need("audio"), AudioStream.open(await deck.mixer.openStream(m.id))),
+        stream: async () => (need("audio"), note("audio"), AudioStream.open(await deck.mixer.openStream(m.id))),
         decode: async (bytes) => (need("audio"), deck.mixer.decode(bytes)),
         // the encoder pack (encoders.rs): sound the module already has, as a file's bytes
         encode: async (pcm, opts) => {
@@ -578,12 +864,14 @@ export class PluginHost {
       ai: {
         ready: () => deck.ai.ready,
         problem: () => deck.ai.problem,
-        ask: (prompt, opts) => (need("ai"), deck.ai.ask(prompt, opts)),
-        session: (opts) => (need("ai"), deck.ai.session(opts)),
+        ask: (prompt, opts) => (need("ai"), note("ai"), deck.ai.ask(prompt, opts)),
+        session: (opts) => (need("ai"), note("ai"), deck.ai.session(opts)),
         vaultTools: () => {
           need("vault:read");
-          const tools = vaultTools(deck.vault, (t, d) => deck.confirm(t, d));
-          return granted.has("vault:write") ? tools : tools.filter((t) => t.name !== "write_note");
+          // the tools list, search and read anywhere: not for a module allowed in some folders only
+          if (granted.folders("vault:read")) throw new Error(`${m.name}: ai.vaultTools needs the whole vault ("vault:read"), not only some folders`);
+          const tools = vaultTools(deck.vault, (title, d) => deck.confirm(title, d));
+          return granted.has("vault:write") && !granted.folders("vault:write") ? tools : tools.filter((x) => x.name !== "write_note");
         },
       },
       stats: (() => {
@@ -649,15 +937,15 @@ export class PluginHost {
           })),
       },
       ui: {
-        notify: (text, kind) => deck.notify(`${m.name}: ${text}`, kind),
+        notify: (text, kind) => (need("notify"), note("notify"), deck.notify(`${m.name}: ${text}`, kind)),
         confirm: (t, d) => deck.confirm(from(t), d),
         prompt: (t, o) => deck.prompt(from(t), o),
         choose: (t, options, o) => deck.choose(from(t), options, o),
         pickFolder: (title, start) => pickFolder(deck, from(title), start),
         pickFile: (title, exts, start) => pickFile(deck, from(title), exts, start),
         // on screen, a module from the STORE signs its alert; the voice reads only what it says
-        alert: (title, body) => deck.alert(from(title), body, "reminders", spokenAlert(String(title), body)),
-        say: (text, topic) => deck.speak((["calendar", "reminders", "timers", "weather", "system"].includes(topic ?? "") ? topic : "modules") as VoiceTopic, text),
+        alert: (title, body) => (need("notify"), deck.alert(from(title), body, "reminders", spokenAlert(String(title), body))),
+        say: (text, topic) => (need("notify"), deck.speak((["calendar", "reminders", "timers", "weather", "system"].includes(topic ?? "") ? topic : "modules") as VoiceTopic, text)),
         theme: () => deck.theme,
         redraw: () => deck.requestFrame(),
       },

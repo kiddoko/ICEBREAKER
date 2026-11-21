@@ -3,7 +3,8 @@ import { BOLD, DIM, type Rect } from "../core/grid";
 import { Field } from "../ui/field";
 import type { Action, ActionSource, KeyInput } from "../core/input";
 import { fuzzyFilter } from "../core/fuzzy";
-import { strWidth, truncate } from "../core/unicode";
+import { strWidth, truncate, wrapWords } from "../core/unicode";
+import { GAP } from "../ui/layout";
 import type { ChoiceOption } from "../plugins/api";
 import { hex } from "../core/color";
 import { TextEditor } from "../ui/editor";
@@ -35,7 +36,7 @@ function centered(screen: Rect, w: number, h: number, top?: number): Rect {
 
 /** Swallow clicks outside a modal (and optionally close it). */
 function backdrop(ui: UI, screen: Rect, onOutside?: () => void): void {
-  ui.tint(screen, ui.c.subtle);
+  ui.dim(screen, ui.c.subtle);
   ui.hit(screen, { onClick: () => onOutside?.(), onWheel: () => {}, block: true });
 }
 
@@ -112,8 +113,11 @@ export class ConfirmDialog implements Overlay {
   render(ui: UI, screen: Rect): void {
     const c = ui.c;
     backdrop(ui, screen);
-    const lines = this.detail ? this.detail.split("\n") : [];
-    const w = Math.max(44, strWidth(this.title) + 8, ...lines.map((l) => Math.min(90, strWidth(l) + 6)));
+    const raw = this.detail ? this.detail.split("\n") : [];
+    const want = Math.max(44, strWidth(this.title) + 8, ...raw.map((l) => Math.min(90, strWidth(l) + 6)));
+    // long lines wrap (they were cut with …: a module's permissions read "8 to …", "vau…")
+    const w = Math.min(want, screen.w - GAP * 2);
+    const lines = raw.flatMap((l) => (l ? wrapWords(l, Math.max(10, w - 4)) : [""]));
     const box = centered(screen, w, lines.length + 6);
     const tone = this.message?.tone === "error" ? c.error : this.message?.tone === "success" ? c.success : undefined;
     const inner = ui.box(box, { title: this.message ? t(this.message.frame ?? "MESSAGE") : "CONFIRM", focused: true, bg: c.panelAlt });

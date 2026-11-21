@@ -9,6 +9,14 @@ export const DIM = 8;
 export const STRIKE = 16;
 /** Swap fg/bg — only interpreted by the terminal buffer (ANSI code 7). */
 export const INVERSE = 32;
+/** A half block that is two pixels of a picture (the moon): dimmed as one colour (tint), never in stripes. */
+export const PIXELS = 64;
+/**
+ * Scenery (a theme's background, ui.art: rain, stars, a sky): it never fades in and never
+ * takes the theme's ink / glow — it moves all the time, and each of its glyphs kept the deck
+ * drawing at the screen's rate (core/renderer.ts, fx/transition.ts). Set by `Grid.ambient`.
+ */
+export const NOFADE = 128;
 
 export interface Rect {
   x: number;
@@ -41,6 +49,8 @@ export class Grid {
   readonly fg: Int32Array;
   readonly bg: Int32Array;
   readonly attr: Uint8Array;
+  /** while true, what's written is scenery (NOFADE): ui.art and the backgrounds set it */
+  ambient = false;
 
   /** Drawing is clipped to this rectangle (see pushClip/popClip). */
   clip: Rect;
@@ -99,6 +109,7 @@ export class Grid {
 
     const i = y * this.cols + x;
     this.breakWide(x, y);
+    if (this.ambient) attrs |= NOFADE;
     this.ch[i] = cp;
     if (fg !== NONE) this.fg[i] = fg;
     if (bg !== NONE) this.bg[i] = bg;
@@ -120,6 +131,10 @@ export class Grid {
     const i = y * this.cols + x;
     if (fg !== NONE) this.fg[i] = fg;
     if (bg !== NONE) this.bg[i] = bg;
+    // a picture's half block (two pixels: PIXELS) dimmed in one colour: both halves take it (the
+    // moon came out in stripes). Only those: a tab's bar or a logo's ▀ keep their background
+    // (every one turned into a light block)
+    else if (fg !== NONE && this.attr[i] & PIXELS && this.bg[i] !== NONE) this.bg[i] = fg;
   }
 
   /** Overwriting half of a wide char would leave garbage: blank the other half. */

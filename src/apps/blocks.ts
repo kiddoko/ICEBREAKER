@@ -140,7 +140,7 @@ class BlocksApp implements App {
     const dx = x + listW + 3, dw = x + w - dx;
     let dy = y;
     const from = b.from === "core" ? t("the deck") : b.from;
-    ui.text(dx, dy, b.kind.toUpperCase(), { fg: c.subtle, attrs: BOLD }, Math.max(0, dw - strWidth(from) - GAP));
+    ui.text(dx, dy, b.kind.toLowerCase(), { fg: c.subtle, attrs: BOLD }, Math.max(0, dw - strWidth(from) - GAP));
     ui.textRight(dx + dw, dy, truncate(from, Math.max(0, dw - 8)), { fg: c.accent });
     dy += 1;
     ui.text(dx, dy, b.name, { fg: c.title, attrs: BOLD }, dw);

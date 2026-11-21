@@ -1,5 +1,5 @@
 import { RecoveryDialog } from "./recoverydialog";
-import { editMenu, shellMenu } from "./menus";
+import { frameMenu, editMenu, shellMenu } from "./menus";
 import { editBand, renderNotchBand, renderShellPanel, renderStatusBar, renderSubtitles, renderTip, renderTopBar } from "./chrome";
 import { shortcutFor, type Shortcut } from "../core/shortcuts";
 import { SidePanel } from "./sidepanel";
@@ -10,7 +10,7 @@ import { QuickMenu } from "./quickmenu";
 import { drawScreensaver } from "../fx/screensaver";
 import { IbshApp, TerminalApp } from "../apps/terminal";
 import { t } from "../core/i18n";
-import { type Rect } from "../core/grid";
+import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC, type Action, type ActionSource, type KeyInput, type MouseInput } from "../core/input";
 import type { App } from "../apps/types";
 import type { Deck } from "../deck";
@@ -24,14 +24,28 @@ import { WhatsNew } from "./whatsnew";
 import { Sidebar } from "./sidebar";
 import { unplaceSquares } from "./favorites";
 import { SystemTerminal } from "../shell/systerm";
+import { frames, todayLayout, type Node as LayoutNode, type Today } from "./layout/tree";
+import { CLASSIC, effectiveLayout, isFolded, parseArrangement, resizeBetween, setFolded, type ANode, type FrameId } from "./layout/arrange";
+import { bordersOf, solveLayout, type Border } from "./layout/solve";
+import { paneToward } from "./layout/focus";
+import { drawDropFrame, placeChips, renderTabStrip, soloTab, tabbedBox } from "./tabstrip";
+import { frameOfPane, PANE_OF, parsePlaces, parseShows, prunePlaces, type PlaceFrame, type Places, type Shows } from "./tabplaces";
+import { groupOf, joinGroup, parseGroups, pick, prune, renameGroup, stripEntries, takeOut, type StripEntry, type TabGroup } from "./tabgroups";
+import { GAP, INSET, SECTION } from "../ui/layout";
+import { strWidth, truncate } from "../core/unicode";
 
 export type ShellTab = "term" | "ibsh" | "log";
+
+/** the top bar's rows: one (the deck menu, UPLINK, the clock — the tabs are on the frames) */
+export const TOP_H = 1;
+/** the shell's share of the height to begin with (and after `layout reset`) */
+export const SHELL_RATIO = 0.3;
 
 /** the parts of the screen that can have the focus (the side panel only while shown) */
 export type Pane = "sidebar" | "main" | "shell" | "panel";
 
 /**
- * The desktop: top bar with tabs, file tree on the left, the active app in
+ * The desktop: top bar (the deck menu), frames with their tabs on their border, file tree on the left, the active app in
  * the middle, the shell at the bottom, status bar, and overlays on top.
  * It also routes input: overlays first, then global shortcuts, then the
  * focused pane, then (if nobody used it) the key becomes an Action.
@@ -45,8 +59,13 @@ export type Pane = "sidebar" | "main" | "shell" | "panel";
  */
 export class Workspace {
   tabs: App[] = [];
+  /** the tab the page's frame shows (always one that lives there: places) */
   active = 0;
   focus: Pane = "main";
+  /** tabs moved to another frame (key → frame); the rest live in the page's frame (tabplaces.ts) */
+  places: Places = {};
+  /** the tab each of those frames shows instead of its own content (absent: its own) */
+  shows: Shows = {};
   sidebarVisible = true;
   /** the shell panel is shown (and the TERMINAL module is on: core-packages.ts) */
   get shellVisible(): boolean {
@@ -63,13 +82,89 @@ export class Workspace {
     if (!on && this.focus === "shell") this.focus = "main";
     this.deck.requestFrame();
   }
-  shellRatio = 0.3;
+  shellRatio = SHELL_RATIO;
   overlays: Overlay[] = [];
   readonly toasts = new Toasts();
   readonly sidebar: Sidebar;
   /** where each pane was drawn this frame (the mouse and the side panel use them) */
   rects: Partial<Record<Pane, Rect>> = {};
+  /** the screen's layout tree this frame (layout/tree.ts): the arrangement with the switches above applied */
+  layout: LayoutNode | null = null;
+
+  /**
+   * Where the frames sit (settings.layout, layout/arrange.ts): what `layout preset` and
+   * `frame move` saved, or today's arrangement. Read again only when the setting changes.
+   */
+  get arrangement(): ANode {
+    const raw = this.deck.settings.data.layout;
+    if (raw !== this.arrangedFrom) {
+      this.arrangedFrom = raw;
+      this.arranged = parseArrangement(raw) ?? CLASSIC;
+    }
+    return this.arranged;
+  }
+  private arrangedFrom: unknown = undefined;
+  private arranged: ANode = CLASSIC;
+
+  /** a border being dragged: which, the arrangement when it was grabbed */
+  private borderDrag: { b: Border; arr: ANode; m: MouseInput } | null = null;
+
+  /** Move the border being dragged to the pointer: both sides' new lengths, saved (⌘Z: one step per drag). */
+  private dragBorder(m: MouseInput): void {
+    const g = this.borderDrag;
+    if (!g) return;
+    const { b } = g;
+    const MIN = 6;
+    const row = b.dir === "row";
+    const start = row ? b.ra.x : b.ra.y;
+    const end = row ? b.rb.x + b.rb.w : b.rb.y + b.rb.h;
+    const gap = row ? b.rb.x - (b.ra.x + b.ra.w) : 0;
+    const pos = Math.max(start + MIN, Math.min(end - MIN - gap, row ? m.x : m.y));
+    const aLen = pos - start, bLen = end - pos - gap;
+    const next = resizeBetween(g.arr, b.a as FrameId, b.b as FrameId, b.dir, aLen, bLen);
+    this.deck.settings.set("layout", { version: 1, root: next });
+  }
+
+  /** Open frame `id` if it's folded (asked to show or focus it: a question in the shell, ⌘B…). */
+  private unfold(id: FrameId): void {
+    if (isFolded(this.arrangement, id)) this.deck.settings.set("layout", { version: 1, root: setFolded(this.arrangement, id, false) });
+  }
+
+  /** Fold frame `id` into a strip, or open it again (frame fold / unfold, a click on the strip). */
+  setFrameFolded(id: FrameId, folded: boolean): void {
+    this.deck.settings.set("layout", { version: 1, root: setFolded(this.arrangement, id, folded) });
+    if (!folded) this.focus = id === "vault" ? "sidebar" : id === "shell" ? "shell" : id === "panel" ? "panel" : "main";
+    this.deck.requestFrame();
+  }
+
+  /** the shell sits along the bottom, the whole width (its top border drags to resize it then) */
+  get shellAtBottom(): boolean {
+    const a = this.arrangement;
+    return a.kind === "split" && a.dir === "col" && a.children[a.children.length - 1].kind === "frame" && (a.children[a.children.length - 1] as { id: string }).id === "shell";
+  }
   private dragging: Hit | null = null;
+  /**
+   * What's being dragged, said under the pointer (a tab's name, a file's): set by whatever
+   * drags it, gone when the button comes up. Where it would land is lit by that source.
+   */
+  ghost: { label: string } | null = null;
+
+  /** the ghost: a small lit label just under-right of the pointer */
+  private drawGhost(ui: UI, screen: Rect): void {
+    if (!this.ghost || !this.dragging) return;
+    const c = ui.c;
+    const label = ` ${this.ghost.label} `;
+    const w = Math.min(strWidth(label), 32);
+    const x = Math.min(ui.mouse.x + GAP, screen.x + screen.w - w);
+    const y = Math.min(ui.mouse.y + INSET, screen.y + screen.h - 1);
+    ui.text(x, y, truncate(label, w), { fg: c.panel, bg: c.accent, attrs: BOLD });
+    ui.animate(16);
+  }
+
+  /** something is being dragged (a tab, a border…): no tips meanwhile */
+  get isDragging(): boolean {
+    return !!this.dragging;
+  }
   /** Hover tooltip: what's under the mouse and since when. */
   tip = { key: "", since: 0 };
   tipHidden = false;
@@ -84,6 +179,8 @@ export class Workspace {
     return this._editing;
   }
   set editing(on: boolean) {
+    // the widgets are what's edited: the panel shows them (not a tab moved there)
+    if (on) this.ownContent("panel");
     this._editing = on;
     this._editingOn = on ? this.activeApp : undefined;
   }
@@ -179,7 +276,12 @@ export class Workspace {
 
   showShellTab(t: ShellTab): void {
     if (!this.terminalOn) return this.terminalOff();
+    // ibsh is a big tab already (term max): there, not a second ibsh in the panel
+    const big = t === "ibsh" ? this.tabs.findIndex((a) => a instanceof IbshApp) : -1;
+    if (big >= 0) return this.switchTab(big);
+    this.unfold("shell");
     if (t === "term" && !this.termAvailable) t = "ibsh";
+    this.ownContent("shell");
     this.shellTab = t;
     this.shellTabChosen = true;
     this.shellVisible = true;
@@ -246,7 +348,7 @@ export class Workspace {
   // ── tabs ─────────────────────────────────────────────────────────────────
 
   /**
-   * Pages reached from the buttons top-right (NEXUS, STORE, MODULES, settings):
+   * Pages reached from the deck menu, ◆ ICEBREAKER (NEXUS, STORE, MODULES, settings):
    * they show in the main area without a tab of their own, and go away when you
    * go anywhere else. One at a time, kept last in `tabs`.
    */
@@ -265,6 +367,33 @@ export class Workspace {
     return this.tabs.length - (this.page ? 1 : 0);
   }
 
+  /** Close the open page (STORE, settings…: × on its chip, esc) and go back to the tab before. */
+  closePage(): void {
+    this.dropPage();
+    this.deck.requestFrame();
+  }
+
+  /**
+   * NEXUS set aside while the note opened from it is shown (not closed: it keeps where you
+   * were); esc on that note brings it back (the user's call: a page from the ◆ menu has no tab,
+   * but NEXUS is for exploring).
+   */
+  private parked: { app: App; opened: string } | null = null;
+
+  /** Esc on the note opened from NEXUS: NEXUS again, as you left it. True if it did. */
+  backToParked(): boolean {
+    const p = this.parked;
+    if (!p || this.activeApp?.key !== p.opened) return false;
+    this.parked = null;
+    if (this.page) this.dropPage();
+    this.pageReturn = this.active;
+    this.tabs.push(p.app);
+    this.active = this.tabs.length - 1;
+    this.focus = "main";
+    this.deck.requestFrame();
+    return true;
+  }
+
   /** Close the button-page without going anywhere. */
   private dropPage(): void {
     const p = this.page;
@@ -275,7 +404,7 @@ export class Workspace {
   }
 
   /** Show an app; if one with the same key is open, switch to it instead. */
-  /** the side panel on the right (◧): widgets always in view — see sidepanel.ts */
+  /** the side panel on the right (◨): widgets always in view — see sidepanel.ts */
   readonly sidePanel: SidePanel;
   /** where the side panel is this frame (null: hidden) — HOME drops widgets on it */
   get panelArea(): Rect | null {
@@ -325,6 +454,8 @@ export class Workspace {
         void app.close?.();
         this.active = this.tabs.length - 1;
       } else {
+        // another page: a NEXUS set aside closes for good
+        if (this.parked) void this.parked.app.close?.(), (this.parked = null);
         if (cur) this.dropPage();
         else this.pageReturn = this.active;
         this.tabs.push(app);
@@ -333,8 +464,20 @@ export class Workspace {
       this.focus = "main";
       return this.tabs[this.active];
     }
-    if (this.page) this.dropPage();
+    // a note (or any page with a tab) opened from NEXUS: NEXUS is set aside, esc brings it back
+    let parkNexus: App | null = null;
+    if (this.page?.kind === "explorer") {
+      if (this.parked) void this.parked.app.close?.();
+      parkNexus = this.tabs.pop()!;
+      this.active = Math.max(0, Math.min(this.pageReturn, this.tabs.length - 1));
+    } else if (this.page) this.dropPage();
     const existing = this.tabs.findIndex((t) => t.key === app.key);
+    // already open in another frame: shown there
+    if (existing >= 0 && this.reachOf(existing) !== "main") {
+      void app.close?.();
+      this.switchTab(existing);
+      return this.tabs[existing];
+    }
     if (existing >= 0) {
       void app.close?.();
       this.active = existing;
@@ -346,6 +489,7 @@ export class Workspace {
     }
     this.focus = "main";
     const opened = this.tabs[this.active];
+    if (parkNexus) this.parked = { app: parkNexus, opened: opened.key };
     if (opened.kind === "note") this.sidebar.reveal(opened.key.slice(5));
     return opened;
   }
@@ -368,6 +512,73 @@ export class Workspace {
     this.deck.requestFrame();
   }
 
+  /**
+   * Tab `from` goes to place `to` (both among the real tabs, from 0); the one shown stays
+   * shown. False when either isn't a tab.
+   */
+  moveTab(from: number, to: number): boolean {
+    const n = this.tabCount;
+    if (from < 0 || to < 0 || from >= n || to >= n) return false;
+    if (from === to) return true;
+    // HOME stays first (pinned): it doesn't move, nothing goes before it
+    const home = this.tabs.findIndex((a) => a.kind === "home");
+    if (home >= 0 && (from === home || to <= home)) return false;
+    const shown = this.tabs[this.active];
+    const [tab] = this.tabs.splice(from, 1);
+    this.tabs.splice(to, 0, tab);
+    this.active = Math.max(0, this.tabs.indexOf(shown));
+    this.deck.requestFrame();
+    return true;
+  }
+
+  // ── tab groups (workspace/tabgroups.ts) ─────────────────────────────────
+
+  /** several tabs behind one chip of the strip; kept in the session */
+  groups: TabGroup[] = [];
+
+  /** The keys of the real tabs, in order. */
+  private tabKeys(): string[] {
+    return this.tabs.slice(0, this.tabCount).map((a) => a.key);
+  }
+
+  /** Tab `m` joins tab `n`'s group (a new group of the two). Both from 0. */
+  groupTabs(n: number, m: number, name?: string): boolean {
+    const keys = this.tabKeys();
+    if (!keys[n] || !keys[m] || n === m) return false;
+    if (keys[n] === "home" || keys[m] === "home") return false; // HOME is pinned, never in a group
+    this.groups = joinGroup(this.groups, keys[n], keys[m], name);
+    this.deck.requestFrame();
+    return true;
+  }
+
+  /** Tab `n` out of its group, a tab of its own again. */
+  ungroupTab(n: number): boolean {
+    const key = this.tabKeys()[n];
+    if (!key || !groupOf(this.groups, key)) return false;
+    this.groups = takeOut(this.groups, key);
+    this.deck.requestFrame();
+    return true;
+  }
+
+  /** The group of tab `n` renamed. */
+  renameGroupOf(n: number, name: string): boolean {
+    const key = this.tabKeys()[n];
+    if (!key || !groupOf(this.groups, key)) return false;
+    this.groups = renameGroup(this.groups, key, name);
+    this.deck.requestFrame();
+    return true;
+  }
+
+  /** The strip's chips this frame: lone tabs and groups (closed tabs leave their groups). */
+  stripEntries(): StripEntry[] {
+    // the page frame's tabs only (the others are drawn by their frames); indexes stay the tabs'
+    const keys = this.tabKeys().map((k, i) => (this.reachOf(i) === "main" ? k : ""));
+    this.groups = prune(this.groups, keys);
+    const shown = keys[this.active];
+    if (shown) this.groups = pick(this.groups, shown);
+    return stripEntries(this.groups, keys).filter((e) => e.kind === "group" || keys[e.index] !== "");
+  }
+
   findTab(key: string): App | undefined {
     return this.tabs.find((t) => t.key === key);
   }
@@ -375,9 +586,20 @@ export class Workspace {
   async closeTab(i = this.active): Promise<void> {
     const app = this.tabs[i];
     if (!app) return;
+    // HOME is pinned: it can't be closed by mistake (⌘W, ×) — it's always the first tab
+    if (app.kind === "home" && this.tabs.length > 0) return void this.notify(t("HOME stays: it's pinned (the first tab, ⌘1)"));
     if ((await app.close?.()) === false) return;
     const wasPage = app === this.page;
+    const at = this.placeOf(i);
     this.tabs.splice(i, 1);
+    // it lived in another frame: that frame shows its own content again (the page's frame is unchanged)
+    if (at !== "main") {
+      const { [app.key]: _gone, ...rest } = this.places;
+      this.places = rest;
+      if (this.shows[at] === app.key) this.showIn(at, null);
+      if (i < this.active) this.active--;
+      return void this.deck.requestFrame();
+    }
     // closing the tab you're on shows the one before it (in tab order)
     if (wasPage) this.active = Math.max(0, Math.min(this.pageReturn, this.tabs.length - 1));
     else if (i < this.active || (i === this.active && i > 0)) this.active--;
@@ -388,9 +610,10 @@ export class Workspace {
 
   /** shift+esc (or a page's esc): close it and show the tab before it (HOME stays). */
   async closeAndGoBack(): Promise<void> {
-    const app = this.activeApp;
+    // the page you're looking at: in the focused frame (a tab moved there), else the page's frame
+    const app = this.focusedPage ?? this.activeApp;
     if (!app || app.kind === "home") return;
-    await this.closeTab(this.active);
+    await this.closeTab(this.tabs.indexOf(app));
     this.deck.pageTurn();
   }
 
@@ -407,15 +630,184 @@ export class Workspace {
     const n = this.tabCount || this.tabs.length;
     if (n === 0) return;
     const next = ((i % n) + n) % n;
+    // a tab that lives in another frame: that frame shows it, and gets the focus
+    const at = this.reachOf(next);
+    // a frame that can't be shown now (the shell is a big tab, TERMINAL is off): the tab comes
+    // back to the page's frame rather than staying out of reach
+    if (at !== "main" && !this.canShow(at)) return void this.moveTabTo(next, "main");
+    if (at !== "main") return this.showIn(at, this.tabs[next].key);
     if (next !== this.active) this.deck.pageTurn(false, quick);
     this.active = next;
     this.focus = "main";
+  }
+
+  /** ctrl+tab, ctrl+⇧tab, a swipe: the next (or previous) tab of the page's frame. */
+  stepTab(dir: 1 | -1, quick = false): void {
+    const mine = this.mainTabs();
+    if (!mine.length) return;
+    const k = mine.indexOf(this.active);
+    this.switchTab(mine[(((k < 0 ? 0 : k + dir) % mine.length) + mine.length) % mine.length], quick);
+  }
+
+  // ── tabs in other frames (tabplaces.ts) ──────────────────────────────────
+
+  /** the frames drawn last frame (a tab whose frame isn't among them is reached in the page's) */
+  private onScreen = new Set<PlaceFrame>();
+  private drawnOnce = false;
+
+  /**
+   * Where tab `i` can be reached right now: its frame, or — when that frame isn't on screen
+   * (a narrow window drops the panel, the tree or the shell hidden) — the page's frame, until
+   * its own comes back (it was in no list at all).
+   */
+  reachOf(i: number): PlaceFrame | "main" {
+    const at = this.placeOf(i);
+    return at !== "main" && this.drawnOnce && !this.onScreen.has(at) ? "main" : at;
+  }
+
+  /** the frame tab `i` lives in */
+  placeOf(i: number): PlaceFrame | "main" {
+    const key = this.tabs[i]?.key;
+    return (key && this.places[key]) || "main";
+  }
+
+  /** the real tabs (indexes) that live in the page's frame */
+  mainTabs(): number[] {
+    return Array.from({ length: this.tabCount }, (_, i) => i).filter((i) => this.reachOf(i) === "main");
+  }
+
+  /** the tabs (indexes) that live in frame `f`, in tab order */
+  tabsIn(f: PlaceFrame): number[] {
+    return Array.from({ length: this.tabCount }, (_, i) => i).filter((i) => this.placeOf(i) === f);
+  }
+
+  /** the tab frame `f` shows instead of its own content, if any */
+  shownIn(f: PlaceFrame): App | undefined {
+    const key = this.shows[f];
+    return key ? this.tabs.find((a) => a.key === key && this.places[key] === f) : undefined;
+  }
+
+  /** the page the focused frame shows (the page's frame: the tab in front; another: its shown tab) */
+  get focusedPage(): App | undefined {
+    const f = frameOfPane(this.focus);
+    return f === "main" ? this.activeApp : this.shownIn(f);
+  }
+
+  /** Frame `f` shows tab `key` (or its own content: null), opened if it was hidden, with the focus. */
+  /** the frame a tab was just asked to show in (checked after drawing: is it on screen?) */
+  private revealing: PlaceFrame | null = null;
+
+  showIn(f: PlaceFrame, key: string | null): void {
+    if (key) this.revealing = f;
+    if (key) this.shows = { ...this.shows, [f]: key };
+    else {
+      const { [f]: _gone, ...rest } = this.shows;
+      this.shows = rest;
+    }
+    this.reveal(f);
+    this.focus = PANE_OF[f];
+    this.deck.requestFrame();
+  }
+
+  /**
+   * Frame `f` shows its own content again (the shell, the tree, the widgets), not a tab
+   * moved there. Called whenever that content is asked for — ctrl+`, a question from a
+   * command, ⌘B, panel show, edit mode — or a moved page took what was typed for the shell.
+   */
+  ownContent(f: PlaceFrame): void {
+    if (!this.shows[f]) return;
+    const { [f]: _gone, ...rest } = this.shows;
+    this.shows = rest;
+  }
+
+  /** frame `f` can be shown right now (the shell: not while it's a big tab itself, nor with TERMINAL off) */
+  private canShow(f: PlaceFrame): boolean {
+    // (not "no shell tab open": `term open` keeps the panel; Fable's re-check R1)
+    if (f === "shell") return this.terminalOn;
+    return true;
+  }
+
+  /** ibsh as a big tab (term max), when the shell panel would show ibsh too: that tab */
+  private ibshTab(): number {
+    if (this.shellTab === "term" && this.termAvailable && this.terms.length) return -1;
+    return this.tabs.findIndex((a) => a instanceof IbshApp);
+  }
+
+  /** Make frame `f` seen: shown, unfolded. */
+  private reveal(f: PlaceFrame): void {
+    if (f === "vault") {
+      this.sidebarVisible = true;
+      this.unfold("vault");
+    } else if (f === "shell") {
+      this.shellVisible = true;
+      this.unfold("shell");
+    } else {
+      if (!this.deck.settings.data.panel?.shown) this.deck.settings.set("panel", { ...(this.deck.settings.data.panel ?? {}), shown: true });
+      this.unfold("panel");
+    }
+  }
+
+  /**
+   * Tab `i` goes to frame `to` (Refonte UI 3b): it leaves its group, and is shown there.
+   * The page's frame keeps at least one tab (HOME comes back to it otherwise).
+   */
+  moveTabTo(i: number, to: PlaceFrame | "main"): boolean {
+    const app = this.tabs[i];
+    if (!app || i >= this.tabCount) return false;
+    const from = this.placeOf(i);
+    if (from === to) return true;
+    if (from === "main" && this.mainTabs().length < 2) return void this.notify(t("the page's frame keeps one tab at least")), false;
+    if (groupOf(this.groups, app.key)) this.groups = takeOut(this.groups, app.key);
+    const places = { ...this.places };
+    // its old frame shows its own content again — without opening it (term max: the shell panel
+    // came back, ibsh shown twice)
+    if (from !== "main" && this.shows[from] === app.key) this.ownContent(from);
+    if (to === "main") delete places[app.key];
+    else places[app.key] = to;
+    this.places = places;
+    if (to === "main") {
+      this.active = i;
+      this.focus = "main";
+    } else {
+      if (i === this.active) this.fixActive();
+      this.showIn(to, app.key);
+    }
+    this.deck.requestFrame();
+    return true;
+  }
+
+  /** Each frame: tabs that closed leave their places; the page's frame shows one of its own. */
+  private tidyPlaces(): void {
+    const open = this.tabs.slice(0, this.tabCount).map((a) => a.key);
+    if (Object.keys(this.places).some((k) => !open.includes(k)) || Object.values(this.shows).some((k) => !k || !this.places[k])) {
+      ({ places: this.places, shows: this.shows } = prunePlaces(this.places, this.shows, open));
+    }
+    this.fixActive();
+  }
+
+  /** The page's frame shows a tab that lives there (the nearest one; HOME comes back if none is left). */
+  private fixActive(): void {
+    if (this.page && this.active === this.tabs.length - 1) return;
+    if (this.reachOf(this.active) === "main" && this.active < this.tabCount) return;
+    let mine = this.mainTabs();
+    if (!mine.length) {
+      // every tab went elsewhere: HOME comes back to the page's frame
+      const home = this.tabs.findIndex((a) => a.kind === "home");
+      if (home < 0) return;
+      const { [this.tabs[home].key]: _back, ...rest } = this.places;
+      this.places = rest;
+      for (const f of Object.keys(this.shows) as PlaceFrame[]) if (this.shows[f] === "home") this.showIn(f, null);
+      mine = [home];
+    }
+    this.active = mine.reduce((best, j) => (Math.abs(j - this.active) < Math.abs(best - this.active) ? j : best), mine[0]);
   }
 
   // ── panes ────────────────────────────────────────────────────────────────
 
   toggleShell(show = !this.shellVisible): void {
     if (!this.terminalOn) return this.terminalOff();
+    if (show) this.unfold("shell");
+    if (show) this.ownContent("shell");
     this.shellVisible = show;
     if (show) this.focus = "shell";
     else if (this.focus === "shell") this.focus = "main";
@@ -428,7 +820,13 @@ export class Workspace {
 
   focusShell(): void {
     if (!this.terminalOn) return this.terminalOff();
-    if (!this.shellVisible || this.focus !== "shell") {
+    // ibsh is a big tab (term max): ctrl+` goes there (the panel showed ibsh a second time)
+    const big = this.ibshTab();
+    if (big >= 0) return this.switchTab(big);
+    this.unfold("shell");
+    if (!this.shellVisible || this.focus !== "shell" || this.shows.shell) {
+      // ctrl+`: the shell itself, even when a moved tab was shown in its frame (it took the typing)
+      this.ownContent("shell");
       this.shellVisible = true;
       this.focus = "shell";
     } else this.focus = "main";
@@ -437,17 +835,34 @@ export class Workspace {
   /** An interactive shell command asks something: make sure it's seen. */
   focusShellIfHidden(): void {
     if (!this.terminalOn) return;
+    // the question shows in ibsh's big tab when there is one
+    const big = this.ibshTab();
+    if (big >= 0) return this.switchTab(big);
+    this.unfold("shell");
+    // the question is in the shell: a moved tab shown in its frame would hide it
+    this.ownContent("shell");
     this.shellVisible = true;
     this.focus = "shell";
   }
 
   toggleSidebar(): void {
+    // folded into a strip: ⌘B opens it rather than hiding it
+    if (this.sidebarVisible && isFolded(this.arrangement, "vault")) {
+      this.unfold("vault");
+      this.ownContent("vault");
+      this.focus = "sidebar";
+      return;
+    }
     this.sidebarVisible = !this.sidebarVisible;
-    if (this.sidebarVisible) this.focus = "sidebar";
+    if (this.sidebarVisible) (this.ownContent("vault"), (this.focus = "sidebar"));
     else if (this.focus === "sidebar") this.focus = "main";
   }
 
   private moveFocus(dir: "left" | "right" | "up" | "down"): void {
+    // the part that really is in that direction (frames can sit anywhere: frame move, layout preset)
+    const near = paneToward(this.rects, this.focus, dir);
+    if (near) return void (this.focus = near);
+    // nothing there: the old rules (left from the shell → the tree…)
     if (dir === "left" && this.focus === "panel") this.focus = "main";
     else if (dir === "left" && this.sidebarVisible) this.focus = "sidebar";
     else if (dir === "right" && this.focus === "sidebar") this.focus = "main";
@@ -457,7 +872,7 @@ export class Workspace {
   }
 
   private cycleFocus(): void {
-    const order: Pane[] = ["main", ...(this.sidePanel.area ? (["panel"] as Pane[]) : []), ...(this.shellVisible ? (["shell"] as Pane[]) : []), ...(this.sidebarVisible ? (["sidebar"] as Pane[]) : [])];
+    const order: Pane[] = ["main", ...(this.rects.panel ? (["panel"] as Pane[]) : []), ...(this.shellVisible ? (["shell"] as Pane[]) : []), ...(this.sidebarVisible ? (["sidebar"] as Pane[]) : [])];
     this.focus = order[(order.indexOf(this.focus) + 1) % order.length];
   }
 
@@ -581,6 +996,10 @@ export class Workspace {
   // ── input routing ────────────────────────────────────────────────────────
 
   private paneTarget(): { onKey?(k: KeyInput): boolean; onText?(t: string): boolean; onAction?(a: Action): boolean } | undefined {
+    // a frame showing a tab moved there (Refonte UI 3b): its keys go to that page
+    const f = frameOfPane(this.focus);
+    const moved = f === "main" ? undefined : this.shownIn(f);
+    if (moved && this.rects[this.focus]) return moved;
     if (this.focus === "shell" && this.shellVisible) {
       if (this.shellTab === "term" && this.termAvailable) return this.terminal;
       if (this.shellTab === "log") return this.logPane;
@@ -593,7 +1012,7 @@ export class Workspace {
 
   /** The page in front plays the keyboard (App.rawKeys) and nothing covers it: its keys come as keys. */
   rawKeys(): boolean {
-    return !this.topModal && this.focus === "main" && !!this.activeApp?.rawKeys;
+    return !this.topModal && !!this.focusedPage?.rawKeys;
   }
 
   handleKey(k: KeyInput): void {
@@ -616,13 +1035,13 @@ export class Workspace {
       return this.cycleFocus();
     }
     // the system terminal gets the keyboard (ctrl+c, ctrl+r, esc…); ⌘ shortcuts stay the deck's
-    if (this.focus === "shell" && this.shellVisible && this.shellTab === "term" && this.termAvailable && this.terminal.wants(k)) {
+    if (this.focus === "shell" && this.shellVisible && !this.shownIn("shell") && this.shellTab === "term" && this.termAvailable && this.terminal.wants(k)) {
       this.terminal.onKey(k);
       return;
     }
-    // a terminal tab in the main window: same rule
-    const ta = this.activeApp;
-    if (this.focus === "main" && ta instanceof TerminalApp && ta.term.wants(k)) return void ta.term.onKey(k);
+    // a terminal tab (in the page's frame, or moved to another): same rule
+    const ta = this.focusedPage;
+    if (ta instanceof TerminalApp && ta.term.wants(k)) return void ta.term.onKey(k);
     if (k.combo === "contextmenu" || k.combo === "shift+f10") return this.keyboardMenu();
     // a page that plays the keyboard (App.rawKeys) owns its keys, like an editor owns the arrows:
     // the ones that type (a piano's) and every ⌥ / alt combination (⌥ arrows, ⌥ letters, ⌥ digits —
@@ -691,14 +1110,15 @@ export class Workspace {
     switch (a) {
       case "palette": this.menu({ pad: true }); break; // the gamepad's Y: THE MENU, a quick key chosen
       case "osk": this.toggleOsk(); break;
-      case "tab-next": this.switchTab(this.active + 1); break;
-      case "tab-prev": this.switchTab(this.active - 1); break;
+      case "tab-next": this.stepTab(1); break;
+      case "tab-prev": this.stepTab(-1); break;
       case "focus-next": this.cycleFocus(); break;
       case "menu": this.deck.openApp("home"); break;
       // esc: back to the page from the tree / shell; a button-page (NEXUS, STORE…) closes.
       // Tabs close with shift+esc (or ctrl+W), so a stray esc never loses one. The gamepad's B still closes.
       case "back":
         // leaving a page that plays the keyboard (App.rawKeys): esc gives the keys back to the deck
+        if (this.focus === "main" && this.backToParked()) break; // the note opened from NEXUS: NEXUS again
         if (this.focus === "main" && this.activeApp?.rawKeys && this.activeApp !== this.page && source !== "gamepad") this.focus = this.sidebarVisible ? "sidebar" : this.shellVisible ? "shell" : "main";
         else if (this.focus !== "main") this.focus = "main";
         else if (this.activeApp === this.page || source === "gamepad") void this.closeAndGoBack();
@@ -812,6 +1232,7 @@ export class Workspace {
       case "up":
         this.dragging?.onUp?.(m);
         this.dragging = null;
+        this.ghost = null;
         break;
       case "dblclick":
         pick((x) => !!x.onDouble)?.onDouble?.(m);
@@ -836,11 +1257,15 @@ export class Workspace {
   private sessionReady = false;
   private saveSession(): void {
     const tabs = this.tabs.slice(0, this.tabCount).filter((a) => !["setup", "terminal", "ibsh"].includes(a.kind)).map((a) => a.key);
-    const sig = `${tabs.join("|")}#${Math.min(this.active, this.tabCount - 1)}`;
+    // the groups of the tabs that are saved (a terminal tab doesn't come back, nor does its place in a group)
+    const groups = prune(this.groups, tabs);
+    // where the tabs moved to other frames live, and what those frames show
+    const { places, shows } = prunePlaces(this.places, this.shows, tabs);
+    const sig = `${tabs.join("|")}#${Math.min(this.active, this.tabCount - 1)}#${JSON.stringify(groups)}#${JSON.stringify(places)}#${JSON.stringify(shows)}`;
     if (!this.sessionReady || sig === this.savedTabs) return;
     this.savedTabs = sig;
     const s = this.deck.settings;
-    s.set("session", { ...(s.data.session ?? {}), tabs, active: Math.max(0, tabs.indexOf(this.tabs[this.active]?.key ?? "")) });
+    s.set("session", { ...(s.data.session ?? {}), tabs, active: Math.max(0, tabs.indexOf(this.tabs[this.active]?.key ?? "")), groups, places, shows });
   }
 
   /** Open again what was open when the deck closed (notes that still exist, modules that are still on). */
@@ -853,8 +1278,10 @@ export class Workspace {
     }
   }
 
-  private async reopen(ses: { tabs?: string[]; active?: number }): Promise<void> {
+  private async reopen(ses: { tabs?: string[]; active?: number; groups?: unknown; places?: unknown; shows?: unknown }): Promise<void> {
     if (!ses.tabs) return;
+    // the groups come back with their tabs (those that are still there)
+    this.groups = parseGroups(ses.groups);
     for (const key of ses.tabs) {
       if (key === "home" || this.findTab(key)) continue;
       if (key.startsWith("note:")) {
@@ -862,9 +1289,15 @@ export class Workspace {
         if (await this.deck.vault.exists(p)) await this.deck.openFile(p);
       } else if (this.deck.apps.get(key) && !Workspace.PAGES.has(key)) this.deck.openApp(key);
     }
+    // the tabs moved to other frames go back there (those that came back)
+    const open = this.tabs.slice(0, this.tabCount).map((a) => a.key);
+    this.places = parsePlaces(ses.places, open);
+    this.shows = parseShows(ses.shows, this.places);
+    this.fixActive();
     const want = ses.tabs[ses.active ?? 0];
     const i = this.tabs.findIndex((t) => t.key === want);
-    if (i >= 0) this.switchTab(i);
+    if (i >= 0 && this.placeOf(i) === "main") this.switchTab(i);
+    this.focus = "main";
   }
 
   /** rows hidden by the camera notch in full screen (deck.measureNotch): a band, the deck starts under it */
@@ -872,6 +1305,7 @@ export class Workspace {
 
   render(ui: UI): void {
     const d = this.deck;
+    this.tidyPlaces();
     this.noteVisit();
     this.saveSession();
     const W = ui.cols;
@@ -882,49 +1316,118 @@ export class Workspace {
     if (N) renderNotchBand(ui, { x: 0, y: 0, w: W, h: N });
     if (N && d.settings.data.fx.ambient && !d.settings.data.appearance.reduceMotion) drawBackground(ui, { x: 0, y: 0, w: W, h: N }, ui.theme, 0.7);
 
-    renderTopBar(this, ui, { x: 0, y: N, w: W, h: 1 });
+    // the top bar: one row — the deck menu, UPLINK, the clock (each frame has its tabs on its border)
+    renderTopBar(this, ui, { x: 0, y: N, w: W, h: TOP_H });
 
-    const body = { x: 1, y: N + 1, w: W - 2, h: H - 2 };
-    let shellH = 0;
-    if (this.shellVisible) shellH = Math.max(5, Math.min(body.h - 8, Math.round(body.h * this.shellRatio)));
-    const top = { x: body.x, y: body.y, w: body.w, h: body.h - shellH };
+    // the frames: the arrangement (settings.layout — today's when nothing's saved) with the
+    // switches applied (tree, panel, shell shown), solved into one rect each (layout/solve.ts).
+    // The maximized shell keeps its own layout (the page in a strip at the bottom).
+    // a row of air under the top bar: the frames' tabs (VAULT, home…, PANEL) sat right against it
+    const body = { x: 1, y: N + TOP_H + SECTION, w: W - 2, h: H - TOP_H - SECTION - 1 };
     const max = this.shellVisible && this.shellMax;
-    const stripH = Math.max(6, Math.round(body.h * 0.3));
-    const sideW = this.sidebarVisible ? Math.max(20, Math.min(34, Math.round(W * 0.18))) : 0;
-    const right = { x: body.x + (sideW ? sideW + 1 : 0), w: body.w - (sideW ? sideW + 1 : 0) };
+    const today: Today = { sidebar: this.sidebarVisible, shell: this.shellVisible, shellMax: this.shellMax, panel: !!d.settings.data.panel?.shown, shellRatio: this.shellRatio, cols: W, bodyH: body.h };
+    const layout = max ? todayLayout(today) : effectiveLayout(this.arrangement, today);
+    const at = solveLayout(layout, body).rects;
+    this.layout = layout;
+    const arr = this.arrangement;
+    const strips = new Set(frames(layout).filter((f) => f.strip).map((f) => f.id));
+
+    // the borders between frames: grab one to resize (registered first: what the frames draw on
+    // their top line — the shell's tabs, a title — wins the click; the gap between columns is free)
+    // (a frame's top is two rows now — its tabs' row and its line: both grab its top border)
+    // what you grab: side by side, the gap AND the two frames' edges beside it (one cell was
+    // too thin to hit); stacked, the lower frame's two top rows (its tabs' row and its line)
+    const borders = max ? [] : bordersOf(layout, at).filter((b) => !b.strip && !(b.dir === "col" && b.b === "shell" && this.shellAtBottom)).map((b) => ({ ...b, line: b.grip, grip: b.dir === "col" ? { ...b.grip, h: 2 } : { ...b.grip, x: b.grip.x - INSET, w: b.grip.w + INSET * 2 } }));
+    for (const b of borders) ui.hit(b.grip, { onClick: (m) => (this.borderDrag = { b, arr, m }), onDrag: (m) => this.dragBorder(m), onUp: () => (this.borderDrag = null), tip: t("drag: resize · layout reset puts everything back") });
 
     this.rects = {};
-    if (this.sidebarVisible) {
-      const r = { x: top.x, y: top.y, w: sideW, h: max ? body.h : top.h };
-      this.rects.sidebar = r;
-      const inner = ui.box(r, { title: "VAULT", focused: this.focus === "sidebar", info: `${d.vault.markdown().length}` });
-      this.sidebar.render(ui, inner, this.focus === "sidebar");
+    // folded frames: a one-cell strip with their name; a click opens them again
+    for (const id of strips) {
+      const r = at.get(id);
+      if (r) drawStrip(ui, r, id === "vault" ? "vault" : id === "panel" ? "panel" : "shell", `frame unfold ${id === "vault" ? "tree" : id}`);
+    }
+    const vaultR = strips.has("vault") ? undefined : at.get("vault");
+    if (this.sidebarVisible && vaultR) {
+      this.rects.sidebar = vaultR;
+      // every frame has its tabs on its border: the tree's is one, VAULT
+      const focused = this.focus === "sidebar" && !this.topModal;
+      // a tab moved here (tab move <n> tree) may be the one shown instead of the tree
+      const moved = this.shownIn("vault");
+      const inner = tabbedBox(ui, vaultR, { focused, info: moved ? undefined : `${d.vault.markdown().length}` });
+      const own = soloTab(ui, vaultR, "vault", focused, { onClick: () => (moved ? this.showIn("vault", null) : (this.focus = "sidebar")), tip: t("your notes and files · ◧ or ⌘B hides the tree"), menu: () => [...frameMenu("tree"), "-", { label: t("Hide tree"), cmd: "view sidebar", hint: IS_MAC ? "⌘B" : "ctrl+B" }] }, !moved);
+      placeChips(this, ui, own.x + own.w + INSET, vaultR.y, vaultR.x + vaultR.w - INSET, "vault", focused);
+      // (clipped: in a tiny window the tree's list drew a row under its frame)
+      if (moved) ui.clip(inner, () => moved.render(ui, inner, focused));
+      else ui.clip(inner, () => this.sidebar.render(ui, inner, this.focus === "sidebar"));
     }
 
-    // maximized shell: the page goes to the strip at the bottom
-    const mainR = max ? { x: right.x, y: body.y + body.h - stripH, w: right.w, h: stripH } : { x: top.x + (sideW ? sideW + 1 : 0), y: top.y, w: top.w - (sideW ? sideW + 1 : 0), h: top.h };
-    // the side panel on the right: widgets that stay in view (panel show · ◧ in the status bar)
-    const panelW = Math.max(24, Math.min(36, Math.round(W * 0.2)));
+    // the side panel on the right: widgets that stay in view (panel show · ◨ in the status bar);
+    // folded by the solver when the page would keep less than 40 cells
     this.sidePanel.area = null;
-    if (d.settings.data.panel?.shown && mainR.w - panelW - 1 >= 40) {
-      mainR.w -= panelW + 1;
-      const pr = { x: mainR.x + mainR.w + 1, y: mainR.y, w: panelW, h: mainR.h };
-      this.rects.panel = pr; // a click there gives it the focus
-      this.sidePanel.render(ui, pr);
+    const panelR = strips.has("panel") ? undefined : at.get("panel");
+    if (panelR) {
+      this.rects.panel = panelR; // a click there gives it the focus
+      const focused = this.focus === "panel" && !this.topModal;
+      const moved = this.shownIn("panel");
+      if (moved) {
+        // a tab moved here, shown instead of the widgets (PANEL's tab brings them back)
+        const inner = tabbedBox(ui, panelR, { focused });
+        soloTab(ui, panelR, t("PANEL"), focused, { onClick: () => this.showIn("panel", null), tip: t("the panel's widgets") }, false);
+        ui.clip(inner, () => moved.render(ui, inner, focused));
+      } else this.sidePanel.render(ui, panelR);
+      // the tabs moved here, after PANEL's own
+      placeChips(this, ui, panelR.x + strWidth(t("PANEL")) + INSET * 4, panelR.y, panelR.x + panelR.w - INSET, "panel", focused);
     }
-    if (this.focus === "panel" && !this.sidePanel.area) this.focus = "main"; // the panel went away
+    if (this.focus === "panel" && !this.rects.panel) this.focus = "main"; // the panel went away
+    // the page (maximized shell: in the strip at the bottom)
+    const mainR = at.get("main") ?? body;
     this.rects.main = mainR;
     const app = this.activeApp;
     const mainFocused = this.focus === "main" && !this.topModal;
-    const inner = ui.box(mainR, { title: app ? t(app.title()).toUpperCase() : "", focused: mainFocused, info: app?.kind === "note" ? app.key.slice(5) : app && app.kind !== app.title().toLowerCase() ? app.kind : undefined });
+    // its tabs on its top border (tabstrip.ts): the names above, their bars on the line
+    const inner = tabbedBox(ui, mainR, { focused: mainFocused });
+    renderTabStrip(this, ui, { x: mainR.x + INSET, y: mainR.y, w: mainR.w - INSET * 2, h: 2 });
     if (app?.menu) ui.hit(inner, { menu: () => app.menu!() });
     if (app) ui.clip(inner, () => app.render(ui, inner, mainFocused));
     if (this.editing) editBand(this, ui, inner, this.sidePanel.area);
 
-    if (this.shellVisible) {
-      const r = max ? { x: right.x, y: body.y, w: right.w, h: body.h - stripH } : { x: body.x, y: top.y + top.h, w: body.w, h: shellH };
-      renderShellPanel(this, ui, r, body, max);
+    const shellR = strips.has("shell") ? undefined : at.get("shell");
+    // its own top border resizes it (its share of the height) where it's along the bottom
+    if (this.shellVisible && shellR) renderShellPanel(this, ui, shellR, body, max || !this.shellAtBottom);
+    // a folded frame can't keep the focus (keys would go somewhere you can't see)
+    if (this.focus === "sidebar" && strips.has("vault")) this.focus = "main";
+    if (this.focus === "shell" && strips.has("shell")) this.focus = "main";
+    // the border under the pointer (or being dragged), lit
+    // (stacked: only the line is lit, and only when the pointer is on it — over the tabs' row it
+    // lit every tab of that row)
+    for (const b of borders) {
+      const dragged = this.borderDrag?.b.a === b.a && this.borderDrag?.b.b === b.b;
+      // lit, with a handle in its middle that says which way it goes
+      if (b.dir === "row" && (dragged || ui.hovered(b.grip))) {
+        ui.vline(b.line.x, b.line.y, b.line.h, { fg: ui.c.accent }, "┃");
+        ui.text(b.line.x, b.line.y + Math.floor(b.line.h / 2), "↔", { fg: ui.c.panel, bg: ui.c.accent, attrs: BOLD });
+      }
+      const edge = { x: b.line.x, y: b.line.y + 1, w: b.line.w, h: 1 };
+      if (b.dir === "col" && (dragged || ui.hovered(edge))) {
+        ui.tint(edge, ui.c.accent);
+        ui.text(edge.x + Math.floor(edge.w / 2), edge.y, "↕", { fg: ui.c.panel, bg: ui.c.accent, attrs: BOLD });
+      }
     }
+
+    // a tab shown in a frame that isn't on screen (a narrow window drops the panel): back to the
+    // page's frame, where it can be reached (it was in no list at all)
+    // which frames are on screen: a tab whose frame isn't is reached in the page's (reachOf)
+    const seen = new Set<PlaceFrame>([...(this.rects.sidebar ? ["vault" as const] : []), ...(this.rects.panel ? ["panel" as const] : []), ...(this.rects.shell ? ["shell" as const] : [])]);
+    if ([...seen].join() !== [...this.onScreen].join() || !this.drawnOnce) {
+      this.onScreen = seen;
+      this.drawnOnce = true;
+      d.requestFrame();
+    }
+    // (a tab asked to show in a frame that didn't come on screen: reachOf has it in the page's)
+    if (this.revealing && !this.rects[PANE_OF[this.revealing]]) d.requestFrame();
+    this.revealing = null;
+    // a tab dragged onto another frame: that frame, outlined
+    drawDropFrame(this, ui);
 
     renderStatusBar(this, ui, { x: 0, y: N + H - 1, w: W, h: 1 });
     renderSubtitles(this, ui, W, N + H);
@@ -935,6 +1438,7 @@ export class Workspace {
     for (const o of this.overlays) if (!(o instanceof Osk)) o.render(ui, screen);
     for (const o of this.overlays) if (o instanceof Osk) o.render(ui, screen);
     this.toasts.render(ui, screen);
+    this.drawGhost(ui, screen);
     renderTip(this, ui, screen);
     if (ui.caret) this.lastCaret = { ...ui.caret };
   }
@@ -972,4 +1476,15 @@ export function undoKey(k: KeyInput): "undo" | "redo" | null {
 /** The same key press as Delete (⌘⌫ / ctrl+⌫ where nothing else uses it). */
 function asDelete(k: KeyInput): KeyInput {
   return { ...k, key: "delete", code: "Delete", ctrl: false, combo: "delete" };
+}
+
+/** A folded frame: a one-cell strip with its name (down a column, or along a row); a click opens it. */
+function drawStrip(ui: UI, r: Rect, name: string, cmd: string): void {
+  const c = ui.c;
+  ui.fill(r, { bg: c.highlight });
+  const label = `▸${name}`;
+  // (the theme's text colour: muted on the highlight was too pale to read)
+  if (r.w <= r.h) [...label].slice(0, r.h).forEach((ch, i) => ui.text(r.x, r.y + i, ch, { fg: c.fg, bg: c.highlight }));
+  else ui.text(r.x + INSET, r.y, `▸ ${name}`, { fg: c.fg, bg: c.highlight }, r.w - INSET * 2);
+  ui.hit(r, { cmd, tip: t("click: open it again") });
 }

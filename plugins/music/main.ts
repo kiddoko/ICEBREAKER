@@ -774,7 +774,7 @@ export function activate(ib: IcebreakerAPI): void {
           return;
         }
         // source · title · artist
-        ui.text(x0, r.y, s.player.toUpperCase(), { fg: c.accentAlt, attrs: BOLD }, w);
+        ui.text(x0, r.y, s.player.toLowerCase(), { fg: c.accentAlt, attrs: BOLD }, w);
         ui.gradientText(x0, r.y + 1, (s.title || "—").slice(0, w), ui.theme.gradient, BOLD, (ui.now / 6000) % 1);
         ui.text(x0, r.y + 2, [s.artist, s.album].filter(Boolean).join("  ·  "), { fg: c.muted }, w);
         // a spectrum: smooth bars, alive while it plays

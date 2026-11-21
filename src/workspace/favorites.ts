@@ -68,7 +68,7 @@ function resolve(deck: Deck, raw: string): Favorite | null {
   const mod = deck.plugins.list().find((p) => p.manifest.id === raw.toLowerCase() || p.manifest.name.toLowerCase() === raw.toLowerCase());
   if (mod) return { kind: "module", target: mod.manifest.id, label: mod.manifest.name };
   const app = deck.apps.get(raw.toLowerCase());
-  if (app) return { kind: "module", target: app.kind, label: app.title.toUpperCase() };
+  if (app) return { kind: "module", target: app.kind, label: app.title.toLowerCase() };
   return null;
 }
 

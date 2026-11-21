@@ -1,3 +1,4 @@
+import { mix } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
 import { lang, t } from "../core/i18n";
 import { osKeys } from "../core/keyhints";
@@ -24,8 +25,10 @@ const BULLET = GAP + 2;
  * versions; ↑↓ / the wheel scroll when it's taller than the window; esc, enter
  * or the pad's A / B close it.
  *
- * A minor version (0.6.0…) gets the "release" layout: a shimmering banner and
- * its headline. That's the hook for the big ones — give the version a `headline`.
+ * A minor version (0.6.0…) gets the "release" layout — the big ones deserve it:
+ * a burst of sparks when it opens, a starfield drifting behind, a heavy frame, a
+ * shimmering banner, the version decrypting in, its headline typing itself out.
+ * Give the version a `headline`. Reduce motion / fps 0: all of it, standing still.
  */
 export class WhatsNew implements Overlay {
   modal = true;
@@ -83,8 +86,10 @@ export class WhatsNew implements Overlay {
     const still = this.deck.settings.data.appearance.reduceMotion || this.deck.settings.data.appearance.maxFps === 0;
     const now = performance.now();
 
-    ui.tint(screen, c.subtle);
+    ui.dim(screen, c.subtle);
     ui.hit(screen, { onClick: () => (this.done = true), onWheel: () => {}, block: true });
+    const age = still ? 1e9 : now - this.born;
+    if (release) this.sky(ui, screen, age, still);
 
     // the frame: wide enough for the lines, never wider than the screen
     // a line: the frame's borders, INSET on both sides, the bullet's indent, the text
@@ -95,7 +100,7 @@ export class WhatsNew implements Overlay {
     const h = Math.min(screen.h - 2, want);
     const r = { x: screen.x + Math.floor((screen.w - w) / 2), y: screen.y + Math.max(1, Math.floor((screen.h - h) / 3)), w, h };
     const title = release ? `✦ ${t("RELEASE")} ✦` : t("WHAT'S NEW");
-    const inner = ui.box(r, { title, focused: true, bg: c.panelAlt, info: NOTES.length > 1 ? t("←→ versions") : undefined });
+    const inner = ui.box(r, { title, focused: true, bg: c.panelAlt, info: NOTES.length > 1 ? t("←→ versions") : undefined, border: release ? "heavy" : undefined });
     ui.hit(r, { onClick: () => {}, onWheel: (d) => (this.scroll = Math.max(0, this.scroll + Math.sign(d))) });
 
     // what goes in the frame, line by line (scrolls when the window is short)
@@ -113,7 +118,9 @@ export class WhatsNew implements Overlay {
       lines.push((y) => void ui.gradientText(x, y, rule, ui.theme.gradient, 0, phase));
     }
     if (tall) {
-      for (const row of big) lines.push((y) => void ui.gradientText(inner.x + Math.floor((inner.w - bigW) / 2), y, row, ui.theme.gradient, BOLD, release ? phase : 0));
+      // a release's version decrypts in (block noise settling into the digits)
+      const p = release ? Math.min(1, Math.max(0, (age - 250) / 900)) : 1;
+      for (const row of big) lines.push((y) => void ui.gradientText(inner.x + Math.floor((inner.w - bigW) / 2), y, p < 1 ? ui.reveal(row, p, [..."▓▒░█▚▞"]) : row, ui.theme.gradient, BOLD, release ? phase : 0));
     } else {
       lines.push((y) => {
         const s = `ICEBREAKER ${notes.version}`;
@@ -122,7 +129,17 @@ export class WhatsNew implements Overlay {
     }
     if (release) {
       lines.push((y) => void ui.gradientText(x, y, "━".repeat(Math.max(0, room)), ui.theme.gradient, 0, -phase));
-      if (text.headline) lines.push((y) => void ui.textCenter(inner, y, text.headline!, { fg: c.accent, attrs: BOLD }));
+      // the headline types itself out once the version is there
+      if (text.headline) {
+        const head = text.headline;
+        const n = Math.round(Math.min(1, Math.max(0, (age - 1000) / 900)) * [...head].length);
+        lines.push((y) => {
+          const typed = [...head].slice(0, n).join("");
+          const x0 = inner.x + Math.floor((inner.w - strWidth(head)) / 2);
+          ui.text(x0, y, typed, { fg: c.accent, attrs: BOLD });
+          if (n < [...head].length && Math.floor(age / 120) % 2 === 0) ui.text(x0 + strWidth(typed), y, "▌", { fg: c.accent });
+        });
+      }
     }
     const when = notes.date ? formatDate(notes.date) : notes.version === this.deck.updater.version ? t("this version") : "";
     // under the big version: "ICEBREAKER · the date" (the one-line title already says ICEBREAKER)
@@ -168,6 +185,51 @@ export class WhatsNew implements Overlay {
     }
     if (release && !still) ui.animate(50);
   }
+
+  /**
+   * Behind a release's frame: sparks bursting from the middle as it opens, then a slow
+   * starfield drifting up, in the theme's gradient (still: the stars only, standing).
+   */
+  private sky(ui: UI, screen: Rect, age: number, still: boolean): void {
+    const g = ui.theme.gradient;
+    const cx = screen.x + screen.w / 2, cy = screen.y + screen.h / 3;
+    const color = (k: number) => g[Math.floor(k * g.length) % g.length] ?? ui.c.accent;
+    // only where the cell AND its two neighbours are empty: over the dimmed screen's words
+    // (or between two of them: "◆·ICEBREAKER") they read as typos
+    const blank = (x: number, y: number) => {
+      if (x < 0 || x >= ui.grid.cols) return true;
+      const ch = ui.grid.ch[y * ui.grid.cols + x];
+      return ch === 32 || ch === 0 || (ch >= 0x2800 && ch <= 0x28ff);
+    };
+    const empty = (x: number, y: number) => blank(x - 1, y) && blank(x, y) && blank(x + 1, y);
+    // the stars
+    const n = Math.floor((screen.w * screen.h) / 55);
+    for (let i = 0; i < n; i++) {
+      const x = screen.x + Math.floor(rand(i) * screen.w);
+      const drift = still ? 0 : (age / 1000) * (0.4 + rand(i + 9) * 1.2);
+      const y = screen.y + Math.floor((((rand(i + 3) * screen.h - drift) % screen.h) + screen.h) % screen.h);
+      const tw = still ? 0.6 : (Math.sin(age / 400 + i) + 1) / 2;
+      if (!empty(x, y)) continue;
+      ui.text(x, y, tw > 0.85 ? "✦" : tw > 0.4 ? "·" : "˙", { fg: mix(ui.c.bg, color(rand(i + 5)), 0.25 + 0.5 * tw) });
+    }
+    // the burst: sparks flying out for a second and a half
+    if (still || age > 1600) return;
+    const k = age / 1600;
+    for (let i = 0; i < 70; i++) {
+      const a = rand(i + 20) * Math.PI * 2;
+      const v = 0.35 + rand(i + 40) * 0.65;
+      const d = (1 - (1 - k) ** 3) * v;
+      const x = Math.round(cx + Math.cos(a) * d * screen.w * 0.5), y = Math.round(cy + Math.sin(a) * d * screen.h * 0.45);
+      if (x < screen.x || y < screen.y || x >= screen.x + screen.w || y >= screen.y + screen.h || !empty(x, y)) continue;
+      ui.text(x, y, k < 0.35 ? "✦" : k < 0.7 ? "+" : "·", { fg: mix(color(rand(i + 60)), ui.c.bg, k * 0.7), attrs: BOLD });
+    }
+  }
+}
+
+/** a stable pseudo-random 0…1 */
+function rand(n: number): number {
+  const s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return s - Math.floor(s);
 }
 
 /** "21 November 2026" / "21 novembre 2026" */

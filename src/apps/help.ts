@@ -26,9 +26,9 @@ Everything works with **keyboard only**, **mouse only**, a **gamepad**, or any m
 - \`Ctrl+Z\` / \`Ctrl+Shift+Z\` — undo / redo the last thing done (settings, widgets, trash, renames, new notes, tasks, reminders, habits, events; a module uninstalled, right after)
 - \`Tab\` — the next thing on the screen · \`Shift+Tab\` — the next part of the screen (tree → page → shell)
 - \`Ctrl+Shift+H / M / E / U\` — HOME · MODULES · NEXUS · UPLINK (the AI)
-- \`Ctrl+Shift+T / P / S\` — the tree · the side panel · the shell
+- \`Ctrl+Shift+T / P / S\` — the tree (also \`Ctrl+B\`) · the side panel · the shell · a click on **◆ ICEBREAKER ▾** (top left): the deck's menu
 - \`Ctrl+N\` new note · \`Ctrl+Shift+N\` new folder · \`Ctrl+J\` the journal (open at today) · \`Ctrl+,\` settings
-- \`Ctrl+Tab\` / \`Ctrl+Shift+Tab\` — next / previous tab · \`Ctrl+1…9\` — that tab · \`Ctrl+W\` / \`Shift+Esc\` — close it
+- \`Ctrl+Tab\` / \`Ctrl+Shift+Tab\` — next / previous tab · \`Ctrl+1…9\` — that tab · \`Ctrl+W\` / \`Shift+Esc\` — close it (the one you're looking at, in whichever frame) · drag a tab onto another frame or another tab
 - \`Ctrl+S\` — save (notes also save themselves) · \`Ctrl+Enter\` — follow the [[link]] under the cursor
 - \`Shift+Backspace\` — delete the whole previous word, in notes and every text field (also \`Alt+Backspace\` on a Mac, \`Ctrl+Backspace\` on Windows / Linux)
 - In the tree: \`Shift+↑\` / \`Shift+↓\` — file by file, each one shown at once in the preview tab (like Shift + wheel)
@@ -73,13 +73,17 @@ ${cmds}
 - Settings: space acts on the line you're on (under the mouse, else the chosen one): ticks a box, turns a choice, puts a slider to 0 and back (mute / unmute; a slider with no 0, like brightness: to its default and back); sliders always go 1 at a time (held: faster, still 1 by 1); greyed = depends on another setting. The STORE: just type to search, del removes. MODULES and NEXUS: just type to search.
 - \`.icebreaker/themes/*.toml\` — your themes (\`theme new <name>\`)
 - \`.icebreaker/plugins/<id>/\` — your plugins (\`plugin new <id>\`) · they run in a sandbox: only what their permissions allow, in the shell too, never more than you approved (docs/SANDBOX.md)
+- **Permissions**: what a module may reach is said in plain words, with a level; the riskiest are asked again the first time they're used. **Settings → PERMISSIONS** shows every module's, with the last use — enter takes one away or gives it back — and what the AI may read (nothing · what you give it · your whole vault) and what your real terminal may ask the deck. \`plugin perms\`, \`plugin revoke <id> <permission>\`, \`plugin grant …\`. The LOG's **◈ access** filter is the journal: who used what, when, on what (docs/PERMISSIONS.md).
 - A module allowed to play sound (permission "audio": a tracker, a drum machine) shows **♪ its name** in the status bar while it plays: click it (or \`audio stop\`) to silence it. Its volume: Settings → SOUND → mixer → Modules.
 - A page that **plays the keyboard** (a tracker, a piano, a game: the keys are its own) keeps every key while it's in front — letters, digits, space and all the **alt** combinations, alt + arrows too (on Windows and Linux the deck's pane keys): **esc** gives the keys back to the deck (the tree takes them), a click on the page brings them back. ⌘ / ctrl shortcuts stay the deck's.
 - \`.icebreaker/templates/journal.md\` — your journal template
 - \`.trash/\` — where \`rm\` puts things (\`trash open\` to see it, restore). A note sent there closes its tabs and leaves the pins; ⌘Z brings it back. To delete for good: TRASH → **delete permanently** (or \`del\`), \`trash purge <n>\`, \`trash empty\` — it asks first and **can't be undone** (no ⌘Z): it's the only way the deck erases anything, and only you can (never a module, nor your real terminal).
 
 ## Look
-- Effects: Settings → APPEARANCE → Effects, the ✦ fx button, or \`fx\`. **Bloom**: bright things bleed a soft halo of light onto what's around them (the slider sets how far and how strong). **RGB split** (\`fx chroma\`): red and blue fringes on the text, the frames and the glyphs, never the backgrounds. **CRT curvature** (\`fx curve 0-100\`, off by default): rounded screen corners, a darker rim, a soft reflection. **Flicker speed** (\`fx flicker 150\`): how fast the CRT flicker goes. Presets: \`fx none | light | medium | heavy | party\`. \`debug perf\` measures what the screen costs.
+- Effects: Settings → APPEARANCE → Effects, the ✦ fx button, or \`fx\`. **Bloom**: a soft glow around the bright things (the logo, the selected tab, accent text) like neon tubes; at 100 % a clear halo a few letters wide, dark backgrounds and grey text don't glow. **RGB split** (\`fx chroma\`): red and blue fringes on the text, the frames and the glyphs, never the backgrounds. **CRT curvature** (\`fx curve 0-100\`, off by default): rounded screen corners, a darker rim, a soft reflection. **Flicker speed** (\`fx flicker 150\`): how fast the CRT flicker goes. Presets: \`fx none | light | medium | heavy | party\`. \`debug perf\` measures what the screen costs.
+- Top bar: **◆ ICEBREAKER ▾** (top left) is the deck's menu — MODULES, STORE, NEXUS, settings, the manual, what's new, updates, log out (their keys stay: Ctrl+Shift+M, Ctrl+Shift+E, Ctrl+, …).
+- **Frames**: the tree, the page, the side panel and the shell each have their tabs on their border. Drag a tab onto another frame to keep it there (or \`tab move 3 panel\`, or right-click → Move to); drop it onto another tab: a group. Drag the border between two frames to resize (it lights up with ↔ / ↕ under the pointer); **right-click a frame's name (VAULT, PANEL, the shell's tabs) → Move to** left / right / top / bottom, Fold, Layout; Settings → APPEARANCE → Layout; in **ibsh** (not your real terminal, nor a module): \`frame fold tree\` folds one into a strip, \`layout preset shell-right\`, \`layout reset\`, \`tab move 3 panel\`; ⌘Z undoes. **HOME is pinned**: always the first tab, never closed by mistake.
+- **Alarms**: \`clock alarm 7:30 [label] [--days mon-fri]\`, \`clock alarm\` lists them, \`rm\` / \`on\` / \`off\` / \`snooze\` / \`test\` — in ibsh (your real terminal can only set one; a module can only list them). They ring (a full screen, the sound, a notification) while ICEBREAKER is running.
 - Top bar: **UPLINK ■** — green when your AI is there, amber while it thinks, red when it's off (its tip says which AI; a click opens it).
 - **Dialogs**: the answers are always bottom right — No (or close) on the left, Yes (or open) on the right; ← → choose, \`y\` / \`n\` answer, esc is no. A question whose safe answer is no starts on No.
 - A small window: the status bar and the page headers drop the least useful things first, never overlapping or cutting them. Developers: \`debug layout\` lists what is cut at 14 sizes, \`debug pad\` shows the gamepad's buttons.
@@ -104,7 +108,7 @@ interface Run {
  */
 function runsOf(line: string): { runs: Run[]; indent: string } {
   const h = /^(#{1,6})\s+(.*)$/.exec(line);
-  if (h) return { runs: [{ text: h[1].length === 1 ? h[2].toUpperCase() : h[2], kind: "title" }], indent: "" };
+  if (h) return { runs: [{ text: h[2], kind: "title" }], indent: "" };
   const q = /^>\s?(.*)$/.exec(line);
   if (q) return { runs: [{ text: q[1].replace(/\*\*|`/g, ""), kind: "quote" }], indent: "" };
   const li = /^(\s*)[-*]\s+(.*)$/.exec(line);

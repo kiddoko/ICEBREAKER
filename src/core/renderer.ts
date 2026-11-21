@@ -1,6 +1,6 @@
 import { GlyphAtlas } from "./atlas";
 import { css, NONE } from "./color";
-import { BOLD, Grid, ITALIC, STRIKE, UNDERLINE } from "./grid";
+import { BOLD, Grid, ITALIC, NOFADE, PIXELS, STRIKE, UNDERLINE } from "./grid";
 import { fontStack } from "./fonts";
 import { chromaStrength } from "./fxlevels";
 import { charWidth } from "./unicode";
@@ -206,6 +206,9 @@ export class Renderer {
     this.cellW = Math.ceil(m.width);
     this.cellH = Math.ceil((ascent + descent) * this.lineHeight);
     this.baseline = Math.round((this.cellH - (ascent + descent)) / 2 + ascent);
+    // the old atlas's pages handed back now (canvases to 0×0), not whenever the GC gets to them:
+    // every theme / font / effect change made a new one (memory climbed past 1 GB)
+    (this.atlas as GlyphAtlas | undefined)?.release();
     this.atlas = new GlyphAtlas(this.cellW, this.cellH, this.baseline, (a) => this.font(a));
     this.atlas.softness = this.soft ?? 0;
     this.front = null;
@@ -548,7 +551,7 @@ export class Renderer {
     let appearing = 0;
     if (fade > 0 && !full) {
       const n = g.cols * g.rows;
-      for (let i = 0; i < n && appearing <= Renderer.FADE_MAX_PER_FRAME; i++) if (g.ch[i] > 32 && front!.ch[i] <= 32) appearing++;
+      for (let i = 0; i < n && appearing <= Renderer.FADE_MAX_PER_FRAME; i++) if (g.ch[i] > 32 && front!.ch[i] <= 32 && !(g.attr[i] & NOFADE)) appearing++;
     }
     const fadeNew = appearing <= Renderer.FADE_MAX_PER_FRAME;
 
@@ -576,7 +579,8 @@ export class Renderer {
           g.attr[i] !== front!.attr[i];
         if (fade > 0) {
           // born[i]: > 0 = fading in since then · < 0 = empty since -born[i] · 0 = settled
-          if (g.ch[i] <= 32) {
+          if (g.attr[i] & NOFADE) born[i] = 0; // scenery: drawn as it is
+          else if (g.ch[i] <= 32) {
             if (front!.ch[i] > 32 || born[i] > 0) born[i] = -now;
           } else if (d && !full && front!.ch[i] <= 32 && fadeNew) {
             // a letter where there was nothing — but not one that only blinked (a cursor,
@@ -656,7 +660,9 @@ export class Renderer {
           const fgc = this.L(g.fg[i]), cells = charWidth(cp) === 2 ? 2 : 1;
           this.atlas.draw(ctx, cp, fgc, attrs, x * cw, y * ch, cells);
           ctx.globalAlpha = 1;
-          if (fctx) {
+          // block glyphs (▀ █ ░ — a tab's bar, a picture's pixels, shaded fills) are surfaces, not
+          // text: they stay out of the fringes, or every bar and picture tinted red and blue
+          if (fctx && !(cp >= 0x2580 && cp <= 0x259f) && !(attrs & PIXELS)) {
             fctx.globalAlpha = alpha;
             this.atlas.draw(fctx, cp, fgc, attrs, x * cw, y * ch, cells);
             fctx.globalAlpha = 1;

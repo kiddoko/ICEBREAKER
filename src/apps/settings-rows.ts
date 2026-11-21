@@ -7,8 +7,11 @@ import { applyFxPreset, currentFxPreset, FX_PRESET_NAMES } from "../workspace/fx
  * Rows come in order: a row with `section` and no label starts a category.
  * Kinds and the drawing rules are in core/prefs.ts.
  */
+import { PRESETS } from "../workspace/layout/arrange";
+import { followedCats, followedWords, newsPage, setPageSource } from "../widgets/news";
 import { AvatarPicker } from "../workspace/avatarpicker";
 import { SOUND_PACKS } from "../core/sound";
+import { describePerm } from "../plugins/permissions";
 import { t } from "../core/i18n";
 import { displayKeys, keysOf, menuKeyOf, SHORTCUT_CATEGORIES, SHORTCUTS } from "../core/shortcuts";
 import { rebind, rebindMenuKey } from "./shortcuts";
@@ -62,6 +65,49 @@ function runAsking(deck: Deck, line: string): void {
   crypt.at = -1e9;
   void deck.act(line).finally(() => (crypt.at = -1e9));
   deck.workspace.focusShell();
+}
+
+/**
+ * Settings → PERMISSIONS → the modules: each one's permissions, on or taken away, with the
+ * level and the last use (core/access.ts). A click takes one away or gives it back
+ * (`plugin revoke` / `plugin grant`): the module keeps running, what needs it says so.
+ */
+function permissionRows(d: Deck, head: (label: string) => Row): Row[] {
+  const out: Row[] = [];
+  const when = (at?: number) => (at ? new Date(at).toLocaleString(d.settings.data.user.locale || undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
+  // the modules from the STORE or the vault first (the ones you approved), then the deck's own
+  const mods = d.plugins.list().filter((p) => p.active || p.source === "vault").sort((a, b) => Number(a.source === "builtin") - Number(b.source === "builtin") || a.manifest.name.localeCompare(b.manifest.name));
+  for (const p of mods) {
+    const id = p.manifest.id;
+    const perms = d.plugins.permissionsOf(id);
+    if (!perms.length) continue;
+    out.push(head(`${p.manifest.name.toLowerCase()}${p.source === "builtin" ? ` · ${t("ships with the deck")}` : p.active ? "" : ` · ${t("off")}`}`));
+    for (const x of perms) {
+      const info = describePerm(x.perm, t);
+      const level = info.level === "total" ? t("TOTAL") : info.level === "high" ? t("HIGH") : t(info.level);
+      out.push({
+        // (the module's name in the row too: a search shows rows without their headings)
+        label: `${p.manifest.name.toLowerCase()} · ${info.icon} ${info.label}${info.scope ? ` → ${info.scope}` : ""}`,
+        kind: "action",
+        // (read again at each draw: the list is rebuilt when a module comes or goes)
+        value: () => {
+          const now = d.plugins.permissionsOf(id).find((y) => y.perm === x.perm);
+          if (!now) return "—";
+          if (!now.on) return `○ ${t("taken away")}`;
+          return `● ${level} · ${now.lastUse ? t("used {d}", { d: when(now.lastUse) }) : t("never used")}`;
+        },
+        cmd: () => `plugin ${d.plugins.permissionsOf(id).find((y) => y.perm === x.perm)?.on === false ? "grant" : "revoke"} ${id} ${x.perm}`,
+        change: () => {
+          const on = d.plugins.permissionsOf(id).find((y) => y.perm === x.perm)?.on !== false;
+          if (on) d.plugins.revoke(id, x.perm);
+          else d.plugins.grant(id, x.perm);
+        },
+        isDefault: () => d.plugins.permissionsOf(id).find((y) => y.perm === x.perm)?.on !== false,
+        reset: () => void d.plugins.grant(id, x.perm),
+      });
+    }
+  }
+  return out;
 }
 
 export function coreSettingRows(deck: Deck): Row[] {
@@ -182,6 +228,14 @@ export function coreSettingRows(deck: Deck): Row[] {
     cycle("appearance.fontWeight", "Font weight", ["thin", "light", "regular"]),
     toggle("appearance.startFullscreen", "Start in full screen"),
     slide("appearance.brightness", "Brightness", 50, 150, () => num("appearance.brightness") || 100, (v) => set("appearance.brightness", v)),
+    // the frames (Refonte UI): a ready-made layout, and back to the classic one (docs/FRAMES.md)
+    head("Layout"),
+    { label: "Layout", steps: true, value: () => (s.data.layout as { preset?: string } | undefined)?.preset ?? "classic", cmd: () => "layout presets", change: (dir) => {
+      const names = Object.keys(PRESETS);
+      const cur = (s.data.layout as { preset?: string } | undefined)?.preset ?? "classic";
+      void d.act(`layout preset ${names[(names.indexOf(cur) + dir + names.length) % names.length]}`);
+    } },
+    { label: "Reset layout", value: () => "", cmd: () => "layout reset", change: () => void d.act("layout reset") },
     head("Motion"),
     // the pace of frames: vsync (the screen's rate) or your own cap, greyed while vsync is on
     toggle("appearance.vsync", "V-Sync"),
@@ -339,6 +393,20 @@ export function coreSettingRows(deck: Deck): Row[] {
           },
         ] as Row[])
       : []),
+    // ── PERMISSIONS (docs/PERMISSIONS.md): who may reach what — everything can be taken away here ──
+    { section: "PERMISSIONS", label: "", value: () => "" },
+    head("ICEBREAKER itself"),
+    toggle("privacy.stealth", "Stealth mode: nothing goes online"),
+    cycle("ai.reads", "What the AI may read", ["nothing", "given", "all"], undefined, (v) => (v === "nothing" ? "nothing: only what I type" : v === "given" ? "what I give it" : "my whole vault")),
+    cycle("shell.bridge", "Your real terminal", ["off", "notes", "more"], undefined, (v) => (v === "off" ? "no deck command" : v === "notes" ? "my notes only" : "notes, timers and alarms")),
+    {
+      label: "Access journal",
+      kind: "action",
+      value: () => t("{n} lines · 30 days", { n: d.access.list.length }),
+      cmd: () => "log show access",
+      change: () => void d.act("log show access"),
+    },
+    ...permissionRows(d, head),
     { section: "SHELL", label: "", value: () => "" },
     // the TERMINAL module (core-packages.ts) off: no panel, these mean nothing
     needs(() => d.workspace.terminalOn, cycle("shell.mode", "Shell", ["system", "ibsh"], undefined, (v) => (v === "system" ? "my terminal + ICEBREAKER" : "ibsh only"))),
@@ -501,8 +569,9 @@ function moduleRows(deck: Deck, text: (k: string, l: string, sec?: string, ph?: 
   }
   if (on("news")) {
     head("NEWS");
-    out.push(text("home.newsTopic", "News topic", undefined, "space, F1…", () => ["tech", "science", "ai", "space", "world", "economy", "nature", "health", "culture", "sports", "games", "F1"]));
-    out.push({ label: "News interests", value: () => (d.settings.data.home.newsInterests ?? []).join(", ") || "—", cmd: () => "news interests", change: () => void d.act("news interests") });
+    // the NEWS page's own categories and words (each widget chooses in its pop-up: widgets/news.ts)
+    out.push({ label: "News page: categories", value: () => followedCats(d).join(", ") || "—", cmd: () => "news page", change: () => ((newsPage.tab = "cats"), void d.openApp("news")) });
+    out.push({ label: "News page: your words", value: () => followedWords(d) || "—", cmd: () => "news page", change: () => void d.prompt(t("The news about…"), { initial: followedWords(d), placeholder: "formula 1, linux, Lyon…" }).then((v) => v?.trim() && setPageSource(d, { kind: "topic", words: v.trim() })) });
   }
   if (on("focus")) {
     head("FOCUS");
@@ -528,7 +597,7 @@ export function moduleSettingRows(deck: Deck, id: string): Row[] {
   const d = deck;
   const rows = d.moduleSettings.get(id) ?? [];
   if (!rows.length || !d.plugins.list().some((p) => p.manifest.id === id && p.active)) return [];
-  const out: Row[] = [{ section: `◇ ${d.plugins.list().find((p) => p.manifest.id === id)?.manifest.name ?? id.toUpperCase()}`, label: "", value: () => "" }];
+  const out: Row[] = [{ section: `◇ ${d.plugins.list().find((p) => p.manifest.id === id)?.manifest.name.toLowerCase() ?? id}`, label: "", value: () => "" }];
   for (const ms of rows) {
     const k = `plugin.${id}.${ms.key}`;
     if (ms.type === "action") {

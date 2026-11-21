@@ -1,5 +1,6 @@
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
+import { uiCase } from "../core/i18n";
 import { osKeys } from "../core/keyhints";
 import { strWidth } from "../core/unicode";
 import type { MenuEntry, MenuItem, UI } from "../ui/ui";
@@ -223,13 +224,23 @@ export class ContextMenu implements Overlay {
   }
 }
 
-/** No separator at the start, the end, or twice in a row. */
+/**
+ * No separator at the start, the end, or twice in a row. A label's first word goes lowercase
+ * like the rest of the interface ("Done ✓" from a module → "done ✓"; core/i18n.ts uiCase) —
+ * only the first, so a note's name further on ("open Welcome") keeps its case.
+ */
 function tidy(items: MenuEntry[]): MenuEntry[] {
   const out: MenuEntry[] = [];
   for (const e of items) {
     if (e === "-" && (!out.length || out[out.length - 1] === "-")) continue;
-    out.push(e);
+    out.push(e === "-" ? e : { ...e, label: firstWordCase(e.label) });
   }
   while (out[out.length - 1] === "-") out.pop();
   return out;
+}
+
+/** the label's first word lowered as the interface's text is (proper names and acronyms kept) */
+function firstWordCase(label: string): string {
+  const m = /^([^A-Za-zÀ-ÿ]*)([A-Za-zÀ-ÿ'’]+)/.exec(label);
+  return m ? m[1] + uiCase(m[2]) + label.slice(m[0].length) : label;
 }

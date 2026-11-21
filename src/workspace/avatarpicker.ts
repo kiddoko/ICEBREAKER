@@ -72,7 +72,7 @@ export class AvatarPicker implements Overlay {
 
   render(ui: UI, screen: Rect): void {
     const c = ui.c;
-    ui.tint(screen, c.subtle);
+    ui.dim(screen, c.subtle);
     ui.hit(screen, { onClick: () => {}, onWheel: () => {}, block: true });
     const cellW = 9, cellH = 5;
     this.cols = Math.max(3, Math.min(8, Math.floor((screen.w - 30) / cellW)));
