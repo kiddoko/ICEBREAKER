@@ -74,7 +74,8 @@ class ClocksApp implements App {
     const [clockR, dayR, cardsR] = stack(body, [
       { min: 3, fill: 1, max: 9, priority: 7 },
       { h: 1, priority: 4 },
-      { min: Math.min(cardsMin, 7), h: cardsMin, fill: 3, priority: 8 },
+      // (min, not h: a stack part's h is also its minimum, and the whole part would go)
+      { min: Math.min(cardsMin, 7), max: cardsMin, fill: 3, priority: 8 },
     ]);
     if (clockR) drawClock(ui, clockR, this.deck);
     if (dayR) this.drawDay(ui, dayR);
@@ -109,8 +110,8 @@ class ClocksApp implements App {
     const list = clock.list();
     if (!list.length) return void ui.text(inner.x + INSET, inner.y, t("none — a sets one"), { fg: c.muted }, inner.w - INSET * 2);
     const next = clock.soonest()?.alarm;
-    const room = list.length > inner.h ? Math.max(0, inner.h - 1) : inner.h;
-    if (list.length > room && inner.h > 0) ui.text(inner.x + INSET, inner.y + room, `+${list.length - room} · clock alarm`, { fg: c.faint }, inner.w - INSET * 2);
+    const room = list.length > inner.h ? Math.max(1, inner.h - 1) : inner.h;
+    if (list.length > room && inner.h > 1) ui.text(inner.x + INSET, inner.y + room, `+${list.length - room} · clock alarm`, { fg: c.faint }, inner.w - INSET * 2);
     list.forEach((al, i) => {
       const y = inner.y + i;
       if (i >= room) return;
@@ -255,8 +256,9 @@ class ClocksApp implements App {
     const hereOff = -now.getTimezoneOffset();
     const zones = this.deck.settings.data.home.worldClocks;
     // more cities than rows: the last row says how many are left (the pop-up and `worldclock` list them all)
-    const room = zones.length > inner.h ? Math.max(0, inner.h - 1) : inner.h;
-    if (zones.length > room && inner.h > 0) ui.text(inner.x + INSET, inner.y + room, `+${zones.length - room} · worldclock`, { fg: c.faint }, inner.w - INSET * 2);
+    // (one row only: the first city, with "+N" on its line)
+    const room = zones.length > inner.h ? Math.max(1, inner.h - 1) : inner.h;
+    if (zones.length > room && inner.h > 1) ui.text(inner.x + INSET, inner.y + room, `+${zones.length - room} · worldclock`, { fg: c.faint }, inner.w - INSET * 2);
     zones.forEach((tz, i) => {
       const y = inner.y + i;
       if (i >= room) return;
@@ -287,6 +289,7 @@ class ClocksApp implements App {
         }
       }, { priority: 2 });
       bar.text(rel, { fg: c.faint }, { side: "right", priority: 3 });
+      if (inner.h === 1 && zones.length > 1) bar.text(`+${zones.length - 1}`, { fg: c.faint }, { side: "right", priority: 7 });
       bar.text(time, { fg: c.accent, attrs: BOLD }, { side: "right", priority: 10 });
       bar.draw();
       ui.hit({ x: inner.x, y, w: inner.w, h: 1 }, { tip: `${tz}\nworldclock rm ${tz}` });
