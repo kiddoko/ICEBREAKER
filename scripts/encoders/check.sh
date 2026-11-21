@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Check a built encoder pack: LGPL only, exactly our four encoders, and each one
-# turns a second of sound (through pipes, the way ICEBREAKER runs it) into a real file.
+# turns a second of sound into a real file, the way ICEBREAKER runs it: the sound
+# through a pipe, the result written to a file (an .m4a needs a seekable output).
 #   scripts/encoders/check.sh <path to ffmpeg[.exe]>
 set -euo pipefail
 BIN=${1:?usage: check.sh <ffmpeg>}
@@ -27,7 +28,7 @@ EOF
 enc() { # name, magic offset, magic, args…
   local name=$1 off=$2 magic=$3
   shift 3
-  "$BIN" -hide_banner -nostdin -loglevel error -f f32le -ar 48000 -ac 2 -i pipe:0 "$@" pipe:1 < "$D/tone.f32" > "$D/$name"
+  "$BIN" -hide_banner -nostdin -loglevel error -y -f f32le -ar 48000 -ac 2 -i pipe:0 "$@" "$D/$name" < "$D/tone.f32"
   "$PY" - "$D/$name" "$off" "$magic" <<'EOF' || fail "$name isn't what it should be"
 import sys
 data = open(sys.argv[1], "rb").read()
@@ -38,7 +39,7 @@ sys.exit(0 if ok else 1)
 EOF
 }
 enc out.mp3 0 ID3 -c:a libmp3lame -q:a 0 -f mp3
-enc out.m4a 4 ftyp -c:a aac -b:a 256k -f ipod
+enc out.m4a 4 ftyp -c:a aac -b:a 256k -movflags +faststart -f ipod
 enc out.ogg 0 OggS -c:a libvorbis -q:a 6 -f ogg
 enc out.opus 0 OggS -c:a libopus -b:a 128k -f opus
 rm -rf "$D"

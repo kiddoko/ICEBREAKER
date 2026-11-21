@@ -83,7 +83,8 @@ autotools libvorbis-1.3.7 --with-ogg="$DEPS" --disable-docs --disable-examples -
 
 unpack opus-1.5.2.tar.gz
 OPUS=(--disable-doc --disable-extra-programs)
-[ "$T" = windows-x64 ] && OPUS+=(--disable-stack-protector)
+# mingw has no __memcpy_chk / stack protector runtime to link statically: opus would ask for both
+[ "$T" = windows-x64 ] && OPUS+=(--disable-stack-protector CPPFLAGS=-D_FORTIFY_SOURCE=0)
 autotools opus-1.5.2 "${OPUS[@]}"
 
 unpack lame-3.100.tar.gz
