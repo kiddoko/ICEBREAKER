@@ -138,10 +138,10 @@ export function widgetSource(deck: Deck, key: string | undefined): NewsSource {
   return topic ? { kind: "topic", words: topic } : { kind: "area" };
 }
 
-/** the categories you follow (the page's categories tab; your old interests) */
-export const followedCats = (deck: Deck): string[] => (deck.settings.data.home.newsInterests ?? []).map((x) => x.toLowerCase()).filter((x) => !!NEWS_CATEGORIES[x]);
-/** your own words (the page's topic tab; the old topic, else an old interest that wasn't a category) */
-export const followedWords = (deck: Deck): string => deck.settings.data.home.newsTopic || (deck.settings.data.home.newsInterests ?? []).find((x) => !NEWS_CATEGORIES[x.toLowerCase()]) || "";
+/** the NEWS page's categories (its own; before it had them, your old interests) */
+export const followedCats = (deck: Deck): string[] => (deck.settings.data.home.newsPage?.cats ?? deck.settings.data.home.newsInterests ?? []).map((x) => x.toLowerCase()).filter((x) => !!NEWS_CATEGORIES[x]);
+/** the NEWS page's words (its own; before, the old topic, else an old interest that wasn't a category) */
+export const followedWords = (deck: Deck): string => deck.settings.data.home.newsPage?.words ?? (deck.settings.data.home.newsTopic || (deck.settings.data.home.newsInterests ?? []).find((x) => !NEWS_CATEGORIES[x.toLowerCase()]) || "");
 
 /** your area's name, when the location says one (a city or a country) */
 function areaName(deck: Deck): string {
@@ -151,7 +151,8 @@ function areaName(deck: Deck): string {
 
 /** What a source is called on screen: "Paris", "FR", "science · AI", "“formula 1”". */
 export function sourceLabel(deck: Deck, s: NewsSource): string {
-  if (s.kind === "area") return areaName(deck) || t("your area");
+  // no place set: your area's feed is your country's top stories, and says so
+  if (s.kind === "area") return areaName(deck) || countryOf(deck) || t("your area");
   if (s.kind === "country") return countryOf(deck) || t("top stories");
   if (s.kind === "cats") return s.cats.map((x) => NEWS_CATEGORIES[x]?.label ?? x).join(" · ");
   return `“${s.words}”`;
@@ -198,7 +199,9 @@ async function loadSource(deck: Deck, s: NewsSource, f: SourceFeed): Promise<voi
     if (s.kind === "cats") {
       // a few recent headlines of each category, woven together, each wearing its category
       const per = Math.max(4, Math.floor(30 / Math.max(1, s.cats.length)));
-      const batches = await Promise.all(s.cats.map((cat) => get(interestQuery(deck, cat), "bing").then((l) => fresh(l).slice(0, per).map((h) => ({ ...h, tag: NEWS_CATEGORIES[cat]?.label ?? cat })))));
+      // this week's first (a category search also finds old pages that just say the word); older only if too few
+      const week = (l: Headline[]) => l.filter((h) => !h.at || Date.now() - h.at < 7 * 86400_000);
+      const batches = await Promise.all(s.cats.map((cat) => get(interestQuery(deck, cat), "bing").then((l) => (week(l).length >= 3 ? week(l) : fresh(l)).slice(0, per).map((h) => ({ ...h, tag: NEWS_CATEGORIES[cat]?.label ?? cat })))));
       for (let k = 0; k < per; k++) for (const list of batches) if (list[k] && !items.some((w) => w.title === list[k].title)) items.push(list[k]);
     } else {
       const q = s.kind === "topic" ? s.words : s.kind === "area" ? areaName(deck) : "";
@@ -447,8 +450,10 @@ export function sourceFromWords(words: string[], cur: NewsSource): NewsSource | 
 
 /** The page shows `src`: its tab, and the categories / words it keeps (saved). */
 export function setPageSource(deck: Deck, src: NewsSource): void {
-  if (src.kind === "cats") deck.settings.set("home.newsInterests", src.cats);
-  if (src.kind === "topic") deck.settings.set("home.newsTopic", src.words);
+  // the page's own (the widgets never read these: a widget follows only its own choice)
+  const page = deck.settings.data.home.newsPage ?? {};
+  if (src.kind === "cats") deck.settings.set("home.newsPage", { ...page, cats: src.cats });
+  if (src.kind === "topic") deck.settings.set("home.newsPage", { ...page, words: src.words });
   newsPage.tab = src.kind;
   deck.requestFrame();
 }

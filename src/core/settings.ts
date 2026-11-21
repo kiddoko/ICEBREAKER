@@ -186,6 +186,8 @@ export interface Settings {
   home: { widgets: WidgetPlacement[]; links: { id: string; label: string; icon: string; cmd: string }[]; weatherCity: string; worldClocks: string[]; newsTopic: string;
     /** news interests: categories (tech, politics…) and free words, mixed with your area's news */
     newsInterests: string[];
+    /** the NEWS page's own categories and words (apart from the widgets'; before it: newsInterests, newsTopic) */
+    newsPage?: { cats?: string[]; words?: string };
     /** each widget copy's own settings ("clock#2" → { style: "flip" }), see widgets/instances.ts */
     widgetConfig: Record<string, Record<string, unknown>>;
     /** saved places of the WEATHER app */

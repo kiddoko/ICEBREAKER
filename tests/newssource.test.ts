@@ -30,6 +30,8 @@ describe("news sources (one per widget)", () => {
     expect(widgetSource(deckWith({ widgetConfig: { "news#2": { cats: ["ai"] } } }), "news#2")).toEqual({ kind: "cats", cats: ["ai"] });
     expect(widgetSource(deckWith({ newsTopic: "linux", widgetConfig: {} }), "news#2")).toEqual({ kind: "topic", words: "linux" });
     expect(widgetSource(deckWith({ newsInterests: ["tech"] }), "news")).toEqual({ kind: "area" });
+    // the page's own words never change a widget
+    expect(widgetSource(deckWith({ newsPage: { words: "formula 1" }, widgetConfig: {} }), "news")).toEqual({ kind: "area" });
     // a saved source wins
     expect(widgetSource(deckWith({ newsTopic: "linux", widgetConfig: { news: { source: "country", cats: ["ai"] } } }), "news")).toEqual({ kind: "country" });
   });

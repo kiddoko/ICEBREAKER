@@ -2,7 +2,7 @@ import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
 import { checkbox, choice } from "../ui/controls";
 import { Bar, GAP, INSET, SECTION } from "../ui/layout";
 import { clockState, dur, soonestTimer, swNow, type ClockTimer } from "./clockstate";
-import { followedCats, NEWS_CATEGORIES, sourceLabel, widgetSource, type NewsSource } from "./news";
+import { followedCats, followedWords, NEWS_CATEGORIES, sourceLabel, widgetSource, type NewsSource } from "./news";
 import { clockCommand } from "./clockfaces";
 import { t } from "../core/i18n";
 /**
@@ -331,7 +331,7 @@ const newsPopup: WidgetPopupSpec = {
 };
 /** Your own words for this widget (a topic: "formula 1", "linux", "Lyon"…). */
 async function askWords(deck: Deck, cur: NewsSource): Promise<void> {
-  const v = await deck.prompt(t("This widget shows the news about…"), { initial: cur.kind === "topic" ? cur.words : "", placeholder: "formula 1, linux, Lyon…", suggestions: NEWS_TOPICS });
+  const v = await deck.prompt(t("This widget shows the news about…"), { initial: cur.kind === "topic" ? cur.words : followedWords(deck), placeholder: "formula 1, linux, Lyon…", suggestions: NEWS_TOPICS });
   if (v?.trim()) void deck.act(`news show ${v.trim()}`);
 }
 
