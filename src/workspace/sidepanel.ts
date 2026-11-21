@@ -1,3 +1,4 @@
+import { IS_MAC } from "../core/input";
 import { BOLD, type Rect } from "../core/grid";
 import { strWidth } from "../core/unicode";
 import { t } from "../core/i18n";
@@ -19,7 +20,7 @@ interface Slot {
 }
 
 /**
- * The side panel on the right (◧ in the status bar, ⌘⇧P, `panel`): a column of
+ * The side panel on the right (◨ in the status bar, ⌘⇧P, `panel`): a column of
  * widgets that stay in view on every page. Like HOME, widgets stay exactly where
  * you put them — gaps included — and when they go further down than the panel,
  * it scrolls (the wheel). settings.panel: the widgets (copy keys: the same widget
@@ -138,9 +139,9 @@ export class SidePanel {
     this.sel = Math.max(0, Math.min(this.sel, slots.length - 1));
     // its tab on its border, like every frame (workspace/tabstrip.ts)
     const inner = tabbedBox(ui, r, { info: editing ? t("edit · esc done") : hasFocus ? t("e edit · a add") : undefined, border: editing ? "heavy" : undefined, focused: editing || hasFocus });
-    soloTab(ui, r, t("PANEL"), (editing || hasFocus) && !ws.topModal, { onClick: () => (ws.focus = "panel"), tip: t("widgets always in view · panel hide · ◧ in the status bar"), menu: () => [{ label: t("Add widget…"), run: () => void this.pick() }, "-", ...frameMenu("panel"), "-", { label: t("Hide panel"), cmd: "panel hide" }] });
+    soloTab(ui, r, t("PANEL"), (editing || hasFocus) && !ws.topModal, { onClick: () => (ws.focus = "panel"), tip: t("widgets always in view · panel hide · ◨ in the status bar"), menu: () => [{ label: t("Add widget…"), run: () => void this.pick() }, "-", ...frameMenu("panel"), "-", { label: t("Hide panel"), cmd: "panel hide", hint: IS_MAC ? "⌘⇧P" : "ctrl+shift+P" }] });
     ui.hit(inner, {
-      menu: () => [{ label: editing ? t("Done editing") : t("Edit layout"), run: () => void (ws.editing = !editing), hint: editing ? "esc" : "e" }, { label: t("Add widget…"), run: () => void this.pick() }, { label: t("Hide panel"), cmd: "panel hide" }],
+      menu: () => [{ label: editing ? t("Done editing") : t("Edit layout"), run: () => void (ws.editing = !editing), hint: editing ? "esc" : "e" }, { label: t("Add widget…"), run: () => void this.pick() }, { label: t("Hide panel"), cmd: "panel hide", hint: IS_MAC ? "⌘⇧P" : "ctrl+shift+P" }],
       onWheel: (dy) => this.glide.push(dy),
     });
     // the content can be taller than the panel: it scrolls (in edit mode, room below to drop into)

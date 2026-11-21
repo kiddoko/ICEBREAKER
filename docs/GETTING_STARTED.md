@@ -34,7 +34,7 @@ the deck at an existing Obsidian vault with `vault mount /path` or in Settings.
  ╭▀▀▀▀▀▀▀─▀▀▀▀▀▀▀─▀▀▀▀▀▀──────────────────────────────────────────────╮
  │ the shell                                                          │
  ╰────────────────────────────────────────────────────────────────────╯
- status bar · ✦ fx · ⌘K menu · F1 help · ◧ panel
+ status bar · ✦ fx · ⌘K menu · F1 help · ◧ tree · ◨ panel
 ```
 
 - **◆ ICEBREAKER ▾** (top left) — the deck's menu: MODULES, STORE, NEXUS, settings,
@@ -47,7 +47,7 @@ the deck at an existing Obsidian vault with `vault mount /path` or in Settings.
 - **HOME** — widgets. The **✎ edit** button (bottom right) or `⌘E` / `ctrl+E` to edit (drag them, pull the corner ◢ to resize, gaps
   allowed), `a` to add one (the same widget several times if you like), `[` `]`
   to change page.
-- **The side panel** (◧, `Ctrl+Shift+P`) — widgets that stay in view on every page.
+- **The side panel** (◨, `Ctrl+Shift+P`) — widgets that stay in view on every page.
 - **The shell** — your real terminal (zsh/bash/PowerShell) with every ICEBREAKER
   command added, ICEBREAKER's own sandboxed shell (*ibsh*), and the *log* of what
   your clicks ran, errors and notifications.

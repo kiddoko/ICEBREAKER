@@ -305,8 +305,9 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
   if (d.settings.data.appearance.showFps) parts.push({ text: `${d.loop.fps}fps ${d.loop.frameMs.toFixed(1)}ms`, fg: c.subtle, priority: 2 });
   parts.push({ text: `${IS_MAC ? "⌘K" : "^K"} ${t("menu")}`, fg: c.muted, cmd: "menu", priority: 9 });
   parts.push({ text: `F1 ${t("help")}`, fg: c.muted, cmd: "manual", priority: 5 });
-  // the side panel's switch: always the last thing on the right
-  parts.push({ text: `◧ ${t("panel")}`, fg: d.settings.data.panel?.shown ? c.accent : c.muted, cmd: "panel", tip: `${t("the side panel: widgets always in view · panel")} · ${IS_MAC ? "⌘⇧P" : "ctrl+shift+P"}`, priority: 8 });
+  // the two side frames' switches, last on the right: the tree (left, ◧) and the panel (right, ◨)
+  parts.push({ text: `◧ ${t("tree")}`, fg: d.workspace.sidebarVisible ? c.accent : c.muted, cmd: "view sidebar", tip: `${t("the file tree on the left · view sidebar")} · ${IS_MAC ? "⌘B" : "ctrl+B"}`, priority: 8 });
+  parts.push({ text: `◨ ${t("panel")}`, fg: d.settings.data.panel?.shown ? c.accent : c.muted, cmd: "panel", tip: `${t("the side panel: widgets always in view · panel")} · ${IS_MAC ? "⌘⇧P" : "ctrl+shift+P"}`, priority: 8 });
 
   // the things touch: each right part carries its own "│ " and spaces
   const bar = new Bar(ui, r.x, r.y, r.x + r.w, 0);
@@ -321,7 +322,7 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
     bar.item(w + 3, (rx) => {
       ui.text(rx, r.y, "│ ", { fg: c.faint, bg: c.statusBg });
       // the whole cell is the button (the separator and the spaces around the text too):
-      // a one-character button like ◧ is hard to hit otherwise
+      // a one-character button like ◨ is hard to hit otherwise
       const cell = { x: rx, y: r.y, w: w + 3, h: 1 };
       const hot = !!p.cmd && ui.hovered(cell);
       if (hot) ui.fill({ x: rx + 1, y: r.y, w: w + 2, h: 1 }, { bg: c.highlight });

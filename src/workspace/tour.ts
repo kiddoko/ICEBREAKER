@@ -57,7 +57,7 @@ const STEPS: TourStep[] = [
   },
   {
     title: "THE PANEL",
-    text: "Widgets that stay in view whatever page you're on. ◧ in the status bar or ⌘⇧P shows or hides it; e edits it together with HOME.",
+    text: "Widgets that stay in view whatever page you're on. ◨ in the status bar or ⌘⇧P shows or hides it; e edits it together with HOME.",
     prep: (ws) => ws.deck.history.quiet(() => ws.deck.settings.set("panel.shown", true)),
     at: (ws) => ws.rects.panel,
   },
@@ -69,7 +69,7 @@ const STEPS: TourStep[] = [
   },
   {
     title: "STATUS BAR",
-    text: "On the left, what the keys do where you are. On the right: ▾ the shell, ⌨ the on-screen keyboard, ✦ the effects, ♪ sound on / off, ☾ the screensaver, ⌘K the menu, F1 the manual, ◧ the panel.",
+    text: "On the left, what the keys do where you are. On the right: ▾ the shell, ⌨ the on-screen keyboard, ✦ the effects, ♪ sound on / off, ☾ the screensaver, ⌘K the menu, F1 the manual, ◧ the tree, ◨ the panel.",
     at: (_ws, s) => ({ x: 0, y: s.h - 1, w: s.w, h: 1 }),
   },
   {

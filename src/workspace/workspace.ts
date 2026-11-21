@@ -404,7 +404,7 @@ export class Workspace {
   }
 
   /** Show an app; if one with the same key is open, switch to it instead. */
-  /** the side panel on the right (◧): widgets always in view — see sidepanel.ts */
+  /** the side panel on the right (◨): widgets always in view — see sidepanel.ts */
   readonly sidePanel: SidePanel;
   /** where the side panel is this frame (null: hidden) — HOME drops widgets on it */
   get panelArea(): Rect | null {
@@ -1353,14 +1353,14 @@ export class Workspace {
       // a tab moved here (tab move <n> tree) may be the one shown instead of the tree
       const moved = this.shownIn("vault");
       const inner = tabbedBox(ui, vaultR, { focused, info: moved ? undefined : `${d.vault.markdown().length}` });
-      const own = soloTab(ui, vaultR, "VAULT", focused, { onClick: () => (moved ? this.showIn("vault", null) : (this.focus = "sidebar")), tip: t("your notes and files · ⌘B hides the tree"), menu: () => [...frameMenu("tree"), "-", { label: t("Hide"), cmd: "tree", hint: IS_MAC ? "⌘B" : "ctrl+B" }] }, !moved);
+      const own = soloTab(ui, vaultR, "VAULT", focused, { onClick: () => (moved ? this.showIn("vault", null) : (this.focus = "sidebar")), tip: t("your notes and files · ◧ or ⌘B hides the tree"), menu: () => [...frameMenu("tree"), "-", { label: t("Hide tree"), cmd: "view sidebar", hint: IS_MAC ? "⌘B" : "ctrl+B" }] }, !moved);
       placeChips(this, ui, own.x + own.w + INSET, vaultR.y, vaultR.x + vaultR.w - INSET, "vault", focused);
       // (clipped: in a tiny window the tree's list drew a row under its frame)
       if (moved) ui.clip(inner, () => moved.render(ui, inner, focused));
       else ui.clip(inner, () => this.sidebar.render(ui, inner, this.focus === "sidebar"));
     }
 
-    // the side panel on the right: widgets that stay in view (panel show · ◧ in the status bar);
+    // the side panel on the right: widgets that stay in view (panel show · ◨ in the status bar);
     // folded by the solver when the page would keep less than 40 cells
     this.sidePanel.area = null;
     const panelR = strips.has("panel") ? undefined : at.get("panel");

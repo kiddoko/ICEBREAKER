@@ -465,7 +465,7 @@ const notifyCmd: Command = {
 
 const panelCmd: Command = {
   name: "panel",
-  summary: "the side panel on the right: widgets always in view (◧ in the status bar)",
+  summary: "the side panel on the right: widgets always in view (◨ in the status bar)",
   usage: "panel                show / hide it\npanel show | hide\npanel add [widget]   one more (no name: the list; the same widget again: another copy)\npanel rm <widget>\npanel up | down <widget>   reorder\npanel height <widget> <lines>   how tall it is\npanel top <widget> <line>       where it starts (gaps allowed)\npanel ls",
   complete: () => ["show", "hide", "add", "rm", "up", "down", "height", "top", "ls"],
   run(ctx) {

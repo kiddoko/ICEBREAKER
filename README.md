@@ -46,7 +46,7 @@ scanlines — and works with the keyboard, the mouse or a gamepad.
 
 ### HOME and the side panel
 - **Widgets** anywhere on HOME, gaps included, on several pages; drag them, pull a corner to resize, open one for its pop-up and settings. TODO, REMINDERS and HABITS entries are edited and removed right in their widget. The **same widget several times**, each copy with its own settings (two clocks, two news feeds…).
-- **The side panel** (◧): widgets that stay in view on every page, edited together with HOME.
+- **The side panel** (◨): widgets that stay in view on every page, edited together with HOME.
 - **Pins and shortcut squares are one list**: pin a note, folder, module, page, macro or command — it shows at the top of the tree, in the pinned widget, and as a square on HOME if you like.
 - **PULSE**: one widget for what's happening — the next event, tasks due, reminders, music, focus, weather, errors.
 
