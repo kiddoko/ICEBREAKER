@@ -1,4 +1,5 @@
 import { startHereCommand } from "./vault/starthere";
+import { PRESETS } from "./workspace/layout/arrange";
 import type { ModuleSettingSpec } from "./plugins/api";
 import { focusSpec } from "./apps/focus";
 import { clocksSpec } from "./apps/clocks";
@@ -1303,6 +1304,9 @@ export class Deck implements InputSink {
       out.push({ id: `app.${spec.kind}`, title: spec.title, group: "open", hint: spec.description, run: () => void this.openApp(spec.kind) });
     }
     for (const t of this.themes.list()) out.push({ id: `theme.${t.name}`, title: t.name, group: "theme", hint: t.description, run: () => void this.setTheme(t.name) });
+    // the ready-made layouts (the user's: THE MENU runs them as you, like ibsh)
+    for (const [name, p] of Object.entries(PRESETS)) out.push({ id: `layout.${name}`, title: `layout preset ${name}`, group: "layout", hint: p.doc, run: () => void this.act(`layout preset ${name}`) });
+    out.push({ id: "layout.reset", title: "layout reset", group: "layout", hint: "the classic layout back", run: () => void this.act("layout reset") });
     for (const e of this.vault.markdown().slice(0, 3000)) out.push({ id: `file.${e.path}`, title: e.path, group: "file", run: () => void this.openFile(e.path) });
     for (const c of this.commands.all()) out.push({ id: `cmd.${c.name}`, title: c.name, group: "$", hint: c.summary, run: () => void this.shell.runLine(c.name).then(() => this.workspace.focusShell()) });
     return out;

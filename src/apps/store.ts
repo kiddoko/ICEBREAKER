@@ -2,7 +2,6 @@ import { fmt } from "../core/ansi";
 import { compareVersions } from "../plugins/deps";
 import { FilterBar } from "../ui/filterbar";
 import { tabs } from "../ui/controls";
-import { fuzzyFilter } from "../core/fuzzy";
 import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
@@ -155,6 +154,21 @@ function owned(deck: Deck): Owned[] {
   return [...mods, ...themes];
 }
 
+/**
+ * The STORE's search: every word you type is in the name, the id, the description or the
+ * author — the name's matches first. (A fuzzy search let "clock" find VOICE, CALENDAR and
+ * MUSIC through letters scattered in their descriptions: it looked like no filter at all.)
+ */
+function matching<T>(query: string, list: T[], names: (x: T) => string[], more: (x: T) => string): T[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const hits = list.filter((x) => {
+    const text = `${names(x).join(" ")} ${more(x)}`.toLowerCase();
+    return words.every((w) => text.includes(w));
+  });
+  const inName = (x: T) => words.every((w) => names(x).join(" ").toLowerCase().includes(w));
+  return [...hits.filter(inName), ...hits.filter((x) => !inName(x))];
+}
+
 class StoreApp implements App {
   readonly kind = "store";
   readonly key = "store";
@@ -183,11 +197,11 @@ class StoreApp implements App {
     if (this.tab === "sources") return indexSources(d);
     if (this.tab === "installed") {
       const list = owned(d);
-      return this.query ? fuzzyFilter(this.query, list, (o) => `${o.name} ${o.id} ${o.description}`, 100) : list;
+      return this.query ? matching(this.query, list, (o) => [o.name, o.id], (o) => `${o.description}`) : list;
     }
     // the deck's own removed modules first, then the index (a built-in listed by both: once)
     const list = catalog(d).filter((e) => e.kind === (this.tab === "modules" ? "plugin" : "theme"));
-    return this.query ? fuzzyFilter(this.query, list, (e) => `${e.name} ${e.id} ${e.description} ${e.author}`, 100) : list;
+    return this.query ? matching(this.query, list, (e) => [e.name, e.id], (e) => `${e.description} ${e.author}`) : list;
   }
 
   /** The main action of a row: install / enable / use / … — always a command. */

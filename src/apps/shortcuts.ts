@@ -2,7 +2,7 @@ import { Glide } from "../ui/glide";
 import { FilterBar } from "../ui/filterbar";
 import { fmt } from "../core/ansi";
 import { mix } from "../core/color";
-import { strWidth } from "../core/unicode";
+import { strWidth, truncate } from "../core/unicode";
 import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
@@ -215,8 +215,12 @@ class ShortcutsApp implements App {
 }
 
 /** keys too long for their column keep their end (the key itself) */
+/** Too long for the column: the first of its keys, whole (cut from the left, "…ift+P" read as nothing). */
 function truncateKeys(k: string, w: number): string {
-  return strWidth(k) <= w ? k : `…${k.slice(k.length - w + 1)}`;
+  if (strWidth(k) <= w) return k;
+  const first = k.split(" · ")[0];
+  if (strWidth(first) + 2 <= w && first !== k) return `${first} …`;
+  return strWidth(first) <= w ? first : truncate(first, w);
 }
 
 export const shortcutsSpec: AppSpec = {

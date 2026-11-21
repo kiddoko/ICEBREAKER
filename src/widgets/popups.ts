@@ -338,7 +338,8 @@ const newsPopup: WidgetPopupSpec = {
         const w = label.length + GAP;
         if (x + w > x1) (x = x0), y++;
         const on = src.cats.includes(id);
-        ui.button(x, y, label, () => {}, { cmd: `news show ${on ? "-" : "+"}${id}`, selected: on });
+        // the same look as the NEWS page's chips (the ones not ticked: quiet)
+        ui.button(x, y, label, () => {}, { cmd: `news show ${on ? "-" : "+"}${id}`, selected: on, quiet: !on, tip: on ? t("click: not this one") : t("click: this one too") });
         x += w + INSET;
       }
       y++;

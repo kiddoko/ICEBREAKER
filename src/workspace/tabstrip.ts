@@ -92,6 +92,9 @@ export function soloTab(ui: UI, r: Rect, label: string, focused: boolean, hit: {
   return rect;
 }
 
+/** the key that shows tab i (⌘1…9 / ctrl+1…9): none past the ninth ("ctrl+11" doesn't exist) */
+const tabKey = (i: number): string => (i < 9 ? (IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`) : "");
+
 /** HOME is pinned: first, ⌂, no × (it can't be closed by mistake) */
 export const isPinned = (ws: Workspace, i: number) => ws.tabs[i]?.kind === "home";
 /** the pinned tab's width: "⌂ home" */
@@ -114,7 +117,8 @@ let dropFrame: { from: PlaceFrame | "main"; to: PlaceFrame | "main" } | null = n
 export function drawDropFrame(ws: Workspace, ui: UI): void {
   if (!dropFrame || dropFrame.to === dropFrame.from) return;
   const r = ws.rects[PANE_OF[dropFrame.to]];
-  if (r) ui.box(r, { border: "dashed", focused: true, fill: false, title: t("drop: the tab goes here") });
+  // (a narrow frame: the short one — "drop: the tab goes he…" was cut)
+  if (r) ui.box(r, { border: "dashed", focused: true, fill: false, title: r.w >= strWidth(t("drop: the tab goes here")) + 8 ? t("drop: the tab goes here") : t("drop here") });
 }
 
 /** Drag handlers for tab `i` living in frame `from`: dropped onto another frame, it moves there. */
@@ -253,13 +257,15 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
       ui.text(tx, r.y, ws.tabs[i].title().toLowerCase(), { fg, bg, attrs: on ? BOLD : 0 }, x + w - 1 - tx);
       // it can go to another frame (dragged onto it), not elsewhere in this strip
       const toFrame = dragToFrame(ws, i, "main");
-      ui.hit(rect, { cmd: `tab ${i + 1}`, tip: `${ws.tabs[i].title()} · ${t("pinned: always first")}\n${IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`} · ${t("drag it onto another frame to move it")}`, menu: () => tabMenu(ws, i), onDrag: (m) => void toFrame.onDrag(m), onUp: () => void toFrame.onUp() });
+      ui.hit(rect, { cmd: `tab ${i + 1}`, tip: `${ws.tabs[i].title()} · ${t("pinned: always first")}\n${tabKey(i) ? `${tabKey(i)} · ` : ""}${t("drag it onto another frame to move it")}`, menu: () => tabMenu(ws, i), onDrag: (m) => void toFrame.onDrag(m), onUp: () => void toFrame.onUp() });
     } else if (e.kind === "group") {
       // ▣ the group: its name (or its shown tab's), how many; hover lists them
       // a named group says which of its tabs is shown too ("boulot · ideas")
       const shownTitle = ws.tabs[i]?.title().toLowerCase() ?? "";
       const name = e.group.name ? `${e.group.name}${shownTitle ? ` · ${shownTitle}` : ""}` : shownTitle || t("group");
       const count = ` ${e.indexes.length}`;
+      // ⌘ held: the number of the tab it shows (a group had none, even the one in front)
+      if (numbers && i < 9) tx = ui.text(tx, r.y, `${i + 1} `, { fg: on ? c.panel : c.accent, bg, attrs: BOLD });
       tx = ui.text(tx, r.y, "▣ ", { fg: on ? c.panel : c.accent, bg, attrs: BOLD });
       // cut with "…", never a moving marquee: a chip is read at a glance
       ui.text(tx, r.y, truncate(name, Math.max(0, x + w - 1 - strWidth(count) - tx)), { fg, bg, attrs: on ? BOLD : 0 });
@@ -280,7 +286,7 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
       const toFrame = dragToFrame(ws, i, "main");
       ui.hit(rect, {
         cmd: `tab ${i + 1}`,
-        tip: `${ws.tabs[i].title()}\n${IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`} · ${t("drag: move it, or onto another tab: a group · right-click: close others…")}`,
+        tip: `${ws.tabs[i].title()}\n${tabKey(i) ? `${tabKey(i)} · ` : ""}${t("drag: move it, or onto another tab: a group · right-click: close others…")}`,
         menu: () => tabMenu(ws, i),
         // drag it: beside another chip moves it there, onto the middle of one makes a group
         // (never before or onto the pinned HOME)

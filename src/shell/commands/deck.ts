@@ -6,6 +6,8 @@ import { DEFAULT_SETTINGS } from "../../core/settings";
 import { sayCommand, stealthCommand, voiceCommand } from "./voice";
 import { encodersCommand } from "./encoders";
 import { fmt } from "../../core/ansi";
+import { realDeck } from "../origin";
+import { formatUptime } from "./system";
 import { askInShell, asker } from "../ask";
 import { padEnd } from "../../core/unicode";
 import { ASK_SYSTEM_PROMPT } from "../../ai/prompts";
@@ -176,9 +178,21 @@ const link: Command = {
 const sysmon: Command = {
   name: "sysmon",
   aliases: ["top", "htop", "btop"],
-  summary: "system monitor",
-  run(ctx) {
-    ctx.deck.openApp("sysmon");
+  summary: "the computer's vitals (sysmon open: the SYSMON page)",
+  usage: "sysmon        cpu, memory, uptime, the busiest programs, the disks\nsysmon open   the SYSMON page (live graphs)",
+  // like `moon` and `stats`: the command prints, `open` opens the page
+  async run(ctx) {
+    if (ctx.args[0] === "open") return void ctx.deck.openApp("sysmon");
+    const s = await ctx.deck.platform.system.stats();
+    const gb = (n: number) => `${(n / 1024 ** 3).toFixed(1)} G`;
+    ctx.out(`${fmt.bold(s.host)} · ${s.os} · up ${formatUptime(s.uptime)}\n`);
+    ctx.out(`cpu ${Math.round(s.cpu)}% (${s.cores.length} cores) · memory ${gb(s.memUsed)} / ${gb(s.memTotal)}${s.swapTotal ? ` · swap ${gb(s.swapUsed)}` : ""} · ${s.processes} processes\n`);
+    // a line with an origin (a module, your real terminal) gets the vitals only, as through
+    // sysmon.stats — not the programs or the disks (docs/SECURITY_AUDIT.md #61)
+    if (realDeck(ctx.deck) !== ctx.deck) return 0;
+    for (const p of (s.top ?? []).slice(0, 5)) ctx.out(`  ${p.name.padEnd(24).slice(0, 24)} ${`${Math.round(p.cpu)}%`.padStart(5)} ${gb(p.mem).padStart(8)}\n`);
+    for (const d of s.disks ?? []) ctx.out(fmt.dim(`  ${d.mount} ${gb(d.total - d.available)} / ${gb(d.total)}\n`));
+    return 0;
   },
 };
 

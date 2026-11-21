@@ -336,6 +336,9 @@ export function activate(ib: IcebreakerAPI): void {
     nextId = await ib.storage.get<number>("next", tasks.reduce((m, t) => Math.max(m, t.id + 1), 1));
     savedJson = snapshot();
     loaded = true;
+    // today's count for STATS at start too (it was only sent on a change: STATS said 0 open
+    // while TODO said 3)
+    void ib.stats.set("open", tasks.filter((t) => !t.done).length, { label: "tasks open" }).catch(() => {});
     ib.ui.redraw();
   })();
   const write = async () => {
