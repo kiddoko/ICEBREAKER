@@ -142,7 +142,8 @@ export class ContextMenu implements Overlay {
 
     this.levels.forEach((l, depth) => {
       const items = l.items;
-      const labelW = Math.max(6, ...items.map((e) => (e === "-" ? 0 : strWidth(e.label) + (e.color !== undefined || e.checked !== undefined ? 2 : 0))));
+      const marks = items.some((e) => e !== "-" && (e.color !== undefined || e.checked !== undefined));
+      const labelW = Math.max(6, ...items.map((e) => (e === "-" ? 0 : strWidth(e.label) + (marks ? 2 : 0))));
       const hintW = Math.max(0, ...items.map((e) => (e === "-" ? 0 : e.sub ? 1 : strWidth(osKeys(e.hint ?? "")))));
       const titleW = depth === 0 && this.title ? strWidth(this.title) + 4 : 0;
       let w = Math.min(screen.w - 2, Math.max(titleW, labelW + (hintW ? hintW + 3 : 0) + 4));
@@ -189,6 +190,9 @@ export class ContextMenu implements Overlay {
         let tx = inner.x + 1;
         if (e.checked !== undefined) tx = ui.text(tx, ry, e.checked ? "✓ " : "  ", { fg: sel ? c.panel : c.accent, bg });
         else if (e.color !== undefined) tx = ui.text(tx, ry, "■ ", { fg: e.color, bg });
+        // a menu where some lines have a tick / a colour square: the others leave its room too,
+        // so every label starts at the same place (the ◆ menu: pages ticked, the rest not)
+        else if (marks) tx += 2;
         ui.text(tx, ry, e.label, { fg, bg, attrs: sel ? BOLD : 0, raw: true }, inner.w - (tx - inner.x) - (hintW ? hintW + 2 : 1)); // a name, never keys
         const right = e.sub ? "▸" : osKeys(e.hint ?? "");
         // a shortcut is a key; "shift+click", "ls -la" and the like stay words
