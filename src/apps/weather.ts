@@ -23,6 +23,7 @@ import { fitMatrix, matrixSize, matrixText } from "../ui/dots";
 import type { UI } from "../ui/ui";
 import { sky } from "../widgets/builtin";
 import type { App, AppSpec } from "./types";
+import { Bar, INSET } from "../ui/layout";
 import { places } from "../core/suggest";
 
 type Sky = ReturnType<typeof sky>;
@@ -249,17 +250,19 @@ class WeatherApp implements App {
     const sec = ui.now / 1000;
     ui.animate(sk === "storm" ? 60 : 110);
     // header: the place, your places, search
-    let x = ui.text(r.x + 2, r.y + 1, placeName(f.place), { fg: c.title, attrs: BOLD });
-    x += 2;
-    x += ui.button(x, r.y + 1, t("⌕ search"), () => void this.search(), { tip: "s · weather <place>" }) + 1;
+    // (a Bar: when the page is narrow, your places go first, then save, then search; the
+    // place's name shrinks with … — s, p and ←→ still work)
+    const head = new Bar(ui, r.x + INSET * 2, r.y + 1, r.x + r.w - INSET * 2);
+    head.text(placeName(f.place), { fg: c.title, attrs: BOLD }, { priority: 9, fit: 10 });
+    head.button(t("⌕ search"), () => void this.search(), { tip: "s · weather <place>" }, { priority: 6 });
     const saved = this.places().some((p) => p.name === f.place.name && Math.abs(p.lat - f.place.lat) < 0.01);
-    x += ui.button(x, r.y + 1, saved ? t("★ saved") : t("☆ save"), () => void this.deck.act(`weather ${saved ? "forget" : "save"} ${f.place.name}`), { tip: "p" }) + 2;
+    head.button(saved ? t("★ saved") : t("☆ save"), () => void this.deck.act(`weather ${saved ? "forget" : "save"} ${f.place.name}`), { tip: "p" }, { priority: 5 });
     for (const [i, p] of this.places().entries()) {
-      if (x > r.x + r.w - 12) break;
       const on = p.name === f.place.name;
-      x += ui.button(x, r.y + 1, p.name, () => ((this.placeIndex = i), void this.load(p)), { selected: on, tip: "←→" }) + 1;
+      head.button(p.name, () => ((this.placeIndex = i), void this.load(p)), { selected: on, tip: "←→" }, { priority: on ? 4 : 3 });
     }
-    if (this.loading) ui.textRight(r.x + r.w - 2, r.y + 1, ui.spinner(), { fg: c.accent });
+    if (this.loading) head.text(ui.spinner(), { fg: c.accent }, { side: "right", priority: 8 });
+    head.draw();
 
     // the sky (left) and the numbers (right)
     const skyW = Math.max(20, Math.floor(r.w * 0.45)), skyH = Math.max(6, Math.min(14, Math.floor(r.h * 0.45)));
@@ -274,15 +277,20 @@ class WeatherApp implements App {
       matrixText(ui, nx, ny, temp, k, () => c.accent);
       ny += matrixSize(temp, k).h + 1;
     } else ui.text(nx, ny++, temp, { fg: c.accent, attrs: BOLD });
-    ui.text(nx, ny++, `${GLYPH[sk]}  ${t(LABEL[sk])}`, { fg: c.fg, attrs: BOLD });
-    ui.text(nx, ny++, `${t("feels")} ${Math.round(f.feels)}° · ${t("humidity")} ${f.humidity}%`, { fg: c.subtle });
-    ui.text(nx, ny++, `${t("wind")} ${Math.round(f.wind)} km/h ${arrow(f.windDir)}`, { fg: c.subtle });
-    ui.text(nx, ny++, `☀ ${f.days[0]?.sunrise}  ☾ ${f.days[0]?.sunset}`, { fg: c.subtle });
+    // the numbers: cut with … at the page's edge, and never down into the week's rows
+    const nw = Math.max(0, r.x + r.w - INSET * 2 - nx);
+    const nyEnd = r.y + r.h - 3;
+    const line = (s: string, style: { fg: number; attrs?: number }) => void (ny < nyEnd && ui.text(nx, ny++, s, style, nw));
+    line(`${GLYPH[sk]}  ${t(LABEL[sk])}`, { fg: c.fg, attrs: BOLD });
+    line(`${t("feels")} ${Math.round(f.feels)}° · ${t("humidity")} ${f.humidity}%`, { fg: c.subtle });
+    line(`${t("wind")} ${Math.round(f.wind)} km/h ${arrow(f.windDir)}`, { fg: c.subtle });
+    line(`☀ ${f.days[0]?.sunrise}  ☾ ${f.days[0]?.sunset}`, { fg: c.subtle });
 
     // the next 24 hours: a curve, the rain chances under it
     const cy = skyR.y + skyH + 1;
     const cw = r.w - 6, chH = Math.max(3, Math.min(6, r.y + r.h - cy - 8));
-    if (cw > 20 && cy + chH + 3 < r.y + r.h) {
+    // the curve, its rain row and its hours end above the week (its 3 rows at the bottom)
+    if (cw > 20 && cy + chH + 2 < r.y + r.h - 3) {
       const temps = f.hours.map((h) => h.temp);
       const lo = Math.min(...temps), hi = Math.max(...temps), span = hi - lo || 1;
       ui.text(r.x + 2, cy, t("next 24 h"), { fg: c.muted, attrs: BOLD });
@@ -298,8 +306,9 @@ class WeatherApp implements App {
       for (let i = 0; i < f.hours.length; i += 3) ui.text(r.x + 3 + Math.floor((i / f.hours.length) * cw), ry + 1, f.hours[i].t.slice(0, 2), { fg: c.faint });
     }
 
-    // the week
+    // the week (not when the page is too short: it would sit on the header)
     const wy = r.y + r.h - 3;
+    if (wy <= r.y + 2) return;
     const colW = Math.max(9, Math.floor((r.w - 4) / Math.min(7, f.days.length)));
     f.days.slice(0, Math.floor((r.w - 4) / colW)).forEach((d, i) => {
       const dx = r.x + 2 + i * colW;
