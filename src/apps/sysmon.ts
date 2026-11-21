@@ -4,7 +4,8 @@ import type { SystemStats } from "../platform/types";
 import { formatUptime } from "../shell/commands/system";
 import type { UI } from "../ui/ui";
 import type { App, AppSpec } from "./types";
-import { Bar, INSET } from "../ui/layout";
+import { Bar, GAP, INSET, Row } from "../ui/layout";
+import { strWidth } from "../core/unicode";
 
 /** SYSMON — live CPU / memory with braille graphs. Polls once per second while open. */
 export class SysmonApp implements App {
@@ -99,10 +100,12 @@ export class SysmonApp implements App {
         ["vault", `${this.deck.vault.markdown().length} notes`],
         ["fps", `${this.deck.loop.fps} · ${this.deck.loop.frameMs.toFixed(1)}ms`],
       ];
-      let x = r.x + 1;
+      // as many as fit, in this order (the last ones go first)
+      const row = new Row(ui, r.x + INSET, fy, r.x + r.w - INSET);
       for (const [k, v] of parts) {
-        x = ui.text(x, fy, `${k} `, { fg: c.subtle });
-        x = ui.text(x, fy, v, { fg: c.fg, attrs: BOLD }) + 3;
+        if (row.room < strWidth(`${k} ${v}`) + GAP) break;
+        row.label(k);
+        row.text(v, { fg: c.fg, attrs: BOLD });
       }
     }
   }
