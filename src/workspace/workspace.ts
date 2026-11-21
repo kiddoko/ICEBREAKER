@@ -426,7 +426,7 @@ export class Workspace {
     if (this.page) this.dropPage();
     const existing = this.tabs.findIndex((t) => t.key === app.key);
     // already open in another frame: shown there
-    if (existing >= 0 && this.placeOf(existing) !== "main") {
+    if (existing >= 0 && this.reachOf(existing) !== "main") {
       void app.close?.();
       this.switchTab(existing);
       return this.tabs[existing];
@@ -524,7 +524,7 @@ export class Workspace {
   /** The strip's chips this frame: lone tabs and groups (closed tabs leave their groups). */
   stripEntries(): StripEntry[] {
     // the page frame's tabs only (the others are drawn by their frames); indexes stay the tabs'
-    const keys = this.tabKeys().map((k, i) => (this.placeOf(i) === "main" ? k : ""));
+    const keys = this.tabKeys().map((k, i) => (this.reachOf(i) === "main" ? k : ""));
     this.groups = prune(this.groups, keys);
     const shown = keys[this.active];
     if (shown) this.groups = pick(this.groups, shown);
@@ -583,7 +583,7 @@ export class Workspace {
     if (n === 0) return;
     const next = ((i % n) + n) % n;
     // a tab that lives in another frame: that frame shows it, and gets the focus
-    const at = this.placeOf(next);
+    const at = this.reachOf(next);
     // a frame that can't be shown now (the shell is a big tab, TERMINAL is off): the tab comes
     // back to the page's frame rather than staying out of reach
     if (at !== "main" && !this.canShow(at)) return void this.moveTabTo(next, "main");
@@ -603,6 +603,20 @@ export class Workspace {
 
   // ── tabs in other frames (tabplaces.ts) ──────────────────────────────────
 
+  /** the frames drawn last frame (a tab whose frame isn't among them is reached in the page's) */
+  private onScreen = new Set<PlaceFrame>();
+  private drawnOnce = false;
+
+  /**
+   * Where tab `i` can be reached right now: its frame, or — when that frame isn't on screen
+   * (a narrow window drops the panel, the tree or the shell hidden) — the page's frame, until
+   * its own comes back (it was in no list at all).
+   */
+  reachOf(i: number): PlaceFrame | "main" {
+    const at = this.placeOf(i);
+    return at !== "main" && this.drawnOnce && !this.onScreen.has(at) ? "main" : at;
+  }
+
   /** the frame tab `i` lives in */
   placeOf(i: number): PlaceFrame | "main" {
     const key = this.tabs[i]?.key;
@@ -611,7 +625,7 @@ export class Workspace {
 
   /** the real tabs (indexes) that live in the page's frame */
   mainTabs(): number[] {
-    return Array.from({ length: this.tabCount }, (_, i) => i).filter((i) => this.placeOf(i) === "main");
+    return Array.from({ length: this.tabCount }, (_, i) => i).filter((i) => this.reachOf(i) === "main");
   }
 
   /** the tabs (indexes) that live in frame `f`, in tab order */
@@ -726,7 +740,7 @@ export class Workspace {
   /** The page's frame shows a tab that lives there (the nearest one; HOME comes back if none is left). */
   private fixActive(): void {
     if (this.page && this.active === this.tabs.length - 1) return;
-    if (this.placeOf(this.active) === "main" && this.active < this.tabCount) return;
+    if (this.reachOf(this.active) === "main" && this.active < this.tabCount) return;
     let mine = this.mainTabs();
     if (!mine.length) {
       // every tab went elsewhere: HOME comes back to the page's frame
@@ -1338,12 +1352,16 @@ export class Workspace {
 
     // a tab shown in a frame that isn't on screen (a narrow window drops the panel): back to the
     // page's frame, where it can be reached (it was in no list at all)
-    const asked = this.revealing;
-    this.revealing = null;
-    if (asked && this.shows[asked] && !this.rects[PANE_OF[asked]]) {
-      const i = this.tabs.findIndex((a) => a.key === this.shows[asked]);
-      if (i >= 0) this.moveTabTo(i, "main");
+    // which frames are on screen: a tab whose frame isn't is reached in the page's (reachOf)
+    const seen = new Set<PlaceFrame>([...(this.rects.sidebar ? ["vault" as const] : []), ...(this.rects.panel ? ["panel" as const] : []), ...(this.rects.shell ? ["shell" as const] : [])]);
+    if ([...seen].join() !== [...this.onScreen].join() || !this.drawnOnce) {
+      this.onScreen = seen;
+      this.drawnOnce = true;
+      d.requestFrame();
     }
+    // (a tab asked to show in a frame that didn't come on screen: reachOf has it in the page's)
+    if (this.revealing && !this.rects[PANE_OF[this.revealing]]) d.requestFrame();
+    this.revealing = null;
     // a tab dragged onto another frame: that frame, outlined
     drawDropFrame(this, ui);
 

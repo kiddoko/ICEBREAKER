@@ -57,7 +57,9 @@ stacked, moved, split, folded. This page is how it works and where it stands.
   content — a click on the frame's own tab brings that back. HOME too (still pinned: no ×).
   Keys go to the page the focused frame shows, and so does the status bar. ⌘1…9 on a tab
   that lives elsewhere shows it there; ctrl+tab steps through the page frame's tabs only.
-  The page's frame keeps at least one tab (HOME comes back to it otherwise). Where each
+  The page's frame keeps at least one tab (HOME comes back to it otherwise). A tab whose frame
+  isn't on screen (the tree, the panel or the shell hidden, or dropped by a narrow window)
+  is in the page's frame's tabs meanwhile, and goes back to its own when it's there again. Where each
   tab lives and what each frame shows are saved with the session (`session.places`,
   `session.shows`, checked when read back). A narrow frame shows the tab it shows first,
   the rest in "+N".
