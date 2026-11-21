@@ -217,15 +217,28 @@ export class CrtGlass {
     this.dirty.add("screen");
   }
 
-  /** A layer changed: compose again once this task is over (one pass for everything that changed). */
+  /** when the glass was last composed */
+  private composedAt = 0;
+  /** at most this often (ms): each pass sends the whole screen to WebGL (+40 points of CPU at the screen's rate) */
+  private static readonly EVERY = 33;
+
+  /**
+   * A layer changed: compose again — at once when the last pass is old enough, else when it is
+   * (30 passes a second at most; what changed meanwhile goes in that one pass, nothing is lost).
+   */
   touch(layer: Layer, input: () => GlassInput): void {
     this.dirty.add(layer);
     if (this.queued || this.lost) return;
     this.queued = true;
-    queueMicrotask(() => {
+    const run = () => {
       this.queued = false;
-      if (!this.lost) this.compose(input());
-    });
+      if (this.lost) return;
+      this.composedAt = performance.now();
+      this.compose(input());
+    };
+    const wait = this.composedAt + CrtGlass.EVERY - performance.now();
+    if (wait > 0) setTimeout(run, wait);
+    else queueMicrotask(run);
   }
 
   private compose(f: GlassInput): void {
