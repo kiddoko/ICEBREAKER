@@ -40,7 +40,7 @@ export const CORE_PACKAGES: CorePackage[] = [
   { id: "sysmon", name: "SYSMON", icon: "▤", description: "the machine's vitals: cpu, memory, processes", commands: ["sysmon"], apps: ["sysmon"], widgets: ["system"] },
   { id: "studio", name: "THEME STUDIO", icon: "◐", description: "every knob of the current theme, with a live preview", apps: ["studio"] },
   { id: "voice", name: "VOICE", icon: "◖", description: "the deck's voice: local text-to-speech through a robot filter", commands: ["voice"], launcher: false },
-  { id: "news", name: "NEWS", icon: "≡", description: "headlines for your area or a topic, with summaries", commands: ["news"], widgets: ["news"] },
+  { id: "news", name: "NEWS", icon: "≡", description: "headlines for your area, your country, the categories and words you follow — a page and a widget", commands: ["news"], apps: ["news"], widgets: ["news"] },
   { id: "weather", name: "WEATHER", icon: "☂", description: "now, the next 24 h and the week (open-meteo.com)", commands: ["weather"], apps: ["weather"], widgets: ["weather"] },
   { id: "clocks", name: "CLOCKS", icon: "◷", description: "the clock, world clocks, a timer and a stopwatch", commands: ["timer", "stopwatch", "worldclock", "clock"], apps: ["clocks"], widgets: ["clock", "worldclock"] },
   { id: "focus", name: "FOCUS", icon: "◎", description: "a pomodoro timer", commands: ["focus"], apps: ["focus"], widgets: ["focus"] },

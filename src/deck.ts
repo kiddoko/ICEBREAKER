@@ -2,6 +2,7 @@ import { startHereCommand } from "./vault/starthere";
 import type { ModuleSettingSpec } from "./plugins/api";
 import { focusSpec } from "./apps/focus";
 import { clocksSpec } from "./apps/clocks";
+import { newsSpec } from "./apps/news";
 import { weatherCommand, weatherSpec } from "./apps/weather";
 import { pinCommand, pinnedWidget, unpinCommand } from "./workspace/favorites";
 import { terminalSpec } from "./apps/terminal";
@@ -476,7 +477,7 @@ export class Deck implements InputSink {
     // the frame's own parts, callable like modules: deck.use("tree").reveal(…), ib.use("terminal")…
     for (const [id, fns] of Object.entries(frameServices(this))) this.services.exposeAll(id, fns);
     syncLinkWidgets(this); // the 1×1 shortcut squares
-    for (const a of [homeSpec, modulesSpec, storeSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec, shortcutsSpec, terminalSpec, weatherSpec, clocksSpec, focusSpec, trashSpec, blocksSpec]) this.apps.register(a);
+    for (const a of [homeSpec, modulesSpec, storeSpec, explorerSpec, studioSpec, setupSpec, noteSpec, journalSpec, linkSpec, sysmonSpec, settingsSpec, helpSpec, shortcutsSpec, terminalSpec, weatherSpec, clocksSpec, newsSpec, focusSpec, trashSpec, blocksSpec]) this.apps.register(a);
 
     registerCoreActions(this); // THE MENU's searchable actions (deck-actions.ts)
   }
