@@ -262,12 +262,16 @@ were on come back as you left them next time.
   nature, economy, world…: click the widget → THIS WIDGET), so two news widgets
   can show different things. **Featured** mode: one story, big, with its
   summary (↻ another one). \`news show science ai\`, \`news mode featured\`.
-- **⏻** (top right): log out — back to the login page.
+- **◆ ICEBREAKER ▾** (top left): the deck's menu — MODULES, STORE, NEXUS, settings,
+  the manual, what's new, updates, and **⏻ log out** (back to the login page, ⌘⇧L).
 - **What's new**: after each update, a short page opens once — the version big,
   what's new, what's fixed. To see it again: \`changelog\`, Settings → UPDATES →
   *What's new*, or THE MENU; ← → for the versions before.
-- **Tabs** are wide when there are few and get narrower as you open more; when
-  they don't fit any more, **▾ +N** lists the others.
+- **Tabs** sit on top of their frame (the page's, the shell's; VAULT and PANEL have
+  one each). They're wide when there are few and get narrower as you open more; when
+  they don't fit any more, **▾ +N** lists the others. **⌂ HOME is pinned**: always
+  the first tab (⌘1), it can't be closed by mistake. A page from the menu (STORE,
+  settings…) shows first, lit, with × to close it (or esc).
 - **PULSE** (a HOME widget): what's happening in your modules, one line each —
   the next event, tasks due, the next reminder, the music, the focus timer…
 - **Your profile icon**: Settings → YOU → profile icon (or \`avatar\`): a little

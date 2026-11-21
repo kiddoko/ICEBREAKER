@@ -1,11 +1,14 @@
 /**
- * THE TABS (Refonte UI step 3, docs/FRAMES.md) — thicker and readable:
+ * THE TABS (Refonte UI step 3, docs/FRAMES.md) — thicker and readable, on each frame's
+ * border:
  *
- *    ▌✎ ideas       ×▐  ☂ weather       ▦ todo      ▾ +3  +
- *     ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀
+ *     ⌂ home  ✎ ideas        ×  ☂ weather       ▦ todo      ▾ +3  +
+ *   ╭▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀─▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀─▀▀▀▀▀▀▀▀▀▀────────────╮
  *
- * Two rows: the name on top (an icon for what it is, the title, × on the one shown or
- * hovered), a half-block bar under it — the one shown in the accent. No number in front
+ * Two rows: the name above the frame (an icon for what it is, the title, × on the one
+ * shown or hovered), a half-block bar under it on the frame's top line — the one shown
+ * in the accent (dimmer when its frame hasn't the focus). HOME is pinned: always first,
+ * ⌂, no ×. No number in front
  * of the name any more: the numbers (⌘1…9) show only while ⌘ / ctrl is held. Wide when
  * there are few, narrower as more open (10–24 cells); the rest in a "▾ +N" list, the one
  * shown always visible. Drag a tab sideways to put it elsewhere (`tab move <n> <m>`).
@@ -15,7 +18,7 @@ import { t } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC } from "../core/input";
 import { strWidth, truncate } from "../core/unicode";
-import { q, type MenuEntry, type UI } from "../ui/ui";
+import { q, type BoxOptions, type MenuEntry, type UI } from "../ui/ui";
 import { Bar, INSET } from "../ui/layout";
 import type { Overlay } from "./overlays";
 import { groupOf } from "./tabgroups";
@@ -37,22 +40,90 @@ function iconOf(ws: Workspace, i: number): string {
   return ws.deck.apps.get(app.kind)?.icon?.trim()?.slice(0, 2) || "·";
 }
 
+// ── a frame's header: its tabs on its border ─────────────────────────────────
+
+/**
+ * A frame whose tabs sit on its border: the names on its first row, its box from the
+ * row under (each tab's half-block bar is drawn on the box's top line). Returns the box.
+ */
+export function tabbedBox(ui: UI, r: Rect, o: BoxOptions = {}): Rect {
+  return ui.box({ x: r.x, y: r.y + 1, w: r.w, h: Math.max(0, r.h - 1) }, o);
+}
+
+/** a tab's colours: the one shown (lit when its frame has the focus), hovered, the others */
+export function chipStyle(ui: UI, on: boolean, focused: boolean, hot: boolean): { fg: number; bg: number } {
+  const c = ui.c;
+  if (on) return { fg: c.panel, bg: focused ? c.accent : mix(c.accent, c.panel, 0.35) };
+  return { fg: hot ? c.fg : c.muted, bg: hot ? c.highlight : mix(c.panelAlt, c.fg, 0.06) };
+}
+
+/** One tab's body: its row in `bg`, and the half-block bar under it on the frame's line. */
+export function drawChip(ui: UI, x: number, y: number, w: number, bg: number, bar = bg): void {
+  ui.fill({ x, y, w, h: 1 }, { bg });
+  ui.text(x, y + 1, "▀".repeat(w), { fg: bar });
+}
+
+/**
+ * The header of a frame that holds one thing (VAULT, PANEL): one tab with its name,
+ * at the left of the header row. Returns its rect.
+ */
+export function soloTab(ui: UI, r: Rect, label: string, focused: boolean, hit: { cmd?: string; onClick?: () => void; tip?: string; menu?: () => MenuEntry[] }): Rect {
+  // one cell in from the frame's corner; the name with a space on each side
+  const w = Math.min(r.w - INSET * 2, strWidth(label) + INSET * 2);
+  const rect = { x: r.x + INSET, y: r.y, w, h: 2 };
+  if (w < 3) return rect;
+  const st = chipStyle(ui, true, focused, false);
+  drawChip(ui, rect.x, r.y, w, st.bg);
+  ui.text(rect.x + INSET, r.y, label, { fg: st.fg, bg: st.bg, attrs: BOLD }, w - INSET * 2);
+  ui.hit(rect, hit);
+  return rect;
+}
+
+/** HOME is pinned: first, ⌂, no × (it can't be closed by mistake) */
+export const isPinned = (ws: Workspace, i: number) => ws.tabs[i]?.kind === "home";
+/** the pinned tab's width: "⌂ home" */
+const pinW = (ws: Workspace, i: number) => strWidth(ws.tabs[i].title().toLowerCase()) + 4;
+
 /** A tab being dragged: which, onto which chip, and whether it drops ON it (a group) or beside it. */
 let dragging: { from: number; to: number; onto: boolean } | null = null;
 
-/** Draw the tabs in `r` (2 rows: names, bars): lone tabs and groups (workspace/tabgroups.ts). */
+/**
+ * Draw the main frame's tabs in `r` (2 rows: the names, then the frame's top line for
+ * their bars): an open page without a tab (STORE, settings…) first, then HOME, the lone
+ * tabs and the groups (workspace/tabgroups.ts).
+ */
 export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
   const c = ui.c;
+  const focused = ws.focus === "main" && !ws.topModal;
+  let x = r.x;
+  // a page from the deck menu (no tab of its own): shown first, lit, × closes it
+  const page = ws.page;
+  if (page) {
+    const label = `${ws.deck.apps.get(page.kind)?.icon?.trim()?.slice(0, 2) || "·"} ${t(page.title()).toLowerCase()}`;
+    const w = Math.min(r.w, strWidth(label) + 5);
+    const st = chipStyle(ui, true, focused, false);
+    drawChip(ui, x, r.y, w, st.bg);
+    ui.text(x + 1, r.y, label, { fg: st.fg, bg: st.bg, attrs: BOLD }, w - 4);
+    const xr = { x: x + w - 3, y: r.y, w: 3, h: 1 };
+    ui.text(x + w - 2, r.y, "×", { fg: ui.hovered(xr) ? c.error : st.fg, bg: st.bg, attrs: BOLD });
+    ui.hit({ x, y: r.y, w, h: 2 }, { tip: t("esc closes it") });
+    ui.hit(xr, { onClick: () => ws.closePage(), tip: t("close · esc") });
+    x += w + SEP + 1;
+  }
   const entries = ws.stripEntries();
   const n = entries.length;
-  const avail = r.w - PLUS_W;
-  let tabW = n ? Math.max(MINW, Math.min(MAXW, Math.floor(avail / n) - 1)) : MAXW;
-  const activeEntry = Math.max(0, entries.findIndex((e) => (e.kind === "tab" ? e.index === ws.active : e.indexes.includes(ws.active))));
+  // the pinned tab (HOME) keeps its own small width; the others share the rest
+  const pinned = entries.filter((e) => e.kind === "tab" && isPinned(ws, e.index)).map((e) => (e.kind === "tab" ? pinW(ws, e.index) + SEP : 0));
+  const pinnedW = pinned.reduce((a, b) => a + b, 0);
+  const others = n - pinned.length;
+  const avail = r.x + r.w - x - PLUS_W - pinnedW;
+  let tabW = others ? Math.max(MINW, Math.min(MAXW, Math.floor(avail / others) - 1)) : MAXW;
+  const activeEntry = page ? -1 : entries.findIndex((e) => (e.kind === "tab" ? e.index === ws.active : e.indexes.includes(ws.active)));
   let shown = Array.from({ length: n }, (_, i) => i);
-  if (n * (tabW + 1) > avail) {
+  if (others * (tabW + 1) > avail) {
     tabW = MINW;
     // so narrow that not even one tab fits beside the list: only the list
-    const fit = Math.floor((avail - MORE_W) / (tabW + 1));
+    const fit = Math.floor((avail - MORE_W) / (tabW + 1)) + pinned.length;
     shown = shown.slice(0, Math.max(0, fit));
     if (fit > 0 && activeEntry >= fit) shown[fit - 1] = activeEntry;
   }
@@ -64,30 +135,34 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
     const e = entries[shown[k]];
     return e ? (e.kind === "tab" ? e.index : e.indexes[0]) : -1;
   };
-  let x = r.x;
   shown.forEach((ei, k) => {
     const e = entries[ei];
-    const rect = { x, y: r.y, w: tabW, h: 2 };
+    const pin = e.kind === "tab" && isPinned(ws, e.index);
+    const w = pin && e.kind === "tab" ? pinW(ws, e.index) : tabW;
+    const rect = { x, y: r.y, w, h: 2 };
     rects.push(rect);
     const i = e.kind === "tab" ? e.index : (e.indexes.find((j) => ws.tabs[j]?.key === e.group.active) ?? e.indexes[0]);
     const on = ei === activeEntry;
     const hot = ui.hovered(rect);
     const target = !!dragging && dragging.onto && dragging.to === firstOf(k) && dragging.from !== i;
-    const bg = on ? c.accent : hot || target ? c.highlight : mix(c.panelAlt, c.fg, 0.06);
-    const fg = on ? c.panel : hot ? c.fg : c.muted;
-    ui.fill({ x, y: r.y, w: tabW, h: 1 }, { bg });
-    // the bar under it: the tab looks a row and a half tall
-    ui.text(x, r.y + 1, "▀".repeat(tabW), { fg: target ? c.accent : bg });
-    const closeX = x + tabW - 2;
+    const { fg, bg } = chipStyle(ui, on, focused, hot || target);
+    drawChip(ui, x, r.y, w, bg, target ? c.accent : bg);
+    const closeX = x + w - 2;
     let tx = x + 1;
-    if (e.kind === "group") {
+    if (pin) {
+      // ⌂ home: no ×, can't be dragged away from the first place
+      if (numbers && i < 9) tx = ui.text(tx, r.y, `${i + 1} `, { fg: on ? c.panel : c.accent, bg, attrs: BOLD });
+      else tx = ui.text(tx, r.y, "⌂ ", { fg: on ? c.panel : c.accent, bg, attrs: BOLD });
+      ui.text(tx, r.y, ws.tabs[i].title().toLowerCase(), { fg, bg, attrs: on ? BOLD : 0 }, x + w - 1 - tx);
+      ui.hit(rect, { cmd: `tab ${i + 1}`, tip: `${ws.tabs[i].title()} · ${t("pinned: always here")}\n${IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`}`, menu: () => tabMenu(ws, i) });
+    } else if (e.kind === "group") {
       // ▣ the group: its name (or its shown tab's), how many; hover lists them
       const name = e.group.name || ws.tabs[i]?.title().toLowerCase() || t("group");
       const count = ` ${e.indexes.length}`;
       tx = ui.text(tx, r.y, "▣ ", { fg: on ? c.panel : c.accent, bg, attrs: BOLD });
       // cut with "…", never a moving marquee: a chip is read at a glance
-      ui.text(tx, r.y, truncate(name, Math.max(0, x + tabW - 1 - strWidth(count) - tx)), { fg, bg, attrs: on ? BOLD : 0 });
-      ui.text(x + tabW - 1 - strWidth(count), r.y, count, { fg: on ? c.panel : c.subtle, bg });
+      ui.text(tx, r.y, truncate(name, Math.max(0, x + w - 1 - strWidth(count) - tx)), { fg, bg, attrs: on ? BOLD : 0 });
+      ui.text(x + w - 1 - strWidth(count), r.y, count, { fg: on ? c.panel : c.subtle, bg });
       // (no tip: hovering opens its list, which says it all; right-click: rename, ungroup)
       ui.hit(rect, { onClick: () => void ws.deck.act(`tab ${i + 1}`), menu: () => groupMenu(ws, i) });
       if (hot) openGroupList(ws, e.group.id, rect);
@@ -106,24 +181,26 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
         tip: `${ws.tabs[i].title()}\n${IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`} · ${t("drag: move it, or onto another tab: a group · right-click: close others…")}`,
         menu: () => tabMenu(ws, i),
         // drag it: beside another chip moves it there, onto the middle of one makes a group
+        // (never before or onto the pinned HOME)
         onDrag: (m) => {
           let to = rects.findIndex((rr) => m.x < rr.x + rr.w);
           if (to < 0) to = rects.length - 1;
           const rr = rects[to];
           const third = rr ? Math.max(1, Math.floor(rr.w / 3)) : 1;
           const onto = !!rr && m.x >= rr.x + third && m.x < rr.x + rr.w - third && firstOf(to) !== i;
-          dragging = { from: i, to: firstOf(to), onto };
+          const dest = firstOf(to);
+          dragging = isPinned(ws, dest) ? (onto ? null : { from: i, to: dest + 1, onto: false }) : { from: i, to: dest, onto };
         },
         onUp: () => {
           const d = dragging;
           dragging = null;
-          if (!d || d.to < 0 || d.to === d.from) return;
+          if (!d || d.to < 0 || d.to === d.from || d.to >= ws.tabCount) return;
           void ws.deck.act(d.onto ? `tab group ${d.to + 1} ${d.from + 1}` : `tab move ${d.from + 1} ${d.to + 1}`);
         },
       });
       ui.hit({ x: closeX - 1, y: r.y, w: 3, h: 1 }, { cmd: `tab close ${i + 1}`, tip: t("close · ctrl+w · shift+esc") });
     }
-    x += tabW + SEP;
+    x += w + SEP;
   });
   // where a dragged tab would land (beside a chip; onto one is lit above)
   if (dragging && !dragging.onto && dragging.to !== dragging.from) {

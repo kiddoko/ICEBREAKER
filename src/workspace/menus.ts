@@ -11,6 +11,7 @@ import { q, type MenuEntry, type MenuItem } from "../ui/ui";
 import { copyToClipboard, readClipboard } from "../core/clipboard";
 import type { Workspace } from "./workspace";
 import { CANCEL_KEY } from "../shell/shell";
+import { APP_VERSION } from "../plugins/host";
 
 /** Right-click on a macro button. */
 export function macroMenu(ws: Workspace, i: number): MenuEntry[] {
@@ -98,12 +99,39 @@ export function shellMenu(ws: Workspace): MenuEntry[] {
   return items;
 }
 
-/** Right-click on a tab of the top bar. */
+/** the deck menu's title (the top bar lights its logo while it's open) */
+export const DECK_MENU_TITLE = () => `ICEBREAKER ${APP_VERSION}`;
+
+/**
+ * "◆ ICEBREAKER ▾", top left: the deck's own menu, like the apple on a Mac — the pages
+ * without a tab (MODULES, STORE, NEXUS, settings), the manual, what's new, updates,
+ * log out. Their keys and commands stay the same.
+ */
+export function deckMenu(ws: Workspace): MenuEntry[] {
+  const d = ws.deck;
+  const page = (kind: string, label: string, cmd: string, hint: string, tip: string): MenuEntry[] =>
+    d.apps.get(kind) ? [{ label, cmd, hint, tip, checked: ws.activeApp?.kind === kind }] : []; // its module is off or removed
+  return [
+    ...page("modules", `▦ ${t("Modules")}`, "launch modules", "m", t("all apps and modules")),
+    ...page("store", `⇣ ${t("Store")}`, "store", "", t("modules and themes from GitHub")),
+    ...page("explorer", `⬡ NEXUS`, "launch explorer", "", t("the vault in 3D")),
+    { label: `⚙ ${t("Settings")}`, cmd: "settings", hint: IS_MAC ? "⌘," : "ctrl+,", checked: ws.activeApp?.kind === "settings" },
+    "-",
+    { label: t("Manual"), cmd: "manual", hint: "F1" },
+    { label: t("What's new"), cmd: "changelog" },
+    { label: t("Check for updates"), cmd: "update" },
+    "-",
+    { label: `⏻ ${t("Log out")}`, cmd: "logout", hint: IS_MAC ? "⌘⇧L" : "ctrl+shift+L", danger: true },
+  ];
+}
+
+/** Right-click on a tab. */
 export function tabMenu(ws: Workspace, i: number): MenuEntry[] {
   const app = ws.tabs[i];
   const note = app?.kind === "note" ? app.key.slice(5) : "";
   const items: MenuEntry[] = [
-    { label: t("Close"), cmd: `tab close ${i + 1}`, hint: IS_MAC ? "⌘W" : "ctrl+W" },
+    // HOME is pinned: it can't be closed
+    { label: t("Close"), cmd: `tab close ${i + 1}`, hint: IS_MAC ? "⌘W" : "ctrl+W", disabled: app?.kind === "home", tip: app?.kind === "home" ? t("HOME is pinned: always the first tab") : undefined },
     { label: t("Close others"), run: () => closeMany(ws, (j) => j !== i), disabled: ws.tabs.length < 2 },
     { label: t("Close tabs to the right"), run: () => closeMany(ws, (j) => j > i), disabled: i >= ws.tabs.length - 1 },
   ];
@@ -124,7 +152,7 @@ export function tabMenu(ws: Workspace, i: number): MenuEntry[] {
 /** Close every tab `which` says, right to left (a tab can refuse: unsaved). */
 export async function closeMany(ws: Workspace, which: (i: number) => boolean): Promise<void> {
   const keep = ws.tabs[ws.active];
-  for (let j = ws.tabs.length - 1; j >= 0; j--) if (which(j)) await ws.closeTab(j);
+  for (let j = ws.tabs.length - 1; j >= 0; j--) if (which(j) && ws.tabs[j].kind !== "home") await ws.closeTab(j);
   const i = keep ? ws.tabs.indexOf(keep) : -1;
   if (i >= 0) ws.switchTab(i);
 }

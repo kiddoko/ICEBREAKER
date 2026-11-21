@@ -1,5 +1,5 @@
 /**
- * THE FRAME AROUND THE PAGE: the top bar (tabs, buttons), the status bar, the
+ * THE FRAME AROUND THE PAGE: the top bar (the deck menu, UPLINK, the clock), the status bar, the
  * shell panel at the bottom (its tabs, the macro buttons, the terminal / ibsh /
  * LOG), the hover tip and the voice's subtitles. Workspace.render calls these;
  * they read the workspace, they don't own any state.
@@ -11,12 +11,12 @@ import { IS_MAC } from "../core/input";
 import { osKeys } from "../core/keyhints";
 import { strWidth } from "../core/unicode";
 import { inside, q, type Hit, type UI } from "../ui/ui";
-import { Bar } from "../ui/layout";
+import { Bar, GAP, INSET } from "../ui/layout";
 import { Osk } from "./overlays";
 import { SystemTerminal, terminalKeysHint } from "../shell/systerm";
 import type { ShellTab, Workspace } from "./workspace";
-import { editMacro, macroMenu, shellMenu, termTabMenu } from "./menus";
-import { renderTabStrip } from "./tabstrip";
+import { chipStyle, drawChip, tabbedBox } from "./tabstrip";
+import { DECK_MENU_TITLE, deckMenu, editMacro, macroMenu, shellMenu, termTabMenu } from "./menus";
 
 /**
  * The shell panel: tabs on its top border (your terminals [+] │ ibsh · history ·
@@ -30,9 +30,9 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
   const c = ui.c;
   if (!ws.shellTabChosen && ws.termAvailable) ws.shellTab = "term";
   if (ws.shellTab === "term" && !ws.termAvailable) ws.shellTab = "ibsh";
-  const si = ui.box(r, { focused: shellFocused });
-  // tabs on the top border, drawn as chips: your terminals │ ibsh · history · errors.
-  // The panel's buttons (scripts, hide, maximize) sit apart, on the right.
+  // its tabs on its top border, like every frame (tabstrip.ts): your terminals [+] · ibsh · log.
+  // The panel's buttons (scripts, hide, maximize) sit apart, on the right of the same row.
+  const si = tabbedBox(ui, r, { focused: shellFocused });
   if (ws.termAvailable && !ws.terms.length) ws.terms.push(new SystemTerminal(d));
   const tabs: [ShellTab, string, number][] = [
     ...(ws.termAvailable ? ws.terms.map((tm, i) => ["term", tm.name, i] as [ShellTab, string, number]) : []),
@@ -47,7 +47,7 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
     ["─", "term hide", t("hide the shell · ctrl+` brings it back")],
     ["□", "term max", t("maximize: the shell becomes a big tab (term dock puts it back)")],
   ];
-  let bxr = r.x + r.w - 2;
+  let bxr = r.x + r.w - INSET;
   for (const [icon, cmd, tip] of [...buttons].reverse()) {
     const br = { x: bxr - 3, y: r.y, w: 3, h: 1 };
     if (br.x < r.x + r.w / 2) break;
@@ -56,44 +56,42 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
     ui.hit(br, { cmd, tip });
     bxr = br.x - 1;
   }
-  // the tabs, as chips: your terminals [+] │ ibsh · history · errors
-  const chipBg = mix(c.panel, c.accent, 0.1);
-  const chip = (x: number, text: string, style: { fg: number; bg: number; attrs?: number }) => (ui.text(x, r.y, text, style), strWidth(text));
-  let tx = r.x + 2;
+  // the tabs: a name above, a half-block bar on the frame's line
+  let tx = r.x + INSET;
   let lastGroup = "";
   for (const [id, label, ti] of tabs) {
     const group = id === "term" ? "term" : "deck";
-    if (lastGroup && group !== lastGroup) (ui.text(tx, r.y, "│", { fg: c.faint, bg: c.panel }), (tx += 2));
+    if (lastGroup && group !== lastGroup) tx += 1; // your terminals, then the deck's own
     lastGroup = group;
     const on = id === ws.shellTab && (ti < 0 || ti === ws.termIndex);
     const icon = id === "term" ? "❯" : id === "ibsh" ? ui.theme.glyphs.mark : id === "log" ? "≣" : "";
-    const text = ` ${icon && !label.startsWith("⚠") ? `${icon} ` : ""}${label} `;
-    const rect = { x: tx, y: r.y, w: strWidth(text), h: 1 };
+    const closable = id === "term" && on && ws.terms.length > 1;
+    const text = ` ${icon && !label.startsWith("⚠") ? `${icon} ` : ""}${label} ${closable ? "× " : ""}`;
+    const rect = { x: tx, y: r.y, w: strWidth(text), h: 2 };
     if (rect.x + rect.w > bxr) break;
     const alarm = id === "log" && d.log.unseenErrors > 0;
     if (alarm) ui.animate(400);
     const blink = alarm && Math.floor(ui.now / 400) % 2 === 0;
-    const onBg = shellFocused ? c.accent : mix(c.accent, c.panel, 0.35);
-    const style = alarm
-      ? { fg: blink ? c.panel : c.error, bg: blink ? c.error : chipBg, attrs: BOLD }
-      : on
-        ? { fg: c.bg, bg: onBg, attrs: BOLD }
-        : { fg: ui.hovered(rect) ? c.accent : c.fg, bg: chipBg };
-    tx += chip(tx, text, style);
+    const hot = ui.hovered(rect);
+    const st = chipStyle(ui, on, shellFocused, hot);
+    const style = alarm ? { fg: blink ? c.panel : c.error, bg: blink ? c.error : st.bg, attrs: BOLD } : { ...st, attrs: on ? BOLD : 0 };
+    drawChip(ui, tx, r.y, rect.w, style.bg);
+    ui.text(tx, r.y, text, style);
     ui.hit(rect, { onClick: () => (ti >= 0 && (ws.termIndex = ti), ws.showShellTab(id)), menu: ti >= 0 ? () => termTabMenu(ws, ti) : undefined, tip: id === "term" ? `right-click: rename, close… · term rename <name> · F12 next tab\n${ws.terms[ti]?.shellName ?? ""}: your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)` : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash · F12 next tab" : "the log: what you typed, what clicks ran, errors, messages, debug — tick what you want to see · log" });
-    // the terminal shown, when there are several: its × is part of its chip
-    if (id === "term" && on && ws.terms.length > 1 && tx + 2 <= bxr) {
-      const xr = { x: tx, y: r.y, w: 2, h: 1 };
-      tx += chip(tx, "× ", { fg: ui.hovered(xr) ? c.error : c.bg, bg: onBg, attrs: BOLD });
+    // the terminal shown, when there are several: its × is part of its tab
+    if (closable) {
+      const xr = { x: tx + rect.w - GAP, y: r.y, w: GAP, h: 1 };
+      ui.text(xr.x, r.y, "×", { fg: ui.hovered(xr) ? c.error : style.fg, bg: style.bg, attrs: BOLD });
       ui.hit(xr, { cmd: "term close", tip: t("close this terminal") });
     }
-    tx += 1;
+    tx += rect.w + INSET;
     // [+] a new terminal, right after the last one
     // (only where it fits before the panel's buttons: a narrow shell — on the right — keeps `term new`)
     if (id === "term" && ti === ws.terms.length - 1 && tx + 3 <= bxr) {
       const pr = { x: tx, y: r.y, w: 3, h: 1 };
-      tx += chip(tx, " + ", { fg: ui.hovered(pr) ? c.bg : c.accent, bg: ui.hovered(pr) ? c.accent : chipBg, attrs: BOLD }) + 1;
+      ui.text(tx, r.y, " + ", { fg: ui.hovered(pr) ? c.bg : c.accent, bg: ui.hovered(pr) ? c.accent : mix(c.panel, c.accent, 0.1), attrs: BOLD });
       ui.hit(pr, { cmd: "term new", tip: t("another terminal · term new") });
+      tx += 4;
     }
   }
   // the shell's own menu first: what's drawn on it (macros, the terminal) registers after and wins the right-click
@@ -134,7 +132,8 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
   });
   // drag the top border to resize
   // (`fixed`: maximized, or not along the bottom — its height isn't this border's to change)
-  const handle = { x: tx + 2, y: r.y, w: fixed ? 0 : Math.max(0, r.x + r.w - 30 - tx), h: 1 };
+  // (both rows: the free part of the tabs' row, and the frame's line under it)
+  const handle = { x: tx + 2, y: r.y, w: fixed ? 0 : Math.max(0, bxr - 1 - tx - 2), h: 2 };
   ui.hit(handle, {
     onClick: () => {},
     onDrag: (m) => {
@@ -176,69 +175,43 @@ export function renderTip(ws: Workspace, ui: UI, screen: Rect): void {
   lines.forEach((l, i) => ui.text(bx + 2, by + 1 + i, l.t, { fg: l.fg, bg: c.panelAlt, attrs: l.attrs }, w - 4));
 }
 
+/**
+ * The top bar, one row: "◆ ICEBREAKER ▾" — the deck's menu (modules, the store, NEXUS,
+ * settings, the manual, updates, log out: workspace/menus.ts deckMenu) — and on the
+ * right UPLINK ■ and the clock. The tabs aren't here any more: each frame has its own,
+ * on its border (tabstrip.ts).
+ */
 export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
   const c = ui.c;
   const d = ws.deck;
   ui.fill(r, { bg: c.panelAlt });
-  let x = ui.text(r.x, r.y, " ", { bg: c.panelAlt });
-  // a narrow window (or a big interface scale): the logo keeps just its mark
-  x = ui.gradientText(x, r.y, r.w < 90 ? ui.theme.glyphs.mark : `${ui.theme.glyphs.mark} ICEBREAKER`, ui.theme.gradient, BOLD, (ui.now / 8000) % 1);
-  x += 2;
+  // the logo is the deck's menu (like the apple on a Mac); a narrow window keeps just its mark
+  const logo = ` ${r.w < 60 ? ui.theme.glyphs.mark : `${ui.theme.glyphs.mark} ICEBREAKER`} ▾ `;
+  const logoRect = { x: r.x, y: r.y, w: strWidth(logo), h: 1 };
+  const menuOpen = ws.overlays.some((o) => !o.done && (o as { title?: string }).title === DECK_MENU_TITLE());
+  const hot = ui.hovered(logoRect) || menuOpen;
+  if (hot) ui.fill(logoRect, { bg: c.highlight });
+  ui.gradientText(r.x + INSET, r.y, logo.trim().slice(0, -2), ui.theme.gradient, BOLD, (ui.now / 8000) % 1);
+  ui.text(r.x + logoRect.w - GAP, r.y, "▾", { fg: hot ? c.accent : c.subtle, bg: hot ? c.highlight : c.panelAlt });
+  ui.hit(logoRect, { onClick: () => ws.openMenu(deckMenu(ws), r.x, r.y + 1, DECK_MENU_TITLE()), tip: t("the deck's menu: modules, store, NEXUS, settings, log out…") });
 
-  // right side first, so tabs know how much room they have
   const now = new Date();
   const time = now.toLocaleTimeString(d.settings.data.user.locale || undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const date = now.toLocaleDateString(d.settings.data.user.locale || undefined, { weekday: "short", day: "numeric", month: "short" });
   ui.animate(1000 - now.getMilliseconds());
-  // narrow (small window, big interface scale): the right side shrinks so the tabs keep room
-  const narrow = r.w < 110;
   // UPLINK ■: green when the AI is there and answering, amber while it thinks, red when it's off
-  // (the provider and the model are in its tip — they took the bar's room for nothing)
+  // (the provider and the model are in its tip); narrow: the ■ alone, the time without seconds
+  const narrow = r.w < 70;
   const ai = narrow ? "■" : "UPLINK ■";
-  // settings stay one click away whatever is open
-  const gear = narrow ? " ⚙ " : ` ⚙ ${t("settings")} `;
-  const right = narrow ? ` ${ai} ${time.slice(0, 5)} ` : ` ${ai}  │  ${date}  ${time} `;
-  // log out, at the very end of the bar: back to the login page
-  const off = narrow ? " ⏻ " : ` ⏻ ${t("log out")} `;
-  const ox = r.x + r.w - strWidth(off);
-  const rx = ox - strWidth(right);
-  const gx = rx - strWidth(gear) - 1;
-  const gearRect = { x: gx, y: r.y, w: strWidth(gear), h: 1 };
-  const gearHot = ui.hovered(gearRect) || ws.activeApp?.kind === "settings";
-  ui.text(gx, r.y, gear, { fg: gearHot ? c.panel : c.muted, bg: gearHot ? c.accent : c.highlight });
-  ui.hit(gearRect, { cmd: "settings", tip: "ctrl+, · or `config list` in the shell" });
-  // the places you go all the time, one click away
-  let nx = gx - 1;
-  const nav: [string, string, string, string][] = [
-    ["modules", `▦ ${t("modules")}`, "launch modules", "all apps and modules · m on HOME"],
-    ["store", `⇣ ${t("store")}`, "store", "modules and themes from GitHub · store in the shell"],
-    ["explorer", `⬡ ${t("nexus")}`, "launch explorer", "the vault in 3D · explore in the shell"],
-  ];
-  // a narrow window: the buttons shrink to their icon so the tabs keep their room
-  const tabsW = ws.tabs.slice(0, ws.tabCount).reduce((n, tb, i) => n + strWidth(` ${i + 1}:${tb.title().toLowerCase()} `) + 1, 0) + 4;
-  const navW = nav.filter(([k]) => d.apps.get(k)).reduce((n, [, label]) => n + strWidth(label) + 3, 0);
-  const compact = x + tabsW > gx - navW;
-  for (const [kind, full, cmd, tip] of nav) {
-    if (!d.apps.get(kind)) continue; // its module is off or removed
-    const label = compact ? full.split(" ")[0] : full;
-    const lw = strWidth(label) + 2;
-    nx -= lw;
-    ui.button(nx, r.y, label, () => {}, { quiet: true, selected: ws.activeApp?.kind === kind, cmd, tip: compact ? `${full.slice(2)} · ${tip}` : tip });
-    nx -= 1;
-  }
+  const right = narrow ? ` ${ai}  ${time.slice(0, 5)} ` : ` ${ai}  │  ${date}  ${time} `;
+  const rx = r.x + r.w - strWidth(right);
+  if (rx <= logoRect.x + logoRect.w) return;
   ui.text(rx, r.y, right, { fg: c.muted, bg: c.panelAlt });
   const lamp = !d.ai.ready ? c.error : d.ai.busy > 0 ? c.warning : c.success;
   if (!narrow) ui.text(rx + 1, r.y, "UPLINK", { fg: d.ai.ready ? c.fg : c.muted, bg: c.panelAlt, attrs: BOLD });
   ui.text(rx + strWidth(ai), r.y, "■", { fg: lamp, bg: c.panelAlt });
   const who = `${d.ai.provider.label}`;
   ui.hit({ x: rx, y: r.y, w: strWidth(ai) + 2, h: 1 }, d.ai.ready ? { cmd: "link", tip: `UPLINK: ${who}${d.ai.busy > 0 ? ` · ${t("thinking…")}` : ""}\nctrl+space · or \`chat\` right here in the shell` } : { cmd: "settings", tip: `UPLINK ${t("off")}: ${d.ai.problem ?? ""}` });
-  const offRect = { x: ox, y: r.y, w: strWidth(off), h: 1 };
-  const offHot = ui.hovered(offRect);
-  ui.text(ox, r.y, off, { fg: offHot ? c.panel : c.error, bg: offHot ? c.error : mix(c.error, c.panelAlt, 0.82), attrs: BOLD });
-  ui.hit(offRect, { cmd: "logout", tip: t("log out: back to the login page · ⌘⇧L") });
-
-  // the button-pages (NEXUS, STORE…) have no tab: their button lights up instead
-  renderTabStrip(ws, ui, { x, y: r.y, w: Math.max(0, nx - x - 1), h: r.h });
 }
 
 /** What the voice says, in a small sci-fi box bottom-right (voice.subtitles). */

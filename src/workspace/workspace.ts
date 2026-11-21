@@ -28,19 +28,20 @@ import { frames, todayLayout, type Node as LayoutNode, type Today } from "./layo
 import { CLASSIC, effectiveLayout, isFolded, parseArrangement, resizeBetween, setFolded, type ANode, type FrameId } from "./layout/arrange";
 import { bordersOf, solveLayout, type Border } from "./layout/solve";
 import { paneToward } from "./layout/focus";
+import { renderTabStrip, soloTab, tabbedBox } from "./tabstrip";
 import { groupOf, joinGroup, parseGroups, pick, prune, renameGroup, stripEntries, takeOut, type StripEntry, type TabGroup } from "./tabgroups";
 import { INSET } from "../ui/layout";
 
 export type ShellTab = "term" | "ibsh" | "log";
 
-/** the top bar's rows: the tabs' names, and the bar under them */
-export const TOP_H = 2;
+/** the top bar's rows: one (the deck menu, UPLINK, the clock — the tabs are on the frames) */
+export const TOP_H = 1;
 
 /** the parts of the screen that can have the focus (the side panel only while shown) */
 export type Pane = "sidebar" | "main" | "shell" | "panel";
 
 /**
- * The desktop: top bar with tabs, file tree on the left, the active app in
+ * The desktop: top bar (the deck menu), frames with their tabs on their border, file tree on the left, the active app in
  * the middle, the shell at the bottom, status bar, and overlays on top.
  * It also routes input: overlays first, then global shortcuts, then the
  * focused pane, then (if nobody used it) the key becomes an Action.
@@ -310,7 +311,7 @@ export class Workspace {
   // ── tabs ─────────────────────────────────────────────────────────────────
 
   /**
-   * Pages reached from the buttons top-right (NEXUS, STORE, MODULES, settings):
+   * Pages reached from the deck menu, ◆ ICEBREAKER (NEXUS, STORE, MODULES, settings):
    * they show in the main area without a tab of their own, and go away when you
    * go anywhere else. One at a time, kept last in `tabs`.
    */
@@ -327,6 +328,12 @@ export class Workspace {
   /** the real tabs (what the tab bar shows and 1…9 count) */
   get tabCount(): number {
     return this.tabs.length - (this.page ? 1 : 0);
+  }
+
+  /** Close the open page (STORE, settings…: × on its chip, esc) and go back to the tab before. */
+  closePage(): void {
+    this.dropPage();
+    this.deck.requestFrame();
   }
 
   /** Close the button-page without going anywhere. */
@@ -440,6 +447,9 @@ export class Workspace {
     const n = this.tabCount;
     if (from < 0 || to < 0 || from >= n || to >= n) return false;
     if (from === to) return true;
+    // HOME stays first (pinned): it doesn't move, nothing goes before it
+    const home = this.tabs.findIndex((a) => a.kind === "home");
+    if (home >= 0 && (from === home || to <= home)) return false;
     const shown = this.tabs[this.active];
     const [tab] = this.tabs.splice(from, 1);
     this.tabs.splice(to, 0, tab);
@@ -462,6 +472,7 @@ export class Workspace {
   groupTabs(n: number, m: number, name?: string): boolean {
     const keys = this.tabKeys();
     if (!keys[n] || !keys[m] || n === m) return false;
+    if (keys[n] === "home" || keys[m] === "home") return false; // HOME is pinned, never in a group
     this.groups = joinGroup(this.groups, keys[n], keys[m], name);
     this.deck.requestFrame();
     return true;
@@ -501,6 +512,8 @@ export class Workspace {
   async closeTab(i = this.active): Promise<void> {
     const app = this.tabs[i];
     if (!app) return;
+    // HOME is pinned: it can't be closed by mistake (⌘W, ×) — it's always the first tab
+    if (app.kind === "home" && this.tabs.length > 0) return void this.notify(t("HOME stays: it's pinned (the first tab, ⌘1)"));
     if ((await app.close?.()) === false) return;
     const wasPage = app === this.page;
     this.tabs.splice(i, 1);
@@ -1025,7 +1038,7 @@ export class Workspace {
     if (N) renderNotchBand(ui, { x: 0, y: 0, w: W, h: N });
     if (N && d.settings.data.fx.ambient && !d.settings.data.appearance.reduceMotion) drawBackground(ui, { x: 0, y: 0, w: W, h: N }, ui.theme, 0.7);
 
-    // the top bar: two rows (the tabs are a row and a half tall: Refonte UI step 3)
+    // the top bar: one row — the deck menu, UPLINK, the clock (each frame has its tabs on its border)
     renderTopBar(this, ui, { x: 0, y: N, w: W, h: TOP_H });
 
     // the frames: the arrangement (settings.layout — today's when nothing's saved) with the
@@ -1042,7 +1055,8 @@ export class Workspace {
 
     // the borders between frames: grab one to resize (registered first: what the frames draw on
     // their top line — the shell's tabs, a title — wins the click; the gap between columns is free)
-    const borders = max ? [] : bordersOf(layout, at).filter((b) => !b.strip && !(b.dir === "col" && b.b === "shell" && this.shellAtBottom));
+    // (a frame's top is two rows now — its tabs' row and its line: both grab its top border)
+    const borders = max ? [] : bordersOf(layout, at).filter((b) => !b.strip && !(b.dir === "col" && b.b === "shell" && this.shellAtBottom)).map((b) => (b.dir === "col" ? { ...b, grip: { ...b.grip, h: 2 } } : b));
     for (const b of borders) ui.hit(b.grip, { onClick: (m) => (this.borderDrag = { b, arr, m }), onDrag: (m) => this.dragBorder(m), onUp: () => (this.borderDrag = null), tip: t("drag: resize · layout reset puts everything back") });
 
     this.rects = {};
@@ -1054,7 +1068,10 @@ export class Workspace {
     const vaultR = strips.has("vault") ? undefined : at.get("vault");
     if (this.sidebarVisible && vaultR) {
       this.rects.sidebar = vaultR;
-      const inner = ui.box(vaultR, { title: "VAULT", focused: this.focus === "sidebar", info: `${d.vault.markdown().length}` });
+      // every frame has its tabs on its border: the tree's is one, VAULT
+      const focused = this.focus === "sidebar" && !this.topModal;
+      const inner = tabbedBox(ui, vaultR, { focused, info: `${d.vault.markdown().length}` });
+      soloTab(ui, vaultR, "VAULT", focused, { onClick: () => (this.focus = "sidebar"), tip: t("your notes and files · ⌘B hides the tree"), menu: () => [{ label: t("Fold"), cmd: "frame fold tree" }, { label: t("Hide"), cmd: "tree", hint: IS_MAC ? "⌘B" : "ctrl+B" }] });
       this.sidebar.render(ui, inner, this.focus === "sidebar");
     }
 
@@ -1072,7 +1089,9 @@ export class Workspace {
     this.rects.main = mainR;
     const app = this.activeApp;
     const mainFocused = this.focus === "main" && !this.topModal;
-    const inner = ui.box(mainR, { title: app ? t(app.title()).toUpperCase() : "", focused: mainFocused, info: app?.kind === "note" ? app.key.slice(5) : app && app.kind !== app.title().toLowerCase() ? app.kind : undefined });
+    // its tabs on its top border (tabstrip.ts): the names above, their bars on the line
+    const inner = tabbedBox(ui, mainR, { focused: mainFocused });
+    renderTabStrip(this, ui, { x: mainR.x + INSET, y: mainR.y, w: mainR.w - INSET * 2, h: 2 });
     if (app?.menu) ui.hit(inner, { menu: () => app.menu!() });
     if (app) ui.clip(inner, () => app.render(ui, inner, mainFocused));
     if (this.editing) editBand(this, ui, inner, this.sidePanel.area);

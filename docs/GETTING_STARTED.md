@@ -100,9 +100,9 @@ and sounds; `theme studio` tweaks everything live.
 
 ## 8. Store and NEXUS
 
-The top bar has your shortcuts: **⬡ nexus** (the vault in 3D: `+` new note,
-`/` search, F2 rename, delete → trash, `:` every action), **⇣ store** (modules
-and themes to install, and your own sources) and **▦ modules**.
+**◆ ICEBREAKER ▾**, top left, is the deck's menu: **⬡ NEXUS** (the vault in 3D: `+` new
+note, `/` search, F2 rename, delete → trash, `:` every action), **⇣ store** (modules
+and themes to install, and your own sources), **▦ modules**, settings, log out.
 
 ## 9. Where things are
 

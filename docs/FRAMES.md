@@ -27,7 +27,7 @@ stacked, moved, split, folded. This page is how it works and where it stands.
   name; a click on the strip (or `frame unfold`, ⌘B for the tree, anything that needs the
   shell) opens it again. A folded frame never keeps the focus.
 - **Step 3a (done): thicker, readable tabs** (`src/workspace/tabstrip.ts`). The top bar
-  is two rows: each tab is its name (an icon for what it is, the title, × on the one shown
+  was two rows (3b moved the tabs onto the frames): each tab is its name (an icon for what it is, the title, × on the one shown
   or hovered) with a half-block bar under it — a row and a half tall, the one shown in the
   accent. No number in front of the name: the numbers (⌘1…9) show only while ⌘ / ctrl is
   held (`InputManager.modHeld`). 12–24 cells each; the icon goes before the name gets
@@ -38,8 +38,20 @@ stacked, moved, split, folded. This page is how it works and where it stands.
   right-click: rename, take the shown tab out, ungroup them all (`tab ungroup <n>`,
   `tab groupname <n> <name>`). A group of one dissolves; closed tabs leave their groups;
   groups are saved with the session (checked when read back).
-- Step 3b: tabs on every frame (waiting for the user's answer), terminals as a group of
-  tabs.
+- **Step 3b, first part (done): tabs on every frame's border.** The top bar is one row:
+  **◆ ICEBREAKER ▾** (the deck's menu: MODULES, STORE, NEXUS, settings, the manual, what's
+  new, updates, log out — `workspace/menus.ts` deckMenu; their keys and commands are
+  unchanged), UPLINK ■ and the clock. Each frame's top is two rows: its tabs' names, then
+  its line, where each tab's half-block bar sits (`tabbedBox`, `soloTab`, `chipStyle`,
+  `drawChip` in `tabstrip.ts`). The page's frame has the tabs; the shell's has your
+  terminals, ibsh and the log, with its buttons on the right; VAULT and PANEL one tab
+  each. The tab shown is lit in the accent when its frame has the focus, dimmer
+  otherwise. A page without a tab (STORE, settings…) shows first in the page's frame,
+  lit, × closes it. **HOME is pinned**: always the first tab, ⌂, no × (⌘W, `tab close`,
+  "close others" leave it), never moved or grouped. Both header rows grab a frame's top
+  border. Folded frames are one-cell strips with their name down the strip.
+- Step 3b, next: any tab in any frame (drag a tab onto another frame; HOME too), the
+  terminals as one group (`term new` opens beside the others).
 - Step 4: each tab's history (back / forward). Step 5: the INFO panel.
 
 ## The model
