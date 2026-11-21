@@ -123,7 +123,7 @@ export function rawKeyInput(e: KeyboardEvent): KeyInput {
 }
 
 /** A synthetic ctrl+<letter> press (used to turn native menu commands into our shortcuts). */
-function ctrlKey(letter: string, shift = false): KeyInput {
+export function ctrlKey(letter: string, shift = false): KeyInput {
   return { key: letter, code: `Key${letter.toUpperCase()}`, ctrl: true, alt: false, shift, meta: false, combo: `ctrl+${shift ? "shift+" : ""}${letter}` };
 }
 

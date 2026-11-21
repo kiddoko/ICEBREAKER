@@ -39,6 +39,7 @@ import { InputManager, type Action, type ActionSource, type InputSink, type KeyI
 import { FrameLoop } from "./core/loop";
 import { fontStack, loadFont, WEIGHTS } from "./core/fonts";
 import { Renderer } from "./core/renderer";
+import { macMenuActions } from "./workspace/macmenu";
 import { bloomRadius, bloomStrength, flickerSpeed } from "./core/fxlevels";
 import { Sound, SOUND_CHANNELS, type SoundName } from "./core/sound";
 import { Mixer } from "./core/mixer";
@@ -109,6 +110,8 @@ export class Deck implements InputSink {
   /** what each open page was made with (`openApp(kind, args)`): a module's page is made again with it when the module reloads */
   readonly appArgs = new WeakMap<App, unknown>();
   readonly actions = new ActionRegistry();
+  /** the macOS menu bar's items are listened to (once, whatever the logins) */
+  private menuBarOn = false;
   /** every setting row, the deck's and the modules' (core/prefs.ts): Settings draws them */
   readonly prefs = new SettingsRegistry();
   /** everything the deck can do, as blocks (core/catalog.ts): the BLOCKS page, `catalog`, ib.catalog */
@@ -402,6 +405,12 @@ export class Deck implements InputSink {
       return { text: `Plugins: ${on} on · off: ${this.modulesOff.map((m) => `${m.id} (${m.why})`).join(", ")} — plugin enable <id>`, status: "WARN" };
     });
     this.platform.bridge?.onRun((req) => void this.runBridged(req));
+    // the macOS menu bar's deck items (workspace/macmenu.ts): listened to once, ignored while locked
+    if (!this.menuBarOn && this.platform.onMenu) {
+      this.menuBarOn = true;
+      const actions = macMenuActions(this);
+      this.platform.onMenu((id) => !this.locked && actions[id]?.());
+    }
     // files changed in the terminal, Obsidian, Finder…: refresh the tree, search, widgets
     await step(() => this.platform.onVaultChange?.(() => void this.vault.rescan().then(() => this.requestFrame())), () => this.platform.onVaultChange ? { text: "Watching the vault for outside changes", status: "OK" } : null);
     if (s.privacy.stealth) boot?.log({ text: "Stealth mode: no internet — this machine and the local network only", status: "OK" });

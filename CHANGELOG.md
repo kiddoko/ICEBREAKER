@@ -5,6 +5,16 @@
 The UI overhaul ("Refonte UI"): the screen is made of frames you arrange, every frame has its
 tabs, and six modules are redrawn.
 
+- **Easier to handle** — a ghost under the pointer when you drag anything, the place it
+  lands lit; tabs dragged between groups and out of them; *Move to ▸* in every tab's and
+  frame's right-click menu, ↔ / ↕ handles on hover. HOME's edit mode has a **✎ edit**
+  button and ⌘E / ctrl+E. The chat widget is a real field (click, type, enter). The tree
+  closes like the panel (**◧ tree** in the status bar, the panel is now ◨). The TODO widget
+  scrolls. RGB split leaves the bars and pictures alone; bloom shows at 100 %. A row of air
+  under the top bar; world clock strips line up. **macOS: a real menu bar** — ICEBREAKER
+  (settings, updates, log out), File (new note, journal, close tab…), Edit, View (zoom,
+  tree, panel, shell, effects, fullscreen), Window, Help.
+
 - **Permissions in plain words** ([docs/PERMISSIONS.md](docs/PERMISSIONS.md)) — no surprise:
   everything that can reach your notes, your AI, your terminal or the internet has a name
   you can read, a level, a moment when you're asked and a switch to take it away.

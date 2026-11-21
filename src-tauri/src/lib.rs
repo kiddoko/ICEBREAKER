@@ -31,7 +31,14 @@ pub fn run() {
     // macOS always has a menu bar. Tauri's default one maps ⌘W to "close window",
     // which would kill the app when you mean "close tab", so we provide a lean one.
     #[cfg(target_os = "macos")]
-    let builder = builder.menu(mac_menu);
+    let builder = builder.menu(mac_menu).on_menu_event(|app, event| {
+        // the deck's own items ("ib:…") go to the page, which maps each id to one action
+        // (platform/tauri.ts onMenu → deck.ts MENU_ACTIONS); the predefined ones act by themselves
+        let id = event.id().0.as_str();
+        if let Some(action) = id.strip_prefix("ib:") {
+            let _ = tauri::Emitter::emit(app, "menu", action.to_string());
+        }
+    });
 
     builder
         .plugin(tauri_plugin_notification::init())
@@ -152,10 +159,18 @@ pub fn run() {
         });
 }
 
-/// App menu (About, Hide, Quit) + Edit (so ⌘C ⌘V ⌘X ⌘Z ⌘A reach the webview) + fullscreen.
+/// The macOS menu bar: ICEBREAKER, File, Edit, View, Window, Help. Edit's items are the
+/// system's (⌘C ⌘V ⌘X ⌘Z reach the page as clipboard / undo events, core/input.ts); the
+/// deck's own items send their id to the page. Their shortcuts are shown for the record:
+/// pressed on the keyboard, the page takes the key first (it keeps every ⌘ key but Q H M V),
+/// so a click on the item and the key do the same thing, once.
 #[cfg(target_os = "macos")]
 fn mac_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<tauri::menu::Menu<R>> {
-    use tauri::menu::{Menu, PredefinedMenuItem, Submenu};
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
+
+    // one of the deck's items: "ib:<id>", with the shortcut it shows
+    let item = |id: &str, label: &str, keys: Option<&str>| MenuItem::with_id(app, format!("ib:{id}"), label, true, keys);
+    let sep = || PredefinedMenuItem::separator(app);
 
     let app_menu = Submenu::with_items(
         app,
@@ -163,11 +178,33 @@ fn mac_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<tauri
         true,
         &[
             &PredefinedMenuItem::about(app, None, None)?,
-            &PredefinedMenuItem::separator(app)?,
+            &item("whatsnew", "What's New", None)?,
+            &item("update", "Check for Updates…", None)?,
+            &sep()?,
+            &item("settings", "Settings…", Some("CmdOrCtrl+,"))?,
+            &sep()?,
             &PredefinedMenuItem::hide(app, None)?,
             &PredefinedMenuItem::hide_others(app, None)?,
-            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::show_all(app, None)?,
+            &sep()?,
+            &item("logout", "Log Out", Some("CmdOrCtrl+Shift+L"))?,
             &PredefinedMenuItem::quit(app, None)?,
+        ],
+    )?;
+    let file_menu = Submenu::with_items(
+        app,
+        "File",
+        true,
+        &[
+            &item("note.new", "New Note", Some("CmdOrCtrl+N"))?,
+            &item("folder.new", "New Folder", Some("CmdOrCtrl+Shift+N"))?,
+            &item("terminal", "New Terminal Tab", None)?,
+            &sep()?,
+            &item("journal", "Today's Journal", Some("CmdOrCtrl+J"))?,
+            &item("find", "Find a File…", None)?,
+            &item("palette", "The Menu (everything)", Some("CmdOrCtrl+K"))?,
+            &sep()?,
+            &item("tab.close", "Close Tab", Some("CmdOrCtrl+W"))?,
         ],
     )?;
     let edit_menu = Submenu::with_items(
@@ -177,21 +214,55 @@ fn mac_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<tauri
         &[
             &PredefinedMenuItem::undo(app, None)?,
             &PredefinedMenuItem::redo(app, None)?,
-            &PredefinedMenuItem::separator(app)?,
+            &sep()?,
             &PredefinedMenuItem::cut(app, None)?,
             &PredefinedMenuItem::copy(app, None)?,
             &PredefinedMenuItem::paste(app, None)?,
-            &PredefinedMenuItem::select_all(app, None)?,
+            // the deck's own: the page's hidden text box is always empty, the system's select-all had nothing to select
+            &item("selectall", "Select All", Some("CmdOrCtrl+A"))?,
         ],
     )?;
-    let view_menu = Submenu::with_items(app, "View", true, &[&PredefinedMenuItem::fullscreen(app, None)?])?;
+    let view_menu = Submenu::with_items(
+        app,
+        "View",
+        true,
+        &[
+            &item("zoom.in", "Zoom In", Some("CmdOrCtrl+="))?,
+            &item("zoom.out", "Zoom Out", Some("CmdOrCtrl+-"))?,
+            &item("zoom.reset", "Actual Size", Some("CmdOrCtrl+0"))?,
+            &sep()?,
+            &item("tree", "File Tree", Some("CmdOrCtrl+B"))?,
+            &item("panel", "Side Panel", Some("CmdOrCtrl+Shift+P"))?,
+            &item("shell", "Shell", Some("CmdOrCtrl+`"))?,
+            &item("fx", "Effects…", Some("CmdOrCtrl+Shift+F"))?,
+            &sep()?,
+            &PredefinedMenuItem::fullscreen(app, None)?,
+        ],
+    )?;
     let window_menu = Submenu::with_items(
         app,
         "Window",
         true,
-        &[&PredefinedMenuItem::minimize(app, None)?, &PredefinedMenuItem::maximize(app, None)?],
+        &[
+            &PredefinedMenuItem::minimize(app, None)?,
+            &PredefinedMenuItem::maximize(app, None)?,
+            &sep()?,
+            &item("tab.next", "Next Tab", None)?,
+            &item("tab.prev", "Previous Tab", None)?,
+            &item("home", "HOME", None)?,
+        ],
     )?;
-    Menu::with_items(app, &[&app_menu, &edit_menu, &view_menu, &window_menu])
+    let help_menu = Submenu::with_items(
+        app,
+        "Help",
+        true,
+        &[
+            &item("manual", "ICEBREAKER Manual (F1)", None)?,
+            &item("shortcuts", "Keyboard Shortcuts", Some("CmdOrCtrl+/"))?,
+            &item("tour", "Guided Tour", None)?,
+        ],
+    )?;
+    Menu::with_items(app, &[&app_menu, &file_menu, &edit_menu, &view_menu, &window_menu, &help_menu])
 }
 
 /// ProMotion (adaptive refresh, up to 120 Hz on recent Macs): WebKit holds page

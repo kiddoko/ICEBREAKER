@@ -241,6 +241,8 @@ export interface Platform {
   notify?(title: string, body: string): Promise<void>;
   /** Called (debounced) when files in the vault change outside the app. */
   onVaultChange?(cb: () => void): void;
+  /** A deck item of the macOS menu bar was clicked: its id (workspace/macmenu.ts). */
+  onMenu?(cb: (id: string) => void): void;
   /** The window got minimized (true) or restored (false). */
   onMinimized?(cb: (minimized: boolean) => void): Promise<void>;
   /** The whole computer, read-only, for the deck's own file picker (desktop). */
