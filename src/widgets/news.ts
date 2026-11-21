@@ -3,7 +3,7 @@ import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
 import { BOLD, DIM, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import { countryOf, langOf } from "../core/location";
-import { strWidth, wrapWords } from "../core/unicode";
+import { strWidth, truncate, wrapWords } from "../core/unicode";
 import type { Deck } from "../deck";
 import type { Command } from "../shell/types";
 import type { UI } from "../ui/ui";
@@ -137,6 +137,8 @@ function text(el: Element | null | undefined): string {
 
 /** HTML fragments in Google's <description> → plain text. */
 function stripHtml(s: string): string {
+  // a line break or the end of a block is a space in plain text ("CULTURE<br>Dakar" → "CULTURE Dakar")
+  s = s.replace(/<br\s*\/?>|<\/(?:p|div|li|h[1-6]|tr|td|blockquote)>/gi, "$& ");
   const d = new DOMParser().parseFromString(s, "text/html");
   return (d.body.textContent ?? "").replace(/\s+/g, " ").trim();
 }
@@ -239,15 +241,20 @@ export const newsWidget: WidgetSpec = {
       const i = featuredIndex(key ?? "news", items.length);
       const h = items[i];
       const tw = r.w - 2;
-      ui.text(r.x + 1, r.y, `${header}  ·  ${t("à la une")}`, { fg: c.accentAlt, attrs: BOLD }, tw);
+      // "à la une" first (it said nothing when a long list of categories pushed it out), then
+      // this article's own category or, without one, the feed's
+      ui.text(r.x + 1, r.y, `◉ ${t("à la une")} · ${h.tag ? (NEWS_CATEGORIES[h.tag]?.label ?? h.tag) : header.replace(/^◉ /, "")}`, { fg: c.accentAlt, attrs: BOLD }, tw);
       let y = r.y + 2;
       for (const l of wrapWords(h.title, tw).slice(0, Math.max(1, Math.floor((r.h - 3) / 2)))) ui.text(r.x + 1, y++, l, { fg: c.accent, attrs: BOLD }, tw);
       if (y < r.y + r.h) ui.text(r.x + 1, y++, `${h.tag ? `[${h.tag}] ` : ""}${h.source}${h.at ? ` · ${when(deck, h.at)}` : ""}`, { fg: c.subtle }, tw);
       y++;
-      for (const l of wrapWords(h.summary || t("no summary in the feed — click to read it"), tw)) {
-        if (y >= r.y + r.h - 1) break;
-        ui.text(r.x + 1, y++, l, { fg: h.summary ? c.fg : c.faint }, tw);
-      }
+      const lines = wrapWords(h.summary || t("no summary in the feed — click to read it"), tw);
+      const room = Math.max(0, r.y + r.h - 1 - y);
+      lines.slice(0, room).forEach((l, k) => {
+        // the last line that fits ends with … when the summary goes on
+        const cut = k === room - 1 && lines.length > room;
+        ui.text(r.x + 1, y++, cut ? truncate(`${l} …`, tw) : l, { fg: h.summary ? c.fg : c.faint }, tw);
+      });
       const nx = { x: r.x + r.w - 3, y: r.y + r.h - 1, w: 3, h: 1 };
       ui.text(nx.x, nx.y, " ↻ ", { fg: ui.hovered(nx) ? c.accent : c.subtle, attrs: BOLD });
       ui.hit({ x: r.x, y: r.y + 1, w: r.w, h: r.h - 2 }, { onClick: () => open(i), tip: t("the article · ↻ another one") });
