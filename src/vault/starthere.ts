@@ -271,7 +271,10 @@ were on come back as you left them next time.
   one each). They're wide when there are few and get narrower as you open more; when
   they don't fit any more, **▾ +N** lists the others. **⌂ HOME is pinned**: always
   the first tab (⌘1), it can't be closed by mistake. A page from the menu (STORE,
-  settings…) shows first, lit, with × to close it (or esc).
+  settings…) shows first, lit, with × to close it (or esc). **Drag a tab onto another
+  frame** (the tree's, the panel's, the shell's) to keep it there, beside that frame's own
+  — or right-click → *Move to*, or \`tab move 3 panel\`. A click on the frame's own tab
+  (VAULT, PANEL, a terminal) brings its content back.
 - **PULSE** (a HOME widget): what's happening in your modules, one line each —
   the next event, tasks due, the next reminder, the music, the focus timer…
 - **Your profile icon**: Settings → YOU → profile icon (or \`avatar\`): a little

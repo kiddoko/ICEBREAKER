@@ -28,9 +28,11 @@ import { frames, todayLayout, type Node as LayoutNode, type Today } from "./layo
 import { CLASSIC, effectiveLayout, isFolded, parseArrangement, resizeBetween, setFolded, type ANode, type FrameId } from "./layout/arrange";
 import { bordersOf, solveLayout, type Border } from "./layout/solve";
 import { paneToward } from "./layout/focus";
-import { renderTabStrip, soloTab, tabbedBox } from "./tabstrip";
+import { drawDropFrame, placeChips, renderTabStrip, soloTab, tabbedBox } from "./tabstrip";
+import { frameOfPane, PANE_OF, parsePlaces, parseShows, prunePlaces, type PlaceFrame, type Places, type Shows } from "./tabplaces";
 import { groupOf, joinGroup, parseGroups, pick, prune, renameGroup, stripEntries, takeOut, type StripEntry, type TabGroup } from "./tabgroups";
 import { INSET } from "../ui/layout";
+import { strWidth } from "../core/unicode";
 
 export type ShellTab = "term" | "ibsh" | "log";
 
@@ -57,8 +59,13 @@ export type Pane = "sidebar" | "main" | "shell" | "panel";
  */
 export class Workspace {
   tabs: App[] = [];
+  /** the tab the page's frame shows (always one that lives there: places) */
   active = 0;
   focus: Pane = "main";
+  /** tabs moved to another frame (key → frame); the rest live in the page's frame (tabplaces.ts) */
+  places: Places = {};
+  /** the tab each of those frames shows instead of its own content (absent: its own) */
+  shows: Shows = {};
   sidebarVisible = true;
   /** the shell panel is shown (and the TERMINAL module is on: core-packages.ts) */
   get shellVisible(): boolean {
@@ -408,6 +415,12 @@ export class Workspace {
     }
     if (this.page) this.dropPage();
     const existing = this.tabs.findIndex((t) => t.key === app.key);
+    // already open in another frame: shown there
+    if (existing >= 0 && this.placeOf(existing) !== "main") {
+      void app.close?.();
+      this.switchTab(existing);
+      return this.tabs[existing];
+    }
     if (existing >= 0) {
       void app.close?.();
       this.active = existing;
@@ -500,11 +513,12 @@ export class Workspace {
 
   /** The strip's chips this frame: lone tabs and groups (closed tabs leave their groups). */
   stripEntries(): StripEntry[] {
-    const keys = this.tabKeys();
+    // the page frame's tabs only (the others are drawn by their frames); indexes stay the tabs'
+    const keys = this.tabKeys().map((k, i) => (this.placeOf(i) === "main" ? k : ""));
     this.groups = prune(this.groups, keys);
     const shown = keys[this.active];
     if (shown) this.groups = pick(this.groups, shown);
-    return stripEntries(this.groups, keys);
+    return stripEntries(this.groups, keys).filter((e) => e.kind === "group" || keys[e.index] !== "");
   }
 
   findTab(key: string): App | undefined {
@@ -518,7 +532,16 @@ export class Workspace {
     if (app.kind === "home" && this.tabs.length > 0) return void this.notify(t("HOME stays: it's pinned (the first tab, ⌘1)"));
     if ((await app.close?.()) === false) return;
     const wasPage = app === this.page;
+    const at = this.placeOf(i);
     this.tabs.splice(i, 1);
+    // it lived in another frame: that frame shows its own content again (the page's frame is unchanged)
+    if (at !== "main") {
+      const { [app.key]: _gone, ...rest } = this.places;
+      this.places = rest;
+      if (this.shows[at] === app.key) this.showIn(at, null);
+      if (i < this.active) this.active--;
+      return void this.deck.requestFrame();
+    }
     // closing the tab you're on shows the one before it (in tab order)
     if (wasPage) this.active = Math.max(0, Math.min(this.pageReturn, this.tabs.length - 1));
     else if (i < this.active || (i === this.active && i > 0)) this.active--;
@@ -548,9 +571,129 @@ export class Workspace {
     const n = this.tabCount || this.tabs.length;
     if (n === 0) return;
     const next = ((i % n) + n) % n;
+    // a tab that lives in another frame: that frame shows it, and gets the focus
+    const at = this.placeOf(next);
+    if (at !== "main") return this.showIn(at, this.tabs[next].key);
     if (next !== this.active) this.deck.pageTurn(false, quick);
     this.active = next;
     this.focus = "main";
+  }
+
+  /** ctrl+tab, ctrl+⇧tab, a swipe: the next (or previous) tab of the page's frame. */
+  stepTab(dir: 1 | -1, quick = false): void {
+    const mine = this.mainTabs();
+    if (!mine.length) return;
+    const k = mine.indexOf(this.active);
+    this.switchTab(mine[(((k < 0 ? 0 : k + dir) % mine.length) + mine.length) % mine.length], quick);
+  }
+
+  // ── tabs in other frames (tabplaces.ts) ──────────────────────────────────
+
+  /** the frame tab `i` lives in */
+  placeOf(i: number): PlaceFrame | "main" {
+    const key = this.tabs[i]?.key;
+    return (key && this.places[key]) || "main";
+  }
+
+  /** the real tabs (indexes) that live in the page's frame */
+  mainTabs(): number[] {
+    return Array.from({ length: this.tabCount }, (_, i) => i).filter((i) => this.placeOf(i) === "main");
+  }
+
+  /** the tabs (indexes) that live in frame `f`, in tab order */
+  tabsIn(f: PlaceFrame): number[] {
+    return Array.from({ length: this.tabCount }, (_, i) => i).filter((i) => this.placeOf(i) === f);
+  }
+
+  /** the tab frame `f` shows instead of its own content, if any */
+  shownIn(f: PlaceFrame): App | undefined {
+    const key = this.shows[f];
+    return key ? this.tabs.find((a) => a.key === key && this.places[key] === f) : undefined;
+  }
+
+  /** the page the focused frame shows (the page's frame: the tab in front; another: its shown tab) */
+  get focusedPage(): App | undefined {
+    const f = frameOfPane(this.focus);
+    return f === "main" ? this.activeApp : this.shownIn(f);
+  }
+
+  /** Frame `f` shows tab `key` (or its own content: null), opened if it was hidden, with the focus. */
+  showIn(f: PlaceFrame, key: string | null): void {
+    if (key) this.shows = { ...this.shows, [f]: key };
+    else {
+      const { [f]: _gone, ...rest } = this.shows;
+      this.shows = rest;
+    }
+    this.reveal(f);
+    this.focus = PANE_OF[f];
+    this.deck.requestFrame();
+  }
+
+  /** Make frame `f` seen: shown, unfolded. */
+  private reveal(f: PlaceFrame): void {
+    if (f === "vault") {
+      this.sidebarVisible = true;
+      this.unfold("vault");
+    } else if (f === "shell") {
+      this.shellVisible = true;
+      this.unfold("shell");
+    } else {
+      if (!this.deck.settings.data.panel?.shown) this.deck.settings.set("panel", { ...(this.deck.settings.data.panel ?? {}), shown: true });
+      this.unfold("panel");
+    }
+  }
+
+  /**
+   * Tab `i` goes to frame `to` (Refonte UI 3b): it leaves its group, and is shown there.
+   * The page's frame keeps at least one tab (HOME comes back to it otherwise).
+   */
+  moveTabTo(i: number, to: PlaceFrame | "main"): boolean {
+    const app = this.tabs[i];
+    if (!app || i >= this.tabCount) return false;
+    const from = this.placeOf(i);
+    if (from === to) return true;
+    if (from === "main" && this.mainTabs().length < 2) return void this.notify(t("the page's frame keeps one tab at least")), false;
+    if (groupOf(this.groups, app.key)) this.groups = takeOut(this.groups, app.key);
+    const places = { ...this.places };
+    if (from !== "main" && this.shows[from] === app.key) this.showIn(from, null);
+    if (to === "main") delete places[app.key];
+    else places[app.key] = to;
+    this.places = places;
+    if (to === "main") {
+      this.active = i;
+      this.focus = "main";
+    } else {
+      if (i === this.active) this.fixActive();
+      this.showIn(to, app.key);
+    }
+    this.deck.requestFrame();
+    return true;
+  }
+
+  /** Each frame: tabs that closed leave their places; the page's frame shows one of its own. */
+  private tidyPlaces(): void {
+    const open = this.tabs.slice(0, this.tabCount).map((a) => a.key);
+    if (Object.keys(this.places).some((k) => !open.includes(k)) || Object.values(this.shows).some((k) => !k || !this.places[k])) {
+      ({ places: this.places, shows: this.shows } = prunePlaces(this.places, this.shows, open));
+    }
+    this.fixActive();
+  }
+
+  /** The page's frame shows a tab that lives there (the nearest one; HOME comes back if none is left). */
+  private fixActive(): void {
+    if (this.page && this.active === this.tabs.length - 1) return;
+    if (this.placeOf(this.active) === "main" && this.active < this.tabCount) return;
+    let mine = this.mainTabs();
+    if (!mine.length) {
+      // every tab went elsewhere: HOME comes back to the page's frame
+      const home = this.tabs.findIndex((a) => a.kind === "home");
+      if (home < 0) return;
+      const { [this.tabs[home].key]: _back, ...rest } = this.places;
+      this.places = rest;
+      for (const f of Object.keys(this.shows) as PlaceFrame[]) if (this.shows[f] === "home") this.showIn(f, null);
+      mine = [home];
+    }
+    this.active = mine.reduce((best, j) => (Math.abs(j - this.active) < Math.abs(best - this.active) ? j : best), mine[0]);
   }
 
   // ── panes ────────────────────────────────────────────────────────────────
@@ -611,7 +754,7 @@ export class Workspace {
   }
 
   private cycleFocus(): void {
-    const order: Pane[] = ["main", ...(this.sidePanel.area ? (["panel"] as Pane[]) : []), ...(this.shellVisible ? (["shell"] as Pane[]) : []), ...(this.sidebarVisible ? (["sidebar"] as Pane[]) : [])];
+    const order: Pane[] = ["main", ...(this.rects.panel ? (["panel"] as Pane[]) : []), ...(this.shellVisible ? (["shell"] as Pane[]) : []), ...(this.sidebarVisible ? (["sidebar"] as Pane[]) : [])];
     this.focus = order[(order.indexOf(this.focus) + 1) % order.length];
   }
 
@@ -735,6 +878,10 @@ export class Workspace {
   // ── input routing ────────────────────────────────────────────────────────
 
   private paneTarget(): { onKey?(k: KeyInput): boolean; onText?(t: string): boolean; onAction?(a: Action): boolean } | undefined {
+    // a frame showing a tab moved there (Refonte UI 3b): its keys go to that page
+    const f = frameOfPane(this.focus);
+    const moved = f === "main" ? undefined : this.shownIn(f);
+    if (moved && this.rects[this.focus]) return moved;
     if (this.focus === "shell" && this.shellVisible) {
       if (this.shellTab === "term" && this.termAvailable) return this.terminal;
       if (this.shellTab === "log") return this.logPane;
@@ -747,7 +894,7 @@ export class Workspace {
 
   /** The page in front plays the keyboard (App.rawKeys) and nothing covers it: its keys come as keys. */
   rawKeys(): boolean {
-    return !this.topModal && this.focus === "main" && !!this.activeApp?.rawKeys;
+    return !this.topModal && !!this.focusedPage?.rawKeys;
   }
 
   handleKey(k: KeyInput): void {
@@ -770,13 +917,13 @@ export class Workspace {
       return this.cycleFocus();
     }
     // the system terminal gets the keyboard (ctrl+c, ctrl+r, esc…); ⌘ shortcuts stay the deck's
-    if (this.focus === "shell" && this.shellVisible && this.shellTab === "term" && this.termAvailable && this.terminal.wants(k)) {
+    if (this.focus === "shell" && this.shellVisible && !this.shownIn("shell") && this.shellTab === "term" && this.termAvailable && this.terminal.wants(k)) {
       this.terminal.onKey(k);
       return;
     }
-    // a terminal tab in the main window: same rule
-    const ta = this.activeApp;
-    if (this.focus === "main" && ta instanceof TerminalApp && ta.term.wants(k)) return void ta.term.onKey(k);
+    // a terminal tab (in the page's frame, or moved to another): same rule
+    const ta = this.focusedPage;
+    if (ta instanceof TerminalApp && ta.term.wants(k)) return void ta.term.onKey(k);
     if (k.combo === "contextmenu" || k.combo === "shift+f10") return this.keyboardMenu();
     // a page that plays the keyboard (App.rawKeys) owns its keys, like an editor owns the arrows:
     // the ones that type (a piano's) and every ⌥ / alt combination (⌥ arrows, ⌥ letters, ⌥ digits —
@@ -845,8 +992,8 @@ export class Workspace {
     switch (a) {
       case "palette": this.menu({ pad: true }); break; // the gamepad's Y: THE MENU, a quick key chosen
       case "osk": this.toggleOsk(); break;
-      case "tab-next": this.switchTab(this.active + 1); break;
-      case "tab-prev": this.switchTab(this.active - 1); break;
+      case "tab-next": this.stepTab(1); break;
+      case "tab-prev": this.stepTab(-1); break;
       case "focus-next": this.cycleFocus(); break;
       case "menu": this.deck.openApp("home"); break;
       // esc: back to the page from the tree / shell; a button-page (NEXUS, STORE…) closes.
@@ -992,11 +1139,13 @@ export class Workspace {
     const tabs = this.tabs.slice(0, this.tabCount).filter((a) => !["setup", "terminal", "ibsh"].includes(a.kind)).map((a) => a.key);
     // the groups of the tabs that are saved (a terminal tab doesn't come back, nor does its place in a group)
     const groups = prune(this.groups, tabs);
-    const sig = `${tabs.join("|")}#${Math.min(this.active, this.tabCount - 1)}#${JSON.stringify(groups)}`;
+    // where the tabs moved to other frames live, and what those frames show
+    const { places, shows } = prunePlaces(this.places, this.shows, tabs);
+    const sig = `${tabs.join("|")}#${Math.min(this.active, this.tabCount - 1)}#${JSON.stringify(groups)}#${JSON.stringify(places)}#${JSON.stringify(shows)}`;
     if (!this.sessionReady || sig === this.savedTabs) return;
     this.savedTabs = sig;
     const s = this.deck.settings;
-    s.set("session", { ...(s.data.session ?? {}), tabs, active: Math.max(0, tabs.indexOf(this.tabs[this.active]?.key ?? "")), groups });
+    s.set("session", { ...(s.data.session ?? {}), tabs, active: Math.max(0, tabs.indexOf(this.tabs[this.active]?.key ?? "")), groups, places, shows });
   }
 
   /** Open again what was open when the deck closed (notes that still exist, modules that are still on). */
@@ -1009,7 +1158,7 @@ export class Workspace {
     }
   }
 
-  private async reopen(ses: { tabs?: string[]; active?: number; groups?: unknown }): Promise<void> {
+  private async reopen(ses: { tabs?: string[]; active?: number; groups?: unknown; places?: unknown; shows?: unknown }): Promise<void> {
     if (!ses.tabs) return;
     // the groups come back with their tabs (those that are still there)
     this.groups = parseGroups(ses.groups);
@@ -1020,9 +1169,15 @@ export class Workspace {
         if (await this.deck.vault.exists(p)) await this.deck.openFile(p);
       } else if (this.deck.apps.get(key) && !Workspace.PAGES.has(key)) this.deck.openApp(key);
     }
+    // the tabs moved to other frames go back there (those that came back)
+    const open = this.tabs.slice(0, this.tabCount).map((a) => a.key);
+    this.places = parsePlaces(ses.places, open);
+    this.shows = parseShows(ses.shows, this.places);
+    this.fixActive();
     const want = ses.tabs[ses.active ?? 0];
     const i = this.tabs.findIndex((t) => t.key === want);
-    if (i >= 0) this.switchTab(i);
+    if (i >= 0 && this.placeOf(i) === "main") this.switchTab(i);
+    this.focus = "main";
   }
 
   /** rows hidden by the camera notch in full screen (deck.measureNotch): a band, the deck starts under it */
@@ -1030,6 +1185,7 @@ export class Workspace {
 
   render(ui: UI): void {
     const d = this.deck;
+    this.tidyPlaces();
     this.noteVisit();
     this.saveSession();
     const W = ui.cols;
@@ -1072,10 +1228,14 @@ export class Workspace {
       this.rects.sidebar = vaultR;
       // every frame has its tabs on its border: the tree's is one, VAULT
       const focused = this.focus === "sidebar" && !this.topModal;
-      const inner = tabbedBox(ui, vaultR, { focused, info: `${d.vault.markdown().length}` });
-      soloTab(ui, vaultR, "VAULT", focused, { onClick: () => (this.focus = "sidebar"), tip: t("your notes and files · ⌘B hides the tree"), menu: () => [{ label: t("Fold"), cmd: "frame fold tree" }, { label: t("Hide"), cmd: "tree", hint: IS_MAC ? "⌘B" : "ctrl+B" }] });
+      // a tab moved here (tab move <n> tree) may be the one shown instead of the tree
+      const moved = this.shownIn("vault");
+      const inner = tabbedBox(ui, vaultR, { focused, info: moved ? undefined : `${d.vault.markdown().length}` });
+      const own = soloTab(ui, vaultR, "VAULT", focused, { onClick: () => (moved ? this.showIn("vault", null) : (this.focus = "sidebar")), tip: t("your notes and files · ⌘B hides the tree"), menu: () => [{ label: t("Fold"), cmd: "frame fold tree" }, { label: t("Hide"), cmd: "tree", hint: IS_MAC ? "⌘B" : "ctrl+B" }] }, !moved);
+      placeChips(this, ui, own.x + own.w + INSET, vaultR.y, vaultR.x + vaultR.w - INSET, "vault", focused);
       // (clipped: in a tiny window the tree's list drew a row under its frame)
-      ui.clip(inner, () => this.sidebar.render(ui, inner, this.focus === "sidebar"));
+      if (moved) ui.clip(inner, () => moved.render(ui, inner, focused));
+      else ui.clip(inner, () => this.sidebar.render(ui, inner, this.focus === "sidebar"));
     }
 
     // the side panel on the right: widgets that stay in view (panel show · ◧ in the status bar);
@@ -1084,9 +1244,18 @@ export class Workspace {
     const panelR = strips.has("panel") ? undefined : at.get("panel");
     if (panelR) {
       this.rects.panel = panelR; // a click there gives it the focus
-      this.sidePanel.render(ui, panelR);
+      const focused = this.focus === "panel" && !this.topModal;
+      const moved = this.shownIn("panel");
+      if (moved) {
+        // a tab moved here, shown instead of the widgets (PANEL's tab brings them back)
+        const inner = tabbedBox(ui, panelR, { focused });
+        soloTab(ui, panelR, t("PANEL"), focused, { onClick: () => this.showIn("panel", null), tip: t("the panel's widgets") }, false);
+        ui.clip(inner, () => moved.render(ui, inner, focused));
+      } else this.sidePanel.render(ui, panelR);
+      // the tabs moved here, after PANEL's own
+      placeChips(this, ui, panelR.x + strWidth(t("PANEL")) + INSET * 4, panelR.y, panelR.x + panelR.w - INSET, "panel", focused);
     }
-    if (this.focus === "panel" && !this.sidePanel.area) this.focus = "main"; // the panel went away
+    if (this.focus === "panel" && !this.rects.panel) this.focus = "main"; // the panel went away
     // the page (maximized shell: in the strip at the bottom)
     const mainR = at.get("main") ?? body;
     this.rects.main = mainR;
@@ -1110,6 +1279,9 @@ export class Workspace {
       if (b.dir === "row") ui.vline(b.grip.x, b.grip.y, b.grip.h, { fg: ui.c.accent }, "┃");
       else ui.tint(b.grip, ui.c.accent);
     }
+
+    // a tab dragged onto another frame: that frame, outlined
+    drawDropFrame(this, ui);
 
     renderStatusBar(this, ui, { x: 0, y: N + H - 1, w: W, h: 1 });
     renderSubtitles(this, ui, W, N + H);

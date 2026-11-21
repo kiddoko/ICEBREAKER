@@ -15,7 +15,7 @@ import { Bar, GAP, INSET } from "../ui/layout";
 import { Osk } from "./overlays";
 import { SystemTerminal, terminalKeysHint } from "../shell/systerm";
 import type { ShellTab, Workspace } from "./workspace";
-import { chipStyle, drawChip, tabbedBox } from "./tabstrip";
+import { chipStyle, drawChip, placeChips, tabbedBox } from "./tabstrip";
 import { DECK_MENU_TITLE, deckMenu, editMacro, macroMenu, shellMenu, termTabMenu } from "./menus";
 
 /**
@@ -33,6 +33,8 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
   // its tabs on its top border, like every frame (tabstrip.ts): your terminals [+] · ibsh · log.
   // The panel's buttons (scripts, hide, maximize) sit apart, on the right of the same row.
   const si = tabbedBox(ui, r, { focused: shellFocused });
+  // a tab moved here (tab move <n> shell) may be the one shown instead of the terminals
+  const moved = ws.shownIn("shell");
   if (ws.termAvailable && !ws.terms.length) ws.terms.push(new SystemTerminal(d));
   const tabs: [ShellTab, string, number][] = [
     ...(ws.termAvailable ? ws.terms.map((tm, i) => ["term", tm.name, i] as [ShellTab, string, number]) : []),
@@ -63,7 +65,7 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
     const group = id === "term" ? "term" : "deck";
     if (lastGroup && group !== lastGroup) tx += 1; // your terminals, then the deck's own
     lastGroup = group;
-    const on = id === ws.shellTab && (ti < 0 || ti === ws.termIndex);
+    const on = !moved && id === ws.shellTab && (ti < 0 || ti === ws.termIndex);
     const icon = id === "term" ? "❯" : id === "ibsh" ? ui.theme.glyphs.mark : id === "log" ? "≣" : "";
     const closable = id === "term" && on && ws.terms.length > 1;
     const text = ` ${icon && !label.startsWith("⚠") ? `${icon} ` : ""}${label} ${closable ? "× " : ""}`;
@@ -77,7 +79,7 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
     const style = alarm ? { fg: blink ? c.panel : c.error, bg: blink ? c.error : st.bg, attrs: BOLD } : { ...st, attrs: on ? BOLD : 0 };
     drawChip(ui, tx, r.y, rect.w, style.bg);
     ui.text(tx, r.y, text, style);
-    ui.hit(rect, { onClick: () => (ti >= 0 && (ws.termIndex = ti), ws.showShellTab(id)), menu: ti >= 0 ? () => termTabMenu(ws, ti) : undefined, tip: id === "term" ? `right-click: rename, close… · term rename <name> · F12 next tab\n${ws.terms[ti]?.shellName ?? ""}: your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)` : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash · F12 next tab" : "the log: what you typed, what clicks ran, errors, messages, debug — tick what you want to see · log" });
+    ui.hit(rect, { onClick: () => (moved && ws.showIn("shell", null), ti >= 0 && (ws.termIndex = ti), ws.showShellTab(id)), menu: ti >= 0 ? () => termTabMenu(ws, ti) : undefined, tip: id === "term" ? `right-click: rename, close… · term rename <name> · F12 next tab\n${ws.terms[ti]?.shellName ?? ""}: your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)` : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash · F12 next tab" : "the log: what you typed, what clicks ran, errors, messages, debug — tick what you want to see · log" });
     // the terminal shown, when there are several: its × is part of its tab
     if (closable) {
       const xr = { x: tx + rect.w - GAP, y: r.y, w: GAP, h: 1 };
@@ -94,6 +96,19 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
       tx += 4;
     }
   }
+  // the tabs moved here, after the shell's own
+  tx = placeChips(ws, ui, tx, r.y, bxr, "shell", shellFocused);
+  // drag the top border to resize: the free part of the tabs' row, and the frame's line under it
+  // (`fixed`: maximized, or not along the bottom — its height isn't this border's to change)
+  const handle = { x: tx + 2, y: r.y, w: fixed ? 0 : Math.max(0, bxr - 1 - tx - 2), h: 2 };
+  ui.hit(handle, {
+    onClick: () => {},
+    onDrag: (m) => {
+      const fromBottom = body.y + body.h - m.y;
+      ws.shellRatio = Math.max(0.15, Math.min(0.8, fromBottom / body.h));
+    },
+  });
+  if (moved) return void ui.clip(si, () => moved.render(ui, si, shellFocused));
   // the shell's own menu first: what's drawn on it (macros, the terminal) registers after and wins the right-click
   ui.hit(si, { menu: () => shellMenu(ws) });
   // macro bar above the system terminal (one free row under the tabs)
@@ -129,17 +144,6 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
     if (ws.shellTab === "term") ws.terminal.render(ui, termR, shellFocused);
     else if (ws.shellTab === "log") ws.logPane.render(ui, si);
     else d.shell.render(ui, si, shellFocused);
-  });
-  // drag the top border to resize
-  // (`fixed`: maximized, or not along the bottom — its height isn't this border's to change)
-  // (both rows: the free part of the tabs' row, and the frame's line under it)
-  const handle = { x: tx + 2, y: r.y, w: fixed ? 0 : Math.max(0, bxr - 1 - tx - 2), h: 2 };
-  ui.hit(handle, {
-    onClick: () => {},
-    onDrag: (m) => {
-      const fromBottom = body.y + body.h - m.y;
-      ws.shellRatio = Math.max(0.15, Math.min(0.8, fromBottom / body.h));
-    },
   });
 }
 
@@ -265,8 +269,11 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
   const c = ui.c;
   const d = ws.deck;
   ui.fill(r, { bg: c.statusBg });
-  const pane = ws.focus === "main" ? (ws.activeApp?.kind ?? "deck") : ws.focus === "sidebar" ? "vault" : ws.focus === "panel" ? "panel" : "shell";
-  const status = ws.focus === "shell" && ws.shellTab === "term" && ws.termAvailable
+  // a frame showing a tab moved there speaks for that page
+  const page = ws.focus === "main" ? ws.activeApp : ws.focusedPage;
+  const pane = page ? page.kind : ws.focus === "main" ? "deck" : ws.focus === "sidebar" ? "vault" : ws.focus === "panel" ? "panel" : "shell";
+  const status = page && ws.focus !== "main" ? osKeys(page.status?.() ?? "")
+    : ws.focus === "shell" && ws.shellTab === "term" && ws.termAvailable
     ? `${ws.sysTerm?.shellName ?? "terminal"} · ${terminalKeysHint()} · ⇧⇧ menu · F12 tabs`
     : ws.focus === "shell" ? d.shell.status() : ws.focus === "sidebar" ? "enter open · n new note · r rescan" : ws.focus === "panel" ? t("e edit · a add a widget · right-click: move, remove · ⌘⇧P hide") : osKeys(ws.activeApp?.status?.() ?? "");
 

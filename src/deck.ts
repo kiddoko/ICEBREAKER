@@ -249,7 +249,7 @@ export class Deck implements InputSink {
       if (g === "back" || g === "forward") {
         if (ws.topModal) return;
         this.sound.play("move");
-        ws.switchTab(ws.active + (g === "forward" ? 1 : -1), true);
+        ws.stepTab(g === "forward" ? 1 : -1, true);
       } else this.zoom(g === "zoom-in" ? 1 : -1);
       this.requestFrame();
     };

@@ -19,7 +19,9 @@ import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC } from "../core/input";
 import { strWidth, truncate } from "../core/unicode";
 import { q, type BoxOptions, type MenuEntry, type UI } from "../ui/ui";
-import { Bar, INSET } from "../ui/layout";
+import { Bar, GAP, INSET } from "../ui/layout";
+import { frameOfPane, PANE_OF, type PlaceFrame } from "./tabplaces";
+import type { Pane } from "./workspace";
 import type { Overlay } from "./overlays";
 import { groupOf } from "./tabgroups";
 import type { Workspace } from "./workspace";
@@ -72,12 +74,12 @@ export function drawChip(ui: UI, x: number, y: number, w: number, bg: number, ba
  * The header of a frame that holds one thing (VAULT, PANEL): one tab with its name,
  * at the left of the header row. Returns its rect.
  */
-export function soloTab(ui: UI, r: Rect, label: string, focused: boolean, hit: { cmd?: string; onClick?: () => void; tip?: string; menu?: () => MenuEntry[] }): Rect {
+export function soloTab(ui: UI, r: Rect, label: string, focused: boolean, hit: { cmd?: string; onClick?: () => void; tip?: string; menu?: () => MenuEntry[] }, on = true): Rect {
   // one cell in from the frame's corner; the name with a space on each side
   const w = Math.min(r.w - INSET * 2, strWidth(label) + INSET * 2);
   const rect = { x: r.x + INSET, y: r.y, w, h: 2 };
   if (w < 3) return rect;
-  const st = chipStyle(ui, true, focused, false);
+  const st = chipStyle(ui, on, focused, !on && ui.hovered(rect));
   drawChip(ui, rect.x, r.y, w, st.bg);
   ui.text(rect.x + INSET, r.y, label, { fg: st.fg, bg: st.bg, attrs: BOLD }, w - INSET * 2);
   ui.hit(rect, hit);
@@ -88,6 +90,90 @@ export function soloTab(ui: UI, r: Rect, label: string, focused: boolean, hit: {
 export const isPinned = (ws: Workspace, i: number) => ws.tabs[i]?.kind === "home";
 /** the pinned tab's width: "⌂ home" */
 const pinW = (ws: Workspace, i: number) => strWidth(ws.tabs[i].title().toLowerCase()) + 4;
+
+// ── tabs in other frames (workspace/tabplaces.ts) ────────────────────────────
+
+/** the frame under the pointer, when a tab is dropped outside its own strip */
+function frameUnder(ws: Workspace, m: { x: number; y: number }): PlaceFrame | "main" | null {
+  for (const [pane, r] of Object.entries(ws.rects) as [Pane, Rect | undefined][]) {
+    if (r && m.x >= r.x && m.x < r.x + r.w && m.y >= r.y && m.y < r.y + r.h) return frameOfPane(pane);
+  }
+  return null;
+}
+
+/** where a tab dragged out of its frame would go (outlined while dragging) */
+let dropFrame: { from: PlaceFrame | "main"; to: PlaceFrame | "main" } | null = null;
+
+/** The frame a dragged tab would drop into, outlined (Workspace.render calls it last). */
+export function drawDropFrame(ws: Workspace, ui: UI): void {
+  if (!dropFrame || dropFrame.to === dropFrame.from) return;
+  const r = ws.rects[PANE_OF[dropFrame.to]];
+  if (r) ui.box(r, { border: "dashed", focused: true, fill: false, title: t("drop: the tab goes here") });
+}
+
+/** Drag handlers for tab `i` living in frame `from`: dropped onto another frame, it moves there. */
+export function dragToFrame(ws: Workspace, i: number, from: PlaceFrame | "main"): { onDrag: (m: { x: number; y: number }) => boolean; onUp: () => boolean } {
+  return {
+    // true while the pointer is over another frame (the strip's own drag then stands aside)
+    onDrag: (m) => {
+      const to = frameUnder(ws, m);
+      dropFrame = to && to !== from ? { from, to } : null;
+      return !!dropFrame;
+    },
+    onUp: () => {
+      const d = dropFrame;
+      dropFrame = null;
+      if (!d || d.to === d.from) return false;
+      void ws.deck.act(`tab move ${i + 1} ${d.to === "vault" ? "tree" : d.to}`);
+      return true;
+    },
+  };
+}
+
+/**
+ * The tabs moved into frame `f`, after the frame's own tab(s), from `x` on the header row
+ * `y`: a click shows it (in place of the frame's own content), × closes it, drag it onto
+ * another frame. Returns where the next thing can go.
+ */
+export function placeChips(ws: Workspace, ui: UI, x: number, y: number, maxX: number, f: PlaceFrame, focused: boolean): number {
+  const c = ui.c;
+  // the one shown first (a narrow frame may not fit them all), the rest in a "+N" list
+  const all = ws.tabsIn(f).sort((a, b) => Number(ws.tabs[b].key === ws.shows[f]) - Number(ws.tabs[a].key === ws.shows[f]));
+  for (const [k, i] of all.entries()) {
+    const app = ws.tabs[i];
+    const pin = isPinned(ws, i);
+    const label = `${pin ? "⌂" : iconOf(ws, i)} ${app.title().toLowerCase()}`;
+    // " label " and, unless pinned, " ×"; the one shown may be cut to fit
+    const rest = all.length - k - 1;
+    const room = maxX - x - (rest ? MORE_W : 0);
+    const w = Math.min(MAXW, strWidth(label) + INSET * 2 + (pin ? 0 : GAP), k === 0 ? Math.max(0, room) : MAXW);
+    if (w < 6 || x + w > maxX - (rest ? MORE_W : 0)) {
+      // the ones that don't fit: a list
+      const left = all.slice(k);
+      const more = ` +${left.length} `;
+      const mr = { x, y, w: strWidth(more), h: 1 };
+      if (x + mr.w > maxX) break;
+      ui.text(x, y, more, { fg: ui.hovered(mr) ? c.panel : c.accent, bg: ui.hovered(mr) ? c.accent : c.highlight, attrs: BOLD });
+      ui.hit(mr, { onClick: () => ws.openMenu(left.map((j) => ({ label: `${iconOf(ws, j)} ${ws.tabs[j].title().toLowerCase()}`, cmd: `tab ${j + 1}` })), x, y + 1, t("more tabs")), tip: t("{n} more tabs: click for the list", { n: left.length }) });
+      return x + mr.w + SEP;
+    }
+    const rect = { x, y, w, h: 2 };
+    const on = ws.shows[f] === app.key;
+    const hot = ui.hovered(rect);
+    const st = chipStyle(ui, on, focused, hot);
+    drawChip(ui, x, y, w, st.bg);
+    ui.text(x + INSET, y, label, { fg: st.fg, bg: st.bg, attrs: on ? BOLD : 0 }, w - INSET * 2 - (pin ? 0 : GAP));
+    const drag = dragToFrame(ws, i, f);
+    ui.hit(rect, { cmd: `tab ${i + 1}`, tip: `${app.title()}\n${t("drag it onto another frame to move it · right-click: move, close")}`, menu: () => tabMenu(ws, i), onDrag: (m) => void drag.onDrag(m), onUp: () => void drag.onUp() });
+    if (!pin) {
+      const xr = { x: x + w - GAP - INSET, y, w: GAP + INSET, h: 1 };
+      ui.text(x + w - GAP, y, on || hot ? "×" : " ", { fg: ui.hovered(xr) ? c.error : st.fg, bg: st.bg, attrs: BOLD });
+      ui.hit(xr, { cmd: `tab close ${i + 1}`, tip: t("close · ctrl+w · shift+esc") });
+    }
+    x += w + SEP;
+  }
+  return x;
+}
 
 /** A tab being dragged: which, onto which chip, and whether it drops ON it (a group) or beside it. */
 let dragging: { from: number; to: number; onto: boolean } | null = null;
@@ -159,7 +245,9 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
       if (numbers && i < 9) tx = ui.text(tx, r.y, `${i + 1} `, { fg: on ? c.panel : c.accent, bg, attrs: BOLD });
       else tx = ui.text(tx, r.y, "⌂ ", { fg: on ? c.panel : c.accent, bg, attrs: BOLD });
       ui.text(tx, r.y, ws.tabs[i].title().toLowerCase(), { fg, bg, attrs: on ? BOLD : 0 }, x + w - 1 - tx);
-      ui.hit(rect, { cmd: `tab ${i + 1}`, tip: `${ws.tabs[i].title()} · ${t("pinned: always here")}\n${IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`}`, menu: () => tabMenu(ws, i) });
+      // it can go to another frame (dragged onto it), not elsewhere in this strip
+      const toFrame = dragToFrame(ws, i, "main");
+      ui.hit(rect, { cmd: `tab ${i + 1}`, tip: `${ws.tabs[i].title()} · ${t("pinned: always first")}\n${IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`} · ${t("drag it onto another frame to move it")}`, menu: () => tabMenu(ws, i), onDrag: (m) => void toFrame.onDrag(m), onUp: () => void toFrame.onUp() });
     } else if (e.kind === "group") {
       // ▣ the group: its name (or its shown tab's), how many; hover lists them
       const name = e.group.name || ws.tabs[i]?.title().toLowerCase() || t("group");
@@ -181,6 +269,7 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
       ui.text(tx, r.y, ws.tabs[i].title().toLowerCase(), { fg, bg, attrs: on ? BOLD : 0 }, Math.max(0, closeX - tx - 1));
       const closeHot = ui.hovered({ x: closeX - 1, y: r.y, w: 3, h: 1 });
       ui.text(closeX, r.y, on || hot ? "×" : " ", { fg: closeHot ? c.error : on ? c.panel : c.subtle, bg, attrs: closeHot ? BOLD : 0 });
+      const toFrame = dragToFrame(ws, i, "main");
       ui.hit(rect, {
         cmd: `tab ${i + 1}`,
         tip: `${ws.tabs[i].title()}\n${IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`} · ${t("drag: move it, or onto another tab: a group · right-click: close others…")}`,
@@ -188,6 +277,8 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
         // drag it: beside another chip moves it there, onto the middle of one makes a group
         // (never before or onto the pinned HOME)
         onDrag: (m) => {
+          // over another frame: it'll move there (that frame is outlined)
+          if (toFrame.onDrag(m)) return void (dragging = null);
           let to = rects.findIndex((rr) => m.x < rr.x + rr.w);
           if (to < 0) to = rects.length - 1;
           const rr = rects[to];
@@ -197,6 +288,7 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
           dragging = isPinned(ws, dest) ? (onto ? null : { from: i, to: dest + 1, onto: false }) : { from: i, to: dest, onto };
         },
         onUp: () => {
+          if (toFrame.onUp()) return void (dragging = null);
           const d = dragging;
           dragging = null;
           if (!d || d.to < 0 || d.to === d.from || d.to >= ws.tabCount) return;

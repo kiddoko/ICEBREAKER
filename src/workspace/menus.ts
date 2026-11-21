@@ -135,6 +135,12 @@ export function tabMenu(ws: Workspace, i: number): MenuEntry[] {
     { label: t("Close others"), run: () => closeMany(ws, (j) => j !== i), disabled: ws.tabs.length < 2 },
     { label: t("Close tabs to the right"), run: () => closeMany(ws, (j) => j > i), disabled: i >= ws.tabs.length - 1 },
   ];
+  // into another frame (Refonte UI 3b): the tree's, the panel's, the shell's, or back to the page's
+  if (i < ws.tabCount) {
+    const at = ws.placeOf(i);
+    const to: [string, string][] = [["main", t("the page's frame")], ["tree", t("the tree's frame")], ["panel", t("the panel's frame")], ["shell", t("the shell's frame")]];
+    items.push({ label: t("Move to"), sub: to.filter(([k]) => (k === "tree" ? "vault" : k) !== at).map(([k, label]) => ({ label, cmd: `tab move ${i + 1} ${k}` })) });
+  }
   if (note) {
     const pinned = (ws.deck.settings.data.favorites ?? []).some((f) => f.target === note);
     const doc = app as { save?: () => Promise<void>; dirty?: () => boolean };

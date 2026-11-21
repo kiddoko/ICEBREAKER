@@ -50,8 +50,19 @@ stacked, moved, split, folded. This page is how it works and where it stands.
   lit, × closes it. **HOME is pinned**: always the first tab, ⌂, no × (⌘W, `tab close`,
   "close others" leave it), never moved or grouped. Both header rows grab a frame's top
   border. Folded frames are one-cell strips with their name down the strip.
-- Step 3b, next: any tab in any frame (drag a tab onto another frame; HOME too), the
-  terminals as one group (`term new` opens beside the others).
+- **Step 3b, second part (done): a tab in any frame** (`src/workspace/tabplaces.ts`,
+  pure). Drag a tab onto another frame (it's outlined while you drag), or
+  `tab move <n> tree|panel|shell|main`, or right-click → *Move to*: it sits after that
+  frame's own tab (VAULT, PANEL, the terminals) and the frame shows it instead of its own
+  content — a click on the frame's own tab brings that back. HOME too (still pinned: no ×).
+  Keys go to the page the focused frame shows, and so does the status bar. ⌘1…9 on a tab
+  that lives elsewhere shows it there; ctrl+tab steps through the page frame's tabs only.
+  The page's frame keeps at least one tab (HOME comes back to it otherwise). Where each
+  tab lives and what each frame shows are saved with the session (`session.places`,
+  `session.shows`, checked when read back). A narrow frame shows the tab it shows first,
+  the rest in "+N".
+- The terminals stay together in the shell's frame: `term new` opens beside them
+  (`term max` still turns the shell into a big tab of the page's frame, `term dock` puts it back).
 - Step 4: each tab's history (back / forward). Step 5: the INFO panel.
 
 ## The model
