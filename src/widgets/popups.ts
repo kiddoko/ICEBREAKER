@@ -1,6 +1,6 @@
 import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
 import { BOX_OFF, BOX_ON, checkbox, choice } from "../ui/controls";
-import { clockState, dur, soonestTimer, swNow, type ClockTimer } from "./clockstate";
+import { parseTimer, clockState, dur, soonestTimer, swNow, type ClockTimer } from "./clockstate";
 import { NEWS_CATEGORIES } from "./news";
 import { clockCommand } from "./clockfaces";
 import { t } from "../core/i18n";
@@ -455,8 +455,7 @@ export const timerCommand: Command = {
       ctx.deck.requestFrame();
       return ctx.out("timer stopped\n"), 0;
     }
-    const m = /^(?:(\d+)h)?(?:(\d+)m?)?(?:(\d+)s)?$/.exec(a);
-    const ms = m ? ((Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0)) * 60 + Number(m[3] ?? 0)) * 1000 : 0;
+    const ms = parseTimer(a);
     if (!ms) return ctx.err("usage: timer 5m | 90s | 1h30 | 25 (minutes) [label]\n"), 1;
     const tm: ClockTimer = { id: clockState.nextTimer++, label: rest.join(" ") || dur(ms), end: Date.now() + ms, total: ms };
     clockState.timers.push(tm);
