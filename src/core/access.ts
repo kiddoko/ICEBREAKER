@@ -23,6 +23,9 @@ const KEEP_MS = 30 * 86_400_000;
 const MAX = 4000;
 /** the same thing again within this long is one line */
 const SAME_MS = 10 * 60_000;
+/** more than this many different things by one module with one permission in a minute: one line that counts */
+const BURST = 12;
+const BURST_MS = 60_000;
 
 export class AccessLog {
   list: Access[] = [];
@@ -30,6 +33,8 @@ export class AccessLog {
   onAdd: (a: Access) => void = () => {};
   private last = new Map<string, number>();
   private recent = new Map<string, number>();
+  /** by who|perm: the minute's count, and the line that says "+N more" */
+  private bursts = new Map<string, { since: number; count: number; more?: Access; n: number }>();
   private timer: ReturnType<typeof setTimeout> | undefined;
   private loaded = false;
 
@@ -61,6 +66,20 @@ export class AccessLog {
     if (before !== undefined && now - before < SAME_MS) return;
     this.recent.set(key, now);
     if (this.recent.size > 2000) for (const [k, at] of this.recent) if (now - at >= SAME_MS) this.recent.delete(k);
+    // a burst (a module reading a whole folder): the first ones by name, then one line that counts
+    const bk = `${who}|${perm}`;
+    let b = this.bursts.get(bk);
+    if (!b || now - b.since > BURST_MS) this.bursts.set(bk, (b = { since: now, count: 0, n: 0 }));
+    if (++b.count > BURST) {
+      b.n++;
+      if (b.more) b.more.what = `+${b.n} more`;
+      else {
+        b.more = { at: now, who, perm, what: `+${b.n} more` };
+        this.list.push(b.more);
+        this.onAdd(b.more);
+      }
+      return this.save();
+    }
     const a: Access = { at: now, who, perm, what: name };
     this.list.push(a);
     if (this.list.length > MAX) this.list.splice(0, this.list.length - MAX);

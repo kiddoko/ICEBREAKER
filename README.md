@@ -66,6 +66,7 @@ scanlines — and works with the keyboard, the mouse or a gamepad.
 - **MODULES** shows them on a turning ring, each one a cyberdeck shard in its colour.
 - Modules have a documented API and declared permissions; the built-in ones use the very same API ([docs/PLUGINS.md](docs/PLUGINS.md)). Everything is callable: `ib.use("tree").reveal("notes/a.md")`.
 - **Modules from the STORE run in a sandbox** (a Worker: no page, no native side, no network of their own — only what their permissions allow; [docs/SANDBOX.md](docs/SANDBOX.md)).
+- **Permissions in plain words**: what a module, the AI or a program in your terminal may reach has a name, a level and a switch — the riskiest asked again when first used, every one shown with its last use and taken away in one click (Settings → PERMISSIONS, [docs/PERMISSIONS.md](docs/PERMISSIONS.md)).
 - **One UI kit**: the field, the checkbox, the slider, the list, the file browser… exist once and modules get the same ones ([docs/UI_KIT.md](docs/UI_KIT.md), spacing rules: [docs/LAYOUT.md](docs/LAYOUT.md)).
 
 ### Look and feel
@@ -188,6 +189,7 @@ themes/          built-in themes (nightshade.toml is the annotated reference)
 - Make a theme → [docs/THEMES.md](docs/THEMES.md)
 - Make a sound pack → [docs/SOUND_PACKS.md](docs/SOUND_PACKS.md)
 - The house rules for modules and themes → [docs/GUIDELINES.md](docs/GUIDELINES.md)
+- Permissions (the names, the levels, what's asked when) → [docs/PERMISSIONS.md](docs/PERMISSIONS.md)
 - Modules and safety (the audit, the sandbox) → [docs/SANDBOX.md](docs/SANDBOX.md) · what was found and fixed → [docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md)
 - The UI kit and the spacing rules → [docs/UI_KIT.md](docs/UI_KIT.md) · [docs/LAYOUT.md](docs/LAYOUT.md)
 - Share them, install other people's → [docs/COMMUNITY.md](docs/COMMUNITY.md)

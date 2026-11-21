@@ -131,7 +131,8 @@ async function storeInstall(ctx: ShellContext, arg: string, window: boolean, see
   }
   // switching it on shows its own permissions and the audit (and switches on what it needs)
   try {
-    if (!(await d.plugins.enable(id, ask))) return ctx.out(`${id}: installed, off (plugin enable ${id})\n`), 0;
+    // (in a window — a click in the STORE — the permission dialog; typed: asked here, in words)
+    if (!(await d.plugins.enable(id, window ? undefined : ask))) return ctx.out(`${id}: installed, off (plugin enable ${id})\n`), 0;
     ctx.out(`${fmt.green("✓")} ${id} is on\n`);
     return 0;
   } catch (err) {

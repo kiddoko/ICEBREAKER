@@ -26,7 +26,8 @@ src/
   widgets/         HOME widgets (and their pop-ups)
   shell/           ibsh (the deck's shell), its commands, the system-terminal bridge;
                    origin.ts = who a line comes from (you, a module, your real terminal) and what it may
-                   read and write; privileged.ts = the commands only you may run
+                   read and write; privileged.ts = the commands only you may run;
+                   classes.ts = every command classed for modules (an allow-list, guarded by a test)
   vault/           the notes folder: files, journal, tags & icons, START HERE
   plugins/         the module system: host, API given to modules, core packages (TERMINAL among them:
                    workspace.terminalOn hides the shell panel; shell.readLine asks in dialogs then);
@@ -322,7 +323,22 @@ Three things can ask the deck to do something, and they aren't trusted the same:
 | **a module** — `ib.shell.run`, a click on one of its areas, a function it calls (`ib.modules.call`, `ib.use`) | an `Origin { source, grants }` that travels with the line for its whole run (`src/shell/origin.ts`) | never the privileged commands (`src/shell/privileged.ts`); a STORE / vault module reads, pipes and writes notes only with its permissions, never `.icebreaker/` |
 | **a program in your real terminal** (the bridge, `term.rs`) | origin `"terminal"` | never the privileged commands; nothing at all on an encrypted vault |
 
+What each may reach is named ([PERMISSIONS.md](PERMISSIONS.md), `src/plugins/permissions.ts`):
+a module's `grants` are the permissions you approved minus the ones you took away, read at
+every question (`Grants`), sometimes narrowed to a folder or a host; a high-risk one passes
+through `origin.gate` the first time it's really used; every use goes to the access journal
+(`origin.note`, `src/core/access.ts`). The AI has its own setting (`ai.reads`), your real
+terminal too (`shell.bridge`).
+
 Rules to keep when you add code:
+
+- **A new command is classed** in `src/shell/classes.ts` (open, mixed, notify, ai, online,
+  yours) — `tests/classes.test.ts` fails until it is; unclassed, it's refused to modules.
+- **A new function exposed to modules says what it needs** (`needs: "shell"` when it drives
+  the deck, `"notify"` when it shows or says something, `"vault:read"` when it tells what
+  you're looking at) — and signs what it shows with the caller's name.
+- **A new way out to the internet** on the native side starts with `config::online(&app, …)?`
+  (stealth mode), and a new one for modules goes through `ib.net` (a named host).
 
 - A command never calls `deck.act()` or `deck.shell.runLine()` blindly for someone else: it gets a
   `ctx.deck` that already keeps the origin, and `ctx.shell.run()`. A new command that plants

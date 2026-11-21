@@ -72,20 +72,33 @@ info <id>` say what's missing (src/plugins/deps.ts). The index entry can carry t
 compares versions there, Settings → UPDATES does it by itself (docs/UPDATES.md). Raise
 `version` in plugin.json when you publish a new one.
 
-| permission    | allows                                              |
-|---------------|-----------------------------------------------------|
-| `vault:read`  | `ib.vault.read / exists / notes / modified`, `ib.ai.vaultTools()` |
-| `vault:write` | `ib.vault.write / append / mkdir`                   |
-| `ai`          | `ib.ai.ask / session` (uses the user's provider)    |
-| `media`       | `ib.media.status / control` (the system player: what plays, play / pause / next…), `ib.media.player.*` — **audio files anywhere on the computer, not only in the vault**: `scan(folder)` lists a folder's tracks with their tags, `load(path)` plays one. A module with `media` can see the names of your music files and play them |
-| `google-calendar` | `ib.google.*`: the user's Google Calendar, through their own OAuth client |
-| `stats:read` | `ib.stats.get/series/list` on *other* modules' stats (your own need no permission) |
-| `terminal` | `ib.use("terminal").run / write`: type commands in the user's real shell |
-| `audio` | `ib.audio.*`: play sound of its own through the speakers (a sampler the deck mixes) |
+| permission | what the person reads | level | allows |
+|---|---|---|---|
+| `vault:read` · `vault:read:songs/` | Read your notes (all, or a folder) | medium | `ib.vault.read / exists / notes / modified / list / readBytes`; the whole vault only: `ib.ai.vaultTools()` |
+| `vault:write` · `vault:write:songs/` | Change your notes | **high** | `ib.vault.write / append / mkdir / writeBytes` — asked again at first use |
+| `ai` | Use your AI | medium | `ib.ai.ask / session` (the user's provider) |
+| `audio` | Play sound | low | `ib.audio.*` (a sampler the deck mixes) |
+| `media:control` | Drive your music player | low | `ib.media.status / control` (the system player) |
+| `media:files` | Read your audio files outside the vault | medium | `ib.media.player.*`: the audio files of **any folder of the computer** |
+| `google-calendar` · `google-calendar:read` | Your Google Calendar (or only reading it) | medium | `ib.google.*`, through the user's own OAuth client |
+| `stats:read` | Read the other modules' counters | low | `ib.stats.get / series / list` on *other* modules' stats (your own need nothing) |
+| `system` | See the computer's details | medium | `sysmon.stats()` with `top`, `disks`, `netRx`, `netTx`, `load` |
+| `notify` | Notify you and talk to you | low | `ib.ui.notify / alert / say`, `deck.notify / alert / say`, `sound.play` |
+| `shell` | Run the deck's commands | medium | `ib.shell.run`, and the deck's functions that drive it (`tabs.go`, `theme.set`, `notes.open`, `keys.run`…) |
+| `net:api.example.com` | Go online, to that host | **high** | `ib.net.get(url)`: https GET, text, 4 MB — asked again at first use |
+| `terminal` | Type in your real terminal | **total** | `ib.use("terminal").run / write` — every command is shown to the user first |
+
+`media` (the name from before 0.6) is both `media:control` and `media:files`. Put
+**`"api": 2`** in your plugin.json: you get exactly what you list. Without it the module is
+read the old way (it may also notify and run the deck's commands, as every module could —
+the dialog says so). The whole model, the levels and what the person sees:
+[PERMISSIONS.md](PERMISSIONS.md).
 
 Plugins from the vault are **off** until the user runs `plugin enable <id>`,
-which shows the permissions and asks for confirmation. Calling an API you
-didn't declare throws an error.
+which shows the permissions in plain words, with their level, and asks. Calling an API you
+didn't declare throws an error; so does one the user took away (Settings → PERMISSIONS,
+`plugin revoke`) — your module keeps running, handle it. A high-risk call (`vault.write`,
+`net.get`, `terminal.run`) can also be refused when it's first used: catch it.
 
 > Honesty note: modules from the STORE and the vault run in a **sandbox** (a Worker: no page,
 > no native access, no network of their own; every `ib` call checked against the permissions —
@@ -213,7 +226,12 @@ The full surface is typed and commented in
 - The user can place your widget **several times** (HOME, the side panel): `render(ui, r, { deck, key })` tells you which copy (`"mywidget"`, `"mywidget#2"`). Keep each copy's settings apart with `ib.lib`'s `widgetConfig(deck, key, name, fallback)` / `setWidgetSetting(deck, id, name, value)` — or key your own state by `key`.
 - `ib.storage.get/set` → a private JSON file per plugin (`.icebreaker/plugin-data/<id>.json`).
 - `ib.settings.register([...])` → your section in Settings (◇ YOUR MODULE, after the normal ones). Row types: `toggle`, `choice` (`options`), `text`, `number`, and `action` — a row that does something when chosen: `cmd` (a shell command, shown under the row like every setting) or `run()` (a picker, a confirmation…), plus `value()` for the status on the right ("connected", a name…). Read with `ib.settings.get(key)`, react with `onChange`; shell: `modules set <id> <key> <value>`. Example: the CALENDAR module (`plugins/calendar/main.ts`).
-- `ib.shell.run(line)` → run a command, shown in the shell's LOG tab (what your clicks should do).
+- `ib.net.get(url)` → the internet, one approved host at a time (permission `net:<host>`): an
+  https GET, text back, through the deck's native side. Nothing in stealth mode.
+- `ib.shell.run(line)` → run a command, shown in the shell's LOG tab (what your clicks should do;
+  permission `shell` for the deck's commands — your own commands need nothing).
+  Only the commands modules may run: an allow-list (`src/shell/classes.ts`), so a command that
+  isn't classed is refused; `weather` and `news` go online and are never a module's to run.
   The line runs **as your module** (`src/shell/origin.ts`), with your permissions: it reads,
   pipes (`|`) and `<` notes only with `vault:read`, writes (`>`, `touch`, `mv`, `rm`, `note`…)
   only with `vault:write`, never touches `.icebreaker/`, and needs `ai` for `ask` / `chat`.

@@ -43,6 +43,7 @@ export const NOTES: VersionNotes[] = [
         "New pages for NEWS and MOON; WEATHER, CLOCKS, STATS, SYSMON redrawn",
         "Wake-up alarms (in ibsh): `clock alarm 7:30 --days mon-fri`",
         "Each news widget shows one thing: your area, country, topics or words",
+        "Permissions in plain words: see them, take one away (Settings)",
       ],
       fixed: [
         "The moon's phase was five days off: now right to the hour",
@@ -61,6 +62,7 @@ export const NOTES: VersionNotes[] = [
         "Des pages pour NEWS et MOON ; WEATHER, CLOCKS, STATS, SYSMON redessinés",
         "Des réveils (dans ibsh) : `clock alarm 7:30 --days lun-ven`",
         "Chaque widget news montre une chose : région, pays, sujets ou tes mots",
+        "Autorisations en clair : les voir, en retirer une (Réglages)",
       ],
       fixed: [
         "La phase de la lune avait cinq jours d'écart : juste à l'heure près",

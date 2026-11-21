@@ -67,8 +67,12 @@ It's one `main.js`: read it before enabling.
    below: the code goes into the STORE's repository through a reviewed pull request.
 
 Tips:
-- Ask only for the permissions you use. Plugins that don't need `ai` or
-  `vault:write` get enabled more often.
+- Ask only for the permissions you use, and the narrowest that do the job: a folder
+  (`vault:write:songs/`) rather than the whole vault, `google-calendar:read` when you only
+  read. Put `"api": 2` in your plugin.json (you get exactly what you list —
+  [PERMISSIONS.md](PERMISSIONS.md)). Plugins that don't need `ai` or `vault:write` get
+  enabled more often; a high-risk permission is asked again when you first use it, so say
+  in your README why you need it.
 - Bump `version` in `plugin.json` when you publish changes; users get them with
   `plugin update <id>`.
 - Prefix the ids of your THE MENU actions (`ib.palette.register`) with your plugin id (`pomodoro.start`). Widget and
@@ -107,7 +111,8 @@ written to harm. It still runs in the sandbox with only the permissions you give
    one entry in `index.json` with `"repo": "kiddoko/icebreaker-modules/tree/main/modules/<id>"`.
 3. Open a pull request. A maintainer reads every line, tries it, and checks:
    - it does what its README says, and nothing else; no hidden network calls, no obfuscation;
-   - it asks only for the permissions it needs, and says why;
+   - it asks only for the permissions it needs — a folder when a folder is enough, each
+     host it reaches named (`net:<host>`), `"api": 2` — and says why;
    - it's legal (no piracy, no scraping against a site's terms, licenses respected) and
      follows the [code of conduct](../CODE_OF_CONDUCT.md);
    - `node scripts/check-index.mjs` passes.

@@ -245,3 +245,16 @@ describe("what the AI may read by itself (ai/tools.ts)", () => {
     expect(seen).toEqual(["journal/2026-11-21.md"]);
   });
 });
+
+describe("the access journal doesn't flood", () => {
+  it("a burst is the first names, then one line that counts", () => {
+    const log = new AccessLog(null);
+    for (let i = 0; i < 500; i++) log.note("med", "vault:read", `songs/${i}.bmed`);
+    expect(log.list.length).toBe(13);
+    expect(log.list[12].what).toBe("+488 more");
+    // another permission, another module: their own count
+    log.note("med", "vault:write", "songs/a.bmed");
+    log.note("other", "vault:read", "notes/a.md");
+    expect(log.list.length).toBe(15);
+  });
+});

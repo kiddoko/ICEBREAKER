@@ -5,6 +5,41 @@
 The UI overhaul ("Refonte UI"): the screen is made of frames you arrange, every frame has its
 tabs, and six modules are redrawn.
 
+- **Permissions in plain words** ([docs/PERMISSIONS.md](docs/PERMISSIONS.md)) — no surprise:
+  everything that can reach your notes, your AI, your terminal or the internet has a name
+  you can read, a level, a moment when you're asked and a switch to take it away.
+  - Thirteen permissions in four levels (low, medium, high, total): *Read your notes* and
+    *Change your notes* (the whole vault or **one folder**: `vault:write:songs/`), *Use your
+    AI*, *Play sound*, *Drive your music player* and *Read your audio files outside the
+    vault* (`media` was both, without saying), *Your Google Calendar* (or only reading it),
+    *Read the other modules' counters*, *See the computer's details*, *Notify you and talk
+    to you*, *Run the deck's commands*, *Go online* (**one named host at a time**, through
+    the deck's native side: `ib.net.get`), *Type in your real terminal*.
+  - **A new dialog** when you switch a module on: who it is, where it comes from, each
+    permission with its level, what it can do without asking, what it never can. The answer
+    starts on No as soon as one line is high-risk.
+  - **High-risk permissions are asked again the first time they're really used** (no · this
+    time · always); **every command for your real terminal is shown first**.
+  - **Settings → PERMISSIONS**: ICEBREAKER itself (stealth mode, what the AI may read, your
+    real terminal, the access journal), then every module — the deck's own too — with each
+    permission, its level and its last use; one click takes it away or gives it back, at
+    once, the module keeps running. `plugin perms`, `plugin revoke`, `plugin grant`.
+  - **The access journal**: who used which permission, when, on what — names only, 30 days,
+    on this computer only. The LOG's new `◈ access` filter.
+  - **What the AI may read** (`ai.reads`): nothing · what you give it (a note you name, pipe
+    or have in front) · your whole vault. The top bar says "the AI reads …". A new account
+    starts on "what I give it"; yours keeps the whole vault.
+  - **Your real terminal** (`shell.bridge`): no deck command · your notes only · notes,
+    timers and alarms.
+  - **An update that asks for more is held**: the dialog shows only what's new; say no and
+    the version you have keeps running. A module you remove loses its approval.
+  - **Closed on the way**: a module with no permission could send words online through
+    `weather` and `news show`, open your browser, log you out (`keys.run("lock")`) and show
+    unsigned notifications; modules now run only the commands classed for them (an
+    allow-list, guarded by a test); stealth mode is checked by the native side too.
+  - Nothing is asked again of an account made before: what you approved is translated once.
+    Module authors: `"api": 2` in plugin.json (docs/PLUGINS.md).
+
 - **Frames** (docs/FRAMES.md): the screen is a layout tree (`src/workspace/layout/`) solved
   into one rect per frame — the tree, the page, the side panel, the shell. Nothing saved =
   the classic screen, so every account keeps its screen. `layout preset classic | shell-right

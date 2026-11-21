@@ -609,7 +609,13 @@ export class PluginHost {
     // away stops working at once, without a restart
     const granted = new Grants(() => this.effective(m.id));
     /** the access journal (core/access.ts): which permission, on what — a name, never the content */
-    const note = (perm: string, what = "") => deck.access.note(m.id, parsePerm(perm)?.base ?? perm, what);
+    const note = (perm: string, what = "") => {
+      const base = parsePerm(perm)?.base ?? perm;
+      // a module that ships with the deck reads notes all day (TODO, CALENDAR…): its reads aren't
+      // journaled — what it writes, asks the AI or sends is
+      if (!thirdParty && (base === "vault:read" || base === "notify" || base === "media:control")) return;
+      deck.access.note(m.id, base, what);
+    };
     // the lines it runs carry its origin (shell/origin.ts): privileged commands refused for every
     // module; a STORE / vault module's lines read and write only what its permissions allow, and
     // one that ships with the deck everything but what you took away from it
@@ -809,10 +815,10 @@ export class PluginHost {
         now: async () => (need("audio"), deck.mixer.now()),
         sample: async (id, data, opts) => (need("audio"), deck.mixer.sample(m.id, id, data, opts)),
         drop: async (id) => (need("audio"), deck.mixer.drop(m.id, id)),
-        schedule: async (events) => (need("audio"), deck.mixer.schedule(m.id, events)),
+        schedule: async (events) => (need("audio"), note("audio"), deck.mixer.schedule(m.id, events)),
         stop: async () => (need("audio"), deck.mixer.stop(m.id)),
         onStop: (fn) => (need("audio"), deck.mixer.onStop(m.id, fn)),
-        stream: async () => (need("audio"), AudioStream.open(await deck.mixer.openStream(m.id))),
+        stream: async () => (need("audio"), note("audio"), AudioStream.open(await deck.mixer.openStream(m.id))),
         decode: async (bytes) => (need("audio"), deck.mixer.decode(bytes)),
         // the encoder pack (encoders.rs): sound the module already has, as a file's bytes
         encode: async (pcm, opts) => {
