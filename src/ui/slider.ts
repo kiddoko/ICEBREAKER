@@ -97,13 +97,21 @@ const APPLY_MS = 40;
  * yet: go on from it), and the pixels gathered toward the next step.
  */
 let wheel: { x: number; y: number; drawn: number; v: number; acc: number; at: number; sgn: number } | null = null;
-/** the pixels a trackpad (or a fast-spun Mac mouse) sends for one step */
-const WHEEL_PX = 4;
+/**
+ * the pixels a trackpad (or a fast-spun Mac mouse) sends for one step: 10 (0.5.1 had 4 — a
+ * two-finger swipe and its momentum ran a slider 20 or 30 steps away; now each step is
+ * exactly 1 and a short swipe moves it by a few)
+ */
+const WHEEL_PX = 10;
+/** wheel events closer than this are a trackpad's stream, not separate notches */
+const STREAM_MS = 25;
 /** One wheel event on the slider at `r`: -1 / 1 = a step up / down, 0 = not yet. */
 export function wheelStep(r: Rect, px: number, now = performance.now()): -1 | 0 | 1 {
   if (!px) return 0;
   if (!wheel || wheel.x !== r.x || wheel.y !== r.y) wheel = { x: r.x, y: r.y, drawn: NaN, v: NaN, acc: 0, at: 0, sgn: 0 };
-  const lone = now - wheel.at > 80 || Math.sign(px) !== wheel.sgn;
+  // a notch (a mouse, even spun fast: 40 ms apart or more) is a step at once; only a
+  // trackpad's stream (events ~16 ms apart) gathers its pixels toward the next step
+  const lone = now - wheel.at > STREAM_MS || Math.sign(px) !== wheel.sgn;
   wheel.at = now;
   wheel.sgn = Math.sign(px);
   wheel.acc = lone ? px : wheel.acc + px;

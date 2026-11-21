@@ -42,7 +42,8 @@ export async function purgeItems(deck: Deck, items: TrashItem[], all = false): P
   if (!items.length) return 0;
   const one = items.length === 1 ? items[0] : null;
   const title = all ? t("Empty the trash?") : one ? t("Delete “{name}” for good?", { name: one.isDir ? `${one.name}/` : one.name }) : t("Delete {n} things for good?", { n: items.length });
-  const detail = `${t("This can't be undone: it is erased from the vault, not put back anywhere, and ⌘Z won't bring it back.")}${all ? `\n${items.length === 1 ? t("1 thing") : t("{n} things", { n: items.length })}` : ""}`;
+  // (two short lines: the dialog doesn't wrap, a long sentence was cut)
+  const detail = `${t("This can't be undone: it is erased from the vault.")}\n${t("Nothing keeps a copy, and ⌘Z won't bring it back.")}${all ? `\n${items.length === 1 ? t("1 thing") : t("{n} things", { n: items.length })}` : ""}`;
   // the safe answer is no: enter alone keeps everything
   if (!(await deck.confirm(title, detail, false))) return 0;
   let n = 0;
