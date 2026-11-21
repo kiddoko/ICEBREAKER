@@ -94,6 +94,13 @@ export class Sidebar {
     if (!deck.settings.data.editor.treeWheel || this.list.items.length === 0) return false;
     const steps = this.spin.wheel(lines);
     if (!steps) return true;
+    return this.walk(steps);
+  }
+
+  /** ⇧↑ / ⇧↓ and ⇧ + wheel: `steps` rows on, each file shown at once in the preview tab. */
+  private walk(steps: number): boolean {
+    const deck = this.deck;
+    if (!deck.settings.data.editor.treeWheel || this.list.items.length === 0) return false;
     // past the last row comes the first again (and the other way)
     const n = this.list.items.length;
     this.list.select((((this.list.selected + steps) % n) + n) % n);
@@ -328,6 +335,8 @@ export class Sidebar {
   onKey(k: KeyInput): boolean {
     const row = this.list.current;
     if (k.key === "f2" && row) return void this.rename(row), true;
+    // ⇧↑ / ⇧↓: like ⇧ + wheel, file by file with the preview tab
+    if ((k.combo === "shift+up" || k.combo === "shift+down") && this.walk(k.key === "up" ? -1 : 1)) return true;
     if ((k.key === "delete" || (k.ctrl && k.key === "backspace")) && row) {
       void this.deck.confirm(t("Move to the trash?"), `/${row.entry.path}\n${t("it goes to .trash, you can get it back")}`).then((ok) => {
         if (ok) void this.deck.act(`rm ${row.entry.isDir ? "-r " : ""}${q("/" + row.entry.path)}`);

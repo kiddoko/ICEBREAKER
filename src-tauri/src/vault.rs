@@ -617,6 +617,41 @@ pub fn vault_trash(state: State<VaultState>, path: String) -> CmdResult<String> 
     Ok(to_rel(&root, &dest))
 }
 
+/// Is this vault path inside `.trash` (and not `.trash` itself)?
+fn in_trash(rel: &str) -> CmdResult<String> {
+    let n = store::norm(rel)?;
+    if !n.starts_with(".trash/") || n.len() <= ".trash/".len() {
+        return Err(format!("{rel}: only what's in the trash can be deleted for good"));
+    }
+    Ok(n)
+}
+
+/// Delete for good something in the vault's `.trash` (the TRASH page's "delete
+/// permanently", `trash purge`, `trash empty`). Nothing else can ever be deleted this way:
+/// the path must be inside `.trash`, and `.trash` itself must be a real folder (a link
+/// named .trash leading to your notes is refused). A link inside the trash: the link goes,
+/// never what it points to.
+#[tauri::command]
+pub fn vault_purge(state: State<VaultState>, path: String) -> CmdResult<()> {
+    let n = in_trash(&path)?;
+    guard(&n, true)?;
+    let root = match mode(&state)? {
+        Mode::Enc(mut g) => return g.as_mut().unwrap().purge(&n),
+        Mode::Plain(r) => r,
+    };
+    let trash = root.join(".trash");
+    let meta = fs::symlink_metadata(&trash).map_err(|e| format!(".trash: {e}"))?;
+    if !meta.is_dir() || meta.file_type().is_symlink() {
+        return Err(".trash isn't a real folder: nothing deleted".into());
+    }
+    let abs = plain(&root, &n)?;
+    if abs.parent().map(|p| p.starts_with(&trash)) != Some(true) {
+        return Err(format!("{path}: only what's in the trash can be deleted for good"));
+    }
+    let m = fs::symlink_metadata(&abs).map_err(|e| format!("{path}: {e}"))?;
+    if m.is_dir() && !m.file_type().is_symlink() { fs::remove_dir_all(&abs) } else { fs::remove_file(&abs) }.map_err(|e| format!("{path}: {e}"))
+}
+
 #[tauri::command]
 pub fn vault_rename(state: State<VaultState>, from: String, to: String) -> CmdResult<()> {
     guard(&from, true)?;
@@ -1054,6 +1089,17 @@ mod tests {
         assert!(guard("notes/account.json", false).is_ok());
         assert!(guard(".icebreaker/plugins/todo/settings.json", false).is_ok());
         assert!(guard("notes/a.md", true).is_ok());
+    }
+
+    #[test]
+    fn only_the_trash_can_be_purged() {
+        assert!(in_trash(".trash/123-a.md").is_ok());
+        assert!(in_trash(".trash/123-folder/b.md").is_ok());
+        assert!(in_trash(".trash").is_err());
+        assert!(in_trash(".trash/").is_err());
+        assert!(in_trash("notes/a.md").is_err());
+        assert!(in_trash(".trash/../notes/a.md").is_err());
+        assert!(in_trash(".trashy/a.md").is_err());
     }
 
     #[test]

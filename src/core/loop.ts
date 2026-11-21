@@ -52,6 +52,12 @@ export class FrameLoop {
   timed = false;
   /** fps set to 0: no animations at all, frames only for input */
   frozen = false;
+  /** the boot and the login page play even with fps 0 (they'd stay frozen mid-animation, waiting for a key) */
+  mustAnimate: () => boolean = () => false;
+  /** fps 0 is in force right now (not during the boot or the login page) */
+  get still(): boolean {
+    return this.frozen && !this.mustAnimate();
+  }
   /** reduce motion: animations at 30 fps at most */
   slow = false;
 
@@ -93,7 +99,7 @@ export class FrameLoop {
   request(delayMs = 0): void {
     if (this.paused) return;
     // fps 0: animations ask for frames with a delay; they're dropped (input asks with 0)
-    if (this.frozen && delayMs > 1) return;
+    if (delayMs > 1 && this.still) return;
     if (this.slow && delayMs > 1) delayMs = Math.max(delayMs, 1000 / 30);
     // in the background, animations slow down to the background cap
     if ((this.background || this.idle) && delayMs > 1) delayMs = Math.max(delayMs, 1000 / FrameLoop.BACKGROUND_FPS);

@@ -37,7 +37,7 @@ title_focus = "#39ff14"
 | `[ui]`     | backgrounds, text, accent, borders, cursor, status colors…            |
 | `[syntax]` | Markdown highlighting in the editor and chat                          |
 | `[ansi]`   | the 16 terminal colors used by shell output (`colors` shows them)     |
-| `[fx]`     | `bloom`, `scanlines`, `vignette` strengths (0–1), `flicker = false` (this theme never flickers), `monochrome = true` (everything in greys, shell output included), `paper` (0–1, a matte paper texture over the screen), `gradient` for logos |
+| `[fx]`     | `bloom`, `scanlines`, `vignette` strengths (0–1; bloom: how much a bright thing's halo of light shows — only bright things bloom, backgrounds never), `flicker = false` (this theme never flickers), `monochrome = true` (everything in greys, shell output included), `paper` (0–1, a matte paper texture over the screen), `gradient` for logos |
 | `[font]`   | `family`, `scale` (size correction), `weights = [normal, bold]`        |
 | `[glyphs]` | `mark` (◆), `bullet` (›), `spinner` frames, `todo` / `done` boxes       |
 | `[background]` | `effect` (fog · snow · rain · stars · embers · scan · grain · circuit · sonar · none), `density`, `speed`, `color`, `color2`, `glyphs` |
@@ -69,8 +69,22 @@ A theme without `[font]` uses JetBrains Mono and the user's weight setting.
 ## Tweaking without writing a file
 
 `theme studio` (or MODULES → Theme studio) shows every knob with a live
-preview; ←→ change a value, enter types one (`#ff2e88`), r resets it. It's all
-commands (the shell's LOG tab shows them), so this works too:
+preview; ←→ change a value, enter types one, r resets it. A changed knob shows
+**•** and, on the line you're on (or under the mouse), **↺**: a click puts the
+theme's own value back, like Settings.
+
+**Colours: the palette.** Enter on a colour (or a click on its swatch) opens the
+colour picker (`src/workspace/colorpicker.ts`): 18 hues × 10 shades — light to the
+very dark tones backgrounds and panels need — at the saturation you choose, a row
+of greys, and the theme's own colours (its `[ui]` colours and the first ANSI ones,
+to reuse one). Arrows walk the palette (the gamepad too), **tab** goes to the
+saturation (←→, 5 by 5) and to the **#hex field** — still typable: type `#` or a
+hex digit anywhere and it goes there. The new colour shows next to the one
+before, as a block and on text. Enter or a double-click keeps it (a
+`theme tweak` command), **↺ theme's value** (or del) removes the tweak, esc
+leaves it as it was.
+
+It's all commands (the shell's LOG tab shows them), so this works too:
 
 ```
 theme tweak accent #ff2e88

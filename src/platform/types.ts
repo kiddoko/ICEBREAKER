@@ -27,8 +27,13 @@ export interface VaultBackend {
   readMany(paths: string[]): Promise<(string | null)[]>;
   write(path: string, content: string): Promise<void>;
   mkdir(path: string): Promise<void>;
-  /** Moves to <vault>/.trash — nothing is ever hard-deleted. */
+  /** Moves to <vault>/.trash — the only way the deck deletes something. */
   trash(path: string): Promise<string>;
+  /**
+   * Deletes for good something already in <vault>/.trash (TRASH → delete permanently,
+   * `trash purge`). Refused for any path outside .trash (vault.rs vault_purge).
+   */
+  purge(path: string): Promise<void>;
   rename(from: string, to: string): Promise<void>;
   exists(path: string): Promise<boolean>;
   /** Raw bytes of a small file (desktop only). */

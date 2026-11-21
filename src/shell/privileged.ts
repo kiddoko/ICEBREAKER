@@ -4,7 +4,7 @@
  * (shell/origin.ts): the vault's encryption and where it is, the accounts, factory-reset,
  * installing / switching / removing modules, updates, quitting or locking the deck — and anything that runs a program or plants a command for later:
  * scripts (`script x` runs bash / python… in your real terminal), your macros,
- * shortcuts and THE MENU's keys (`bind`, `menu add`, `keys set`: your next key press
+ * shortcuts and THE MENU's keys, deleting things for good (`trash purge`, `trash empty`) (`bind`, `menu add`, `keys set`: your next key press
  * would run it as you), pins and shortcut squares (`pin`, `home link`), the settings
  * that hold commands or decide what runs, and undoing what YOU did (`undo`, `redo`). `modules call` is refused too: it calls any
  * function with every permission. exec.ts refuses these (aliases and `;` / `&&` chains
@@ -70,6 +70,9 @@ export function isPrivileged(name: string, args: string[]): boolean {
       return any("link", "links", "reset");
     case "stealth":
       return !only("", "on");
+    case "trash":
+      // deleting for good is yours only (looking and putting back are fine)
+      return any("purge", "empty");
     case "theme":
     case "voice":
       // downloads

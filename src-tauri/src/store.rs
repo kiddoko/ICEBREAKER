@@ -623,6 +623,24 @@ impl Store {
         })
     }
 
+    /// Gone for good: something in `.trash` (the TRASH page's "delete permanently",
+    /// `trash purge`). Nothing outside `.trash` can be purged. Its blobs are removed too
+    /// (one that can't be comes back in .trash at the next unlock: nothing half-gone).
+    pub fn purge(&mut self, path: &str) -> Result<()> {
+        if !under(path, ".trash") {
+            return Err(format!("{path}: only what's in the trash can be deleted for good"));
+        }
+        if !self.index.nodes.contains_key(path) {
+            return Err(format!("{path}: No such file or directory"));
+        }
+        let gone: Vec<String> = self.index.nodes.keys().filter(|p| *p == path || under(p, path)).cloned().collect();
+        let ids = self.commit(|s| Ok(gone.iter().filter_map(|p| s.index.nodes.remove(p)).filter_map(|n| n.id.clone()).collect::<Vec<_>>()))?;
+        for id in ids {
+            let _ = fs::remove_file(self.blob_path(&id));
+        }
+        Ok(())
+    }
+
     /// Into `.trash/<seconds>-<name>`, like the plain vault. Returns the new path.
     pub fn trash(&mut self, path: &str) -> Result<String> {
         if path.is_empty() {
@@ -1327,6 +1345,26 @@ mod tests {
         let s = s.reopen().unwrap();
         assert!(s.notes.is_empty(), "{:?}", s.notes);
         assert_eq!(&s.read("z/y/b/c.md").unwrap()[..], b"c");
+        fs::remove_dir_all(d).unwrap();
+    }
+
+    #[test]
+    fn purge_deletes_for_good_only_in_the_trash() {
+        let d = scratch("purge");
+        let mut s = Store::create(d.join(STORE_DIR), VaultKey::generate().unwrap()).unwrap();
+        s.write("keep.md", b"keep").unwrap();
+        s.write("f/a.md", b"a").unwrap();
+        s.write("f/b.md", b"b").unwrap();
+        assert!(s.purge("keep.md").is_err(), "outside the trash: never");
+        let t = s.trash("f").unwrap();
+        assert_eq!(s.all_blob_ids().len(), 3);
+        s.purge(&t).unwrap();
+        assert!(!s.exists(&t) && !s.exists(&format!("{t}/a.md")));
+        assert_eq!(s.all_blob_ids().len(), 1, "the trashed blobs are gone from the disk");
+        assert!(s.purge(&t).is_err(), "already gone");
+        let s = s.reopen().unwrap();
+        assert!(s.notes.is_empty(), "nothing comes back at the next unlock: {:?}", s.notes);
+        assert_eq!(&s.read("keep.md").unwrap()[..], b"keep");
         fs::remove_dir_all(d).unwrap();
     }
 

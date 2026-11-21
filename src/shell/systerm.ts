@@ -5,6 +5,7 @@ import { IS_MAC, type Action, type KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import type { UI } from "../ui/ui";
 import { copyToClipboard } from "../core/clipboard";
+import { selectionHit, TextSelection, type SelectionSource, type TextPos } from "../ui/textselect";
 
 const EXIT_MARK = "\x1b]ib-exit\x07";
 
@@ -38,9 +39,11 @@ function color256(n: number, ansi: RGB[]): RGB {
  */
 /**
  * deck commands that win over the system shell's own: zsh's logout would close the terminal,
- * and macOS's login asks for a user and ignores ctrl+C (typed for logout, you were stuck)
+ * macOS's login asks for a user and ignores ctrl+C (typed for logout, you were stuck), and
+ * macOS's say spoke with the system's voice, not the one chosen in Settings → VOICE
+ * (`command say` is still macOS's)
  */
-const CORE_IN_TERMINAL = ["reboot", "logout", "login"];
+const CORE_IN_TERMINAL = ["reboot", "logout", "login", "say"];
 
 /** ⌘X on a Mac: ctrl+C for the shell (⌘C is copy there) */
 const macInterrupt = (k: KeyInput) => IS_MAC && !!k.rawMeta && k.combo === "ctrl+x";
@@ -68,8 +71,22 @@ export class SystemTerminal {
   private ptySize = "";
   private cell: IBufferCell | undefined;
   private lastInputAt = 0;
-  /** mouse selection, in buffer lines (scrollback included) and columns; head = where the mouse is */
-  private sel: { a: { line: number; col: number }; h: { line: number; col: number } } | null = null;
+  /** mouse selection, in buffer lines (scrollback included) and columns (ui/textselect.ts, shared with ibsh) */
+  private readonly sel = new TextSelection();
+  /** what the selection reads: xterm's buffer lines, as cells */
+  private readonly src: SelectionSource = {
+    cells: (l) => {
+      const line = this.term.buffer.active.getLine(l);
+      if (!line) return undefined;
+      const out: string[] = [];
+      for (let x = 0; x < this.cols; x++) {
+        const cell = (this.cell = line.getCell(x, this.cell));
+        out.push(!cell ? " " : cell.getWidth() === 0 ? "" : cell.getChars() || " ");
+      }
+      return out;
+    },
+    wrapped: (l) => !!this.term.buffer.active.getLine(l)?.isWrapped,
+  };
   private lastR: Rect = { x: 0, y: 0, w: 0, h: 0 };
 
   constructor(private readonly deck: Deck) {
@@ -192,34 +209,13 @@ export class SystemTerminal {
 
   // ── selection ────────────────────────────────────────────────────────────
 
-  /** start/end of the selection, in reading order (null: nothing selected) */
-  private range(): [{ line: number; col: number }, { line: number; col: number }] | null {
-    const s = this.sel;
-    if (!s || (s.a.line === s.h.line && s.a.col === s.h.col)) return null;
-    return s.a.line < s.h.line || (s.a.line === s.h.line && s.a.col <= s.h.col) ? [s.a, s.h] : [s.h, s.a];
-  }
-
   hasSelection(): boolean {
-    return !!this.range();
+    return this.sel.has();
   }
 
   /** The selected text (lines joined with \n, trailing spaces trimmed). */
   selectedText(): string {
-    const r = this.range();
-    if (!r) return "";
-    const buf = this.term.buffer.active;
-    const out: string[] = [];
-    for (let l = r[0].line; l <= r[1].line; l++) {
-      const line = buf.getLine(l);
-      if (!line) continue;
-      const from = l === r[0].line ? r[0].col : 0;
-      const to = l === r[1].line ? r[1].col : this.cols;
-      const text = line.translateToString(true, from, to);
-      // a wrapped line continues the one before it: no line break
-      if (out.length && line.isWrapped) out[out.length - 1] += text;
-      else out.push(text);
-    }
-    return out.join("\n");
+    return this.sel.text(this.src);
   }
 
   /** Copy the selection (⌘C, ctrl+C when something is selected, right-click → copy). */
@@ -233,10 +229,10 @@ export class SystemTerminal {
 
   selectAll(): void {
     const buf = this.term.buffer.active;
-    this.sel = { a: { line: 0, col: 0 }, h: { line: buf.baseY + this.rows - 1, col: this.cols } };
+    this.sel.all(buf.baseY + this.rows - 1, this.cols);
   }
 
-  private posAt(x: number, y: number): { line: number; col: number } {
+  private posAt(x: number, y: number): TextPos {
     const r = this.lastR;
     const buf = this.term.buffer.active;
     const row = Math.max(0, Math.min(r.h - 1, y - r.y));
@@ -245,27 +241,15 @@ export class SystemTerminal {
     return { line: buf.viewportY + row, col: Math.max(0, Math.min(this.cols, x - r.x)) };
   }
 
-  /** double-click: the word under the mouse */
-  private selectWord(x: number, y: number): void {
-    const p = this.posAt(x, y);
-    const text = this.term.buffer.active.getLine(p.line)?.translateToString(false) ?? "";
-    const isWord = (ch: string | undefined) => !!ch && /[^\s"'`()[\]{}<>|;]/.test(ch);
-    if (!isWord(text[p.col])) return;
-    let a = p.col, b = p.col;
-    while (a > 0 && isWord(text[a - 1])) a--;
-    while (b < text.length && isWord(text[b])) b++;
-    this.sel = { a: { line: p.line, col: a }, h: { line: p.line, col: b } };
-  }
-
   onKey(k: KeyInput): boolean {
-    if (macInterrupt(k) && !this.exited) return (this.sel = null), this.write("\x03"), true;
+    if (macInterrupt(k) && !this.exited) return this.sel.clear(), this.write("\x03"), true;
     // copy: ⌘C on a Mac; elsewhere ctrl+C copies when something is selected (else it interrupts), ctrl+shift+C always
     if (k.ctrl && k.key === "c" && (k.rawMeta || k.shift || this.hasSelection())) {
-      if (this.copySelection()) this.sel = null;
+      if (this.copySelection()) this.sel.clear();
       return true;
     }
     if (k.rawMeta && k.key === "a") return this.selectAll(), true;
-    if (!k.rawMeta && !(k.ctrl && k.shift)) this.sel = null; // typing drops the selection
+    if (!k.rawMeta && !(k.ctrl && k.shift)) this.sel.clear(); // typing drops the selection
     if (this.exited) {
       if (k.key === "enter") this.restart();
       return true;
@@ -340,32 +324,13 @@ export class SystemTerminal {
     }
     const atBottom = buf.viewportY === buf.baseY;
     // the selection
-    const sr = this.range();
-    if (sr) {
-      for (let y = 0; y < r.h; y++) {
-        const l = buf.viewportY + y;
-        if (l < sr[0].line || l > sr[1].line) continue;
-        // only real text (and the spaces between words), never the empty end of a line
-        const used = buf.getLine(l)?.translateToString(true).length ?? 0;
-        const from = l === sr[0].line ? sr[0].col : 0;
-        const to = Math.min(l === sr[1].line ? sr[1].col : r.w, used);
-        if (to > from) ui.tint({ x: r.x + from, y: r.y + y, w: Math.min(r.w, to) - from, h: 1 }, c.fg, c.selection);
-      }
-    }
+    this.sel.paint(ui, r, buf.viewportY, this.src);
     if (!atBottom) ui.textRight(r.x + r.w, r.y + r.h - 1, ` ↓ ${buf.baseY - buf.viewportY} lines · type to return `, { fg: c.panel, bg: c.accent });
     else if (focused && this.alive) ui.cursor(r.x + Math.min(buf.cursorX, r.w - 1), r.y + buf.cursorY, this.lastInputAt);
     this.lastR = r;
     ui.hit(r, {
-      // drag to select (the shell's own mouse modes aside: vim, htop keep the wheel)
-      onClick: (m) => {
-        const p = this.posAt(m.x, m.y);
-        this.sel = { a: p, h: { ...p } };
-      },
-      onDrag: (m) => {
-        if (this.sel) this.sel.h = this.posAt(m.x, m.y);
-        this.deck.requestFrame();
-      },
-      onDouble: (m) => this.selectWord(m.x, m.y),
+      // drag to select, double-click a word, triple-click a line (the shell's own mouse modes aside: vim, htop keep the wheel)
+      ...selectionHit({ sel: this.sel, src: this.src, at: (m) => this.posAt(m.x, m.y), redraw: () => this.deck.requestFrame() }),
       onWheel: (d) => {
         if (buf.type === "alternate") this.write((d < 0 ? (this.term.modes.applicationCursorKeysMode ? "\x1bOA" : "\x1b[A") : this.term.modes.applicationCursorKeysMode ? "\x1bOB" : "\x1b[B").repeat(Math.min(10, Math.abs(d))));
         else this.term.scrollLines(d);

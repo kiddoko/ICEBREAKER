@@ -155,6 +155,8 @@ export class PromptDialog implements Overlay {
     return this.field.editor;
   }
   private readonly suggestions: string[];
+  /** the text it opened with */
+  private readonly initial: string;
   /** the ▾ list (ui/list.ts) */
   private readonly drop = new ListView<string>();
   /** the ▾ list is open; `pick` = the highlighted suggestion */
@@ -172,16 +174,33 @@ export class PromptDialog implements Overlay {
     this.drop.clickActivates = () => true;
     this.drop.onActivate = (s) => this.accept(s);
     this.suggestions = opts.suggestions ?? [];
+    this.initial = opts.initial ?? "";
     this.field = new Field({ initial: opts.initial, placeholder: opts.placeholder, mask: opts.mask, onSubmit: (v) => (this.open && this.pick >= 0 ? this.accept(this.matches()[this.pick]) : this.finish(v)) });
   }
 
-  /** what fits what's typed: starts-with first, then contains (all of them when empty or the list is open) */
+  /**
+   * What the ▾ list shows (every prompt with suggestions: one place, so it's fixed once):
+   *  - nothing typed: every choice;
+   *  - the text is still the value it opened with and it is one of the choices (Settings →
+   *    "Date format" = fr-FR): every choice, that one picked — you came to change it;
+   *  - else what fits the text: the same, then starts-with, then contains.
+   * (it used to leave the text itself out: a field opened on a choice showed an empty list)
+   */
   private matches(): string[] {
     const q = this.editor.text.trim().toLowerCase();
     if (!q) return this.suggestions.slice(0, 50);
+    const same = this.suggestions.filter((s) => s.toLowerCase() === q);
+    if (same.length && this.editor.text === this.initial) return this.suggestions.slice(0, 50);
     const starts = this.suggestions.filter((s) => s.toLowerCase().startsWith(q) && s.toLowerCase() !== q);
     const has = this.suggestions.filter((s) => !s.toLowerCase().startsWith(q) && s.toLowerCase().includes(q));
-    return [...starts, ...has].slice(0, 50);
+    return [...same, ...starts, ...has].slice(0, 50);
+  }
+
+  /** open the ▾ list on the choice the text is (else the first) */
+  private openList(): void {
+    this.open = true;
+    const q = this.editor.text.trim().toLowerCase();
+    this.pick = Math.max(0, this.matches().findIndex((s) => s.toLowerCase() === q));
   }
 
   /** the grey completion after the cursor: Tab takes it */
@@ -214,9 +233,9 @@ export class PromptDialog implements Overlay {
       const g = this.ghost();
       if (this.open && this.pick >= 0) this.accept(this.matches()[this.pick]);
       else if (g) this.editor.setText(this.editor.text + g, true);
-      else ((this.open = true), (this.pick = 0));
+      else this.openList();
     } else if ((k.key === "down" || k.key === "up") && n) {
-      if (!this.open) ((this.open = true), (this.pick = 0));
+      if (!this.open) this.openList();
       else this.pick = (this.pick + (k.key === "down" ? 1 : -1) + n) % n;
     } else this.field.onKey(k);
     return true;
@@ -256,7 +275,7 @@ export class PromptDialog implements Overlay {
       // ▾ opens the list of suggestions
       const ar = { x: inner.x + 1 + fw + 1, y: inner.y + 2, w: 1, h: 1 };
       ui.text(ar.x, ar.y, this.open ? "▴" : "▾", { fg: ui.hovered(ar) || this.open ? c.accent : c.muted, attrs: BOLD });
-      ui.hit({ x: ar.x - 1, y: ar.y, w: 3, h: 1 }, { onClick: () => ((this.open = !this.open), (this.pick = this.open ? 0 : -1)), tip: "↓ · tab completes" });
+      ui.hit({ x: ar.x - 1, y: ar.y, w: 3, h: 1 }, { onClick: () => (this.open ? ((this.open = false), (this.pick = -1)) : this.openList()), tip: "↓ · tab completes" });
       // the suggestions: THE list of the kit (ui/list.ts) — a click takes one
       if (shown) {
         this.drop.items = list;

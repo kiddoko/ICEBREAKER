@@ -6,7 +6,6 @@ import { t } from "../core/i18n";
 import { mix } from "../core/color";
 import { BOLD } from "../core/grid";
 import type { Deck } from "../deck";
-import { decrypt } from "../fx/glitch";
 import { Rain } from "../fx/rain";
 import { cellsFor, dots, fitMatrix, matrixSize, matrixText } from "../ui/dots";
 import { drawUplinkCore } from "../ui/uplinkcore";
@@ -288,7 +287,7 @@ const quoteWidget: WidgetSpec = {
     // word-wrap
     const lines = wrapWords(text, r.w - 4);
     const top = r.y + Math.max(0, Math.floor((r.h - lines.length - 1) / 2));
-    lines.slice(0, r.h - 1).forEach((l, i) => ui.textCenter(r, top + i, p < 1 ? decrypt(l, p, ui.now) : l, { fg: c.fg }));
+    lines.slice(0, r.h - 1).forEach((l, i) => ui.textCenter(r, top + i, ui.reveal(l, p), { fg: c.fg }));
     ui.textCenter(r, Math.min(r.y + r.h - 1, top + lines.length), `— ${who}`, { fg: c.subtle });
   },
   popup: {

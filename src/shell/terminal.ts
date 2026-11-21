@@ -66,6 +66,52 @@ export class TerminalBuffer {
     return n;
   }
 
+  /** where each screen row starts (line, cell), at one width: kept until the text or the width changes */
+  private rowMap: { version: number; width: number; rows: { li: number; start: number }[] } | null = null;
+
+  private rows(width: number): { li: number; start: number }[] {
+    const m = this.rowMap;
+    if (m && m.version === this.version && m.width === width) return m.rows;
+    const rows: { li: number; start: number }[] = [];
+    this.visible.forEach((l, li) => {
+      const n = Math.max(1, Math.ceil(lineWidth(l) / width));
+      for (let k = 0; k < n; k++) rows.push({ li, start: k * width });
+    });
+    this.rowMap = { version: this.version, width, rows };
+    return rows;
+  }
+
+  /**
+   * A screen row's cells at this width (text selection, ui/textselect.ts): one string per
+   * cell, "" for the second half of a wide character, the row padded with spaces.
+   */
+  rowCells(row: number, width: number): string[] | undefined {
+    const at = this.rows(width)[row];
+    if (!at) return undefined;
+    const out: string[] = [];
+    let cell = 0;
+    for (const run of this.visible[at.li]) {
+      for (const ch of run.text) {
+        const w = charWidth(ch.codePointAt(0)!);
+        if (cell >= at.start && cell < at.start + width) {
+          out.push(ch);
+          if (w === 2) out.push("");
+        }
+        cell += w;
+        if (cell >= at.start + width) break;
+      }
+      if (cell >= at.start + width) break;
+    }
+    while (out.length < width) out.push(" ");
+    return out.slice(0, width);
+  }
+
+  /** this row goes on from the one above (a long line, wrapped) */
+  rowWrapped(row: number, width: number): boolean {
+    const r = this.rows(width);
+    return row > 0 && !!r[row] && r[row].li === r[row - 1]?.li;
+  }
+
   /**
    * Draw the rows [first, first + r.h) of the wrapped buffer into r.
    * Rows are computed lazily from the end, so huge scrollbacks stay cheap.

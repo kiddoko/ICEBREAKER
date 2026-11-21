@@ -49,8 +49,14 @@ export class DeckVoice {
       return { engine: "piper", voice: piperVoice };
     }
     if (!info.system) throw new Error("no voice on this system — voice install");
-    if (v.name && !info.piper_voices.includes(v.name)) return { engine: "system", voice: v.name };
-    this.systemVoice[lang] ??= pickSystemVoice(await this.deck.platform.voice!.list("system").catch(() => []), lang);
+    const system = await this.deck.platform.voice!.list("system").catch(() => []);
+    // the voice you chose (voice use), if it speaks this language: a French voice chosen before
+    // the language became Japanese used to go on reading everything (say included)
+    if (v.name && !info.piper_voices.includes(v.name)) {
+      const chosen = system.find((x) => x.id === v.name);
+      if (!chosen || !chosen.lang || speaksLang(chosen.lang, lang)) return { engine: "system", voice: v.name };
+    }
+    this.systemVoice[lang] ??= pickSystemVoice(system, lang);
     // no Japanese voice installed (common on Windows): say how to get one instead of reading it with an English voice
     if (!this.systemVoice[lang] && lang === "ja") {
       delete this.systemVoice[lang];
@@ -339,8 +345,14 @@ const PREFERRED: Record<string, string[]> = {
 };
 const NOVELTY = /^(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Grandma|Grandpa|Rocko|Eddy|Reed|Fred|Junior|Ralph|Kathy|Deranged|Hysterical|Pipe Organ)\b/;
 
+/** a voice's language tag ("ja-JP", "fr_FR", "ja") is this language ("ja") */
+function speaksLang(tag: string, lang: string): boolean {
+  const t = tag.toLowerCase().replace("-", "_");
+  return t === lang || t.startsWith(`${lang}_`);
+}
+
 function pickSystemVoice(list: { id: string; lang: string }[], lang: string): string {
-  const inLang = list.filter((x) => x.lang.toLowerCase().replace("-", "_").startsWith(`${lang}_`) || x.lang.toLowerCase() === lang).filter((x) => !NOVELTY.test(x.id));
+  const inLang = list.filter((x) => speaksLang(x.lang, lang)).filter((x) => !NOVELTY.test(x.id));
   for (const want of PREFERRED[lang] ?? []) {
     const hit = inLang.find((x) => x.id.toLowerCase().startsWith(want.toLowerCase())) ?? list.find((x) => x.id.toLowerCase() === want.toLowerCase());
     if (hit) return hit.id;

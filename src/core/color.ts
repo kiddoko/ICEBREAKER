@@ -52,3 +52,24 @@ export function gradient(stops: RGB[], t: number): RGB {
   const i = Math.floor(x);
   return mix(stops[i], stops[i + 1], x - i);
 }
+
+/** Hue (0–360), saturation and lightness (0–1) → RGB (the theme studio's palette). */
+export function hsl(h: number, s: number, l: number): RGB {
+  const hh = (((h % 360) + 360) % 360) / 60;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((hh % 2) - 1));
+  const [r, g, b] = hh < 1 ? [c, x, 0] : hh < 2 ? [x, c, 0] : hh < 3 ? [0, c, x] : hh < 4 ? [0, x, c] : hh < 5 ? [x, 0, c] : [c, 0, x];
+  const m = l - c / 2;
+  return rgb((r + m) * 255, (g + m) * 255, (b + m) * 255);
+}
+
+/** RGB → [hue 0–360, saturation 0–1, lightness 0–1]. */
+export function toHsl(c: RGB): [number, number, number] {
+  const [r, g, b] = channels(c).map((v) => v / 255);
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+  if (mx === mn) return [0, 0, l];
+  const d = mx - mn;
+  const s = d / (1 - Math.abs(2 * l - 1));
+  const h = mx === r ? ((g - b) / d + (g < b ? 6 : 0)) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, s, l];
+}

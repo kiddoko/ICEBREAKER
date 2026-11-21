@@ -54,11 +54,11 @@ describe("the wheel on a slider: one step a notch, never more", () => {
     const steps = [0, 40, 80, 120].map((t) => wheelStep(r, -4, 20_000 + t));
     expect(steps).toEqual([-1, -1, -1, -1]);
   });
-  it("a trackpad stream: a step every few pixels, at most one an event", () => {
+  it("a trackpad stream: a step every 10 pixels, at most one an event", () => {
     let n = 0;
-    for (let i = 0; i < 20; i++) n += Math.abs(wheelStep(r, 1, 30_000 + i * 16)); // 20 px, slowly
-    expect(n).toBeGreaterThanOrEqual(4);
-    expect(n).toBeLessThanOrEqual(6);
+    for (let i = 0; i < 40; i++) n += Math.abs(wheelStep(r, 1, 30_000 + i * 16)); // 40 px, slowly
+    expect(n).toBeGreaterThanOrEqual(3);
+    expect(n).toBeLessThanOrEqual(5);
     let fast = 0;
     for (let i = 0; i < 10; i++) fast += Math.abs(wheelStep(r, 60, 40_000 + i * 16)); // big deltas
     expect(fast).toBe(10);

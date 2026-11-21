@@ -9,7 +9,6 @@ import { ring, WheelSpin } from "../ui/wheelspin";
 import { FilterBar } from "../ui/filterbar";
 import { pageBar } from "../ui/pagebar";
 import { tagRGB, type TagColor } from "../vault/marks";
-import { decrypt } from "../fx/glitch";
 import type { VaultEntry } from "../platform/types";
 import { q, type UI } from "../ui/ui";
 import { basename, dirname } from "../vault/paths";
@@ -349,7 +348,7 @@ export class ExplorerApp implements App {
     const name = e.isDir ? e.name : basename(e.name, ".md");
     const p = Math.min(1, (ui.now - this.shownAt - (v.i - this.sel + 4) * 40) / 400);
     if (p < 1) ui.animate(30);
-    const label = p < 1 ? decrypt(name, Math.max(0, p), ui.now) : name;
+    const label = ui.reveal(name, p);
     if (inner.h >= 1) ui.text(inner.x + 1, inner.y + (h >= 5 ? 1 : 0) - (h === 3 ? 0 : 0), `${icon} ${label}`, { fg: front ? c.fg : fade(c.muted), attrs: front ? BOLD : 0 }, inner.w - 2);
     if (h >= 5) {
       const kids = e.isDir ? this.deck.vault.entries.filter((x) => dirname(x.path) === e.path).length : 0;

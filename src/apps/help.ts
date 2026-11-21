@@ -30,6 +30,8 @@ Everything works with **keyboard only**, **mouse only**, a **gamepad**, or any m
 - \`Ctrl+N\` new note · \`Ctrl+Shift+N\` new folder · \`Ctrl+J\` the journal (open at today) · \`Ctrl+,\` settings
 - \`Ctrl+Tab\` / \`Ctrl+Shift+Tab\` — next / previous tab · \`Ctrl+1…9\` — that tab · \`Ctrl+W\` / \`Shift+Esc\` — close it
 - \`Ctrl+S\` — save (notes also save themselves) · \`Ctrl+Enter\` — follow the [[link]] under the cursor
+- \`Shift+Backspace\` — delete the whole previous word, in notes and every text field (also \`Alt+Backspace\` on a Mac, \`Ctrl+Backspace\` on Windows / Linux)
+- In the tree: \`Shift+↑\` / \`Shift+↓\` — file by file, each one shown at once in the preview tab (like Shift + wheel)
 - \`Ctrl+=\` / \`Ctrl+-\` / \`Ctrl+0\` — interface scale · \`F11\` — fullscreen · \`F1\` — this manual
 - \`Ctrl+Shift+L\` — log out · \`Ctrl+Shift+Backspace\` — the trash
 - \`h\` — HOME, from anywhere you're not typing · \`Esc\` — back to the page before
@@ -38,8 +40,9 @@ Everything works with **keyboard only**, **mouse only**, a **gamepad**, or any m
 ## Mouse
 Click anything: tabs, files, tiles, buttons, calendar days (in the tree, one click selects a note, a double-click opens it). Every click runs a
 shell command, shown in the shell's **log** tab: click around to learn the
-command line. Hover something for a moment to see its command and shortcut. Drag to select text,
-wheel to scroll, double-click to select a word, Ctrl+click to follow a link.
+command line. Hover something for a moment to see its command and shortcut. Drag to select text
+(in notes, ibsh and your real terminal), double-click a word, triple-click a line, Ctrl+click to follow a link.
+The wheel scrolls; in Settings it moves the row you're on (a trackpad too), and over a slider it steps it 1 by 1.
 Drag the line above the shell to resize it. The ⌨ button in the status bar opens
 the on-screen keyboard (mouse-only typing).
 
@@ -55,9 +58,10 @@ A small POSIX-like shell over your vault: pipes \`|\`, redirections \`> >> <\`, 
 quotes, \`$VARS\`, globs \`*.md\`, history (↑), fish-style suggestions (→), Tab completion.
 \`/\` and \`~\` are the vault root. \`<cmd> -h\` (or \`man <cmd>\`) shows a command's help with full examples: \`todo -h\`.
 - **Stop a command**: \`Ctrl+C\` (on a Mac \`⌘X\`, or the real Control key + C) stops what's running or the question it asks — it ends with ^C and the prompt comes back. \`Esc\` stops a question too. In your real terminal, \`⌘X\` on a Mac sends ctrl+C.
+- **Copy what a command printed**: drag over it with the mouse (double-click: a word, triple-click: a line), then \`⌘C\` on a Mac, \`Ctrl+C\` on Windows / Linux — \`Ctrl+C\` with nothing selected still stops the command. Right-click → Copy works too, in ibsh and in your real terminal.
 - **Names with spaces**: Tab puts them between quotes — \`cd STA\` + Tab gives \`cd "START HERE/"\`.
 - \`exit\` (or \`quit\`) — quits ICEBREAKER, like ⌘Q / Alt+F4: pages save, the vault locks, an update waiting installs. In a script it ends the script; in your real terminal it's that shell's own \`exit\`.
-- \`say <text>\` — the deck's voice says it (the voice of UPLINK and the notifications; silent when the sound is muted or the voice is off).
+- \`say <text>\` — the deck's voice says it, with the voice and the language chosen in Settings → VOICE, like UPLINK (in Japanese, a text that isn't Japanese is translated first by your AI). Silent when the sound is muted or the voice is off. In your real terminal too (\`command say\` is macOS's own).
 
 ${cmds}
 
@@ -69,7 +73,11 @@ ${cmds}
 - \`.icebreaker/themes/*.toml\` — your themes (\`theme new <name>\`)
 - \`.icebreaker/plugins/<id>/\` — your plugins (\`plugin new <id>\`) · they run in a sandbox: only what their permissions allow, in the shell too, never more than you approved (docs/SANDBOX.md)
 - \`.icebreaker/templates/journal.md\` — your journal template
-- \`.trash/\` — where \`rm\` puts things (\`trash open\` to see it, restore). Nothing is ever deleted for good from inside the deck. A note sent there closes its tabs and leaves the pins; ⌘Z brings it back.
+- \`.trash/\` — where \`rm\` puts things (\`trash open\` to see it, restore). A note sent there closes its tabs and leaves the pins; ⌘Z brings it back. To delete for good: TRASH → **delete permanently** (or \`del\`), \`trash purge <n>\`, \`trash empty\` — it asks first and **can't be undone** (no ⌘Z): it's the only way the deck erases anything, and only you can (never a module, nor your real terminal).
+
+## Look
+- Effects: Settings → APPEARANCE → Effects, the ✦ fx button, or \`fx\`. **Bloom**: bright things bleed a soft halo of light onto what's around them (the slider sets how far and how strong). **RGB split** (\`fx chroma\`): red and blue fringes on the text, the frames and the glyphs, never the backgrounds. **CRT curvature** (\`fx curve 0-100\`, off by default): rounded screen corners, a darker rim, a soft reflection. **Flicker speed** (\`fx flicker 150\`): how fast the CRT flicker goes. Presets: \`fx none | light | medium | heavy | party\`. \`debug perf\` measures what the screen costs.
+- THEME STUDIO (\`launch studio\`): every knob of the theme, live. Enter on a colour opens the **palette** — 18 hues × 10 shades at the saturation you pick, greys, the theme's own colours; arrows / mouse choose, tab reaches the saturation and the #hex field (still typable), enter keeps it. ↺ on a changed knob (or \`r\`) puts the theme's value back.
 
 ## Days and times
 The same words everywhere (reminders, \`todo add … --due\`, \`cal add\`), in English or French:

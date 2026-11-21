@@ -78,9 +78,11 @@ export function shellMenu(ws: Workspace): MenuEntry[] {
         "-",
       ]
     : [
-        // ibsh: its ^C (a copy there would only send ctrl+C to it)
+        // ibsh: what the mouse selected in its output, and its ^C
+        { label: t("Copy"), run: () => void ws.deck.shell.copySelection(), hint: IS_MAC ? "⌘C" : "ctrl+C", disabled: !ws.deck.shell.hasSelection() },
         ...(ws.deck.shell.waiting || ws.deck.shell.exec.running ? [{ label: t("Stop the command"), run: () => ws.deck.shell.cancel(), hint: CANCEL_KEY } as MenuItem] : []),
         ...editMenu(ws, { copy: false, cut: false, selectAll: false }),
+        { label: t("Select all"), run: () => ws.deck.shell.selectAll() },
         "-",
       ];
   if (term) items.push({ label: t("Clear"), run: () => void ws.terminal.onKey({ key: "l", code: "KeyL", ctrl: true, alt: false, shift: false, meta: false, combo: "ctrl+l", rawCtrl: true, rawMeta: false }), hint: "ctrl+L" });

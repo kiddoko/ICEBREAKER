@@ -3,7 +3,6 @@ import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
-import { decrypt } from "../fx/glitch";
 import type { MenuEntry, UI } from "../ui/ui";
 import { ring, WheelSpin } from "../ui/wheelspin";
 import { FilterBar } from "../ui/filterbar";
@@ -330,7 +329,7 @@ export class ModulesApp implements App {
     // the light and the name (decoding while it powers up)
     const led = cart.on ? (lit ? c.success : c.faint) : c.subtle;
     ui.text(x + w - 3, ty, cart.on ? "●" : "○", { fg: front ? led : fade(led), bg: body });
-    const name = boot < 1 ? decrypt(cart.name.toUpperCase(), boot, ui.now) : cart.name.toUpperCase();
+    const name = ui.reveal(cart.name.toUpperCase(), boot);
     ui.text(ix, ty, `${cart.icon} ${name}`, { fg: front ? c.fg : fade(cart.on ? c.fg : c.muted), bg: body, attrs: BOLD }, iw - 2);
     ty++;
     // the stripe: its colour, a light running along it on the one in front

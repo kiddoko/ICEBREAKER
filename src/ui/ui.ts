@@ -4,6 +4,7 @@ import { BOLD, Grid, type Rect, type Style } from "../core/grid";
 import type { MouseInput } from "../core/input";
 import type { Theme } from "../core/theme";
 import { charWidth, strWidth, truncate } from "../core/unicode";
+import { decrypt, SCRAMBLE_TEXT } from "../fx/glitch";
 
 export type { Rect, Style };
 
@@ -104,6 +105,11 @@ export class UI {
   theme!: Theme;
   /** Milliseconds since the app started — use it for animations. */
   now = 0;
+  /**
+   * Nothing animates (frames per second at 0: the deck redraws only on input; or reduce
+   * motion): an effect that needs more frames to finish must show its end at once.
+   */
+  still = false;
   mouse = { x: -1, y: -1 };
   hits: Hit[] = [];
   /** Where the text cursor is this frame (for IME placement), if anyone drew one. */
@@ -151,6 +157,17 @@ export class UI {
 
   get rows(): number {
     return this.grid.rows;
+  }
+
+  /**
+   * The "decrypt" reveal (fx/glitch.ts) of a text that stays on screen: `progress` 0 → 1.
+   * Asks for the next frame while it runs; when nothing animates (`still`) the text shows at
+   * once — a reveal waiting for frames that never came left headlines as "RK=WD P[1I*U".
+   */
+  reveal(text: string, progress: number, charset = SCRAMBLE_TEXT): string {
+    if (this.still || progress >= 1) return text;
+    this.animate(40);
+    return decrypt(text, Math.max(0, progress), this.now, charset);
   }
 
   /** Ask for another frame in `ms` milliseconds (animations call this every frame). */

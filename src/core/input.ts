@@ -47,6 +47,8 @@ export interface MouseInput {
   fine?: boolean;
   /** wheel: the raw pixels of this event (positive = down), for sliders */
   px?: number;
+  /** down: 1, 2 for a double click, 3 for a triple (text selection: a word, a line) */
+  clicks?: number;
   ctrl: boolean;
   shift: boolean;
 }
@@ -256,7 +258,7 @@ export class InputManager {
       this.onActivity();
       this.buttons = e.buttons;
       this.focus();
-      this.sink.mouse(make("down", e));
+      this.sink.mouse({ ...make("down", e), clicks: e.detail || 1 });
     });
     window.addEventListener("mouseup", (e) => {
       if (!this.buttons) return;

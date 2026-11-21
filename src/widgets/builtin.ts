@@ -121,6 +121,8 @@ interface Weather {
 interface Slot {
   w: Weather | null;
   error: string | null;
+  /** when it failed: it tries again by itself a minute later (the network may not be up yet at start) */
+  errorAt?: number;
   loading: boolean;
 }
 const slots = new Map<string, Slot>();
@@ -142,7 +144,10 @@ async function loadWeather(key: string, deck: Deck, city = ""): Promise<void> {
       `latitude=${place.lat}&longitude=${place.lon}&timezone=auto&forecast_days=7&forecast_hours=24` +
       `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m` +
       `&hourly=temperature_2m&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,precipitation_probability_max`;
-    const f = await (await fetch(`https://api.open-meteo.com/v1/forecast?${q}`)).json();
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?${q}`);
+    const f = await res.json().catch(() => null);
+    // an answer without a forecast (a server error, a limit reached): said, not "Cannot read properties of undefined"
+    if (!res.ok || !f?.current || !f?.daily || !f?.hourly) throw new Error(`open-meteo: ${f?.reason ?? (res.ok ? "no forecast in the answer" : `error ${res.status}`)} — retrying in a minute`);
     const hhmm = (iso: string) => iso?.slice(11, 16) ?? "--:--";
     // the sky changed since the last look (rain coming, sun back…): the voice may say it
     const weather = sl.w;
@@ -173,6 +178,7 @@ async function loadWeather(key: string, deck: Deck, city = ""): Promise<void> {
     sl.error = null;
   } catch (e) {
     sl.error = e instanceof Error ? e.message : String(e);
+    sl.errorAt = Date.now();
   } finally {
     sl.loading = false;
   }
@@ -263,7 +269,9 @@ const weatherWidget: WidgetSpec = {
     const sl = slotOf(city);
     const key = city ? `city|${city}` : `${loc.precision}|${loc.name}|${loc.lat}|${loc.lon}|${deck.settings.data.home.weatherCity}`;
     const stale = !sl.w || sl.w.key !== key || Date.now() - sl.w.at > 15 * 60_000;
-    if (stale && !sl.loading && !sl.error) void loadWeather(key, deck, city).then(() => deck.requestFrame());
+    const retry = !!sl.error && Date.now() - (sl.errorAt ?? 0) > 60_000;
+    if (stale && !sl.loading && (!sl.error || retry)) void loadWeather(key, deck, city).then(() => deck.requestFrame());
+    if (sl.error && !sl.w) ui.animate(60_000); // (the retry needs a frame)
     if (!sl.w) {
       ui.text(r.x + 1, r.y + 1, sl.error ? `⚠ ${sl.error}` : `${ui.spinner()} contacting the sky…`, { fg: sl.error ? c.error : c.muted }, r.w - 2);
       if (sl.error) ui.text(r.x + 1, r.y + 2, "enter: retry", { fg: c.faint });

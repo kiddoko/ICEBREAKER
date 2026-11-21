@@ -5,7 +5,6 @@ import type { Action, KeyInput } from "../core/input";
 import { countryOf, langOf } from "../core/location";
 import { strWidth, wrapWords } from "../core/unicode";
 import type { Deck } from "../deck";
-import { decrypt } from "../fx/glitch";
 import type { Command } from "../shell/types";
 import type { UI } from "../ui/ui";
 import type { Overlay } from "../workspace/overlays";
@@ -263,7 +262,6 @@ export const newsWidget: WidgetSpec = {
       // new headlines decrypt in, staggered
       const first = seenAt.get(h.title) ?? (seenAt.set(h.title, ui.now + i * 90), ui.now + i * 90);
       const p = Math.min(1, Math.max(0, (ui.now - first) / 500));
-      if (p < 1) ui.animate(40);
       const row = { x: r.x, y, w: r.w, h: 1 };
       const hot = ui.hovered(row);
       const src = r.w >= 50 ? h.source.slice(0, 14) : "";
@@ -272,7 +270,7 @@ export const newsWidget: WidgetSpec = {
       // an interest's headline wears its tag, dimly
       const tagW = h.tag && r.w >= 34 ? strWidth(h.tag) + 3 : 0;
       if (tagW) ui.text(r.x + 3, y, `[${h.tag}]`, { fg: c.subtle });
-      const shown = p < 1 ? decrypt(h.title, p, ui.now) : h.title;
+      const shown = ui.reveal(h.title, p);
       // too long: it scrolls by itself under the mouse (ui.text does it everywhere)
       ui.text(r.x + 3 + tagW, y, shown, { fg: hot ? c.accent : i === 0 ? c.fg : c.muted }, room - tagW);
       if (src) ui.textRight(r.x + r.w - 1, y, src, { fg: c.faint, attrs: DIM });
