@@ -18,14 +18,25 @@ import type { Action, KeyInput } from "../../src/core/input";
 import type { Stat } from "../../src/core/stats";
 import type { IcebreakerAPI } from "../../src/plugins/api";
 import type { UI } from "../../src/ui/ui";
+import type { RGB } from "../../src/core/color";
+import { byWeekday, facts, lineChart, pctText, pieChart, type Point } from "./charts";
 
 const RANGES = [7, 30, 90, 365];
+const WEEKDAY = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
 export function activate(ib: IcebreakerAPI): void {
   ib.settings.register([
     { key: "range", label: "default period (days)", type: "choice", options: RANGES.map(String), default: "30", help: "The period the STATS page shows when it opens: 7, 30, 90 or 365 days (←→ changes it on the page)." },
   ]);
-  const { BOLD, mix, fmt, parseFlags, t, q, sparkline, formatStat } = ib.lib;
+  const { BOLD, mix, fmt, parseFlags, t, q, sparkline, formatStat, Bar, stack, cards, INSET, GAP, strWidth: strW } = ib.lib;
+  const RANGE_LABEL = (d: number) => (d === 365 ? t("1 year") : `${d} ${t("d")}`);
+  /** the colours of the pie's slices, in order */
+  const SLICE = (c: UI["c"], i: number): RGB => [c.accent, c.success, c.warning, 0x7fb4ea, c.error, c.title, c.subtle][i % 7];
+  /** "14 nov" */
+  const dayText = (key: string) => {
+    const [y, m, d] = key.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  };
   const run = (line: string) => void ib.shell.run(line);
   let all: Stat[] = [];
   let pinned: string[] = [];
@@ -193,8 +204,6 @@ export function activate(ib: IcebreakerAPI): void {
     readonly key = "stats";
     private sel = 0;
     private range = Math.max(0, RANGES.indexOf(Number(ib.settings.get("range")) || 30));
-    private series: number[] = [];
-    private seriesFor = "";
     private setup = false;
     private setupSel = 0;
     /** the setup page: each module, then its stats, with a box to show / hide */
@@ -289,76 +298,236 @@ export function activate(ib: IcebreakerAPI): void {
       }
       return false;
     }
+    /** two periods of points per stat (the one shown and the one before), fetched once per range and change */
+    private pts = new Map<string, Point[]>();
+    /** the first look starts on the first tile; after that, what you chose */
+    private picked = false;
+    private points(st: Stat, days: number): Point[] {
+      const key = `${st.id}:${days}:${st.updated}`;
+      if (!this.pts.has(key)) {
+        this.pts.set(key, []);
+        // a level (weight…) has no value before its first one: those days aren't zeros
+        const first = Object.keys(st.days ?? {}).sort()[0] ?? "";
+        void ib.stats.series(st.id, days * 2).then((p) => (this.pts.set(key, st.kind === "counter" ? p : p.filter((x) => x.day >= first)), ib.ui.redraw()));
+      }
+      return this.pts.get(key) ?? [];
+    }
+    /** the tiles on top: pinned ones first, then the latest changed */
+    private tiles(): Stat[] {
+      const pins = pinned.map(find).filter((x): x is Stat => !!x && !hidden.includes(x.id));
+      const rest = visible().filter((x) => !pins.includes(x)).sort((x, y) => y.updated.localeCompare(x.updated));
+      return [...pins, ...rest];
+    }
+
     render(ui: UI, r: Rect, focused: boolean): void {
       const c = ui.c;
       if (!loaded) return;
       if (wantSetup) (this.setup = true), (wantSetup = false);
       if (this.setup) return this.renderSetup(ui, r, focused);
       ui.animate(60_000);
-      const listW = Math.min(46, Math.floor(r.w * 0.42));
-      let y = r.y + 1;
-      const bw = ui.button(r.x + 2, y, t("+ track something"), () => void addFlow(), { tip: "a" });
-      ui.button(r.x + 4 + bw, y, t("⚙ what shows"), () => (this.setup = true), { tip: "s · stats setup" });
-      y += 2;
-      this.sel = Math.min(this.sel, Math.max(0, visible().length - 1));
-      if (!visible().length) {
-        ui.text(r.x + 2, y, t("no stats yet — a starts one; modules add theirs"), { fg: c.muted }, r.w - 4);
-        return;
-      }
-      visible().forEach((s, i) => {
-        if (y >= r.y + r.h - 1) return;
-        const row = { x: r.x + 1, y, w: listW, h: 1 };
-        const sel = i === this.sel;
-        const bg = sel ? mix(c.accent, c.bg, focused ? 0.78 : 0.88) : ui.hovered(row) ? c.highlight : undefined;
-        if (bg) ui.fill(row, { bg });
-        const st = bg ? { bg } : {};
-        ui.text(row.x + 1, y, pinned.includes(s.id) ? "★" : "·", { fg: pinned.includes(s.id) ? c.warning : c.faint, ...st });
-        const end = ui.textRight(row.x + listW - 1, y, show(s), { fg: c.fg, attrs: BOLD, ...st });
-        const sp = spark(s, 8);
-        ui.text(end - 9, y, sp, { fg: c.accent, ...st });
-        ui.text(row.x + 3, y, t(s.label), { fg: sel ? c.fg : c.subtle, ...st }, end - row.x - 14);
-        ui.hit(row, { onClick: () => (this.sel = i), tip: `stats show ${s.id}` });
-        y++;
-      });
-
-      // the graph of the selected stat
-      const s = this.cur();
-      if (!s) return;
       const days = RANGES[this.range];
-      const key = `${s.id}:${days}:${s.updated}`;
-      if (this.seriesFor !== key) {
-        this.seriesFor = key;
-        void values(s.id, days).then((v) => ((this.series = v), ib.ui.redraw()));
+      const inner = { x: r.x + INSET * 2, y: r.y + 1, w: Math.max(0, r.w - INSET * 4), h: Math.max(0, r.h - 2) };
+      // the head: what this is, the period, and the two buttons
+      const head = new Bar(ui, inner.x, inner.y, inner.x + inner.w);
+      head.text(t("{n} numbers · the last {d} days", { n: visible().length, d: days }), { fg: c.muted }, { priority: 4, fit: 10 });
+      // right-side items read in the order they're added: 7 d · 30 d · 90 d · 1 year, then the buttons
+      RANGES.forEach((d, i) => {
+        const label = RANGE_LABEL(d);
+        head.item(strW(label) + 2, (x) => ui.button(x, inner.y, label, () => (this.range = i), { selected: i === this.range, tip: "← →" }), { side: "right", priority: 8 });
+      });
+      head.item(strW(t("+ track something")) + 2, (x) => ui.button(x, inner.y, t("+ track something"), () => void addFlow(), { tip: "a" }), { side: "right", priority: 6 });
+      head.item(strW(t("⚙ what shows")) + 2, (x) => ui.button(x, inner.y, t("⚙ what shows"), () => (this.setup = true), { tip: "s · stats setup" }), { side: "right", priority: 3 });
+      head.draw();
+      const list = visible();
+      if (!this.picked && list.length) {
+        this.picked = true;
+        this.sel = Math.max(0, list.indexOf(this.tiles()[0]));
       }
-      const gx = r.x + listW + 3, gw = r.w - listW - 5;
-      if (gw < 16) return;
-      let gy = r.y + 1;
-      ui.text(gx, gy, t(s.label), { fg: c.title, attrs: BOLD }, gw - 20);
-      ui.textRight(gx + gw, gy, `${s.id} · ${s.source}`, { fg: c.muted });
-      gy++;
-      ui.text(gx, gy, show(s), { fg: c.accent, attrs: BOLD });
-      let bx = gx + gw;
-      for (let i = RANGES.length - 1; i >= 0; i--) {
-        const label = `${RANGES[i]}${t("d")}`;
-        bx -= label.length + 3;
-        ui.button(bx, gy, label, () => (this.range = i), { selected: i === this.range, tip: `stats show ${s.id} ${RANGES[i]}` });
+      this.sel = Math.min(this.sel, Math.max(0, list.length - 1));
+      const body = { x: inner.x, y: inner.y + 2, w: inner.w, h: Math.max(0, inner.h - 2) };
+      if (!list.length) return void ui.text(body.x, body.y, t("no stats yet — a starts one; modules add theirs"), { fg: c.muted }, body.w);
+      // tiles on top (one row), then the list · the chart · the side (pie, weekdays)
+      const [tilesR, mainR] = stack(body, [{ min: 5, h: 5, priority: 6 }, { min: 8, fill: 1, priority: 9 }]);
+      if (tilesR) this.drawTiles(ui, tilesR, days);
+      if (!mainR) return;
+      const listW = mainR.w >= 110 ? 30 : mainR.w >= 70 ? 24 : 0;
+      const sideW = mainR.w >= 120 ? 32 : 0;
+      const listR = listW ? { x: mainR.x, y: mainR.y, w: listW, h: mainR.h } : null;
+      const sideR = sideW ? { x: mainR.x + mainR.w - sideW, y: mainR.y, w: sideW, h: mainR.h } : null;
+      const chartR = { x: mainR.x + (listW ? listW + GAP : 0), y: mainR.y, w: mainR.w - (listW ? listW + GAP : 0) - (sideW ? sideW + GAP : 0), h: mainR.h };
+      if (listR) this.drawList(ui, listR, focused);
+      const st = this.cur();
+      if (st) this.drawChart(ui, chartR, st, days);
+      if (sideR && st) this.drawSide(ui, sideR, st, days);
+    }
+
+    /** a tile per stat: its number big, how it moved, a spark, what it means */
+    private drawTiles(ui: UI, r: Rect, days: number): void {
+      const c = ui.c;
+      const all = this.tiles();
+      const { rects } = cards(r, Math.max(1, Math.min(all.length, Math.floor((r.w + GAP) / (22 + GAP)))), { minW: 22, maxW: 40, h: r.h });
+      rects.forEach((box, i) => {
+        const st = all[i];
+        if (!st) return;
+        const counter = st.kind === "counter";
+        const f = facts(this.points(st, days), days, counter);
+        const lit = visible()[this.sel] === st;
+        const inn = ui.box(box, { title: t(st.label), focused: lit });
+        const big = counter ? show(st, f.total) : show(st);
+        const row = new Bar(ui, inn.x + INSET, inn.y, inn.x + inn.w - INSET);
+        row.text(big, { fg: c.accent, attrs: BOLD }, { priority: 10 });
+        const pct = pctText(f.changePct);
+        if (pct) row.text(`${pct.startsWith("−") ? "▼" : pct === "=" ? "■" : "▲"} ${pct}`, { fg: pct === "=" ? c.subtle : pct.startsWith("−") ? c.error : c.success }, { side: "right", priority: 7 });
+        row.draw();
+        const w = Math.max(0, inn.w - INSET * 2);
+        ui.text(inn.x + INSET, inn.y + 1, sparkline(this.points(st, days).slice(-days).map((p) => p.value), w), { fg: lit ? c.accent : c.subtle }, w);
+        // short enough for a 22-cell tile: "30 d · 4/day", "↓ 71 ↑ 72,4 kg", "steady"
+        const says = counter
+          ? `${RANGE_LABEL(days)} · ${t("{a}/day", { a: show(st, f.avg) })}`
+          : f.min === f.max
+            ? t("steady")
+            : `↓ ${show({ ...st, unit: "" }, f.min)} ↑ ${show(st, f.max)}`;
+        ui.text(inn.x + INSET, inn.y + 2, says, { fg: c.muted, raw: true }, w); // raw: ↓ ↑ are data, not keys
+        ui.hit(box, { onClick: () => (this.sel = visible().indexOf(st)), tip: `stats show ${st.id} ${days}` });
+      });
+    }
+
+    private drawList(ui: UI, r: Rect, focused: boolean): void {
+      const c = ui.c;
+      const inn = ui.box(r, { title: t("ALL"), focused });
+      const list = visible();
+      const from = Math.max(0, Math.min(this.sel - Math.floor(inn.h / 2), list.length - inn.h));
+      list.slice(from, from + inn.h).forEach((st, k) => {
+        const i = from + k, y = inn.y + k;
+        const line = { x: inn.x, y, w: inn.w, h: 1 };
+        const sel = i === this.sel;
+        const bg = sel ? mix(c.accent, c.bg, focused ? 0.78 : 0.88) : ui.hovered(line) ? c.highlight : undefined;
+        if (bg) ui.fill(line, { bg });
+        const sty = bg ? { bg } : {};
+        new Bar(ui, inn.x + INSET, y, inn.x + inn.w - INSET)
+          .text(pinned.includes(st.id) ? "★" : "·", { fg: pinned.includes(st.id) ? c.warning : c.faint, ...sty }, { priority: 9 })
+          .text(t(st.label), { fg: sel ? c.fg : c.subtle, ...sty }, { priority: 8, fit: 6 })
+          .text(show(st), { fg: c.fg, attrs: BOLD, ...sty }, { side: "right", priority: 10 })
+          .draw();
+        ui.hit(line, { onClick: () => (this.sel = i), tip: `stats show ${st.id}` });
+      });
+    }
+
+    /** the chosen stat: a line with its area, the axes in words, the facts under it */
+    private drawChart(ui: UI, r: Rect, st: Stat, days: number): void {
+      const c = ui.c;
+      const counter = st.kind === "counter";
+      const inn = ui.box(r, { title: `${t(st.label)} · ${moduleName(st.source)}`, focused: true });
+      const pts = this.points(st, days);
+      const now = pts.slice(-days);
+      if (!now.length) return void ui.text(inn.x + INSET, inn.y, `${ui.spinner()} …`, { fg: c.muted });
+      const f = facts(pts, days, counter);
+      const [topR, plotR, axisR, factR] = stack(inn, [{ h: 1, priority: 9 }, { min: 3, fill: 1, priority: 8 }, { h: 1, priority: 5 }, { h: 1, priority: 7 }], 0);
+      if (topR) {
+        const b = new Bar(ui, topR.x + INSET, topR.y, topR.x + topR.w - INSET);
+        b.text(counter ? show(st, f.total) : show(st), { fg: c.accent, attrs: BOLD }, { priority: 10 });
+        b.text(counter ? t("in {d} days", { d: days }) : t("now"), { fg: c.muted }, { priority: 6 });
+        const pct = pctText(f.changePct);
+        // nothing before to divide by: the change itself, signed ("+20")
+        if (f.change !== null) b.text(t("{p} vs the {d} days before", { p: pct || `${f.change > 0 ? "+" : f.change < 0 ? "−" : ""}${show(st, Math.abs(f.change))}`, d: days }), { fg: (f.change ?? 0) < 0 ? c.error : f.change ? c.success : c.subtle }, { side: "right", priority: 5 });
+        b.draw();
       }
-      gy += 2;
-      const v = this.series;
-      const gh = Math.max(3, r.y + r.h - gy - 3);
-      if (v.length) {
-        const lo = Math.min(...v), hi = Math.max(...v);
-        const base = s.kind === "counter" ? 0 : lo - (hi - lo) * 0.1;
-        const span = hi - base || 1;
-        ui.box({ x: gx, y: gy, w: gw, h: gh + 2 }, {});
-        // stretch the days over the width (2 samples per cell)
-        const samples = (gw - 2) * 2;
-        const stretched = Array.from({ length: samples }, (_, i) => (v[Math.min(v.length - 1, Math.floor((i / samples) * v.length))] - base) / span);
-        ui.chart({ x: gx + 1, y: gy + 1, w: gw - 2, h: gh }, stretched, c.accent);
-        ui.text(gx + 2, gy, ` ${show(s, hi)} `, { fg: c.subtle });
-        ui.text(gx + 2, gy + gh + 1, ` ${show(s, s.kind === "counter" ? 0 : lo)} `, { fg: c.subtle });
-        const sum = v.reduce((a, b) => a + b, 0);
-        ui.text(gx, gy + gh + 2, `${days} ${t("days")} · min ${show(s, lo)} · max ${show(s, hi)} · ${s.kind === "counter" ? `${t("total")} ${show(s, sum)}` : `${t("avg")} ${show(s, sum / v.length)}`}`, { fg: c.muted }, gw);
+      if (plotR) {
+        const v = now.map((p) => p.value);
+        const lo = counter ? 0 : Math.min(...v) - (Math.max(...v) - Math.min(...v)) * 0.1;
+        const hi = Math.max(...v) === lo ? lo + 1 : Math.max(...v);
+        // the y axis: max, middle, min as numbers on the left
+        const gutter = Math.min(10, Math.max(...[hi, (hi + lo) / 2, lo].map((x) => strW(show(st, x)))) + 1);
+        const px = plotR.x + INSET + gutter, pw = Math.max(1, plotR.x + plotR.w - INSET - px);
+        ui.text(plotR.x + INSET, plotR.y, show(st, hi), { fg: c.subtle }, gutter - 1);
+        if (plotR.h >= 5) ui.text(plotR.x + INSET, plotR.y + Math.floor(plotR.h / 2), show(st, (hi + lo) / 2), { fg: c.faint }, gutter - 1);
+        ui.text(plotR.x + INSET, plotR.y + plotR.h - 1, show(st, lo), { fg: c.subtle }, gutter - 1);
+        // the average as a dashed line behind
+        const avgRow = plotR.y + Math.round((plotR.h - 1) * (1 - (f.avg - lo) / (hi - lo || 1)));
+        const dots = lineChart(v, pw, plotR.h, lo, hi);
+        ui.art(() => {
+          for (let x = 0; x < pw; x++) if (!dots.bits[(avgRow - plotR.y) * pw + x]) ui.text(px + x, avgRow, x % 2 ? " " : "┄", { fg: c.faint });
+          dots.rows().forEach((runs, y) => runs.forEach(([x, s, layer]) => ui.text(px + x, plotR.y + y, s, { fg: layer ? c.accent : mix(c.accent, c.bg, 0.7) })));
+        });
+        if (axisR) {
+          // the x axis: the first day, the middle, today
+          const ax = new Bar(ui, px, axisR.y, px + pw);
+          ax.text(dayText(now[0].day), { fg: c.subtle }, { priority: 8 });
+          ax.text(t("avg") + " ┄ " + show(st, f.avg), { fg: c.faint }, { priority: 3 });
+          ax.text(t("today"), { fg: c.subtle }, { side: "right", priority: 9 });
+          ax.draw();
+        }
+      }
+      if (factR) {
+        const b = new Bar(ui, factR.x + INSET, factR.y, factR.x + factR.w - INSET);
+        if (counter) {
+          b.text(t("{a}/day", { a: show(st, f.avg) }), { fg: c.fg }, { priority: 9 });
+          if (f.best) b.text(t("best {v} ({d})", { v: show(st, f.best.value), d: dayText(f.best.day) }), { fg: c.success }, { priority: 7 });
+          b.text(f.active === 1 ? t("1 active day") : t("{n} active days", { n: f.active }), { fg: c.subtle }, { priority: 5 });
+          if (f.streak > 1) b.text(t("{n} days in a row", { n: f.streak }), { fg: c.warning }, { priority: 6 });
+        } else {
+          b.text(t("min {a}", { a: show(st, f.min) }), { fg: c.fg }, { priority: 8 });
+          b.text(t("max {a}", { a: show(st, f.max) }), { fg: c.fg }, { priority: 8 });
+          b.text(t("avg {a}", { a: show(st, f.avg) }), { fg: c.subtle }, { priority: 6 });
+        }
+        b.text(`${t("updated")} ${new Date(st.updated).toLocaleDateString()}`, { fg: c.faint }, { side: "right", priority: 2 });
+        b.draw();
+      }
+    }
+
+    /** the side: where the activity comes from (a pie of the counters by module), and the chosen stat by weekday */
+    private drawSide(ui: UI, r: Rect, st: Stat, days: number): void {
+      const c = ui.c;
+      const counters = visible().filter((x) => x.kind === "counter");
+      const bySource = new Map<string, number>();
+      for (const x of counters) bySource.set(x.source, (bySource.get(x.source) ?? 0) + facts(this.points(x, days), days, true).total);
+      const parts = [...bySource.entries()].filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
+      // counters: the total per weekday; a level (weight): its average on the days it has one ("–" when none)
+      const wpts = this.points(st, days).slice(-days);
+      const sums = byWeekday(wpts);
+      const counts = byWeekday(wpts.map((p) => ({ ...p, value: 1 })));
+      const counter = st.kind === "counter";
+      const week = counter ? sums : sums.map((v, d) => (counts[d] ? v / counts[d] : 0));
+      // the pie first when rows are short: it's the picture this column is for
+      const [pieR, weekR] = stack(r, [{ min: 8, fill: 1, priority: 8 }, { h: 9, priority: 6 }]);
+      if (pieR) {
+        const inn = ui.box(pieR, { title: t("ACTIVITY BY MODULE") });
+        const total = parts.reduce((a, [, n]) => a + n, 0);
+        if (!total) ui.text(inn.x + INSET, inn.y, t("nothing counted yet"), { fg: c.muted }, inn.w - INSET * 2);
+        else {
+          const legend = Math.min(parts.length, Math.max(1, inn.h - 4));
+          const ph = Math.max(2, inn.h - legend - 1), pw = Math.min(inn.w - INSET * 2, Math.ceil(ph / (ui.cellAspect || 0.5)));
+          const pie = pieChart(parts.map(([, n]) => n), pw, ph, ui.cellAspect || 0.5);
+          const x0 = inn.x + Math.floor((inn.w - pw) / 2);
+          ui.art(() => pie.rows().forEach((runs, y) => runs.forEach(([x, s, layer]) => ui.text(x0 + x, inn.y + y, s, { fg: SLICE(c, layer) }))));
+          parts.slice(0, legend).forEach(([src, n], i) => {
+            const y = inn.y + ph + 1 + i;
+            new Bar(ui, inn.x + INSET, y, inn.x + inn.w - INSET)
+              .text("■", { fg: SLICE(c, i) }, { priority: 9 })
+              .text(moduleName(src), { fg: c.fg }, { priority: 8, fit: 4 })
+              .text(`${Math.round((n / total) * 100)} %`, { fg: c.subtle }, { side: "right", priority: 9 })
+              .draw();
+          });
+        }
+      }
+      if (weekR) {
+        const inn = ui.box(weekR, { title: t("BY WEEKDAY") });
+        const lo = counter ? 0 : Math.min(...week.filter((_, d) => counts[d])) * 0.95;
+        const hi = Math.max(...week) - lo || 1;
+        [1, 2, 3, 4, 5, 6, 0].forEach((d, i) => {
+          const y = inn.y + i;
+          if (y >= inn.y + inn.h) return;
+          const top = week[d] === Math.max(...week) && week[d] > 0;
+          new Bar(ui, inn.x + INSET, y, inn.x + inn.w - INSET)
+            .text(t(WEEKDAY[d]), { fg: top ? c.fg : c.subtle }, { priority: 9 })
+            .item(Math.max(4, inn.w - INSET * 2 - 14), (x, w) => {
+              const n = counter || counts[d] ? Math.round(((week[d] - lo) / hi) * w) : 0;
+              ui.text(x, y, "━".repeat(n), { fg: top ? c.accent : mix(c.accent, c.bg, 0.45) });
+              ui.text(x + n, y, "─".repeat(w - n), { fg: c.faint });
+            }, { priority: 5 })
+            .text(counter || counts[d] ? show(st, week[d]) : "–", { fg: top ? c.accent : c.subtle }, { side: "right", priority: 8 })
+            .draw();
+        });
       }
     }
   }
@@ -457,6 +626,29 @@ export function activate(ib: IcebreakerAPI): void {
     "↑↓ choose · space show / hide · s back": "↑↓ choisir · espace afficher / masquer · s retour",
     "a new · enter update · p pin · ←→ range · x remove · s choose what shows": "a nouveau · entrée mettre à jour · p épingler · ←→ période · x retirer · s choisir l'affichage",
     "⚙ what shows": "⚙ affichage",
+    "STATS": "STATS",
+    "{n} numbers · the last {d} days": "{n} chiffres · les {d} derniers jours",
+    "1 year": "1 an",
+    "in {d} days · {a}/day": "en {d} jours · {a}/jour",
+    "min {a} · max {b}": "min {a} · max {b}",
+    "ALL": "TOUTES",
+    "in {d} days": "en {d} jours",
+    "now": "maintenant",
+    "{p} vs the {d} days before": "{p} par rapport aux {d} jours d'avant",
+    "today": "aujourd'hui",
+    "{a}/day": "{a}/jour",
+    "best {v} ({d})": "record {v} ({d})",
+    "{n} active days": "{n} jours actifs",
+    "1 active day": "1 jour actif",
+    "steady": "stable",
+    "{n} days in a row": "{n} jours d'affilée",
+    "min {a}": "min {a}",
+    "max {a}": "max {a}",
+    "avg {a}": "moy. {a}",
+    "ACTIVITY BY MODULE": "ACTIVITÉ PAR MODULE",
+    "nothing counted yet": "rien de compté pour l'instant",
+    "BY WEEKDAY": "PAR JOUR DE LA SEMAINE",
+    "mon": "lun", "tue": "mar", "wed": "mer", "thu": "jeu", "fri": "ven", "sat": "sam", "sun": "dim",
     "tasks open": "tâches ouvertes",
     "tasks added": "tâches ajoutées",
     "tasks done": "tâches faites",
