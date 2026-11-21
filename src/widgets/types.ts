@@ -79,6 +79,8 @@ export interface WidgetContext {
    * widgetConfig(deck, key, name, fallback) (widgets/instances.ts).
    */
   key?: string;
+  /** Make this widget the chosen one on HOME (keys go to it): a click on its own field. */
+  select?(): void;
 }
 
 /** Where a widget sits on the grid (saved in settings.json → home.widgets). */

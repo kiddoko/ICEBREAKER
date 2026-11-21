@@ -549,7 +549,7 @@ export class HomeApp implements App {
           // the chosen widget's long texts scroll by themselves, as under the mouse
           const zone = ui.marqueeZone;
           if (sel && focused) ui.marqueeZone = inner;
-          spec.render(ui, inner, { deck: this.deck, focused: sel, key: keyOf(p) });
+          spec.render(ui, inner, { deck: this.deck, focused: sel, key: keyOf(p), select: () => void (this.selected = i) });
           ui.marqueeZone = zone;
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);

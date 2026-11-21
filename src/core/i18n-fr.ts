@@ -421,6 +421,7 @@ export const FR: Record<string, string> = {
   "minimal": "minimal",
   "say something — just type": "dis quelque chose — écris, tout simplement",
   "type to UPLINK": "écrire à UPLINK",
+  "type to UPLINK · enter sends": "écrire à UPLINK · entrée envoie",
   "type here…": "écris ici…",
   "new chat": "nouveau chat",
   "a conversation that stays on HOME; LINK is the full chat": "une conversation qui reste sur le HOME ; LINK est le chat complet",
