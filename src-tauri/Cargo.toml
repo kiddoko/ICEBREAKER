@@ -65,6 +65,11 @@ strip = true
 # ProMotion: lift WebKit's 60 fps preference (lib.rs, mod promotion)
 objc2 = "0.6"
 
+[target.'cfg(windows)'.dependencies]
+# the webview's own browser keys off (lib.rs, mod browserkeys): ctrl+shift+M was Edge's profile menu
+webview2-com = "0.39"
+windows-core = "0.62"
+
 [features]
 # developer tools (factory-reset, dev restart): only in builds made with --features dev-tools
 # (npm run app:mac, for testing) — never in the releases people download

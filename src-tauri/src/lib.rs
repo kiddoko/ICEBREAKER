@@ -59,6 +59,8 @@ pub fn run() {
             account::init(app.handle());
             #[cfg(target_os = "macos")]
             promotion::unlock(app);
+            #[cfg(windows)]
+            browserkeys::off(app);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -356,6 +358,27 @@ mod promotion {
             let _: () = msg_send![&*config, setPreferences: prefs];
             if debug {
                 eprintln!("[fps] 60 fps preference lifted: {done}");
+            }
+        });
+    }
+}
+
+/// Windows: the webview's own browser keys off (ctrl+shift+M was Edge's profile menu, F5 / ctrl+R
+/// reloaded the page, ctrl+P printed it…): every key reaches the deck. Copy, paste and the
+/// other editing keys aren't browser keys: they keep working.
+#[cfg(windows)]
+mod browserkeys {
+    use tauri::Manager;
+    use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Settings3;
+    use windows_core::Interface;
+
+    pub fn off(app: &tauri::App) {
+        let Some(win) = app.get_webview_window("main") else { return };
+        let _ = win.with_webview(|wv| unsafe {
+            let Ok(core) = wv.controller().CoreWebView2() else { return };
+            let Ok(settings) = core.Settings() else { return };
+            if let Ok(s3) = settings.cast::<ICoreWebView2Settings3>() {
+                let _ = s3.SetAreBrowserAcceleratorKeysEnabled(false);
             }
         });
     }
