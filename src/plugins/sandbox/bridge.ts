@@ -187,9 +187,11 @@ class Sandbox {
       case "register": return this.register(m.what, m.spec);
       case "streamReq": {
         // its own audio node in the deck, and a port to it handed to its Worker (core/audiostream.ts):
-        // only with the "audio" permission; what the port carries is checked by the node
+        // only with the "audio" permission as it is NOW (asked through its own `ib`: one you took away
+        // says so — the manifest alone kept it playing); what the port carries is checked by the node
         try {
-          if (!(this.manifest.permissions ?? []).includes("audio")) throw new Error(`plugin "${this.manifest.id}" needs the "audio" permission in its plugin.json`);
+          await this.ib.audio.now();
+          this.deck.access.note(this.manifest.id, "audio", ""); // the access journal: it plays sound
           const port = await this.deck.mixer.openStream(this.manifest.id);
           this.worker.postMessage({ t: "stream", id: m.id, port } satisfies ToModule, [port]);
         } catch (e) {

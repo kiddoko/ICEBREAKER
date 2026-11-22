@@ -195,7 +195,8 @@ export class Mixer {
     return ch.port2;
   }
 
-  private closeStream(owner: string): void {
+  /** Its stream's node goes (switched off, its sound permission taken away): what it writes after is lost. */
+  closeStream(owner: string): void {
     const s = this.streams.get(owner);
     if (!s) return;
     s.node.port.postMessage({ t: "close" });

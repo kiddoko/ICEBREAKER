@@ -170,7 +170,9 @@ export class PluginHost {
     // taken away: "always" goes with it (given back, it's asked again at first use)
     const always = s.data.plugins.always ?? {};
     if ((always[id] ?? []).includes(name)) s.set("plugins.always", { ...always, [id]: always[id].filter((x) => x !== name) });
-    if (parsePerm(name)?.base === "audio") this.deck.mixer.stop(id);
+    // no more sound: silenced now (it's told, like `audio stop`, so its song stops too), and its
+    // stream closed — a frame it was already writing kept playing (BreakerMED did, 0.6.1)
+    if (parsePerm(name)?.base === "audio") this.deck.mixer.stop(id, true), this.deck.mixer.closeStream(id);
     this.deck.requestFrame();
     return true;
   }
