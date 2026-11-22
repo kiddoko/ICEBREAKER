@@ -32,6 +32,44 @@ export interface VersionNotes {
 
 export const NOTES: VersionNotes[] = [
   {
+    version: "0.6.2",
+    date: "2026-11-22",
+    en: {
+      added: [
+        "Tree: double-click opens a note here; middle or shift+click: new tab",
+        "Mouse back / forward: the note this tab showed before / after",
+        "♪ on a module's tab while it plays: a click mutes just that tab",
+        "Esc with nothing to close opens the ◆ ICEBREAKER menu",
+        "`theme nightshade` switches theme directly",
+      ],
+      fixed: [
+        "Taking a module's sound away stops it; the access log shows it",
+        "Alt+F4 quits from anywhere on Windows",
+        "Frame borders show the resize pointer and a handle",
+        "Settings breathe: a line of air between them",
+        "One Keyboard fader for key clicks (the extra switch is gone)",
+        "UPLINK's Japanese voice reads as the answer comes",
+      ],
+    },
+    fr: {
+      added: [
+        "Arbo : double-clic ouvre la note ici ; molette ou maj+clic : nouvel onglet",
+        "Boutons souris précédent / suivant : la note d'avant / d'après de l'onglet",
+        "♪ sur l'onglet d'un module qui joue : un clic coupe le son de cet onglet",
+        "Échap sans rien à fermer ouvre le menu ◆ ICEBREAKER",
+        "`theme nightshade` change de thème directement",
+      ],
+      fixed: [
+        "Retirer le son à un module l'arrête ; le journal des accès le montre",
+        "Alt+F4 quitte de partout sous Windows",
+        "Les bordures des cadres montrent le pointeur et une poignée",
+        "Les réglages respirent : une ligne d'air entre eux",
+        "Un seul fader Clavier pour le son des touches (l'interrupteur en trop part)",
+        "La voix japonaise d'UPLINK lit au fil de la réponse",
+      ],
+    },
+  },
+  {
     version: "0.6.1",
     date: "2026-11-21",
     en: {

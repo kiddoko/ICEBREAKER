@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.6.2 — 2026-11-22
+
+Fixes from the 0.6 and 0.6.1 reviews.
+
+- **Permissions**: taking *Play sound* away from a module stops it at once — a sandboxed
+  module's audio stream (BreakerMED) was checked against its plugin.json, not against what
+  you allow now. Opening the stream is written in the access journal (◈ access).
+- **A module's page can keep its tab open**: its `close()` is awaited (a "save?" can answer
+  cancel), and quitting stops when a page says no (docs/PLUGINS.md).
+- **Like a browser**: double-click (or enter) on a note in the tree opens it in the tab you're
+  on; a middle click or shift+click, in a new tab. The mouse's back / forward buttons (a
+  two-finger swipe on a Mac) walk the notes the tab showed; with shift, the tabs.
+- **♪ on a module's tab** while it plays: a click mutes just that tab (⊘), it keeps playing.
+- **Esc** with nothing to close or leave opens the ◆ ICEBREAKER menu; the menu's labels
+  start at its left edge (the page you're on shows ✓ in place of its mark).
+- **Alt+F4 quits from anywhere** on Windows / Linux (a page that plays the keyboard, your real
+  terminal, a pop-up or the login screen kept it).
+- **Frame borders**: the system pointer shows ↔ / ↕ over them; the shell's top border lights
+  with a handle too.
+- **Settings**: a line of air under each setting; the *Keyboard sounds* switch is gone, the
+  mixer's Keyboard fader decides (0 = silent, the default).
+- **UPLINK's Japanese voice** reads the answer as it comes when the AI writes no `<say>` line.
+- `theme <name>` switches to it; a settings.json saved with a byte-order mark (Notepad,
+  PowerShell 5.1) is read; `cmatrix` says it shows the theme's screensaver; the top bar and
+  CALENDAR's keys line no longer draw over themselves (`debug layout pages`: 329 → 51).
+
 ## 0.6.1 — 2026-11-21
 
 - **The chat widget**: one click and you type. Its field is on its top line; a click (or a
