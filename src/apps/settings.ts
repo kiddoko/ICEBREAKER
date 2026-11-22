@@ -291,13 +291,18 @@ export class SettingsApp implements App {
     // (5 lines of help when there's room: some explanations are long and were cut mid-sentence)
     const helpH = r.h - (top - r.y) >= 18 ? 7 : r.h - (top - r.y) >= 14 ? 5 : 1;
     const room = Math.max(1, r.y + r.h - top - helpH);
+    // a line of air under each setting (the empty line before a heading is air already; the
+    // long lists of KEYS stay one per line). `at[i]`: the line row i starts on; scroll counts lines.
+    const at: number[] = [];
+    const total = rows.reduce((line, { row }, i) => ((at[i] = line), line + (row.head && !row.label ? 1 : row.keys ? 1 : 2)), 0) - 1;
     // keep the selected row in view only when the selection moves (else the wheel couldn't scroll away)
-    if (this.sel !== this.shownSel) {
-      if (this.sel < this.scroll) this.scroll = Math.max(0, this.sel - (rows[this.sel - 1]?.row.head ? 1 : 0));
-      if (this.sel >= this.scroll + room) this.scroll = this.sel - room + 1;
+    if (this.sel !== this.shownSel && rows.length) {
+      const first = rows[this.sel - 1]?.row.head ? at[this.sel - 1] : at[this.sel]; // its heading too
+      if (first < this.scroll) this.scroll = Math.max(0, first);
+      if (at[this.sel] >= this.scroll + room) this.scroll = at[this.sel] - room + 1;
       this.shownSel = this.sel;
     }
-    this.scroll = this.glide.follow(ui, this.scroll, rows.length - room);
+    this.scroll = this.glide.follow(ui, this.scroll, total + 1 - room);
     ui.hit({ x: rx, y: top, w: rw, h: room }, { onWheel: (d) => this.wheel(d, false) });
     if (!rows.length) ui.text(rx + 2, top, t("nothing matches — esc clears the search"), { fg: c.muted });
     let hoverRow: Row | undefined;
@@ -318,9 +323,9 @@ export class SettingsApp implements App {
     const ve = vx - 2; // where every value ends
     const sliderW = Math.max(14, Math.min(26, Math.floor(rw * 0.34)));
 
-    rows.slice(this.scroll, this.scroll + room).forEach(({ row, from }, k) => {
-      const i = this.scroll + k;
-      const y = top + k;
+    rows.forEach(({ row, from }, i) => {
+      if (at[i] < this.scroll || at[i] >= this.scroll + room) return; // out of view
+      const y = top + at[i] - this.scroll;
       const kind = kindOf(row);
       if (kind === "head") {
         if (!row.label) return; // the empty line above a heading
@@ -394,7 +399,7 @@ export class SettingsApp implements App {
         ui.hit(ur, { onClick: () => void this.resetOne(row), tip: `${t("back to the default")} · del` });
       }
     });
-    if (rows.length > room) ui.text(re, this.scroll + room < rows.length ? top + room - 1 : top, this.scroll + room < rows.length ? "↓" : "↑", { fg: c.accent, attrs: BOLD });
+    if (total + 1 > room) ui.text(re, this.scroll + room <= total ? top + room - 1 : top, this.scroll + room <= total ? "↓" : "↑", { fg: c.accent, attrs: BOLD });
 
     // at the bottom: what the row does (the one under the mouse, else the chosen one),
     // and the category's "everything back to default" on the right

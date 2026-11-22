@@ -284,9 +284,19 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
       if (hot) openGroupList(ws, e.group.id, rect);
     } else {
       const unsaved = !!ws.tabs[i].dirty?.();
+      // a module's page that plays sound: ♪ on its tab, a click mutes it (⊘) — like a browser tab
+      const mx = ws.deck.mixer;
+      const owner = ws.deck.apps.sourceOf(ws.tabs[i].kind);
+      const sound = owner && owner !== "core" && (mx.isMuted(owner) || mx.playing().includes(owner)) ? owner : "";
       // the name comes first: the icon goes when it would leave the name under 6 cells
-      const room = closeX - x - 2 - (numbers && i < 9 ? 2 : 0) - (unsaved ? 2 : 0);
+      const room = closeX - x - 2 - (numbers && i < 9 ? 2 : 0) - (unsaved ? 2 : 0) - (sound ? 2 : 0);
       if (numbers && i < 9) tx = ui.text(tx, r.y, `${i + 1} `, { fg: on ? c.panel : c.accent, bg, attrs: BOLD });
+      let speaker: Rect | null = null;
+      if (sound) {
+        speaker = { x: tx, y: r.y, w: 1, h: 1 };
+        const muted = mx.isMuted(sound);
+        tx = ui.text(tx, r.y, muted ? "⊘ " : "♪ ", { fg: ui.hovered(speaker) ? c.warning : muted ? c.error : on ? c.panel : c.accent, bg, attrs: BOLD });
+      }
       if (room - 2 >= 6 && iconOf(ws, i)) tx = ui.text(tx, r.y, `${iconOf(ws, i)} `, { fg: on ? c.panel : c.subtle, bg });
       if (unsaved) tx = ui.text(tx, r.y, "● ", { fg: c.error, bg, attrs: BOLD });
       ui.text(tx, r.y, ws.tabs[i].title().toLowerCase(), { fg, bg, attrs: on ? BOLD : 0 }, Math.max(0, closeX - tx - 1));
@@ -319,6 +329,10 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
         },
       });
       ui.hit({ x: closeX - 1, y: r.y, w: 3, h: 1 }, { cmd: `tab close ${i + 1}`, tip: t("close · ctrl+w · shift+esc") });
+      if (speaker && sound) {
+        const muted = mx.isMuted(sound);
+        ui.hit(speaker, { onClick: () => mx.setMuted(sound, !muted), tip: muted ? t("muted · click to hear it again") : t("playing sound · click to mute this tab") });
+      }
     }
     x += w + SEP;
   });

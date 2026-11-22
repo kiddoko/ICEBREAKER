@@ -1060,7 +1060,8 @@ export function activate(ib: IcebreakerAPI): void {
           y++;
         }
       }
-      ui.text(ax, r.y + r.h - 1, t("arrows · enter · a add · x remove · [ ] months · t today · c settings"), { fg: c.faint }, aw);
+      // the keys, on the last line — only when it's free (a short page put them over the header's ‹)
+      if (r.y + r.h - 1 >= Math.max(y, ay + 2)) ui.text(ax, r.y + r.h - 1, t("arrows · enter · a add · x remove · [ ] months · t today · c settings"), { fg: c.faint }, aw);
     }
 
     private header(ui: UI, r: Rect): void {

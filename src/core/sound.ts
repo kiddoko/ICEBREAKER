@@ -26,7 +26,7 @@ export type SoundName = (typeof SOUND_NAMES)[number];
  *   alerts  notifications, success, errors, reminders, unlock / denied
  *   boot    the start-up
  *   text    the blips of text typing itself out (ui/typewriter.ts)
- *   typing  your own keys (off by default: settings.sound.typing)
+ *   typing  your own keys (0 by default: settings.sound.mix.typing)
  */
 export const SOUND_CHANNELS = ["ui", "alerts", "boot", "text", "typing"] as const;
 export type SoundChannel = (typeof SOUND_CHANNELS)[number];

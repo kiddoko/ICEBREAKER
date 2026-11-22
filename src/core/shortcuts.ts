@@ -48,7 +48,7 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: "ctrl+= · ctrl+- · ctrl+0", what: "interface bigger · smaller · 100 %", cat: "everywhere" },
   { id: "fullscreen", keys: "f11", what: "fullscreen", cat: "everywhere", cmd: "fullscreen", global: true, menuKey: "F", short: "fullscreen" },
   { id: "back", keys: "shift+esc", what: "close the tab and show the one before it (HOME stays)", cat: "everywhere", global: true, menuKey: "q", short: "close, go back" },
-  { keys: "esc", what: "back to the page (from the tree or the shell); closes NEXUS, STORE, MODULES, settings", cat: "everywhere" },
+  { keys: "esc", what: "back to the page (from the tree or the shell); closes NEXUS, STORE, MODULES, settings; with nothing to close, opens the ◆ ICEBREAKER menu", cat: "everywhere" },
   { keys: "1…9", what: "go to that tab (when you're not typing)", cat: "panes & tabs" },
   { keys: "right-click · menu key · shift+f10", what: "the menu of the thing under the mouse (or the selected one): rename, pin, colour, copy, paste…", cat: "everywhere" },
 
@@ -100,6 +100,8 @@ export const SHORTCUTS: Shortcut[] = [
 
   // lists & pages
   { keys: "↑↓ · enter", what: "move · open / do", cat: "lists & pages" },
+  { keys: "double-click · middle-click · shift+click", what: "the tree: a note opens in the tab you're on (in place of the note there) · in a new tab", cat: "lists & pages" },
+  { keys: "mouse back / forward · shift + them", what: "like a browser: the note this tab showed before / after · the tab before / after (a two-finger swipe on a trackpad too)", cat: "panes & tabs" },
   { keys: "pageup · pagedown · home · end", what: "jump", cat: "lists & pages" },
   { keys: "type", what: "in a list with a search field: filter", cat: "lists & pages" },
   { keys: "space · x · s", what: "MODULES: switch on/off · remove · store", cat: "lists & pages" },

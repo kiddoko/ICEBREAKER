@@ -1,6 +1,6 @@
 [package]
 name = "icebreaker"
-version = "0.6.1"
+version = "0.6.2"
 description = "ICEBREAKER — open-source terminal-styled cyberdeck for notes, journaling and AI plugins"
 license = "MIT"
 edition = "2021"
@@ -64,6 +64,11 @@ strip = true
 [target.'cfg(target_os = "macos")'.dependencies]
 # ProMotion: lift WebKit's 60 fps preference (lib.rs, mod promotion)
 objc2 = "0.6"
+
+[target.'cfg(windows)'.dependencies]
+# the webview's own browser keys off (lib.rs, mod browserkeys): ctrl+shift+M was Edge's profile menu
+webview2-com = "0.39"
+windows-core = "0.62"
 
 [features]
 # developer tools (factory-reset, dev restart): only in builds made with --features dev-tools

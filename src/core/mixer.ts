@@ -75,7 +75,9 @@ export class Mixer {
   private freeVoices: number[] = [];
   private sounding = new Set<number>();
   /** each module's own sound (ib.audio.stream): its node, and whether it made sound lately */
-  private streams = new Map<string, { node: AudioWorkletNode; loud: boolean }>();
+  private streams = new Map<string, { node: AudioWorkletNode; loud: boolean; gain: GainNode }>();
+  /** modules muted from their tab's ♪ (like a browser tab): they keep playing, you don't hear them */
+  private muted = new Set<string>();
   /** what each module asked to hear when you silence it (`audio stop`, the ♪ in the status bar) */
   private stopListeners = new Map<string, Set<() => void>>();
   private gain = 0.5;
@@ -99,6 +101,28 @@ export class Mixer {
     for (const [id, o] of this.owners) if ([...o.voices.values()].some((v) => this.sounding.has(v))) out.push(id);
     for (const [id, s] of this.streams) if (s.loud && !out.includes(id)) out.push(id);
     return out;
+  }
+
+  /** Muted from its tab (the ♪ on it)? */
+  isMuted(owner: string): boolean {
+    return this.muted.has(owner);
+  }
+
+  /**
+   * Mute one module, or hear it again, without stopping it (its tab's ♪, like a browser tab's
+   * speaker): its stream's own gain; its voices at volume 0 (now, and every note it plays next).
+   */
+  setMuted(owner: string, on: boolean): void {
+    if (on) this.muted.add(owner);
+    else this.muted.delete(owner);
+    const st = this.streams.get(owner);
+    if (st) st.gain.gain.value = on ? 0 : 1;
+    const o = this.owners.get(owner);
+    if (on && o?.voices.size && this.ctx) {
+      const time = this.ctx.currentTime;
+      this.node?.port.postMessage({ t: "events", list: [...o.voices.values()].map((voice) => ({ time, voice, vol: 0 })) });
+    }
+    this.onActive?.();
   }
 
   /** The audio clock, in seconds (what `at` is measured on). */
@@ -166,6 +190,7 @@ export class Mixer {
       if (raw.pan !== undefined) e.pan = Number(raw.pan);
       if (raw.interp !== undefined) e.interp = raw.interp === "none" ? 0 : 1;
       if (raw.stop) e.stop = true;
+      if (this.muted.has(owner)) e.vol = 0; // muted from its tab: it plays on, silently
       list.push(e);
     }
     if (this.ctx.state !== "running") void this.ctx.resume().catch(() => {});
@@ -181,8 +206,11 @@ export class Mixer {
     if (!(await this.start()) || !this.ctx || !this.out) throw new Error("no sound output here");
     this.closeStream(owner);
     const node = new AudioWorkletNode(this.ctx, "ib-stream", { numberOfInputs: 0, outputChannelCount: [2] });
-    node.connect(this.out);
-    const entry = { node, loud: false };
+    // its own gain: muting its tab (setMuted) turns only it down
+    const gain = this.ctx.createGain();
+    gain.gain.value = this.muted.has(owner) ? 0 : 1;
+    node.connect(gain).connect(this.out);
+    const entry = { node, loud: false, gain };
     node.port.onmessage = (ev: MessageEvent<{ t: string; on?: boolean }>) => {
       if (ev.data?.t !== "active" || entry.loud === !!ev.data.on) return;
       entry.loud = !!ev.data.on;
@@ -195,11 +223,13 @@ export class Mixer {
     return ch.port2;
   }
 
-  private closeStream(owner: string): void {
+  /** Its stream's node goes (switched off, its sound permission taken away): what it writes after is lost. */
+  closeStream(owner: string): void {
     const s = this.streams.get(owner);
     if (!s) return;
     s.node.port.postMessage({ t: "close" });
     s.node.disconnect();
+    s.gain.disconnect();
     this.streams.delete(owner);
     if (s.loud) this.onActive?.();
   }
@@ -233,6 +263,7 @@ export class Mixer {
   /** The module is switched off (or crashed): silence, and everything it had goes. */
   release(owner: string): void {
     this.closeStream(owner);
+    this.muted.delete(owner);
     const o = this.owners.get(owner);
     if (!o) return void this.stopListeners.delete(owner);
     this.stop(owner);

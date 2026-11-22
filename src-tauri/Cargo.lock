@@ -2125,7 +2125,7 @@ dependencies = [
 
 [[package]]
 name = "icebreaker"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "argon2",
  "bip39",
@@ -2148,6 +2148,8 @@ dependencies = [
  "tauri-plugin-updater",
  "tiny_http",
  "unicode-normalization",
+ "webview2-com",
+ "windows-core 0.62.2",
  "zeroize",
  "zip 2.6.1",
 ]

@@ -35,7 +35,7 @@ import type { App, PaletteAction } from "./apps/types";
 import { css, mix } from "./core/color";
 import { GamepadInput } from "./core/gamepad";
 import { Grid } from "./core/grid";
-import { InputManager, type Action, type ActionSource, type InputSink, type KeyInput, type MouseInput } from "./core/input";
+import { InputManager, IS_MAC, type Action, type ActionSource, type InputSink, type KeyInput, type MouseInput } from "./core/input";
 import { FrameLoop } from "./core/loop";
 import { fontStack, loadFont, WEIGHTS } from "./core/fonts";
 import { Renderer } from "./core/renderer";
@@ -282,14 +282,17 @@ export class Deck implements InputSink {
       this.workspace.menu();
       this.requestFrame();
     };
-    this.input.onGesture = (g) => {
+    this.input.onGesture = (g, shift) => {
       const ws = this.workspace;
       if (g === "back" || g === "forward") {
         if (ws.topModal) return;
         this.sound.play("move");
-        // "back" on the note opened from NEXUS: NEXUS again; else the tab before
-        if (g === "back" && ws.backToParked()) return void this.requestFrame();
-        ws.stepTab(g === "forward" ? 1 : -1, true);
+        // like a browser: the mouse's back / forward buttons (a two-finger swipe on a Mac) walk
+        // the pages this tab showed; with shift, the tabs
+        if (shift) ws.stepTab(g === "forward" ? 1 : -1, true);
+        // "back" on the note opened from NEXUS: NEXUS again
+        else if (g === "back" && ws.backToParked()) return void this.requestFrame();
+        else void this.tabHistoryStep(g === "forward" ? 1 : -1);
       } else this.zoom(g === "zoom-in" ? 1 : -1);
       this.requestFrame();
     };
@@ -697,6 +700,10 @@ export class Deck implements InputSink {
   // ── InputSink: everything the keyboard/mouse/gamepad produce lands here ──
 
   key(k: KeyInput): void {
+    // Windows / Linux: alt+F4 closes the window, as everywhere — before anyone else can keep it
+    // (the boot, the login screen, a pop-up, your real terminal, a page that plays the keyboard
+    // and owns the alt keys). The page keeps every key, so the system never sees it.
+    if (!IS_MAC && k.combo === "alt+f4") return void this.quit();
     if (this.boot) return this.boot.skip();
     if (this.lock) return this.lock.onKey(k), this.requestFrame();
     this.workspace.handleKey(k);
@@ -865,6 +872,42 @@ export class Deck implements InputSink {
 
   async openFile(path: string): Promise<void> {
     this.openApp("note", path);
+  }
+
+  /**
+   * Open a note in the tab of `old` (a note), in its place — the tree's double-click, like a
+   * browser link. The tab remembers the note it showed (`record`: back / forward don't add to it).
+   */
+  async openInPlace(old: App, path: string, record = true): Promise<void> {
+    const spec = this.apps.get("note");
+    if (!spec) return this.openFile(path);
+    const hist = this.tabHistory.get(old) ?? { back: [], forward: [] };
+    if (record && old.kind === "note") (hist.back.push(old.key.slice(5)), (hist.forward = []));
+    await Promise.resolve(old.close?.()).catch(() => {}); // it saves on the way out
+    const made = spec.create(this, path);
+    this.appArgs.set(made, path);
+    this.tabHistory.set(made, hist);
+    this.workspace.replaceTab(old, made);
+    this.sound.play("open");
+    this.requestFrame();
+  }
+
+  /** each tab's notes before / after the one it shows (opened in place: the tree's double-click) */
+  private tabHistory = new WeakMap<App, { back: string[]; forward: string[] }>();
+
+  /** The mouse's back (-1) / forward (1) button: the note this tab showed before / after. */
+  async tabHistoryStep(dir: 1 | -1): Promise<void> {
+    const cur = this.workspace.page ? undefined : this.workspace.activeApp;
+    const h = cur && this.tabHistory.get(cur);
+    if (!cur || !h || cur.kind !== "note") return;
+    const from = dir < 0 ? h.back : h.forward;
+    const to = dir < 0 ? h.forward : h.back;
+    let path: string | undefined;
+    // (a note deleted since: skipped)
+    while ((path = from.pop()) !== undefined && !(await this.vault.exists(path)));
+    if (path === undefined) return;
+    to.push(cur.key.slice(5));
+    await this.openInPlace(cur, path, false);
   }
 
   async openJournal(date: Date = new Date()): Promise<void> {
@@ -1064,12 +1107,12 @@ export class Deck implements InputSink {
   }
 
   /**
-   * Your own keys click, if you want (settings.sound.typing, off by default; the
+   * Your own keys click, if you want (Settings → SOUND → mixer → Keyboard, 0 by default; the
    * theme's pack colours it): a click to type, another sound to erase. Played on
    * the key going down (core/input.ts onKeyPress), so it lands with your finger.
    */
   private typingSound(kind: "type" | "erase" | "enter"): void {
-    if (!this.settings.data.sound.typing) return;
+    if (!(this.settings.data.sound.mix.typing > 0)) return;
     this.sound.play(kind === "erase" ? "erase" : "key");
   }
 
@@ -1109,7 +1152,7 @@ export class Deck implements InputSink {
       this.applyMix();
       if (s.sound.muted) this.voice.stop();
       // a fader moved: hear that channel (Settings → SOUND → mixer)
-      const sample: Record<string, SoundName> = { "sound.mix.text": "blip", "sound.mix.typing": "key", "sound.mix.alerts": "notify", "sound.mix.boot": "unlock", "sound.typing": "key" };
+      const sample: Record<string, SoundName> = { "sound.mix.text": "blip", "sound.mix.typing": "key", "sound.mix.alerts": "notify", "sound.mix.boot": "unlock" };
       // (at most ~10 a second: a held slider moves 60 steps a second — the value never waits, the sound does)
       const now = performance.now();
       if (now - this.samplePlayedAt > 100) (this.samplePlayedAt = now), this.sound.play(sample[key] ?? "confirm");
@@ -1358,7 +1401,8 @@ export class Deck implements InputSink {
   }
 
   async quit(): Promise<void> {
-    for (const t of this.workspace.tabs) await t.close?.();
+    // a page can keep the deck open ("save?" → cancel): then nothing quits
+    for (const t of [...this.workspace.tabs]) if ((await Promise.resolve(t.close?.()).catch(() => true)) === false) return;
     await this.updater.onQuit();
     await this.platform.window.quit();
   }

@@ -184,7 +184,7 @@ the Finder / Explorer onto a folder of the tree: they're **copied** into it
 were on come back as you left them next time.
 
 ## Tabs, pins, settings
-- Tabs on top: 1…9 (when not typing) or ⌘1…9; ⌘W or ⇧Esc closes one and shows the tab before it. NEXUS, STORE, MODULES and settings open without a tab (Esc closes them).
+- Tabs on top: 1…9 (when not typing) or ⌘1…9; ⌘W or ⇧Esc closes one and shows the tab before it. NEXUS, STORE, MODULES and settings open without a tab (Esc closes them). With nothing to close, Esc opens the **◆ ICEBREAKER** menu.
 - **Pins**: one list for everything you keep one click away — notes, folders,
   modules, pages, macros, commands. They show at the top of the tree and in the
   *pinned* widget, and *Add to HOME* also puts one on HOME as a square. Unpin it:
@@ -301,8 +301,8 @@ were on come back as you left them next time.
   fader each for moving around, notifications, the text that types itself out,
   your keys, the start-up, and the sound **modules** play themselves (a module
   allowed to — permission "audio" — shows ♪ its name in the status bar while it
-  plays: a click, or \`audio stop\`, silences it). *A click on your keys* (off by
-  default) gives your typing the theme's own key sound — another one when you
+  plays: a click, or \`audio stop\`, silences it). The **Keyboard** fader (at 0 by
+  default: silent keys) gives your typing the theme's own key sound — another one when you
   erase — played the moment the key goes down.
 - A page that **plays the keyboard** (a piano, a tracker, a game) keeps every key while
   it's in front, alt + arrows too: **esc** gives them back to the deck (the tree takes
@@ -511,8 +511,10 @@ and its key on THE MENU, changed with one click.
 | click | does it — and the shell's **log** tab shows the command |
 | double-click | open (in the tree too: one click selects, one click folds a folder) |
 | drag · double · triple-click | select text in a note, ibsh or the terminal (a word, a line) — ⌘C copies |
-| back / forward buttons | the tab before / after |
-| two-finger swipe → ← (trackpad) | the tab after / before |
+| back / forward buttons | like a browser: the note this tab showed before / after (opened in place from the tree) |
+| two-finger swipe → ← (trackpad) | the same, after / before |
+| ⇧ + back / forward, ⇧ + swipe | the tab before / after |
+| double-click · middle-click · ⇧ click (tree) | open the note here, in place of this tab's note · in a new tab |
 | pinch · ctrl+wheel | interface bigger / smaller |
 | right-click | a menu for what's under it: notes, folders, tabs, widgets, cards, the shell, the editor (copy, paste…) |
 | hover | the command and the shortcut |
@@ -835,7 +837,7 @@ The full charter is \`docs/SOUND_PACKS.md\` in the repository. In short:
   pack.toml        name, author, version, description, licence
   move.wav  tick.wav  open.wav  confirm.wav  back.wav  select.wav
   notify.wav  success.wav  error.wav  alert.wav  unlock.wav  denied.wav  boot.wav
-  blip.wav (text typing itself out)  key.wav  erase.wav (your keys, if switched on)
+  blip.wav (text typing itself out)  key.wav  erase.wav (your keys, if their fader is up)
 \`\`\`
 
 | | |

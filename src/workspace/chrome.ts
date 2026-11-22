@@ -16,7 +16,7 @@ import { Osk } from "./overlays";
 import { SystemTerminal, terminalKeysHint } from "../shell/systerm";
 import type { ShellTab, Workspace } from "./workspace";
 import { chipStyle, drawChip, placeChips, tabbedBox } from "./tabstrip";
-import { DECK_MENU_TITLE, deckMenu, editMacro, macroMenu, shellMenu, termTabMenu } from "./menus";
+import { DECK_MENU_TITLE, editMacro, macroMenu, shellMenu, termTabMenu } from "./menus";
 
 /**
  * The shell panel: tabs on its top border (your terminals [+] │ ibsh · history ·
@@ -107,7 +107,15 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
       const fromBottom = body.y + body.h - m.y;
       ws.shellRatio = Math.max(0.15, Math.min(0.8, fromBottom / body.h));
     },
+    tip: t("drag: resize"),
+    cursor: "row-resize",
   });
+  // under the pointer: its line lit, a ↕ in the middle (like the borders between frames)
+  if (handle.w > 0 && ui.hovered(handle)) {
+    const line = { x: handle.x, y: r.y + 1, w: handle.w, h: 1 };
+    ui.tint(line, c.accent);
+    ui.text(line.x + Math.floor(line.w / 2), line.y, "↕", { fg: c.panel, bg: c.accent, attrs: BOLD });
+  }
   if (moved) return void ui.clip(si, () => moved.render(ui, si, shellFocused));
   // the shell's own menu first: what's drawn on it (macros, the terminal) registers after and wins the right-click
   ui.hit(si, { menu: () => shellMenu(ws) });
@@ -199,7 +207,7 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
   if (hot) ui.fill(logoRect, { bg: c.highlight });
   ui.gradientText(r.x + INSET, r.y, logo.trim().slice(0, -2), ui.theme.gradient, BOLD, (ui.now / 8000) % 1);
   ui.text(r.x + logoRect.w - GAP, r.y, "▾", { fg: hot ? c.accent : c.subtle, bg: hot ? c.highlight : c.panelAlt });
-  ui.hit(logoRect, { onClick: () => ws.openMenu(deckMenu(ws), r.x, r.y + 1, DECK_MENU_TITLE()), tip: t("the deck's menu: modules, store, NEXUS, settings, log out…") });
+  ui.hit(logoRect, { onClick: () => ws.openDeckMenu(), tip: t("the deck's menu: modules, store, NEXUS, settings, log out…") });
 
   const now = new Date();
   const time = now.toLocaleTimeString(d.settings.data.user.locale || undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -215,10 +223,12 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
   const right = narrow ? ` ${ai}  ${time.slice(0, 5)} ` : ` ${ai}  │  ${date}  ${time} `;
   const rx = r.x + r.w - strWidth(right);
   if (rx <= logoRect.x + logoRect.w) return;
-  ui.text(rx, r.y, right, { fg: c.muted, bg: c.panelAlt });
+  // " uplink ■  │  date  time", each part once (drawn over each other, `debug layout` saw an overlap)
   const lamp = !d.ai.ready ? c.error : d.ai.busy > 0 ? c.warning : c.success;
-  if (!narrow) ui.text(rx + 1, r.y, "uplink", { fg: d.ai.ready ? c.fg : c.muted, bg: c.panelAlt, attrs: BOLD });
-  ui.text(rx + strWidth(ai), r.y, "■", { fg: lamp, bg: c.panelAlt });
+  let lx = ui.text(rx, r.y, " ", { bg: c.panelAlt });
+  if (!narrow) lx = ui.text(lx, r.y, "uplink ", { fg: d.ai.ready ? c.fg : c.muted, bg: c.panelAlt, attrs: BOLD });
+  lx = ui.text(lx, r.y, "■", { fg: lamp, bg: c.panelAlt });
+  ui.text(lx, r.y, right.slice(1 + ai.length), { fg: c.muted, bg: c.panelAlt });
   // "◈ reads notes/ideas.md", left of UPLINK, while the AI reads (as much of the name as fits)
   if (reading) {
     const room = rx - (logoRect.x + logoRect.w) - GAP * 2;

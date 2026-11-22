@@ -46,11 +46,11 @@ export class Sidebar {
   constructor(private readonly deck: Deck) {
     deck.vault.events.on("changed", () => this.version++);
     deck.vault.events.on("rescanned", () => this.version++);
-    this.list.onActivate = (row) => this.activate(row);
+    this.list.onActivate = (row, _i, how) => this.activate(row, how === "new");
     this.list.tipOf = (row) =>
       row.entry.isDir
         ? t("click: fold / unfold · drag things onto it to move them in · right-click: more")
-        : `open ${q(row.entry.path)}\n${t("click: select · double-click / enter: open · drag it onto a folder to move it · right-click: more")}`;
+        : `open ${q(row.entry.path)}\n${t("click: select · double-click / enter: open here · middle or shift+click: new tab · drag it onto a folder to move it · right-click: more")}`;
     this.list.menuOf = (row) => this.entryMenu(row);
     // one click folds a folder; a file is only selected (so ⌘⌫, F2… act on it): double-click or enter opens it
     this.list.clickActivates = (row) => row.entry.isDir;
@@ -157,13 +157,25 @@ export class Sidebar {
     if (idx >= 0) this.list.selected = idx;
   }
 
-  private activate(row: Row): void {
+  /**
+   * A folder folds; a file opens — like a browser: in the tab you're on, in place of the note it
+   * shows (a module's page or a note with unsaved changes stays: a new tab then); `newTab` (a middle
+   * click, ⇧ click) always in a new tab. Already open somewhere: that tab.
+   */
+  private activate(row: Row, newTab = false): void {
     if (row.entry.isDir) {
       if (this.open.has(row.entry.path)) this.open.delete(row.entry.path);
       else this.open.add(row.entry.path);
       this.version++;
       this.saveOpen();
-    } else void this.deck.act(`open ${q(row.entry.path)}`);
+      return;
+    }
+    const ws = this.deck.workspace;
+    const cur = ws.page ? undefined : ws.activeApp;
+    const path = row.entry.path;
+    const already = ws.tabs.some((a) => a.kind === "note" && a.key === `note:${path}`);
+    if (newTab || already || !cur || cur.kind !== "note" || cur.dirty?.()) return void this.deck.act(`open ${q(path)}`);
+    void this.deck.openInPlace(cur, path);
   }
 
   /** The folder a cell of the tree stands for: a folder row, a file's folder, "" below the rows; null outside the tree. */

@@ -120,14 +120,16 @@ export const DECK_MENU_TITLE = () => `ICEBREAKER ${APP_VERSION}`;
  */
 export function deckMenu(ws: Workspace): MenuEntry[] {
   const d = ws.deck;
-  const page = (kind: string, label: string, cmd: string, hint: string, tip: string): MenuEntry[] =>
-    d.apps.get(kind) ? [{ label, cmd, hint, tip, checked: ws.activeApp?.kind === kind }] : []; // its module is off or removed
+  // the page you're on shows ✓ in place of its mark: no tick column, every label flush left
+  const mark = (kind: string, icon: string) => (ws.activeApp?.kind === kind ? "✓" : icon);
+  const page = (kind: string, icon: string, label: string, cmd: string, hint: string, tip: string): MenuEntry[] =>
+    d.apps.get(kind) ? [{ label: `${mark(kind, icon)} ${label}`, cmd, hint, tip }] : []; // its module is off or removed
   return [
     // every line with its mark, so they all start at the same place; the deck's real keys
-    ...page("modules", `▦ ${t("Modules")}`, "launch modules", IS_MAC ? "⌘⇧M" : "ctrl+shift+M", t("all apps and modules")),
-    ...page("store", `⇣ ${t("Store")}`, "store", "", t("modules and themes from GitHub")),
-    ...page("explorer", `⬡ NEXUS`, "launch explorer", IS_MAC ? "⌘⇧E" : "ctrl+shift+E", t("the vault in 3D")),
-    { label: `⚙ ${t("Settings")}`, cmd: "settings", hint: IS_MAC ? "⌘," : "ctrl+,", checked: ws.activeApp?.kind === "settings" },
+    ...page("modules", "▦", t("Modules"), "launch modules", IS_MAC ? "⌘⇧M" : "ctrl+shift+M", t("all apps and modules")),
+    ...page("store", "⇣", t("Store"), "store", "", t("modules and themes from GitHub")),
+    ...page("explorer", "⬡", "NEXUS", "launch explorer", IS_MAC ? "⌘⇧E" : "ctrl+shift+E", t("the vault in 3D")),
+    { label: `${mark("settings", "⚙")} ${t("Settings")}`, cmd: "settings", hint: IS_MAC ? "⌘," : "ctrl+," },
     "-",
     { label: `? ${t("Manual")}`, cmd: "manual", hint: "F1" },
     { label: `✦ ${t("What's new")}`, cmd: "changelog" },

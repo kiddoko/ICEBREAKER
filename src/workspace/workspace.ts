@@ -1,5 +1,5 @@
 import { RecoveryDialog } from "./recoverydialog";
-import { frameMenu, editMenu, shellMenu } from "./menus";
+import { DECK_MENU_TITLE, deckMenu, frameMenu, editMenu, shellMenu } from "./menus";
 import { editBand, renderNotchBand, renderShellPanel, renderStatusBar, renderSubtitles, renderTip, renderTopBar } from "./chrome";
 import { shortcutFor, type Shortcut } from "../core/shortcuts";
 import { SidePanel } from "./sidepanel";
@@ -955,6 +955,13 @@ export class Workspace {
    * those (THE MENU, the shortcuts and the settings have their keys: ⌘K, ⌘/, ⌘,).
    * On text with nothing of its own: copy / paste.
    */
+  /** "◆ ICEBREAKER ▾", under the logo (a click on it, or esc with nothing else to close). */
+  openDeckMenu(): void {
+    this.openMenu(deckMenu(this), 0, this.topBarY + 1, DECK_MENU_TITLE());
+  }
+  /** the top bar's row (under the notch band when there is one), set by render */
+  private topBarY = 0;
+
   openMenu(items: MenuEntry[], x: number, y: number, title?: string): void {
     for (const o of this.overlays) if (o instanceof ContextMenu) o.done = true;
     // (the menu tidies its separators itself: workspace/contextmenu.ts tidy)
@@ -1124,6 +1131,8 @@ export class Workspace {
         if (this.focus === "main" && this.activeApp?.rawKeys && this.activeApp !== this.page && source !== "gamepad") this.focus = this.sidebarVisible ? "sidebar" : this.shellVisible ? "shell" : "main";
         else if (this.focus !== "main") this.focus = "main";
         else if (this.activeApp === this.page || source === "gamepad") void this.closeAndGoBack();
+        // nothing left to close or leave: esc opens the ◆ ICEBREAKER menu (esc again closes it)
+        else if (source === "keyboard") this.openDeckMenu();
         break;
     }
   }
@@ -1169,9 +1178,6 @@ export class Workspace {
     const d = this.deck;
     // ⌘/ on any layout (AZERTY types it with shift): the physical key counts
     const c = k.ctrl && !k.alt && (k.key === "/" || k.code === "Slash") ? "ctrl+/" : k.code === "Backquote" && k.ctrl && !k.shift ? "ctrl+`" : k.combo;
-    // Windows / Linux: alt+F4 closes the window, as everywhere (the page keeps every key, so the
-    // system never saw it)
-    if (!IS_MAC && c === "alt+f4") return void d.quit(), true;
     // your own shortcuts first (bind / the SHORTCUTS page)
     const mine = d.settings.data.keys?.[c];
     if (mine) return void d.act(mine), true;
@@ -1322,6 +1328,7 @@ export class Workspace {
     if (N && d.settings.data.fx.ambient && !d.settings.data.appearance.reduceMotion) drawBackground(ui, { x: 0, y: 0, w: W, h: N }, ui.theme, 0.7);
 
     // the top bar: one row — the deck menu, UPLINK, the clock (each frame has its tabs on its border)
+    this.topBarY = N;
     renderTopBar(this, ui, { x: 0, y: N, w: W, h: TOP_H });
 
     // the frames: the arrangement (settings.layout — today's when nothing's saved) with the
@@ -1343,7 +1350,7 @@ export class Workspace {
     // what you grab: side by side, the gap AND the two frames' edges beside it (one cell was
     // too thin to hit); stacked, the lower frame's two top rows (its tabs' row and its line)
     const borders = max ? [] : bordersOf(layout, at).filter((b) => !b.strip && !(b.dir === "col" && b.b === "shell" && this.shellAtBottom)).map((b) => ({ ...b, line: b.grip, grip: b.dir === "col" ? { ...b.grip, h: 2 } : { ...b.grip, x: b.grip.x - INSET, w: b.grip.w + INSET * 2 } }));
-    for (const b of borders) ui.hit(b.grip, { onClick: (m) => (this.borderDrag = { b, arr, m }), onDrag: (m) => this.dragBorder(m), onUp: () => (this.borderDrag = null), tip: t("drag: resize · layout reset puts everything back") });
+    for (const b of borders) ui.hit(b.grip, { onClick: (m) => (this.borderDrag = { b, arr, m }), onDrag: (m) => this.dragBorder(m), onUp: () => (this.borderDrag = null), tip: t("drag: resize · layout reset puts everything back"), cursor: b.dir === "row" ? "col-resize" : "row-resize" });
 
     this.rects = {};
     // folded frames: a one-cell strip with their name; a click opens them again
@@ -1445,8 +1452,26 @@ export class Workspace {
     this.toasts.render(ui, screen);
     this.drawGhost(ui, screen);
     renderTip(this, ui, screen);
+    this.showPointer(ui);
     if (ui.caret) this.lastCaret = { ...ui.caret };
   }
+
+  /** The system pointer: what the area under the mouse asks for (a border: ↔ / ↕), kept while you drag it. */
+  private showPointer(ui: UI): void {
+    const { x, y } = ui.mouse;
+    let want = "";
+    if (this.borderDrag) want = this.borderDrag.b.dir === "row" ? "col-resize" : "row-resize";
+    else
+      for (let i = ui.hits.length - 1; i >= 0; i--) {
+        const h = ui.hits[i];
+        if (x < h.rect.x || y < h.rect.y || x >= h.rect.x + h.rect.w || y >= h.rect.y + h.rect.h) continue;
+        if (!(h.onClick || h.onDrag || h.cmd || h.block)) continue; // (a wheel-only area lets what's under it decide)
+        want = h.cursor ?? "";
+        break;
+      }
+    if (want !== this.pointer) document.body.style.cursor = this.pointer = want;
+  }
+  private pointer = "";
 
 }
 

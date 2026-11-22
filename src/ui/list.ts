@@ -23,7 +23,8 @@ export class ListView<T> {
   private shownTop = 0;
   private prevSel = -1;
   private selAt = 0;
-  onActivate?: (item: T, index: number) => void;
+  /** `how` "new": a middle click or ⇧ click (a file opens in a new tab, like a browser's link) */
+  onActivate?: (item: T, index: number, how?: "new") => void;
   /** one click is enough for these (a folder folds / unfolds); the others wait for a double-click */
   clickActivates?: (item: T) => boolean;
   /** Shell command a click on this item runs (shown in the shell and in the tooltip). */
@@ -190,6 +191,8 @@ export class ListView<T> {
         menu: this.menuOf ? () => (this.select(idx), this.menuOf!(item, idx)) : undefined,
         onClick: (m) => {
           this.select(idx);
+          // middle click / ⇧ click on what a click only selects: open it, in a new tab
+          if ((m.button === 1 || m.shift) && this.clickActivates && !this.clickActivates(item)) return void this.onActivate?.(item, idx, "new");
           if (this.onDrop) {
             this.drag = { idx, x: m.x, y: m.y, over: idx, active: false, outside: false, px: m.x, py: m.y };
             if (this.clickActivates?.(item)) this.pending = idx;
