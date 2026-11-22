@@ -223,10 +223,12 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
   const right = narrow ? ` ${ai}  ${time.slice(0, 5)} ` : ` ${ai}  │  ${date}  ${time} `;
   const rx = r.x + r.w - strWidth(right);
   if (rx <= logoRect.x + logoRect.w) return;
-  ui.text(rx, r.y, right, { fg: c.muted, bg: c.panelAlt });
+  // " uplink ■  │  date  time", each part once (drawn over each other, `debug layout` saw an overlap)
   const lamp = !d.ai.ready ? c.error : d.ai.busy > 0 ? c.warning : c.success;
-  if (!narrow) ui.text(rx + 1, r.y, "uplink", { fg: d.ai.ready ? c.fg : c.muted, bg: c.panelAlt, attrs: BOLD });
-  ui.text(rx + strWidth(ai), r.y, "■", { fg: lamp, bg: c.panelAlt });
+  let lx = ui.text(rx, r.y, " ", { bg: c.panelAlt });
+  if (!narrow) lx = ui.text(lx, r.y, "uplink ", { fg: d.ai.ready ? c.fg : c.muted, bg: c.panelAlt, attrs: BOLD });
+  lx = ui.text(lx, r.y, "■", { fg: lamp, bg: c.panelAlt });
+  ui.text(lx, r.y, right.slice(1 + ai.length), { fg: c.muted, bg: c.panelAlt });
   // "◈ reads notes/ideas.md", left of UPLINK, while the AI reads (as much of the name as fits)
   if (reading) {
     const room = rx - (logoRect.x + logoRect.w) - GAP * 2;
