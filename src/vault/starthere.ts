@@ -511,8 +511,10 @@ and its key on THE MENU, changed with one click.
 | click | does it — and the shell's **log** tab shows the command |
 | double-click | open (in the tree too: one click selects, one click folds a folder) |
 | drag · double · triple-click | select text in a note, ibsh or the terminal (a word, a line) — ⌘C copies |
-| back / forward buttons | the tab before / after |
-| two-finger swipe → ← (trackpad) | the tab after / before |
+| back / forward buttons | like a browser: the note this tab showed before / after (opened in place from the tree) |
+| two-finger swipe → ← (trackpad) | the same, after / before |
+| ⇧ + back / forward, ⇧ + swipe | the tab before / after |
+| double-click · middle-click · ⇧ click (tree) | open the note here, in place of this tab's note · in a new tab |
 | pinch · ctrl+wheel | interface bigger / smaller |
 | right-click | a menu for what's under it: notes, folders, tabs, widgets, cards, the shell, the editor (copy, paste…) |
 | hover | the command and the shortcut |

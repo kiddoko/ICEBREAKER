@@ -147,7 +147,7 @@ export class InputManager {
    * on a trackpad (one per swipe), a pinch (or ctrl+wheel). Up / down two-finger
    * swipes stay what they are: scrolling.
    */
-  onGesture: (g: "back" | "forward" | "zoom-in" | "zoom-out") => void = () => {};
+  onGesture: (g: "back" | "forward" | "zoom-in" | "zoom-out", shift?: boolean) => void = () => {};
   /** shift pressed twice quickly (THE MENU) */
   onDoubleShift: () => void = () => {};
   /** a key went down that types, erases or enters (the typing sound) */
@@ -295,7 +295,7 @@ export class InputManager {
     window.addEventListener("mouseup", (e) => void sideButton(e));
     window.addEventListener("auxclick", (e) => void sideButton(e));
     host.addEventListener("mousedown", (e) => {
-      if (sideButton(e)) return this.onGesture(e.button === 3 ? "back" : "forward");
+      if (sideButton(e)) return this.onGesture(e.button === 3 ? "back" : "forward", e.shiftKey);
       e.preventDefault();
       this.onActivity();
       this.buttons = e.buttons;
@@ -356,7 +356,7 @@ export class InputManager {
             this.swipeFired = true;
             this.swipeFiredAt = t0;
             // fingers moving right (negative deltaX with natural scrolling) = the next tab, like turning a page
-            this.onGesture(this.swipePx > 0 ? "back" : "forward");
+            this.onGesture(this.swipePx > 0 ? "back" : "forward", e.shiftKey);
           }
           return;
         }

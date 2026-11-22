@@ -101,6 +101,7 @@ export const SHORTCUTS: Shortcut[] = [
   // lists & pages
   { keys: "↑↓ · enter", what: "move · open / do", cat: "lists & pages" },
   { keys: "double-click · middle-click · shift+click", what: "the tree: a note opens in the tab you're on (in place of the note there) · in a new tab", cat: "lists & pages" },
+  { keys: "mouse back / forward · shift + them", what: "like a browser: the note this tab showed before / after · the tab before / after (a two-finger swipe on a trackpad too)", cat: "panes & tabs" },
   { keys: "pageup · pagedown · home · end", what: "jump", cat: "lists & pages" },
   { keys: "type", what: "in a list with a search field: filter", cat: "lists & pages" },
   { keys: "space · x · s", what: "MODULES: switch on/off · remove · store", cat: "lists & pages" },

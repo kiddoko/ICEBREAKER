@@ -282,14 +282,17 @@ export class Deck implements InputSink {
       this.workspace.menu();
       this.requestFrame();
     };
-    this.input.onGesture = (g) => {
+    this.input.onGesture = (g, shift) => {
       const ws = this.workspace;
       if (g === "back" || g === "forward") {
         if (ws.topModal) return;
         this.sound.play("move");
-        // "back" on the note opened from NEXUS: NEXUS again; else the tab before
-        if (g === "back" && ws.backToParked()) return void this.requestFrame();
-        ws.stepTab(g === "forward" ? 1 : -1, true);
+        // like a browser: the mouse's back / forward buttons (a two-finger swipe on a Mac) walk
+        // the pages this tab showed; with shift, the tabs
+        if (shift) ws.stepTab(g === "forward" ? 1 : -1, true);
+        // "back" on the note opened from NEXUS: NEXUS again
+        else if (g === "back" && ws.backToParked()) return void this.requestFrame();
+        else void this.tabHistoryStep(g === "forward" ? 1 : -1);
       } else this.zoom(g === "zoom-in" ? 1 : -1);
       this.requestFrame();
     };
@@ -871,16 +874,40 @@ export class Deck implements InputSink {
     this.openApp("note", path);
   }
 
-  /** Open a note in the tab of `old` (a note), in its place — the tree's double-click, like a browser link. */
-  async openInPlace(old: App, path: string): Promise<void> {
+  /**
+   * Open a note in the tab of `old` (a note), in its place — the tree's double-click, like a
+   * browser link. The tab remembers the note it showed (`record`: back / forward don't add to it).
+   */
+  async openInPlace(old: App, path: string, record = true): Promise<void> {
     const spec = this.apps.get("note");
     if (!spec) return this.openFile(path);
+    const hist = this.tabHistory.get(old) ?? { back: [], forward: [] };
+    if (record && old.kind === "note") (hist.back.push(old.key.slice(5)), (hist.forward = []));
     await Promise.resolve(old.close?.()).catch(() => {}); // it saves on the way out
     const made = spec.create(this, path);
     this.appArgs.set(made, path);
+    this.tabHistory.set(made, hist);
     this.workspace.replaceTab(old, made);
     this.sound.play("open");
     this.requestFrame();
+  }
+
+  /** each tab's notes before / after the one it shows (opened in place: the tree's double-click) */
+  private tabHistory = new WeakMap<App, { back: string[]; forward: string[] }>();
+
+  /** The mouse's back (-1) / forward (1) button: the note this tab showed before / after. */
+  async tabHistoryStep(dir: 1 | -1): Promise<void> {
+    const cur = this.workspace.page ? undefined : this.workspace.activeApp;
+    const h = cur && this.tabHistory.get(cur);
+    if (!cur || !h || cur.kind !== "note") return;
+    const from = dir < 0 ? h.back : h.forward;
+    const to = dir < 0 ? h.forward : h.back;
+    let path: string | undefined;
+    // (a note deleted since: skipped)
+    while ((path = from.pop()) !== undefined && !(await this.vault.exists(path)));
+    if (path === undefined) return;
+    to.push(cur.key.slice(5));
+    await this.openInPlace(cur, path, false);
   }
 
   async openJournal(date: Date = new Date()): Promise<void> {
