@@ -194,6 +194,9 @@ export class LinkApp implements App {
     const ja = this.deck.settings.data.voice.language === "ja";
     const speech = this.readsAloud() ? this.deck.voice.stream(ja ? "ja" : undefined) : null;
     let raw = "", shown = 0, saidSome = false;
+    // Japanese, but the answer doesn't start with <say> (some AIs never write it): read the
+    // answer as it comes, like `say` — never wait for the end to have it all translated
+    let noSay = false;
     chat.busy = true;
     this.deck.ai.busy++;
     chat.busyLabel = "jacked in";
@@ -213,7 +216,8 @@ export class LinkApp implements App {
             if (visible.length > shown) chat.append(answer, visible.slice(shown));
             shown = visible.length;
             if (speech) {
-              if (ja) {
+              if (ja && !noSay && !said && raw.trimStart().length >= 5 && !raw.trimStart().startsWith("<say")) noSay = true;
+              if (ja && !noSay) {
                 if (said) (speech.feed(said.text), (saidSome = true));
                 if (said?.closed) speech.end(said.text);
               } else speech.feed(visible);
@@ -228,7 +232,7 @@ export class LinkApp implements App {
           },
           onToolCall: (name, input) => {
             // text after a tool call is a new block (what was said so far stays said)
-            if (speech && !ja && raw) speech.end(splitSay(raw).visible);
+            if (speech && (!ja || noSay) && raw) speech.end(splitSay(raw).visible);
             raw = "";
             shown = 0;
             const arg = String(input.path ?? input.query ?? input.folder ?? "");
@@ -259,7 +263,7 @@ export class LinkApp implements App {
       if (final) c.transcript.push(`## ◆ ${this.deck.ai.provider.label}\n\n${final.text}\n`);
       // the end of the answer: what's left is said; in Japanese, no <say> line came → translate
       if (speech && raw) {
-        if (!ja) speech.end(splitSay(raw).visible);
+        if (!ja || noSay) speech.end(splitSay(raw).visible);
         else if (!saidSome && final) void this.deck.voice.speak(final.text);
         else {
           const said = splitSay(raw).said;
