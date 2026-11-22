@@ -871,6 +871,18 @@ export class Deck implements InputSink {
     this.openApp("note", path);
   }
 
+  /** Open a note in the tab of `old` (a note), in its place — the tree's double-click, like a browser link. */
+  async openInPlace(old: App, path: string): Promise<void> {
+    const spec = this.apps.get("note");
+    if (!spec) return this.openFile(path);
+    await Promise.resolve(old.close?.()).catch(() => {}); // it saves on the way out
+    const made = spec.create(this, path);
+    this.appArgs.set(made, path);
+    this.workspace.replaceTab(old, made);
+    this.sound.play("open");
+    this.requestFrame();
+  }
+
   async openJournal(date: Date = new Date()): Promise<void> {
     const existing = this.workspace.findTab("journal");
     if (existing instanceof JournalApp) {
