@@ -553,7 +553,9 @@ export class SettingsStore {
 function safeJson(raw: string | null): Record<string, unknown> {
   if (!raw) return {};
   try {
-    return JSON.parse(raw);
+    // a file saved by Notepad or PowerShell 5.1 starts with a byte-order mark: JSON.parse refused
+    // it, and the account looked new (the setup came back)
+    return JSON.parse(raw.replace(/^﻿/, ""));
   } catch {
     console.warn("settings file is not valid JSON — using defaults");
     return {};

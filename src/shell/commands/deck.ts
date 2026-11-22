@@ -335,6 +335,8 @@ const theme: Command = {
       await d.openFile(path);
       return;
     }
+    // `theme nightshade`: a theme's name alone is `theme set nightshade`
+    if (!name && d.themes.list().some((t) => t.name === sub) && d.setTheme(sub)) return void ctx.out(`theme → ${sub}\n`);
     ctx.err(`theme: unknown subcommand ${sub}\n`);
     return 1;
   },
