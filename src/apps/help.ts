@@ -34,7 +34,7 @@ Everything works with **keyboard only**, **mouse only**, a **gamepad**, or any m
 - In the tree: \`Shift+↑\` / \`Shift+↓\` — file by file, each one shown at once in the preview tab (like Shift + wheel)
 - \`Ctrl+=\` / \`Ctrl+-\` / \`Ctrl+0\` — interface scale · \`F11\` — fullscreen · \`F1\` — this manual
 - \`Ctrl+Shift+L\` — log out · \`Ctrl+Shift+Backspace\` — the trash
-- \`h\` — HOME, from anywhere you're not typing · \`Esc\` — back to the page before
+- \`h\` — HOME, from anywhere you're not typing · \`Esc\` — back to the page before; with nothing to close, the **◆ ICEBREAKER** menu
 - In the shell: \`tour\` — the guided tour · \`undo list\` · \`chat\` — talk to the AI · \`journal\` — today's page, \`journal "a line"\` — a line in it without opening it · \`daily\` — end-of-day check-in · \`exit\` — quit
 
 ## Mouse

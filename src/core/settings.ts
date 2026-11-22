@@ -91,7 +91,8 @@ export interface Settings {
   /** UI sounds (core/sound.ts). Volume 0–100. */
   /** muted: everything silent (ui sounds, voice, alerts) — the ♪ button, `mute` */
   /** packByTheme: the sound pack chosen for a theme (else the theme's own) */
-  /** mix: each channel's volume 0-100 (core/sound.ts SOUND_CHANNELS); typing: a click on your own keys */
+  /** mix: each channel's volume 0-100 (core/sound.ts SOUND_CHANNELS) — mix.typing 0 = your keys make no sound.
+   *  typing: always true since 0.6.2 (it was a separate switch; the Keyboard fader does it now) */
   sound: { enabled: boolean; volume: number; muted?: boolean; packByTheme: Record<string, string>; mix: { ui: number; alerts: number; boot: number; text: number; typing: number; modules: number }; typing: boolean };
   /** How alerts (reminders, modules' ib.ui.alert) reach you: sound (+ voice), visual (system notification + toast), both, or none. */
   notifications: {
@@ -231,7 +232,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // The heavy CRT stuff (bloom, scanlines, vignette, flicker) is one click away in the FX panel.
   fx: { bloom: false, scanlines: false, vignette: false, ambient: true, flicker: false, glitch: true, screensaverMinutes: 0, levels: { bloom: 100, scanlines: 100, vignette: 100, chroma: 0, sharpness: 80, glow: 0, curve: 0 }, flickerSpeed: 100 },
   boot: { mode: "full" },
-  sound: { enabled: true, volume: 50, muted: false, packByTheme: {}, mix: { ui: 100, alerts: 100, boot: 100, text: 60, typing: 60, modules: 80 }, typing: false },
+  sound: { enabled: true, volume: 50, muted: false, packByTheme: {}, mix: { ui: 100, alerts: 100, boot: 100, text: 60, typing: 0, modules: 80 }, typing: true },
   notifications: { screen: true, sound: true, system: true, systemOnlyAway: true, voice: true },
   keys: {},
   favorites: [],
@@ -434,6 +435,8 @@ export class SettingsStore {
     // the community index moved to icebreaker-modules
     if (data.plugins.registry === "https://raw.githubusercontent.com/kiddoko/icebreaker-community/main/index.json") data.plugins.registry = DEFAULT_SETTINGS.plugins.registry;
     migratePermissions(data, safeJson(raw));
+    // 0.6.2: the "Keyboard sounds" switch is gone, the Keyboard fader alone decides (0 = off)
+    if (!data.sound.typing) (data.sound.mix.typing = 0), (data.sound.typing = true);
     limitAll(data); // whatever the file holds: every value in its range
     const secrets = { anthropicApiKey: "", ...(safeJson(rawSecrets) as Partial<Secrets>) };
     const store = new SettingsStore(platform, data, secrets);

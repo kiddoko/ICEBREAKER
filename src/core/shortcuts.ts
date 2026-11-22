@@ -48,7 +48,7 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: "ctrl+= · ctrl+- · ctrl+0", what: "interface bigger · smaller · 100 %", cat: "everywhere" },
   { id: "fullscreen", keys: "f11", what: "fullscreen", cat: "everywhere", cmd: "fullscreen", global: true, menuKey: "F", short: "fullscreen" },
   { id: "back", keys: "shift+esc", what: "close the tab and show the one before it (HOME stays)", cat: "everywhere", global: true, menuKey: "q", short: "close, go back" },
-  { keys: "esc", what: "back to the page (from the tree or the shell); closes NEXUS, STORE, MODULES, settings", cat: "everywhere" },
+  { keys: "esc", what: "back to the page (from the tree or the shell); closes NEXUS, STORE, MODULES, settings; with nothing to close, opens the ◆ ICEBREAKER menu", cat: "everywhere" },
   { keys: "1…9", what: "go to that tab (when you're not typing)", cat: "panes & tabs" },
   { keys: "right-click · menu key · shift+f10", what: "the menu of the thing under the mouse (or the selected one): rename, pin, colour, copy, paste…", cat: "everywhere" },
 

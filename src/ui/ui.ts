@@ -60,6 +60,8 @@ export interface Hit {
   cmd?: string;
   /** Hover tooltip text (shortcuts, what it does). */
   tip?: string;
+  /** The system pointer over it (a border you drag: "col-resize" / "row-resize"); else the arrow. */
+  cursor?: "col-resize" | "row-resize";
   /** Nothing under it gets the mouse (modal backdrops, pop-ups). */
   block?: boolean;
 }

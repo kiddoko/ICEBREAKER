@@ -35,7 +35,7 @@ import type { App, PaletteAction } from "./apps/types";
 import { css, mix } from "./core/color";
 import { GamepadInput } from "./core/gamepad";
 import { Grid } from "./core/grid";
-import { InputManager, type Action, type ActionSource, type InputSink, type KeyInput, type MouseInput } from "./core/input";
+import { InputManager, IS_MAC, type Action, type ActionSource, type InputSink, type KeyInput, type MouseInput } from "./core/input";
 import { FrameLoop } from "./core/loop";
 import { fontStack, loadFont, WEIGHTS } from "./core/fonts";
 import { Renderer } from "./core/renderer";
@@ -697,6 +697,10 @@ export class Deck implements InputSink {
   // ── InputSink: everything the keyboard/mouse/gamepad produce lands here ──
 
   key(k: KeyInput): void {
+    // Windows / Linux: alt+F4 closes the window, as everywhere — before anyone else can keep it
+    // (the boot, the login screen, a pop-up, your real terminal, a page that plays the keyboard
+    // and owns the alt keys). The page keeps every key, so the system never sees it.
+    if (!IS_MAC && k.combo === "alt+f4") return void this.quit();
     if (this.boot) return this.boot.skip();
     if (this.lock) return this.lock.onKey(k), this.requestFrame();
     this.workspace.handleKey(k);
@@ -1064,12 +1068,12 @@ export class Deck implements InputSink {
   }
 
   /**
-   * Your own keys click, if you want (settings.sound.typing, off by default; the
+   * Your own keys click, if you want (Settings → SOUND → mixer → Keyboard, 0 by default; the
    * theme's pack colours it): a click to type, another sound to erase. Played on
    * the key going down (core/input.ts onKeyPress), so it lands with your finger.
    */
   private typingSound(kind: "type" | "erase" | "enter"): void {
-    if (!this.settings.data.sound.typing) return;
+    if (!(this.settings.data.sound.mix.typing > 0)) return;
     this.sound.play(kind === "erase" ? "erase" : "key");
   }
 
@@ -1109,7 +1113,7 @@ export class Deck implements InputSink {
       this.applyMix();
       if (s.sound.muted) this.voice.stop();
       // a fader moved: hear that channel (Settings → SOUND → mixer)
-      const sample: Record<string, SoundName> = { "sound.mix.text": "blip", "sound.mix.typing": "key", "sound.mix.alerts": "notify", "sound.mix.boot": "unlock", "sound.typing": "key" };
+      const sample: Record<string, SoundName> = { "sound.mix.text": "blip", "sound.mix.typing": "key", "sound.mix.alerts": "notify", "sound.mix.boot": "unlock" };
       // (at most ~10 a second: a held slider moves 60 steps a second — the value never waits, the sound does)
       const now = performance.now();
       if (now - this.samplePlayedAt > 100) (this.samplePlayedAt = now), this.sound.play(sample[key] ?? "confirm");
