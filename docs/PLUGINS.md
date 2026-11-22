@@ -256,6 +256,9 @@ The full surface is typed and commented in
   module's. **Your permissions are the ones the person approved** when switching you on, for the
   code they approved: a later version asking for more stays off until they approve again
   (say why in your README). While you write a module, `plugin reload` approves your new code.
+- **Unsaved work**: your page's `close()` is awaited before its tab closes and before the deck quits —
+  ask "save?" there (`ib.ui.confirm`…) and return `false` to keep the tab (and the deck) open. A page
+  that doesn't answer within 2 minutes is closed anyway.
 - **A page that plays the keyboard** (a piano, a game): `rawKeys: true` in `ib.apps.register({…})` (and on the
   page). While it's in front, letters, digits and space come to `onKey` as keys, never as text, with their
   **place** in `code` (`KeyZ` is Z on QWERTY, W on AZERTY) and `repeat` when held; every **alt** combination is

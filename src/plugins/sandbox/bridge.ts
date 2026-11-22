@@ -126,6 +126,7 @@ class Sandbox {
     // its deactivate gets a moment, then the Worker goes, whatever it does
     await new Promise((r) => setTimeout(r, 200));
     this.worker.terminate();
+    for (const finish of [...this.closeWaits.values()]) finish(true); // nobody left to say no
     for (const s of this.sessions.values()) s.done(130);
     this.sessions.clear();
   }
@@ -158,6 +159,7 @@ class Sandbox {
   private async receive(m: FromModule): Promise<void> {
     switch (m.t) {
       case "ready": this.ready?.ok(); this.ready = null; return;
+      case "closing": this.closeWaits.get(m.id)?.(m.ok !== false); return;
       case "failed": this.ready?.no(new Error(m.error)); this.ready = null; return;
       case "log":
         // a module can't flood the log (and the memory with it)
@@ -332,6 +334,27 @@ class Sandbox {
     this.frames.delete(inst);
   }
 
+  /**
+   * Its tab is closing: the module's page answers (its close() can ask "save?" and say no).
+   * A module that doesn't answer in 2 minutes (stuck, gone) lets it close.
+   */
+  askClose(inst: string): Promise<boolean> {
+    const id = ++this.closeIds;
+    return new Promise((done) => {
+      const timer = setTimeout(() => finish(true), 120_000);
+      const finish = (ok: boolean) => {
+        clearTimeout(timer);
+        this.closeWaits.delete(id);
+        if (ok) this.frames.delete(inst);
+        done(ok);
+      };
+      this.closeWaits.set(id, finish);
+      this.send({ t: "closing", inst, id });
+    });
+  }
+  private closeIds = 0;
+  private closeWaits = new Map<number, (ok: boolean) => void>();
+
   title(inst: string): { title?: string; status?: string } {
     return this.titles.get(inst) ?? {};
   }
@@ -438,8 +461,8 @@ class ModuleApp implements App {
     this.box.send2({ t: "action", inst: this.inst, target: { kind: "app" }, a });
     return true;
   }
-  close(): boolean {
-    this.box.close(this.inst);
-    return true;
+  /** its own close() first (it can ask "save?" and keep the tab): the tab waits for its answer */
+  close(): Promise<boolean> {
+    return this.box.askClose(this.inst);
   }
 }

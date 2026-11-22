@@ -1401,7 +1401,8 @@ export class Deck implements InputSink {
   }
 
   async quit(): Promise<void> {
-    for (const t of this.workspace.tabs) await t.close?.();
+    // a page can keep the deck open ("save?" → cancel): then nothing quits
+    for (const t of [...this.workspace.tabs]) if ((await Promise.resolve(t.close?.()).catch(() => true)) === false) return;
     await this.updater.onQuit();
     await this.platform.window.quit();
   }

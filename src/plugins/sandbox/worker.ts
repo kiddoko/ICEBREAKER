@@ -399,6 +399,18 @@ scope.onmessage = async (ev: MessageEvent<ToModule>) => {
         slots.delete(m.inst);
         return;
       }
+      case "closing": {
+        // its page's close() decides (false: it stays — "save?" answered cancel)
+        let ok = true;
+        try {
+          ok = (await apps.get(m.inst)?.close?.()) !== false;
+        } catch {
+          ok = true; // a close() that throws doesn't keep the tab hostage
+        }
+        if (ok) (apps.delete(m.inst), slots.delete(m.inst));
+        post({ t: "closing", id: m.id, ok });
+        return;
+      }
       case "render": return draw(m);
       case "hit": {
         const h = slots.get(m.inst)?.hits[m.id];

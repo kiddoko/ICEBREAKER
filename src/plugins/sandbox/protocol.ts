@@ -77,7 +77,9 @@ export type FromModule =
   | { t: "menu"; rid: number; lines: MenuLine[] }
   | { t: "log"; text: string }
   /** ib.audio.stream(): a line for its own sound, please (permission "audio") */
-  | { t: "streamReq"; id: number };
+  | { t: "streamReq"; id: number }
+  /** the answer to "closing": its page's close() said yes (closed) or no (it stays: unsaved work) */
+  | { t: "closing"; id: number; ok: boolean };
 
 /** Deck → worker */
 export type ToModule =
@@ -88,6 +90,8 @@ export type ToModule =
   | { t: "settings"; settings: Record<string, unknown> }
   | { t: "create"; inst: string; kind: string; args?: unknown }
   | { t: "close"; inst: string }
+  /** its tab is closing: may it? (its close() can ask "save?" first) — answered with "closing" */
+  | { t: "closing"; inst: string; id: number }
   | { t: "render"; inst: string; target: Target; w: number; h: number; focused: boolean; mouse: { x: number; y: number }; now: number }
   | { t: "hit"; inst: string; id: number; kind: "click" | "double" | "drag" | "up" | "wheel" | "right"; m: unknown; delta?: number }
   | { t: "key"; inst: string; target: Target; k: unknown }
