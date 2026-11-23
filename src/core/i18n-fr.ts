@@ -2028,4 +2028,6 @@ export const FR: Record<string, string> = {
   "1 event imported into the local calendar (calendar/ in the vault)": "1 événement importé dans le calendrier local (calendar/ dans le vault)",
 
   "1 thing in the trash: see it, put it back": "1 élément dans la corbeille : le voir, le remettre",
+
+  "finish": "finir",
 };

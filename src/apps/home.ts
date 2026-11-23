@@ -443,7 +443,10 @@ export class HomeApp implements App {
     }
     if (this.deck.settings.data.fx.ambient && !this.editing) drawBackground(ui, r, ui.theme, 0.8);
     // one free cell on each side (a widget's right edge already leaves a 1-cell gap)
-    const area = { x: r.x + 1, y: r.y + 1, w: r.w - 1, h: r.h - 1 };
+    // the pages' line at the bottom (when there are pages, or while editing) is not the widgets':
+    // a widget on the last row was drawn under it
+    const pagesLine = this.pageCount() > 1 || this.editing ? 1 : 0;
+    const area = { x: r.x + 1, y: r.y + 1, w: r.w - 1, h: r.h - 1 - pagesLine };
     // Columns stretch to the full width (cell edges are rounded, so they never drift).
     this.colW = Math.max(4, area.w / COLS);
     this.origin = { x: area.x, y: area.y };

@@ -375,7 +375,13 @@ export class SetupApp implements App {
   /** The vault's folder, typed: kept (absolute, or ~/…), else said why and asked again. */
   private async submitVaultPath(): Promise<void> {
     const typed = this.input.trim();
-    if (!typed) return void (this.error = t("type the folder's full path (or esc: keep this folder)"));
+    // enter on the grey suggestion — where the vault is now — keeps it (it said "type the full path")
+    if (!typed) {
+      if (!this.deck.vault.root) return void (this.error = t("type the folder's full path (or esc: keep this folder)"));
+      this.a.vault = "keep";
+      delete this.a["vault-path"];
+      return this.go(1);
+    }
     const why = vaultPathProblem(typed);
     if (why) return void (this.error = t(why));
     this.a["vault-path"] = typed;
@@ -640,31 +646,38 @@ export class SetupApp implements App {
     if (age < 600) ui.animate(16);
 
     // ── top: the chapters, and how far along ───────────────────────────────
-    let y = r.y + 1;
+    // a short frame (a small window with the tree and the shell open): the question first — the
+    // title and the bar take one line, or none at all (the box with its buttons was cut off)
+    const header = r.h >= 14 ? "full" : r.h >= 9 ? "line" : "none";
+    let y = r.y + (header === "full" ? 1 : 0);
     const brand = "◢◤ ICEBREAKER // setup";
-    ui.text(r.x + 2, y, brand, { fg: c.accent, attrs: BOLD });
-    if (this.deck.account) ui.text(r.x + 3 + strWidth(brand), y, `· ${this.deck.account}`, { fg: c.title });
-    const cur = chapterOf(st.id);
-    const brandEnd = r.x + 3 + strWidth(brand) + (this.deck.account ? strWidth(`· ${this.deck.account}`) + 1 : 0);
-    const labels = CHAPTERS.map((ch, k) => (k < cur ? `✓ ${t(ch.name)}` : t(ch.name)));
-    const allW = labels.reduce((n, l) => n + strWidth(l), 0) + (labels.length - 1) * 3;
-    let cx = r.x + r.w - 2;
-    if (cx - allW > brandEnd + GAP) {
-      for (let k = CHAPTERS.length - 1; k >= 0; k--) {
-        cx -= strWidth(labels[k]);
-        ui.text(cx, y, labels[k], { fg: k === cur ? c.accent : k < cur ? c.subtle : c.faint, attrs: k === cur ? BOLD : 0 });
-        if (k) (cx -= 3), ui.text(cx, y, " ─ ", { fg: c.faint });
+    if (header !== "none") {
+      ui.text(r.x + 2, y, brand, { fg: c.accent, attrs: BOLD });
+      if (this.deck.account) ui.text(r.x + 3 + strWidth(brand), y, `· ${this.deck.account}`, { fg: c.title });
+      const cur = chapterOf(st.id);
+      const brandEnd = r.x + 3 + strWidth(brand) + (this.deck.account ? strWidth(`· ${this.deck.account}`) + 1 : 0);
+      const labels = CHAPTERS.map((ch, k) => (k < cur ? `✓ ${t(ch.name)}` : t(ch.name)));
+      const allW = labels.reduce((n, l) => n + strWidth(l), 0) + (labels.length - 1) * 3;
+      let cx = r.x + r.w - 2;
+      if (cx - allW > brandEnd + GAP) {
+        for (let k = CHAPTERS.length - 1; k >= 0; k--) {
+          cx -= strWidth(labels[k]);
+          ui.text(cx, y, labels[k], { fg: k === cur ? c.accent : k < cur ? c.subtle : c.faint, attrs: k === cur ? BOLD : 0 });
+          if (k) (cx -= 3), ui.text(cx, y, " ─ ", { fg: c.faint });
+        }
+      } else {
+        // a narrow window: the chapter you're in and how far along (they overlapped the title)
+        const label = `${t(CHAPTERS[cur].name)} · ${cur + 1}/${CHAPTERS.length}`;
+        if (cx - strWidth(label) > brandEnd + GAP) ui.textRight(cx, y, label, { fg: c.accent, attrs: BOLD });
       }
-    } else {
-      // a narrow window: the chapter you're in and how far along (they overlapped the title)
-      const label = `${t(CHAPTERS[cur].name)} · ${cur + 1}/${CHAPTERS.length}`;
-      if (cx - strWidth(label) > brandEnd + GAP) ui.textRight(cx, y, label, { fg: c.accent, attrs: BOLD });
+      y += 1;
     }
-    y += 1;
     const visible = this.steps.filter((s2) => !s2.skip?.());
     const at = Math.max(0, visible.indexOf(st));
-    ui.bar(r.x + 2, y, r.w - 4, visible.length > 1 ? at / (visible.length - 1) : 1, c.accent, c.faint);
-    y += 2;
+    if (header === "full") {
+      ui.bar(r.x + 2, y, r.w - 4, visible.length > 1 ? at / (visible.length - 1) : 1, c.accent, c.faint);
+      y += 2;
+    }
 
     // ── left: the deck writing your answers down (wide screens) ────────────
     const logW = r.w >= 100 ? 34 : 0;
@@ -700,7 +713,8 @@ export class SetupApp implements App {
     const w = st.id === "warning" ? Math.min(110, area.w) : Math.min(76, area.w);
     const slide = Math.round((1 - easeOut(age / 220)) * 6);
     const x = area.x + Math.floor((area.w - w) / 2) + slide;
-    const box = { x, y, w, h: Math.max(8, r.y + r.h - y - 2) };
+    // never taller than the frame (8 at least ran its bottom — the buttons — out of a small frame)
+    const box = { x, y, w, h: Math.max(4, Math.min(r.y + r.h - y, Math.max(8, r.y + r.h - y - 2))) };
     const inner = ui.box(box, { title: age < 400 ? decrypt(t(st.title), age / 400, ui.now) : t(st.title), focused: true, bg: c.panel, info: `${at + 1}/${visible.length}` });
     let iy = inner.y + 1;
     let qText = t(st.question, { vault: this.deck.vault.root, shells: HERE.shells });
@@ -718,7 +732,11 @@ export class SetupApp implements App {
       const need = st.text || st.slider ? 2 : Math.min(this.options().length, 3);
       const room = Math.max(1, inner.h - 3 - need);
       if (qLines.length > room) qLines = qLines.filter((l) => l.trim());
-      if (qLines.length > room) qLines = [...qLines.slice(0, room - 1), `${truncate(qLines[room - 1], inner.w - 6)} …`];
+      // (a line truncate already ended with … gets no second one: "… …")
+      if (qLines.length > room) {
+        const last = truncate(qLines[room - 1], inner.w - 6);
+        qLines = [...qLines.slice(0, room - 1), last.endsWith("…") ? last : `${last} …`];
+      }
     }
     const shownChars = typed(ui, `setup:${st.id}`, qText);
     let used = 0;
@@ -808,20 +826,28 @@ export class SetupApp implements App {
     // the way back and the way past, always in the same place, as buttons (esc going back
     // was said nowhere a tester looked), then the keys
     const keys = st.id === "vault-path" ? t("tab completes the folder · enter next") : st.text ? t("enter next") : st.slider ? t("←→ · enter next") : t("↑↓ or a number · enter keeps");
-    // the button on the right, the keys in the room left of it
-    let keysRoom = inner.w - 4;
-    if (st.id !== "done" && this.warned) {
-      const fin = `${t("finish with the defaults")} ⌃⏎`;
-      const bx = inner.x + inner.w - strWidth(fin) - 3;
-      ui.button(bx, inner.y + inner.h - 1, fin, () => this.finish(false), { accent: c.subtle });
-      keysRoom = bx - inner.x - 4;
-    }
+    // the button on the right first; back / skip on the left only where they fit before it (they
+    // ran into it: "‹ retour esc ir passer tab eurs par défaut ^⏎"), short when the room is short;
+    // then the keys, if there's still room
     const fy = inner.y + inner.h - 1;
+    let right = inner.x + inner.w - GAP;
+    if (st.id !== "done" && this.warned) {
+      const fin = [`${t("finish with the defaults")} ⌃⏎`, `${t("finish")} ⌃⏎`].find((f) => strWidth(f) + 2 <= inner.w / 2) ?? "";
+      if (fin) {
+        right -= strWidth(fin) + 2;
+        ui.button(right, fy, fin, () => this.finish(false), { accent: c.subtle });
+        right -= GAP;
+      }
+    }
     let fx = inner.x + GAP;
+    const put = (versions: string[], run: () => void, tip: string) => {
+      const label = versions.find((v) => fx + strWidth(v) + 2 <= right);
+      if (label) fx += ui.button(fx, fy, label, run, { quiet: true, tip }) + GAP;
+    };
     const firstShown = this.steps.findIndex((s2) => !s2.skip?.());
-    if (this.step > firstShown) fx += ui.button(fx, fy, `‹ ${t("back")}  esc`, () => this.go(-1), { quiet: true, tip: t("the question before (esc)") }) + GAP;
-    if (st.id !== "done" && st.id !== "warning" && st.id !== "vault-path") fx += ui.button(fx, fy, `${t("skip")}  tab`, () => this.go(1), { quiet: true, tip: t("keep the default and go on (tab)") }) + GAP;
-    const left = keysRoom - (fx - inner.x - GAP);
+    if (this.step > firstShown) put([`‹ ${t("back")}  esc`, "‹ esc"], () => this.go(-1), t("the question before (esc)"));
+    if (st.id !== "done" && st.id !== "warning" && st.id !== "vault-path") put([`${t("skip")}  tab`, "tab ›"], () => this.go(1), t("keep the default and go on (tab)"));
+    const left = right - fx;
     if (left > 6) ui.text(fx, fy, keys, { fg: c.subtle, bg: c.panel }, left);
   }
 }

@@ -1,5 +1,5 @@
 import { mix } from "../core/color";
-import { addDays, startOfDay } from "../core/dates";
+import { addDays, parseTime, startOfDay } from "../core/dates";
 import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
@@ -99,6 +99,10 @@ export class WhenPicker implements Overlay {
   /** OK: what's typed wins (the commands read it), else what's picked */
   private ok(): void {
     const typed = this.field.text.trim();
+    // only a time ("14", "14h30", "2pm") after picking a day: that time, on that day — the day
+    // was lost and "14" went into an event's title
+    const time = typed && this.o.time ? (/^\d{1,2}$/.test(typed) && Number(typed) < 24 ? Number(typed) * 60 : parseTime(typed)) : null;
+    if (time !== null && time !== undefined) return this.finish({ ...(this.wantDate ? { date: this.date } : {}), time, ...(this.o.days ? { days: DAY_IDS.filter((d) => this.days.has(d)) } : {}) });
     if (typed) return this.finish({ text: typed });
     this.finish({
       ...(this.wantDate ? { date: this.date } : {}),
