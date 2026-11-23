@@ -193,6 +193,8 @@ export class FileBrowser implements Overlay {
   }
 
   onKey(k: KeyInput): boolean {
+    // enter opens what the search left on top (a folder: in, a file: chosen), search or not
+    if (k.combo === "enter") return this.list.onAction("confirm"), true;
     if (this.filter.onKey(k)) return this.list.select(0), true;
     switch (k.combo) {
       case "esc": this.close(); return true;

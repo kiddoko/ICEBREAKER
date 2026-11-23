@@ -379,7 +379,15 @@ export class Toasts implements Overlay {
   modal = false;
   private items: { text: string; kind: ToastKind; until: number; id: string }[] = [];
 
+  /** how many are shown */
+  get count(): number {
+    return this.items.length;
+  }
+
   push(text: string, kind: ToastKind = "info"): void {
+    // the same message still on screen: it stays longer, not twice (a double click gave two)
+    const same = this.items.find((t) => t.text === text && t.kind === kind && t.until > performance.now());
+    if (same) return void (same.until = performance.now() + 3500 + text.length * 25);
     this.items.push({ text, kind, until: performance.now() + 3500 + text.length * 25, id: `toast:${++typewriterIds}` });
     if (this.items.length > 4) this.items.shift();
   }
