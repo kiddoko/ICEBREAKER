@@ -141,6 +141,17 @@ export const statusbarCommand: Command = {
     }
     if (a === "move") {
       const shown = statusOrder({ order: cfg.order, hidden: [] });
+      // left / right: past the next item really on the bar (stealth off, no gamepad… aren't
+      // drawn: moving past them changed nothing on screen)
+      const drawn = [...d.workspace.statusSlots].sort((p, q) => p.x - q.x).map((s) => s.id).filter((x, i, all) => all.indexOf(x) === i);
+      const at = drawn.indexOf(id);
+      const next = at >= 0 && (where === "left" || where === "right") ? drawn[at + (where === "left" ? -1 : 1)] : undefined;
+      if (next) {
+        const rest = shown.filter((x) => x !== id);
+        const k = rest.indexOf(next) + (where === "right" ? 1 : 0);
+        save(moveStatusItem([...rest, id], id, k));
+        return 0;
+      }
       const from = shown.indexOf(id);
       const to = where === "left" ? from - 1 : where === "right" ? from + 1 : Number(where) - 1;
       if (!Number.isFinite(to)) return ctx.err("usage: statusbar move <item> left|right|<n>\n"), 1;

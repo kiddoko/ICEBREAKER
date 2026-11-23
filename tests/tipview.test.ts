@@ -20,3 +20,12 @@ describe("the hover tip's place", () => {
     expect(p.top).toBeGreaterThanOrEqual(0);
   });
 });
+
+import { freeNumber } from "../src/shell/systerm";
+describe("terminal tabs' numbers", () => {
+  it("the smallest one free: close zsh, open another, it's zsh again (not zsh 2 alone)", () => {
+    expect(freeNumber(new Set())).toBe(1);
+    expect(freeNumber(new Set([1, 2]))).toBe(3);
+    expect(freeNumber(new Set([2]))).toBe(1);
+  });
+});

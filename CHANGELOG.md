@@ -75,8 +75,8 @@ The UX pass: everything discoverable, nothing stretched, the deck explains itsel
 - **Menus say what they do**: *move to the trash* (not "delete"), *remove* for a macro (it said
   it went to the trash: it never did), *empty the trash…* asks first; HOME's page squares and the
   log out row no longer cut or shout (⏻ came out halved: "to the login page").
-- **Readable in every theme** (WCAG 2.1 contrast): secondary text at 4.5:1 at least, hints at
-  3.5:1, on the background, the panels and the pop-ups — five of the eleven themes had hints
+- **Readable in every theme** (WCAG 2.1 contrast): secondary text and hints at 4.5:1 at least
+  (WCAG AA), on the background, the panels and the pop-ups — five of the eleven themes had hints
   around 2:1. 82 texts written in `faint` (meant for lines) now use `subtle`: the weather's hours,
   the log's times, empty pages' help, the setup's hints…
 - **For modules (BreakerMED's needs)**: `ib.ui.pickFileBytes` (a sound or a picture the user

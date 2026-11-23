@@ -75,6 +75,8 @@ export class TipView {
     window.addEventListener("keydown", hush, { capture: true, passive: true });
     window.addEventListener("wheel", hush, { capture: true, passive: true });
     window.addEventListener("blur", hush);
+    // the window resized: the tip was left where the pointer used to be
+    window.addEventListener("resize", () => this.hide());
     document.documentElement.addEventListener("mouseleave", () => this.hide());
   }
 
@@ -118,7 +120,8 @@ export class TipView {
 
   private show(content: TipContent, key: string, colors: TipColors, font: { family: string; px: number }, reduceMotion: boolean): void {
     const el = this.el;
-    this.textEl.textContent = content.text ?? "";
+    // a shortcut at the end of a line stays with what it belongs to (" · ⌘⇧P" went alone to the next line)
+    this.textEl.textContent = (content.text ?? "").replace(/ · (?=[^\s·]{1,12}$)/gm, "\u00a0·\u00a0");
     this.textEl.style.display = content.text ? "" : "none";
     this.cmdEl.textContent = content.cmd ? `❯ ${content.cmd}` : "";
     this.cmdEl.style.display = content.cmd ? "" : "none";

@@ -48,6 +48,13 @@ const CORE_IN_TERMINAL = ["reboot", "logout", "login", "say"];
 /** ⌘X on a Mac: ctrl+C for the shell (⌘C is copy there) */
 const macInterrupt = (k: KeyInput) => IS_MAC && !!k.rawMeta && k.combo === "ctrl+x";
 
+/** the smallest number not in `used`, from 1 */
+export function freeNumber(used: ReadonlySet<number>): number {
+  let n = 1;
+  while (used.has(n)) n++;
+  return n;
+}
+
 export class SystemTerminal {
   readonly term: Terminal;
   readonly id = `pty${Math.random().toString(36).slice(2, 8)}`;
@@ -66,7 +73,8 @@ export class SystemTerminal {
   }
   private ownName = "";
   private readonly number: number;
-  private static count = 0;
+  /** the numbers in use: a new terminal takes the smallest free one (closing zsh then opening one gave "zsh 2" alone) */
+  private static used = new Set<number>();
   private started = false;
   /** the native shell is really running (pty_spawn answered) */
   private spawned = false;
@@ -102,7 +110,8 @@ export class SystemTerminal {
   private lastR: Rect = { x: 0, y: 0, w: 0, h: 0 };
 
   constructor(private readonly deck: Deck) {
-    this.number = ++SystemTerminal.count;
+    this.number = freeNumber(SystemTerminal.used);
+    SystemTerminal.used.add(this.number);
     this.term = new Terminal({ cols: 80, rows: 24, scrollback: 5000, allowProposedApi: true });
     // The terminal's own answers (cursor position, device attributes…) go back to
     // the shell. Windows' ConPTY asks where the cursor is at start-up and shows
@@ -185,6 +194,7 @@ export class SystemTerminal {
   }
 
   dispose(): void {
+    SystemTerminal.used.delete(this.number);
     void this.deck.platform.pty?.kill(this.id);
   }
 

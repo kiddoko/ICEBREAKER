@@ -12,13 +12,13 @@ describe("readable text in every theme", () => {
     const fixed = readable(0x333333, [0x101010], 4.5, 0xeeeeee);
     expect(contrast(fixed, 0x101010)).toBeGreaterThanOrEqual(4.5);
   });
-  it("every built-in theme: muted ≥ 4.5:1 and subtle ≥ 3.5:1 on its background, panels and pop-ups", () => {
+  it("every built-in theme: muted and subtle ≥ 4.5:1 on its background, panels and pop-ups (they carry instructions)", () => {
     const tm = new ThemeManager();
     for (const th of tm.list()) {
       for (const bg of [th.c.bg, th.c.panel, th.c.panelAlt]) {
         expect(contrast(th.c.fg, bg), `${th.name} fg`).toBeGreaterThanOrEqual(4.5);
         expect(contrast(th.c.muted, bg), `${th.name} muted`).toBeGreaterThanOrEqual(4.5);
-        expect(contrast(th.c.subtle, bg), `${th.name} subtle`).toBeGreaterThanOrEqual(3.5);
+        expect(contrast(th.c.subtle, bg), `${th.name} subtle`).toBeGreaterThanOrEqual(4.5);
       }
     }
   });

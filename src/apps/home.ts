@@ -458,6 +458,9 @@ export class HomeApp implements App {
     // to fill the page. At least ROW lines; what doesn't fit scrolls.
     this.rowH = Math.max(ROW, Math.min(ROW_MAX, this.colW * (ui.cellAspect || 0.5) * ROW_SHAPE));
     const contentH = (this.editing ? this.layout : this.compact(this.layout)).filter((p) => ((p.page ?? 0) === this.page)).reduce((m, p) => Math.max(m, Math.round((p.y + p.h) * this.rowH) - 1), 0); // the last row is a gap, not content
+    // more than fits and no pages line: the last line is the "↓ more" tab's (it covered a widget's bottom)
+    if (!pagesLine && contentH > area.h) area.h -= 1;
+    this.areaH = area.h;
     const maxScroll = Math.max(0, contentH - area.h);
     // widgets sit where they were placed: top-left, the same in and out of edit mode
     if (this.reveal) {

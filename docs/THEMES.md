@@ -53,7 +53,7 @@ A theme without `[font]` uses JetBrains Mono and the user's weight setting.
 ## Readable, whatever the colours
 
 When a theme is loaded (built-in, yours, or tweaked), its secondary text (`muted`) is kept at
-**4.5:1** contrast at least and its hints (`subtle`) at **3.5:1**, against the background, the
+**4.5:1** contrast at least and its hints (`subtle`) at **4.5:1** too (they carry instructions), against the background, the
 panels and the pop-ups (WCAG 2.1): a colour paler than that is moved towards the theme's text
 colour just enough (`core/color.ts readable`). `faint` is for lines and grids only — the deck
 never writes text in it (`tests/contrast.test.ts` checks every built-in theme).
