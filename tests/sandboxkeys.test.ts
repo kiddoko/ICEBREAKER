@@ -50,3 +50,13 @@ describe("ui.art for a module's scenery (a tracker's scrolling pattern)", () => 
     expect(g.attr[10] & NOFADE).toBe(0);
   });
 });
+
+describe("an autosave never asks — the edges", () => {
+  it("a folder that only starts like the granted one still asks", () => {
+    expect(quietWrite("songsx/.recovery/a", "vault:write:songs/")).toBe(false);
+  });
+  it("written the Windows way, or the .recovery folder itself (its mkdir): quiet", () => {
+    expect(quietWrite("songs\\.recovery\\a.bmed", "vault:write:songs/")).toBe(true);
+    expect(quietWrite("songs/.recovery", "vault:write:songs/")).toBe(true);
+  });
+});

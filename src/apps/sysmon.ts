@@ -57,6 +57,11 @@ export function gpuNameFromWebGL(): string {
   return webglName;
 }
 
+/** "NVIDIA GeForce RTX 5080" → "RTX 5080": the words every card of that maker says go (the tile is narrow) */
+export function shortGpuName(name: string): string {
+  return name.replace(/\((?:TM|R)\)/gi, "").replace(/^(NVIDIA\s+GeForce|NVIDIA|AMD|Intel)\s+/i, "").replace(/\s+/g, " ").trim() || name;
+}
+
 /** SYSMON — live CPU / memory with braille graphs. Polls once per second while open. */
 export class SysmonApp implements App {
   readonly kind = "sysmon";
@@ -267,8 +272,13 @@ export class SysmonApp implements App {
     const g = this.gpu!;
     const mem = g.memTotal ? `${bytes(g.memUsed ?? 0)} / ${bytes(g.memTotal)}` : "";
     const temp = typeof g.temp === "number" ? `${Math.round(g.temp)}°C` : "";
-    const title = g.name ? `GPU · ${truncate(g.name, Math.max(6, r.w - strWidth(mem) - 14))}` : "GPU";
-    if (typeof g.busy === "number") return this.tile(ui, r, title, `${Math.round(g.busy)}`, [mem, temp].filter(Boolean).join(" · "), this.gpuHist, heat(ui, g.busy / 100), false);
+    // the name, short; the info (memory, temperature) only what fits beside it — on a 1600-px
+    // window both were cut ("NVIDIA GeFo…", "15.…")
+    const name = g.name ? shortGpuName(g.name) : "";
+    const title = name ? `GPU · ${name}` : "GPU";
+    const room = r.w - strWidth(title) - GAP * 4;
+    const info = [mem, temp].filter(Boolean).reduce((acc, part) => (strWidth(acc ? `${acc} · ${part}` : part) <= room ? (acc ? `${acc} · ${part}` : part) : acc), "");
+    if (typeof g.busy === "number") return this.tile(ui, r, truncate(title, Math.max(6, r.w - GAP * 3)), `${Math.round(g.busy)}`, info, this.gpuHist, heat(ui, g.busy / 100), false);
     const inner = ui.box(r, { title: "GPU" });
     const lines = [g.name || t("graphics card"), "", t("this system doesn't tell its use to an app (no special rights asked)")];
     let y = inner.y;

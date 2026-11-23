@@ -114,13 +114,30 @@ pub fn fs_read_text(path: String) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
-/// A sound or a picture up to 64 MB, as bytes (a module's import of a file you chose), see `readable_media`.
-#[tauri::command]
+/// A sound or a picture up to 64 MB, as bytes (a module's import of a file you chose), see
+/// `readable_media`. Async (a big file never freezes the window), a regular file only (never a
+/// pipe), the link followed and checked again where it really points (a picture that is a link to
+/// a key), and never more than the cap, even if the file grows meanwhile.
+#[tauri::command(async)]
 pub fn fs_read_bytes(path: String) -> Result<tauri::ipc::Response, String> {
+    use std::io::Read;
+    const CAP: u64 = 64 * 1024 * 1024;
     readable_media(&path)?;
-    let meta = fs::metadata(&path).map_err(|e| format!("{path}: {e}"))?;
-    if meta.len() > 64 * 1024 * 1024 {
+    let real = fs::canonicalize(&path).map_err(|e| format!("{path}: {e}"))?;
+    // (Windows writes the real path \\?\C:\…: checked as C:\…, the way the rules name places)
+    let shown = real.to_string_lossy();
+    readable_media(shown.strip_prefix(r"\\?\").unwrap_or(&shown))?;
+    let meta = fs::metadata(&real).map_err(|e| format!("{path}: {e}"))?;
+    if !meta.is_file() {
+        return Err(format!("{path}: not a file"));
+    }
+    if meta.len() > CAP {
         return Err(format!("{path}: bigger than 64 MB"));
     }
-    Ok(tauri::ipc::Response::new(fs::read(&path).map_err(|e| format!("{path}: {e}"))?))
+    let mut buf = Vec::with_capacity(meta.len() as usize);
+    fs::File::open(&real).and_then(|f| f.take(CAP + 1).read_to_end(&mut buf)).map_err(|e| format!("{path}: {e}"))?;
+    if buf.len() as u64 > CAP {
+        return Err(format!("{path}: bigger than 64 MB"));
+    }
+    Ok(tauri::ipc::Response::new(buf))
 }

@@ -416,8 +416,9 @@ export interface IcebreakerAPI {
     /**
      * Your page alone in the window: the tree, the panel and the shell fold away while it's in
      * front (`true`), come back with `false` — and by themselves when another tab comes in front or
-     * your page closes. Only for your own page, when it's the one in front. Returns whether it is
-     * alone now. The user's ▣ (status bar) and `frame solo` do the same.
+     * your page closes. Only for your own page, when it's the one in front and has the keyboard.
+     * Returns whether your page now holds the window. If the user brings the frames back, your page
+     * can't fold them again until it has left the front once. The user's ▣ and `frame solo` do the same.
      */
     fullWindow(on?: boolean): boolean | Promise<boolean>;
     theme(): Theme;

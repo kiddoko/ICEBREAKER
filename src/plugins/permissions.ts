@@ -178,7 +178,8 @@ export function quietWrite(target: string, grant: string): boolean {
   if (!g || g.base !== "vault:write" || !g.scope) return false;
   const path = target.replace(/\\/g, "/").replace(/^\/+/, "");
   if (path.split("/").some((p) => p === ".." || p === ".")) return false;
-  return coversOne(g, "vault:write", path) && /(^|\/)\.recovery\//.test(path.slice(g.scope.length - 1));
+  // the .recovery folder itself (its mkdir) or anything in it
+  return coversOne(g, "vault:write", path) && /(^|\/)\.recovery(\/|$)/.test(path.slice(g.scope.length - 1));
 }
 
 /**

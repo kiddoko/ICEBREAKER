@@ -29,3 +29,16 @@ describe("a page alone (a module's full-window mode)", () => {
     expect(p.tick(home, true)).toBe(null);
   });
 });
+
+describe("a page alone can't fight you", () => {
+  const tracker = { kind: "breakermed" }, home = { kind: "home" };
+  it("you brought the frames back: the same page can't fold them again until it has left the front once", () => {
+    const p = new PageAlone();
+    p.request(tracker, true, false);
+    p.tick(tracker, false); // you brought them back
+    expect(p.request(tracker, true, false)).toBe(null);
+    p.tick(home, false); // another page in front
+    p.tick(tracker, false); // back to the tracker
+    expect(p.request(tracker, true, false)).toBe("fold");
+  });
+});

@@ -133,6 +133,12 @@ export class FileBrowser implements Overlay {
   /** A folder: go in. A file: pick it, or open it in the deck. */
   private open(e: Entry): void {
     if (e.isDir) return this.goTo(e.path);
+    // asked for some kinds (.csv, .wav…): another kind is said here, not refused later without a word
+    const exts = this.o.pick ? this.o.exts ?? [] : [];
+    if (exts.length && !exts.some((x) => e.name.toLowerCase().endsWith(x.toLowerCase()))) {
+      // (a toast: the folder's list stays where it is)
+      return void this.deck.notify(t("choose a {kinds} file (the ones in bold)", { kinds: exts.map((x) => `.${x.replace(/^\./, "")}`).join(" ") }), "warning");
+    }
     this.done = true;
     if (this.o.pick) this.o.pick(e.path);
     else void this.deck.act(`open ${q(e.path)}`);

@@ -209,8 +209,6 @@ export class PluginHost {
     // the name you approved that covers this use ("vault:write:songs/" for songs/a.bmed)
     const name = this.effective(m.id).find((g) => new Grants(() => [g]).has(want.base, target || undefined));
     if (!name) return; // (not allowed at all: `need` already said so)
-    // its own autosave (a .recovery/ folder in the folder you granted): never a question mid-work
-    if (want.base === "vault:write" && quietWrite(target, name)) return;
     const level = levelOf(name);
     if (levelRank(level) < levelRank("high")) return;
     const s = this.deck.settings;
@@ -220,8 +218,10 @@ export class PluginHost {
     const d = describePerm(name, t);
     const no = () => new Error(t("{m}: you said no to “{p}”", { m: m.name.toLowerCase(), p: d.label }));
     // you just said no to this: the rest of the same action (an export's file after its folder) stops
-    // without a second question
+    // without a second question — its autosave too
     if (level !== "total" && (this.refused.get(key) ?? 0) > Date.now()) throw no();
+    // its own autosave (a .recovery/ folder in the folder you granted): never a question mid-work
+    if (want.base === "vault:write" && quietWrite(target, name)) return;
     const scope = parsePerm(name)?.scope;
     const what = want.base === "vault:write" ? t("It wants to write: {x}", { x: target || "?" }) : want.base === "net" ? t("It wants to reach: {x}", { x: target || "?" }) : "";
     const spec: PermDialogSpec = {
@@ -951,10 +951,11 @@ export class PluginHost {
         pickFile: (title, exts, start) => pickFile(deck, from(title), exts, start),
         pickFileText: (title, exts) => pickFileText(deck, from(title), exts),
         pickFileBytes: (title, exts) => pickFileBytes(deck, from(title), exts),
-        // only the module's own page, and only while it's the one in front
+        // only the module's own page, only while it's the one in front — and only while the page
+        // has the keyboard: folding the shell away would hand it the keys typed there (a password)
         fullWindow: (on = true) => {
           const app = deck.workspace.activeApp;
-          if (!app || deck.apps.sourceOf(app.kind) !== m.id) return false;
+          if (!app || deck.apps.sourceOf(app.kind) !== m.id || deck.workspace.focus !== "main") return false;
           return deck.workspace.fullWindow(app, on !== false);
         },
         // on screen, a module from the STORE signs its alert; the voice reads only what it says

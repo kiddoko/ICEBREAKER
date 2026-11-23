@@ -2001,4 +2001,6 @@ export const FR: Record<string, string> = {
   "How loud are the interface's sounds? (blips and clicks of an old OS doing its best — 0 is off)": "Quel volume pour les sons de l'interface ? (bips et clics d'un vieil OS qui fait de son mieux — 0 les coupe)",
 
   "drag": "glisser",
+
+  "choose a {kinds} file (the ones in bold)": "choisis un fichier {kinds} (ceux en gras)",
 };
