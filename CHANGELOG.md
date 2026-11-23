@@ -1,5 +1,94 @@
 # Changelog
 
+## 0.7.1 — not released yet
+
+First steps, one name per thing, safety nets — from Fable's exploration of 0.7.0 (web and the
+Windows bench), the 12 answers to its questions, and the Review 0.7.
+
+**The three blockers**
+- **A note emptied by mistake is never lost**: select all + delete was saved empty in under a
+  second. The autosave doesn't write an emptied note any more; ⌘S, closing its tab or 30 s later
+  do, and its text goes to the trash first (« … (before emptying).md »).
+- **The setup no longer races**: ten enters in a row (a key held, a bouncing key) answered ten
+  questions. A question takes an answer only once it has shown for 250 ms; a held enter never does.
+- **The guide's first command works**: `note new "ideas"` made notes/new-ideas.md; it is read as
+  `note "ideas"`, and `note new` alone is an untitled note like ⌘N.
+
+**Your answers**
+- The pages of the ◆ menu — settings, NEXUS, STORE, MODULES, the trash — are **real tabs**
+  (they lived left of HOME, one at a time, and vanished when you went elsewhere).
+- **Esc opens the ◆ menu only on HOME** (in a note it came over the text); **F10** opens it anywhere.
+- **`exit` hides the shell**, like ctrl+\`; `quit` quits (typed by habit, `exit` closed the deck).
+- **One zoom**: the « font size » slider is gone from APPEARANCE (it did the same with other
+  bounds); zoom goes 25–200 %, its command `scale`.
+- **Shift+backspace is a plain backspace** (a word typed in capitals lost all of it).
+- **The fps counter is off by default**; **the clock's face is « segment »** (the most readable).
+- **The F1 manual in French**, and up to date: The screen, Modules and the STORE, Offline: stealth.
+- **The ◆ menu keeps what the menu bar doesn't have**: what's new, updates, the setup, the tour,
+  log out, quit.
+- **Every command answers in French** on a French deck: what a command prints goes through
+  `tOutput` on its way to the screen — never in a pipe, a file, or your data (`cat`, `grep`, `ls`…);
+  `usage:` and `-h` stay in English, like man pages. Modules add their French with
+  `addTranslations` (`{parts}` for what changes).
+- **The login page speaks the last account's language**.
+- **A folder already full of things as the vault** (all of Documents…) offers an « Icebreaker »
+  folder inside; a drive that isn't there is said at once (setup and `vault mount`).
+
+**First steps**
+- The login page: its links (new account, open a vault, forgot password) are in the tab order;
+  enter on an empty name says what's missing; the error sits right under the card, in sight in a
+  small window.
+- The setup: left unfinished, stealth and the language go back to what they were (and it says
+  so); esc on the first question of a setup run again leaves it; « apply » instead of « jack in »
+  when you're logged in; French chapters, effects and theme descriptions.
+- The boot's « press any key » breathes instead of blinking; a click beside the tour's bubble no
+  longer skips a step.
+
+**Every action has its command**
+- New: `save`, `save as <path>`, `copy path | link [note]` (and `<cmd> | copy`), `tree reveal`,
+  `tab close others | right | all`, `tab ungroup all`, `modules on | off | ls | open`, `setup`,
+  `settings <category>`, `clock open`, `journal open`, `todo list`, `habit list`, `cal ls`,
+  `log width`, `statusbar join | alone`, `fx off`.
+- The note's, the tab's and the tree's menus run these commands (the log shows each click);
+  settings rows show theirs (API key, updates).
+
+**Safety nets**
+- ⌘Z under an open menu, or in HOME's edit mode, never undoes something out of sight (it brought
+  back files trashed minutes before, a reminder, a task's priority).
+- A reminder stays on screen until it's clicked or esc'd (it went at the next key), is always
+  written in the log, and reaches the system's notifications when the window is minimized.
+- One deck at a time: starting it again shows the window already open
+  (`tauri-plugin-single-instance`; two decks wrote the same settings).
+- A picture, a sound or a PDF isn't opened as text (« stream did not contain valid UTF-8 »).
+- Your real terminal asks before pasting several lines, scrolls back with shift+PgUp/PgDn, jumps
+  words with ctrl+← →, keeps 10 000 lines; the shell starts ~10 lines high.
+- Quitting with the page alone (▣) brings the frames back first.
+
+**Your Review 0.7**
+- Shift + wheel in a note: one line at a time.
+- The status bar in **groups** like tabs; **◧ ▾ ◨ ▣ are four items** that each move.
+- **NEXUS**: folders stay boxes, files are sheets with a little ASCII drawing of their kind.
+- A widget's pop-up has **⚙ settings** (its module's settings).
+- HOME's **✎ edit** shows only near it (or while editing).
+- The log beside the shell: **›** folds it into a tab, its line drags its width; ‹ beside the
+  shell puts it back.
+- `cal import` refuses hidden folders, reads a CSV cell written on several lines (Outlook) as one,
+  and never doubles what's already imported.
+
+**Smaller**
+- THE MENU lists each thing once (a page, not also its command and its action), lowercase,
+  `[dev]` commands only with debug.
+- `hlep` → « did you mean help? » (a swap counts once); a module that is off says so; `uname -a`
+  gives the version; `date` in the deck's language; `pwd` says ~.
+- Tabs and the status bar name pages in the deck's language; the shell's and the editor's status
+  lines, NEXUS, TODO, MUSIC, LINK in French; SYSMON's « cœurs ».
+- What's new shows the newest versions' chips and always the one you read.
+- F6 / shift+F6 walk the parts of the screen; ctrl+shift+S is only « save as »; a middle click
+  closes a tab; tips go when the pointer leaves the window; new accounts follow the system's
+  « reduce motion »; `<html lang>` follows the language.
+- Docs: PLUGINS.md lists every `ib.lib` export and `ib.ui` call (a test keeps it so); GUIDELINES:
+  one name per thing, the same sub-commands everywhere, menus run commands.
+
 ## 0.7.0 — 2026-11-23
 
 The UX pass: everything discoverable, nothing stretched, the deck explains itself.
