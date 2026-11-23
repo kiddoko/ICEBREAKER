@@ -32,6 +32,43 @@ export interface VersionNotes {
 
 export const NOTES: VersionNotes[] = [
   {
+    version: "0.6.3",
+    en: {
+      added: [
+        "Quit and come back: frames, tabs, pages, shell and window as you left them",
+        "Setup: tab completes the vault folder's path",
+        "File → Save / Save As in the macOS menu bar (⌘S / ⌘⇧S)",
+        "A start that crashed: the next one is safe, effects off",
+      ],
+      fixed: [
+        "Setup: going back fast no longer crashes, nor the logins after",
+        "Setup in stealth: no AI step, no Google, nothing online",
+        "Setup: the vault goes to the folder you typed",
+        "Setup: a wrong password while encrypting asks again",
+        "A new account's approver is checked as soon as it's typed",
+        "Linux: the AppImage starts on Arch & co., and plays sound",
+        "AltGr characters (# { [ |) type on Linux; ⇧Tab changes frame",
+      ],
+    },
+    fr: {
+      added: [
+        "Quitter et revenir : cadres, onglets, pages, shell et fenêtre comme laissés",
+        "Setup : Tab complète le chemin du dossier du vault",
+        "Fichier → Enregistrer / Enregistrer sous dans la barre de menus macOS",
+        "Un démarrage qui a planté : le suivant est sûr, effets coupés",
+      ],
+      fixed: [
+        "Setup : revenir en arrière vite ne plante plus, ni les connexions d'après",
+        "Setup en mode furtif : pas d'étape IA, pas de Google, rien en ligne",
+        "Setup : le vault va dans le dossier tapé",
+        "Setup : un mauvais mot de passe au chiffrement le redemande",
+        "Le compte qui valide un nouveau compte est vérifié dès qu'il est tapé",
+        "Linux : l'AppImage démarre sur Arch et cie, et le son marche",
+        "Les caractères AltGr (# { [ |) s'écrivent sous Linux ; ⇧Tab change de cadre",
+      ],
+    },
+  },
+  {
     version: "0.6.2",
     date: "2026-11-22",
     en: {

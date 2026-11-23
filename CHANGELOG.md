@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.6.3
+
+The serious bugs: a layout that comes back, a setup that holds, Linux.
+
+- **Quit and relaunch: everything comes back as you left it.** The tree and the shell shown or
+  hidden, the shell's height, its tab and its terminals, the open page (SETTINGS, STORE…), the
+  focus, terminal and ibsh tabs, and the window's size and place join the tabs, groups and
+  frames already saved. Quitting (⌘Q, the close button, the Dock) now goes through the deck,
+  which writes all that before the app closes — before, the last moments' changes were lost.
+  A page that doesn't answer never keeps the app open: close it again within 4 s and it quits.
+- **The setup survives going back and forth.** Leaving EYE CANDY for THEME kept the preset
+  tried on, and the next theme saved it as its own: a half-finished setup left heavy effects
+  (the WebGL curvature) on, and on Linux every login crashed. Previews now wait for the cursor
+  to rest, are undone when you leave without keeping one, and the curved glass keeps one WebGL
+  context for the whole run.
+- **A start that crashed makes the next one safe**: effects off, said once the desktop is there.
+- **Stealth mode in the setup** applies as soon as it's chosen; the AI question, the location
+  and Google are skipped; skipping the question leaves stealth as it was (it switched it off).
+- **The vault goes where you said.** Tab on the folder question skipped it and dropped what was
+  typed (a Linux reflex): tab now completes the folder name; a relative path is refused at once;
+  a folder that can't be used is said instead of silently keeping the default one.
+- **Encrypting in the setup: a wrong password asks again** (it gave up and started the tour);
+  cancelled, the deck asks whether to try again. The same check guards `vault rekey` and
+  `vault recovery`.
+- **A new account's approver is checked as soon as it's typed**, not after the whole new
+  account (`account_check` checks a password without unlocking anything).
+- **Linux**: the AppImage leaves GLib out and uses the system's (Arch-like systems died at
+  launch: `undefined symbol: g_once_init_leave_pointer`); it carries the GStreamer plugins
+  WebKitGTK plays sound with (`bundleMediaFramework`), the `.deb` depends on them. README:
+  Linux install, and the GStreamer packages if there's no sound.
+- **Keys**: AltGr characters (# { [ | on AZERTY) type on Linux — AltGr+" went to tab 3;
+  ⇧Tab is recognised by its key (Linux); a page that plays the keyboard keeps Tab / ⇧Tab (esc
+  gives the keys back); File → Save / Save As (⌘S / ⌘⇧S) in the macOS menu bar.
+
 ## 0.6.2 — 2026-11-22
 
 Fixes from the 0.6 and 0.6.1 reviews.

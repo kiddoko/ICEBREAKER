@@ -263,7 +263,8 @@ The full surface is typed and commented in
   page). While it's in front, letters, digits and space come to `onKey` as keys, never as text, with their
   **place** in `code` (`KeyZ` is Z on QWERTY, W on AZERTY) and `repeat` when held; every **alt** combination is
   the page's too (alt + arrows included, the deck's pane keys on Windows / Linux), and ⌘Z / ⌘⇧Z reach it (its own
-  undo). ⌘ / ctrl shortcuts stay the deck's; **esc** leaves the page (the tree takes the keys back).
+  undo), ⌘S / ⌘⇧S (save, save as) and **Tab / ⇧Tab** (next / previous track…). Other ⌘ / ctrl shortcuts stay
+  the deck's; **esc** leaves the page (the tree takes the keys back).
 - `ib.apps.open(kind, args)`: your own pages take any `args`; the deck's pages only a note,
   a folder or a day.
 - `ib.ui.confirm / prompt / choose / alert` are headed with your module's name; what your
