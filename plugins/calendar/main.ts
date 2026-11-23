@@ -18,6 +18,7 @@
  */
 import type { App } from "../../src/apps/types";
 import { parseEventsFile } from "./importer";
+import { monthShape, weekShape, WEEK_W } from "./sizes";
 import type { Rect } from "../../src/core/grid";
 import type { Action, KeyInput } from "../../src/core/input";
 import type { IcebreakerAPI } from "../../src/plugins/api";
@@ -1266,9 +1267,11 @@ export function activate(ib: IcebreakerAPI): void {
       const gx = r.x + Math.floor((r.w - cw * 7) / 2);
       const gy = r.y + 2 + Math.max(0, Math.floor((r.h - 2 - weeks * ch) / 2));
       const colX = (i: number) => gx + i * cw;
-      // too small for the month (its smallest size): today, and what's on it
-      if (r.h < 3 || r.w < 14) return todayCard(ui, r);
+      // its size decides (plugins/calendar/sizes.ts): the whole month, today's week, or today
+      const shape = monthShape(r.w, r.h, weeks);
+      if (shape === "today") return todayCard(ui, r);
       ui.textCenter(r, r.y, first.toLocaleDateString(ib.lib.dateLocale(), { month: "long", year: "numeric" }).toLowerCase(), { fg: c.fg, attrs: BOLD });
+      if (shape === "week") return weekStrip(ui, { x: r.x, y: r.y + 1, w: r.w, h: r.h - 1 }, true);
       for (let i = 0; i < 7; i++) {
         const n = colDay(i).toLocaleDateString(ib.lib.dateLocale(), { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "").slice(0, cw - 1);
         ui.text(colX(i) + cw - 1 - strWidth(n), r.y + 1, n, { fg: wkd(i) ? c.accentAlt : c.subtle });
@@ -1321,6 +1324,50 @@ export function activate(ib: IcebreakerAPI): void {
     ui.hit(r, { cmd: `cal open ${ymd(today)}`, tip: dayTitle(today) });
   }
 
+  /**
+   * Today's week in a row — the weekdays (when `names`), the 7 days, today lit, a dot under a
+   * busy day — then today's events: the month and the week in a small square.
+   *
+   *    l  m  m  j  v  s  d
+   *   17 18 19 20 21 22 23
+   *   ▪ 14:30 dentist
+   */
+  function weekStrip(ui: UI, r: Rect, names: boolean): void {
+    const c = ui.c;
+    const today = startOfDay(new Date());
+    const monday = addDays(today, -dow(today));
+    const gx = r.x + Math.floor((r.w - WEEK_W) / 2);
+    let y = r.y;
+    if (names && r.h >= 3) {
+      for (let i = 0; i < 7; i++) {
+        const n = colDay(i).toLocaleDateString(ib.lib.dateLocale(), { weekday: "narrow" }).toLowerCase();
+        ui.text(gx + i * 3 + 2 - strWidth(n), y, n, { fg: wkd(i) ? c.accentAlt : c.subtle });
+      }
+      y++;
+    }
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(monday, i);
+      const evs = between(d, addDays(d, 1));
+      const isToday = ymd(d) === ymd(today);
+      const x = gx + i * 3;
+      ui.text(x, y, String(d.getDate()).padStart(2), isToday ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: evs.length ? c.fg : c.muted, attrs: evs.length ? BOLD : 0 });
+      if (evs.length && !isToday) ui.text(x + 2, y, "·", { fg: colorOf(ui, evs[0].cal), attrs: BOLD });
+      ui.hit({ x, y, w: 3, h: 1 }, { cmd: `cal open ${ymd(d)}`, tip: `${dayTitle(d)}\n${evs.map((e) => `${when(e)} ${e.title}`).join("\n") || t("nothing")}` });
+    }
+    // today's events under the days, as many as fit
+    const evs = between(today, addDays(today, 1));
+    const { INSET } = ib.lib;
+    for (let k = 0; y + 1 + k < r.y + r.h; k++) {
+      const e = evs[k];
+      if (!e) {
+        if (k === 0) ui.textFit(r.x + INSET, y + 1, [t("nothing today"), t("free")], { fg: c.muted }, r.w - INSET * 2);
+        break;
+      }
+      const tx = ui.text(r.x + INSET, y + 1 + k, "▪ ", { fg: colorOf(ui, e.cal) });
+      ui.text(tx, y + 1 + k, e.allDay ? e.title : `${hm(dayOf(e.start))} ${e.title}`, { fg: c.fg }, r.x + r.w - INSET - tx);
+    }
+  }
+
   // ── HOME widget: this week, day by day ───────────────────────────────────
   ib.widgets.register({
     id: "week",
@@ -1337,8 +1384,10 @@ export function activate(ib: IcebreakerAPI): void {
       const today = startOfDay(new Date());
       const monday = addDays(today, -dow(today));
       const cw = Math.floor(r.w / 7);
-      // seven columns of 3 cells were letters on top of each other: today alone, then
-      if (cw < 5) return todayCard(ui, r);
+      // its size decides (plugins/calendar/sizes.ts): a column a day, a strip of days, or today
+      const shape = weekShape(r.w, r.h);
+      if (shape === "today") return todayCard(ui, r);
+      if (shape === "strip") return weekStrip(ui, r, true);
       for (let i = 0; i < 7; i++) {
         const d = addDays(monday, i);
         const x = r.x + i * cw;
