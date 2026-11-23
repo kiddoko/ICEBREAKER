@@ -110,11 +110,11 @@ export function isOfficialSource(src: string): boolean {
 /** What the person reads before installing a module nobody from ICEBREAKER checked. */
 export function unverifiedWarning(source: string): string {
   return [
-    `Nobody from ICEBREAKER has checked this module's code. It comes from: ${source}`,
+    t("Nobody from ICEBREAKER has checked this module's code. It comes from: {s}", { s: source }),
     "",
-    "It runs in a sandbox, but with the permissions you give it, it can read or change your notes —",
-    "and it can be buggy, or written to do harm. Install only what you trust; read its code first",
-    "(.icebreaker/plugins/<id>/ after the download, plugin audit <id>).",
+    t("It runs in a sandbox, but with the permissions you give it, it can read or change your notes —"),
+    t("and it can be buggy, or written to do harm. Install only what you trust; read its code first"),
+    t("(.icebreaker/plugins/<id>/ after the download, plugin audit <id>)."),
   ].join("\n");
 }
 

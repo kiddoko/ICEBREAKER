@@ -1,3 +1,4 @@
+import { t } from "../core/i18n";
 /**
  * READ A MODULE BEFORE IT RUNS. Modules from the vault or the STORE run in a sandbox
  * (docs/SANDBOX.md). This is a second look, before you switch one on: it searches the
@@ -50,6 +51,6 @@ export function auditCode(code: string): AuditFinding[] {
 
 /** The report as lines of text (the enable dialog, `plugin audit`). */
 export function auditReport(findings: AuditFinding[]): string {
-  if (!findings.length) return "✓ this quick look found nothing unusual in its code (a look, not a proof)";
-  return findings.map((f) => `${f.level === "danger" ? "✕" : "!"} it ${f.what} (line ${f.line})`).join("\n");
+  if (!findings.length) return `✓ ${t("this quick look found nothing unusual in its code (a look, not a proof)")}`;
+  return findings.map((f) => `${f.level === "danger" ? "✕" : "!"} ${t("it {what} (line {n})", { what: t(f.what), n: f.line })}`).join("\n");
 }

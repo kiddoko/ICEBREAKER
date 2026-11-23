@@ -35,6 +35,9 @@ catalog level with the code.
   format go with "load" and again when they change; its `addTranslations` reach the deck, and what
   its commands print is translated with **its own table first** (BreakerMED's « tracks » were the
   music player's « morceaux »).
+- `plugin enable` / `plugin install` / `plugin disable` ask in the deck's language: the question
+  (« allumer le module x ? [o/N] »), what it asks for and its levels, the code's quick audit, the
+  sandbox sentence, the « nobody has checked it » warning; any shell question answers `o` too.
 - The LOG shows its messages in the deck's language as they're drawn: a module left off at the
   first login (« breakerMED: its code changed… ») was logged in English before the account's
   language loaded.
