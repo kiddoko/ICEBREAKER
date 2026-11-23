@@ -42,7 +42,7 @@ const CALLS = new Set([
   "vault.read", "vault.exists", "vault.write", "vault.append", "vault.mkdir", "vault.modified", "vault.readBytes", "vault.writeBytes", "vault.list",
   "shell.run",
   "net.get",
-  "ui.notify", "ui.alert", "ui.say", "ui.confirm", "ui.prompt", "ui.choose", "ui.pickFolder", "ui.pickFile", "ui.pickWhen", "ui.pickFileText",
+  "ui.notify", "ui.alert", "ui.say", "ui.confirm", "ui.prompt", "ui.choose", "ui.pickFolder", "ui.pickFile", "ui.pickWhen", "ui.pickFileText", "ui.pickFileBytes", "ui.fullWindow",
   "storage.get", "storage.set",
   "settings.set",
   "stats.define", "stats.set", "stats.add", "stats.get", "stats.series", "stats.list", "stats.remove",
@@ -66,6 +66,15 @@ function toData(v: unknown): unknown {
 /** keys a page of the module never takes: the deck's own (shortcuts, esc, tab, F-keys) */
 function deckKey(k: KeyInput): boolean {
   return k.ctrl || k.meta || k.key === "esc" || k.key === "tab" || /^f\d+$/.test(k.key);
+}
+
+/**
+ * Does a key go to a module's page? Not the deck's own (deckKey), except — for a page that plays
+ * the keyboard (App.rawKeys) — the ones it keeps (core/input.ts rawPageKey: F1–F8, ⌘ / ctrl ← →,
+ * Tab / ⇧Tab, ⌘Z, ⌘S). tests/sandboxkeys.test.ts.
+ */
+export function moduleTakesKey(k: KeyInput, rawKeys: boolean): boolean {
+  return !deckKey(k) || (rawKeys && rawPageKey(k));
 }
 
 const plainMouse = (m: MouseInput | undefined, r: Rect) => (m ? { ...m, x: m.x - r.x, y: m.y - r.y, fx: m.fx !== undefined ? m.fx - r.x : undefined } : undefined);
@@ -447,8 +456,7 @@ class ModuleApp implements App {
   onKey(k: KeyInput): boolean {
     // a page that plays the keyboard (App.rawKeys) keeps some of the deck's keys (core/input.ts
     // rawPageKey: ⌘Z, ⌘S, Tab / ⇧Tab, F1–F8, ⌘ ← → — BreakerMED's undo, save, tracks, octave, positions)
-    const own = this.rawKeys && rawPageKey(k);
-    if (deckKey(k) && !own) return false;
+    if (!moduleTakesKey(k, this.rawKeys)) return false;
     this.box.send2({ t: "key", inst: this.inst, target: { kind: "app" }, k: plainKey(k) });
     return true;
   }

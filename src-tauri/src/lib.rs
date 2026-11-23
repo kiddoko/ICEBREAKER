@@ -96,6 +96,7 @@ pub fn run() {
             files::fs_home,
             files::fs_list,
             files::fs_read_text,
+            files::fs_read_bytes,
             vault::vault_rename,
             vault::vault_exists,
             vault::vault_import,

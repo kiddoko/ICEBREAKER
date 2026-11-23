@@ -286,7 +286,23 @@ export async function pickFileText(deck: Deck, title: string, exts: string[] = [
   const text = await deck.platform.files.readText(path).catch((e) => (deck.notify(String((e as Error)?.message ?? e), "error"), null));
   if (text === null) return null;
   if (text.length > 2_000_000) return deck.notify(t("that file is too big to import (2 MB at most)"), "warning"), null;
-  return { name: path.split(/[\\/]/).pop() ?? path, text };
+  return { name: fileNameOf(path), text };
+}
+
+/** a path's last part, written with / or \ */
+export const fileNameOf = (path: string): string => path.split(/[\\/]/).pop() || path;
+
+/**
+ * A sound or a picture the user chooses, read for the one who asked (a tracker's sample): the
+ * choice is the consent. 64 MB at most (src-tauri/src/files.rs fs_read_bytes).
+ */
+export async function pickFileBytes(deck: Deck, title: string, exts: string[] = []): Promise<{ name: string; bytes: Uint8Array } | null> {
+  const files = deck.platform.files;
+  if (!files?.readBytes) return deck.notify(t("picking files needs the desktop app"), "warning"), null;
+  const path = await pickFile(deck, title, exts);
+  if (!path) return null;
+  const buf = await files.readBytes(path).catch((e) => (deck.notify(String((e as Error)?.message ?? e), "error"), null));
+  return buf ? { name: fileNameOf(path), bytes: new Uint8Array(buf) } : null;
 }
 
 /** Pick a file anywhere on the computer (the deck's own picker). Resolves with its path, or null. */

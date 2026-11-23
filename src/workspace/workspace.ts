@@ -2,6 +2,7 @@ import { RecoveryDialog } from "./recoverydialog";
 import { DECK_MENU_TITLE, deckMenu, frameMenu, editMenu, shellMenu } from "./menus";
 import type { TipContent } from "../ui/tipview";
 import { MiniCalendar } from "./minical";
+import { PageAlone } from "./pagealone";
 import { WhenPicker, type WhenOptions, type WhenResult } from "./whenpicker";
 import { editBand, renderNotchBand, renderShellPanel, renderStatusBar, renderSubtitles, renderTip, renderTopBar } from "./chrome";
 import { shortcutFor, type Shortcut } from "../core/shortcuts";
@@ -865,6 +866,15 @@ export class Workspace {
   get solo(): boolean {
     return !this.sidebarVisible && !this.deck.settings.data.panel?.shown && !(this.terminalOn && this.shellVisible);
   }
+  /** a module's page alone (ib.ui.fullWindow, workspace/pagealone.ts) */
+  readonly pageAlone = new PageAlone();
+  /** the page `app` asks to be alone (`on`) or not; true when it now is */
+  fullWindow(app: App, on: boolean): boolean {
+    const what = this.pageAlone.request(app, on, this.solo);
+    if (what) this.toggleSolo();
+    return this.solo && this.pageAlone.owner === app;
+  }
+
   toggleSolo(): void {
     const panel = !!this.deck.settings.data.panel?.shown;
     if (!this.solo) {
@@ -1419,6 +1429,8 @@ export class Workspace {
     this.tidyPlaces();
     this.noteVisit();
     this.saveSession();
+    // a page that asked for the whole window gives the frames back when it leaves the front
+    if (this.pageAlone.tick(this.activeApp, this.solo) === "restore") this.toggleSolo();
     const W = ui.cols;
     const N = this.notchRows;
     const H = ui.rows - N;

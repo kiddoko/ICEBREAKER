@@ -101,6 +101,7 @@ export function createTauriPlatform(): Platform {
       home: () => invoke<string>("fs_home"),
       list: (path) => invoke("fs_list", { path }),
       readText: (path) => invoke<string>("fs_read_text", { path }),
+      readBytes: (path) => invoke<ArrayBuffer>("fs_read_bytes", { path }),
       importInto: (src, dir) => invoke<string>("vault_import", { src, dir }),
       onDragDrop: (cb) => {
         let paths: string[] = [];

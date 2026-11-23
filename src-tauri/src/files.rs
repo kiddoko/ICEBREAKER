@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 #[cfg(test)]
 mod tests {
-    use super::readable;
+    use super::{readable, readable_media};
     #[test]
     fn only_scripts_and_text_outside_hidden_and_system_places() {
         assert!(readable("/Users/neo/Downloads/backup.sh").is_ok());
@@ -23,6 +23,19 @@ mod tests {
         assert!(readable("C:/Users/neo/AppData/Roaming/x.txt").is_err());
         // a folder of yours called "library" is fine
         assert!(readable("/Users/neo/Documents/library/notes.md").is_ok());
+        // an import's text: events, a sheet
+        assert!(readable("/Users/neo/Downloads/agenda.csv").is_ok());
+        assert!(readable("/Users/neo/Downloads/agenda.ics").is_ok());
+    }
+
+    #[test]
+    fn media_outside_hidden_and_system_places() {
+        assert!(readable_media("/Users/neo/Music/kick.wav").is_ok());
+        assert!(readable_media("C:/Users/neo/Desktop/snare.FLAC").is_ok());
+        assert!(readable_media("/Users/neo/notes/todo.md").is_err());
+        assert!(readable_media("/Users/neo/.ssh/id.wav").is_err());
+        assert!(readable_media("/Library/Audio/x.wav").is_err());
+        assert!(readable_media("/Users/neo/a/../.config/x.wav").is_err());
     }
 }
 
@@ -59,11 +72,23 @@ pub fn fs_list(path: String) -> Result<Vec<FsEntry>, String> {
 /// What the deck may read from the computer: scripts and text you import — never
 /// a hidden file or folder (~/.ssh, ~/.aws, .env…) nor the system's or apps' own places.
 fn readable(path: &str) -> Result<(), String> {
+    // scripts, text, and what a module imports from a file you chose (events, a sheet)
+    const EXTS: &[&str] = &["sh", "bash", "zsh", "fish", "py", "js", "mjs", "rb", "pl", "ps1", "lua", "ibsh", "txt", "md", "csv", "tsv", "ics"];
+    allowed(path, EXTS, "only scripts and text files")
+}
+
+/// Sounds and pictures a module imports from a file you chose (a tracker's sample): see `allowed`.
+fn readable_media(path: &str) -> Result<(), String> {
+    const EXTS: &[&str] = &["wav", "wave", "aif", "aiff", "flac", "mp3", "ogg", "oga", "opus", "m4a", "mid", "midi", "png", "jpg", "jpeg", "gif", "webp"];
+    allowed(path, EXTS, "only sounds and pictures")
+}
+
+/// one of `exts`, never a hidden file or folder, never the system's places nor your Library / AppData
+fn allowed(path: &str, exts: &[&str], what: &str) -> Result<(), String> {
     let p = std::path::Path::new(path);
     let ext = p.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
-    const EXTS: &[&str] = &["sh", "bash", "zsh", "fish", "py", "js", "mjs", "rb", "pl", "ps1", "lua", "ibsh", "txt", "md"];
-    if !EXTS.contains(&ext.as_str()) {
-        return Err(format!("{path}: only scripts and text files ({})", EXTS.join(" ")));
+    if !exts.contains(&ext.as_str()) {
+        return Err(format!("{path}: {what} ({})", exts.join(" ")));
     }
     let hidden = p.components().any(|c| matches!(c, std::path::Component::Normal(n) if n.to_string_lossy().starts_with('.')) || matches!(c, std::path::Component::ParentDir));
     let lower = path.replace('\\', "/").to_lowercase();
@@ -87,4 +112,15 @@ pub fn fs_read_text(path: String) -> Result<String, String> {
     }
     let bytes = fs::read(&path).map_err(|e| format!("{path}: {e}"))?;
     Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
+
+/// A sound or a picture up to 64 MB, as bytes (a module's import of a file you chose), see `readable_media`.
+#[tauri::command]
+pub fn fs_read_bytes(path: String) -> Result<tauri::ipc::Response, String> {
+    readable_media(&path)?;
+    let meta = fs::metadata(&path).map_err(|e| format!("{path}: {e}"))?;
+    if meta.len() > 64 * 1024 * 1024 {
+        return Err(format!("{path}: bigger than 64 MB"));
+    }
+    Ok(tauri::ipc::Response::new(fs::read(&path).map_err(|e| format!("{path}: {e}"))?))
 }

@@ -79,6 +79,13 @@ The UX pass: everything discoverable, nothing stretched, the deck explains itsel
   3.5:1, on the background, the panels and the pop-ups — five of the eleven themes had hints
   around 2:1. 82 texts written in `faint` (meant for lines) now use `subtle`: the weather's hours,
   the log's times, empty pages' help, the setup's hints…
+- **For modules (BreakerMED's needs)**: `ib.ui.pickFileBytes` (a sound or a picture the user
+  chooses — a tracker's sample), `ib.ui.fullWindow` (its page alone: the tree, the panel and the
+  shell fold away while it's in front, and come back when it leaves), `ui.art` documented for
+  scenery (no fade-in on a scrolling pattern), a sandboxed page that plays the keyboard gets F1–F8,
+  ⌘ ← →, Tab and ⇧Tab (tested), and an autosave in a `.recovery/` folder of a granted folder never
+  asks. Native side: the file picker reads CSV and .ics (the calendar import was refused) and sounds
+  and pictures (`fs_read_bytes`).
 - **Ctrl + wheel changes the interface scale on every system**, one step a notch (Linux and
   Windows mice send lines: it took ~14 notches). **⇧ + wheel goes to what's under the
   pointer**, like the wheel — it walks the tree only over the tree (Settings scrolled the tree).

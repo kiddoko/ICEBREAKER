@@ -408,6 +408,18 @@ export interface IcebreakerAPI {
      * import (events, contacts…). `{ name, text }`, or null (cancelled, too big, the web).
      */
     pickFileText(title: string, exts?: string[]): Promise<{ name: string; text: string } | null>;
+    /**
+     * The same for a sound or a picture (wav, aiff, flac, mp3, ogg, m4a, mid, png, jpg…, 64 MB at
+     * most): its bytes. A tracker's "import a sample from this computer". Desktop only (null on the web).
+     */
+    pickFileBytes(title: string, exts?: string[]): Promise<{ name: string; bytes: Uint8Array } | null>;
+    /**
+     * Your page alone in the window: the tree, the panel and the shell fold away while it's in
+     * front (`true`), come back with `false` — and by themselves when another tab comes in front or
+     * your page closes. Only for your own page, when it's the one in front. Returns whether it is
+     * alone now. The user's ▣ (status bar) and `frame solo` do the same.
+     */
+    fullWindow(on?: boolean): boolean | Promise<boolean>;
     theme(): Theme;
     /** Ask for a redraw (after changing state outside an input handler). */
     redraw(): void;

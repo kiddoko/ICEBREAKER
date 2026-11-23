@@ -1,6 +1,6 @@
 import { PRIVILEGED_NAMES } from "../shell/privileged";
 import type { Origin } from "../shell/origin";
-import { describePerm, Grants, levelOf, levelRank, missing, parsePerm, readPerms, sortPerms } from "./permissions";
+import { describePerm, Grants, levelOf, levelRank, missing, parsePerm, readPerms, sortPerms, quietWrite } from "./permissions";
 import type { PermDialogSpec, PermLine } from "../workspace/permdialog";
 import { isOfficialSource } from "./install";
 import { stealth } from "../core/stealth";
@@ -10,7 +10,7 @@ import { isDeckPath } from "../vault/paths";
 import { FRAME_PARTS, frameServices } from "./frame-services";
 import { sandboxed } from "./sandbox/bridge";
 import { AudioStream } from "../core/audiostream";
-import { pickFile, pickFileText, pickFolder } from "../workspace/filebrowser";
+import { pickFile, pickFileBytes, pickFileText, pickFolder } from "../workspace/filebrowser";
 import { whenForModules } from "../ui/calendar";
 import { auditCode, auditReport, type AuditFinding } from "./audit";
 import { moduleSettingRows } from "../apps/settings-rows";
@@ -209,6 +209,8 @@ export class PluginHost {
     // the name you approved that covers this use ("vault:write:songs/" for songs/a.bmed)
     const name = this.effective(m.id).find((g) => new Grants(() => [g]).has(want.base, target || undefined));
     if (!name) return; // (not allowed at all: `need` already said so)
+    // its own autosave (a .recovery/ folder in the folder you granted): never a question mid-work
+    if (want.base === "vault:write" && quietWrite(target, name)) return;
     const level = levelOf(name);
     if (levelRank(level) < levelRank("high")) return;
     const s = this.deck.settings;
@@ -948,6 +950,13 @@ export class PluginHost {
         pickWhen: (title, o) => deck.pickWhen(from(title), o ?? {}).then((r) => (r ? whenForModules(r) : null)),
         pickFile: (title, exts, start) => pickFile(deck, from(title), exts, start),
         pickFileText: (title, exts) => pickFileText(deck, from(title), exts),
+        pickFileBytes: (title, exts) => pickFileBytes(deck, from(title), exts),
+        // only the module's own page, and only while it's the one in front
+        fullWindow: (on = true) => {
+          const app = deck.workspace.activeApp;
+          if (!app || deck.apps.sourceOf(app.kind) !== m.id) return false;
+          return deck.workspace.fullWindow(app, on !== false);
+        },
         // on screen, a module from the STORE signs its alert; the voice reads only what it says
         alert: (title, body) => (need("notify"), deck.alert(from(title), body, "reminders", spokenAlert(String(title), body))),
         say: (text, topic) => (need("notify"), deck.speak((["calendar", "reminders", "timers", "weather", "system"].includes(topic ?? "") ? topic : "modules") as VoiceTopic, text)),

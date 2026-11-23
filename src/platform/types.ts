@@ -270,6 +270,8 @@ export interface Platform {
     home(): Promise<string>;
     list(path: string): Promise<{ name: string; path: string; isDir: boolean; size: number }[]>;
     readText(path: string): Promise<string>;
+    /** a sound or a picture (64 MB at most), for a module's import of a file the user chose */
+    readBytes?(path: string): Promise<ArrayBuffer>;
     /** Copy a file / folder from the computer into a vault folder (never overwrites). Returns its vault path. */
     importInto(src: string, dir: string): Promise<string>;
     /**

@@ -265,6 +265,18 @@ The full surface is typed and commented in
   the page's too (alt + arrows included, the deck's pane keys on Windows / Linux), and ⌘Z / ⌘⇧Z reach it (its own
   undo), ⌘S / ⌘⇧S (save, save as), **Tab / ⇧Tab** (next / previous track…), **F1–F8** and **⌘ / ctrl + ← →**.
   Other ⌘ / ctrl shortcuts stay the deck's (F1 is the manual outside the page); **esc** leaves the page (the tree takes the keys back).
+  The same holds for a sandboxed module's page (`plugins/sandbox/bridge.ts moduleTakesKey`, tested).
+- **Your page alone**: `ib.ui.fullWindow(true)` folds the tree, the panel and the shell away while your page
+  is in front (a tracker's 8 tracks on a laptop); `fullWindow(false)` — or another tab in front, or your page
+  closing — brings them back. Only your own page, only while it's in front; frames the user folded themselves
+  stay as they were.
+- **Scenery that moves** (a scrolling pattern, a starfield): draw it inside `ui.art(() => …)` — the deck's
+  letter fade-in leaves it alone (no pale copies while it scrolls) and `debug layout` doesn't count it.
+- **Importing a file the user chooses**: `ib.ui.pickFileText(title, ["csv", "ics"])` → `{ name, text }` (2 MB),
+  `ib.ui.pickFileBytes(title, ["wav", "flac"])` → `{ name, bytes }` (a sound or a picture, 64 MB). The deck's
+  browser opens, the user picks; the choice is the consent, nothing else of the computer is opened. Desktop only.
+- **An autosave never asks**: with `vault:write:songs/`, writing in `songs/.recovery/` (any `.recovery/` folder
+  inside a folder you were granted) never opens the "this time / always" question mid-work.
 - `ib.apps.open(kind, args)`: your own pages take any `args`; the deck's pages only a note,
   a folder or a day.
 - `ib.ui.confirm / prompt / choose / alert` are headed with your module's name; what your
