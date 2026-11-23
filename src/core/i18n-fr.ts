@@ -1798,4 +1798,18 @@ export const FR: Record<string, string> = {
   "wrong password — try again (esc: cancel)": "mauvais mot de passe — réessaie (échap : annuler)",
   "the last start didn't finish: effects off this time (safe start) — ✦ fx turns them back on": "le dernier démarrage n'a pas abouti : effets coupés cette fois (démarrage sûr) — ✦ fx les rallume",
   "save as: a copy under another name (in a note; elsewhere: the shell)": "enregistrer sous : une copie sous un autre nom (dans une note ; ailleurs : le shell)",
+
+  // ── 0.7
+  "{n} in the trash: see them, put them back": "{n} dans la corbeille : les voir, les remettre",
+  "the trash is empty · what you delete waits here": "la corbeille est vide · ce que tu supprimes attend ici",
+  "Empty the trash": "Vider la corbeille",
+
+  "Log beside the shell": "Journal à côté du shell",
+
+  "the deck's menu: modules, store, NEXUS, settings, manual, updates, log out · click": "le menu du deck : modules, store, NEXUS, réglages, manuel, mises à jour, déconnexion · clic",
+  "every app and module: open, switch on or off · ⌘⇧M": "toutes les apps et tous les modules : ouvrir, allumer, éteindre · ⌘⇧M",
+  "modules and themes to install, from GitHub": "des modules et des thèmes à installer, depuis GitHub",
+  "NEXUS: your vault as a 3D map · ⌘⇧E": "NEXUS : ton vault en carte 3D · ⌘⇧E",
+  "theme, effects, keys, AI, privacy… · ⌘,": "thème, effets, touches, IA, vie privée… · ⌘,",
+  "the manual, the shortcuts, the tour · F1": "le manuel, les raccourcis, la visite · F1",
 };

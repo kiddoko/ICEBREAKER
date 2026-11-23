@@ -411,6 +411,7 @@ export function coreSettingRows(deck: Deck): Row[] {
     // the TERMINAL module (core-packages.ts) off: no panel, these mean nothing
     needs(() => d.workspace.terminalOn, cycle("shell.mode", "Shell", ["system", "ibsh"], undefined, (v) => (v === "system" ? "my terminal + ICEBREAKER" : "ibsh only"))),
     needs(() => d.workspace.terminalOn, cycle("shell.prompt", "Prompt", ["icebreaker", "mine"], undefined, (v) => (v === "mine" ? "mine (my own theme)" : "ICEBREAKER's"))),
+    toggle("shell.logSide", "Log beside the shell"),
     { section: "UPLINK (AI)", label: "", value: () => "" },
     head("Provider"),
     cycle("ai.provider", "Provider", ["claude-code", "anthropic", "ollama"], undefined, (v) => (v === "claude-code" ? "claude code (subscription)" : v === "anthropic" ? "anthropic api (tokens)" : "ollama (local)")),

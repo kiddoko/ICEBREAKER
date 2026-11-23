@@ -51,7 +51,7 @@ the keyboard, the mouse or a gamepad.
 │ │ ★ pins │ │  widgets: clock · weather · todo · habits · stats · chat… │ │
 │ │ tree   │ │  e = edit the layout · a = add a widget · enter = open it  │ │
 │ └────────┘ └───────────────────────────────────────────────────────────┘ │
-│ ┌ shell: icbrkr_trm · ibsh · log ────────────────────────── ≡ ─ □ ───┐ │
+│ ┌ shell: zsh · ibsh · log ────────────────────────────────── ≡ ─ □ ───┐ │
 │ │ ◆ ~/notes ❯ _                                                         │ │
 │ └───────────────────────────────────────────────────────────────────────┘ │
 └ status bar: what keys do here · ▾ shell · ✦ fx · ⌘K menu · F1 help ────┘
@@ -404,7 +404,7 @@ it, ⌘\` brings it back):
 
 | Tab | What |
 |---|---|
-| **icbrkr_trm** | your real shell (zsh, bash, PowerShell…) **plus** every ICEBREAKER command. + opens another, right-click renames it |
+| **zsh** (bash, powershell…) | your real shell, named after itself, **plus** every ICEBREAKER command. + opens another, right-click renames it |
 | **ibsh** | ICEBREAKER's own shell: it only sees the vault, \`rm\` goes to .trash |
 | **log** | what you typed and clicked (with the output), errors (a code — E102… — and what to do: \`errors E102\`), messages; chips on top filter them (\`log show errors\`) |
 
@@ -461,7 +461,7 @@ with nothing selected, ctrl+C still stops the command). Right-click → Copy too
 \`rm\`, Delete in the tree and right-click → trash move things to .trash (not
 deleted yet). A note sent there closes its tabs and leaves the pins; ⌘Z brings
 the note and its pins back (not the tab: open it again). \`trash\` lists it, \`trash restore 2\` puts one back where it
-lived. ⌫ above the tree (or \`trash open\`) opens the TRASH page: everything in
+lived. The tree's last line, *trash* (or \`trash open\`), opens the TRASH page: everything in
 it, newest first, with where it lived — enter puts it back, r somewhere else,
 o opens it to read. **Delete permanently** (del), or *✕ empty the trash* at the
 top: it asks first and it **can't be undone** — no ⌘Z, no copy kept

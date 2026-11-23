@@ -69,8 +69,8 @@ export async function purgeItems(
 
 export const trashCommand: Command = {
   name: "trash",
-  summary: "what's in the vault's trash, and put things back (⌫ above the tree)",
-  usage: "trash                      the list\ntrash restore <n|name>     back where it was\ntrash restore <n> <path>   somewhere else\ntrash purge <n|name>       delete it for good (asks first, can't be undone)\ntrash empty                delete everything in it for good (asks first)\n  --window                 ask in a dialog instead of the shell\ntrash open                 the TRASH page (⌫ above the tree, ⌘⇧⌫)",
+  summary: "what's in the vault's trash, and put things back (the tree's last line)",
+  usage: "trash                      the list\ntrash restore <n|name>     back where it was\ntrash restore <n> <path>   somewhere else\ntrash purge <n|name>       delete it for good (asks first, can't be undone)\ntrash empty                delete everything in it for good (asks first)\n  --window                 ask in a dialog instead of the shell\ntrash open                 the TRASH page (the tree's last line, ⌘⇧⌫)",
   man: "rm, Delete in the tree and right-click → trash move things to <vault>/.trash — that is not deleted yet.\nThe deck remembers where each thing lived (.icebreaker/trash.json), so restore puts it back.\ntrash purge and trash empty (the TRASH page: delete permanently) erase for good, after a question that says so: it can't be undone, ⌘Z won't bring it back. Only you can: a module or your real terminal can't.",
   complete: () => ["restore", "purge", "empty", "open"],
   async run(ctx) {

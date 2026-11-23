@@ -52,8 +52,20 @@ export class SystemTerminal {
   readonly term: Terminal;
   readonly id = `pty${Math.random().toString(36).slice(2, 8)}`;
   shellName = "terminal";
-  /** the tab's name: icbrkr_trm, icbrkr_trm2… (term rename, right-click) */
-  name: string;
+  /**
+   * The tab's name: the shell it runs — zsh, bash, powershell — then "zsh 2"… the way a
+   * terminal app names its tabs; yours once renamed (term rename, right-click).
+   */
+  get name(): string {
+    if (this.ownName) return this.ownName;
+    const shell = this.shellName.split(/[\\/]/).pop()!.replace(/\.exe$/i, "").toLowerCase() || "terminal";
+    return this.number === 1 ? shell : `${shell} ${this.number}`;
+  }
+  set name(v: string) {
+    this.ownName = v.trim();
+  }
+  private ownName = "";
+  private readonly number: number;
   private static count = 0;
   private started = false;
   /** the native shell is really running (pty_spawn answered) */
@@ -90,8 +102,7 @@ export class SystemTerminal {
   private lastR: Rect = { x: 0, y: 0, w: 0, h: 0 };
 
   constructor(private readonly deck: Deck) {
-    const n = ++SystemTerminal.count;
-    this.name = n === 1 ? "icbrkr_trm" : `icbrkr_trm${n}`;
+    this.number = ++SystemTerminal.count;
     this.term = new Terminal({ cols: 80, rows: 24, scrollback: 5000, allowProposedApi: true });
     // The terminal's own answers (cursor position, device attributes…) go back to
     // the shell. Windows' ConPTY asks where the cursor is at start-up and shows

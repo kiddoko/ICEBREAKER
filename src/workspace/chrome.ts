@@ -36,11 +36,15 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
   // a tab moved here (tab move <n> shell) may be the one shown instead of the terminals
   const moved = ws.shownIn("shell");
   if (ws.termAvailable && !ws.terms.length) ws.terms.push(new SystemTerminal(d));
+  // a wide shell keeps the log on its right, always in view (Settings → shell: log beside the shell);
+  // a narrow one keeps it as a tab
+  const logSide = !moved && si.w >= LOG_SIDE_MIN && d.settings.data.shell.logSide !== false;
+  if (logSide && ws.shellTab === "log") ws.shellTab = ws.termAvailable ? "term" : "ibsh";
   const tabs: [ShellTab, string, number][] = [
     ...(ws.termAvailable ? ws.terms.map((tm, i) => ["term", tm.name, i] as [ShellTab, string, number]) : []),
     ["ibsh", "ibsh", -1],
     // the log: everything that happened, filtered as you like; blinks red while errors are unread
-    ["log", d.log.unseenErrors ? `⚠ ${t("log")} ${d.log.unseenErrors}` : d.log.unseen ? `${t("log")} •${d.log.unseen}` : t("log"), -1],
+    ...(logSide ? [] : [["log", d.log.unseenErrors ? `⚠ ${t("log")} ${d.log.unseenErrors}` : d.log.unseen ? `${t("log")} •${d.log.unseen}` : t("log"), -1] as [ShellTab, string, number]]),
   ];
   // the panel's buttons on the right, like a program window's: one icon in a little square each
   const buttons: [string, string, string][] = [
@@ -119,12 +123,21 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
   if (moved) return void ui.clip(si, () => moved.render(ui, si, shellFocused));
   // the shell's own menu first: what's drawn on it (macros, the terminal) registers after and wins the right-click
   ui.hit(si, { menu: () => shellMenu(ws) });
+  // the log's column on the right, a thin line between
+  let main = si;
+  if (logSide) {
+    const lw = Math.min(60, Math.max(36, Math.floor(si.w * 0.3)));
+    main = { ...si, w: si.w - lw - 1 };
+    const lr = { x: si.x + si.w - lw, y: si.y, w: lw, h: si.h };
+    ui.vline(lr.x - 1, si.y, si.h, { fg: c.faint });
+    ui.clip(lr, () => ws.logPane.render(ui, lr, true));
+  }
   // macro bar above the system terminal (one free row under the tabs)
-  let termR = si;
+  let termR = main;
   const macrosShown = d.settings.data.shell.macrosShown !== false;
   if (ws.shellTab === "term" && ws.termAvailable && si.h > 6 && macrosShown) {
     const my = si.y + 1;
-    termR = { ...si, y: si.y + 3, h: si.h - 3 };
+    termR = { ...main, y: si.y + 3, h: si.h - 3 };
     // ◂ first: folds the macros away (⌗ on the panel's top brings them back)
     const fold = { x: si.x, y: my, w: 3, h: 1 };
     ui.text(fold.x, my, " ◂ ", { fg: ui.hovered(fold) ? c.bg : c.subtle, bg: ui.hovered(fold) ? c.accent : c.highlight, attrs: BOLD });
@@ -133,7 +146,7 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
     d.settings.data.shell.macros.forEach((m, i) => {
       const label = ` ${m.label} `;
       const rect = { x: bx, y: my, w: strWidth(label), h: 1 };
-      if (bx + rect.w > si.x + si.w - 4) return;
+      if (bx + rect.w > main.x + main.w - 4) return;
       const hot = ui.hovered(rect);
       const bound = Object.entries(d.settings.data.keys ?? {}).find(([, cmd]) => cmd.split(/\s*;\s*/).includes(`macro run ${q(m.label)}`))?.[0];
       ui.text(bx, my, label, hot ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: c.fg, bg: c.highlight });
@@ -148,12 +161,15 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
     ui.text(bx, my, " + ", { fg: ui.hovered(plus) ? c.accent : c.subtle, bg: c.highlight, attrs: BOLD });
     ui.hit(plus, { onClick: () => void editMacro(ws, -1), tip: "new macro · or: macro add <label> <command>" });
   }
-  ui.clip(si, () => {
+  ui.clip(main, () => {
     if (ws.shellTab === "term") ws.terminal.render(ui, termR, shellFocused);
-    else if (ws.shellTab === "log") ws.logPane.render(ui, si);
-    else d.shell.render(ui, si, shellFocused);
+    else if (ws.shellTab === "log") ws.logPane.render(ui, main);
+    else d.shell.render(ui, main, shellFocused);
   });
 }
+
+/** a shell at least this wide shows the log on its right instead of in a tab */
+export const LOG_SIDE_MIN = 110;
 
 /** After ~0.6 s on something clickable: its shell command and a tip. */
 export function renderTip(ws: Workspace, ui: UI, _screen: Rect): void {
@@ -179,6 +195,37 @@ export function renderTip(ws: Workspace, ui: UI, _screen: Rect): void {
 }
 
 /**
+ * The menu bar after the logo: ` modules  store  nexus  settings  help ` — each the page it
+ * names (the ✓ page lit), the rightmost ones dropped first when the bar is short. Returns
+ * where it ends.
+ */
+function renderMenuBar(ws: Workspace, ui: UI, x: number, y: number, xEnd: number): number {
+  const c = ui.c;
+  const d = ws.deck;
+  const items: [string, string, string, string][] = [
+    ["modules", t("modules"), "launch modules", t("every app and module: open, switch on or off · ⌘⇧M")],
+    ["store", t("store"), "store", t("modules and themes to install, from GitHub")],
+    ["explorer", "nexus", "launch explorer", t("NEXUS: your vault as a 3D map · ⌘⇧E")],
+    ["settings", t("settings"), "settings", t("theme, effects, keys, AI, privacy… · ⌘,")],
+    ["", t("help"), "manual", t("the manual, the shortcuts, the tour · F1")],
+  ];
+  let at = x;
+  for (const [kind, label, cmd, tip] of items) {
+    if (kind && !d.apps.get(kind)) continue; // its module is off
+    const text = ` ${label} `;
+    const w = strWidth(text);
+    if (at + w > xEnd) break;
+    const rect = { x: at, y, w, h: 1 };
+    const on = !!kind && ws.activeApp?.kind === kind;
+    const hot = ui.hovered(rect);
+    ui.text(at, y, text, { fg: on ? c.accent : hot ? c.fg : c.muted, bg: hot ? c.highlight : c.panelAlt, attrs: on ? BOLD : 0 });
+    ui.hit(rect, { cmd, tip: osKeys(tip) });
+    at += w;
+  }
+  return at;
+}
+
+/**
  * The top bar, one row: "◆ ICEBREAKER ▾" — the deck's menu (modules, the store, NEXUS,
  * settings, the manual, updates, log out: workspace/menus.ts deckMenu) — and on the
  * right UPLINK ■ and the clock. The tabs aren't here any more: each frame has its own,
@@ -193,10 +240,13 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
   const logoRect = { x: r.x, y: r.y, w: strWidth(logo), h: 1 };
   const menuOpen = ws.overlays.some((o) => !o.done && (o as { title?: string }).title === DECK_MENU_TITLE());
   const hot = ui.hovered(logoRect) || menuOpen;
-  if (hot) ui.fill(logoRect, { bg: c.highlight });
+  // a button, never mistaken for a title: its own tinted block, the ▾ in the accent (a tester
+  // didn't know there was a menu behind the logo)
+  const chipBg = hot ? mix(c.accent, c.panelAlt, 0.62) : mix(c.accent, c.panelAlt, 0.84);
+  ui.fill(logoRect, { bg: chipBg });
   ui.gradientText(r.x + INSET, r.y, logo.trim().slice(0, -2), ui.theme.gradient, BOLD, (ui.now / 8000) % 1);
-  ui.text(r.x + logoRect.w - GAP, r.y, "▾", { fg: hot ? c.accent : c.subtle, bg: hot ? c.highlight : c.panelAlt });
-  ui.hit(logoRect, { onClick: () => ws.openDeckMenu(), tip: t("the deck's menu: modules, store, NEXUS, settings, log out…") });
+  ui.text(r.x + logoRect.w - GAP, r.y, "▾", { fg: c.accent, bg: chipBg, attrs: BOLD });
+  ui.hit(logoRect, { onClick: () => ws.openDeckMenu(), tip: t("the deck's menu: modules, store, NEXUS, settings, manual, updates, log out · click") });
 
   const now = new Date();
   const time = now.toLocaleTimeString(d.settings.data.user.locale || undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -211,7 +261,9 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
   const ai = narrow ? "■" : "UPLINK ■";
   const right = narrow ? ` ${ai}  ${time.slice(0, 5)} ` : ` ${ai}  │  ${date}  ${time} `;
   const rx = r.x + r.w - strWidth(right);
-  if (rx <= logoRect.x + logoRect.w) return;
+  // a menu bar after the logo, like a desktop app's: the deck's places one click away (as many as fit)
+  const menuEnd = renderMenuBar(ws, ui, logoRect.x + logoRect.w + 1, r.y, rx - GAP * 2);
+  if (rx <= Math.max(menuEnd, logoRect.x + logoRect.w)) return;
   // " uplink ■  │  date  time", each part once (drawn over each other, `debug layout` saw an overlap)
   const lamp = !d.ai.ready ? c.error : d.ai.busy > 0 ? c.warning : c.success;
   let lx = ui.text(rx, r.y, " ", { bg: c.panelAlt });
@@ -220,7 +272,7 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
   ui.text(lx, r.y, right.slice(1 + ai.length), { fg: c.muted, bg: c.panelAlt });
   // "◈ reads notes/ideas.md", left of UPLINK, while the AI reads (as much of the name as fits)
   if (reading) {
-    const room = rx - (logoRect.x + logoRect.w) - GAP * 2;
+    const room = rx - menuEnd - GAP * 2;
     const label = `◈ ${t("the AI reads")} ${reading}`;
     if (room >= 12) ui.textRight(rx - GAP, r.y, strWidth(label) > room ? `${label.slice(0, Math.max(0, room - 1))}…` : label, { fg: c.warning, bg: c.panelAlt, attrs: BOLD });
   }

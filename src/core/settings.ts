@@ -87,6 +87,8 @@ export interface Settings {
     macros: { label: string; cmd: string }[];
     /** the macro row above the system terminal is shown (macro hide / show) */
     macrosShown: boolean;
+    /** a wide shell shows the log on its right (false: the log stays a tab) */
+    logSide?: boolean;
   };
   /** UI sounds (core/sound.ts). Volume 0–100. */
   /** muted: everything silent (ui sounds, voice, alerts) — the ♪ button, `mute` */
@@ -250,6 +252,7 @@ export const DEFAULT_SETTINGS: Settings = {
     prompt: "icebreaker",
     bridge: "more",
     macrosShown: true,
+    logSide: true,
     macros: [
       { label: "ls", cmd: "ls -la" },
       { label: "cd ..", cmd: "cd .." },

@@ -15,7 +15,7 @@ import { Bar } from "../ui/layout";
 import { folders } from "../core/suggest";
 
 /**
- * TRASH (⌫ above the tree, `trash open`) — a page, not a tab: what `rm`, Delete
+ * TRASH (the tree's last line, `trash open`) — a page, not a tab: what `rm`, Delete
  * in the tree and right-click → trash put in <vault>/.trash, newest first, with
  * where each thing lived. Put things back (where they were, or elsewhere), open
  * one to read it — or delete it for good (del, after a question that says it

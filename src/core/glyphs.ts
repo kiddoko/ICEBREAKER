@@ -27,7 +27,40 @@ export function drawSpecialGlyph(
   if (cp === 0x25a0) return drawSquare(ctx, x, y, w, h);
   // the gamepad's buttons in pixel art (core/padglyphs.ts): two cells each
   if (cp >= 0xe100 && cp <= 0xe1ff) return drawPadGlyph(ctx, cp, x, y, w, h);
+  if (cp === TRASH_CP) return drawTrash(ctx, x, y, w, h);
   return false;
+}
+
+/** The trash's icon (`TRASH` below): a bin drawn by hand, fonts have none that fits a cell. */
+export const TRASH_CP = 0xe0c0;
+export const TRASH = String.fromCodePoint(TRASH_CP);
+
+/**
+ * A bin, in one cell: a handle, the lid, a body a little narrower at the bottom, two slits.
+ *
+ *    ▄▄
+ *  ▀▀▀▀▀▀
+ *   █▌█▌█
+ *   ▀▀▀▀
+ */
+function drawTrash(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): boolean {
+  const u = Math.max(1, Math.round(Math.min(w, h) / 10));
+  const r = (rx: number, ry: number, rw: number, rh: number) => ctx.fillRect(Math.round(x + rx), Math.round(y + ry), Math.max(1, Math.round(rw)), Math.max(1, Math.round(rh)));
+  const cx = w / 2;
+  const top = h * 0.2;
+  // the handle and the lid
+  r(cx - w * 0.14, top, w * 0.28, u);
+  r(w * 0.1, top + u, w * 0.8, u * 1.2);
+  // the body: a frame, a little narrower at the bottom
+  const bt = top + u * 3, bb = h * 0.86;
+  const bl = w * 0.2, br = w * 0.8;
+  r(bl, bt, u, bb - bt);
+  r(br - u, bt, u, bb - bt);
+  r(bl + u * 0.6, bb - u, br - bl - u * 1.2, u);
+  // two slits
+  r(cx - w * 0.12, bt + u, u, bb - bt - u * 3);
+  r(cx + w * 0.12 - u, bt + u, u, bb - bt - u * 3);
+  return true;
 }
 
 /**

@@ -9,15 +9,16 @@ import { padIcon, type PadButton, type PadKind } from "../../core/padglyphs";
 /** The LOG tab by command: open it, choose what it shows, print the last lines, empty it. */
 export const logCommand: Command = {
   name: "log",
-  summary: "the log: what you typed, what clicks ran, errors, messages, debug — the shell's LOG tab",
+  summary: "the log: what you typed, what clicks ran, errors, messages, debug — on the shell's right (or its LOG tab)",
   usage:
     "log                     open the LOG tab\n" +
     "log show <kinds…>       show only these: cmd action error notify debug access (several at once)\n" +
     "log show all            show everything again\n" +
     "log tail [n]            print the last n lines here (default 20)\n" +
-    "log clear [kinds…]      empty it (or only those kinds)",
+    "log clear [kinds…]      empty it (or only those kinds)\n" +
+    "log side on|off         a wide shell shows the log on its right (on) or as a tab (off)",
   examples: [["log show error debug", "only errors and debug lines"], ["log tail 50", "the last 50 things that happened"]],
-  complete: () => ["show", "tail", "clear", "all", ...LOG_KINDS.map((k) => k.kind)],
+  complete: () => ["show", "tail", "clear", "side", "all", ...LOG_KINDS.map((k) => k.kind)],
   run(ctx) {
     const d = ctx.deck;
     const [a, ...rest] = ctx.args;
@@ -32,6 +33,11 @@ export const logCommand: Command = {
       }
       d.workspace.showShellTab("log");
       return 0;
+    }
+    if (a === "side") {
+      const on = rest[0] === "on" ? true : rest[0] === "off" ? false : d.settings.data.shell.logSide === false;
+      d.settings.set("shell.logSide", on);
+      return ctx.out(fmt.dim(on ? "the log sits on the shell's right when the shell is wide\n" : "the log is a tab of the shell\n")), 0;
     }
     if (a === "clear") {
       const kinds = rest.filter(isLogKind);
@@ -49,7 +55,7 @@ export const logCommand: Command = {
       }
       return 0;
     }
-    return ctx.err("usage: log [show <kinds…> | tail [n] | clear]\n"), 1;
+    return ctx.err("usage: log [show <kinds…> | tail [n] | clear | side on|off]\n"), 1;
   },
 };
 
