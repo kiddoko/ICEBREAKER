@@ -38,6 +38,48 @@ keys, macros and scripts) can build on it.
 
 ---
 
+## Names: one word for one thing
+
+The deck says each thing one way, everywhere (commands, menus, tips, the status bar, the docs):
+
+| the thing | its word | not |
+|---|---|---|
+| the file tree on the left | **tree** | sidebar, vault (the vault is your notes' folder) |
+| the widgets on the right | **panel** | side bar |
+| ibsh and your terminals at the bottom | **shell** | console |
+| what a tab shows | **page** | view, screen |
+| a folder in the vault | **folder** | dir, directory |
+| a plugin, for the user | **module** (`plugin` stays the developers' command) | plugin, app |
+| the catalogue | **catalog** | blocks |
+| the AI chat | **UPLINK** (it can be a local model) | Claude |
+
+`view` is a hidden alias of `frame`. A page's tab, its name in the status bar and `launch` write the
+same name; in French the tabs speak French like the menu bar (« réglages »), HOME stays HOME, LOG
+stays « log » (the vault has a journal).
+
+## Sub-commands: the same verbs everywhere
+
+- `<cmd>` alone: what it has, as **text in the shell** (`todo`, `cal`, `habit`, `remind`). A page
+  with nothing to print opens instead (`journal`, `nexus`, `store`, `modules`, `settings`).
+- `<cmd> open`: **the page**, always (`todo open`, `clock open`, `journal open`).
+- `<cmd> ls` **and** `<cmd> list`: the list. `<cmd> rm`: remove (with ⌘Z).
+- What a removal prints: `− <thing> (⌘Z / undo)`.
+- Dates in a command's output: `ib.lib.dateLocale()`, the deck's words (`today`, `tomorrow`)
+  through `t()`.
+
+## Menus run commands
+
+A menu entry that has a command uses `cmd:` (`{ label: "Copy path", cmd: "copy path notes/a.md" }`),
+not `run:` — the click then goes through the shell and the LOG like every other click, and the
+tip shows `› the command`. `run:` is for what has no command (a prompt that asks a name first).
+
+## Words on screen
+
+Lowercase, except acronyms, key names and proper nouns (`t()` lowers it for you). Every word the
+user reads goes through `t()` (a page) or is a line of your command's output, which the deck
+translates on its way to the screen when the French is known (`addTranslations`, `{parts}`).
+`usage:` and `-h` stay in English.
+
 ## A module, file by file
 
 A small module fits in one `main.js`. As it grows, split it so each file does

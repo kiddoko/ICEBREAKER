@@ -74,7 +74,11 @@ stacked, moved, split, folded. This page is how it works and where it stands.
   whose font gives more or fewer cells keeps the frames' proportions (older saved `cells` still
   work). The status bar's **◧ ▾ ◨ ▣** are the tree, the shell, the panel and **the page alone**
   (`frame solo`: the three others folded away, again: back as they were); its items are yours
-  to arrange (`workspace/statusbar.ts`, `statusbar …`).
+  to arrange (`workspace/statusbar.ts`, `statusbar …`). **0.7.1**: ◧ ▾ ◨ ▣ are four items that
+  each move, and items form groups like tabs (`statusbar join | alone <item>`); the pages of the
+  ◆ menu and the menu bar (settings, NEXUS, STORE, MODULES, trash) are tabs like the others; quitting
+  with the page alone brings the frames back first; the log beside the shell folds (›) and is
+  dragged wider (`log width`).
 - **Step 3 is done (0.6.0).** Next: step 4, each tab's history (back / forward); step 5,
   the INFO panel; the battery in the top bar (it needs a native call).
 

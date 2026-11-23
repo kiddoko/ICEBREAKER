@@ -323,7 +323,42 @@ The full surface is typed and commented in
   Everything stops when your module is switched off; the volume is the user's (Settings → SOUND → Modules) and the
   status bar shows ♪ your name while you play (a click silences you). Example: `tests/sandbox/sbx-audio/`.
 - `ib.media.player` → play local audio files (permission `media`); `ib.google.*` → the user's Google Calendar (permission `google-calendar`; keep Google data in `ib.google.cache`, never in the vault).
-- `ib.lib.t("English text")` → the user's language (English or French); add your own French with `ib.lib.addTranslations("fr", { "Add": "Ajouter" })`.
+- `ib.lib.t("English text")` → the user's language (English or French); add your own French with `ib.lib.addTranslations("fr", { "Add": "Ajouter" })`. `ib.lib.dateLocale()` → the user's date format ("fr-FR", "en-GB"…): give it to `toLocaleDateString`, never `"en"`. What your **commands print** is translated on its way to the screen too (never in a pipe): add the French of an output line with `addTranslations`, `{parts}` for what changes — `"{n} tasks cleared": "{n} tâches effacées"`. `usage:` lines stay in English.
+- **Asking the user** (`ib.ui`, no permission needed — it's the user who answers): `notify(text, kind)` a message ·
+  `alert(title, body)` a reminder-like alert (stays until clicked, in the log, the system's notification when away) ·
+  `confirm(title, detail)` yes / no · `prompt(title, { initial, placeholder, mask, suggestions })` a line of text ·
+  `choose(title, options)` one of a list · `pickWhen(title, { date, time, allDay, days, … })` the WHEN? calendar and clock ·
+  `pickFolder(title, start?)` · `pickFile(title, exts)` a path · `pickFileText(title, exts)` / `pickFileBytes(title, exts)` a
+  file the user chose, read for you (hidden folders are never offered) · `fullWindow(on)` your page alone, the frames folded ·
+  `theme()` the colours now · `redraw()` draw again · `say(text)` the deck's voice.
+
+**`ib.lib`, everything it exports** (a test fails when one is missing here — `tests/docs-parity.test.ts`):
+
+| export | what |
+|---|---|
+| `Field` | a one-line text field (caret, selection, ⌘V, ctrl+U) — UI_KIT.md |
+| `checkbox`, `choice`, `tabs`, `BOX_ON`, `BOX_OFF` | a box to tick, a ‹ value › to turn, a row of tabs; the ☑ ☐ glyphs |
+| `Row`, `Bar`, `INSET`, `GAP`, `LABEL`, `SECTION`, `stack`, `cards`, `sizeClass`, `atLeast` | layout: rows and bars that drop the least useful first, the spacing rules (LAYOUT.md) |
+| `ChatView` | a chat: messages, a field, scrolling (UPLINK's) |
+| `TextEditor` | the notes' editor |
+| `ListView` | a list with a selection, the wheel, the keys |
+| `FilterBar` | type to search + colour squares: `matches(text, tag)` |
+| `WheelSpin`, `ring` | a ring's feel (MODULES, NEXUS) |
+| `setWidgetSetting`, `widgetConfig` | one copy of a widget's own settings |
+| `Glide` | smooth scrolling with the wheel |
+| `slider` | a slider that steps 1 by 1 |
+| `bigText`, `ICE_ART` | big letters; the logo |
+| `inset`, `split`, `q` | rectangles; quote an argument for a command |
+| `parseFlags` | `--flags` of a command |
+| `fmt` | ANSI colours for a command's output |
+| `gradient`, `hex`, `mix` | colours |
+| `BOLD`, `DIM`, `ITALIC`, `UNDERLINE`, `STRIKE` | text attributes |
+| `strWidth`, `truncate`, `padEnd` | widths on the grid (wide characters count 2) |
+| `fuzzyFilter` | search a list like THE MENU |
+| `t`, `lang`, `addTranslations`, `dateLocale` | the user's language and date format |
+| `sparkline`, `formatStat`, `dayKey` | STATS' little charts and values |
+| `dates` | read a day, a time, a length: `parseDay`, `parseTime`, `parseWhen`, `readWhen`… (below) |
+| `dialogButtons`, `YES`, `NO`, `OK`, `CANCEL`, `CLOSE` | a dialog's buttons, bottom right, in the deck's order |
 - `ib.lib` → the same building blocks the core uses: `TextEditor`, `ListView`, `FilterBar` (search + colours: `matches(text, tag)`, `onText/onKey/render`), `WheelSpin` (a ring's feel),
   `ChatView`, `bigText`, `fmt` (ANSI colors), color helpers, attribute flags,
   and `dates` — the deck's one way to read a day and a time: `dates.parseDay("tomorrow" | "fri" | "+3d" | "24/12")`,

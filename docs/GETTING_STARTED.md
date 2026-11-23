@@ -25,32 +25,39 @@ the deck at an existing Obsidian vault with `vault mount /path` or in Settings.
 ## 2. The screen
 
 ```
- ◆ ICEBREAKER ▾                                     UPLINK ■ │ sat 21 nov  12:04
-  VAULT       ⌂ home  ✎ ideas   ☂ weather  +                     PANEL
+ ◆ ICEBREAKER ▾  modules  store  nexus  settings  help   UPLINK ■ │ sat 21 nov  12:04
+  VAULT       ⌂ home  ✎ ideas   ☂ weather  ⚙ settings  +         PANEL
  ╭▀▀▀▀▀▀▀──╮ ╭▀▀▀▀▀▀▀─▀▀▀▀▀▀▀▀─▀▀▀▀▀▀▀▀▀────────────────╮ ╭▀▀▀▀▀▀▀──╮
  │ tree    │ │ HOME, or the page you opened             │ │ widgets │
+ │ ▯ trash │ │                                          │ │         │
  ╰─────────╯ ╰──────────────────────────────────────────╯ ╰─────────╯
   ❯ zsh  ◆ ibsh  ≣ log                                          ≡ ─ □
  ╭▀▀▀▀▀▀▀─▀▀▀▀▀▀▀─▀▀▀▀▀▀──────────────────────────────────────────────╮
- │ the shell                                                          │
+ │ the shell                                     › │ the log            │
  ╰────────────────────────────────────────────────────────────────────╯
- status bar · ✦ fx · ⌘K menu · F1 help · ◧ tree · ◨ panel
+ status bar · ◧ ▾ ◨ ▣ │ ✦ fx │ ⌘K menu │ F1 help
 ```
 
-- **◆ ICEBREAKER ▾** (top left) — the deck's menu: MODULES, STORE, NEXUS, settings,
-  the manual, what's new, updates, log out.
+- **◆ ICEBREAKER ▾** (top left, `F10`) — the deck's menu: what's new, updates, the setup
+  again, the guided tour, log out, quit. Beside it, the **menu bar**: modules, store,
+  nexus, settings, help — each opens as a tab. The date on the right opens a **mini
+  calendar**.
+- **The trash** is the tree's last line; **◧ ▾ ◨ ▣** in the status bar show and hide the
+  tree, the shell, the panel — **▣** leaves the page alone. Drag the status bar's items,
+  right-click to group them.
 - **Frames and their tabs** — every frame has its tabs on its border. Drag a tab
   onto another frame to keep it there, or onto another tab to make a group. Drag the
   border between two frames to resize them; in ibsh: `layout preset shell-right`,
   `frame fold tree`, `layout reset`. **HOME** is pinned: always the first tab.
 
-- **HOME** — widgets. The **✎ edit** button (bottom right) or `⌘E` / `ctrl+E` to edit (drag them, pull the corner ◢ to resize, gaps
+- **HOME** — widgets. The **✎ edit** button (top right, when the pointer is near it) or `⌘E` / `ctrl+E` to edit (drag them, pull the corner ◢ to resize, gaps
   allowed), `a` to add one (the same widget several times if you like), `[` `]`
   to change page.
 - **The side panel** (◨, `Ctrl+Shift+P`) — widgets that stay in view on every page.
 - **The shell** — your real terminal (zsh/bash/PowerShell) with every ICEBREAKER
   command added, ICEBREAKER's own sandboxed shell (*ibsh*), and the *log* of what
-  your clicks ran, errors and notifications.
+  your clicks ran, errors and notifications (beside a wide shell: **›** folds it, its line
+  drags its width). `exit` hides the shell, `quit` quits.
 - **Every click is a command.** Hover anything to see the command it runs; the
   log tab shows it. The mouse teaches you the keyboard.
 - **THE MENU** — `Ctrl+K`, or shift twice: search everything, or a key + enter.
@@ -69,7 +76,12 @@ theme set <Tab>                           # change the look
 help                                      # every command · man <cmd> for details
 ```
 
-`Ctrl+K` opens THE MENU (commands, notes, themes, settings). `F1` is the full manual.
+Dates and times: type them (`tomorrow 9am`, `ven 18h`) or pick them in **WHEN?**, the little
+calendar and clock that opens wherever a day or a time is asked. `cal import` reads a .csv or
+.ics into your calendar.
+
+`Ctrl+K` opens THE MENU (commands, notes, themes, settings). `F1` is the full manual (in
+English or French, like the deck).
 
 ## 4. Modules
 
