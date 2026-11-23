@@ -36,6 +36,9 @@ export function kindOf(e: { isDir: boolean; name: string }): { icon: string; wor
   return { icon: "◇", word: ext, color: (c) => c.warning };
 }
 
+/** below this many lines the 3D scene has no room: the folder is a list */
+const SCENE_MIN_H = 12;
+
 export class ExplorerApp implements App {
   readonly kind = "explorer";
   readonly key = "explorer";
@@ -274,10 +277,14 @@ export class ExplorerApp implements App {
 
     if (!items.length) {
       const on = this.filter.active;
-      ui.textCenter(r, horizon + 2, on ? tr("nothing matches") : "empty sector", { fg: c.muted, attrs: BOLD });
-      ui.textCenter(r, horizon + 3, on ? tr("esc clears the search · × shows everything") : "⌫ to back up", { fg: c.subtle });
+      const y0 = r.h < SCENE_MIN_H ? r.y + 3 : horizon + 2;
+      ui.textCenter(r, y0, on ? tr("nothing matches") : tr("empty sector"), { fg: c.muted, attrs: BOLD });
+      ui.textCenter(r, y0 + 1, on ? tr("esc clears the search · × shows everything") : tr("⌫ to back up"), { fg: c.subtle });
       return;
     }
+    // a short page (a small window with the shell open): no room for the scene — the nodes ran
+    // over the bar at the top. The folder as a list instead, the same keys.
+    if (r.h < SCENE_MIN_H) return this.drawList(ui, { x: r.x + INSET, y: r.y + 2, w: r.w - INSET * 2, h: r.h - 2 }, items, focused);
 
     // ── the carousel, drawn back to front ──
     // the front of the ring: 5 lockers once there are 5 things or more, 3 for 3-4, 1 below
@@ -312,10 +319,12 @@ export class ExplorerApp implements App {
         ui.vline(fx + fw - 1, fy, fh, st, "│");
       }
     }
-    // the 3D nodes overlap on purpose (ui.art: debug layout doesn't count it)
-    ui.art(() => {
-      for (const v of visible) this.drawNode(ui, r, v, horizon, floorBottom, focused);
-    });
+    // the 3D nodes overlap on purpose (ui.art: debug layout doesn't count it) — under the bar, never over it
+    ui.clip({ x: r.x, y: r.y + 2, w: r.w, h: r.h - 2 }, () =>
+      ui.art(() => {
+        for (const v of visible) this.drawNode(ui, r, v, horizon, floorBottom, focused);
+      }),
+    );
 
 
     // ── the floating summary of the node under the pointer (after a short rest, it unfolds) ──
@@ -436,6 +445,25 @@ export class ExplorerApp implements App {
     const box = { x, y, w, h: hh };
     const inner = ui.box(box, { title: p >= 1 ? (e.isDir ? `${e.name}/` : basename(e.name, ".md")) : "", bg: c.panelAlt, focused: true });
     if (p >= 1) lines.slice(0, inner.h).forEach((l, i) => ui.text(inner.x + INSET, inner.y + i, l.s, { fg: l.fg, attrs: l.attrs ?? 0 }, inner.w - INSET * 2));
+  }
+
+  /** the folder as a list (a short page): what it is, its name, the one chosen lit; a click chooses, a second opens */
+  private drawList(ui: UI, r: Rect, items: VaultEntry[], focused: boolean): void {
+    const c = ui.c;
+    ui.fill(r, { bg: c.bg }); // (the sky's rain fell through the names)
+    const first = Math.max(0, Math.min(this.sel - Math.floor(r.h / 2), items.length - r.h));
+    items.slice(first, first + r.h).forEach((e, k) => {
+      const i = first + k, y = r.y + k;
+      const on = i === this.sel;
+      const kind = kindOf(e);
+      const row = { x: r.x, y, w: r.w, h: 1 };
+      if (on) ui.fill(row, { bg: focused ? mix(c.accent, c.bg, 0.75) : c.highlight });
+      const st = on ? { bg: focused ? mix(c.accent, c.bg, 0.75) : c.highlight } : {};
+      const x = ui.text(r.x, y, `${kind.icon} `, { fg: kind.color(c), attrs: BOLD, ...st });
+      ui.text(x, y, e.isDir ? `${e.name}/` : basename(e.name, ".md"), { fg: on ? c.fg : c.muted, attrs: on || e.isDir ? BOLD : 0, ...st }, r.w - (x - r.x) - 8);
+      ui.textRight(r.x + r.w, y, tr(kind.word), { fg: c.subtle, ...st });
+      ui.hit(row, { onClick: () => (on ? this.open(e) : (this.sel = i)), onDouble: () => this.open(e), tip: e.isDir ? `explore ${e.path}` : `open ${e.path}` });
+    });
   }
 
   private drawData(ui: UI, r: Rect, e: VaultEntry | undefined): void {

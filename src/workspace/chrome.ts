@@ -343,7 +343,8 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
   ui.fill(r, { bg: c.statusBg });
   // a frame showing a tab moved there speaks for that page
   const page = ws.focus === "main" ? ws.activeApp : ws.focusedPage;
-  const pane = page ? page.kind : ws.focus === "main" ? "deck" : ws.focus === "sidebar" ? "vault" : ws.focus === "panel" ? "panel" : "shell";
+  // the page's name as its tab writes it ("nexus", not its kind "explorer")
+  const pane = page ? page.title?.() ?? page.kind : ws.focus === "main" ? "deck" : ws.focus === "sidebar" ? "vault" : ws.focus === "panel" ? "panel" : "shell";
   const status = page && ws.focus !== "main" ? osKeys(tLoose(page.status?.() ?? ""))
     : ws.focus === "shell" && ws.shellTab === "term" && ws.termAvailable
     ? `${ws.sysTerm?.shellName ?? "terminal"} · ${terminalKeysHint()} · ⇧⇧ menu · F12 tabs`

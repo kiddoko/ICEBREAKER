@@ -2108,4 +2108,7 @@ export const FR: Record<string, string> = {
   "what you deleted: put it back": "ce que tu as supprimé : le remettre",
   "your numbers and their last days (STATS module) — stats pin <id> to choose": "tes nombres et leurs derniers jours (module STATS) — stats pin <id> pour choisir",
   "your system shell in a tab of its own": "le shell de ton système dans un onglet à lui",
+
+  "empty sector": "secteur vide",
+  "⌫ to back up": "⌫ pour remonter",
 };
