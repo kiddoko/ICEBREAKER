@@ -28,3 +28,15 @@ describe("the deck's date format", () => {
     expect(dateLocale().startsWith("fr")).toBe(true);
   });
 });
+
+import { uiCase } from "../src/core/i18n";
+describe("the interface's lowercase, in French too", () => {
+  it("a capital word with an apostrophe, a one-letter word among capitals", () => {
+    expect(uiCase("VUE D'ENSEMBLE")).toBe("vue d'ensemble");
+    expect(uiCase("MISES À JOUR")).toBe("mises à jour");
+  });
+  it("…but a lone capital in a sentence, acronyms and keys stay", () => {
+    expect(uiCase("What I give it")).toBe("what I give it");
+    expect(uiCase("Claude API key · ⌘K")).toBe("Claude API key · ⌘K");
+  });
+});

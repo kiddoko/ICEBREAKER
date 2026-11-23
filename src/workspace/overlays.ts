@@ -285,7 +285,7 @@ export class PromptDialog implements Overlay {
     const list = sugg && this.open ? this.matches() : [];
     const shown = Math.min(8, list.length);
     const box = centered(screen, 64, 6 + (shown ? shown + 1 : 0));
-    const inner = ui.box(box, { title: "INPUT", focused: true, bg: c.panelAlt });
+    const inner = ui.box(box, { title: t("input"), focused: true, bg: c.panelAlt });
     ui.text(inner.x + 1, inner.y, this.title, { fg: c.fg, attrs: BOLD }, inner.w - 2);
     const fw = inner.w - 2 - (sugg ? 3 : 0);
     this.field.render(ui, { x: inner.x + 1, y: inner.y + 2, w: fw, h: 1 }, { focused: true });

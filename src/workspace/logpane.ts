@@ -124,7 +124,7 @@ export class LogPane {
     }
     const list = this.show.size ? log.list.filter((e) => this.show.has(e.kind)) : log.list;
     const xr = r.x + r.w - 1;
-    const clear = ` ${t("clear")} `;
+    const clear = ` ${t("✕ clear")} `; // its own key: "clear" is the weather's clear sky (dégagé)
     const cr = { x: xr - strWidth(clear), y: r.y, w: strWidth(clear), h: 1 };
     ui.text(cr.x, r.y, clear, { fg: ui.hovered(cr) ? c.panel : c.subtle, bg: ui.hovered(cr) ? c.error : undefined });
     ui.hit(cr, { onClick: () => (log.clear(this.show.size ? [...this.show] : undefined), (this.deck.errors.unseen = 0)), tip: t("empty what is shown · log clear") });

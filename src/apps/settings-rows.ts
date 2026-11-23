@@ -12,7 +12,7 @@ import { followedCats, followedWords, newsPage, setPageSource } from "../widgets
 import { AvatarPicker } from "../workspace/avatarpicker";
 import { SOUND_PACKS } from "../core/sound";
 import { describePerm } from "../plugins/permissions";
-import { t, dateLocale } from "../core/i18n";
+import { t, tLoose, dateLocale } from "../core/i18n";
 import { displayKeys, keysOf, menuKeyOf, SHORTCUT_CATEGORIES, SHORTCUTS } from "../core/shortcuts";
 import { rebind, rebindMenuKey } from "./shortcuts";
 import { KeyCapture } from "../workspace/keycapture";
@@ -180,7 +180,8 @@ export function coreSettingRows(deck: Deck): Row[] {
     cmd: () => `config set ${key} ${q(String(s.get(key) ?? ""))}`,
     value: () => String(s.get(key) || "—"),
     change: async () => {
-      const v = await d.prompt(t(label), { initial: String(s.get(key) ?? ""), placeholder, suggestions: await suggestions?.() });
+      // (a placeholder holds codes — fr-FR, a model's name: translated as it is, never lowered)
+      const v = await d.prompt(t(label), { initial: String(s.get(key) ?? ""), placeholder: tLoose(placeholder), suggestions: await suggestions?.() });
       if (v !== null) set(key, v);
     },
   });

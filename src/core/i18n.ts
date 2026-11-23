@@ -62,7 +62,15 @@ export function uiCase(s: string): string {
   return s.replace(/[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'’]*/g, (w, at: number) => {
     // inside a {var} or right after a digit / key glyph (F1, ⌘K): not a word to lower
     if (s[at - 1] === "{" || /[0-9⌘⌥⇧⌃]/.test(s[at - 1] ?? "")) return w;
-    if (/^[A-ZÀ-ÖØ-Þ]{2,}$/.test(w)) return KEEP_CAPS.has(w) ? w : w.toLowerCase();
+    // a word in capitals — with its apostrophe too ("D'ENSEMBLE" stayed capital)
+    if (/^[A-ZÀ-ÖØ-Þ][A-ZÀ-ÖØ-Þ'’]+$/.test(w)) return KEEP_CAPS.has(w) ? w : w.toLowerCase();
+    // a one-letter word among capitals ("MISES À JOUR" → "mises À jour" before); a lone "I" stays
+    if (/^[A-ZÀ-ÖØ-Þ]$/.test(w)) {
+      const caps = (x?: string) => !!x && /^[A-ZÀ-ÖØ-Þ'’]{2,}$/.test(x) && !KEEP_CAPS.has(x);
+      const before = /([A-Za-zÀ-ÖØ-öø-ÿ'’]+)\s*$/.exec(s.slice(0, at))?.[1];
+      const after = /^\s*([A-Za-zÀ-ÖØ-öø-ÿ'’]+)/.exec(s.slice(at + 1))?.[1];
+      return caps(before) || caps(after) ? w.toLowerCase() : w;
+    }
     if (/^[A-ZÀ-ÖØ-Þ][a-zß-öø-ÿ'’]+$/.test(w)) return PROPER.has(w) ? w : w.toLowerCase();
     return w;
   });

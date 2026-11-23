@@ -229,7 +229,7 @@ const weatherWidget: WidgetSpec = {
       new Bar(ui, r.x + INSET, y, r.x + r.w - INSET)
         .text(w.place, { fg: c.fg, attrs: BOLD }, { priority: 6, fit: 4 })
         .text(`${Math.round(w.temp)}°`, { fg: c.accent, attrs: BOLD }, { priority: 10 })
-        .text(SKY_LABEL[s], { fg: c.subtle }, { priority: 4 })
+        .text(t(SKY_LABEL[s]), { fg: c.subtle }, { priority: 4 })
         .draw();
       if (r.h >= 2)
         new Bar(ui, r.x + INSET, y + 1, r.x + r.w - INSET)
@@ -255,7 +255,7 @@ const weatherWidget: WidgetSpec = {
         .text(w.place, { fg: c.fg, attrs: BOLD }, { priority: 7, fit: 4 })
         .text(`${Math.round(w.temp)}°`, { fg: c.accent, attrs: BOLD }, { side: "right", priority: 9 })
         .draw();
-      if (skyR.h >= 2) ui.text(skyR.x + INSET, skyR.y + 1, SKY_LABEL[s], { fg: c.subtle }, skyR.w - INSET * 2);
+      if (skyR.h >= 2) ui.text(skyR.x + INSET, skyR.y + 1, t(SKY_LABEL[s]), { fg: c.subtle }, skyR.w - INSET * 2);
     }
     if (detailR) {
       new Bar(ui, detailR.x + INSET, detailR.y, detailR.x + detailR.w - INSET)

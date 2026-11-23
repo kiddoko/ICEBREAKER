@@ -101,7 +101,9 @@ export class SettingsApp implements App {
     }
     return secs.flatMap((sec) =>
       sec.rows
-        .filter((row) => visible(row) && !row.head && `${row.label} ${t(row.label)} ${row.key ?? ""} ${sec.name} ${t(sec.name)} ${row.value()}`.toLowerCase().includes(q))
+        // its name in both languages, its key, its section, its value — and what it does, in both
+        // languages ("barre" found nothing: the word was only in its French explanation)
+        .filter((row) => visible(row) && !row.head && `${row.label} ${t(row.label)} ${row.key ?? ""} ${sec.name} ${t(sec.name)} ${row.value()} ${(SETTINGS_HELP[row.key ?? row.label] ?? []).join(" ")}`.toLowerCase().includes(q))
         .map((row) => ({ row, from: sec.name })),
     );
   }
@@ -467,7 +469,7 @@ export class SettingsApp implements App {
     }
     if (row.key && this.resettable(row)) {
       const def = defaultOf(this.deck, row.key);
-      if (def !== undefined && def !== "" && typeof def !== "object") lines.push({ s: `${t("default")}: ${t(String(def === true ? "on" : def === false ? "off" : def))}`, fg: c.subtle });
+      if (def !== undefined && def !== "" && typeof def !== "object") lines.push({ s: t("default: {v}", { v: t(String(def === true ? "on" : def === false ? "off" : def)) }), fg: c.subtle });
     }
     const room = Math.max(1, o.bottom - o.top);
     const shown = lines.slice(0, room);

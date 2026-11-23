@@ -371,7 +371,7 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
 
   // the things touch: each right part carries its own "│ " and spaces
   const bar = new Bar(ui, r.x, r.y, r.x + r.w, 0);
-  const label = ` ${pane.toLowerCase()} `;
+  const label = ` ${tLoose(pane).toLowerCase()} `;
   bar.item(strWidth(label) + 1, (x) => {
     const e = ui.text(x, r.y, label, { fg: c.panel, bg: c.accent, attrs: BOLD });
     ui.text(e, r.y, "", { fg: c.accent, bg: c.statusBg });
