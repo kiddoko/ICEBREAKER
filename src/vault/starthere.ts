@@ -256,6 +256,10 @@ the tree and the shell shown or hidden, the shell's tab, the page you were on, t
 - **Hover tips**: rest the pointer on anything — a tip says what it does and the command
   it runs; it goes as soon as you move. In Settings, what a setting does sits to the
   right of its line.
+- **WHEN?**: wherever a day or a time is asked (a due date, a reminder, an event, an
+  alarm, a habit's days), a little calendar and clock — arrows, a click, today / tomorrow —
+  or type it as always ("demain 9h", "+3d"). A click on the **date and time** at the top
+  right opens a **mini calendar** (the days with events have a dot).
 - **Ctrl + wheel** changes the interface scale (every system), like ctrl+= / ctrl+-.
   **⇧ + wheel** goes to what's under the pointer; over the tree it walks the selection.
 - **◨ side panel** (status bar, ⌘⇧P, or \`panel\`): a column on the right whose

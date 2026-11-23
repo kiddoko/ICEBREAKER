@@ -33,6 +33,13 @@ The UX pass: everything discoverable, nothing stretched, the deck explains itsel
   ▣ the page alone (everything else folded away, again: back as it was — `frame solo`).
 - **The status bar is yours to arrange**: drag an item sideways, right-click to move or hide
   it, `statusbar move help 1`, `statusbar hide screensaver`, `statusbar reset`.
+- **WHEN? — a little calendar and clock wherever a day, a time or days are chosen**: a todo's
+  due date (with *none*), a reminder, a new event (with *all day*), an alarm (its time and its
+  days), a habit's or a repeating todo's days. Arrows, a click, quick picks (today, tomorrow,
+  next monday, in a week) — or type it as before ("demain 9h", "+3d"). Modules get it:
+  `ib.ui.pickWhen`.
+- **A mini calendar under the top bar's date and time** (a click, `clock calendar`): the month,
+  today, a dot on the days with events (a click opens that day in CALENDAR), the week number.
 - **Ctrl + wheel changes the interface scale on every system**, one step a notch (Linux and
   Windows mice send lines: it took ~14 notches). **⇧ + wheel goes to what's under the
   pointer**, like the wheel — it walks the tree only over the tree (Settings scrolled the tree).

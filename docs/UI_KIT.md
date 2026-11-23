@@ -34,6 +34,7 @@ label's first word; never `.toUpperCase()` a title. The rule: [GUIDELINES.md](GU
 | yes / no · a value · one of a list · a message | `deck.confirm` · `deck.prompt` · `deck.choose` · `workspace.message` | `ib.ui.confirm` · `ib.ui.prompt` · `ib.ui.choose` · `ib.ui.alert` | the dialogs (a message: one *ok*, red for a problem — "Wrong password") |
 | a setting that depends on another | `disabled: () => …` on the row (`needs(ok, row)` in settings-rows.ts) | — | **greyed and still** — never a sentence saying what to switch on |
 | a notification | `deck.notify` | `ib.ui.notify` | a toast |
+| a day, a time, days of the week | `deck.pickWhen` · `pickedText` (`workspace/whenpicker.ts`, `ui/calendar.ts`: `drawMonth`, `drawTime`, `drawDays`) | `ib.ui.pickWhen` | WHEN?: a month (‹ ›, the arrows, a click), quick picks (today, tomorrow…), `◷ 09 : 30`, the seven days as chips, and a field to type it instead ("tomorrow 9h"). Every place a day or a time is asked uses it |
 | a hover tip | `tip` on `ui.hit` / `ui.button` (and `cmd`: shown as `❯ cmd`) | the same | drawn above the grid by `ui/tipview.ts`: crisp, at the pointer to the pixel, after a short rest; gone as soon as the pointer moves. Say what it does and its keys, in a sentence — the tip is where the explanation goes |
 | text that fits | `wrapWords` · `truncate` · `strWidth` · `padEnd` | `ib.lib.*` | width-aware (emoji, Japanese, accents) |
 | things in a row | `Row` + `INSET` `GAP` `LABEL` `SECTION` | `ib.lib.Row` | see [LAYOUT.md](LAYOUT.md) |
