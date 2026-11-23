@@ -31,3 +31,12 @@ describe("CALENDAR imports events from a file", () => {
     expect(readDate("12/24/2026")?.getDate()).toBe(24); // the 24 can't be a month
   });
 });
+
+import { csvRecords } from "../plugins/calendar/importer";
+describe("a CSV cell on several lines (Outlook)", () => {
+  it("stays one record", () => {
+    const csv = 'Subject,Start Date,Description\r\n"Dentist",24/12/2026,"bring\r\nthe card"\r\nLunch,25/12/2026,x\r\n';
+    expect(csvRecords(csv)).toHaveLength(3);
+    expect(parseCsv(csv).map((e) => e.title)).toEqual(["Dentist", "Lunch"]);
+  });
+});

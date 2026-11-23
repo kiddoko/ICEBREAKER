@@ -796,10 +796,17 @@ export function activate(ib: IcebreakerAPI): void {
   async function importFile(ctx: ShellContext, args: string[]): Promise<number> {
     const path = args.filter((a) => !a.startsWith("--")).join(" ");
     let picked: { name: string; text: string } | null;
+    // a hidden folder (.icebreaker, .trash…) or file is refused, like the file picker refuses it
+    if (path && path.split(/[\\/]/).some((part) => part.startsWith(".") && part !== "." && part !== "..")) return ctx.err(t("cal import: hidden folders and files are left out, like in the file picker") + "\n"), 1;
     if (path) picked = { name: path, text: await ib.vault.read(path) };
     else picked = await ib.ui.pickFileText(t("events to import (CSV or .ics)"), ["csv", "ics", "txt"]);
     if (!picked) return 0;
-    const evs = parseEventsFile(picked.text, picked.name);
+    const parsed = parseEventsFile(picked.text, picked.name);
+    // the same file imported twice: what's already in the local calendar (same title, same start) isn't doubled
+    const have = new Set(local.map((e) => `${e.title}|${new Date(e.start.length === 10 ? `${e.start}T00:00` : e.start).getTime()}`));
+    const evs = parsed.filter((e) => !have.has(`${e.title}|${e.start.getTime()}`));
+    const already = parsed.length - evs.length;
+    if (parsed.length && !evs.length) return ctx.out(t("cal import: all {n} events are already in the local calendar", { n: parsed.length }) + "\n"), 0;
     if (!evs.length) return ctx.err(t("cal import: no events found in {name} (a CSV needs a title column and a date column)", { name: picked.name }) + "\n"), 1;
     const first = evs[0];
     const ok = await ib.ui.confirm((evs.length === 1 ? t("Import 1 event into the local calendar?") : t("Import {n} events into the local calendar?", { n: evs.length })), `${first.title} · ${first.start.toLocaleDateString(ib.lib.dateLocale())}${evs.length > 1 ? ` … ${evs[evs.length - 1].title}` : ""}`);
@@ -813,7 +820,7 @@ export function activate(ib: IcebreakerAPI): void {
     }
     await writeMonths(added);
     ib.ui.redraw();
-    ctx.out(fmt.green((added.length === 1 ? t("1 event imported into the local calendar (calendar/ in the vault)") : t("{n} events imported into the local calendar (calendar/ in the vault)", { n: added.length }))) + "\n");
+    ctx.out(fmt.green((added.length === 1 ? t("1 event imported into the local calendar (calendar/ in the vault)") : t("{n} events imported into the local calendar (calendar/ in the vault)", { n: added.length }))) + (already ? fmt.dim(` · ${t("{n} already there, left out", { n: already })}`) : "") + "\n");
     return 0;
   }
 

@@ -2267,4 +2267,12 @@ export const FR: Record<string, string> = {
   // ── 0.7.1: log2
   "beside the shell": "à côté du shell",
   "the log on the shell's right when the shell is wide · log side on": "le log à droite du shell quand il est large · log side on",
+  // ── 0.7.1: calendar import
+  "cal import: hidden folders and files are left out, like in the file picker": "cal import : les dossiers et fichiers cachés sont laissés de côté, comme dans le sélecteur de fichiers",
+  "cal import: all {n} events are already in the local calendar": "cal import : les {n} événements sont déjà dans le calendrier local",
+  "{n} already there, left out": "{n} déjà là, laissés de côté",
+  "On its own": "Seul",
+  "its own group: a │ before it": "son propre groupe : un │ avant lui",
+  "Join the one on its left": "Avec celui de gauche",
+  "one group with it: no │ between them": "un seul groupe : pas de │ entre eux",
 };
