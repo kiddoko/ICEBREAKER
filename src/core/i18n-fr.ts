@@ -2836,4 +2836,5 @@ export const FR: Record<string, string> = {
   "open {file} in {m}?": "ouvrir {file} dans {m} ?",
   "{m} may read and save this file — only this one, until the deck closes.": "{m} pourra lire et enregistrer ce fichier — celui-là seulement, jusqu'à la fermeture du deck.",
   "{m} may read this file — only this one, until the deck closes.": "{m} pourra lire ce fichier — celui-là seulement, jusqu'à la fermeture du deck.",
+  "in a module's page: closes what it has open first, then leaves the page — the tree or the shell takes the keys back (a click brings them back)": "dans la page d'un module : ferme d'abord ce qu'elle a d'ouvert, puis quitte la page — l'arbre ou le shell reprend les touches (un clic les lui rend)",
 };

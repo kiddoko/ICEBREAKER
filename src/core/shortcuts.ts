@@ -109,7 +109,7 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: "type", what: "in a list with a search field: filter", cat: "lists & pages" },
   { keys: "space · x · s", what: "MODULES: switch on/off · remove · store", cat: "lists & pages" },
   { keys: "letters · digits · alt+any key", what: "a page that plays the keyboard (a piano, a tracker, a game) keeps them all, alt+arrows too, like an editor keeps the arrows", cat: "lists & pages" },
-  { keys: "esc", what: "leave a page that plays the keyboard: the tree takes the keys back (a click brings them back)", cat: "lists & pages" },
+  { keys: "esc", what: "in a module's page: closes what it has open first, then leaves the page — the tree or the shell takes the keys back (a click brings them back)", cat: "lists & pages" },
 
   // gamepad
   { keys: "d-pad · left stick", what: "move", cat: "gamepad" },

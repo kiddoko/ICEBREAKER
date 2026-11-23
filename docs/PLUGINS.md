@@ -68,6 +68,17 @@ asks first and takes yours along. Not met: your module stays off, and `plugin ls
 info <id>` say what's missing (src/plugins/deps.ts). The index entry can carry the same
 `requires`, so the STORE says it before downloading.
 
+**`opens`** — the kinds of files your module opens: `"opens": ["bmed", "mod", "med"]` (in your page
+named like the module — else your first page) or `"opens": [{ "types": ["bmed"], "page": "breakermed" }]`.
+A file of that kind double-clicked in the tree, opened in NEXUS or typed (`open songs/tune.mod`) opens in
+that page: a new page gets `{ file: "songs/tune.mod" }` in its `create(deck, args)`; a page already open
+gets `openFile(path)` (define it on the page). Read it with `ib.vault.readBytes(path)` / `read(path)`. Inside
+the folders you were granted (`vault:read:songs/`) it just opens; elsewhere the user is asked first, and
+says yes for **that file only** (read — and saved, if you have `vault:write` at all), until the deck
+closes. Two modules for one kind: the user chooses once (`plugin open-with mod breakermed`; `-` asks
+again). Never `md`: notes are the deck's. Extensions: letters and digits, 10 at most
+(`src/plugins/fileassoc.ts`).
+
 **Updates**: a module installed from a repo remembers where (`source`); `store update`
 compares versions there, Settings → UPDATES does it by itself (docs/UPDATES.md). Raise
 `version` in plugin.json when you publish a new one.
@@ -271,6 +282,21 @@ The full surface is typed and commented in
   undo), ⌘S / ⌘⇧S (save, save as), **Tab / ⇧Tab** (next / previous track…), **F1–F8** and **⌘ / ctrl + ← →**.
   Other ⌘ / ctrl shortcuts stay the deck's (F1 is the manual outside the page); **esc** leaves the page (the tree takes the keys back).
   The same holds for a sandboxed module's page (`plugins/sandbox/bridge.ts moduleTakesKey`, tested).
+- **Tab completes your sub-commands**: `complete` on a command — a list (`["new", "open", "export"]`:
+  `med <tab>`), or a record for the next words (`{ "": ["new", "export"], "export": ["wav", "mod"] }`:
+  `med export <tab>`); a module that ships with the deck may also give `(args) => […]` (the words typed
+  so far). Nothing matching: Tab completes paths. `"path"`, `"command"`, `"none"` still work.
+- **Every module page, its own keys**: ⌘C ⌘X ⌘V ⌘A (ctrl on Windows / Linux, ⇧ too) come to `onKey` as
+  `ctrl+c`… (your selection: a tracker's block). To put text on the computer's clipboard, call
+  `ib.ui.copy(text)` from there — within 2 seconds of ⌘C / ⌘X, never by itself (1 MB). ⌘V comes as
+  `ctrl+v` first, then the clipboard's text to `onText`.
+- **esc**: your page's `onAction("back")` hears it first — return `true` when you closed something of
+  your own (a menu, a dialog, a selection). Return `false` (nothing to close): the deck takes esc — the
+  tree or the shell gets the keys (your page alone in the window: the tab before). The pad's B: the same,
+  then the page closes. On HOME only, esc with nothing to close opens the ◆ menu.
+- **Keys let go**: a page that plays the keyboard (`rawKeys`) gets `onKeyUp(k)` for every key it got as a
+  key (a note off: `k.code` is its place); keys still held when the window loses the keyboard are let go
+  then, so no note keeps ringing.
 - **Your page alone**: `ib.ui.fullWindow(true)` folds the tree, the panel and the shell away while your page
   is in front (a tracker's 8 tracks on a laptop); `fullWindow(false)` — or another tab in front, or your page
   closing — brings them back. Only your own page, only while it's in front; frames the user folded themselves
@@ -335,6 +361,7 @@ The full surface is typed and commented in
   `choose(title, options)` one of a list · `pickWhen(title, { date, time, allDay, days, … })` the WHEN? calendar and clock ·
   `pickFolder(title, start?)` · `pickFile(title, exts)` a path · `pickFileText(title, exts)` / `pickFileBytes(title, exts)` a
   file the user chose, read for you (hidden folders are never offered) · `fullWindow(on)` your page alone, the frames folded ·
+  `copy(text)` the clipboard, right after ⌘C / ⌘X on your page ·
   `theme()` the colours now · `redraw()` draw again · `say(text)` the deck's voice.
 
 **`ib.lib`, everything it exports** (a test fails when one is missing here — `tests/docs-parity.test.ts`):
