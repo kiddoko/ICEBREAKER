@@ -440,7 +440,7 @@ export function activate(ib: IcebreakerAPI): void {
         const gutter = Math.min(10, Math.max(...[hi, (hi + lo) / 2, lo].map((x) => strW(show(st, x)))) + 1);
         const px = plotR.x + INSET + gutter, pw = Math.max(1, plotR.x + plotR.w - INSET - px);
         ui.text(plotR.x + INSET, plotR.y, show(st, hi), { fg: c.subtle }, gutter - 1);
-        if (plotR.h >= 5) ui.text(plotR.x + INSET, plotR.y + Math.floor(plotR.h / 2), show(st, (hi + lo) / 2), { fg: c.faint }, gutter - 1);
+        if (plotR.h >= 5) ui.text(plotR.x + INSET, plotR.y + Math.floor(plotR.h / 2), show(st, (hi + lo) / 2), { fg: c.subtle }, gutter - 1);
         ui.text(plotR.x + INSET, plotR.y + plotR.h - 1, show(st, lo), { fg: c.subtle }, gutter - 1);
         // the average as a dashed line behind
         const avgRow = plotR.y + Math.round((plotR.h - 1) * (1 - (f.avg - lo) / (hi - lo || 1)));
@@ -470,7 +470,7 @@ export function activate(ib: IcebreakerAPI): void {
           b.text(t("max {a}", { a: show(st, f.max) }), { fg: c.fg }, { priority: 8 });
           b.text(t("avg {a}", { a: show(st, f.avg) }), { fg: c.subtle }, { priority: 6 });
         }
-        b.text(`${t("updated")} ${new Date(st.updated).toLocaleDateString(ib.lib.dateLocale())}`, { fg: c.faint }, { side: "right", priority: 2 });
+        b.text(`${t("updated")} ${new Date(st.updated).toLocaleDateString(ib.lib.dateLocale())}`, { fg: c.subtle }, { side: "right", priority: 2 });
         b.draw();
       }
     }

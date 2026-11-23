@@ -2003,4 +2003,22 @@ export const FR: Record<string, string> = {
   "drag": "glisser",
 
   "choose a {kinds} file (the ones in bold)": "choisis un fichier {kinds} (ceux en gras)",
+
+  "nothing pinned yet — p in the tree, or pin <note|folder|module>": "rien d'épinglé — p dans l'arbre, ou pin <note|dossier|module>",
+  "nothing pinned yet — p in the tree": "rien d'épinglé — p dans l'arbre",
+  "no pins yet": "aucune épingle",
+  "desktop app only": "app de bureau seulement",
+  "no feed": "pas de flux",
+  "enter: settings": "entrée : réglages",
+  "nothing yet": "rien pour l'instant",
+  "music needs the desktop app": "la musique a besoin de l'app de bureau",
+
+  "nothing today": "rien aujourd'hui",
+  "free": "libre",
+
+  "processing": "traite",
+  "speaking": "parle",
+  "up": "en ligne",
+
+  "desktop only": "bureau seulement",
 };

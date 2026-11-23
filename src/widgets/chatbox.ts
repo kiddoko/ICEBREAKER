@@ -107,7 +107,7 @@ export const chatWidget: WidgetSpec = {
     if (!deck.ai.ready) {
       fieldShown.set(key ?? "chat", false);
       ui.text(r.x + INSET, r.y, `○ ${t("uplink offline")}`, { fg: c.error }, r.w - INSET * 2);
-      ui.text(r.x + INSET, r.y + 1, deck.ai.problem ?? "", { fg: c.muted }, r.w - INSET * 2);
+      ui.textFit(r.x + INSET, r.y + 1, [deck.ai.problem ?? "", /desktop app/.test(deck.ai.problem ?? "") ? t("desktop app only") : t("enter: settings")], { fg: c.muted }, r.w - INSET * 2);
       return;
     }
     const w = r.w - INSET * 2;

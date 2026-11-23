@@ -373,6 +373,14 @@ const aiWidget: WidgetSpec = {
     // four moods: idle (a slow orbit) · thinking (fast, two signals) · speaking (a voice wave) · offline
     const thinking = deck.ai.busy > 0;
     const speaking = deck.voice.speaking;
+    // its smallest size: no room for the core (a cut ring) — who it is and how it is, in words
+    if (r.h < 5) {
+      const st = !ok ? `○ ${t("offline")}` : thinking ? `◌ ${t("processing")}` : speaking ? `◖ ${t("speaking")}` : `● ${t("up")}`;
+      ui.textFit(r.x + INSET, r.y, [label, "AI"], { fg: c.fg, attrs: BOLD }, r.w - INSET * 2);
+      if (r.h > 1) ui.text(r.x + INSET, r.y + 1, st, { fg: !ok ? c.error : thinking ? c.accentAlt : speaking ? c.info : c.success }, r.w - INSET * 2);
+      ui.animate(ok ? 1000 : 5000);
+      return;
+    }
     // ring + a blank line + the label lines, centered in the card; the ring grows with it
     const lines = ok ? 2 : 3;
     const rows = Math.max(3, Math.min(r.h - lines - 1, 9));

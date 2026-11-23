@@ -385,7 +385,7 @@ export function activate(ib: IcebreakerAPI): void {
       ui.animate(30_000);
       const up = upcoming();
       hoverId = null;
-      if (!up.length) return void ui.text(r.x + 1, r.y, t("nothing to remember"), { fg: c.muted }, r.w - 2);
+      if (!up.length) return void ui.textFit(r.x + 1, r.y, [t("nothing to remember"), t("nothing yet")], { fg: c.muted }, r.w - 2);
       up.slice(0, r.h).forEach((rem, i) => {
         const late = new Date(rem.due).getTime() < Date.now();
         // ✓ on every line, right here on HOME: one click and it's done

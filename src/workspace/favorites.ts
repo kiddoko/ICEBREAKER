@@ -10,6 +10,7 @@
  *
  * Saved in settings.json → favorites.
  */
+import { t } from "../core/i18n";
 import { fmt } from "../core/ansi";
 import { normalizeCombo } from "../core/shortcuts";
 import type { Deck } from "../deck";
@@ -149,7 +150,7 @@ export const pinnedWidget: WidgetSpec = {
   render(ui, r, { deck }) {
     const c = ui.c;
     const list = favorites(deck);
-    if (!list.length) return void ui.text(r.x + 1, r.y, "nothing pinned yet — p in the tree, or pin <note|folder|module>", { fg: c.muted }, r.w - 2);
+    if (!list.length) return void ui.textFit(r.x + 1, r.y, [t("nothing pinned yet — p in the tree, or pin <note|folder|module>"), t("nothing pinned yet — p in the tree"), t("no pins yet")], { fg: c.muted }, r.w - 2);
     // tiles, several per row when there's room
     const tileW = Math.max(14, Math.min(24, Math.floor((r.w - 1) / Math.max(1, Math.floor((r.w - 1) / 18)))));
     const perRow = Math.max(1, Math.floor((r.w - 1) / tileW));

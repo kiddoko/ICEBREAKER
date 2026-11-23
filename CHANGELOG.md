@@ -93,6 +93,11 @@ The UX pass: everything discoverable, nothing stretched, the deck explains itsel
   pointer), a grabbing hand while it moves, the resize corner's own pointer.
 - **The setup's voice, theme and sound questions are French again** (their English had changed,
   not their translation); a test now keeps every setup text translated.
+- **Widgets have a small version**: at their smallest size they show the one thing that
+  matters instead of a cut sentence — the calendar and the week show today and its events (they
+  showed "november 2026" or letters piled up), UPLINK says who and how (its ring was cut in half),
+  pulse drops its labels for the values, and every "nothing to rem…" became a short sentence that
+  fits whole (`ui.textFit`, for modules too).
 - **Ctrl + wheel changes the interface scale on every system**, one step a notch (Linux and
   Windows mice send lines: it took ~14 notches). **⇧ + wheel goes to what's under the
   pointer**, like the wheel — it walks the tree only over the tree (Settings scrolled the tree).

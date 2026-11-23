@@ -274,7 +274,7 @@ export const newsWidget: WidgetSpec = {
     if (key) ui.hit(head, { cmd: `widget ${key}`, tip: t("what this widget shows: click to change it") });
     if (!items.length) {
       ui.text(r.x + 1, r.y, header, { fg: c.accentAlt, attrs: BOLD }, r.w - 2);
-      if (r.h > 1) ui.text(r.x + 1, r.y + 1, f.error ? `⚠ ${f.error}` : `${ui.spinner()} ${t("pulling the feed…")}`, { fg: f.error ? c.error : c.muted }, r.w - 2);
+      if (r.h > 1) ui.textFit(r.x + 1, r.y + 1, f.error ? [`⚠ ${f.error}`, `⚠ ${/desktop app/.test(f.error) ? t("desktop app only") : t("no feed")}`, `⚠ ${/desktop app/.test(f.error) ? t("desktop only") : t("no feed")}`] : [`${ui.spinner()} ${t("pulling the feed…")}`], { fg: f.error ? c.error : c.muted }, r.w - 2);
       return;
     }
     const open = (i: number) => showCard(deck, items, i + 1);

@@ -191,6 +191,18 @@ export class UI {
    * Draw text at (x, y). Returns the x just after the last character.
    * `maxW` truncates with an ellipsis.
    */
+  /**
+   * The first of `versions` (longest first) that fits whole in `maxW`: a widget's long sentence
+   * when there's room, its short one in a small square — never a sentence cut in the middle
+   * ("nothing to rem…"). None fits: the shortest, cut with …. Returns where it ended.
+   *
+   *   ui.textFit(x, y, [t("nothing to remember"), t("none")], { fg: c.muted }, r.w)
+   */
+  textFit(x: number, y: number, versions: string[], style: Style = {}, maxW: number): number {
+    const fit = versions.find((v) => strWidth(v) <= maxW) ?? versions[versions.length - 1] ?? "";
+    return this.text(x, y, fit, style, maxW);
+  }
+
   text(x: number, y: number, s: string, style: Style = {}, maxW?: number): number {
     if (maxW !== undefined) s = maxW > 2 && strWidth(s) > maxW && this.marqueeHere(x, y, maxW) ? this.scrolled(x, y, s, maxW) : truncate(s, maxW);
     if (this.probe) this.probeText(this.probe, x, y, s);

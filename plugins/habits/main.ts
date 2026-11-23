@@ -256,7 +256,7 @@ export function activate(ib: IcebreakerAPI): void {
     cx = ui.text(cx, y, h.name, { fg: due ? (done ? c.subtle : c.fg) : c.muted, attrs: done ? 0 : BOLD, ...st }, nameEnd - cx);
     // when it's due, small after the name: "· 2× a day · mon wed fri" (as much as fits)
     const when = [h.per > 1 ? t("{n}× a day", { n: h.per }) : "", h.days.length ? daysLabel(h) : ""].filter(Boolean).join(" · ");
-    if (when && nameEnd - cx > 6) ui.text(cx + 1, y, `· ${when}`, { fg: c.faint, ...st }, nameEnd - cx - 1);
+    if (when && nameEnd - cx > 6) ui.text(cx + 1, y, `· ${when}`, { fg: c.subtle, ...st }, nameEnd - cx - 1);
   };
 
   /** the strip's width for a row this wide (the header lines up with it) */

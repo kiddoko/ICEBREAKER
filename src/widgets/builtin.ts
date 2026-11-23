@@ -9,7 +9,7 @@ import { geocode, langOf, resolvePlace } from "../core/location";
 import { strWidth } from "../core/unicode";
 import type { Deck } from "../deck";
 import type { SystemStats } from "../platform/types";
-import { Bar, cards, INSET, stack } from "../ui/layout";
+import { Bar, cards, INSET, stack, GAP } from "../ui/layout";
 import { drawSky, sceneFor, skyIcon } from "../apps/weathersky";
 import type { UI } from "../ui/ui";
 import { basename, dirname } from "../vault/paths";
@@ -535,7 +535,8 @@ const modules: WidgetSpec = {
       ui.textCenter(r, r.y + Math.floor(r.h / 2), t("all quiet"), { fg: c.subtle });
       return;
     }
-    const nameW = Math.min(10, Math.max(...lines.map((l) => strWidth(l.name))) + 1);
+    // narrow: the icon says which module, the room goes to what it says (the names cut the values)
+    const nameW = r.w < 24 ? -GAP : Math.min(10, Math.max(...lines.map((l) => strWidth(l.name))) + 1);
     lines.slice(0, r.h).forEach((l, i) => {
       const y = r.y + i;
       const row = { x: r.x, y, w: r.w, h: 1 };
@@ -543,7 +544,7 @@ const modules: WidgetSpec = {
       if (hotRow) ui.fill(row, { bg: c.highlight });
       const st = hotRow ? { bg: c.highlight } : {};
       ui.text(r.x, y, l.icon, { fg: l.hot ? c.warning : c.accent, ...st });
-      ui.text(r.x + 2, y, l.name, { fg: c.subtle, ...st }, nameW);
+      if (nameW > 0) ui.text(r.x + 2, y, l.name, { fg: c.subtle, ...st }, nameW);
       ui.text(r.x + 3 + nameW, y, l.text, { fg: l.hot ? c.fg : c.muted, attrs: l.hot ? BOLD : 0, ...st }, r.w - nameW - 3);
       ui.hit(row, { cmd: l.cmd, tip: `${l.name}: ${l.text}` });
     });

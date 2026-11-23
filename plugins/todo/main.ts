@@ -993,7 +993,7 @@ export function activate(ib: IcebreakerAPI): void {
         ui.text(x0 + 1, ry, box, { fg: t.done ? c.success : pc(t.prio), bg: rbg, attrs: BOLD });
         ui.hit({ x: x0 + 1, y: ry, w: bw, h: 1 }, { cmd: `todo ${t.done ? "undo" : "done"} ${t.id}`, tip: "space / enter" });
         let tx = x0 + 2 + bw;
-        ui.text(tx, ry, String(t.id).padStart(3), { fg: c.faint, bg: rbg });
+        ui.text(tx, ry, String(t.id).padStart(3), { fg: c.subtle, bg: rbg });
         tx += 4;
         // priority mark: click to cycle
         const mark = prioMark(t.prio);
@@ -1136,7 +1136,7 @@ export function activate(ib: IcebreakerAPI): void {
         ui.text(tx, y, n.text, { fg: hot ? c.accent : c.fg, attrs: hot ? STRIKE : 0 }, Math.max(1, dx - tx - 1));
       });
       const below = total - fits - wTop;
-      if (fits < total) ui.text(r.x + 1, r.y + r.h - 1, below > 0 ? `↓ ${below} more · wheel · enter opens the list` : `↑ ${wTop} above · wheel`, { fg: c.faint }, r.w - 2);
+      if (fits < total) ui.textFit(r.x + 1, r.y + r.h - 1, below > 0 ? [`↓ ${below} more · wheel · enter opens the list`, `↓ ${below} more · wheel`, `↓ ${below} more`, `↓${below}`] : [`↑ ${wTop} above · wheel`, `↑ ${wTop} above`, `↑${wTop}`], { fg: c.subtle }, r.w - 2);
     },
     open: "todo open",
     popup: {

@@ -132,6 +132,10 @@ themselves (`menu add <key> "<command>"`).
   `appearance.reduceMotion`.
 - Mouse areas: **the last `ui.hit` registered wins**. Register a row first,
   then the buttons on it.
+- **A design per size.** A widget is drawn from 2×2 to a whole page: its smallest version shows
+  the one thing that matters (the calendar: today and its events; UPLINK: who and how), never a
+  cut sentence (`ui.textFit` for the short version), never a shape cut in half (a ring, a grid).
+  Check it with `sizeClass(rect)`; HOME keeps its proportions, so a size looks the same everywhere.
 - Show less. The value, not its explanation: the explanation goes in a `tip`
   (on hover) or in `help`. Controls (arrows, ✎, ×) only appear on the row
   you're on.
