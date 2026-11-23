@@ -1,7 +1,7 @@
 import { heldStep, slider } from "../ui/slider";
 import { Field } from "../ui/field";
 import { mix } from "../core/color";
-import { LANGS, setLang, t } from "../core/i18n";
+import { LANGS, setLang, t, tLoose } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import { geocode, type Place } from "../core/location";
@@ -13,7 +13,7 @@ import { easeOut, strWidth, truncate, wrapWords } from "../core/unicode";
 import { applyFxPreset, FX_PRESET_NAMES, FX_PRESETS } from "../workspace/fxpanel";
 import type { App, AppSpec } from "./types";
 import { GAP, INSET } from "../ui/layout";
-import { completeFolder, osOf, pathExamples, vaultPathProblem } from "./setuppath";
+import { checkVaultFolder, icebreakerInside, completeFolder, osOf, pathExamples, vaultPathProblem } from "./setuppath";
 import { IS_MAC } from "../core/input";
 import { pickFolder } from "../workspace/filebrowser";
 
@@ -104,6 +104,7 @@ export class SetupApp implements App {
     this.a = { handle, language: s.user.language, locale: s.user.locale, precision: s.user.location.precision };
     // stealth already on (a setup run again, or a half-finished one): the questions start from it
     if (s.privacy.stealth) this.a.mode = "stealth";
+    this.before = { stealth: s.privacy.stealth, language: s.user.language };
     this.steps = [
       {
         id: "language", title: "LANGUAGE · LANGUE",
@@ -225,7 +226,7 @@ export class SetupApp implements App {
         id: "theme", title: "LOOK",
         question: "A theme to start with: one click shows it on the whole deck, a second click (or enter) keeps it.",
         options: () =>
-          deck.themes.list().map((th) => ({ value: th.name, label: th.name, hint: `${th.font.family} · ${th.description}` })),
+          deck.themes.list().map((th) => ({ value: th.name, label: th.name, hint: `${th.font.family} · ${tLoose(th.description)}` })),
       },
       {
         id: "fx", title: "EYE CANDY", question: "How much CRT? Each one shows on the whole deck as you move to it; enter (or a second click) keeps it. The ✦ fx button changes it any time.",
@@ -244,7 +245,7 @@ export class SetupApp implements App {
           { value: "none", label: "Nothing at all" },
         ],
       },
-      { id: "done", title: "READY", question: "Deck configured. Everything is in Settings if you change your mind.", options: () => [{ value: "go", label: "Jack in" }] },
+      { id: "done", title: "READY", question: "Deck configured. Everything is in Settings if you change your mind.", options: () => [{ value: "go", label: this.firstRun ? "Jack in" : "Apply" }] },
     ];
     this.sel = Math.max(0, LANGS.findIndex((l) => l.id === s.user.language));
   }
@@ -263,6 +264,29 @@ export class SetupApp implements App {
 
   /** the setup is over (finish ran): a second finish (a double click, ctrl+enter twice) does nothing */
   private finished = false;
+  /** what the questions change at once (stealth, the language): put back if the setup is left unfinished */
+  private before: { stealth: boolean; language: string };
+
+  /**
+   * The tab closed before "ready": stealth and the language, applied the moment they were
+   * chosen, go back to what they were (stealth stayed on for good while the folder typed was
+   * dropped) — and it says so.
+   */
+  close(): boolean {
+    if (this.finished) return true;
+    clearTimeout(this.previewTimer);
+    this.fxBack();
+    const s = this.deck.settings;
+    let changed = false;
+    if (s.data.privacy.stealth !== this.before.stealth) s.set("privacy.stealth", this.before.stealth), (changed = true);
+    if (s.data.user.language !== this.before.language) {
+      s.set("user.language", this.before.language);
+      setLang(this.before.language);
+      changed = true;
+    }
+    this.deck.notify(t(changed ? "setup left: what it had changed is back as it was" : "setup left: nothing changed"));
+    return true;
+  }
 
   status(): string {
     // the vault's folder: tab completes the path there, ⌘O browses (it said "tab skip")
@@ -327,6 +351,20 @@ export class SetupApp implements App {
     if (i >= this.step || this.steps[i]?.skip?.()) return;
     this.step = i + 1;
     this.go(-1);
+  }
+
+  /** no question before this one */
+  private atStart(): boolean {
+    for (let i = this.step - 1; i >= 0; i--) if (!this.steps[i]?.skip?.()) return false;
+    return true;
+  }
+
+  /** esc on the first question of a setup run again: leave it, after asking. */
+  private async quitEarly(): Promise<void> {
+    if (!(await this.deck.confirm(t("quit the setup?"), t("nothing changes")))) return;
+    const ws = this.deck.workspace;
+    const i = ws.tabs.indexOf(this);
+    if (i >= 0) await ws.closeTab(i);
   }
 
   private go(dir: 1 | -1): void {
@@ -399,7 +437,26 @@ export class SetupApp implements App {
     }
     const why = vaultPathProblem(typed);
     if (why) return void (this.error = t(why));
-    this.a["vault-path"] = typed;
+    // on this disk: a drive that isn't there, or a folder already full of other things (all of
+    // Documents: encrypting it later would wrap every file in it)
+    const files = this.deck.platform.files;
+    let path = typed;
+    if (files) {
+      this.busy = true;
+      try {
+        const home = await files.home().catch(() => "");
+        const found = await checkVaultFolder(typed, home, (d) => files.list(d));
+        if (found.kind === "missing") return void (this.error = t("this disk or folder doesn't exist: {root}", { root: found.root }));
+        if (found.kind === "full") {
+          const inside = icebreakerInside(typed);
+          const ok = await this.deck.confirm(t("this folder already holds {n} things", { n: found.count }), t("make a folder “Icebreaker” in it for the vault?\n{path}\n\nno: use the folder as it is", { path: inside }));
+          if (ok) path = inside;
+        }
+      } finally {
+        this.busy = false;
+      }
+    }
+    this.a["vault-path"] = path;
     this.go(1);
   }
 
@@ -642,6 +699,8 @@ export class SetupApp implements App {
       case "confirm": void this.next(); return true;
       case "back":
         if (this.places.length) this.places = [];
+        // the first question of a setup run again: esc leaves it (only closing the tab did)
+        else if (this.atStart() && !this.firstRun) void this.quitEarly();
         else this.go(-1);
         return true;
       default: return false;

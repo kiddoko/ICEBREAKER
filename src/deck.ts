@@ -666,6 +666,8 @@ export class Deck implements InputSink {
     const device = await readDevice(this.platform);
     const look = device.look[lookKey(device.last)];
     if (look?.theme && this.themes.get(look.theme)) this.settings.data.appearance.theme = look.theme;
+    // the login page in the last account's language (it was always in English)
+    setLang(device.lang ?? "en");
     this.refreshTheme(true);
     this.sound.enabled = true;
     const count = await this.platform.account.count().catch(() => 0);
@@ -684,6 +686,7 @@ export class Deck implements InputSink {
     if (!this.account) return;
     await writeDevice(this.platform, (d) => {
       d.look[lookKey(this.account!)] = { theme: s.appearance.theme, avatar: s.user.avatar };
+      d.lang = s.user.language;
       if (d.remember) d.last = this.account!;
     });
   }

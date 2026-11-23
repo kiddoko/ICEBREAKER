@@ -1,4 +1,5 @@
 import { t, dateLocale } from "../../core/i18n";
+import { checkVaultFolder, icebreakerInside } from "../../apps/setuppath";
 import { describePerm, sayPerms } from "../../plugins/permissions";
 import { contextCommand } from "../../ai/context";
 import { BOX_OFF, BOX_ON } from "../../ui/controls";
@@ -749,10 +750,21 @@ const vaultCmd: Command = {
       return;
     }
     if (sub === "mount" || sub === "open") {
-      const path = rest.join(" ");
+      const here = rest.includes("--here");
+      let path = rest.filter((w) => w !== "--here").join(" ");
       if (!path) {
-        ctx.err("usage: vault mount <absolute path>\n");
+        ctx.err("usage: vault mount <absolute path> [--here]   (--here: a full folder as it is, without asking)\n");
         return 1;
+      }
+      // the same look as the setup's: a drive that isn't there, a folder full of other things
+      const files = ctx.deck.platform.files;
+      if (files && !here) {
+        const found = await checkVaultFolder(path, await files.home().catch(() => ""), (d) => files.list(d));
+        if (found.kind === "missing") return ctx.err(`vault: ${t("this disk or folder doesn't exist: {root}", { root: found.root })}\n`), 1;
+        if (found.kind === "full") {
+          const inside = icebreakerInside(path);
+          if (await ctx.deck.confirm(t("this folder already holds {n} things", { n: found.count }), t("make a folder “Icebreaker” in it for the vault?\n{path}\n\nno: use the folder as it is", { path: inside }))) path = inside;
+        }
       }
       await ctx.deck.mountVault(path);
       ctx.out(`mounted ${v.root}\n`);

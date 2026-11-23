@@ -17,6 +17,8 @@ export interface DeviceInfo {
   remember: boolean;
   last: string;
   look: Record<string, { theme?: string; avatar?: { id?: string; color?: string } }>;
+  /** the language of the last account that logged in: the login page speaks it */
+  lang?: string;
   whatsNew?: string;
   starting?: string;
 }
