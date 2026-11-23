@@ -28,6 +28,7 @@ import { ContextMenu } from "./contextmenu";
 import { groupOf } from "./tabgroups";
 import type { Workspace } from "./workspace";
 import { tabMenu } from "./menus";
+import { sketchOn } from "./topsketch";
 
 // MINW: a name of 8–9 letters stays readable (the rest go in the ▾ +N list)
 const MAXW = 24, MINW = 15;
@@ -221,6 +222,20 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
     shown = shown.slice(0, Math.max(0, fit));
     if (fit > 0 && activeEntry >= fit) shown[fit - 1] = activeEntry;
   }
+  // DESIGN SKETCH: each tab as wide as its name (icon, name, ×), when they all fit that way
+  const natural = (ei: number): number => {
+    const e = entries[ei];
+    if (e.kind === "group") {
+      const i = e.indexes.find((j) => ws.tabs[j]?.key === e.group.active) ?? e.indexes[0];
+      const name = e.group.name ? `${e.group.name} · ${tabTitle(ws.tabs[i])}` : tabTitle(ws.tabs[i]);
+      return Math.min(MAXW, strWidth(name) + strWidth(` ${e.indexes.length}`) + 5);
+    }
+    if (isPinned(ws, e.index)) return pinW(ws, e.index);
+    const app = ws.tabs[e.index];
+    const extra = (iconOf(ws, e.index) ? strWidth(iconOf(ws, e.index)) + 1 : 0) + (app?.dirty?.() ? 2 : 0);
+    return Math.max(10, Math.min(MAXW, strWidth(tabTitle(app)) + extra + 5));
+  };
+  const fitted = sketchOn() && shown.length === n && entries.reduce((sum, _, ei) => sum + natural(ei) + SEP, 0) <= r.x + r.w - x - PLUS_W;
   const hidden = Array.from({ length: n }, (_, i) => i).filter((i) => !shown.includes(i));
   const numbers = ws.deck.input.modHeld;
   const rects: Rect[] = [];
@@ -233,7 +248,7 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
   shown.forEach((ei, k) => {
     const e = entries[ei];
     const pin = e.kind === "tab" && isPinned(ws, e.index);
-    const w = pin && e.kind === "tab" ? pinW(ws, e.index) : tabW;
+    const w = pin && e.kind === "tab" ? pinW(ws, e.index) : fitted ? natural(ei) : tabW;
     const rect = { x, y: r.y, w, h: 2 };
     rects.push(rect);
     chipsNow.push({ rect, first: e.kind === "tab" ? e.index : e.indexes[0], group: e.kind === "group" ? e.group.id : undefined });
@@ -283,7 +298,7 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
         const muted = mx.isMuted(sound);
         tx = ui.text(tx, r.y, muted ? "⊘ " : "♪ ", { fg: ui.hovered(speaker) ? c.warning : muted ? c.error : on ? c.panel : c.accent, bg, attrs: BOLD });
       }
-      if (room - 2 >= 6 && iconOf(ws, i)) tx = ui.text(tx, r.y, `${iconOf(ws, i)} `, { fg: on ? c.panel : c.subtle, bg });
+      if ((fitted || room - 2 >= 6) && iconOf(ws, i)) tx = ui.text(tx, r.y, `${iconOf(ws, i)} `, { fg: on ? c.panel : c.subtle, bg });
       if (unsaved) tx = ui.text(tx, r.y, "● ", { fg: c.error, bg, attrs: BOLD });
       ui.text(tx, r.y, tabTitle(ws.tabs[i]), { fg, bg, attrs: on ? BOLD : 0 }, Math.max(0, closeX - tx - 1));
       const closeHot = ui.hovered({ x: closeX - 1, y: r.y, w: 3, h: 1 });

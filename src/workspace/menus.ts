@@ -12,6 +12,7 @@ import { readClipboard } from "../core/clipboard";
 import type { Workspace } from "./workspace";
 import { CANCEL_KEY } from "../shell/shell";
 import { APP_VERSION } from "../plugins/host";
+import { placesMenu } from "./topsketch";
 
 /** Right-click on a macro button. */
 export function macroMenu(ws: Workspace, i: number): MenuEntry[] {
@@ -120,6 +121,7 @@ export const DECK_MENU_TITLE = () => `ICEBREAKER ${APP_VERSION}`;
  */
 export function deckMenu(_ws: Workspace): MenuEntry[] {
   return [
+    ...placesMenu(),
     { label: `✦ ${t("What's new")}`, cmd: "changelog" },
     { label: `⇡ ${t("Check for updates")}`, cmd: "update" },
     "-",

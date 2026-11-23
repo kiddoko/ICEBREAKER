@@ -4,7 +4,7 @@ import type { TipContent } from "../ui/tipview";
 import { MiniCalendar } from "./minical";
 import { PageAlone } from "./pagealone";
 import { WhenPicker, type WhenOptions, type WhenResult } from "./whenpicker";
-import { editBand, renderNotchBand, renderShellPanel, renderStatusBar, renderSubtitles, renderTip, renderTopBar } from "./chrome";
+import { editBand, renderMenuBar, renderNotchBand, renderShellPanel, renderStatusBar, renderSubtitles, renderTip, renderTopBar } from "./chrome";
 import { shortcutFor, type Shortcut } from "../core/shortcuts";
 import { SidePanel } from "./sidepanel";
 import { LogPane } from "./logpane";
@@ -35,6 +35,7 @@ import { CLASSIC, effectiveLayout, isFolded, parseArrangement, resizeBetween, se
 import { bordersOf, solveLayout, type Border } from "./layout/solve";
 import { paneToward } from "./layout/focus";
 import { drawDropFrame, placeChips, renderTabStrip, soloTab, tabbedBox } from "./tabstrip";
+import { clockWidth, frameLabel, logoChip, logoWidth, topSketch, uplinkClock } from "./topsketch";
 import { frameOfPane, PANE_OF, parsePlaces, parseShows, prunePlaces, type PlaceFrame, type Places, type Shows } from "./tabplaces";
 import { groupOf, joinGroup, parseGroups, pick, prune, renameGroup, stripEntries, takeOut, type StripEntry, type TabGroup } from "./tabgroups";
 import { GAP, INSET, SECTION } from "../ui/layout";
@@ -948,8 +949,15 @@ export class Workspace {
   }
 
   openDeckMenu(): void {
-    this.openMenu(deckMenu(this), 0, this.topBarY + 1, DECK_MENU_TITLE());
+    const items = deckMenu(this);
+    // DESIGN SKETCH c: the deck's menu is on the status bar: it opens upward
+    if (topSketch.style === "c") return this.openMenu(items, 0, Math.max(0, this.statusY - items.length - 2), DECK_MENU_TITLE());
+    this.openMenu(items, topSketch.style === "b" && this.rects.sidebar ? this.rects.sidebar.x + INSET : 0, this.topBarY + 1, DECK_MENU_TITLE());
   }
+  /** DESIGN SKETCH: the status bar's row, the top row's logo and clock widths (set by render) */
+  statusY = 0;
+  logoW = 0;
+  clockW = 0;
   /** the top bar's row (under the notch band when there is one), set by render */
   private topBarY = 0;
 
@@ -1380,13 +1388,26 @@ export class Workspace {
 
     // the top bar: one row — the deck menu, UPLINK, the clock (each frame has its tabs on its border)
     this.topBarY = N;
-    renderTopBar(this, ui, { x: 0, y: N, w: W, h: TOP_H });
+    // DESIGN SKETCH (topsketch.ts): a and c have no top bar; b's is drawn once the frames are placed
+    const style = topSketch.style;
+    const topH = style === "a" || style === "c" ? 0 : TOP_H;
+    const air = style === "a" || style === "c" ? 0 : SECTION;
+    if (style === "now") renderTopBar(this, ui, { x: 0, y: N, w: W, h: TOP_H });
+    // the row of air: clear (the background's glyphs drifting there read as stray dots)
+    else if (air) ui.fill({ x: 0, y: N + topH, w: W, h: air }, { bg: ui.c.bg });
 
     // the frames: the arrangement (settings.layout — today's when nothing's saved) with the
     // switches applied (tree, panel, shell shown), solved into one rect each (layout/solve.ts).
     // The maximized shell keeps its own layout (the page in a strip at the bottom).
     // a row of air under the top bar: the frames' tabs (VAULT, home…, PANEL) sat right against it
-    const body = { x: 1, y: N + TOP_H + SECTION, w: W - 2, h: H - TOP_H - SECTION - 1 };
+    const body = { x: 1, y: N + topH + air, w: W - 2, h: H - topH - air - 1 };
+    this.statusY = N + H - 1;
+    // a: what the top row keeps (the deck's menu, uplink, the clock), measured before the frames
+    // leave room for it; the frames' header row starts clear (no background glyph between frames)
+    const wide = W >= 120;
+    this.logoW = logoWidth(ui, !wide);
+    this.clockW = clockWidth(W < 100);
+    if (style !== "now") ui.fill({ x: 0, y: body.y, w: W, h: 1 }, { bg: ui.c.bg });
     const max = this.shellVisible && this.shellMax;
     const today: Today = (this.today = { sidebar: this.sidebarVisible, shell: this.shellVisible, shellMax: this.shellMax, panel: !!d.settings.data.panel?.shown, shellRatio: this.shellRatio, cols: W, bodyH: body.h });
     const layout = max ? todayLayout(today) : effectiveLayout(this.arrangement, today);
@@ -1417,7 +1438,10 @@ export class Workspace {
       // a tab moved here (tab move <n> tree) may be the one shown instead of the tree
       const moved = this.shownIn("vault");
       const inner = tabbedBox(ui, vaultR, { focused, info: moved ? undefined : `${d.vault.markdown().length}` });
-      const own = soloTab(ui, vaultR, "vault", focused, { onClick: () => (moved ? this.showIn("vault", null) : (this.focus = "sidebar")), tip: t("your notes and files · ◧ or ⌘B hides the tree"), menu: () => [...frameMenu("tree"), "-", { label: t("Hide tree"), cmd: "view sidebar", hint: IS_MAC ? "⌘B" : "ctrl+B" }] }, !moved);
+      // a: the deck's menu sits at the left of the top row, the tree's label after it
+      const left = style === "a" && vaultR.y === body.y && vaultR.x <= 1 ? this.logoW + 1 : 0;
+      const vaultHit = { onClick: () => (moved ? this.showIn("vault", null) : (this.focus = "sidebar")), tip: t("your notes and files · ◧ or ⌘B hides the tree"), menu: () => [...frameMenu("tree"), "-", { label: t("Hide tree"), cmd: "view sidebar", hint: IS_MAC ? "⌘B" : "ctrl+B" }] as MenuEntry[] };
+      const own = style === "now" ? soloTab(ui, vaultR, "vault", focused, vaultHit, !moved) : frameLabel(ui, vaultR.x + INSET + left, vaultR.y, "vault", focused && !moved, vaultHit);
       placeChips(this, ui, own.x + own.w + INSET, vaultR.y, vaultR.x + vaultR.w - INSET, "vault", focused);
       // (clipped: in a tiny window the tree's list drew a row under its frame)
       if (moved) ui.clip(inner, () => moved.render(ui, inner, focused));
@@ -1435,7 +1459,9 @@ export class Workspace {
       if (moved) {
         // a tab moved here, shown instead of the widgets (PANEL's tab brings them back)
         const inner = tabbedBox(ui, panelR, { focused });
-        soloTab(ui, panelR, t("PANEL"), focused, { onClick: () => this.showIn("panel", null), tip: t("the panel's widgets") }, false);
+        const ph = { onClick: () => this.showIn("panel", null), tip: t("the panel's widgets") };
+        if (style === "now") soloTab(ui, panelR, t("PANEL"), focused, ph, false);
+        else frameLabel(ui, panelR.x + INSET, panelR.y, t("PANEL").toLowerCase(), false, ph);
         ui.clip(inner, () => moved.render(ui, inner, focused));
       } else this.sidePanel.render(ui, panelR);
       // the tabs moved here, after PANEL's own
@@ -1449,7 +1475,13 @@ export class Workspace {
     const mainFocused = this.focus === "main" && !this.topModal;
     // its tabs on its top border (tabstrip.ts): the names above, their bars on the line
     const inner = tabbedBox(ui, mainR, { focused: mainFocused });
-    renderTabStrip(this, ui, { x: mainR.x + INSET, y: mainR.y, w: mainR.w - INSET * 2, h: 2 });
+    {
+      // a: room for the deck's menu (left, when the tree isn't there) and uplink + the clock (right)
+      const top = style === "a" && mainR.y === body.y;
+      const l = top && mainR.x <= 1 ? this.logoW + 1 : 0;
+      const rr = top && mainR.x + mainR.w >= W - 1 ? this.clockW + 1 : 0;
+      renderTabStrip(this, ui, { x: mainR.x + INSET + l, y: mainR.y, w: mainR.w - INSET * 2 - l - rr, h: 2 });
+    }
     if (app?.menu) ui.hit(inner, { menu: () => app.menu!() });
     if (app) ui.clip(inner, () => app.render(ui, inner, mainFocused));
     if (this.editing) editBand(this, ui, inner, this.sidePanel.area);
@@ -1457,6 +1489,20 @@ export class Workspace {
     const shellR = strips.has("shell") ? undefined : at.get("shell");
     // its own top border resizes it (its share of the height) where it's along the bottom
     if (this.shellVisible && shellR) renderShellPanel(this, ui, shellR, body, max || !this.shellAtBottom);
+    // DESIGN SKETCH: a — the deck's menu and the clock on the frames' header row;
+    // b — the menu bar, on the frames' grid
+    if (style === "a") {
+      logoChip(this, ui, 0, body.y, !wide, ui.c.bg);
+      uplinkClock(this, ui, W, body.y, W < 100, ui.c.bg);
+    } else if (style === "b") {
+      ui.fill({ x: 0, y: N, w: W, h: 1 }, { bg: ui.c.bg });
+      const lx = (this.rects.sidebar ? this.rects.sidebar.x : body.x) + INSET;
+      const lw = logoChip(this, ui, lx, N, !wide, ui.c.bg);
+      // the menu starts over the page's first tab (or after the logo when the page is first)
+      const mx = Math.max(lx + lw + GAP, mainR.x + INSET);
+      const end = uplinkClock(this, ui, W - 1 - INSET, N, W < 100, ui.c.bg);
+      renderMenuBar(this, ui, mx, N, end - GAP, ui.c.bg);
+    }
     // a folded frame can't keep the focus (keys would go somewhere you can't see)
     if (this.focus === "sidebar" && strips.has("vault")) this.focus = "main";
     if (this.focus === "shell" && strips.has("shell")) this.focus = "main";

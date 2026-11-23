@@ -19,6 +19,7 @@ import { SystemTerminal, terminalKeysHint } from "../shell/systerm";
 import type { ShellTab, Workspace } from "./workspace";
 import { chipStyle, drawChip, placeChips, tabbedBox } from "./tabstrip";
 import { FRAME_IDS, joinedLeft, moveStatusItem, statusOrder } from "./statusbar";
+import { logoChip, topSketch, uplinkClock } from "./topsketch";
 import { DECK_MENU_TITLE, editMacro, macroMenu, shellMenu, termTabMenu } from "./menus";
 
 /**
@@ -221,7 +222,7 @@ export function renderTip(ws: Workspace, ui: UI, _screen: Rect): void {
  * names (the ✓ page lit), the rightmost ones dropped first when the bar is short. Returns
  * where it ends.
  */
-function renderMenuBar(ws: Workspace, ui: UI, x: number, y: number, xEnd: number): number {
+export function renderMenuBar(ws: Workspace, ui: UI, x: number, y: number, xEnd: number, bg = ui.c.panelAlt): number {
   const c = ui.c;
   const d = ws.deck;
   const items: [string, string, string, string][] = [
@@ -240,7 +241,7 @@ function renderMenuBar(ws: Workspace, ui: UI, x: number, y: number, xEnd: number
     const rect = { x: at, y, w, h: 1 };
     const on = !!kind && ws.activeApp?.kind === kind;
     const hot = ui.hovered(rect);
-    ui.text(at, y, text, { fg: on ? c.accent : hot ? c.fg : c.muted, bg: hot ? c.highlight : c.panelAlt, attrs: on ? BOLD : 0 });
+    ui.text(at, y, text, { fg: on ? c.accent : hot ? c.fg : c.muted, bg: hot ? c.highlight : bg, attrs: on ? BOLD : 0 });
     ui.hit(rect, { cmd, tip: osKeys(tip) });
     at += w;
   }
@@ -355,10 +356,18 @@ export function renderNotchBand(ui: UI, r: Rect): void {
   ui.fill(r, { bg: ui.c.bg });
 }
 
-export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
+export function renderStatusBar(ws: Workspace, ui: UI, rr: Rect): void {
   const c = ui.c;
   const d = ws.deck;
-  ui.fill(r, { bg: c.statusBg });
+  ui.fill(rr, { bg: c.statusBg });
+  // DESIGN SKETCH c: the deck's menu at the left of the status bar, uplink and the clock at its right
+  let r = rr;
+  if (topSketch.style === "c") {
+    const lw = logoChip(ws, ui, rr.x, rr.y, rr.w < 120, c.statusBg);
+    const cx = uplinkClock(ws, ui, rr.x + rr.w, rr.y, rr.w < 100, c.statusBg);
+    ui.text(cx - 1, rr.y, "│", { fg: c.faint, bg: c.statusBg });
+    r = { ...rr, x: rr.x + lw + 1, w: cx - 1 - (rr.x + lw + 1) };
+  }
   // a frame showing a tab moved there speaks for that page
   const page = ws.focus === "main" ? ws.activeApp : ws.focusedPage;
   // the page's name as its tab writes it ("nexus", not its kind "explorer")

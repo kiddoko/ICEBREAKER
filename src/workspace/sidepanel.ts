@@ -1,3 +1,5 @@
+import { frameLabel, sketchOn } from "./topsketch";
+import { INSET } from "../ui/layout";
 import { IS_MAC } from "../core/input";
 import { BOLD, type Rect } from "../core/grid";
 import { strWidth } from "../core/unicode";
@@ -139,7 +141,7 @@ export class SidePanel {
     this.sel = Math.max(0, Math.min(this.sel, slots.length - 1));
     // its tab on its border, like every frame (workspace/tabstrip.ts)
     const inner = tabbedBox(ui, r, { info: editing ? t("edit · esc done") : hasFocus ? t("e edit · a add") : undefined, border: editing ? "heavy" : undefined, focused: editing || hasFocus });
-    soloTab(ui, r, t("PANEL"), (editing || hasFocus) && !ws.topModal, { onClick: () => (ws.focus = "panel"), tip: t("widgets always in view · panel hide · ◨ in the status bar"), menu: () => [{ label: t("Add widget…"), run: () => void this.pick() }, "-", ...frameMenu("panel"), "-", { label: t("Hide panel"), cmd: "panel hide", hint: IS_MAC ? "⌘⇧P" : "ctrl+shift+P" }] });
+    (sketchOn() ? (ui2: UI, rr: Rect, label: string, lit: boolean, hit: Parameters<UI["hit"]>[1]) => frameLabel(ui2, rr.x + INSET, rr.y, label.toLowerCase(), lit, hit) : soloTab)(ui, r, t("PANEL"), (editing || hasFocus) && !ws.topModal, { onClick: () => (ws.focus = "panel"), tip: t("widgets always in view · panel hide · ◨ in the status bar"), menu: () => [{ label: t("Add widget…"), run: () => void this.pick() }, "-", ...frameMenu("panel"), "-", { label: t("Hide panel"), cmd: "panel hide", hint: IS_MAC ? "⌘⇧P" : "ctrl+shift+P" }] });
     ui.hit(inner, {
       menu: () => [{ label: editing ? t("Done editing") : t("Edit layout"), run: () => void (ws.editing = !editing), hint: editing ? "esc" : "e" }, { label: t("Add widget…"), run: () => void this.pick() }, { label: t("Hide panel"), cmd: "panel hide", hint: IS_MAC ? "⌘⇧P" : "ctrl+shift+P" }],
       onWheel: (dy) => this.glide.push(dy),
