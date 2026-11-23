@@ -189,6 +189,8 @@ await ib.use("terminal").run("git status");        // the user's real shell (per
 const { accent, bg } = await ib.use("theme").colors(); // the theme's colours, #rrggbb
 await ib.use("home").link("deploy", "macro run deploy", "⚡"); // a shortcut square on HOME
 await ib.use("deck").say("build finished", "modules");   // the voice, if the user lets modules speak
+await ib.use("frames").fold("shell");               // the frames: fold · unfold · solo · move · folded
+await ib.use("statusbar").move("help", 1);          // the status bar: items · move · hide · show · reset
 ```
 
 Every function returns a Promise. `modules api` in the shell lists them all with
@@ -360,15 +362,16 @@ The full surface is typed and commented in
 | `fuzzyFilter` | search a list like THE MENU |
 | `t`, `lang`, `addTranslations`, `dateLocale` | the user's language and date format |
 | `sparkline`, `formatStat`, `dayKey` | STATS' little charts and values |
-| `dates` | read a day, a time, a length: `parseDay`, `parseTime`, `parseWhen`, `readWhen`… (below) |
+| `dates` | read a day, a time, a length: `parseDay`, `parseTime`, `parseWhen`, `readWhen`… (below); write a day: `dayShort` ("mon 23 nov"), `dayLong` ("monday 23 november"), `weekdayShort` ("mon") |
 | `dialogButtons`, `YES`, `NO`, `OK`, `CANCEL`, `CLOSE` | a dialog's buttons, bottom right, in the deck's order |
 - `ib.lib` → the same building blocks the core uses: `TextEditor`, `ListView`, `FilterBar` (search + colours: `matches(text, tag)`, `onText/onKey/render`), `WheelSpin` (a ring's feel),
   `ChatView`, `bigText`, `fmt` (ANSI colors), color helpers, attribute flags,
   and `dates` — the deck's one way to read a day and a time: `dates.parseDay("tomorrow" | "fri" | "+3d" | "24/12")`,
   `dates.parseTime("18:00" | "9h" | "7pm" | "midi")` (minutes), `dates.parseDuration("+1h" | "30min" | "1h30")` (minutes),
   `dates.parseWhen("demain 9h" | "+1h" | "1h" | "19:00" | "fri 6pm" | "24/12 9:00" | "dans 1h" | "à 19h")` (a Date, or null
-  when a word isn't a time), `dates.readWhen(words)` → `{ day, time, inMinutes, rest }` (rest: the words that say no
-  time — a title), `dates.ymd(d)`, `addDays`, `startOfDay`, `WEEKDAYS` (English and French). "1h"…"6h" alone mean
+  when a word isn't a time), `dates.readWhen(words)` → `{ day, time, inMinutes, rest, invalid }` (rest: the words that say no
+  time — a title; `invalid`: a word written like a date or a time that isn't one, "31/02", "99:99" — say
+  "no such date or time", never keep it in the title), `dates.ymd(d)`, `addDays`, `startOfDay`, `WEEKDAYS` (English and French). "1h"…"6h" alone mean
   "in that long"; with a day, or from 7h on, a time of day. Use it instead of your own parser: "demain 9h" then
   means the same in every module.
 - `ib.history.record({ label, undo, redo })` → ⌘Z: record how to take back what your module just changed for the

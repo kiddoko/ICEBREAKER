@@ -67,6 +67,8 @@ On-screen keyboard: A types, B deletes, Y space, Start enter, LB/RB move the cur
 A small POSIX-like shell over your vault: pipes \`|\`, redirections \`> >> <\`, \`&&\` \`||\` \`;\`,
 quotes, \`$VARS\`, globs \`*.md\`, history (↑), fish-style suggestions (→), Tab completion.
 \`/\` and \`~\` are the vault root. \`<cmd> -h\` (or \`man <cmd>\`) shows a command's help with full examples: \`todo -h\`.
+- \`help\` — the commands to start with; \`help all\` every command, \`help todo\` a module's. The **CATALOG** (\`catalog\`) lists everything else: commands, settings, shortcuts, the functions modules share, the module API (\`catalog api\`).
+- **At rest**: 20 s without a key or the mouse, animations slow to 12 frames a second; after a minute, to 2 (the clock still ticks) — the first key wakes everything (Settings → APPEARANCE → save energy).
 - **Stop a command**: \`Ctrl+C\` (on a Mac \`⌘X\`, or the real Control key + C) stops what's running or the question it asks — it ends with ^C and the prompt comes back. \`Esc\` stops a question too. In your real terminal, \`⌘X\` on a Mac sends ctrl+C.
 - **Copy what a command printed**: drag over it with the mouse (double-click: a word, triple-click: a line), then \`⌘C\` on a Mac, \`Ctrl+C\` on Windows / Linux — \`Ctrl+C\` with nothing selected still stops the command. Right-click → Copy works too, in ibsh and in your real terminal.
 - **Names with spaces**: Tab puts them between quotes — \`cd STA\` + Tab gives \`cd "START HERE/"\`.

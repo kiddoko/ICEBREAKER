@@ -46,6 +46,8 @@ Clavier à l'écran : A tape, B efface, Y espace, Start entrée, LB/RB déplacen
 ## Shell
 Un petit shell façon POSIX sur ton vault : tubes \`|\`, redirections \`> >> <\`, \`&&\` \`||\` \`;\`, guillemets, \`$VARIABLES\`, motifs \`*.md\`, historique (↑), suggestions à la fish (→), complétion avec Tab.
 \`/\` et \`~\` sont la racine du vault. \`<cmd> -h\` (ou \`man <cmd>\`) montre l'aide d'une commande avec des exemples complets : \`todo -h\`. Les commandes répondent en français ; leurs aides (\`-h\`, \`usage:\`) restent en anglais, comme les pages de manuel.
+- \`help\` — les commandes pour commencer ; \`help all\` toutes, \`help todo\` celles d'un module. Le **CATALOGUE** (\`catalog\`) liste tout le reste : commandes, réglages, raccourcis, les fonctions que partagent les modules, l'API des modules (\`catalog api\`).
+- **Au repos** : 20 s sans clavier ni souris, les animations passent à 12 images par seconde ; après une minute, à 2 (l'horloge continue) — la première touche réveille tout (Réglages → APPARENCE → économie d'énergie).
 - **Arrêter une commande** : \`Ctrl+C\` (sur un Mac \`⌘X\`, ou la vraie touche Control + C) arrête ce qui tourne ou la question posée — ça finit par ^C et l'invite revient. \`Échap\` arrête aussi une question. Dans ton vrai terminal, \`⌘X\` sur un Mac envoie ctrl+C.
 - **Copier ce qu'une commande a écrit** : glisse dessus à la souris (double-clic : un mot, triple-clic : une ligne), puis \`⌘C\` sur un Mac, \`Ctrl+C\` sous Windows / Linux — \`Ctrl+C\` sans sélection arrête toujours la commande. Clic droit → Copier marche aussi, dans ibsh et dans ton vrai terminal.
 - **Noms avec des espaces** : Tab les met entre guillemets — \`cd STA\` + Tab donne \`cd "START HERE/"\`.

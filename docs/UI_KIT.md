@@ -47,8 +47,9 @@ label's first word; never `.toUpperCase()` a title. The rule: [GUIDELINES.md](GU
 
 **A text that may not fit is never cut in the middle of a word**: give `ui.textFit` its shorter
 versions, or fold it on two lines (`ib.lib` has `strWidth` and `truncate` for the rest). **A date
-or a day** shown to the user: `toLocaleDateString(ib.lib.dateLocale(), …)` — the user's format,
-never `"en"`.
+or a day** shown to the user: `ib.lib.dates.dayShort(d)` ("mon 23 nov") in lists and tips,
+`dayLong(d)` ("monday 23 november") in titles, `weekdayShort(n)` for a column of days — lowercase,
+the user's language. Anything else: `toLocaleDateString(ib.lib.dateLocale(), …)`, never `"en"`.
 
 ## How to use a field
 

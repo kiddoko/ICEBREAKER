@@ -460,7 +460,8 @@ it, ⌘\` brings it back):
 | | |
 |---|---|
 | \`menu\` | THE MENU (\`menu add t "launch todo"\`: ⌘K t ⏎ runs it) |
-| \`catalog function todo\` | what you can call — \`--json\` for scripts |
+| \`help\` · \`help all\` · \`help todo\` | the commands to start with · every one · a module's |
+| \`catalog function todo\` | what you can call — \`--json\` for scripts; \`catalog api\`: every \`ib.ui\` / \`ib.lib\` piece |
 | \`notify --alert "tea" "it's ready"\` | call yourself like a reminder does |
 | \`account\` · \`lock\` | who you're logged in as · log out (the login page) |
 | \`say "tea's ready"\` | the deck's voice says it — the voice and language of Settings → VOICE, like UPLINK (silent when muted or the voice is off) |
@@ -804,8 +805,9 @@ export function activate(ib) {
 | \`modules\` | call other modules (\`todo.add\`, \`journal.append\`…), expose yours |
 | \`settings\` | your settings, shown in ⚙ under your name |
 | \`ui\` | ask the user (no permission: they answer): \`notify\`, \`alert\` (stays until clicked), \`confirm\`, \`prompt\` (with \`suggestions\`: ▾ and Tab), \`choose\`, \`pickWhen\` (the WHEN? calendar and clock), \`pickFolder\`, \`pickFile\`, \`pickFileText\` / \`pickFileBytes\` (a file read for you), \`fullWindow\` (your page alone) |
-| \`lib\` | the deck's own pieces (fields, lists, layout, colours, \`t\` and \`dateLocale\` for the user's language and dates, \`dates\` to read "demain 9h") — every export in docs/PLUGINS.md |
-| \`catalog\` | everything the deck can do, as plain data: \`ib.catalog.list("function", "todo")\` |
+| \`lib\` | the deck's own pieces (fields, lists, layout, colours, \`t\` and \`dateLocale\` for the user's language and dates, \`dates\` to read "demain 9h" and write a day: \`dayShort\` "mon 23 nov", \`dayLong\` "monday 23 november") — every export in docs/PLUGINS.md and \`catalog api\` |
+| \`catalog\` | everything the deck can do, as plain data: \`ib.catalog.list("function", "todo")\`; the frame too: \`frames.fold\`, \`statusbar.move\`, \`log.tail\`, \`trash.list\`, \`deck.stealth\` (\`ib.use("frames").fold("shell")\`) |
+| \`render(ui…)\` | \`ui.animate(ms)\` only while something moves; a deck left alone rests (12 then 2 frames a second): \`ui.stayAwake()\` while the user watches without touching (music playing) |
 | \`ai\` · \`media\` · \`google\` · \`storage\` | the rest |
 
 Right-click menus: give a clickable area a \`menu\`: \`ui.hit(rect, { cmd, menu: () => [{ label: "done", cmd: "todo done 3" }] })\`.
