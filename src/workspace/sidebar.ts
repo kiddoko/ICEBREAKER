@@ -284,7 +284,7 @@ export class Sidebar {
       { label: t("Copy path"), run: () => (copyToClipboard(p), d.notify(t("path copied"))) },
       ...(md ? [{ label: t("Copy link"), tip: t("a [[link]] to paste in a note"), run: () => (copyToClipboard(`[[${e.name.replace(/\.md$/, "")}]]`), d.notify(t("link copied"))) }] : []),
       "-",
-      { label: t("Delete"), tip: t("goes to the trash — ⌘Z or the TRASH page brings it back"), cmd: `rm ${e.isDir ? "-r " : ""}${abs}`, danger: true, hint: "del" },
+      { label: t("Move to the trash"), tip: t("⌘Z or the trash (the tree's last line) brings it back"), cmd: `rm ${e.isDir ? "-r " : ""}${abs}`, danger: true, hint: "del" },
     ];
   }
 
@@ -324,7 +324,7 @@ export class Sidebar {
       { label: t("New note"), tip: t("a new note in this folder"), run: () => this.deck.newNote("notes"), hint: "n" },
       { label: t("New folder"), tip: t("a new folder inside this one"), run: () => this.deck.newFolder("") },
       { label: t("Refresh"), tip: t("read the vault folder again (files changed outside the deck)"), run: () => this.deck.vault.rescan(), hint: "r" },
-      { label: t("Trash"), tip: t("what's in the trash, and put things back"), cmd: "trash open" },
+      { label: t("Open the trash"), tip: t("what's in the trash, and put things back"), cmd: "trash open" },
     ];
   }
 
@@ -412,7 +412,7 @@ export class Sidebar {
       tip: this.trashCount ? t("{n} in the trash: see them, put them back", { n: this.trashCount }) : t("the trash is empty · what you delete waits here"),
       menu: () => [
         { label: t("Open"), cmd: "trash open" },
-        { label: t("Empty the trash"), cmd: "trash empty --window", danger: true, disabled: !this.trashCount },
+        { label: t("Empty the trash…"), cmd: "trash empty --window", danger: true, disabled: !this.trashCount, tip: t("asks first: it can't be undone") },
       ],
     });
   }

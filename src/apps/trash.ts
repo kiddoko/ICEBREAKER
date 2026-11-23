@@ -13,6 +13,7 @@ import { fileIcon } from "../ui/fileicon";
 import type { App, AppSpec } from "./types";
 import { Bar } from "../ui/layout";
 import { folders } from "../core/suggest";
+import { TRASH } from "../core/glyphs";
 
 /**
  * TRASH (the tree's last line, `trash open`) — a page, not a tab: what `rm`, Delete
@@ -136,7 +137,7 @@ export class TrashApp implements App {
     // title, the count, and "empty the whole trash" (asks first, can't be undone): when the
     // row is short the count goes first, then the button (`trash empty` / del still work)
     const bar = new Bar(ui, x, y, x + w)
-      .text(`⌫ ${t("TRASH")}`, { fg: c.accent, attrs: BOLD }, { priority: 9, fit: 3 })
+      .text(`${TRASH} ${t("trash")}`, { fg: c.accent, attrs: BOLD }, { priority: 9, fit: 3 })
       .text(count, { fg: c.subtle }, { side: "right", priority: 5 });
     if (items.length) {
       const empty = () => void this.purge(items, true);

@@ -1986,4 +1986,10 @@ export const FR: Record<string, string> = {
   "seconds": "secondes",
   "tick": "cocher",
   "untick": "décocher",
+
+  "this macro goes (⌘Z brings it back)": "cette macro part (⌘Z la ramène)",
+  "Move to the trash": "Mettre à la corbeille",
+  "⌘Z or the trash (the tree's last line) brings it back": "⌘Z ou la corbeille (dernière ligne de l'arbre) le ramène",
+  "Open the trash": "Ouvrir la corbeille",
+  "asks first: it can't be undone": "demande d'abord : impossible à annuler",
 };
