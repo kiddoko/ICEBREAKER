@@ -61,7 +61,7 @@ export interface Hit {
   /** Hover tooltip text (shortcuts, what it does). */
   tip?: string;
   /** The system pointer over it (a border you drag: "col-resize" / "row-resize"); else the arrow. */
-  cursor?: "col-resize" | "row-resize";
+  cursor?: "col-resize" | "row-resize" | "grab" | "grabbing" | "nwse-resize";
   /** Nothing under it gets the mouse (modal backdrops, pop-ups). */
   block?: boolean;
 }

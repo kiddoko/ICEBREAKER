@@ -1999,4 +1999,6 @@ export const FR: Record<string, string> = {
   "Yes, a voice": "Oui, une voix",
   "A theme to start with: one click shows it on the whole deck, a second click (or enter) keeps it.": "Un thème pour commencer : un clic le montre sur tout le deck, un second clic (ou entrée) le garde.",
   "How loud are the interface's sounds? (blips and clicks of an old OS doing its best — 0 is off)": "Quel volume pour les sons de l'interface ? (bips et clics d'un vieil OS qui fait de son mieux — 0 les coupe)",
+
+  "drag": "glisser",
 };

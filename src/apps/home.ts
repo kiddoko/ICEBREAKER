@@ -544,6 +544,8 @@ export class HomeApp implements App {
         },
         onDouble: () => !this.editing && (spec.popup || spec.activate || spec.open) && void this.deck.act(`widget ${keyOf(p)}`),
         menu: () => this.widgetMenu(i),
+        // edit mode: the hand says it can be picked up (and the ✥ on its frame)
+        ...(this.editing ? { cursor: "grab" as const } : {}),
         tip: this.editing ? "drag to move · shift+arrows resize · x remove" : spec.popup || spec.activate || spec.open ? `${spec.description ?? spec.title}\ndouble-click / enter → widget ${keyOf(p)}` : spec.description,
       };
       // normally the widget's own buttons sit on top of its frame; while editing,
@@ -577,6 +579,10 @@ export class HomeApp implements App {
       });
       if (this.editing) {
         ui.hit(rect, frameHit);
+        // ✥ on its bottom edge, left (◢ resizes on the right): you can pick it up — a tester didn't
+        // see the widgets could be dragged
+        const over = ui.hovered(rect) || this.drag?.index === i;
+        if (rect.w >= 8 && rect.h >= 2) ui.text(rect.x + INSET, rect.y + rect.h - 1, over ? ` ✥ ${t("drag")} ` : " ✥ ", { fg: over || sel ? c.bg : c.accent, bg: over || sel ? c.accent : undefined, attrs: BOLD });
         // the bottom-right corner: drag it to resize (like shift+arrows)
         const corner = { x: rect.x + rect.w - 2, y: rect.y + rect.h - 1, w: 2, h: 1 };
         const hot = ui.hovered(corner) || this.sizing === i;
@@ -590,6 +596,7 @@ export class HomeApp implements App {
             if (w !== p.w || h !== p.h) this.change(i, (q) => ({ ...q, w, h }));
           },
           onUp: () => (this.sizing = -1),
+          cursor: "nwse-resize",
           tip: t("drag: bigger / smaller · shift+arrows"),
         });
       }

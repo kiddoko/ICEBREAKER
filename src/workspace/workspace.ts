@@ -1573,6 +1573,8 @@ export class Workspace {
     const { x, y } = ui.mouse;
     let want = "";
     if (this.borderDrag) want = this.borderDrag.b.dir === "row" ? "col-resize" : "row-resize";
+    // something held (a widget in HOME's edit mode): the hand that grabs it, whatever is under it
+    else if (this.dragging?.cursor === "grab") want = "grabbing";
     else
       for (let i = ui.hits.length - 1; i >= 0; i--) {
         const h = ui.hits[i];
