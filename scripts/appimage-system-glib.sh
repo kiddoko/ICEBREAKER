@@ -13,6 +13,9 @@
 # Rewrites the AppImage in place (the updater's .sig must be made again afterwards).
 set -euo pipefail
 
+# appimagetool checks the .desktop file with it (Debian / Ubuntu: desktop-file-utils)
+command -v desktop-file-validate >/dev/null || { echo "desktop-file-validate is missing (apt install desktop-file-utils)" >&2; exit 1; }
+
 img="$(realpath "$1")"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT

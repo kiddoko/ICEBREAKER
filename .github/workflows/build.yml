@@ -59,6 +59,8 @@ jobs:
           # the sound: WebKitGTK plays through GStreamer (appsrc, autoaudiosink…) — the AppImage
           # carries these plugins (tauri.conf.json bundleMediaFramework), the .deb depends on them
           sudo apt-get install -y gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
+          # appimagetool checks the .desktop file again when the AppImage is rebuilt (scripts/appimage-system-glib.sh)
+          sudo apt-get install -y desktop-file-utils
 
       - run: npm ci
 
