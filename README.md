@@ -53,7 +53,7 @@ scanlines — and works with the keyboard, the mouse or a gamepad.
 ### The shell
 - **Your real terminal** (zsh / bash / fish, or PowerShell on Windows) in tabs, with your profile and prompt, every ICEBREAKER command added (`todo add …`, `theme set …`), and macros one click away.
 - **ibsh**, the deck's own shell: pipes, redirections, globs, history, 70+ commands on your vault — `cat note.md | ask "summarize"` works.
-- **Every click is a command**: the LOG tab shows what your clicks ran, errors (with a code, see [docs/ERRORS.md](docs/ERRORS.md)) and notifications.
+- **Every click is a command**: the log (on the shell's right, or its tab) shows what your clicks ran, errors (with a code, see [docs/ERRORS.md](docs/ERRORS.md)) and notifications.
 
 ### UPLINK, the AI (optional)
 - Chat with **Claude** (Claude Code or an API key) or a **local model through [Ollama](https://ollama.com)**. It can search, read and — when you ask — write notes, inside the vault only.
@@ -211,7 +211,10 @@ Done in 0.5.0: vault encryption with a recovery key, portable vaults, modules fr
 in a sandbox, signed in-app updates, module dependencies. Done in 0.6.0, the first half of the
 UI overhaul: frames you arrange (move, resize, fold the tree, the panel, the shell), tabs on
 every frame and in any frame, tab groups, the deck menu, and WEATHER, CLOCKS, STATS, NEWS,
-MOON and SYSMON redrawn ([docs/FRAMES.md](docs/FRAMES.md)). Next, in this order:
+MOON and SYSMON redrawn ([docs/FRAMES.md](docs/FRAMES.md)). Done in 0.7.0, the UX pass:
+crisp hover tips, a menu bar and an arrangeable status bar, proportions that hold whatever the
+theme, a calendar and clock wherever a day or a time is chosen, a clearer setup, CSV / .ics import,
+the graphics card in SYSMON, French everywhere and readable hints in every theme. Next, in this order:
 
 1. **UI overhaul, the rest** — each tab's history, an Ableton-style info panel instead of
    hover tips, perfect scaling on every resolution and screen ratio, the other modules

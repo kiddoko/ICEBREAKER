@@ -33,6 +33,7 @@ export interface VersionNotes {
 export const NOTES: VersionNotes[] = [
   {
     version: "0.7.0",
+    date: "2026-11-23",
     en: {
       headline: "Everything in plain sight: clearer, steadier, readable",
       added: [
@@ -50,6 +51,8 @@ export const NOTES: VersionNotes[] = [
         "The setup: back / skip buttons, browse…, nothing cut",
         "Readable hints in every theme; every date in your format",
         "The trash is the tree's last line; the log sits beside the shell",
+        "A question that pops up never takes the keys you were typing",
+        "Small widgets show what matters, never a cut sentence",
       ],
     },
     fr: {
@@ -69,6 +72,8 @@ export const NOTES: VersionNotes[] = [
         "Le setup : boutons retour / passer, parcourir…, plus rien de coupé",
         "Indications lisibles dans chaque thème ; chaque date dans ton format",
         "La corbeille en bas de l'arbre ; le log à côté du shell",
+        "Une question qui surgit ne prend jamais les touches que tu tapais",
+        "Les petits widgets montrent l'essentiel, jamais une phrase coupée",
       ],
     },
   },

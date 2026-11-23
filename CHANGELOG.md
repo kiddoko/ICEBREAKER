@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.7.0 — not released yet
+## 0.7.0 — 2026-11-23
 
 The UX pass: everything discoverable, nothing stretched, the deck explains itself.
 
@@ -98,6 +98,26 @@ The UX pass: everything discoverable, nothing stretched, the deck explains itsel
   showed "november 2026" or letters piled up), UPLINK says who and how (its ring was cut in half),
   pulse drops its labels for the values, and every "nothing to rem…" became a short sentence that
   fits whole (`ui.textFit`, for modules too).
+- **Found in the Windows and Mac passes and in Fable's review** (fixed before the release):
+  - a question (yes / no, or a permission) never takes the keys you were typing: each key pushes
+    its wait back, and a click in its first moment doesn't answer it (it was meant for the page);
+  - the setup run again on a French deck chooses Français, not English; in a short window it keeps
+    its buttons (back and skip, short when needed) and a one-line header; enter on the vault's grey
+    suggestion keeps it; WHEN?: a time typed alone ("14") goes with the day you clicked;
+  - small calendar widgets by the sizes HOME really gives (today's week, else today); HOME's widgets
+    stop above the pages line and the "↓ more" tab has its own line; HOME follows a widget grown
+    with shift+↓; NEXUS in a short page becomes a list (its nodes ran over the bar);
+  - French: no English left on HOME (weather in stealth, uplink, news, the question's title, the
+    week "S"), ⌘K's titles and descriptions, the setup's hints, "vue d'ensemble" / "mises à jour"
+    in lowercase, the log stays « log » (the vault has the journal), Settings search finds French
+    words; the article "a" no longer drawn as a key;
+  - files: the picker hides the places the deck never reads (AppData, Library, /usr…), puts an
+    exact name first and opens where the last pick was; reading a chosen file follows its link and
+    checks again, reads a regular file only, capped, off the window's thread (text and bytes); the
+    graphics card is read off the window's thread too;
+  - the status bar names a page as its tab does (nexus), `statusbar move` skips what isn't drawn;
+    the tip goes when the window resizes; a new terminal takes the smallest free number (zsh, not
+    zsh 2 alone); hints at 4.5:1 contrast like any text (WCAG AA).
 - **Ctrl + wheel changes the interface scale on every system**, one step a notch (Linux and
   Windows mice send lines: it took ~14 notches). **⇧ + wheel goes to what's under the
   pointer**, like the wheel — it walks the tree only over the tree (Settings scrolled the tree).

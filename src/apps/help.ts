@@ -39,7 +39,7 @@ Everything works with **keyboard only**, **mouse only**, a **gamepad**, or any m
 
 ## Mouse
 Click anything: tabs, files, tiles, buttons, calendar days (in the tree, one click selects a note, a double-click opens it). Every click runs a
-shell command, shown in the shell's **log** tab: click around to learn the
+shell command, shown in the shell's **log**: click around to learn the
 command line. Hover something for a moment to see its command and shortcut. Drag to select text
 (in notes, ibsh and your real terminal), double-click a word, triple-click a line, Ctrl+click to follow a link.
 The wheel scrolls; in Settings it moves the row you're on (a trackpad too), and over a slider it steps it 1 by 1.

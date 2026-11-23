@@ -228,7 +228,7 @@ The full surface is typed and commented in
 - `ib.settings.register([...])` → your section in Settings (◇ YOUR MODULE, after the normal ones). Row types: `toggle`, `choice` (`options`), `text`, `number`, and `action` — a row that does something when chosen: `cmd` (a shell command, shown under the row like every setting) or `run()` (a picker, a confirmation…), plus `value()` for the status on the right ("connected", a name…). Read with `ib.settings.get(key)`, react with `onChange`; shell: `modules set <id> <key> <value>`. Example: the CALENDAR module (`plugins/calendar/main.ts`).
 - `ib.net.get(url)` → the internet, one approved host at a time (permission `net:<host>`): an
   https GET, text back, through the deck's native side. Nothing in stealth mode.
-- `ib.shell.run(line)` → run a command, shown in the shell's LOG tab (what your clicks should do;
+- `ib.shell.run(line)` → run a command, shown in the shell's log (what your clicks should do;
   permission `shell` for the deck's commands — your own commands need nothing).
   Only the commands modules may run: an allow-list (`src/shell/classes.ts`), so a command that
   isn't classed is refused; `weather` and `news` go online and are never a module's to run.
@@ -347,7 +347,7 @@ Inside `render(ui, rect, focused)` you get the full drawing toolkit
 ICEBREAKER modules follow one rule: **everything the UI does is a shell
 command.** Your app and widget don't change data themselves, they run your
 command with `ib.shell.run("mymodule do-thing 3")`, which the shell's
-LOG tab shows. Users learn the command line just by clicking around, and power users
+log shows. Users learn the command line just by clicking around, and power users
 get a scriptable module for free.
 
 For plain clicks you don't even need a handler: `ui.hit(rect, { cmd: "todo done 3", tip: "space" })`

@@ -536,7 +536,7 @@ and its key on THE MENU, changed with one click.
 
 | Mouse | |
 |---|---|
-| click | does it — and the shell's **log** tab shows the command |
+| click | does it — and the shell's **log** shows the command |
 | double-click | open (in the tree too: one click selects, one click folds a folder) |
 | drag · double · triple-click | select text in a note, ibsh or the terminal (a word, a line) — ⌘C copies |
 | back / forward buttons | like a browser: the note this tab showed before / after (opened in place from the tree) |
@@ -664,7 +664,7 @@ todo add "pack the books" --every sat --cycles 3
   waits for your yes: say no and you keep the version you have.
 - **The access journal**: who used which permission, when, on what — a module, the
   AI, your real terminal. Names only (a note's path, a site), 30 days, on this
-  computer only. The LOG tab's **◈ access** filter, or \`plugin perms <module>\`.
+  computer only. The log's **◈ access** filter, or \`plugin perms <module>\`.
 - **What the AI may read** (Settings → PERMISSIONS): nothing · what you give it — a
   note you name in your message ("summarize ideas"), pipe to it or have in front ·
   your whole vault. The top bar says **◈ the AI reads …** while it does. Writing a
@@ -726,7 +726,7 @@ nothing is drawn (0 % CPU).
 
 **Clicks**: while drawing, \`ui.hit(rect, { onClick, cmd, menu, tip })\` marks
 an area; the last one drawn under the pointer wins. A \`cmd\` area runs that
-shell command and the shell's LOG tab shows it — the mouse teaches the command line.
+shell command and the shell's log shows it — the mouse teaches the command line.
 
 **Traps**: a new setting needs its default in \`core/settings.ts\` (setting an
 unknown key fails); dialogs get raw keys, not "up/confirm" actions.

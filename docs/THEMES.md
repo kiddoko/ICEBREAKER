@@ -92,7 +92,7 @@ before, as a block and on text. Enter or a double-click keeps it (a
 `theme tweak` command), **↺ theme's value** (or del) removes the tweak, esc
 leaves it as it was.
 
-It's all commands (the shell's LOG tab shows them), so this works too:
+It's all commands (the shell's log shows them), so this works too:
 
 ```
 theme tweak accent #ff2e88
