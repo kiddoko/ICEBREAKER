@@ -213,6 +213,8 @@ export class NoteApp implements App {
       void this.save().then(() => this.deck.notify(`saved ${this.path}`, "success"));
       return true;
     }
+    // ⌘⇧S: save as (File → Save As in the macOS menu bar says so)
+    if (k.combo === "ctrl+shift+s") return void this.saveAs(), true;
     if (k.combo === "ctrl+enter") return this.followLink();
     return this.editor.onKey(k);
   }

@@ -1797,4 +1797,5 @@ export const FR: Record<string, string> = {
   "vault left plain — vault encrypt any time": "vault laissé en clair — vault encrypt quand tu veux",
   "wrong password — try again (esc: cancel)": "mauvais mot de passe — réessaie (échap : annuler)",
   "the last start didn't finish: effects off this time (safe start) — ✦ fx turns them back on": "le dernier démarrage n'a pas abouti : effets coupés cette fois (démarrage sûr) — ✦ fx les rallume",
+  "save as: a copy under another name (in a note; elsewhere: the shell)": "enregistrer sous : une copie sous un autre nom (dans une note ; ailleurs : le shell)",
 };

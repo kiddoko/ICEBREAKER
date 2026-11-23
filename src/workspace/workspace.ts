@@ -1057,7 +1057,9 @@ export class Workspace {
     // on Windows and Linux the deck's pane and tab keys) are its own; ⌘ / ctrl ones stay the deck's
     // and the deck keys it keeps (core/input.ts rawPageKey): ⌘S / ⌘⇧S (⌘⇧S was the deck's
     // "shell" key), F1–F8 (F1 is the manual elsewhere), ⌘ ← →, Tab / ⇧Tab
-    const owned = k.raw || ((rawPageKey(k) || (k.alt && !k.ctrl && !k.meta)) && this.rawKeys());
+    // a note in front keeps ⌘⇧S too (save as — elsewhere the deck's shell key)
+    const noteSaves = k.combo === "ctrl+shift+s" && this.focus === "main" && this.activeApp?.kind === "note" && !this.topModal;
+    const owned = k.raw || noteSaves || ((rawPageKey(k) || (k.alt && !k.ctrl && !k.meta)) && this.rawKeys());
     if (!owned && this.globalKey(k)) return;
     this.routeKey(k, false);
   }

@@ -37,7 +37,8 @@ The serious bugs: a layout that comes back, a setup that holds, Linux.
   WebKitGTK plays sound with (`bundleMediaFramework`), the `.deb` depends on them. README:
   Linux install, and the GStreamer packages if there's no sound.
 - **Keys**: AltGr characters (# { [ | on AZERTY) type on Linux — AltGr+" went to tab 3;
-  ⇧Tab is recognised by its key (Linux); File → Save / Save As (⌘S / ⌘⇧S) in the macOS menu bar.
+  ⇧Tab is recognised by its key (Linux); File → Save / Save As (⌘S / ⌘⇧S) in the macOS menu bar,
+  and ⌘⇧S in a note is *save as* (elsewhere it still shows the shell).
 - **A page that plays the keyboard keeps** Tab / ⇧Tab, F1–F8 and ⌘ / ctrl + ← → besides ⌘Z
   and ⌘S (BreakerMED's tracks, octave and positions); esc gives the keys back, and F1 is the
   manual everywhere else (core/input.ts `rawPageKey`).
