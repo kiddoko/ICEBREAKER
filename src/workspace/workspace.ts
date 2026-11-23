@@ -1327,7 +1327,8 @@ export class Workspace {
     // a terminal tab opens again as a new terminal: its group and frame follow its new key
     const rename: Record<string, string> = {};
     for (const key of ses.tabs ?? []) {
-      if (key === "home" || this.findTab(key)) continue;
+      // (a saved terminal key may be the key a terminal just reopened got: never "already open")
+      if (key === "home" || (!isTerminalKey(key) && this.findTab(key))) continue;
       if (key.startsWith("note:")) {
         const p = key.slice(5);
         if (await this.deck.vault.exists(p)) await this.deck.openFile(p);

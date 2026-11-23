@@ -1024,12 +1024,23 @@ fn only_seed(dir: &Path) -> bool {
         if t.is_symlink() {
             return false;
         }
-        let ok = if t.is_dir() { SEED_DIRS.contains(&name.as_str()) } else { SEED_FILES.contains(&name.as_str()) };
+        // .icebreaker: the deck's own files only — a module, a theme or sounds put in it are yours
+        let ok = if t.is_dir() { SEED_DIRS.contains(&name.as_str()) && (name != ".icebreaker" || no_subfolder_content(&e.path())) } else { SEED_FILES.contains(&name.as_str()) };
         if !ok {
             return false;
         }
     }
     true
+}
+
+/// Nothing inside this folder's subfolders (empty ones are fine).
+fn no_subfolder_content(dir: &Path) -> bool {
+    let Ok(entries) = fs::read_dir(dir) else { return false };
+    entries.flatten().all(|e| match e.file_type() {
+        Ok(t) if t.is_dir() => fs::read_dir(e.path()).map(|mut it| it.next().is_none()).unwrap_or(false),
+        Ok(t) => !t.is_symlink(),
+        Err(_) => false,
+    })
 }
 
 /// `vault adopt`: plain files next to the encrypted vault go inside it.
@@ -1189,6 +1200,11 @@ mod tests {
         fs::write(dir.join("ideas.md"), "mine").unwrap();
         assert!(!only_seed(&dir));
         fs::remove_file(dir.join("ideas.md")).unwrap();
+        fs::create_dir_all(dir.join(".icebreaker/plugins")).unwrap();
+        assert!(only_seed(&dir)); // an empty folder the deck made
+        fs::write(dir.join(".icebreaker/plugins/x.js"), "a module").unwrap();
+        assert!(!only_seed(&dir)); // a module you installed: it stays
+        fs::remove_file(dir.join(".icebreaker/plugins/x.js")).unwrap();
         fs::create_dir_all(dir.join("projects")).unwrap();
         assert!(!only_seed(&dir));
         let _ = fs::remove_dir_all(&dir);

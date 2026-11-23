@@ -16,7 +16,8 @@ The serious bugs: a layout that comes back, a setup that holds, Linux.
   (the WebGL curvature) on, and on Linux every login crashed. Previews now wait for the cursor
   to rest, are undone when you leave without keeping one, and the curved glass keeps one WebGL
   context for the whole run.
-- **A start that crashed makes the next one safe**: effects off, said once the desktop is there.
+- **A start that crashed makes the next one safe**: effects off for that run only (your
+  settings stay as they are; touching ✦ fx brings them back), said once the desktop is there.
 - **Stealth mode in the setup** applies as soon as it's chosen; the AI question, the location
   and Google are skipped; skipping the question leaves stealth as it was (it switched it off).
 - **The vault goes where you said.** Tab on the folder question skipped it and dropped what was
