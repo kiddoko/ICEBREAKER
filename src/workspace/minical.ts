@@ -1,4 +1,5 @@
 import { ymd } from "../core/dates";
+import { strWidth } from "../core/unicode";
 import { BOLD, type Rect } from "../core/grid";
 import { dateLocale, t } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
@@ -87,7 +88,10 @@ export class MiniCalendar implements Overlay {
     const box = { x, y: this.anchor.y, w, h };
     ui.hit(box, { onClick: () => {}, block: true });
     const now = new Date();
-    const title = now.toLocaleDateString(this.locale, { weekday: "long", day: "numeric", month: "long" }).toLowerCase();
+    // as much of the date as the title has room for ("monday 23 novembe…" was cut)
+    const title = [{ weekday: "long", day: "numeric", month: "long" }, { weekday: "short", day: "numeric", month: "long" }, { weekday: "short", day: "numeric", month: "short" }]
+      .map((o) => now.toLocaleDateString(this.locale, o as Intl.DateTimeFormatOptions).replace(/\./g, "").toLowerCase())
+      .find((s) => strWidth(s) <= w - 8) ?? now.getDate().toString();
     const inner = ui.box(box, { title, focused: true, bg: c.panelAlt });
     const x0 = inner.x + INSET;
     drawMonth(ui, x0, inner.y, {

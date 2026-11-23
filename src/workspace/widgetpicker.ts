@@ -1,4 +1,5 @@
 import { t } from "../core/i18n";
+import { wrapWords } from "../core/unicode";
 import { Field } from "../ui/field";
 import { fuzzyFilter } from "../core/fuzzy";
 import { BOLD, type Rect } from "../core/grid";
@@ -147,11 +148,16 @@ export class WidgetPicker implements Overlay {
     const w = cur.w;
     const pr = { x: inner.x + listW + 2, y: inner.y + 2, w: inner.w - listW - 3, h: inner.h - 3 };
     ui.text(pr.x, pr.y, `${w.id}`, { fg: c.accent, attrs: BOLD });
-    ui.text(pr.x, pr.y + 1, t(w.description ?? ""), { fg: c.fg }, pr.w);
-    ui.text(pr.x, pr.y + 2, `size ${w.size.w}×${w.size.h} (min ${w.min?.w ?? 1}×${w.min?.h ?? 1}) · e then shift+arrows to resize`, { fg: c.subtle }, pr.w);
+    // the whole description, on as many lines as it needs (up to 3): on one line it scrolled,
+    // and looked cut from the left
+    const desc = wrapWords(t(w.description ?? ""), pr.w).slice(0, 3);
+    desc.forEach((l, k) => ui.text(pr.x, pr.y + 1 + k, l, { fg: c.fg }, pr.w));
+    const dy = Math.max(1, desc.length);
+    ui.text(pr.x, pr.y + 1 + dy, `size ${w.size.w}×${w.size.h} (min ${w.min?.w ?? 1}×${w.min?.h ?? 1}) · e then shift+arrows to resize`, { fg: c.subtle }, pr.w);
     const colW = Math.max(4, (ui.cols - 26) / 12);
-    const pw = Math.min(pr.w, Math.round(w.size.w * colW)), ph = Math.min(pr.h - 3, w.size.h * 2 - 1);
-    const card = { x: pr.x, y: pr.y + 4, w: Math.max(12, pw), h: Math.max(3, Math.min(ph, pr.h - 4)) };
+    const top = pr.y + 3 + dy;
+    const pw = Math.min(pr.w, Math.round(w.size.w * colW)), ph = Math.min(pr.y + pr.h - top, w.size.h * 2 - 1);
+    const card = { x: pr.x, y: top, w: Math.max(12, pw), h: Math.max(3, Math.min(ph, pr.y + pr.h - top)) };
     const cin = ui.box(card, { title: w.title.toLowerCase(), bg: c.panel });
     ui.clip(cin, () => {
       try {

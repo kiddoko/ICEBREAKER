@@ -590,7 +590,8 @@ export class SetupApp implements App {
 
   /** The vault's folder, chosen in the deck's file browser instead of typed. */
   private async browseVault(): Promise<void> {
-    const start = this.input.trim() || undefined;
+    // from what's typed, else where the vault is now (it opened at the home folder)
+    const start = this.input.trim() || this.deck.vault.root || undefined;
     const path = await pickFolder(this.deck, t("the vault's folder"), start);
     if (!path) return;
     this.plain.text = path;

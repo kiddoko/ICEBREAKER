@@ -115,10 +115,13 @@ export class FileBrowser implements Overlay {
   private entries(): Entry[] {
     const raw = this.vault
       ? this.deck.vault.entries.filter((e) => dirname(e.path) === this.dir && !e.name.startsWith("."))
-      : (this.cache.get(this.dir) ?? []);
+      : // the places the deck never reads (AppData, Library, the system's): not shown — you could go
+        // in, then the file was refused ("hidden and system files…")
+        (this.cache.get(this.dir) ?? []).filter((e) => !privatePlace(e.path));
+    const q = this.filter.query;
     return raw
       .filter((e) => this.filter.matches(e.name, this.vault ? this.deck.marks.tagOf(e.path) ?? null : null))
-      .sort((a, b) => Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name, undefined, { numeric: true }));
+      .sort((a, b) => (q ? searchRank(a.name, q) - searchRank(b.name, q) : 0) || Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name, undefined, { numeric: true }));
   }
 
   private goTo(dir: string): void {
@@ -279,9 +282,19 @@ export class FileBrowser implements Overlay {
 }
 
 /** Pick a folder anywhere on the computer (a vault, where to move it). Resolves with its path, or null. */
+/**
+ * Where the last pick happened (this run): the next picker opens there, not at your home folder
+ * every time — unless it's given a start (the field's path).
+ */
+let lastFolder = "";
+const remember = (resolve: (p: string | null) => void, isDir: boolean) => (p: string | null) => {
+  if (p) lastFolder = isDir ? p : p.replace(/[\\/][^\\/]*$/, "") || lastFolder;
+  resolve(p);
+};
+
 export function pickFolder(deck: Deck, title: string, start?: string): Promise<string | null> {
   if (!deck.platform.files) return deck.notify(t("picking folders needs the desktop app"), "warning"), Promise.resolve(null);
-  return new Promise((resolve) => deck.workspace.push(new FileBrowser(deck, { source: "computer", title, start, pickDir: resolve })));
+  return new Promise((resolve) => deck.workspace.push(new FileBrowser(deck, { source: "computer", title, start: start || lastFolder || undefined, pickDir: remember(resolve, true) })));
 }
 
 /**
@@ -295,6 +308,24 @@ export async function pickFileText(deck: Deck, title: string, exts: string[] = [
   if (text === null) return null;
   if (text.length > 2_000_000) return deck.notify(t("that file is too big to import (2 MB at most)"), "warning"), null;
   return { name: fileNameOf(path), text };
+}
+
+/**
+ * A place of the computer the deck never reads (src-tauri/src/files.rs `allowed`, the same rules):
+ * the system's folders, and your Library (macOS) / AppData (Windows) — apps' data, keychains.
+ */
+export function privatePlace(path: string): boolean {
+  const lower = path.replace(/\\/g, "/").toLowerCase();
+  const roots = ["/library", "/etc", "/private", "/system", "/var", "/proc", "/sys", "/root", "c:/windows", "c:/program files", "c:/programdata"];
+  if (roots.some((r) => lower === r || lower.startsWith(`${r}/`) || lower.startsWith(`${r} `))) return true;
+  const parts = lower.split("/");
+  return parts.some((p, i) => (p === "users" || p === "home") && (parts[i + 2] === "library" || parts[i + 2] === "appdata"));
+}
+
+/** how well a name answers a search: 0 the name itself, 1 it starts with it, 2 it holds it */
+export function searchRank(name: string, query: string): number {
+  const n = name.toLowerCase(), q = query.toLowerCase().trim();
+  return n === q ? 0 : n.startsWith(q) ? 1 : 2;
 }
 
 /** a path's last part, written with / or \ */
@@ -316,5 +347,5 @@ export async function pickFileBytes(deck: Deck, title: string, exts: string[] = 
 /** Pick a file anywhere on the computer (the deck's own picker). Resolves with its path, or null. */
 export function pickFile(deck: Deck, title: string, exts: string[] = [], start?: string): Promise<string | null> {
   if (!deck.platform.files) return deck.notify(t("picking files needs the desktop app"), "warning"), Promise.resolve(null);
-  return new Promise((resolve) => deck.workspace.push(new FileBrowser(deck, { source: "computer", title, exts, start, pick: resolve })));
+  return new Promise((resolve) => deck.workspace.push(new FileBrowser(deck, { source: "computer", title, exts, start: start || lastFolder || undefined, pick: remember(resolve, false) })));
 }
