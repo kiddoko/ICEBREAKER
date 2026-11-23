@@ -2244,4 +2244,21 @@ export const FR: Record<string, string> = {
   // ── 0.7.1: keys
   "next · previous part of the screen: page → panel → shell → tree": "partie suivante · précédente de l'écran : page → panneau → shell → arbre",
   "save as: a copy under another name (save as <path>)": "enregistrer sous : une copie sous un autre nom (save as <chemin>)",
+  // ── 0.7.1: settings
+  "no category “{name}”": "aucune catégorie « {name} »",
+  // ── 0.7.1: nexus
+  "New note here": "Nouvelle note ici",
+  "New folder here": "Nouveau dossier ici",
+  "Search the vault": "Chercher dans le vault",
+  "Copy its path": "Copier son chemin",
+  "{n} node": "{n} nœud",
+  "{n} nodes": "{n} nœuds",
+  "name": "nom",
+  "modified": "modifié",
+  "size": "taille",
+  "sort: name · modified · size": "tri : nom · modifié · taille",
+  "enter ▸ open": "entrée ▸ ouvrir",
+  "enter ▸ dive in": "entrée ▸ plonger",
+  "SECTOR": "SECTEUR",
+  "DATA": "DONNÉES",
 };

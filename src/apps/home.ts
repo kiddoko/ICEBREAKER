@@ -634,9 +634,11 @@ export class HomeApp implements App {
 
     // edit / done: a button on HOME's top row, right — the widgets start under it (the
     // right-click menu and ⌘E do the same); left of the ↑ shown when scrolled
+    // shown while editing, or when the pointer is near it (top right): HOME is calmer without it
     const edit = this.editing ? `✓ ${t("done")}` : `✎ ${t("edit")}`;
     const up = this.scroll > 0 ? strWidth(` ↑ ${this.scroll} `) : 0;
-    ui.button(r.x + r.w - INSET - (strWidth(edit) + INSET * 2) - up, r.y, edit, () => this.setEditing(!this.editing), { selected: this.editing, tip: this.editing ? t("done editing (esc)") : t("move, resize, add widgets (⌘E)") });
+    const near = ui.hovered({ x: r.x + Math.floor(r.w / 2), y: r.y, w: Math.ceil(r.w / 2), h: Math.min(4, r.h) });
+    if (this.editing || near) ui.button(r.x + r.w - INSET - (strWidth(edit) + INSET * 2) - up, r.y, edit, () => this.setEditing(!this.editing), { selected: this.editing, tip: this.editing ? t("done editing (esc)") : t("move, resize, add widgets (⌘E)") });
 
     // pages: ‹ 1 2 3 + › at the bottom left (always while editing)
     const pages = this.pageCount();

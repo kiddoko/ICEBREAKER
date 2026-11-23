@@ -663,7 +663,7 @@ export class TextEditor {
         this.wantScroll = true;
       },
       onDouble: (m) => this.selectWordAt(this.posAt(m.x, m.y)),
-      onWheel: (d) => this.scroll(d),
+      onWheel: (d, m) => this.scroll(m.shift ? Math.sign(d) : d), // shift: one line at a time
     });
   }
 }

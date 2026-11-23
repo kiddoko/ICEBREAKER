@@ -1,7 +1,8 @@
 import { allWidgetKeys, forgetWidget, newWidgetKey, widgetIdOf } from "../../widgets/instances";
 import { addToMenu, quickItems } from "../../workspace/quickmenu";
 import { closeMany } from "../../workspace/menus";
-import { tLoose } from "../../core/i18n";
+import { tabTitle } from "../../workspace/tabstrip";
+import { t } from "../../core/i18n";
 import { MENU, normalizeCombo } from "../../core/shortcuts";
 import { BLOCK_KINDS, type BlockKind } from "../../core/catalog";
 import { addLink, links, newLinkFlow, NEW_LINK, removeLink } from "../../widgets/links";
@@ -142,7 +143,7 @@ const tab: Command = {
     const ws = ctx.deck.workspace;
     const [a, b] = ctx.args;
     if (!a) {
-      ws.tabs.forEach((tab, i) => ctx.out(`${i === ws.active ? fmt.magenta("▸") : " "} ${i + 1} ${tLoose(tab.title()).toLowerCase()}${tab.dirty?.() ? fmt.yellow(" ●") : ""}\n`));
+      ws.tabs.forEach((tab, i) => ctx.out(`${i === ws.active ? fmt.magenta("▸") : " "} ${i + 1} ${tabTitle(tab)}${tab.dirty?.() ? fmt.yellow(" ●") : ""}\n`));
       return 0;
     }
     if (a === "next") return ws.stepTab(1), 0;
@@ -573,7 +574,18 @@ export const uiCommands: Command[] = [
   scale,
   palette,
   osk,
-  opener("settings", "settings", "settings (ctrl+,)", ["prefs"]),
+  {
+    name: "settings",
+    aliases: ["prefs"],
+    summary: "settings (ctrl+,) · settings <category>: open at it (privacy, weather, todo…)",
+    usage: "settings              the settings\nsettings <category>   open at that category or module's settings",
+    examples: [["settings weather", "the weather module's settings"]],
+    run(ctx) {
+      const app = ctx.deck.openApp("settings") as { goTo?(n: string): boolean } | null;
+      const want = ctx.args.join(" ");
+      if (want && app?.goTo && !app.goTo(want)) return ctx.err(`settings: ${t("no category “{name}”", { name: want })}\n`), 1;
+    },
+  },
   {
     name: "modules",
     summary: "all apps and plugins (key on HOME: m); what they expose to each other",

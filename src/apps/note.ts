@@ -340,7 +340,8 @@ export class NoteApp implements App {
         this.editor.anchor ??= { ...this.editor.cursor };
         this.editor.cursor = this.editor.posAt(m.x, m.y);
       },
-      onWheel: (d) => this.editor.scroll(d),
+      // shift + wheel: one line at a time (to read closely)
+      onWheel: (d, m) => this.editor.scroll(m.shift ? Math.sign(d) : d),
       // right-click: the cursor goes there (unless it's inside the selection), then the menu
       menu: (m) => {
         if (m && !this.editor.selection()) {

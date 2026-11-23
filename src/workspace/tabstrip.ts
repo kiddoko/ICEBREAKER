@@ -14,7 +14,8 @@
  * shown always visible. Drag a tab sideways to put it elsewhere (`tab move <n> <m>`).
  */
 import { mix } from "../core/color";
-import { t } from "../core/i18n";
+import { t, tLoose } from "../core/i18n";
+import type { App } from "../apps/types";
 import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC } from "../core/input";
 import { strWidth, truncate } from "../core/unicode";
@@ -98,7 +99,7 @@ const tabKey = (i: number): string => (i < 9 ? (IS_MAC ? `⌘${i + 1}` : `ctrl+$
 /** HOME is pinned: first, ⌂, no × (it can't be closed by mistake) */
 export const isPinned = (ws: Workspace, i: number) => ws.tabs[i]?.kind === "home";
 /** the pinned tab's width: "⌂ home" */
-const pinW = (ws: Workspace, i: number) => strWidth(ws.tabs[i].title().toLowerCase()) + 4;
+const pinW = (ws: Workspace, i: number) => strWidth(tabTitle(ws.tabs[i])) + 4;
 
 // ── tabs in other frames (workspace/tabplaces.ts) ────────────────────────────
 
@@ -127,7 +128,7 @@ export function dragToFrame(ws: Workspace, i: number, from: PlaceFrame | "main")
     // true while the pointer is over another frame (the strip's own drag then stands aside)
     onDrag: (m) => {
       // its name under the pointer, whatever it's dragged onto
-      ws.ghost = { label: `${iconOf(ws, i) || "·"} ${ws.tabs[i]?.title().toLowerCase() ?? ""}` };
+      ws.ghost = { label: `${iconOf(ws, i) || "·"} ${tabTitle(ws.tabs[i])}` };
       const to = frameUnder(ws, m);
       dropFrame = to && to !== from ? { from, to } : null;
       return !!dropFrame;
@@ -154,7 +155,7 @@ export function placeChips(ws: Workspace, ui: UI, x: number, y: number, maxX: nu
   for (const [k, i] of all.entries()) {
     const app = ws.tabs[i];
     const pin = isPinned(ws, i);
-    const label = `${pin ? "⌂ " : iconOf(ws, i) ? `${iconOf(ws, i)} ` : ""}${app.title().toLowerCase()}`;
+    const label = `${pin ? "⌂ " : iconOf(ws, i) ? `${iconOf(ws, i)} ` : ""}${tabTitle(app)}`;
     // " label " and, unless pinned, " ×"; the one shown may be cut to fit
     const rest = all.length - k - 1;
     const room = maxX - x - (rest ? MORE_W : 0);
@@ -166,7 +167,7 @@ export function placeChips(ws: Workspace, ui: UI, x: number, y: number, maxX: nu
       const mr = { x, y, w: strWidth(more), h: 1 };
       if (x + mr.w > maxX) break;
       ui.text(x, y, more, { fg: ui.hovered(mr) ? c.panel : c.accent, bg: ui.hovered(mr) ? c.accent : c.highlight, attrs: BOLD });
-      ui.hit(mr, { onClick: () => ws.openMenu(left.map((j) => ({ label: `${iconOf(ws, j) ? `${iconOf(ws, j)} ` : ""}${ws.tabs[j].title().toLowerCase()}`, cmd: `tab ${j + 1}` })), x, y + 1, t("more tabs")), tip: t("{n} more tabs: click for the list", { n: left.length }) });
+      ui.hit(mr, { onClick: () => ws.openMenu(left.map((j) => ({ label: `${iconOf(ws, j) ? `${iconOf(ws, j)} ` : ""}${tabTitle(ws.tabs[j])}`, cmd: `tab ${j + 1}` })), x, y + 1, t("more tabs")), tip: t("{n} more tabs: click for the list", { n: left.length }) });
       return x + mr.w + SEP;
     }
     const rect = { x, y, w, h: 2 };
@@ -248,14 +249,14 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
       // ⌂ home: no ×, can't be dragged away from the first place
       if (numbers && i < 9) tx = ui.text(tx, r.y, `${i + 1} `, { fg: on ? c.panel : c.accent, bg, attrs: BOLD });
       else tx = ui.text(tx, r.y, "⌂ ", { fg: on ? c.panel : c.accent, bg, attrs: BOLD });
-      ui.text(tx, r.y, ws.tabs[i].title().toLowerCase(), { fg, bg, attrs: on ? BOLD : 0 }, x + w - 1 - tx);
+      ui.text(tx, r.y, tabTitle(ws.tabs[i]), { fg, bg, attrs: on ? BOLD : 0 }, x + w - 1 - tx);
       // it can go to another frame (dragged onto it), not elsewhere in this strip
       const toFrame = dragToFrame(ws, i, "main");
       ui.hit(rect, { cmd: `tab ${i + 1}`, tip: `${ws.tabs[i].title()} · ${t("pinned: always first")}\n${tabKey(i) ? `${tabKey(i)} · ` : ""}${t("drag it onto another frame to move it")}`, menu: () => tabMenu(ws, i), onDrag: (m) => void toFrame.onDrag(m), onUp: () => void toFrame.onUp() });
     } else if (e.kind === "group") {
       // ▣ the group: its name (or its shown tab's), how many; hover lists them
       // a named group says which of its tabs is shown too ("boulot · ideas")
-      const shownTitle = ws.tabs[i]?.title().toLowerCase() ?? "";
+      const shownTitle = tabTitle(ws.tabs[i]);
       const name = e.group.name ? `${e.group.name}${shownTitle ? ` · ${shownTitle}` : ""}` : shownTitle || t("group");
       const count = ` ${e.indexes.length}`;
       // ⌘ held: the number of the tab it shows (a group had none, even the one in front)
@@ -284,7 +285,7 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
       }
       if (room - 2 >= 6 && iconOf(ws, i)) tx = ui.text(tx, r.y, `${iconOf(ws, i)} `, { fg: on ? c.panel : c.subtle, bg });
       if (unsaved) tx = ui.text(tx, r.y, "● ", { fg: c.error, bg, attrs: BOLD });
-      ui.text(tx, r.y, ws.tabs[i].title().toLowerCase(), { fg, bg, attrs: on ? BOLD : 0 }, Math.max(0, closeX - tx - 1));
+      ui.text(tx, r.y, tabTitle(ws.tabs[i]), { fg, bg, attrs: on ? BOLD : 0 }, Math.max(0, closeX - tx - 1));
       const closeHot = ui.hovered({ x: closeX - 1, y: r.y, w: 3, h: 1 });
       ui.text(closeX, r.y, on || hot ? "×" : " ", { fg: closeHot ? c.error : on ? c.panel : c.subtle, bg, attrs: closeHot ? BOLD : 0 });
       const toFrame = dragToFrame(ws, i, "main");
@@ -336,7 +337,7 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
     const items = hidden.flatMap((ei) => {
       const e = entries[ei];
       const list = e.kind === "tab" ? [e.index] : e.indexes;
-      return list.map((i) => ({ label: `${e.kind === "group" ? "▣ " : ""}${iconOf(ws, i) ? `${iconOf(ws, i)} ` : ""}${ws.tabs[i].title().toLowerCase()}`, cmd: `tab ${i + 1}`, hint: i < 9 ? (IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`) : "" }));
+      return list.map((i) => ({ label: `${e.kind === "group" ? "▣ " : ""}${iconOf(ws, i) ? `${iconOf(ws, i)} ` : ""}${tabTitle(ws.tabs[i])}`, cmd: `tab ${i + 1}`, hint: i < 9 ? (IS_MAC ? `⌘${i + 1}` : `ctrl+${i + 1}`) : "" }));
     });
     ui.hit(rect, { onClick: () => ws.openMenu(items, rect.x, r.y + 1, t("more tabs")), tip: t("{n} more tabs: click for the list", { n: items.length }) });
     x += rect.w + SEP;
@@ -354,7 +355,7 @@ function groupMenu(ws: Workspace, i: number): MenuEntry[] {
   if (!g) return tabMenu(ws, i);
   return [
     { label: t("Rename the group…"), run: async () => {
-      const v = await ws.deck.prompt(t("The group's name"), { initial: g.name || ws.tabs[i]?.title().toLowerCase() || "" });
+      const v = await ws.deck.prompt(t("The group's name"), { initial: g.name || tabTitle(ws.tabs[i]) || "" });
       if (v !== null) void ws.deck.act(`tab groupname ${i + 1} ${q(v.trim() || "-")}`);
     } },
     { label: t("Take this tab out"), cmd: `tab ungroup ${i + 1}` },
@@ -433,15 +434,26 @@ class GroupList implements Overlay {
         tip: t("click: show it · drag: onto another group, or out of this one"),
         onDrag: (m) => {
           fromGroup = { i, group: g.id, m: { x: m.x, y: m.y } };
-          ws.ghost = { label: `${iconOf(ws, i) || "·"} ${ws.tabs[i].title().toLowerCase()}` };
+          ws.ghost = { label: `${iconOf(ws, i) || "·"} ${tabTitle(ws.tabs[i])}` };
         },
         onUp: () => void dropFromGroup(ws),
       });
       const end = new Bar(ui, inner.x + INSET, y, inner.x + inner.w - INSET);
-      end.text(`${iconOf(ws, i) ? `${iconOf(ws, i)} ` : ""}${ws.tabs[i].title().toLowerCase()}`, { fg: on ? c.fg : c.muted, bg, attrs: on ? BOLD : 0 }, { priority: 9, fit: 4 });
+      end.text(`${iconOf(ws, i) ? `${iconOf(ws, i)} ` : ""}${tabTitle(ws.tabs[i])}`, { fg: on ? c.fg : c.muted, bg, attrs: on ? BOLD : 0 }, { priority: 9, fit: 4 });
       end.button("⇱", () => {}, { cmd: `tab ungroup ${i + 1}`, tip: t("take it out: a tab of its own") }, { side: "right", priority: 7 });
       end.button("×", () => {}, { cmd: `tab close ${i + 1}`, tip: t("close it") }, { side: "right", priority: 6 });
       end.draw();
     });
   }
+}
+
+/**
+ * A tab's name as the deck writes it: a page's in the deck's language, like the menu bar
+ * ("réglages" over a tab "settings" before); a note's or a terminal's as it is. HOME stays HOME.
+ */
+export function tabTitle(app: App | undefined): string {
+  if (!app) return "";
+  const title = app.title();
+  const own = app.kind === "note" || app.kind === "terminal" || app.kind === "home";
+  return (own ? title : tLoose(title)).toLowerCase();
 }
