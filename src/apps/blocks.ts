@@ -152,8 +152,11 @@ class BlocksApp implements App {
     for (const l of wrapWords(b.doc || "—", dw).slice(0, 6)) ui.text(dx, dy++, l, { fg: c.fg }, dw);
     dy += 1;
     if (b.value) {
+      // the value after the label, however long the label is in this language (« maintenant »
+      // ran into it: « maintenaaccount »)
+      const lw = strWidth(t("now")) + 2;
       ui.text(dx, dy, t("now"), { fg: c.subtle });
-      ui.text(dx + 8, dy++, b.value, { fg: c.accent, attrs: BOLD }, dw - 8);
+      ui.text(dx + lw, dy++, b.value, { fg: c.accent, attrs: BOLD }, dw - lw);
     }
     if (b.call) {
       dy += 1;
