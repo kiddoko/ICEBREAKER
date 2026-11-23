@@ -95,7 +95,8 @@ export const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform) || /Mac OS X/.t
  * habits like Ctrl+C / Ctrl+L keep working.
  */
 export function toKeyInput(e: KeyboardEvent): KeyInput {
-  const key = KEY_NAMES[e.key] ?? e.key.toLowerCase();
+  // ⇧Tab is "ISO_Left_Tab" on some Linux setups: the Tab key is the Tab key, by its place
+  const key = e.code === "Tab" || e.key === "ISO_Left_Tab" ? "tab" : (KEY_NAMES[e.key] ?? e.key.toLowerCase());
   const ctrl = e.ctrlKey || (IS_MAC && e.metaKey);
   const meta = IS_MAC ? false : e.metaKey;
   const parts: string[] = [];
@@ -122,6 +123,19 @@ export function rawKeyInput(e: KeyboardEvent): KeyInput {
   return { ...k, key, combo: parts.join("+"), raw: true, repeat: e.repeat };
 }
 
+/**
+ * Does this key type a character (text), rather than being a shortcut? A single character
+ * with no modifier, or one typed with AltGr (Windows / Linux: @ # { [ | ~ on AZERTY and many
+ * layouts) or ⌥ alone (macOS). `altGr`: the AltGr key is down — the event's own
+ * getModifierState("AltGraph"), or the AltGraph key seen going down (Linux: WebKitGTK reports
+ * AltGr as alt, so AltGr+" — # on AZERTY — was alt+3: the deck went to tab 3).
+ */
+export function typesText(e: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean }, altGr: boolean, mac = IS_MAC): boolean {
+  if ([...e.key].length !== 1) return false;
+  const macOption = mac && e.altKey && !e.ctrlKey && !e.metaKey;
+  return !(e.ctrlKey || e.metaKey || e.altKey) || (altGr && !e.metaKey) || macOption;
+}
+
 /** A synthetic ctrl+<letter> press (used to turn native menu commands into our shortcuts). */
 export function ctrlKey(letter: string, shift = false): KeyInput {
   return { key: letter, code: `Key${letter.toUpperCase()}`, ctrl: true, alt: false, shift, meta: false, combo: `ctrl+${shift ? "shift+" : ""}${letter}` };
@@ -130,6 +144,8 @@ export function ctrlKey(letter: string, shift = false): KeyInput {
 export class InputManager {
   /** Last known mouse cell (for hover effects). */
   mouseCell = { x: -1, y: -1 };
+  /** the AltGr key is down (seen going down: typesText) */
+  private altGrHeld = false;
   /** ⌘ (Mac) / ctrl held right now, alone: the tabs show their numbers (⌘1…9) while it's down */
   modHeld = false;
   private setMod(on: boolean): void {
@@ -199,9 +215,9 @@ export class InputManager {
       }
       if (e.isComposing || e.keyCode === 229) return; // IME is busy, let it work
       // Characters typed with AltGr (Windows/Linux: @ # { [ on many layouts) or
-      // Option (macOS: | { [ …) are text, not shortcuts.
-      const altGr = e.getModifierState("AltGraph");
-      const macOption = IS_MAC && e.altKey && !e.ctrlKey && !e.metaKey;
+      // Option (macOS: | { [ …) are text, not shortcuts (typesText).
+      if (e.key === "AltGraph") this.altGrHeld = true;
+      const altGr = e.getModifierState("AltGraph") || this.altGrHeld;
       // shift twice, quickly, nothing in between: THE MENU (works anywhere, even typing)
       if (e.key === "Shift" && !e.repeat) {
         const now = performance.now();
@@ -210,7 +226,7 @@ export class InputManager {
         return;
       }
       this.shiftAt = 0;
-      const printable = [...e.key].length === 1 && (!(e.ctrlKey || e.metaKey || e.altKey) || altGr || macOption);
+      const printable = typesText(e, altGr);
       // a page that plays the keyboard (a piano, a game) gets those keys as keys: their place, never text
       if ((printable || e.key === "Dead") && !e.ctrlKey && !e.metaKey && this.sink.rawKeys?.()) {
         e.preventDefault();
@@ -266,9 +282,11 @@ export class InputManager {
       }
     });
     ta.addEventListener("keyup", (e) => {
+      if (e.key === "AltGraph") this.altGrHeld = false;
       if (e.key === (IS_MAC ? "Meta" : "Control") || !(IS_MAC ? e.metaKey : e.ctrlKey)) this.setMod(false);
     });
     ta.addEventListener("blur", () => {
+      this.altGrHeld = false;
       this.setMod(false);
       setTimeout(() => this.focus(), 0);
     });

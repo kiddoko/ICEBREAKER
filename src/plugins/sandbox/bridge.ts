@@ -447,7 +447,8 @@ class ModuleApp implements App {
   onKey(k: KeyInput): boolean {
     // a page that plays the keyboard (App.rawKeys) undoes and saves its own work: ⌘Z / ⌘⇧Z and
     // ⌘S / ⌘⇧S (save, save as — BreakerMED) go to it
-    const own = this.rawKeys && k.ctrl && !k.alt && (k.key === "z" || k.code === "KeyZ" || k.key === "s" || k.code === "KeyS");
+    // tab / shift+tab too (next / previous track: esc gives the keys back to the deck)
+    const own = this.rawKeys && ((k.ctrl && !k.alt && (k.key === "z" || k.code === "KeyZ" || k.key === "s" || k.code === "KeyS")) || (k.key === "tab" && !k.ctrl && !k.alt));
     if (deckKey(k) && !own) return false;
     this.box.send2({ t: "key", inst: this.inst, target: { kind: "app" }, k: plainKey(k) });
     return true;

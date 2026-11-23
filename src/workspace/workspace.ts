@@ -1036,10 +1036,11 @@ export class Workspace {
       modal.onKey?.(k);
       return;
     }
-    // shift+tab: the next part of the screen. Only a note may keep it (to unindent);
+    // shift+tab: the next part of the screen. A note may keep it (to unindent), and a page that
+    // plays the keyboard (a tracker's previous track: esc gives the keys back to the deck);
     // shells never get it (zsh/ibsh would open their completion instead)
     if (k.combo === "shift+tab") {
-      if (this.focus === "main" && this.activeApp?.kind === "note" && this.activeApp.onKey?.(k)) return;
+      if (this.focus === "main" && (this.activeApp?.kind === "note" || this.rawKeys()) && this.activeApp?.onKey?.(k)) return;
       return this.cycleFocus();
     }
     // the system terminal gets the keyboard (ctrl+c, ctrl+r, esc…); ⌘ shortcuts stay the deck's

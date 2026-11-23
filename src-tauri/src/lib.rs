@@ -227,6 +227,11 @@ fn mac_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<tauri
         &[
             &item("note.new", "New Note", Some("CmdOrCtrl+N"))?,
             &item("folder.new", "New Folder", Some("CmdOrCtrl+Shift+N"))?,
+            &sep()?,
+            // ⌘S / ⌘⇧S: the note's or the page's own save (a module's, BreakerMED's): the key
+            // goes to the page; when AppKit keeps it for the menu, the item sends it there
+            &item("save", "Save", Some("CmdOrCtrl+S"))?,
+            &item("saveas", "Save As…", Some("CmdOrCtrl+Shift+S"))?,
             &item("terminal", "New Terminal Tab", None)?,
             &sep()?,
             &item("journal", "Today's Journal", Some("CmdOrCtrl+J"))?,
