@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.6.3
+## 0.6.3 — 2026-11-23
 
 The serious bugs: a layout that comes back, a setup that holds, Linux.
 

@@ -33,6 +33,7 @@ export interface VersionNotes {
 export const NOTES: VersionNotes[] = [
   {
     version: "0.6.3",
+    date: "2026-11-23",
     en: {
       added: [
         "Quit and come back: frames, tabs, pages, shell and window as you left them",
