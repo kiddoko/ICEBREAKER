@@ -27,6 +27,14 @@ import type { App, AppSpec } from "./types";
  *   :  (pad menu) every action: new folder, sort, copy the path…
  * Every action is a shell command (touch, mkdir, mv, rm), echoed in the shell.
  */
+/** what a node is: a folder, a note, or a file of some kind — its glyph, its word, its colour */
+export function kindOf(e: { isDir: boolean; name: string }): { icon: string; word: string; color: (c: UI["c"]) => RGB } {
+  if (e.isDir) return { icon: "▸", word: "folder", color: (c) => c.accentAlt };
+  if (/\.md$/i.test(e.name)) return { icon: "≡", word: "note", color: (c) => c.accent };
+  const ext = /\.([a-z0-9]{1,5})$/i.exec(e.name)?.[1]?.toLowerCase() ?? "file";
+  return { icon: "◇", word: ext, color: (c) => c.warning };
+}
+
 export class ExplorerApp implements App {
   readonly kind = "explorer";
   readonly key = "explorer";
@@ -309,6 +317,9 @@ export class ExplorerApp implements App {
     });
 
 
+    // ── the floating summary of the node under the pointer (after a short rest, it unfolds) ──
+    this.drawHover(ui, r);
+
     // ── data panel: the one in front ──
     if (previewH) this.drawData(ui, { x: r.x + 1, y: floorBottom + 1, w: r.w - 2, h: previewH }, items[this.sel]);
   }
@@ -345,17 +356,25 @@ export class ExplorerApp implements App {
     const inner = ui.box(face, { border: front ? "heavy" : "single", bg: front ? mix(c.panel, c.accent, 0.08) : mix(c.bg, c.panel, near), focused: front });
     ui.tint(face, edge);
 
-    // what's written on it
+    // what's written on it: what it is first (a folder, a note, a file and its kind), then its name
     const e = v.e;
-    const icon = e.isDir ? "▣" : /\.md$/i.test(e.name) ? "≡" : "◇";
-    const name = e.isDir ? e.name : basename(e.name, ".md");
+    const kind = kindOf(e);
+    const icon = kind.icon;
+    const name = e.isDir ? `${e.name}/` : basename(e.name, ".md");
+    // a folder has a tab on its top edge, like a folder (files have none)
+    if (e.isDir && inner.h >= 1) ui.text(x + 1, baseY - 1, `▁${"▁".repeat(Math.min(6, Math.max(2, Math.floor(w / 3))))}▁`, { fg: edge });
+    if (h >= 4) ui.textRight(face.x + face.w - 2, baseY, ` ${tr(kind.word)} `, { fg: front ? c.bg : fade(kind.color(c)), bg: front ? kind.color(c) : undefined, attrs: BOLD });
+    if (ui.hovered(face)) this.hoverAt(e, face, ui.now);
     const p = Math.min(1, (ui.now - this.shownAt - (v.i - this.sel + 4) * 40) / 400);
     if (p < 1) ui.animate(30);
     const label = ui.reveal(name, p);
-    if (inner.h >= 1) ui.text(inner.x + 1, inner.y + (h >= 5 ? 1 : 0) - (h === 3 ? 0 : 0), `${icon} ${label}`, { fg: front ? c.fg : fade(c.muted), attrs: front ? BOLD : 0 }, inner.w - 2);
+    if (inner.h >= 1) {
+      const ix = ui.text(inner.x + 1, inner.y + (h >= 5 ? 1 : 0), `${icon} `, { fg: fade(kind.color(c)), attrs: BOLD });
+      ui.text(ix, inner.y + (h >= 5 ? 1 : 0), label, { fg: front ? c.fg : fade(c.muted), attrs: front || e.isDir ? BOLD : 0 }, inner.w - (ix - inner.x) - 1);
+    }
     if (h >= 5) {
       const kids = e.isDir ? this.deck.vault.entries.filter((x) => dirname(x.path) === e.path).length : 0;
-      const meta = e.isDir ? `${kids} node${kids === 1 ? "" : "s"}` : `${(e.size / 1024).toFixed(e.size < 10240 ? 1 : 0)} kB`;
+      const meta = e.isDir ? tr(kids === 1 ? "{n} thing inside" : "{n} things inside", { n: kids }) : `${(e.size / 1024).toFixed(e.size < 10240 ? 1 : 0)} kB`;
       ui.text(inner.x + 1, inner.y + 2, meta, { fg: fade(c.subtle) }, inner.w - 2);
       if (h >= 7) {
         ui.text(inner.x + 1, inner.y + 3, `mod ${ago(e.modified)}`, { fg: fade(c.subtle) }, inner.w - 2);
@@ -365,7 +384,57 @@ export class ExplorerApp implements App {
     // shadow on the floor
     const sy = baseY + h;
     if (sy <= floor) ui.text(x + 1, sy, "▔".repeat(Math.max(0, w - 2)), { fg: mix(c.bg, edge, 0.35) });
-    ui.hit(face, front ? { onClick: () => this.open(e), tip: e.isDir ? `explore ${e.path}` : `open ${e.path}` } : { onClick: () => (this.sel = v.i), tip: e.name });
+    ui.hit(face, front ? { onClick: () => this.open(e), tip: e.isDir ? `explore ${e.path}` : `open ${e.path}` } : { onClick: () => (this.sel = v.i) }); // its summary floats above it (drawHover): no tip on top
+  }
+
+  /** the node under the pointer and since when (set while drawing the nodes) */
+  private hover: { path: string; e: VaultEntry; face: Rect; since: number; seen: number } | null = null;
+  private hoverAt(e: VaultEntry, face: Rect, now: number): void {
+    if (this.hover?.path === e.path) Object.assign(this.hover, { face, seen: now });
+    else this.hover = { path: e.path, e, face, since: now, seen: now };
+  }
+
+  /**
+   * A small floating window beside the node the pointer rests on: what's in a folder (how many
+   * folders, notes, other files, the first names), a note's first lines, a file's size and date.
+   * It waits 350 ms, then unfolds from its corner (150 ms); it goes when the pointer leaves.
+   */
+  private drawHover(ui: UI, r: Rect): void {
+    const h = this.hover;
+    if (!h || ui.now - h.seen > 50) return void (this.hover = null);
+    const wait = 350 - (ui.now - h.since);
+    if (wait > 0) return ui.animate(wait);
+    const c = ui.c;
+    const e = h.e;
+    const lines: { s: string; fg: number; attrs?: number }[] = [];
+    if (e.isDir) {
+      const kids = this.deck.vault.entries.filter((x) => dirname(x.path) === e.path);
+      const dirs = kids.filter((k) => k.isDir).length, notes = kids.filter((k) => !k.isDir && /\.md$/i.test(k.name)).length;
+      const other = kids.length - dirs - notes;
+      lines.push({ s: [dirs && tr("{n} folders", { n: dirs }), notes && tr("{n} notes", { n: notes }), other && tr("{n} other files", { n: other })].filter(Boolean).join(" · ") || tr("empty"), fg: c.fg, attrs: BOLD });
+      for (const k of kids.slice(0, 6)) lines.push({ s: `${kindOf(k).icon} ${k.isDir ? `${k.name}/` : basename(k.name, ".md")}`, fg: k.isDir ? c.accentAlt : c.muted });
+      if (kids.length > 6) lines.push({ s: `… +${kids.length - 6}`, fg: c.subtle });
+    } else {
+      const k = kindOf(e);
+      lines.push({ s: `${tr(k.word)} · ${(e.size / 1024).toFixed(e.size < 10240 ? 1 : 0)} kB · ${ago(e.modified)}`, fg: c.fg, attrs: BOLD });
+      if (/\.md$/i.test(e.name)) {
+        const text = this.preview.get(e.path);
+        if (text === undefined) void this.deck.vault.read(e.path).then((s) => (this.preview.set(e.path, s), this.deck.requestFrame())).catch(() => this.preview.set(e.path, ""));
+        for (const l of (text ?? "").split("\n").filter((l) => l.trim() && !/^---\s*$/.test(l)).slice(0, 5)) lines.push({ s: l.replace(/^#+\s*/, ""), fg: /^#/.test(l) ? c.accent : c.muted });
+      }
+    }
+    const W = Math.min(40, r.w - 4), H = Math.min(lines.length + 2, 10);
+    // unfolds from the node's top-right corner
+    const p = Math.min(1, (ui.now - h.since - 350) / 150);
+    if (p < 1) ui.animate(16);
+    const w = Math.max(4, Math.round(W * p)), hh = Math.max(3, Math.round(H * p));
+    // above the node (its neighbours stay visible), else under it; its left edge on the node's
+    const x = Math.max(r.x, Math.min(h.face.x, r.x + r.w - W));
+    let y = h.face.y - H - 2;
+    if (y < r.y + 1) y = Math.min(h.face.y + h.face.h + 1, r.y + r.h - H);
+    const box = { x, y, w, h: hh };
+    const inner = ui.box(box, { title: p >= 1 ? (e.isDir ? `${e.name}/` : basename(e.name, ".md")) : "", bg: c.panelAlt, focused: true });
+    if (p >= 1) lines.slice(0, inner.h).forEach((l, i) => ui.text(inner.x + 1, inner.y + i, l.s, { fg: l.fg, attrs: l.attrs ?? 0 }, inner.w - 2));
   }
 
   private drawData(ui: UI, r: Rect, e: VaultEntry | undefined): void {

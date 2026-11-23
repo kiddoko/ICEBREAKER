@@ -1875,4 +1875,11 @@ export const FR: Record<string, string> = {
   "sort by memory": "trier par mémoire",
   "graphics card": "carte graphique",
   "this system doesn't tell its use to an app (no special rights asked)": "ce système ne donne pas son utilisation à une app (sans droits spéciaux)",
+
+  "note": "note",
+  "{n} thing inside": "{n} élément dedans",
+  "{n} things inside": "{n} éléments dedans",
+  "{n} folders": "{n} dossiers",
+  "{n} notes": "{n} notes",
+  "{n} other files": "{n} autres fichiers",
 };
