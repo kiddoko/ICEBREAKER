@@ -20,7 +20,6 @@ import { BOLD } from "../core/grid";
 import { dateLocale, t } from "../core/i18n";
 import { strWidth } from "../core/unicode";
 import type { MenuEntry, UI } from "../ui/ui";
-import { DECK_MENU_TITLE } from "./menus";
 import type { Workspace } from "./workspace";
 
 export type TopStyle = "now" | "a" | "b" | "c";
@@ -65,7 +64,7 @@ export function logoChip(ws: Workspace, ui: UI, x: number, y: number, compact: b
   const label = logoLabel(ui, compact);
   const w = strWidth(label);
   const rect = { x, y, w, h: 1 };
-  const open = ws.overlays.some((o) => !o.done && (o as { title?: string }).title === DECK_MENU_TITLE());
+  const open = ws.overlays.some((o) => !o.done && ((o as { title?: string }).title ?? "").startsWith("ICEBREAKER ")); // menus.ts DECK_MENU_TITLE (no import: a cycle)
   const hot = ui.hovered(rect) || open;
   const chip = hot ? mix(c.accent, bg, 0.62) : mix(c.accent, bg, 0.84);
   ui.fill(rect, { bg: chip });
