@@ -76,3 +76,33 @@ describe("a setting stays what it may be, wherever the value comes from", () => 
     expect([d.appearance.fontSize, d.appearance.scale, d.boot.mode, d.journal.folder]).toEqual([8, 200, "full", "etc"]);
   });
 });
+
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+describe("every setting the deck writes exists (shell.logWidth was written but never declared: E701)", () => {
+  const files = (dir: string): string[] => readdirSync(dir).flatMap((f) => (statSync(join(dir, f)).isDirectory() ? files(join(dir, f)) : f.endsWith(".ts") ? [join(dir, f)] : []));
+  it("settings.set(\"a.b\", …) and set(\"a.b\", …) name a default", async () => {
+    const s = await SettingsStore.load(platformWith({}));
+    const has = (path: string) => {
+      let o: unknown = s.data;
+      for (const k of path.split(".")) {
+        if (!o || typeof o !== "object" || !(k in (o as object))) return false;
+        o = (o as Record<string, unknown>)[k];
+      }
+      return true;
+    };
+    const missing = new Set<string>();
+    for (const f of files("src")) {
+      for (const m of readFileSync(f, "utf8").matchAll(/(?:settings\.set|(?<![.\w])set)\("([a-z][A-Za-z0-9]*(?:\.[A-Za-z0-9]+)+)"/g)) if (!has(m[1])) missing.add(`${m[1]} (${f.replace(/\\/g, "/")})`);
+    }
+    expect([...missing]).toEqual([]);
+  });
+});
+
+import { codeFor } from "../src/core/errors";
+describe("an unknown setting is not a read-only folder", () => {
+  it("E702, not E701", () => {
+    expect(codeFor("unknown setting: shell.logWidth")).toBe("E702");
+    expect(codeFor("couldn't write settings.json")).not.toBe("E702");
+  });
+});

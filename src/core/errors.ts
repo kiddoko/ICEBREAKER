@@ -28,6 +28,7 @@ export const ERROR_CODES: ErrorCode[] = [
   { code: "E502", title: "a widget couldn't draw", hint: "The widget has a bug or is missing data. `home rm <widget>` takes it off HOME." },
   { code: "E601", title: "the terminal couldn't start", hint: "Your shell couldn't be launched. `term restart`; Settings → shell picks another one." },
   { code: "E701", title: "a setting couldn't be saved", hint: "The config folder may be read-only. Settings stay in memory until you quit." },
+  { code: "E702", title: "no such setting", hint: "This version of the deck has no setting by that name (a typo, or one from another version): nothing was changed. `config list` shows them all." },
   { code: "E901", title: "something went wrong", hint: "An unexpected error. The details below help: open an issue on GitHub with them." },
 ];
 
@@ -54,6 +55,8 @@ export function codeFor(text: string): string {
   if (/terminal|pty|shell .*start/.test(s)) return "E601";
   if (/widget/.test(s)) return "E502";
   if (/plugin|module/.test(s)) return "E501";
+  // a name the deck doesn't know is not a disk problem (it said "the folder may be read-only")
+  if (/unknown setting|no default for/.test(s)) return "E702";
   if (/setting|config/.test(s)) return "E701";
   return "E901";
 }

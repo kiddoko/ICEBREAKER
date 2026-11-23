@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { noteTitle } from "../src/shell/commands/deck";
 import { emptiedNote } from "../src/apps/note";
-import { stepSettled, STEP_SETTLE_MS } from "../src/apps/setup";
+import { pressCounts, stepSettled, STEP_SETTLE_MS } from "../src/apps/setup";
 
 describe("the guide's first command (note new \"ideas\")", () => {
   it("reads `note new <title>` as `note <title>`", () => {
@@ -32,5 +32,20 @@ describe("setup: ten enters in a row", () => {
     expect(stepSettled(1000, 1100)).toBe(false);
     expect(stepSettled(1000, 1000 + STEP_SETTLE_MS - 1)).toBe(false);
     expect(stepSettled(1000, 1300)).toBe(true);
+  });
+});
+
+describe("setup: a burst of enters answers exactly one question", () => {
+  it("ten presses 60 ms apart after a question settled: one answer", () => {
+    let stepAt = 0, earlyAt = -1e9, answered = 0;
+    for (let i = 0; i < 10; i++) {
+      const now = 1000 + i * 60;
+      if (pressCounts(stepAt, earlyAt, now)) (answered++, (stepAt = now));
+      else earlyAt = now;
+    }
+    expect(answered).toBe(1);
+  });
+  it("a deliberate press after a pause answers the next one", () => {
+    expect(pressCounts(1000, 1100, 1400)).toBe(true);
   });
 });

@@ -28,3 +28,15 @@ describe("a value never spans the pieces of a line", () => {
     expect(tOutput("from /notes/a.md · 1 h ago")).toBe("depuis /notes/a.md · il y a 1 h");
   });
 });
+
+import { ago } from "../src/core/time";
+describe("relative times in French", () => {
+  afterEach(() => setLang("en"));
+  it("a day is « j »", () => {
+    const three = Date.now() - 3 * 86_400_000;
+    expect(ago(three, true)).toBe("3 d");
+    setLang("fr");
+    expect(ago(three, true)).toBe("3 j");
+    expect(ago(three)).toBe("3j");
+  });
+});

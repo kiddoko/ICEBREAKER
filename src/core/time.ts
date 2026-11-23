@@ -1,3 +1,4 @@
+import { lang } from "./i18n";
 /**
  * How long ago something happened, for lists and widgets.
  *   ago(t)        "now" · "5m" · "3h" · "2d"       (compact: widgets, NEXUS)
@@ -6,11 +7,13 @@
  */
 export function ago(at: number, long = false): string {
   const s = (Date.now() - at) / 1000;
-  if (long) return s < 3600 ? `${Math.max(1, Math.round(s / 60))} min` : s < 86400 ? `${Math.round(s / 3600)} h` : `${Math.round(s / 86400)} d`;
-  if (s < 60) return "now";
+  // a day is « j » in French (« il y a 3 d » read wrong)
+  const day = lang() === "fr" ? "j" : "d";
+  if (long) return s < 3600 ? `${Math.max(1, Math.round(s / 60))} min` : s < 86400 ? `${Math.round(s / 3600)} h` : `${Math.round(s / 86400)} ${day}`;
+  if (s < 60) return lang() === "fr" ? "à l'instant" : "now";
   if (s < 3600) return `${Math.floor(s / 60)}m`;
   if (s < 86400) return `${Math.floor(s / 3600)}h`;
-  return `${Math.floor(s / 86400)}d`;
+  return `${Math.floor(s / 86400)}${day}`;
 }
 
 /** 2026-11-19 (local time): the journal's day names */

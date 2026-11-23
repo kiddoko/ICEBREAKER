@@ -65,6 +65,10 @@ the code from the message), and anything your module throws is caught and logged
 
 **a setting couldn't be saved.** A setting could not be written to the config folder. It stays active until you quit. Check the disk and the permissions of the config folder.
 
+## E702
+
+**no such setting.** A command or a click asked for a setting this version of the deck doesn't know (a typo in `config set`, or a setting from another version). Nothing was changed, nothing is wrong with the disk. `config list` shows every setting.
+
 ## E901
 
 **something went wrong.** Anything the deck did not expect. The detail line is the real message: open an issue on GitHub with it (and what you were doing), it helps a lot.

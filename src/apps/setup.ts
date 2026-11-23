@@ -64,6 +64,14 @@ export function stepSettled(stepAt: number, now: number): boolean {
   return now - stepAt >= STEP_SETTLE_MS;
 }
 
+/**
+ * A press answers when the question has shown for a moment AND no press came in the moment
+ * before it: a burst of enters (a held key, a bouncing one, ten in a row) answers one question.
+ */
+export function pressCounts(stepAt: number, earlyAt: number, now: number): boolean {
+  return stepSettled(stepAt, now) && now - earlyAt >= STEP_SETTLE_MS;
+}
+
 export class SetupApp implements App {
   readonly kind = "setup";
   readonly key = "setup";
@@ -81,6 +89,8 @@ export class SetupApp implements App {
     return this.field.text;
   }
   private stepAt = 0;
+  /** the last press that came too soon (it pushes the wait back) */
+  private earlyAt = -1e9;
   /** the clock (tests set their own) */
   static clock: () => number = () => performance.now();
   private busy = false;
@@ -389,7 +399,10 @@ export class SetupApp implements App {
     if (this.busy) return;
     // ten enters in a row (a bouncing key, a key held down) answered ten questions: a question
     // takes an answer only once it has been on screen for a moment
-    if (!stepSettled(this.stepAt, SetupApp.clock())) return;
+    // a press too soon also pushes the wait back: a burst of enters answers one question, never
+    // three (they went 250 ms apart: ten enters in 0.6 s moved three questions)
+    const now = SetupApp.clock();
+    if (!pressCounts(this.stepAt, this.earlyAt, now)) return void (this.earlyAt = now);
     if (st.id === "place") return this.submitPlace();
     if (st.text) {
       // the vault's folder: one that can really be used, checked now — not at the end, where a

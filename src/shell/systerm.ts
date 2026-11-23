@@ -59,7 +59,29 @@ export function freeNumber(used: ReadonlySet<number>): number {
 export class SystemTerminal {
   readonly term: Terminal;
   readonly id = `pty${Math.random().toString(36).slice(2, 8)}`;
-  shellName = "terminal";
+  /**
+   * The shell this terminal runs, as the native side named it when it started. Until it
+   * answers (Windows' ConPTY can take a moment, and a restart asks again), the last shell any
+   * terminal started — so the tab doesn't flip "terminal" ↔ "powershell".
+   */
+  shellName = SystemTerminal.lastShell();
+  private static known = "";
+  private static lastShell(): string {
+    if (SystemTerminal.known) return SystemTerminal.known;
+    try {
+      return localStorage.getItem("icebreaker.lastShell") || "terminal";
+    } catch {
+      return "terminal";
+    }
+  }
+  private static remember(name: string): void {
+    SystemTerminal.known = name;
+    try {
+      localStorage.setItem("icebreaker.lastShell", name);
+    } catch {
+      /* the name is a nicety */
+    }
+  }
   /**
    * The tab's name: the shell it runs — zsh, bash, powershell — then "zsh 2"… the way a
    * terminal app names its tabs; yours once renamed (term rename, right-click).
@@ -153,7 +175,11 @@ export class SystemTerminal {
         this.term.write(data, () => this.deck.requestFrame());
       }, this.moduleCommands(), this.deck.settings.data.shell.prompt ?? "icebreaker")
       .then((name) => {
-        this.shellName = name;
+        // an empty answer keeps the name it had (it went back to "terminal")
+        if (name?.trim()) {
+          this.shellName = name.trim();
+          SystemTerminal.remember(this.shellName);
+        }
         this.ready();
       })
       .catch((e) => {

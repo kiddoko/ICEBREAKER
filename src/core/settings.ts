@@ -267,6 +267,7 @@ export const DEFAULT_SETTINGS: Settings = {
     bridge: "more",
     macrosShown: true,
     logSide: true,
+    logWidth: 0,
     macros: [
       { label: "ls", cmd: "ls -la" },
       { label: "cd ..", cmd: "cd .." },
