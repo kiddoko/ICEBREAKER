@@ -695,6 +695,7 @@ export class Deck implements InputSink {
   /** Lock (log out): the settings are saved, the account is locked, the login screen comes back. */
   lockNow(): void {
     void (async () => {
+      if (this.started && this.workspace.solo) this.workspace.toggleSolo();
       if (this.started) this.workspace.saveSession();
       await this.settings.flush();
       await this.rememberLook();
@@ -1481,6 +1482,9 @@ export class Deck implements InputSink {
     if (this.quitting) return; // alt+F4 is a key AND the window closing: once
     this.quitting = true;
     try {
+      // "the page alone" is a moment, not a layout: the frames come back before it's saved (it
+      // came back alone, ▣ lit, at the next start)
+      if (this.started && this.workspace.solo) this.workspace.toggleSolo();
       // what the desktop looks like, written now (not 300 ms later: the app would be gone)
       if (this.started) this.workspace.saveSession();
       await this.settings.flush();

@@ -291,6 +291,7 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
       const toFrame = dragToFrame(ws, i, "main");
       ui.hit(rect, {
         cmd: `tab ${i + 1}`,
+        onMiddle: () => void ws.deck.act(`tab close ${i + 1}`),
         tip: `${ws.tabs[i].title()}\n${tabKey(i) ? `${tabKey(i)} · ` : ""}${t("drag: move it · onto another tab: a group · onto another frame: it goes there · right-click: Move to…")}`,
         menu: () => tabMenu(ws, i),
         // drag it: beside another chip moves it there, onto the middle of one makes a group

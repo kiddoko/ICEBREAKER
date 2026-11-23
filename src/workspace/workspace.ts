@@ -1229,6 +1229,10 @@ export class Workspace {
           else if (!this.topModal) this.openMenu(this.paneMenu(), m.x, m.y);
           break;
         }
+        if (m.button === 1) {
+          const mid = pick((x) => !!x.onMiddle);
+          if (mid?.onMiddle) return void mid.onMiddle(m);
+        }
         const h = pick((x) => !!(x.onClick || x.onDrag || x.cmd));
         if (h?.onClick || h?.cmd) this.deck.sound.play("move");
         this.dragging = h ?? null;

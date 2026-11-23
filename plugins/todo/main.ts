@@ -535,7 +535,7 @@ export function activate(ib: IcebreakerAPI): void {
     return out;
   }
 
-  const SUBS = ["add", "done", "undo", "edit", "prio", "due", "rm", "restore", "ls", "clear", "open"];
+  const SUBS = ["add", "done", "undo", "edit", "prio", "due", "rm", "restore", "ls", "list", "clear", "open"];
 
   const command: Command = {
     name: "todo",
@@ -734,7 +734,7 @@ export function activate(ib: IcebreakerAPI): void {
           if (app && args.includes("--add")) app.startTyping();
           return 0;
         }
-        case "ls": {
+        case "ls": case "list": {
           const f: Filter = args.includes("--all") || args.includes("-a") ? "all" : args.includes("--done") ? "done" : args.includes("--today") ? "today" : "open";
           const tag = args.find((a) => a.startsWith("+"))?.slice(1);
           let list = pick(f);

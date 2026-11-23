@@ -48,6 +48,8 @@ export interface Hit {
   onWheel?: (delta: number, m: MouseInput) => void;
   /** Right click: a custom handler. Most places give a `menu` instead. */
   onRight?: (m: MouseInput) => void;
+  /** the middle button (a tab: closes it, like a browser's) — without it, a middle click is a click */
+  onMiddle?: (m: MouseInput) => void;
   /**
    * What right-click shows here (a context menu). The deck adds the common
    * lines (copy/paste in text, palette, shortcuts, settings) under it.

@@ -225,8 +225,9 @@ export function coreSettingRows(deck: Deck): Row[] {
     { section: "APPEARANCE", label: "", value: () => "" },
     head("Screen"),
     cycle("appearance.theme", "Theme", d.themes.list().map((t) => t.name)),
-    slide("appearance.scale", "Zoom", 50, 200, () => num("appearance.scale"), (v) => set("appearance.scale", v)),
-    slide("appearance.fontSize", "Font size", 10, 20, () => num("appearance.fontSize"), (v) => set("appearance.fontSize", v), { step: 1, show: (v) => `${v}px` }),
+    // one way to make everything bigger: zoom (decision 4 — "font size" did the same, with other
+    // bounds; it stays a setting: config set appearance.fontSize, theme studio's text)
+    slide("appearance.scale", "Zoom", 25, 200, () => num("appearance.scale"), (v) => set("appearance.scale", v), { cmd: (v) => `scale ${v}` }),
     cycle("appearance.fontWeight", "Font weight", ["thin", "light", "regular"]),
     toggle("appearance.startFullscreen", "Start in full screen"),
     slide("appearance.brightness", "Brightness", 50, 150, () => num("appearance.brightness") || 100, (v) => set("appearance.brightness", v)),
@@ -422,6 +423,7 @@ export function coreSettingRows(deck: Deck): Row[] {
     needs(provider("anthropic"), cycle("ai.effort", "Effort", ["low", "medium", "high", "xhigh", "max"])),
     needs(provider("anthropic"), {
       label: "API key",
+      cmd: () => "config key",
       value: () => (s.secrets.anthropicApiKey ? `sk-…${s.secrets.anthropicApiKey.slice(-4)}` : d.ai.envKey ? "from env" : "not set"),
       change: () => void d.shell.runLine("config key"),
     }),
@@ -467,6 +469,7 @@ export function coreSettingRows(deck: Deck): Row[] {
     head("Now"),
     {
       label: "ICEBREAKER",
+      cmd: () => "update",
       kind: "info",
       value: () => {
         const u = d.updater;
@@ -478,6 +481,7 @@ export function coreSettingRows(deck: Deck): Row[] {
     },
     {
       label: "Modules",
+      cmd: () => "store update",
       kind: "info",
       value: () => (d.updater.modules.length ? d.updater.modules.map((m) => `${m.id} ${m.latest}`).join(", ") : d.updater.checkedAt ? t("up to date") : "—"),
     },

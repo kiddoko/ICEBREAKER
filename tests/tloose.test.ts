@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { setLang, tLoose } from "../src/core/i18n";
+import { setLang, tLoose, uiCase } from "../src/core/i18n";
 
 describe("tips and status lines written without t()", () => {
   afterEach(() => setLang("en"));
@@ -29,7 +29,6 @@ describe("the deck's date format", () => {
   });
 });
 
-import { uiCase } from "../src/core/i18n";
 describe("the interface's lowercase, in French too", () => {
   it("a capital word with an apostrophe, a one-letter word among capitals", () => {
     expect(uiCase("VUE D'ENSEMBLE")).toBe("vue d'ensemble");
@@ -38,5 +37,11 @@ describe("the interface's lowercase, in French too", () => {
   it("…but a lone capital in a sentence, acronyms and keys stay", () => {
     expect(uiCase("What I give it")).toBe("what I give it");
     expect(uiCase("Claude API key · ⌘K")).toBe("Claude API key · ⌘K");
+  });
+});
+
+describe("uiCase and the French Œ (SYSMON wrote « CŒurs »)", () => {
+  it("lowers a word in capitals with Œ", () => {
+    expect(uiCase("CŒURS")).toBe("cœurs");
   });
 });

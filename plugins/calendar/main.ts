@@ -540,7 +540,7 @@ export function activate(ib: IcebreakerAPI): void {
           case "today": printDays(ctx, today, 1, true); return 0;
           case "tomorrow": printDays(ctx, addDays(today, 1), 1, true); return 0;
           case "week": printDays(ctx, today, 7, true); return 0;
-          case "next": {
+          case "next": case "ls": case "list": {
             const evs = upcoming(Number(rest[0]) || 5);
             if (!evs.length) return ctx.out(fmt.dim("nothing coming up\n")), 0;
             for (const e of evs) {
