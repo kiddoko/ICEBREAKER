@@ -153,6 +153,9 @@ export class Workspace {
    * drags it, gone when the button comes up. Where it would land is lit by that source.
    */
   ghost: { label: string } | null = null;
+  /** the status bar's items as drawn (left to right) and the one being dragged (chrome.ts) */
+  statusSlots: { id: string; x: number; w: number }[] = [];
+  statusDrag: { id: string; x0: number; moved: boolean; to?: number } | null = null;
 
   /** the ghost: a small lit label just under-right of the pointer */
   private drawGhost(ui: UI, screen: Rect): void {
@@ -852,6 +855,32 @@ export class Workspace {
     this.focus = "shell";
   }
 
+  /**
+   * Everything folded away but the page in the middle (the status bar's ▣, `frame solo`), and
+   * back: the tree, the panel and the shell come back as they were.
+   */
+  private soloWas: { tree: boolean; panel: boolean; shell: boolean } | null = null;
+  get solo(): boolean {
+    return !this.sidebarVisible && !this.deck.settings.data.panel?.shown && !(this.terminalOn && this.shellVisible);
+  }
+  toggleSolo(): void {
+    const panel = !!this.deck.settings.data.panel?.shown;
+    if (!this.solo) {
+      this.soloWas = { tree: this.sidebarVisible, panel, shell: this.shellVisible };
+      this.sidebarVisible = false;
+      if (panel) this.deck.settings.set("panel.shown", false);
+      this.shellVisible = false;
+      this.focus = "main";
+    } else {
+      const was = this.soloWas ?? { tree: true, panel: false, shell: true };
+      this.soloWas = null;
+      if (was.tree) this.sidebarVisible = true;
+      if (was.panel) this.deck.settings.set("panel.shown", true);
+      if (was.shell && this.terminalOn) this.shellVisible = true;
+    }
+    this.deck.requestFrame();
+  }
+
   toggleSidebar(): void {
     // folded into a strip: ⌘B opens it rather than hiding it
     if (this.sidebarVisible && isFolded(this.arrangement, "vault")) {
@@ -1261,8 +1290,11 @@ export class Workspace {
       case "wheel": {
         this.tipHidden = true;
         const h = pick((x) => !!x.onWheel);
-        // shift + wheel walks the tree from anywhere (Settings → VAULT), but a slider keeps its wheel
-        if (m.shift && this.sidebarVisible && !h?.fine && !m.fine && this.sidebar.walkWheel(m.delta)) break;
+        // shift + wheel goes to what's under the pointer, like the wheel (Settings scroll); it walks
+        // the tree's selection over the tree — or with the tree focused and nothing to scroll there
+        const overTree = !!this.rects.sidebar && inside(this.rects.sidebar, m.x, m.y);
+        const treeWalk = overTree || (!h && this.focus === "sidebar");
+        if (m.shift && treeWalk && this.sidebarVisible && !h?.fine && !m.fine && this.sidebar.walkWheel(m.delta)) break;
         if (!m.fine || h?.fine) h?.onWheel?.(m.delta, m); // less than a line: only sliders want it
         break;
       }

@@ -131,6 +131,8 @@ export interface Settings {
   session?: { tree?: string[]; tabs?: string[]; active?: number; groups?: unknown[]; places?: Record<string, string>; shows?: Record<string, string>; view?: unknown };
   /** where the frames sit (workspace/layout/arrange.ts, docs/FRAMES.md): {} = today's arrangement; `layout preset`, `frame move` */
   layout: { version?: number; preset?: string; root?: unknown };
+  /** the status bar's right side: its items in this order (empty: the default), those hidden (workspace/statusbar.ts) */
+  statusBar: { order: string[]; hidden: string[] };
   /** pinned notes, folders, modules (`pin`): top of the tree and the pinned widget */
   /** pins (workspace/favorites.ts): notes, folders, modules, pages, macros, commands — also HOME's squares */
   favorites: { kind: "note" | "folder" | "module" | "page" | "macro" | "command"; target: string; label: string; id?: string; icon?: string; cmd?: string }[];
@@ -240,6 +242,7 @@ export const DEFAULT_SETTINGS: Settings = {
   favorites: [],
   session: {},
   layout: {},
+  statusBar: { order: [], hidden: [] },
   fxByTheme: {},
   moduleSettings: {},
   moduleTags: {},

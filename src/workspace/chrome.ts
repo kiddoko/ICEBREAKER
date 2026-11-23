@@ -10,12 +10,13 @@ import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC } from "../core/input";
 import { osKeys } from "../core/keyhints";
 import { strWidth } from "../core/unicode";
-import { inside, q, type Hit, type UI } from "../ui/ui";
+import { inside, q, type Hit, type MenuEntry, type UI } from "../ui/ui";
 import { Bar, GAP, INSET } from "../ui/layout";
 import { Osk } from "./overlays";
 import { SystemTerminal, terminalKeysHint } from "../shell/systerm";
 import type { ShellTab, Workspace } from "./workspace";
 import { chipStyle, drawChip, placeChips, tabbedBox } from "./tabstrip";
+import { moveStatusItem, statusOrder } from "./statusbar";
 import { DECK_MENU_TITLE, editMacro, macroMenu, shellMenu, termTabMenu } from "./menus";
 
 /**
@@ -339,26 +340,25 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
     ? `${ws.sysTerm?.shellName ?? "terminal"} · ${terminalKeysHint()} · ⇧⇧ menu · F12 tabs`
     : ws.focus === "shell" ? d.shell.status() : ws.focus === "sidebar" ? "enter open · n new note · r rescan" : ws.focus === "panel" ? t("e edit · a add a widget · right-click: move, remove · ⌘⇧P hide") : osKeys(ws.activeApp?.status?.() ?? "");
 
-  // right side: each with its priority — when the bar is too narrow, the least important go
-  // first (ui/layout.ts Bar), the keys on the left shrink (cut with …): nothing overlaps
-  const parts: { text: string; fg: number; cmd?: string; tip?: string; priority: number }[] = [];
-  if (d.settings.data.privacy.stealth) parts.push({ text: `◉ ${t("stealth")}`, fg: c.success, cmd: "stealth", tip: t("100 % local: no internet · stealth off"), priority: 9 });
-  if (d.voice.speaking) parts.push({ text: `◖ ${t("voice")}`, fg: c.accentAlt, cmd: "voice stop", tip: t("speaking · click to stop"), priority: 8 });
-  if (d.gamepad.connected) parts.push({ text: "◈ pad", fg: c.success, priority: 4 });
-  if (ws.terminalOn) parts.push(ws.shellVisible ? { text: "▾ shell", fg: c.muted, cmd: "term hide", tip: "fold the shell away · ctrl+`", priority: 6 } : { text: "▴ shell", fg: c.accent, cmd: "term show", tip: "bring the shell back · ctrl+`", priority: 6 });
-  parts.push({ text: "⌨", fg: ws.overlays.some((o) => o instanceof Osk) ? c.accent : c.muted, cmd: "osk", tip: "on-screen keyboard · pad: X", priority: 2 });
-  parts.push({ text: "✦ fx", fg: c.accentAlt, cmd: "view fx", tip: "bloom, scanlines… · `fx` in the shell", priority: 3 });
+  // right side: your items in your order (workspace/statusbar.ts: drag one sideways, right-click
+  // to move or hide it, `statusbar`), each with its priority — when the bar is too narrow, the
+  // least important go first (ui/layout.ts Bar), the keys on the left shrink: nothing overlaps
+  type Part = { id: string; text: string; fg: number; cmd?: string; tip?: string; priority: number };
+  const byId = new Map<string, Part[]>();
+  const add = (p: Part) => byId.set(p.id, [...(byId.get(p.id) ?? []), p]);
+  if (d.settings.data.privacy.stealth) add({ id: "stealth", text: `◉ ${t("stealth")}`, fg: c.success, cmd: "stealth", tip: t("100 % local: no internet · stealth off"), priority: 9 });
+  if (d.voice.speaking) add({ id: "voice", text: `◖ ${t("voice")}`, fg: c.accentAlt, cmd: "voice stop", tip: t("speaking · click to stop"), priority: 8 });
+  if (d.gamepad.connected) add({ id: "pad", text: "◈ pad", fg: c.success, tip: t("a gamepad is plugged in"), priority: 4 });
+  add({ id: "osk", text: "⌨", fg: ws.overlays.some((o) => o instanceof Osk) ? c.accent : c.muted, cmd: "osk", tip: t("on-screen keyboard · pad: X"), priority: 2 });
+  add({ id: "fx", text: "✦ fx", fg: c.accentAlt, cmd: "view fx", tip: t("the effects: bloom, scanlines, curvature… · fx in the shell"), priority: 3 });
   // a module playing sound of its own (ib.audio): its name, one click silences it
-  for (const id of d.mixer.playing()) parts.push({ text: `♪ ${d.plugins.list().find((p) => p.manifest.id === id)?.manifest.name ?? id}`, fg: c.accent, cmd: `audio stop ${id}`, tip: t("a module is playing sound · click to stop it"), priority: 7 });
+  for (const id of d.mixer.playing()) add({ id: "audio", text: `♪ ${d.plugins.list().find((p) => p.manifest.id === id)?.manifest.name ?? id}`, fg: c.accent, cmd: `audio stop ${id}`, tip: t("a module is playing sound · click to stop it"), priority: 7 });
   const muted = !!d.settings.data.sound.muted;
-  parts.push({ text: muted ? "⊘ mute" : "♪", fg: muted ? c.error : c.muted, cmd: "mute", tip: muted ? t("muted: click to hear things again") : t("mute everything (sounds, voice, alerts)"), priority: muted ? 7 : 3 });
-  parts.push({ text: "☾", fg: c.muted, cmd: "screensaver", tip: t("screensaver now (any key brings you back)"), priority: 1 });
-  if (d.settings.data.appearance.showFps) parts.push({ text: `${d.loop.fps}fps ${d.loop.frameMs.toFixed(1)}ms`, fg: c.subtle, priority: 2 });
-  parts.push({ text: `${IS_MAC ? "⌘K" : "^K"} ${t("menu")}`, fg: c.muted, cmd: "menu", priority: 9 });
-  parts.push({ text: `F1 ${t("help")}`, fg: c.muted, cmd: "manual", priority: 5 });
-  // the two side frames' switches, last on the right: the tree (left, ◧) and the panel (right, ◨)
-  parts.push({ text: `◧ ${t("tree")}`, fg: d.workspace.sidebarVisible ? c.accent : c.muted, cmd: "view sidebar", tip: `${t("the file tree on the left · view sidebar")} · ${IS_MAC ? "⌘B" : "ctrl+B"}`, priority: 8 });
-  parts.push({ text: `◨ ${t("panel")}`, fg: d.settings.data.panel?.shown ? c.accent : c.muted, cmd: "panel", tip: `${t("the side panel: widgets always in view · panel")} · ${IS_MAC ? "⌘⇧P" : "ctrl+shift+P"}`, priority: 8 });
+  add({ id: "mute", text: muted ? `⊘ ${t("muted")}` : "♪", fg: muted ? c.error : c.muted, cmd: "mute", tip: muted ? t("muted: click to hear things again") : t("mute everything (sounds, voice, alerts)"), priority: muted ? 7 : 3 });
+  add({ id: "screensaver", text: "☾", fg: c.muted, cmd: "screensaver", tip: t("screensaver now (any key brings you back)"), priority: 1 });
+  if (d.settings.data.appearance.showFps) add({ id: "fps", text: `${d.loop.fps}fps ${d.loop.frameMs.toFixed(1)}ms`, fg: c.subtle, tip: t("frames drawn per second, and the last one's cost"), priority: 2 });
+  add({ id: "menu", text: `${IS_MAC ? "⌘K" : "^K"} ${t("menu")}`, fg: c.muted, cmd: "menu", tip: t("THE MENU: search everything, run anything · ⌘K"), priority: 9 });
+  add({ id: "help", text: `F1 ${t("help")}`, fg: c.muted, cmd: "manual", tip: t("the manual · F1"), priority: 5 });
 
   // the things touch: each right part carries its own "│ " and spaces
   const bar = new Bar(ui, r.x, r.y, r.x + r.w, 0);
@@ -368,20 +368,123 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
     ui.text(e, r.y, "", { fg: c.accent, bg: c.statusBg });
   }, { priority: 10 });
   if (status) bar.text(` ${status} `, { fg: c.statusFg, bg: c.statusBg }, { priority: 1, fit: 12 });
-  for (const p of parts) {
-    const w = strWidth(p.text);
-    bar.item(w + 3, (rx) => {
-      ui.text(rx, r.y, "│ ", { fg: c.faint, bg: c.statusBg });
-      // the whole cell is the button (the separator and the spaces around the text too):
-      // a one-character button like ◨ is hard to hit otherwise
-      const cell = { x: rx, y: r.y, w: w + 3, h: 1 };
-      const hot = !!p.cmd && ui.hovered(cell);
-      if (hot) ui.fill({ x: rx + 1, y: r.y, w: w + 2, h: 1 }, { bg: c.highlight });
-      ui.text(rx + 2, r.y, p.text, { fg: hot ? c.accent : p.fg, bg: hot ? c.highlight : c.statusBg });
-      if (p.cmd) ui.hit(cell, { cmd: p.cmd, tip: p.tip });
-    }, { side: "right", priority: p.priority });
+  const order = statusOrder(d.settings.data.statusBar);
+  ws.statusSlots = [];
+  const drag = ws.statusDrag;
+  for (const id of order) {
+    if (id === "frames") {
+      bar.item(FRAMES_W + 2, (rx) => {
+        statusGrip(ws, ui, rx, r.y, id, order);
+        drawFrameSwitches(ws, ui, rx + 2, r.y);
+        ws.statusSlots.push({ id, x: rx, w: FRAMES_W + 2 });
+      }, { side: "right", priority: 8 });
+      continue;
+    }
+    for (const p of byId.get(id) ?? []) {
+      const w = strWidth(p.text);
+      bar.item(w + 3, (rx) => {
+        // the whole cell is the button (the separator and the spaces around the text too):
+        // a one-character button like ☾ is hard to hit otherwise
+        const cell = { x: rx, y: r.y, w: w + 3, h: 1 };
+        const hot = !!p.cmd && ui.hovered(cell) && !drag;
+        ui.text(rx, r.y, "│ ", { fg: drag?.id === id ? c.accent : c.faint, bg: c.statusBg });
+        if (hot) ui.fill({ x: rx + 1, y: r.y, w: w + 2, h: 1 }, { bg: c.highlight });
+        ui.text(rx + 2, r.y, p.text, { fg: drag?.id === id ? c.accent : hot ? c.accent : p.fg, bg: hot ? c.highlight : c.statusBg });
+        ws.statusSlots.push({ id, x: rx, w: w + 3 });
+        statusHit(ws, ui, cell, id, order, p.cmd, p.tip);
+      }, { side: "right", priority: p.priority });
+    }
   }
   bar.draw();
+  // dragging an item: where it would land, a bright bar between two items
+  if (drag && drag.to !== undefined) {
+    const slots = [...ws.statusSlots].sort((a, b) => a.x - b.x);
+    const at = drag.to >= slots.length ? (slots.length ? slots[slots.length - 1].x + slots[slots.length - 1].w : r.x + r.w) : slots[drag.to]?.x;
+    if (at !== undefined) ui.text(Math.min(r.x + r.w - 1, at), r.y, "┃", { fg: c.accent, bg: c.statusBg, attrs: BOLD });
+  }
+}
+
+/** the frames' switches: ` ◧  ▾  ◨  ▣ ` — the tree, the shell, the panel, the page alone */
+const FRAMES_W = 12;
+function drawFrameSwitches(ws: Workspace, ui: UI, x: number, y: number): void {
+  const c = ui.c;
+  const d = ws.deck;
+  const mod = IS_MAC ? "⌘" : "ctrl+";
+  const items: [string, boolean, string, string][] = [
+    ["◧", ws.sidebarVisible, "view sidebar", `${t("the file tree")} · ${mod}B`],
+    [ws.shellVisible ? "▾" : "▴", ws.terminalOn && ws.shellVisible, ws.shellVisible ? "term hide" : "term show", `${t("the shell")} · ctrl+\``],
+    ["◨", !!d.settings.data.panel?.shown, "panel", `${t("the side panel: widgets always in view")} · ${IS_MAC ? "⌘⇧P" : "ctrl+shift+P"}`],
+    ["▣", ws.solo, "frame solo", t("the page alone: the tree, the shell and the panel folded away — again: they come back")],
+  ];
+  items.forEach(([icon, on, cmd, tip], k) => {
+    const rect = { x: x + k * 3, y, w: 3, h: 1 };
+    const hot = ui.hovered(rect) && !ws.statusDrag;
+    ui.text(rect.x, y, ` ${icon} `, { fg: hot ? c.bg : on ? c.accent : c.subtle, bg: hot ? c.accent : on ? mix(c.statusBg, c.accent, 0.18) : c.statusBg, attrs: on ? BOLD : 0 });
+    const state = k === 3 ? "" : `\n${on ? t("shown · click to hide") : t("hidden · click to show")}`;
+    ui.hit(rect, { cmd, tip: `${osKeys(tip)}${state}`, menu: () => statusItemMenu(ws, "frames") });
+  });
+}
+
+/** the "│ " before an item, its grip: drag it sideways to move the item */
+function statusGrip(ws: Workspace, ui: UI, x: number, y: number, id: string, order: string[]): void {
+  const c = ui.c;
+  const grip = { x, y, w: 2, h: 1 };
+  ui.text(x, y, "│ ", { fg: ws.statusDrag?.id === id ? c.accent : ui.hovered(grip) ? c.accent : c.faint, bg: c.statusBg });
+  statusHit(ws, ui, grip, id, order, undefined, t("drag sideways: move it · right-click: move, hide…"));
+}
+
+/**
+ * An item's mouse: a click runs its command, a drag sideways moves it (let go: it stays
+ * there), right-click: move it, hide it, show the hidden ones, back to the default.
+ */
+function statusHit(ws: Workspace, ui: UI, rect: Rect, id: string, order: string[], cmd: string | undefined, tip: string | undefined): void {
+  ui.hit(rect, {
+    onClick: (m) => (ws.statusDrag = { id, x0: m.x, moved: false }),
+    onDrag: (m) => {
+      const g = ws.statusDrag;
+      if (!g || g.id !== id) return;
+      if (!g.moved && Math.abs(m.x - g.x0) < 2) return;
+      g.moved = true;
+      ws.ghost = { label: `⇄ ${id}` };
+      // the slot under the pointer (left to right) is where it goes
+      const slots = [...ws.statusSlots].sort((a, b) => a.x - b.x);
+      let to = slots.findIndex((s) => m.x < s.x + s.w / 2);
+      if (to < 0) to = slots.length;
+      g.to = to;
+    },
+    onUp: () => {
+      const g = ws.statusDrag;
+      ws.statusDrag = null;
+      ws.ghost = null;
+      if (!g) return;
+      if (!g.moved) return void (cmd && ws.deck.act(cmd));
+      // dropped before the item that was in that slot (or after the last one): the items not on
+      // the bar right now (stealth off, no gamepad…) keep their places
+      const shown = [...ws.statusSlots].sort((a, b) => a.x - b.x).map((s) => s.id).filter((x, i, a) => a.indexOf(x) === i);
+      const before = shown.slice(g.to ?? 0).find((x) => x !== id);
+      const rest = order.filter((x) => x !== id);
+      const at = before ? rest.indexOf(before) : rest.indexOf(shown.filter((x) => x !== id).pop() ?? "") + 1;
+      void ws.deck.act(`statusbar order ${moveStatusItem([...rest, id], id, at).join(" ")}`);
+    },
+    tip: [tip ? osKeys(tip) : "", cmd ? `❯ ${cmd}` : ""].filter(Boolean).join("\n") || undefined,
+    menu: () => statusItemMenu(ws, id),
+  });
+}
+
+/** Right-click on an item of the status bar. */
+function statusItemMenu(ws: Workspace, id: string): MenuEntry[] {
+  const d = ws.deck;
+  const order = statusOrder(d.settings.data.statusBar);
+  const i = order.indexOf(id);
+  const hidden = d.settings.data.statusBar?.hidden ?? [];
+  return [
+    { label: t("Move left"), cmd: `statusbar move ${id} left`, disabled: i <= 0 },
+    { label: t("Move right"), cmd: `statusbar move ${id} right`, disabled: i < 0 || i >= order.length - 1 },
+    { label: t("Hide"), cmd: `statusbar hide ${id}`, tip: t("statusbar show brings it back") },
+    ...(hidden.length ? [{ label: t("Show again"), sub: hidden.map((h) => ({ label: h, cmd: `statusbar show ${h}` })) }] : []),
+    "-",
+    { label: t("Status bar back to default"), cmd: "statusbar reset" },
+  ];
 }
 
 /**

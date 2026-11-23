@@ -35,7 +35,7 @@ export const COMMAND_CLASS: Readonly<Record<string, CommandClass>> = Object.from
   ...list("ai", "ask chat"),
   ...list("online", "weather news"),
   // yours: accounts, what runs later, what you did, where you are in the shell, the screen
-  ...list("yours", "exit reboot undo redo account logout login factory-reset script bind unbind pin unpin starthere frame history env export clear cd avatar log debug"),
+  ...list("yours", "exit reboot undo redo account logout login factory-reset script bind unbind pin unpin starthere frame history env export clear cd avatar log debug statusbar"),
 ]);
 
 /** What your real terminal may run when it's limited to your notes (`shell.bridge` = "notes"). */

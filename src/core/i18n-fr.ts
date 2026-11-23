@@ -1814,4 +1814,23 @@ export const FR: Record<string, string> = {
   "the manual, the shortcuts, the tour · F1": "le manuel, les raccourcis, la visite · F1",
 
   "{name}: added below — HOME scrolls": "{name} : ajouté en dessous — HOME défile",
+
+  "a gamepad is plugged in": "une manette est branchée",
+  "the effects: bloom, scanlines, curvature… · fx in the shell": "les effets : bloom, lignes, courbure… · fx dans le shell",
+  "muted": "muet",
+  "frames drawn per second, and the last one's cost": "images dessinées par seconde, et le coût de la dernière",
+  "THE MENU: search everything, run anything · ⌘K": "LE MENU : tout chercher, tout lancer · ⌘K",
+  "the manual · F1": "le manuel · F1",
+  "the file tree": "l'arbre des fichiers",
+  "the shell": "le shell",
+  "the side panel: widgets always in view": "le panneau latéral : des widgets toujours visibles",
+  "the page alone: the tree, the shell and the panel folded away — again: they come back": "la page seule : l'arbre, le shell et le panneau rangés — encore : ils reviennent",
+  "shown · click to hide": "affiché · clic pour cacher",
+  "hidden · click to show": "caché · clic pour afficher",
+  "drag sideways: move it · right-click: move, hide…": "glisse sur le côté : le déplacer · clic droit : déplacer, cacher…",
+  "Move left": "Déplacer à gauche",
+  "Move right": "Déplacer à droite",
+  "statusbar show brings it back": "statusbar show le remet",
+  "Show again": "Remettre",
+  "Status bar back to default": "Barre d'état par défaut",
 };
