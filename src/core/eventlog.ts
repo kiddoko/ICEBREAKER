@@ -15,6 +15,8 @@
  * Writing to it: `deck.log.add(kind, text, { detail, code, source })`.
  * Reading it: `deck.log.list` (oldest first), `log tail` in the shell.
  */
+import { redact } from "./redact";
+
 export type LogKind = "cmd" | "action" | "error" | "notify" | "debug" | "access";
 
 /** The kinds in the order the filter shows them, with their glyph. */
@@ -45,8 +47,8 @@ export interface LogEntry {
   failed?: boolean;
 }
 
-/** ANSI colours out: the log stores plain text, it draws its own colours. */
-const plain = (s: string) => s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "");
+/** ANSI colours out (the log stores plain text, it draws its own colours), secrets masked (core/redact.ts). */
+const plain = (s: string) => redact(s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, ""));
 
 export class EventLog {
   readonly list: LogEntry[] = [];
@@ -75,7 +77,8 @@ export class EventLog {
 
   /** More output for an entry (a click's command still running). */
   append(e: LogEntry, more: string): void {
-    e.detail = (e.detail ?? "") + plain(more);
+    // masked as a whole: a key printed in two pieces is still one key
+    e.detail = plain((e.detail ?? "") + more);
     this.onAdd(e);
   }
 

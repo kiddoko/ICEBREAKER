@@ -255,6 +255,8 @@ export class PromptDialog implements Overlay {
   private finish(v: string | null): void {
     if (this.done) return;
     this.done = true;
+    // a password leaves the dialog at once: the field forgets it (the page keeps no copy)
+    if (this.field.editor.opts?.mask) this.field.clear();
     this.resolve(v);
   }
 

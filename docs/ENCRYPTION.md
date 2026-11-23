@@ -64,7 +64,8 @@ and an old password or old words — a new vault key makes that copy useless for
 
 1. A full **backup** first, next to the vault: `<vault>-backup-<date>.zip` (e.g.
    `~/Documents/Icebreaker-backup-2026-11-20-1432.zip`; plain, so it can always be
-   opened — you delete it when you're sure).
+   opened). At the end you're asked whether to delete it now (`vault wipe-backup` later):
+   it's your notes in plain, and Time Machine or a synced folder may have copied it.
 2. Every file encrypted, then **read back and compared** before the plain one is
    removed. Any difference: stop, nothing deleted.
 3. The opposite exists: `vault decrypt` (back to plain files) and `vault export
@@ -128,9 +129,28 @@ On disk an encrypted vault is **one folder** and nothing else:
 - `vault decrypt` never overwrites a file; on any problem it removes what it wrote
   and the vault stays encrypted. `vault export <folder>` asks the password again (checked
   by the native side) and wants a new or empty folder outside the vault.
-- The **plain backup zip** `vault encrypt` makes first stays next to the vault until YOU
-  delete it (readable by your user only): it's your notes in plain. Deleted plain files
-  aren't shredded: on an SSD nothing can promise that.
+- The **plain backup zip** `vault encrypt` makes first stays next to the vault until you
+  delete it (readable by your user only): it's your notes in plain. At the end of `vault
+  encrypt` the deck says so in yellow and **offers to delete it now**; later, `vault status`
+  reminds you, `vault backups` lists them and `vault wipe-backup [zip]` deletes them. Deleting
+  **overwrites the file with zeros, flushes that to the disk, then removes it** (`crypto::wipe_file`)
+  — best effort: on an SSD, APFS or any copy-on-write disk the old blocks can survive where the
+  system doesn't show them, and copies made before are not touched: **Time Machine** (and any
+  backup software), **iCloud Drive / Dropbox / OneDrive** if the vault's parent folder syncs, and
+  the **Trash** if you moved it there. The disk's own encryption (FileVault, BitLocker, LUKS) is
+  what really covers that. `vault wipe-backup` only removes a file named like a backup of the
+  mounted vault, next to it (`<vault>-backup-<date>.zip`): nothing else, never a link.
+- **No plain copy of a note goes to disk on the way**: every save of an encrypted vault is
+  encrypted in memory, then written to a temp file in the same folder and renamed (the temp
+  file already holds the encrypted bytes). `vault rekey` and `vault adopt` work the same way.
+  `vault decrypt` and `vault export` write plain files — that's what you asked them for.
+  The system voices read a note's text through a pipe on macOS and Linux (Windows: a file in
+  the app's private cache folder, wiped right after); the sound files the voice and the encoder
+  pack make are wiped on every way out, and what a crash left there is wiped at the next use.
+- **Outside the vault**, the app's configuration folder holds the account's settings (a copy;
+  the encrypted vault keeps its own) and the access journal — which, for an encrypted vault,
+  doesn't keep the notes' names (who and when only). The settings copy can still name notes
+  (pins, the session's open tabs): see SECURITY_AUDIT.md O22.
 - **Claude Code** gets no access to the disk of an encrypted vault (an empty folder,
   no file tools): it would only read noise, and must never write plain files into it.
 - Tests in `store.rs` (round trips, nothing readable on disk, moves, a crash

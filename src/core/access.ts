@@ -8,6 +8,10 @@ import type { Platform } from "../platform/types";
  * Local only: a file in the app's configuration folder (`access.json`, your account's),
  * never in the vault — it doesn't travel or sync. 30 days, names only: a note's path, a
  * host, a command's first word. Never what a note says.
+ *
+ * An encrypted vault hides its notes' names on the disk too: the file then keeps who used
+ * `vault:read` / `vault:write` and when, but not on which note (the LOG tab and Settings
+ * still show the names, from memory, until you quit).
  */
 export interface Access {
   at: number;
@@ -38,7 +42,19 @@ export class AccessLog {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private loaded = false;
 
-  constructor(private readonly platform: Pick<Platform, "config"> | null) {}
+  /**
+   * `hideNames`: is the vault encrypted? Then the file never gets a note's name
+   * (access.json is in the app's configuration folder, outside the encrypted vault).
+   */
+  constructor(
+    private readonly platform: Pick<Platform, "config"> | null,
+    private readonly hideNames: () => Promise<boolean> = async () => false,
+  ) {}
+
+  /** What goes into access.json: with `hide`, the vault lines without the note's name. */
+  static forDisk(list: Access[], hide: boolean): Access[] {
+    return hide ? list.map((a) => (a.perm.startsWith("vault") && a.what && !a.what.startsWith("+") ? { ...a, what: "" } : a)) : list;
+  }
 
   /** Read the file (once logged in). What's older than 30 days is dropped. */
   async load(): Promise<void> {
@@ -109,10 +125,12 @@ export class AccessLog {
   private save(): void {
     if (!this.platform || !this.loaded) return;
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => {
+    this.timer = setTimeout(async () => {
       const now = Date.now();
       this.list = this.list.filter((a) => now - a.at < KEEP_MS);
-      void this.platform!.config.write("access.json", JSON.stringify(this.list)).catch(() => {});
+      // can't tell whether the vault is encrypted: the names stay out
+      const hide = await this.hideNames().catch(() => true);
+      void this.platform!.config.write("access.json", JSON.stringify(AccessLog.forDisk(this.list, hide))).catch(() => {});
     }, 2000);
   }
 }

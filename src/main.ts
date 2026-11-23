@@ -17,6 +17,10 @@ import { SettingsStore } from "./core/settings";
 import { loadFont } from "./core/fonts";
 import { Deck } from "./deck";
 import { detectPlatform } from "./platform";
+import { guardConsole, redact } from "./core/redact";
+
+// passwords, keys and recovery words never reach the console (core/redact.ts)
+guardConsole();
 
 async function main(): Promise<void> {
   const platform = detectPlatform();
@@ -35,6 +39,6 @@ main().catch((err) => {
   // as text, never as HTML (the error may quote a file's content)
   const pre = document.createElement("pre");
   pre.style.cssText = "color:#f38ba8;background:#0b0b12;padding:2em;font:14px monospace;white-space:pre-wrap";
-  pre.textContent = `ICEBREAKER failed to boot:\n\n${String(err?.stack ?? err)}`;
+  pre.textContent = `ICEBREAKER failed to boot:\n\n${redact(String(err?.stack ?? err))}`;
   document.body.replaceChildren(pre);
 });

@@ -180,6 +180,8 @@ export class TextEditor {
 
   /** Save state before an edit; consecutive edits of the same kind merge into one undo step. */
   private checkpoint(kind: string): void {
+    // a masked field (a password) keeps no history: no copies of what was typed, piece by piece
+    if (this.opts.mask) return;
     const now = performance.now();
     if (kind !== this.lastEdit.kind || now - this.lastEdit.at > 1200 || kind === "paste") {
       this.undoStack.push({ lines: [...this.lines], cursor: { ...this.cursor } });
@@ -463,11 +465,13 @@ export class TextEditor {
           this.cursor = this.endPos();
           return true;
         case "c":
+          // a password never goes to the clipboard (as in any password field)
+          if (this.opts.mask) return true;
           if (this.selection()) copyToClipboard(this.selectedText());
           else if (!this.opts.singleLine) copyToClipboard(this.lines[this.cursor.line] + "\n");
           return true;
         case "x":
-          if (this.opts.readOnly) return true;
+          if (this.opts.readOnly || this.opts.mask) return true;
           if (this.selection()) {
             copyToClipboard(this.selectedText());
             this.checkpoint("cut");

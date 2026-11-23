@@ -640,7 +640,9 @@ todo add "pack the books" --every sat --cycles 3
   stored). Before you log in, nothing of anyone is loaded: no vault, no
   settings, no module. A new account must be approved by an existing one.
 - An account **locks the app**. Its vault can be **encrypted** too: \`vault encrypt\`
-  (a plain backup zip next to the vault first, every file checked). Then this folder
+  (a plain backup zip next to the vault first, every file checked; at the end it offers
+  to delete that zip — your notes in plain; later: \`vault wipe-backup\`, and copies in
+  Time Machine, iCloud or the Trash are yours to delete). Then this folder
   holds only noise — no note, no name — and your password opens it at login; ICEBREAKER
   and ibsh work as always, your real terminal, Obsidian and git see noise.
   \`vault export <folder>\`: a plain copy. \`vault decrypt\`: back to plain files.

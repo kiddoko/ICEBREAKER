@@ -93,6 +93,10 @@ export interface VaultCrypt {
   rekey(password: string): Promise<VaultCryptReport>;
   /** The plain files next to the encrypted vault go inside it. */
   adopt(): Promise<VaultCryptReport>;
+  /** The plain backup zips `encrypt` left next to the vault (full paths). */
+  backups?(): Promise<string[]>;
+  /** One of them overwritten, then removed (only a path `backups()` lists). */
+  wipeBackup?(path: string): Promise<void>;
 }
 
 /** a graphics card (src-tauri/src/gpu.rs): its name, and what the system tells of it */

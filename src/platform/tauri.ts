@@ -42,6 +42,8 @@ export function createTauriPlatform(): Platform {
         recover: (words, password) => invoke<void>("vault_recover", { words, password }),
         adopt: () => invoke<VaultCryptReport>("vault_adopt"),
         rekey: (password) => invoke<VaultCryptReport>("vault_rekey", { password }),
+        backups: () => invoke<string[]>("vault_backups"),
+        wipeBackup: (path) => invoke<void>("vault_wipe_backup", { path }),
       },
     },
     config: {

@@ -393,6 +393,56 @@ pub fn sweep_temp_files(dir: &Path) -> usize {
         .count()
 }
 
+// ── wiping a file ──────────────────────────────────────────────────────────
+
+/// Overwrite a file with zeros, flush that to the disk, then remove it: the plain backup
+/// zip after `vault encrypt`, the voice's work files. A link is refused (it would wipe
+/// what it points to). **Best effort**: on an SSD, APFS, Btrfs or anything copy-on-write
+/// the old blocks can survive somewhere the system doesn't show, and copies made before
+/// (Time Machine, iCloud / Dropbox / OneDrive, the Trash) aren't touched — the disk's own
+/// encryption (FileVault, BitLocker, LUKS) is what really covers that.
+pub fn wipe_file(path: &Path) -> std::io::Result<()> {
+    let meta = fs::symlink_metadata(path)?;
+    if !meta.file_type().is_file() {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "not a plain file"));
+    }
+    {
+        let mut f = fs::OpenOptions::new().write(true).open(path)?;
+        let zeros = vec![0u8; 1 << 20];
+        let mut left = meta.len();
+        while left > 0 {
+            let n = left.min(zeros.len() as u64) as usize;
+            f.write_all(&zeros[..n])?;
+            left -= n as u64;
+        }
+        f.sync_all()?;
+    }
+    fs::remove_file(path)
+}
+
+/// Wipes its file when dropped, whatever path the code took out (an error, a `?`):
+/// for work files that hold a note's text or sound.
+pub struct WipeOnDrop(pub PathBuf);
+
+impl Drop for WipeOnDrop {
+    fn drop(&mut self) {
+        if fs::symlink_metadata(&self.0).is_ok() {
+            let _ = wipe_file(&self.0).or_else(|_| fs::remove_file(&self.0));
+        }
+    }
+}
+
+/// Wipe the work files (names starting with `prefix`) older than ten minutes in a folder
+/// of ours: what a crash or a kill left behind (voice.rs, encoders.rs). How many went.
+pub fn sweep_work_files(dir: &Path, prefix: &str) -> usize {
+    let Ok(rd) = fs::read_dir(dir) else { return 0 };
+    let old = |e: &fs::DirEntry| e.metadata().and_then(|m| m.modified()).ok().and_then(|t| t.elapsed().ok()).is_some_and(|age| age.as_secs() >= 600);
+    rd.flatten()
+        .filter(|e| e.file_name().to_string_lossy().starts_with(prefix) && e.file_type().map(|t| t.is_file()).unwrap_or(false) && old(e))
+        .filter(|e| wipe_file(&e.path()).is_ok())
+        .count()
+}
+
 // ── hex ────────────────────────────────────────────────────────────────────
 
 fn hex(b: &[u8]) -> String {
@@ -420,6 +470,46 @@ mod tests {
         let d = std::env::temp_dir().join(format!("ib-crypto-{name}-{}", hex(&r)));
         fs::create_dir_all(&d).unwrap();
         d
+    }
+
+    #[test]
+    fn wipe_overwrites_then_removes() {
+        let d = scratch("wipe");
+        let p = d.join("plain.zip");
+        fs::write(&p, b"my secret notes, in plain").unwrap();
+        // a second name for the same bytes: what the wipe wrote is what's left there
+        #[cfg(unix)]
+        {
+            let twin = d.join("twin");
+            fs::hard_link(&p, &twin).unwrap();
+            wipe_file(&p).unwrap();
+            assert!(!p.exists());
+            let left = fs::read(&twin).unwrap();
+            assert_eq!(left.len(), 25);
+            assert!(left.iter().all(|b| *b == 0), "overwritten before it was removed");
+        }
+        #[cfg(not(unix))]
+        {
+            wipe_file(&p).unwrap();
+            assert!(!p.exists());
+        }
+        // a link is refused, its target untouched
+        #[cfg(unix)]
+        {
+            let target = d.join("target");
+            fs::write(&target, b"keep me").unwrap();
+            std::os::unix::fs::symlink(&target, d.join("link")).unwrap();
+            assert!(wipe_file(&d.join("link")).is_err());
+            assert_eq!(fs::read(&target).unwrap(), b"keep me");
+        }
+        // the guard wipes on every way out
+        let w = d.join("work.txt");
+        fs::write(&w, b"a note read aloud").unwrap();
+        {
+            let _g = WipeOnDrop(w.clone());
+        }
+        assert!(!w.exists());
+        let _ = fs::remove_dir_all(&d);
     }
 
     #[test]
