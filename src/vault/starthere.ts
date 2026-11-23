@@ -46,8 +46,8 @@ the keyboard, the mouse or a gamepad.
 ## The 30-second tour
 
 \`\`\`
-┌ ◆ ICEBREAKER ▾ modules · store · nexus · settings · help ─── uplink · time ┐
-│ ┌ VAULT ┐ ┌ HOME ───────────────────────────────────────────────────────┐ │
+┌ ◆ icebreaker ▾  vault   ⌂ home  ✎ ideas  ♪ music ×  + ── uplink ■ │ time ┐
+│ ┌────────┐ ┌───────────────────────────────────────────────────────────┐ │
 │ │ ★ pins │ │  widgets: clock · weather · todo · habits · stats · chat… │ │
 │ │ tree   │ │  e = edit the layout · a = add a widget · enter = open it  │ │
 │ └────────┘ └───────────────────────────────────────────────────────────┘ │
@@ -63,7 +63,7 @@ the keyboard, the mouse or a gamepad.
 | see every shortcut | **⌘/ / Ctrl+/** |
 | write a note | **⌘N / Ctrl+N**, or *+ note* in the tree |
 | the journal (today) | **⌘J / Ctrl+J**, or \`journal\` · \`journal "a line"\` adds a line without opening it |
-| change the look | settings (◆ ICEBREAKER ▾ top left, or **⌘, / Ctrl+,**) → APPEARANCE, or \`theme\` |
+| change the look | settings (◆ icebreaker ▾ top left, or **⌘, / Ctrl+,**) → APPEARANCE, or \`theme\` |
 | switch a feature off | **MODULES** (⌘⇧M) → space |
 | learn the shell | click anything: the command it runs shows in the shell's **log** (on its right) |
 | know what something does | rest the pointer on it: a tip says what it does and the command it runs |
@@ -310,10 +310,10 @@ the tree and the shell shown or hidden, the shell's tab, the page you were on, t
   one, nothing else); **a** on the CLOCKS page. A full
   screen rings (s snooze 5 min, enter stop; the gamepad's B / A), with the sound and a
   notification — while ICEBREAKER is running. \`clock alarm test\` tries it.
-- **◆ ICEBREAKER ▾** (top left, the tinted button): the deck's menu — MODULES, STORE,
-  NEXUS, settings, the manual, what's new, updates, and **⏻ log out** (back to the login
-  page, ⌘⇧L / Ctrl+Shift+L). Beside it, a menu bar: modules · store · nexus · settings ·
-  help, one click each.
+- **◆ icebreaker ▾** (the top row's left corner, the tinted button, F10): the deck's menu —
+  modules, store, nexus, settings, help first (each opens as a tab), then what's new,
+  updates, and **⏻ log out** (back to the login page, ⌘⇧L / Ctrl+Shift+L). There is no menu
+  bar: the top row is the frames' tabs, with uplink and the clock in its right corner.
 - **What's new**: after each update, a short page opens once — the version big,
   what's new, what's fixed. To see it again: \`changelog\`, Settings → UPDATES →
   *What's new*, or THE MENU; ← → for the versions before.
@@ -411,7 +411,10 @@ the tree and the shell shown or hidden, the shell's tab, the page you were on, t
 - **Right-click menus**: short, usual names (Open, Rename…, Duplicate, Delete…);
   what a line does shows in a strip under the menu when it's chosen.
 - **Shortcuts stand out**: every key written in the interface (⌘⇧P, ctrl+K, F2,
-  esc, the letters of hint lines) sits on a little key of its own.
+  esc, the letters of hint lines) sits on a key of its own. **Pick up a
+  gamepad** and they turn into its buttons — A / ✕ / B for enter, B / ○ for esc, Y / △
+  for ⌘K, the cross for the arrows — on an Xbox, PlayStation or Nintendo pad alike; a
+  keyboard key brings the keys back.
 - **On a Mac without a Delete key**: ⌘⌫ does what Delete does (trash a note in the
   tree, remove a widget, a file in the browser).
 - **Sliders** all look and work the same: the bar, a square handle, the number on
@@ -564,6 +567,9 @@ and its key on THE MENU, changed with one click.
 | LB · RB | tabs (a tap) |
 | hold RB | **THE MENU**: the stick chooses, let go to run it (or the d-pad and A) |
 
+While you use the pad, the shortcuts written on screen show its buttons (the ones it
+has): no need to translate ⏎ into A.
+
 Anything can go on THE MENU: right-click a note, a folder, a module or a macro →
 *Add to THE MENU…* and press the key you want, or \`menu add t "launch todo"\`.
 `,
@@ -676,7 +682,7 @@ todo add "pack the books" --every sat --cycles 3
   computer only. The log's **◈ access** filter, or \`plugin perms <module>\`.
 - **What the AI may read** (Settings → PERMISSIONS): nothing · what you give it — a
   note you name in your message ("summarize ideas"), pipe to it or have in front ·
-  your whole vault. The top bar says **◈ the AI reads …** while it does. Writing a
+  your whole vault. The clock, top right, says **◈ …** (the note) while it does. Writing a
   note always asks.
 - **Your real terminal** (Settings → PERMISSIONS): what a program you run there may
   ask the deck — nothing · your notes only · notes, timers and alarms. What only you
@@ -749,7 +755,7 @@ refuses import cycles); \`cargo test\` in \`src-tauri\` checks the vault's walls
 what is cut or drawn over another text (\`debug layout pages\`: every page,
 \`debug layout show\`: marks it live). A test (the "ratchet") refuses new hand-made
 spacing (a position plus a number of cells): use \`INSET\`, \`GAP\`, \`Row\`, \`Bar\` (docs/LAYOUT.md).
-\`debug pad\` shows the gamepad's buttons in pixel art for each kind of pad.
+\`debug pad\` shows the gamepad's buttons for each kind of pad.
 `,
 
   "../FOR DEVELOPERS/themes.md": `# Themes

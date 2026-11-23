@@ -11,7 +11,7 @@ and how releases come: [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## Installing
 
-The easy way: the **STORE** (◆ ICEBREAKER, top left → ⇣ Store, or `store`). It lists the
+The easy way: the **STORE** (◆ icebreaker, top left → store, or `store`). It lists the
 modules and themes of every index it knows, shows what each asks for, and
 installs, enables, updates or removes them in a click — or a command:
 

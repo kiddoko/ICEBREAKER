@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { padButtonFor } from "../src/core/gamepad";
-import { isPadGlyph, PAD_GLYPH_BASE, PAD_SPRITES, padGlyph, padIcon, padKind, spriteRows, STANDARD_BUTTONS } from "../src/core/padglyphs";
+import { drawPadGlyph, isPadGlyph, PAD_GLYPH_BASE, PAD_SPRITES, padGlyph, padIcon, padKind, STANDARD_BUTTONS } from "../src/core/padglyphs";
+import { contrast } from "../src/core/color";
 import { charWidth } from "../src/core/unicode";
 
 describe("which pad it is", () => {
@@ -40,26 +41,28 @@ describe("the icons", () => {
     // they stay in U+E100…E1FF (the range core/glyphs.ts hands over)
     expect(PAD_GLYPH_BASE + PAD_SPRITES.length * 2).toBeLessThanOrEqual(0xe200);
   });
-  it("every sprite is 10 × 10, lit, and not cut at the sides", () => {
+  it("every icon draws (clean shapes, a letter in the deck's font), and only in its own cells", () => {
+    const calls: string[] = [];
+    const ctx = new Proxy({ fillStyle: "#5fbf3f", lineWidth: 1, globalAlpha: 1 } as Record<string, unknown>, {
+      get: (t, k) => (k in t ? t[k as string] : (...args: unknown[]) => void calls.push(`${String(k)}(${args.length})`)),
+      set: (t, k, v) => ((t[k as string] = v), true),
+    }) as unknown as CanvasRenderingContext2D;
     for (const name of PAD_SPRITES) {
-      const rows = spriteRows(name);
-      expect(rows).toHaveLength(10);
-      expect(rows.join("").includes("X")).toBe(true);
+      calls.length = 0;
+      const cps = [...padGlyph(name)].map((c) => c.codePointAt(0)!);
+      for (const [k, cp] of cps.entries()) expect(drawPadGlyph(ctx, cp, k * 10, 0, 10, 22), name).toBe(true);
+      expect(calls.some((c) => /^(fill|stroke|fillText)\(/.test(c)), name).toBe(true);
+      // clipped to the cell it draws
+      expect(calls).toContain("clip(0)");
     }
-    expect(spriteRows("a")).toMatchInlineSnapshot(`
-      [
-        "...XXXX...",
-        ".XXXXXXXX.",
-        ".XXX..XXX.",
-        "XXX.XX.XXX",
-        "XXX....XXX",
-        "XXX.XX.XXX",
-        "XXX.XX.XXX",
-        ".XXXXXXXX.",
-        ".XXXXXXXX.",
-        "...XXXX...",
-      ]
-    `);
+  });
+  it("the letters read on the buttons: ≥ 4.5:1 between each Xbox button and its ink", () => {
+    for (const b of ["south", "east", "west", "north"] as const) {
+      const c = padIcon(b, "xbox").color!;
+      const lum = (0.2126 * ((c >> 16) & 255) + 0.7152 * ((c >> 8) & 255) + 0.0722 * (c & 255)) / 255;
+      const ink = lum > 0.55 ? 0x101018 : 0xffffff;
+      expect(contrast(c, ink), b).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });
 

@@ -89,7 +89,7 @@ Removing a module removes its approval: installed again, it asks again.
 | **Your real terminal** (a program you run there isn't you typing) | plain vault: nothing · your notes only · notes, timers and alarms. Encrypted vault: nothing, always. What only you may do is typed in ibsh | Settings → PERMISSIONS → *Your real terminal* (`shell.bridge`) |
 | **The AI** (UPLINK, `ask`, `chat`) | reads nothing · what you give it (a note you name in your message, pipe to it or have in front) · your whole vault. Writing a note always asks, showing the change. It never runs a command | Settings → PERMISSIONS → *What the AI may read* (`ai.reads`) |
 
-While the AI reads, the top bar says **◈ the AI reads notes/ideas.md**, and the journal
+While the AI reads, the clock (top right) says **◈ notes/ideas.md**, and the journal
 keeps it. A new account starts on "what I give it"; an account made before 0.6 keeps the
 whole vault, as it had.
 

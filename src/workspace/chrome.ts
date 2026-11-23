@@ -9,7 +9,7 @@ import { t, tLoose, dateLocale } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC } from "../core/input";
 import { osKeys } from "../core/keyhints";
-import { strWidth } from "../core/unicode";
+import { strWidth, truncate } from "../core/unicode";
 import { inside, q, type Hit, type MenuEntry, type UI } from "../ui/ui";
 import { Bar, GAP, INSET } from "../ui/layout";
 import { Osk } from "./overlays";
@@ -19,6 +19,7 @@ import { SystemTerminal, terminalKeysHint } from "../shell/systerm";
 import type { ShellTab, Workspace } from "./workspace";
 import { chipStyle, drawChip, placeChips, tabbedBox } from "./tabstrip";
 import { FRAME_IDS, joinedLeft, moveStatusItem, statusOrder } from "./statusbar";
+import { fitCorners, type TopCorners } from "./layout/toprow";
 import { DECK_MENU_TITLE, editMacro, macroMenu, shellMenu, shellTabMenu } from "./menus";
 import { dayShort } from "../core/dates";
 
@@ -57,7 +58,9 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
     ["─", "term hide", t("hide the shell · ctrl+` brings it back")],
     ["□", "term max", t("maximize: the shell becomes a big tab (term dock puts it back)")],
   ];
-  let bxr = r.x + r.w - INSET;
+  // (clear of the top row's corners when the shell is on top)
+  const span = ws.headerOf(r);
+  let bxr = span.xEnd;
   for (const [icon, cmd, tip] of [...buttons].reverse()) {
     const br = { x: bxr - 3, y: r.y, w: 3, h: 1 };
     if (br.x < r.x + r.w / 2) break;
@@ -67,7 +70,7 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
     bxr = br.x - 1;
   }
   // the tabs: a name above, a half-block bar on the frame's line
-  let tx = r.x + INSET;
+  let tx = span.x;
   let lastGroup = "";
   for (const [id, label, ti] of tabs) {
     const group = id === "log" ? "log" : "shells";
@@ -235,96 +238,77 @@ export function renderTip(ws: Workspace, ui: UI, _screen: Rect): void {
   ws.tipWant = { key, content: { text: h.tip ? osKeys(tLoose(h.tip)) : undefined, cmd: h.cmd } };
 }
 
-/**
- * The menu bar after the logo: ` modules  store  nexus  settings  help ` — each the page it
- * names (the ✓ page lit), the rightmost ones dropped first when the bar is short. Returns
- * where it ends.
- */
-function renderMenuBar(ws: Workspace, ui: UI, x: number, y: number, xEnd: number): number {
-  const c = ui.c;
+const logoLabel = (ui: UI, compact: boolean) => (compact ? ` ${ui.theme.glyphs.mark} ▾ ` : ` ${ui.theme.glyphs.mark} icebreaker ▾ `);
+
+/** "uplink ■ │ mon 23 nov 19:01:46" (narrow: "■ 19:01"); while the AI reads a note, its name instead of the date */
+function clockParts(ws: Workspace, narrow: boolean): { up: string; clock: string; reading: boolean } {
   const d = ws.deck;
-  const items: [string, string, string, string][] = [
-    ["modules", t("modules"), "launch modules", t("every app and module: open, switch on or off · ⌘⇧M")],
-    ["store", t("store"), "store", t("modules and themes to install, from GitHub")],
-    ["explorer", "nexus", "launch explorer", t("NEXUS: your vault as a 3D map · ⌘⇧E")],
-    ["settings", t("settings"), "settings", t("theme, effects, keys, AI, privacy… · ⌘,")],
-    ["", t("help"), "manual", t("the manual, the shortcuts, the tour · F1")],
-  ];
-  let at = x;
-  for (const [kind, label, cmd, tip] of items) {
-    if (kind && !d.apps.get(kind)) continue; // its module is off
-    const text = ` ${label} `;
-    const w = strWidth(text);
-    if (at + w > xEnd) break;
-    const rect = { x: at, y, w, h: 1 };
-    const on = !!kind && ws.activeApp?.kind === kind;
-    const hot = ui.hovered(rect);
-    ui.text(at, y, text, { fg: on ? c.accent : hot ? c.fg : c.muted, bg: hot ? c.highlight : c.panelAlt, attrs: on ? BOLD : 0 });
-    ui.hit(rect, { cmd, tip: osKeys(tip) });
-    at += w;
-  }
-  return at;
+  const now = new Date();
+  const time = now.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit", ...(narrow ? {} : { second: "2-digit" }) });
+  const date = dayShort(now, dateLocale());
+  // the AI is reading a note right now (ai/tools.ts): said here for a moment, whatever page is in front
+  const what = d.ai.reading && d.ai.reading.until > Date.now() ? d.ai.reading.what : "";
+  const room = narrow ? 10 : Math.max(10, strWidth(date) + 8);
+  const reading = what ? `◈ ${truncate(what, room - 2)}` : "";
+  return { up: narrow ? " ■ " : " uplink ■ ", clock: reading ? ` ${reading}  ${time} ` : narrow ? ` ${time} ` : ` ${date}  ${time} `, reading: !!what };
 }
 
 /**
- * The top bar, one row: "◆ ICEBREAKER ▾" — the deck's menu (modules, the store, NEXUS,
- * settings, the manual, updates, log out: workspace/menus.ts deckMenu) — and on the
- * right UPLINK ■ and the clock. The tabs aren't here any more: each frame has its own,
- * on its border (tabstrip.ts).
+ * THE TOP ROW's corners (0.8, workspace/layout/toprow.ts): their forms and widths this frame,
+ * from the window's width and the frames whose header is on the top row (`tops`), so those
+ * frames leave them room.
  */
-export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
+export function topCorners(ws: Workspace, ui: UI, y: number, cols: number, tops: Rect[]): TopCorners {
+  const clockW = (narrow: boolean) => {
+    const p = clockParts(ws, narrow);
+    return strWidth(p.up) + (narrow ? 0 : 1) + strWidth(p.clock);
+  };
+  return fitCorners(cols, y, tops, { logo: [strWidth(logoLabel(ui, false)), strWidth(logoLabel(ui, true))], clock: [clockW(false), clockW(true)] });
+}
+
+/**
+ * The top row's corners, drawn over the frames' header row: "◆ icebreaker ▾" on the left —
+ * the deck's menu (workspace/menus.ts deckMenu: modules, store, nexus, settings, help, what's
+ * new, updates, log out…), like the apple on a Mac — and "uplink ■ │ date time" on the right.
+ * There is no menu bar: each frame's tabs are on its border (tabstrip.ts), the top ones between
+ * these two corners.
+ */
+export function renderTopCorners(ws: Workspace, ui: UI, top: TopCorners, cols: number): void {
   const c = ui.c;
   const d = ws.deck;
-  ui.fill(r, { bg: c.panelAlt });
-  // the logo is the deck's menu (like the apple on a Mac); a narrow window keeps just its mark
-  const logo = ` ${r.w < 60 ? ui.theme.glyphs.mark : `${ui.theme.glyphs.mark} ICEBREAKER`} ▾ `;
-  const logoRect = { x: r.x, y: r.y, w: strWidth(logo), h: 1 };
-  const menuOpen = ws.overlays.some((o) => !o.done && (o as { title?: string }).title === DECK_MENU_TITLE());
-  const hot = ui.hovered(logoRect) || menuOpen;
-  // a button, never mistaken for a title: its own tinted block, the ▾ in the accent (a tester
-  // didn't know there was a menu behind the logo)
-  const chipBg = hot ? mix(c.accent, c.panelAlt, 0.62) : mix(c.accent, c.panelAlt, 0.84);
-  ui.fill(logoRect, { bg: chipBg });
-  ui.gradientText(r.x + INSET, r.y, logo.trim().slice(0, -2), ui.theme.gradient, BOLD, (ui.now / 8000) % 1);
-  ui.text(r.x + logoRect.w - GAP, r.y, "▾", { fg: c.accent, bg: chipBg, attrs: BOLD });
-  ui.hit(logoRect, { onClick: () => ws.openDeckMenu(), tip: t("the deck's menu: what's new, updates, setup, tour, log out, quit · click · F10") });
+  const f = { logoCompact: !!top.logoCompact, clockNarrow: !!top.clockNarrow };
+  const bg = c.bg;
+  // the deck's menu: a button, never mistaken for a title or a tab — its own tinted block, the ▾
+  // in the accent (a tester didn't know there was a menu behind the logo)
+  const label = logoLabel(ui, f.logoCompact);
+  const logo = { x: 0, y: top.y, w: top.logoEnd, h: 1 };
+  const open = ws.overlays.some((o) => !o.done && (o as { title?: string }).title === DECK_MENU_TITLE());
+  const hot = ui.hovered(logo) || open;
+  const chip = hot ? mix(c.accent, bg, 0.62) : mix(c.accent, bg, 0.84);
+  ui.fill(logo, { bg: chip });
+  if (f.logoCompact) ui.text(INSET, top.y, ui.theme.glyphs.mark, { fg: c.accent, bg: chip, attrs: BOLD });
+  else ui.gradientText(INSET, top.y, label.trim().slice(0, -2), ui.theme.gradient, BOLD, (ui.now / 8000) % 1);
+  ui.text(logo.w - 2, top.y, "▾", { fg: c.accent, bg: chip, attrs: BOLD });
+  ui.hit(logo, { onClick: () => ws.openDeckMenu(), tip: t("the deck's menu: modules, store, nexus, settings, help, updates, log out · click · F10") });
 
+  // uplink ■ (green: the AI answers, amber: it thinks, red: off) and the clock (a click: the month)
   const now = new Date();
-  const time = now.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  const date = dayShort(now, dateLocale());
-  ui.animate(1000 - now.getMilliseconds());
-  // UPLINK ■: green when the AI is there and answering, amber while it thinks, red when it's off
-  // (the provider and the model are in its tip); narrow: the ■ alone, the time without seconds
-  const narrow = r.w < 70;
-  // the AI is reading a note right now (ai/tools.ts): said here for a moment, whatever page is in front
-  const reading = d.ai.reading && d.ai.reading.until > Date.now() ? d.ai.reading.what : "";
-  if (reading) ui.animate(500);
-  const ai = narrow ? "■" : "UPLINK ■";
-  const right = narrow ? ` ${ai}  ${time.slice(0, 5)} ` : ` ${ai}  │  ${date}  ${time} `;
-  const rx = r.x + r.w - strWidth(right);
-  // a menu bar after the logo, like a desktop app's: the deck's places one click away (as many as fit)
-  const menuEnd = renderMenuBar(ws, ui, logoRect.x + logoRect.w + 1, r.y, rx - GAP * 2);
-  if (rx <= Math.max(menuEnd, logoRect.x + logoRect.w)) return;
-  // " uplink ■  │  date  time", each part once (drawn over each other, `debug layout` saw an overlap)
+  const p = clockParts(ws, f.clockNarrow);
+  ui.animate(p.reading ? 500 : f.clockNarrow ? 60000 - (now.getSeconds() * 1000 + now.getMilliseconds()) : 1000 - now.getMilliseconds());
   const lamp = !d.ai.ready ? c.error : d.ai.busy > 0 ? c.warning : c.success;
-  let lx = ui.text(rx, r.y, " ", { bg: c.panelAlt });
-  if (!narrow) lx = ui.text(lx, r.y, "uplink ", { fg: d.ai.ready ? c.fg : c.muted, bg: c.panelAlt, attrs: BOLD });
-  lx = ui.text(lx, r.y, "■", { fg: lamp, bg: c.panelAlt });
-  // the date and the time: a click opens the mini calendar under them (workspace/minical.ts)
-  const clockR = { x: lx + 1, y: r.y, w: r.x + r.w - lx - 1, h: 1 };
+  let x = top.clockStart;
+  const upR = { x, y: top.y, w: strWidth(p.up), h: 1 };
+  x = ui.text(x, top.y, f.clockNarrow ? " " : " uplink ", { fg: d.ai.ready ? c.fg : c.muted, bg, attrs: BOLD });
+  x = ui.text(x, top.y, "■ ", { fg: lamp, bg });
+  const who = d.ai.provider.label;
+  ui.hit(upR, d.ai.ready ? { cmd: "link", tip: `UPLINK: ${who}${d.ai.busy > 0 ? ` · ${t("thinking…")}` : ""}\n${t("ctrl+space · or `chat` right here in the shell")}` } : { cmd: "settings", tip: `UPLINK ${t("off")}: ${d.ai.problem ?? ""}` });
+  if (!f.clockNarrow) x = ui.text(x, top.y, "│", { fg: c.faint, bg });
+  const clockR = { x, y: top.y, w: cols - x, h: 1 };
   const calOpen = ws.overlays.some((o) => !o.done && o instanceof MiniCalendar);
   const clockHot = ui.hovered(clockR) || calOpen;
-  ui.text(lx, r.y, right.slice(1 + ai.length), { fg: clockHot ? c.fg : c.muted, bg: c.panelAlt });
-  if (clockHot) ui.tint({ ...clockR, x: clockR.x + (narrow ? 1 : 3), w: clockR.w - (narrow ? 1 : 3) }, NONE, c.highlight);
+  ui.text(x, top.y, p.clock, { fg: p.reading ? c.warning : clockHot ? c.fg : c.muted, bg, attrs: p.reading ? BOLD : 0 });
+  if (clockHot) ui.tint(clockR, NONE, c.highlight);
   ui.hit(clockR, { cmd: "clock calendar", tip: t("the month, today, the days with events · click") });
-  // "◈ reads notes/ideas.md", left of UPLINK, while the AI reads (as much of the name as fits)
-  if (reading) {
-    const room = rx - menuEnd - GAP * 2;
-    const label = `◈ ${t("the AI reads")} ${reading}`;
-    if (room >= 12) ui.textRight(rx - GAP, r.y, strWidth(label) > room ? `${label.slice(0, Math.max(0, room - 1))}…` : label, { fg: c.warning, bg: c.panelAlt, attrs: BOLD });
-  }
-  const who = `${d.ai.provider.label}`;
-  ui.hit({ x: rx, y: r.y, w: strWidth(ai) + 2, h: 1 }, d.ai.ready ? { cmd: "link", tip: `UPLINK: ${who}${d.ai.busy > 0 ? ` · ${t("thinking…")}` : ""}\n${t("ctrl+space · or `chat` right here in the shell")}` } : { cmd: "settings", tip: `UPLINK ${t("off")}: ${d.ai.problem ?? ""}` });
 }
 
 /** What the voice says, in a small sci-fi box bottom-right (voice.subtitles). */

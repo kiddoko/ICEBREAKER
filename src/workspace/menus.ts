@@ -117,15 +117,22 @@ export function shellMenu(ws: Workspace): MenuEntry[] {
 }
 
 /** the deck menu's title (the top bar lights its logo while it's open) */
-export const DECK_MENU_TITLE = () => `ICEBREAKER ${APP_VERSION}`;
+export const DECK_MENU_TITLE = () => `icebreaker ${APP_VERSION}`;
 
 /**
- * "◆ ICEBREAKER ▾", top left: the deck's own menu, like the apple on a Mac — what the menu bar
- * beside it doesn't have (MODULES, STORE, NEXUS, settings and the manual are there, one click
- * each): what's new, updates, the setup, the tour, log out, quit.
+ * "◆ icebreaker ▾", the top row's left corner (0.8: there is no menu bar): the deck's own menu,
+ * like the apple on a Mac — the deck's places first (each opens as a tab, one click), then what's
+ * new, updates, the setup, the tour, log out, quit.
  */
 export function deckMenu(_ws: Workspace): MenuEntry[] {
+  const k = (mac: string, other: string) => (IS_MAC ? mac : other);
   return [
+    { label: `▦ ${t("modules")}`, cmd: "launch modules", hint: k("⌘⇧M", "ctrl+shift+M"), tip: t("every app and module: open, switch on or off") },
+    { label: `⬡ ${t("store")}`, cmd: "store", tip: t("modules and themes to install, from GitHub") },
+    { label: "◎ nexus", cmd: "launch explorer", hint: k("⌘⇧E", "ctrl+shift+E"), tip: t("NEXUS: your vault as a 3D map") },
+    { label: `⚙ ${t("settings")}`, cmd: "settings", hint: k("⌘,", "ctrl+,"), tip: t("theme, effects, keys, AI, privacy…") },
+    { label: `? ${t("help")}`, cmd: "manual", hint: "F1", tip: t("the manual, the shortcuts, the tour") },
+    "-",
     { label: `✦ ${t("What's new")}`, cmd: "changelog" },
     { label: `⇡ ${t("Check for updates")}`, cmd: "update" },
     "-",

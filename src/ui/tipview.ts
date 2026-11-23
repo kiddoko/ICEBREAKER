@@ -11,6 +11,15 @@
  * and where to show it.
  */
 
+import { css } from "../core/color";
+import { drawSpecialGlyph } from "../core/glyphs";
+import type { PadKind } from "../core/padglyphs";
+import { charWidth } from "../core/unicode";
+import { keySpans } from "./keycaps";
+import { padCells } from "./keyicons";
+import { CAP_PAD_L, CAP_PAD_R } from "../core/grid";
+import { capGeometry, drawCapSlice, type KeycapLook } from "../core/keycap";
+
 export interface TipContent {
   /** what it is / does: one or more lines (they wrap) */
   text?: string;
@@ -24,6 +33,10 @@ export interface TipColors {
   muted: string;
   accent: string;
   border: string;
+  /** a key's face (ui/ui.ts keyFace) */
+  keyFace: number;
+  /** how a key looks (Theme.keys, core/keycap.ts) */
+  keyLook: KeycapLook;
 }
 
 /** how long the pointer rests before a tip shows (ms) */
@@ -108,7 +121,9 @@ export class TipView {
    * This frame's wish: the tip of what is under the pointer (or null). Returns how many ms
    * until it should show (the caller asks for a frame then), or 0.
    */
-  want(content: TipContent | null, key: string, colors: TipColors, font: { family: string; px: number }, reduceMotion: boolean): number {
+  want(content: TipContent | null, key: string, colors: TipColors, font: { family: string; px: number }, reduceMotion: boolean, pad: PadKind | null = null): number {
+    // the same tip with the pad picked up (or put down): drawn again, its keys become buttons
+    key = `${key}\u0000${pad ?? ""}`;
     if (!content || (!content.text && !content.cmd) || this.quiet || this.px.x < 0) {
       this.hide();
       return 0;
@@ -117,20 +132,22 @@ export class TipView {
     if (this.shownAt) this.hide(); // something else under the pointer: the old tip goes first
     const wait = TIP_DELAY - (performance.now() - this.movedAt);
     if (wait > 0) return Math.ceil(wait);
-    this.show(content, key, colors, font, reduceMotion);
+    this.show(content, key, colors, font, reduceMotion, pad);
     return 0;
   }
 
-  private show(content: TipContent, key: string, colors: TipColors, font: { family: string; px: number }, reduceMotion: boolean): void {
+  private show(content: TipContent, key: string, colors: TipColors, font: { family: string; px: number }, reduceMotion: boolean, pad: PadKind | null): void {
     const el = this.el;
     // a shortcut at the end of a line stays with what it belongs to (" · ⌘⇧P" went alone to the next line)
-    this.textEl.textContent = (content.text ?? "").replace(/ · (?=[^\s·]{1,12}$)/gm, "\u00a0·\u00a0");
+    const text = (content.text ?? "").replace(/ · (?=[^\s·]{1,12}$)/gm, "\u00a0·\u00a0");
+    const fontPx = Math.max(11, Math.round(font.px * 0.92));
+    this.textEl.replaceChildren(...withKeys(text, pad, colors, { family: font.family, px: fontPx }));
     this.textEl.style.display = content.text ? "" : "none";
     this.cmdEl.textContent = content.cmd ? `❯ ${content.cmd}` : "";
     this.cmdEl.style.display = content.cmd ? "" : "none";
     Object.assign(el.style, {
       fontFamily: font.family,
-      fontSize: `${Math.max(11, Math.round(font.px * 0.92))}px`,
+      fontSize: `${fontPx}px`,
       background: colors.bg,
       color: colors.fg,
       borderColor: colors.border,
@@ -150,6 +167,66 @@ export class TipView {
     void el.offsetWidth;
     el.classList.add("on");
   }
+}
+
+/**
+ * A tip's text with its shortcuts drawn as in the grid: each one on a key (core/keycap.ts, the
+ * tip's own font on it), or the pad's button while a pad is used (ui/keyicons.ts) — a small
+ * canvas as wide as its characters. The words stay text; each key has its text as aria-label.
+ */
+function withKeys(text: string, pad: PadKind | null, colors: TipColors, font: { family: string; px: number }): Node[] {
+  const spans = keySpans(text);
+  if (!spans.length) return [document.createTextNode(text)];
+  const chars = [...text];
+  const out: Node[] = [];
+  let i = 0;
+  for (const [a, b] of spans) {
+    if (a > i) out.push(document.createTextNode(chars.slice(i, a).join("")));
+    const written = chars.slice(a, b).join("");
+    out.push(/^\s|\s$|\n/.test(written) ? document.createTextNode(written) : keyCanvas(written, padCells(written, pad), colors, font));
+    i = b;
+  }
+  if (i < chars.length) out.push(document.createTextNode(chars.slice(i).join("")));
+  return out;
+}
+
+/** one shortcut, drawn like the renderer draws it, at the tip's font size and the screen's pixels */
+function keyCanvas(written: string, pad: { text: string; color: number | null } | null, colors: TipColors, font: { family: string; px: number }): HTMLCanvasElement {
+  const dpr = window.devicePixelRatio || 1;
+  // a monospace cell: 0.6 em wide, as tall as the tip's line, in whole device pixels
+  const cw = Math.round(font.px * 0.6 * dpr), ch = Math.round(font.px * 1.35 * dpr);
+  const cells = [...(pad ? pad.text : written)];
+  const n = cells.reduce((s, c) => s + (charWidth(c.codePointAt(0)!) || 1), 0);
+  // a key reaches a little past its text on each side, as in the grid (keycap.ts pad)
+  const ox = pad ? 0 : capGeometry(cw, ch, colors.keyLook).pad;
+  const cv = document.createElement("canvas");
+  cv.width = n * cw + 2 * ox;
+  cv.height = ch;
+  Object.assign(cv.style, { width: `${cv.width / dpr}px`, height: `${ch / dpr}px`, verticalAlign: "middle" });
+  cv.title = written;
+  cv.setAttribute("aria-label", written);
+  const ctx = cv.getContext("2d");
+  if (!ctx) return cv;
+  if (pad) {
+    ctx.fillStyle = pad.color !== null ? css(pad.color) : colors.fg;
+    cells.forEach((c, k) => {
+      const cp = c.codePointAt(0)!;
+      if (cp > 32) drawSpecialGlyph(ctx, cp, k * cw, 0, cw, ch);
+    });
+    return cv;
+  }
+  const face = colors.keyLook.face ?? colors.keyFace;
+  drawCapSlice(ctx, ox - cw, 0, cw, ch, face, CAP_PAD_L, colors.keyLook);
+  for (let k = 0; k < n; k++) drawCapSlice(ctx, ox + k * cw, 0, cw, ch, face, 0, colors.keyLook);
+  drawCapSlice(ctx, ox + n * cw, 0, cw, ch, face, CAP_PAD_R, colors.keyLook);
+  ctx.fillStyle = colors.fg;
+  ctx.font = `${colors.keyLook.bold ? 600 : 400} ${Math.round(font.px * dpr)}px ${font.family}`;
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "center";
+  // each character centred in its cell, like the grid; the bevelled key's face sits a little higher
+  const lift = Math.round(ch * colors.keyLook.lip * 0.35);
+  cells.forEach((c, k) => ctx.fillText(c, ox + k * cw + cw / 2, ch / 2 - lift));
+  return cv;
 }
 
 /** The tip's look (once per page): style.css keeps the deck's layers, this keeps the tip's. */

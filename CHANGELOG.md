@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.8 — unreleased (branch ui-0.8)
+
+**The top of the window**
+- **No menu bar any more**: the window's first row is the frames' tabs, with **◆ icebreaker ▾**
+  in its left corner and **uplink ■ │ the date and time** in its right one. The ◆ menu now starts
+  with modules, store, nexus, settings and help (their keys beside them). The two rows that
+  didn't match, the row of air between them and its stray dots are gone: one line more for
+  the pages.
+- Wherever the frames are (the tree on the right, the shell on top, the tree folded), their
+  tabs stay clear of the two corners; a narrow window — or a narrow frame under a corner —
+  shortens them to **◆ ▾** and **■ 19:07**.
+- **vault** and **panel** are labels, not tabs: lit only while their frame has the focus (vault
+  was lit like the tab shown). Every tab you can move or group has one style, **as wide as its
+  name** (nexus doesn't sit in 24 cells any more).
+
+**Keys and the pad**
+- Every shortcut written on screen sits on a **key** — one key per shortcut, its text in the
+  deck's own font — in the status bars, menus, tips, the tour, settings and module pages, in the
+  same cells as before: nothing moves. The pad's buttons are redrawn as clean shapes too.
+- **Pick up a gamepad** and the shortcuts it also has turn into **its buttons** (Xbox, PlayStation
+  or Nintendo): enter → A / ✕, esc → B / ○, ⌘K → Y / △, the arrows → the cross, ctrl+tab → RB,
+  page down → RT, F10 → start. A keyboard key brings the keys back.
+
 ## 0.7.2 — 2026-11-23
 
 What 0.7.1 left: a deck that rests, the last English, one name per thing, and the docs and the

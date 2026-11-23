@@ -54,7 +54,7 @@ The deck says each thing one way, everywhere (commands, menus, tips, the status 
 | the AI chat | **UPLINK** (it can be a local model) | Claude |
 
 `view` is a hidden alias of `frame`. A page's tab, its name in the status bar and `launch` write the
-same name; in French the tabs speak French like the menu bar (« réglages »), HOME stays HOME, LOG
+same name; in French the tabs speak French like the ◆ menu (« réglages »), HOME stays HOME, LOG
 stays « log » (the vault has a journal).
 
 ## Sub-commands: the same verbs everywhere
@@ -169,6 +169,10 @@ themselves (`menu add <key> "<command>"`).
 
 - Implement `onAction` first (`up`, `down`, `confirm`, `back`…): keyboard,
   gamepad and on-screen keyboard then work at once.
+- Write shortcuts as plain text in your hints ("enter open · esc close · ⌘K menu"):
+  `ui.text` puts each one on a key, and shows the pad's button while a pad
+  is used (`ui/keyicons.ts`), in the same cells — your layout never moves. Typed text
+  passes `raw: true` so it's never turned into keys.
 - `render` runs every frame you're visible. Keep it cheap, cache anything slow,
   and call `ui.animate(ms)` only while something moves. Respect
   `appearance.reduceMotion`.

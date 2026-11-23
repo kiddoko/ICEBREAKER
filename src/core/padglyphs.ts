@@ -1,15 +1,16 @@
-import { hex, type RGB } from "./color";
+import { css, hex, type RGB } from "./color";
 
 /**
- * GAMEPAD ICONS IN PIXEL ART — the buttons of the pad you hold, drawn like the rest
- * of the grid: Xbox's coloured A B X Y, PlayStation's ✕ ○ □ △, Nintendo's B A Y X in
- * their own places, the shoulders (LB / L1 / L), the triggers, the cross, the sticks,
- * start / select. The INFO panel and the hints use them ("◈ [A] open").
+ * GAMEPAD ICONS — the buttons of the pad you hold, drawn like the rest of the grid: Xbox's
+ * coloured A B X Y, PlayStation's ✕ ○ □ △ on dark buttons, Nintendo's B A Y X in their own
+ * places, the shoulders (LB / L1 / L), the triggers, the cross, the sticks, start / select.
+ * The hints and every shortcut on screen use them while a pad is used (ui/keyicons.ts).
  *
- * Each icon is two cells wide: a 10 × 10 sprite whose left half is one code point and
- * right half the next, in the Private Use Area (U+E100…), drawn by the renderer with
- * rectangles (core/glyphs.ts → drawPadGlyph) — crisp at any font size, the colour is
- * the text's own (padIcon gives the button's colour: A green, ✕ blue…).
+ * Each icon is two cells wide (or one, smaller: padGlyphSmall): its left half is one code
+ * point and its right half the next, in the Private Use Area (U+E100…), drawn by the
+ * renderer as clean shapes — circles, rounded bodies, strokes — with the letter in the deck's
+ * own font (core/glyphs.ts → drawPadGlyph), crisp at any size. The colour is the text's own
+ * (padIcon gives the button's: A green, ✕ blue…); the letter is dark or white, whichever reads.
  *
  *   const icon = padIcon("south", padKind(deck.gamepad.name));   // { text, color, name }
  *   ui.text(x, y, icon.text, { fg: icon.color ?? c.fg });
@@ -41,120 +42,17 @@ export function padKind(id: string): PadKind {
   return "generic";
 }
 
-// ── the sprites ───────────────────────────────────────────────────────────────
+// ── the icons ─────────────────────────────────────────────────────────────────
 
-const N = 10;
-type Sprite = Uint8Array; // N × N, 1 = lit
-
-/** 4 × 5 letters (knocked out of a disc) */
-const BIG: Record<string, string[]> = {
-  A: [".XX.", "X..X", "XXXX", "X..X", "X..X"],
-  B: ["XXX.", "X..X", "XXX.", "X..X", "XXX."],
-  X: ["X..X", "X..X", ".XX.", "X..X", "X..X"],
-  Y: ["X..X", "X..X", ".XX.", ".XX.", ".XX."],
-  L: ["X...", "X...", "X...", "X...", "XXXX"],
-  R: ["XXX.", "X..X", "XXX.", "X.X.", "X..X"],
-  "+": ["....", ".XX.", "XXXX", ".XX.", "...."],
-  "-": ["....", "....", "XXXX", "....", "...."],
-};
-/** 3 × 5 letters (two side by side on a shoulder) */
-const SMALL: Record<string, string[]> = {
-  L: ["X..", "X..", "X..", "X..", "XXX"],
-  R: ["XX.", "X.X", "XX.", "XX.", "X.X"],
-  B: ["XX.", "X.X", "XX.", "X.X", "XX."],
-  T: ["XXX", ".X.", ".X.", ".X.", ".X."],
-  Z: ["XXX", "..X", ".X.", "X..", "XXX"],
-  "1": [".X.", "XX.", ".X.", ".X.", "XXX"],
-  "2": ["XX.", "..X", ".X.", "X..", "XXX"],
-};
-/** 6 × 6 shapes (knocked out of a disc) */
-const SHAPE: Record<string, string[]> = {
-  cross: ["X....X", ".X..X.", "..XX..", "..XX..", ".X..X.", "X....X"],
-  circle: [".XXXX.", "X....X", "X....X", "X....X", "X....X", ".XXXX."],
-  square: ["XXXXXX", "X....X", "X....X", "X....X", "X....X", "XXXXXX"],
-  triangle: ["..XX..", "..XX..", ".X..X.", ".X..X.", "X....X", "XXXXXX"],
-  view: ["XXXX..", "X..X..", "X.XXXX", "XXXX.X", "..X..X", "..XXXX"],
-  menu: ["......", "XXXXXX", "......", "XXXXXX", "......", "XXXXXX"],
-  share: ["..XX..", ".XXXX.", "X.XX.X", "..XX..", "..XX..", "..XX.."],
-  home: ["..XX..", ".XXXX.", "XXXXXX", ".X..X.", ".X..X.", ".XXXX."],
-};
-
-const blank = (): Sprite => new Uint8Array(N * N);
-const set = (s: Sprite, c: number, r: number, v: number) => c >= 0 && c < N && r >= 0 && r < N && (s[r * N + c] = v);
-const at = (s: Sprite, c: number, r: number) => (c >= 0 && c < N && r >= 0 && r < N ? s[r * N + c] : 0);
-
-/** stamp a pattern at (c, r) with value v (0 knocks out) */
-function stamp(s: Sprite, pat: string[], c: number, r: number, v: number): Sprite {
-  pat.forEach((row, y) => [...row].forEach((ch, x) => ch === "X" && set(s, c + x, r + y, v)));
-  return s;
-}
-
-function disc(): Sprite {
-  const s = blank();
-  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (Math.hypot(c + 0.5 - 5, r + 0.5 - 5) <= 5.05) set(s, c, r, 1);
-  return s;
-}
-const letterDisc = (ch: string) => stamp(disc(), BIG[ch], 3, 2, 0);
-const shapeDisc = (name: string) => stamp(disc(), SHAPE[name], 2, 2, 0);
-
-/** a shoulder or trigger: a pill with two small letters knocked out (LB, R2, ZL…) */
-function pill(text: string): Sprite {
-  const s = blank();
-  for (let r = 2; r <= 8; r++) for (let c = 0; c < N; c++) if (!((r === 2 || r === 8) && (c === 0 || c === N - 1))) set(s, c, r, 1);
-  const letters = [...text];
-  if (letters.length === 1) return stamp(s, BIG[letters[0]] ?? SMALL[letters[0]], 3, 3, 0);
-  stamp(s, SMALL[letters[0]], 1, 3, 0);
-  return stamp(s, SMALL[letters[1]], 6, 3, 0);
-}
-
-/** the cross; `lit`: the arm pressed (filled), the others in outline — or all filled */
-function dpad(lit: "up" | "down" | "left" | "right" | "all"): Sprite {
-  const shape = blank();
-  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if ((c >= 3 && c <= 6) || (r >= 3 && r <= 6)) set(shape, c, r, 1);
-  if (lit === "all") {
-    for (const [c, r] of [[4, 4], [5, 4], [4, 5], [5, 5]]) set(shape, c, r, 0);
-    return shape;
-  }
-  const arm = (c: number, r: number) => (r <= 2 ? "up" : r >= 7 ? "down" : c <= 2 ? "left" : c >= 7 ? "right" : "mid");
-  const s = blank();
-  for (let r = 0; r < N; r++)
-    for (let c = 0; c < N; c++) {
-      if (!at(shape, c, r)) continue;
-      const edge = !at(shape, c - 1, r) || !at(shape, c + 1, r) || !at(shape, c, r - 1) || !at(shape, c, r + 1);
-      if (arm(c, r) === lit || edge) set(s, c, r, 1);
-    }
-  return s;
-}
-
-/** a stick: a ring with its letter in the middle */
-function stick(letter: "L" | "R"): Sprite {
-  const s = blank();
-  for (let r = 0; r < N; r++)
-    for (let c = 0; c < N; c++) {
-      const d = Math.hypot(c + 0.5 - 5, r + 0.5 - 5);
-      if (d <= 5.05 && d >= 3.9) set(s, c, r, 1);
-    }
-  return stamp(s, SMALL[letter], 4, 3, 1);
-}
-
-/** every sprite, by name; its place in this list is its code point */
-const SPRITES: [string, () => Sprite][] = [
-  ["a", () => letterDisc("A")], ["b", () => letterDisc("B")], ["x", () => letterDisc("X")], ["y", () => letterDisc("Y")],
-  ["cross", () => shapeDisc("cross")], ["circle", () => shapeDisc("circle")], ["square", () => shapeDisc("square")], ["triangle", () => shapeDisc("triangle")],
-  ["lb", () => pill("LB")], ["rb", () => pill("RB")], ["lt", () => pill("LT")], ["rt", () => pill("RT")],
-  ["l1", () => pill("L1")], ["r1", () => pill("R1")], ["l2", () => pill("L2")], ["r2", () => pill("R2")],
-  ["l", () => pill("L")], ["r", () => pill("R")], ["zl", () => pill("ZL")], ["zr", () => pill("ZR")],
-  ["dpad", () => dpad("all")], ["up", () => dpad("up")], ["down", () => dpad("down")], ["left", () => dpad("left")], ["right", () => dpad("right")],
-  ["ls", () => stick("L")], ["rs", () => stick("R")],
-  ["view", () => shapeDisc("view")], ["menu", () => shapeDisc("menu")], ["share", () => shapeDisc("share")], ["options", () => shapeDisc("menu")],
-  ["minus", () => letterDisc("-")], ["plus", () => letterDisc("+")], ["home", () => shapeDisc("home")],
-];
+/** every icon, by name; its place in this list is its code point (core/glyphs.ts draws it: drawPadGlyph) */
+const NAMES = [
+  "a", "b", "x", "y", "cross", "circle", "square", "triangle",
+  "lb", "rb", "lt", "rt", "l1", "r1", "l2", "r2", "l", "r", "zl", "zr",
+  "dpad", "up", "down", "left", "right", "ls", "rs",
+  "view", "menu", "share", "options", "minus", "plus", "home",
+] as const;
 export const PAD_GLYPH_BASE = 0xe100;
-const INDEX = new Map(SPRITES.map(([name], i) => [name, i]));
-const CACHE: (Sprite | undefined)[] = [];
-function sprite(i: number): Sprite | undefined {
-  return (CACHE[i] ??= SPRITES[i]?.[1]());
-}
+const INDEX = new Map<string, number>(NAMES.map((name, i) => [name, i]));
 
 /** The two characters that draw sprite `name` ("" if there's none). */
 export function padGlyph(name: string): string {
@@ -162,14 +60,24 @@ export function padGlyph(name: string): string {
   return i === undefined ? "" : String.fromCodePoint(PAD_GLYPH_BASE + i * 2, PAD_GLYPH_BASE + i * 2 + 1);
 }
 
+/** the same icons in ONE cell (smaller), where a shortcut written in one character stands (⏎, ↑) */
+export const PAD_GLYPH_SMALL = 0xe180;
+
+/** The one character that draws sprite `name` in a single cell, smaller ("" if there's none). */
+export function padGlyphSmall(name: string): string {
+  const i = INDEX.get(name);
+  return i === undefined ? "" : String.fromCodePoint(PAD_GLYPH_SMALL + i);
+}
+
 export function isPadGlyph(cp: number): boolean {
-  return cp >= PAD_GLYPH_BASE && cp < PAD_GLYPH_BASE + SPRITES.length * 2;
+  return (cp >= PAD_GLYPH_BASE && cp < PAD_GLYPH_BASE + NAMES.length * 2) || (cp >= PAD_GLYPH_SMALL && cp < PAD_GLYPH_SMALL + NAMES.length);
 }
 
 // ── which icon for which button on which pad ─────────────────────────────────
 
 const C = {
-  green: hex("#5fb83c"), red: hex("#e5483b"), blue: hex("#3a86e8"), yellow: hex("#f0c02c"),
+  // the letters on them: dark on green and yellow, white on red and blue — each ≥ 4.5:1
+  green: hex("#5fbf3f"), red: hex("#cf3a30"), blue: hex("#2b72cf"), yellow: hex("#f2c230"),
   psBlue: hex("#7fb4ea"), psRed: hex("#ec6a6d"), psPink: hex("#dc93cb"), psTeal: hex("#3fc4a6"),
 };
 
@@ -206,46 +114,204 @@ const COMMON: Partial<Record<PadButton, [string, string]>> = {
  * A button's icon on this pad: `text` (two cells), its `color` (null: the theme's
  * text colour) and its `name` in words, for the screen readers and the narrow places.
  */
-export function padIcon(button: PadButton, kind: PadKind): { text: string; color: RGB | null; name: string } {
+export function padIcon(button: PadButton, kind: PadKind): { text: string; color: RGB | null; name: string; small: string } {
   const own = MAP[kind][button];
-  if (own) return { text: padGlyph(own[0]), color: own[2], name: own[1] };
+  if (own) return { text: padGlyph(own[0]), color: own[2], name: own[1], small: padGlyphSmall(own[0]) };
   const common = COMMON[button];
-  return common ? { text: padGlyph(common[0]), color: null, name: common[1] } : { text: "", color: null, name: button };
+  return common ? { text: padGlyph(common[0]), color: null, name: common[1], small: padGlyphSmall(common[0]) } : { text: "", color: null, name: button, small: "" };
 }
 
 // ── drawing (core/glyphs.ts calls this for U+E100…) ──────────────────────────
 
 /**
- * Draw this cell's half of a pad icon: square pixels as big as fit in the two cells,
- * centred. Returns false for a code point that isn't one of ours.
+ * HOW THE PAD'S BUTTONS LOOK — a theme hook (docs/THEMES.md, Theme.pad, any part of it): what a
+ * theme leaves out is the deck's own. The buttons' colours (A green…) stay the pad maker's.
+ */
+export interface PadLook {
+  /** the letter on a light button, and on a dark one (whichever reads is used) */
+  inkDark: RGB;
+  inkLight: RGB;
+  /** a PlayStation button's body (its symbol is drawn in its colour on it) */
+  psBody: RGB;
+  /** how strongly the thin ring round a PlayStation button shows, 0–1 */
+  ring: number;
+  /** the letters' weight (100–900) */
+  weight: number;
+  /** the icon's size, as a share of the cell's height */
+  size: number;
+}
+export const PAD_LOOK: PadLook = { inkDark: 0x101018, inkLight: 0xffffff, psBody: 0x1d1c26, ring: 0.5, weight: 800, size: 0.86 };
+
+let LOOK: PadLook = PAD_LOOK;
+/** A theme's pad look (its own parts over the deck's), for every button drawn from now on. */
+export function setPadLook(own?: Partial<PadLook>): void {
+  const k = { ...PAD_LOOK, ...(own ?? {}) };
+  const ok = (v: number, lo: number, hi: number, d: number) => (Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);
+  LOOK = { ...k, ring: ok(k.ring, 0, 1, PAD_LOOK.ring), weight: Math.round(ok(k.weight, 100, 900, PAD_LOOK.weight)), size: ok(k.size, 0.5, 1, PAD_LOOK.size) };
+}
+
+/** the deck's font, for the letters on the buttons (the renderer says it: setPadFont) */
+let FONT = "ui-monospace, monospace";
+export function setPadFont(family: string): void {
+  FONT = family;
+}
+
+/** the ink on a button: dark on a light button, light on a dark one */
+function inkOn(fill: string): string {
+  const n = parseInt(fill.slice(1, 7), 16);
+  const lum = (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+  return css(lum > 0.55 ? LOOK.inkDark : LOOK.inkLight);
+}
+
+function rr(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, r: number, rTop = r): void {
+  ctx.beginPath();
+  ctx.moveTo(x0 + rTop, y0);
+  ctx.arcTo(x1, y0, x1, y1, rTop);
+  ctx.arcTo(x1, y1, x0, y1, r);
+  ctx.arcTo(x0, y1, x0, y0, r);
+  ctx.arcTo(x0, y0, x1, y0, rTop);
+  ctx.closePath();
+}
+
+function label(ctx: CanvasRenderingContext2D, text: string, cx: number, cy: number, size: number, color: string): void {
+  ctx.fillStyle = color;
+  ctx.font = `${LOOK.weight} ${Math.round(size)}px ${FONT}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  // the font's middle sits a hair low for capitals: lifted by 4 % of the size
+  ctx.fillText(text, cx, cy + size * 0.04);
+}
+
+/**
+ * Draw icon `name` in the square box (bx, by, size): clean shapes, the button's colour (the
+ * context's fill colour as the atlas set it), its letter in the deck's font.
+ */
+function drawIcon(ctx: CanvasRenderingContext2D, name: string, bx: number, by: number, size: number): void {
+  const fill = typeof ctx.fillStyle === "string" ? ctx.fillStyle : "#ffffff";
+  const ink = inkOn(fill);
+  const cx = bx + size / 2, cy = by + size / 2;
+  const R = size * 0.46;
+  const stroke = Math.max(1.5, size * 0.1);
+  const disc = (color: string) => {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  const line = (color: string, w = stroke) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = w;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+  };
+  switch (name) {
+    case "a": case "b": case "x": case "y":
+      disc(fill);
+      return label(ctx, name.toUpperCase(), cx, cy, size * 0.62, ink);
+    case "minus": case "plus":
+      disc(fill);
+      line(ink);
+      ctx.beginPath();
+      ctx.moveTo(cx - R * 0.45, cy);
+      ctx.lineTo(cx + R * 0.45, cy);
+      if (name === "plus") (ctx.moveTo(cx, cy - R * 0.45), ctx.lineTo(cx, cy + R * 0.45));
+      return void ctx.stroke();
+    case "cross": case "circle": case "square": case "triangle": {
+      // PlayStation: a dark button, the symbol in its colour, a thin ring of it
+      disc(css(LOOK.psBody));
+      line(fill, Math.max(1, size * 0.045));
+      ctx.beginPath();
+      ctx.arc(cx, cy, R - ctx.lineWidth / 2, 0, Math.PI * 2);
+      const alpha = ctx.globalAlpha;
+      ctx.globalAlpha = alpha * LOOK.ring;
+      ctx.stroke();
+      ctx.globalAlpha = alpha;
+      line(fill);
+      const k = R * 0.42;
+      ctx.beginPath();
+      if (name === "cross") (ctx.moveTo(cx - k, cy - k), ctx.lineTo(cx + k, cy + k), ctx.moveTo(cx + k, cy - k), ctx.lineTo(cx - k, cy + k));
+      else if (name === "circle") ctx.arc(cx, cy, k * 1.05, 0, Math.PI * 2);
+      else if (name === "square") ctx.rect(cx - k * 0.92, cy - k * 0.92, k * 1.84, k * 1.84);
+      else (ctx.moveTo(cx, cy - k * 1.05), ctx.lineTo(cx + k * 1.1, cy + k * 0.8), ctx.lineTo(cx - k * 1.1, cy + k * 0.8), ctx.closePath());
+      return void ctx.stroke();
+    }
+    case "lb": case "rb": case "l1": case "r1": case "l": case "r":
+    case "lt": case "rt": case "l2": case "r2": case "zl": case "zr": {
+      // a shoulder: a wide rounded body; a trigger: its top more rounded, like the real thing
+      const trigger = ["lt", "rt", "l2", "r2", "zl", "zr"].includes(name);
+      const w = size * 0.96, h = size * 0.62;
+      ctx.fillStyle = fill;
+      rr(ctx, cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2, h * 0.28, trigger ? h * 0.5 : h * 0.28);
+      ctx.fill();
+      return label(ctx, name.toUpperCase(), cx, cy + (trigger ? h * 0.06 : 0), h * (name.length > 1 ? 0.72 : 0.8), ink);
+    }
+    case "dpad": case "up": case "down": case "left": case "right": {
+      // the cross: the arm pressed filled, the others outlined — or all filled
+      const a = size * 0.15, L = size * 0.46;
+      const arm = (dx: number, dy: number) => {
+        const x0 = dx ? (dx < 0 ? cx - L : cx + a) : cx - a, x1 = dx ? (dx < 0 ? cx - a : cx + L) : cx + a;
+        const y0 = dy ? (dy < 0 ? cy - L : cy + a) : cy - a, y1 = dy ? (dy < 0 ? cy - a : cy + L) : cy + a;
+        return [x0, y0, x1, y1] as const;
+      };
+      const arms: [string, number, number][] = [["up", 0, -1], ["down", 0, 1], ["left", -1, 0], ["right", 1, 0]];
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.rect(cx - a, cy - a, a * 2, a * 2);
+      ctx.fill();
+      for (const [n, dx, dy] of arms) {
+        const [x0, y0, x1, y1] = arm(dx, dy);
+        rr(ctx, x0, y0, x1, y1, a * 0.35);
+        if (name === "dpad" || name === n) ctx.fill();
+        else {
+          line(fill, Math.max(1, size * 0.06));
+          ctx.stroke();
+        }
+      }
+      return;
+    }
+    case "ls": case "rs":
+      line(fill, Math.max(1.5, size * 0.09));
+      ctx.beginPath();
+      ctx.arc(cx, cy, R - ctx.lineWidth / 2, 0, Math.PI * 2);
+      ctx.stroke();
+      return label(ctx, name[0].toUpperCase(), cx, cy, size * 0.5, fill);
+    case "view": case "menu": case "share": case "options": case "home": {
+      disc(fill);
+      line(ink, Math.max(1, size * 0.07));
+      const k = R * 0.48;
+      ctx.beginPath();
+      if (name === "menu" || name === "options") for (const dy of [-0.6, 0, 0.6]) (ctx.moveTo(cx - k, cy + dy * k), ctx.lineTo(cx + k, cy + dy * k));
+      else if (name === "view") (ctx.rect(cx - k, cy - k * 0.7, k * 1.2, k), ctx.rect(cx - k * 0.2, cy - k * 0.3, k * 1.2, k));
+      else if (name === "share") (ctx.moveTo(cx, cy + k), ctx.lineTo(cx, cy - k), ctx.moveTo(cx - k * 0.6, cy - k * 0.4), ctx.lineTo(cx, cy - k), ctx.lineTo(cx + k * 0.6, cy - k * 0.4));
+      else (ctx.moveTo(cx - k, cy), ctx.lineTo(cx, cy - k), ctx.lineTo(cx + k, cy), ctx.moveTo(cx - k * 0.7, cy - k * 0.2), ctx.lineTo(cx - k * 0.7, cy + k), ctx.lineTo(cx + k * 0.7, cy + k), ctx.lineTo(cx + k * 0.7, cy - k * 0.2));
+      return void ctx.stroke();
+    }
+  }
+}
+
+/**
+ * Draw this cell's part of a pad icon: the whole icon in a square box centred on its two cells
+ * (or on its one cell, for the small ones), clipped to this cell by the atlas. Returns false for a
+ * code point that isn't one of ours.
  */
 export function drawPadGlyph(ctx: CanvasRenderingContext2D, cp: number, x: number, y: number, w: number, h: number): boolean {
   if (!isPadGlyph(cp)) return false;
-  const k = cp - PAD_GLYPH_BASE;
-  const s = sprite(k >> 1);
-  if (!s) return false;
-  const half = k & 1;
-  const p = Math.min((2 * w) / N, h / N);
-  const ox = (2 * w - N * p) / 2 - half * w; // the icon's left edge, from this cell's left edge
-  const oy = (h - N * p) / 2;
-  for (let r = 0; r < N; r++) {
-    const y0 = Math.round(y + oy + r * p), y1 = Math.round(y + oy + (r + 1) * p);
-    for (let c = 0; c < N; c++) {
-      if (!s[r * N + c]) continue;
-      const x0 = Math.round(x + ox + c * p), x1 = Math.round(x + ox + (c + 1) * p);
-      if (x1 <= x || x0 >= x + w) continue; // the other cell's half
-      ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
-    }
-  }
+  const small = cp >= PAD_GLYPH_SMALL;
+  const k = small ? cp - PAD_GLYPH_SMALL : (cp - PAD_GLYPH_BASE) >> 1;
+  const name = NAMES[k];
+  if (!name) return false;
+  const half = small ? 0 : (cp - PAD_GLYPH_BASE) & 1;
+  const boxW = small ? w : 2 * w;
+  // a little air above and below, whole pixels
+  const size = Math.floor(Math.min(boxW, h * LOOK.size));
+  const bx = Math.round(x - half * w + (boxW - size) / 2), by = Math.round(y + (h - size) / 2);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  drawIcon(ctx, name, bx, by, size);
+  ctx.restore();
   return true;
 }
 
-/** For tests and `debug pad`: a sprite as text rows ("X" lit, "." not). */
-export function spriteRows(name: string): string[] {
-  const i = INDEX.get(name);
-  const s = i === undefined ? undefined : sprite(i);
-  if (!s) return [];
-  return Array.from({ length: N }, (_, r) => Array.from({ length: N }, (_, c) => (s[r * N + c] ? "X" : ".")).join(""));
-}
-
-export const PAD_SPRITES = SPRITES.map(([name]) => name);
+export const PAD_SPRITES: readonly string[] = NAMES;

@@ -110,7 +110,7 @@ Deck.frame(now)
 - **After the frame**: `fx/transition.ts` plays the theme's page transition,
   `fx/glitch.ts` the glitch for big moments.
 
-**The screen** (`Workspace.render`, drawn from a layout tree of frames: [FRAMES.md](FRAMES.md)): top bar (the deck menu ◆ ICEBREAKER, UPLINK, the clock) · each frame with its tabs on its border · the tree
+**The screen** (`Workspace.render`, drawn from a layout tree of frames: [FRAMES.md](FRAMES.md)): the top row (the frames' tabs, with the deck menu ◆ icebreaker and UPLINK + the clock in its corners) · each frame with its tabs on its border · the tree
 (left) · the page (an `App`) · the side panel (right, optional) · the shell panel
 (bottom, or a big tab when maximized) · status bar · overlays · toasts · tooltip.
 

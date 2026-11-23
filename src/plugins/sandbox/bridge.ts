@@ -394,7 +394,7 @@ class Sandbox {
    */
   draw(ui: UI, r: Rect, inst: string, target: Target, focused: boolean): void {
     this.refresh();
-    this.send({ t: "render", inst, target, w: r.w, h: r.h, focused, mouse: { x: ui.mouse.x - r.x, y: ui.mouse.y - r.y }, now: ui.now });
+    this.send({ t: "render", inst, target, w: r.w, h: r.h, focused, mouse: { x: ui.mouse.x - r.x, y: ui.mouse.y - r.y }, now: ui.now, pad: ui.pad });
     const f = this.frames.get(inst);
     if (!f) return void ui.text(r.x + 1, r.y, ui.spinner(), { fg: ui.c.muted });
     const g = ui.grid;
@@ -407,6 +407,10 @@ class Sandbox {
           if (f.ch[i] !== UNTOUCHED) {
             g.ch[j] = f.ch[i];
             g.attr[j] = f.attr[i];
+            // its key, if it's a shortcut (an old module's frame has none)
+            const capped = f.cap instanceof Int32Array && f.capEdge instanceof Uint8Array && f.cap.length > i && f.capEdge.length > i;
+            g.cap[j] = capped ? f.cap![i] : NONE;
+            g.capEdge[j] = capped ? f.capEdge![i] & 15 : 0;
           }
           if (f.fg[i] !== NONE) g.fg[j] = f.fg[i];
           if (f.bg[i] !== NONE) g.bg[j] = f.bg[i];

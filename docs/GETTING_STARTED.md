@@ -25,8 +25,7 @@ the deck at an existing Obsidian vault with `vault mount /path` or in Settings.
 ## 2. The screen
 
 ```
- ◆ ICEBREAKER ▾  modules  store  nexus  settings  help   UPLINK ■ │ sat 21 nov  12:04
-  VAULT       ⌂ home  ✎ ideas   ☂ weather  ⚙ settings  +         PANEL
+ ◆ icebreaker ▾  vault  ⌂ home  ✎ ideas  ☂ weather  ⚙ settings  +   uplink ■ │ sat 21 nov  12:04
  ╭▀▀▀▀▀▀▀──╮ ╭▀▀▀▀▀▀▀─▀▀▀▀▀▀▀▀─▀▀▀▀▀▀▀▀▀────────────────╮ ╭▀▀▀▀▀▀▀──╮
  │ tree    │ │ HOME, or the page you opened             │ │ widgets │
  │ ▯ trash │ │                                          │ │         │
@@ -38,10 +37,11 @@ the deck at an existing Obsidian vault with `vault mount /path` or in Settings.
  status bar · ◧ ▾ ◨ ▣ │ ✦ fx │ ⌘K menu │ F1 help
 ```
 
-- **◆ ICEBREAKER ▾** (top left, `F10`) — the deck's menu: what's new, updates, the setup
-  again, the guided tour, log out, quit. Beside it, the **menu bar**: modules, store,
-  nexus, settings, help — each opens as a tab. The date on the right opens a **mini
-  calendar**.
+- **The top row** is the frames' tabs (no menu bar), with **◆ icebreaker ▾** in its left
+  corner (`F10`) — the deck's menu: modules, store, nexus, settings, help (each opens as a
+  tab), what's new, updates, the setup again, the guided tour, log out, quit — and **uplink ■**
+  and the date in its right corner (a click: a **mini calendar**). A narrow window or a narrow
+  frame under a corner shortens it: **◆ ▾**, **■ 12:04**.
 - **The trash** is the tree's last line; **◧ ▾ ◨ ▣** in the status bar show and hide the
   tree, the shell, the panel — **▣** leaves the page alone. Drag the status bar's items,
   right-click to group them.
@@ -123,7 +123,7 @@ and sounds; `theme studio` tweaks everything live.
 
 ## 8. Store and NEXUS
 
-**◆ ICEBREAKER ▾**, top left, is the deck's menu: **⬡ NEXUS** (the vault in 3D: `+` new
+**◆ icebreaker ▾**, top left, is the deck's menu: **⬡ NEXUS** (the vault in 3D: `+` new
 note, `/` search, F2 rename, delete → trash, `:` every action), **⇣ store** (modules
 and themes to install, and your own sources), **▦ modules**, settings, log out.
 

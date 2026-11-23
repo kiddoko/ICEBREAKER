@@ -1,5 +1,9 @@
 import { gradient as sampleGradient, mix, NONE, type RGB } from "../core/color";
 import { keySpans } from "./keycaps";
+import { padCells } from "./keyicons";
+import { keycapLook, type KeycapLook } from "../core/keycap";
+import { CAP_END, CAP_PAD_L, CAP_PAD_R, CAP_START } from "../core/grid";
+import type { PadKind } from "../core/padglyphs";
 import { BOLD, Grid, type Rect, type Style } from "../core/grid";
 import type { MouseInput } from "../core/input";
 import type { Theme } from "../core/theme";
@@ -233,21 +237,57 @@ export class UI {
       }
       return x;
     }
-    // on a coloured strip (a selected line, a band): a lighter patch of that colour;
-    // on the theme's own backgrounds: the accent's key, bright text
+    // each shortcut on a key (core/keycap.ts: the renderer draws the key behind its text, the
+    // font draws the text) — or the pad's button while a pad is used (ui/keyicons.ts) — in as many
+    // cells as its text. The key's face: on a coloured strip (a selected line, a band) a lighter
+    // patch of that colour; on the theme's own backgrounds a raised tone with a hint of the accent
     const c = this.c;
     const onColour = bg !== NONE && bg !== c.bg && bg !== c.panel && bg !== c.panelAlt && bg !== c.highlight;
-    const keyBg = onColour ? mix(bg, fg, 0.22) : mix(c.accent, bg !== NONE ? bg : c.panel, 0.72);
-    const keyFg = onColour ? fg : c.fg;
-    let i = 0, k = 0;
-    for (const ch of s) {
+    const look = themeKeys(this.theme);
+    const face = onColour ? mix(bg, fg, 0.2) : (look.face ?? keyFace(c));
+    const label = onColour ? fg : c.fg;
+    const chars = [...s];
+    const put = (ch: string, f: RGB, b: RGB, a: number) => {
       const cp = ch.codePointAt(0)!;
-      while (k < keys.length && i >= keys[k][1]) k++;
-      const inKey = k < keys.length && i >= keys[k][0];
-      i++;
-      if (cp === 10 || cp === 13) continue;
-      x += this.grid.set(x, y, cp === 9 ? 32 : cp, inKey ? keyFg : fg, inKey ? keyBg : bg, inKey ? attrs | BOLD : attrs);
+      if (cp !== 10 && cp !== 13) x += this.grid.set(x, y, cp === 9 ? 32 : cp, f, b, a);
+    };
+    let i = 0;
+    // the spaces after the keys: their half is the key's (set once they're written)
+    const padR: number[] = [];
+    // a pad's button is narrower than the key it replaces ("enter" → Ⓐ): the text goes on right
+    // after it, and the cells left over go at the end (the text keeps its width, no blank before Ⓐ)
+    let slack = 0;
+    for (const [a, b] of keys) {
+      for (; i < a && i < chars.length; i++) put(chars[i], fg, bg, attrs);
+      const written = chars.slice(a, b).join("");
+      const pad = /[\n\r\t]/.test(written) ? null : padCells(written, this.pad);
+      if (pad) {
+        const x0 = x;
+        for (const ch of pad.text) put(ch, pad.color ?? label, bg, attrs);
+        slack += strWidth(written) - (x - x0);
+      }
+      else {
+        // the key: its text, a cap behind it (one key across all its cells), reaching half a cell
+        // into the spaces on each side when there are some — the text gets room, nothing moves
+        const x0 = x;
+        for (const ch of chars.slice(a, b)) put(ch, label, bg, look.bold ? attrs | BOLD : attrs);
+        // (at either end of this text: a blank cell already there, a menu's margin around its key)
+        const g = this.grid;
+        const blank = (cx: number) => cx >= 0 && cx < g.cols && g.inClip(cx, y) && g.ch[y * g.cols + cx] === 32 && g.cap[y * g.cols + cx] === NONE;
+        const left = a > 0 ? chars[a - 1] === " " && x0 > 0 : blank(x0 - 1);
+        const right = b < chars.length ? chars[b] === " " : blank(x);
+        for (let k = x0; k < x; k++) this.grid.setCap(k, y, face, (k === x0 && !left ? CAP_START : 0) | (k === x - 1 && !right ? CAP_END : 0));
+        if (left) this.grid.setCap(x0 - 1, y, face, CAP_PAD_L);
+        if (right) {
+          if (b < chars.length) padR.push(x);
+          else this.grid.setCap(x, y, face, CAP_PAD_R);
+        }
+      }
+      i = Math.max(i, b);
     }
+    for (; i < chars.length; i++) put(chars[i], fg, bg, attrs);
+    for (let k = 0; k < slack; k++) put(" ", fg, bg, attrs);
+    for (const px of padR) this.grid.setCap(px, y, face, CAP_PAD_R);
     return x;
   }
 
@@ -273,6 +313,8 @@ export class UI {
 
   /** shortcuts drawn as keycaps (off while drawing content that isn't interface) */
   keycaps = true;
+  /** the pad in use (a pad button was the last thing pressed): the shortcuts show its buttons */
+  pad: PadKind | null = null;
 
   /** Is this text's room under the mouse, or in the marquee zone? */
   private marqueeHere(x: number, y: number, w: number): boolean {
@@ -349,6 +391,7 @@ export class UI {
       for (let x = Math.max(0, r.x); x < Math.min(g.cols, r.x + r.w); x++) {
         const i = y * g.cols + x;
         if (g.bg[i] !== NONE) g.bg[i] = mix(g.bg[i], this.c.bg, 0.6);
+        if (g.cap[i] !== NONE) g.cap[i] = mix(g.cap[i], this.c.bg, 0.6); // a shortcut's key, dimmed with its text
         const ch = g.ch[i];
         // block glyphs (▀ ▄ █ ▌…: a tab's bar, a logo, a picture's pixels: the moon) are shapes,
         // not text: their own colour, darkened like their background — in the text's grey a
@@ -569,3 +612,17 @@ export function inset(r: Rect, dx: number, dy = dx): Rect {
 }
 
 export { charWidth, strWidth, truncate };
+
+/** a key's face on the theme's own backgrounds: a raised tone of the panel, a hint of the accent */
+export function keyFace(c: { accent: RGB; fg: RGB; panel: RGB }): RGB {
+  return mix(mix(c.panel, c.fg, 0.13), c.accent, 0.14);
+}
+
+/** a theme's key look (Theme.keys over the bevelled key), worked out once per theme */
+const keyLooks = new WeakMap<object, KeycapLook>();
+function themeKeys(theme: { keys?: Partial<KeycapLook> } | undefined): KeycapLook {
+  if (!theme) return keycapLook();
+  let k = keyLooks.get(theme);
+  if (!k) keyLooks.set(theme, (k = keycapLook(theme.keys)));
+  return k;
+}
