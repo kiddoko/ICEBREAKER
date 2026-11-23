@@ -598,7 +598,8 @@ export class ShellApp implements App {
     const cw = strWidth(shown.slice(0, this.cursor));
     const off = Math.max(0, cw - room + 1);
     if (!this.input) {
-      const hint = rd.opts.placeholder ?? (ch.length && !rd.opts.allowText ? "1-9 · ←→ · enter" : `enter = skip · esc or ${CANCEL_KEY} = stop`);
+      // (in the deck's language: it was English under account delete's password on a French deck)
+      const hint = rd.opts.placeholder ?? (ch.length && !rd.opts.allowText ? t("1-9 · ←→ · enter") : t("enter = skip · esc or {key} = stop", { key: CANCEL_KEY }));
       ui.text(x, y, hint, { fg: c.faint }, room);
     } else ui.text(x, y, [...shown].slice(off).join(""), { fg: c.fg, raw: true }, room); // what you type: no keycaps
     if (focused) ui.cursor(x + cw - off, y, this.lastInputAt);

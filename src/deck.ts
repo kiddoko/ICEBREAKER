@@ -401,7 +401,13 @@ export class Deck implements InputSink {
     // Welcome note were English before the setup's first answer
     if (!s.setup.done) {
       const dev = await readDevice(this.platform).catch(() => null);
-      if (dev?.lang === "fr" && s.user.language !== "fr") this.settings.set("user.language", "fr");
+      if (dev?.lang === "fr" && s.user.language !== "fr") {
+        this.settings.set("user.language", "fr");
+        // settings.set only records it: the language itself was still English until the setup
+        // (applySettings runs for commands) — the boot, the banner, the vault's first note need it now
+        setLang("fr");
+        setDateLocale(s.user.locale);
+      }
     }
 
     // the POST runs live: each line shows when its step is really done

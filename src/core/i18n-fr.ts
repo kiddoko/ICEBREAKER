@@ -2351,6 +2351,8 @@ export const FR: Record<string, string> = {
   "Switch them off too?": "Les éteindre aussi ?",
   "and {l}": "et {l}",
   "[y/N]": "[o/N]",
+  "enter = skip · esc or {key} = stop": "entrée = passer · échap ou {key} = arrêter",
+  "1-9 · ←→ · enter": "1-9 · ←→ · entrée",
   "y or n": "o ou n",
   "total": "totale",
   // the shell panel's tabs (0.7.2)

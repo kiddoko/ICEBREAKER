@@ -781,20 +781,31 @@ export class SetupApp implements App {
       ui.text(lx, y, t("// what you told the deck"), { fg: c.subtle });
       let ly = y + 2;
       const answered = this.steps.map((s2, i) => ({ s2, i })).filter(({ s2, i }) => i < this.step && !s2.skip?.() && this.answerOf(s2) !== "");
-      const fit = answered.slice(-Math.max(1, r.y + r.h - ly - 3));
-      for (const { s2, i } of fit) {
-        const row = { x: lx, y: ly, w: logW, h: 1 };
-        const hot = ui.hovered(row);
+      // each answer on its name's line when it fits, else on the lines under it, whole (it was cut
+      // with … : « mon terminal + les c… », « j'ai lu — j'ai… »)
+      const rows = answered.map(({ s2, i }) => {
         const name = t(s2.title).toLowerCase();
-        ui.text(lx, ly, `${hot ? "‹" : "›"} ${name}`, { fg: hot ? c.accent : c.muted }, logW - 12);
-        // the answer gets what the name leaves (a long one is cut, at the end)
-        const val = truncate(this.answerOf(s2), Math.max(8, logW - strWidth(name) - 5));
-        const dotsFrom = lx + 2 + strWidth(name) + 1;
-        const valX = lx + logW - strWidth(val);
-        if (valX - dotsFrom > 1) ui.text(dotsFrom, ly, "·".repeat(valX - dotsFrom - 1), { fg: c.faint });
-        ui.text(valX, ly, val, { fg: c.accent, attrs: hot ? BOLD : 0 });
+        const val = this.answerOf(s2);
+        const inline = strWidth(name) + 4 + strWidth(val) <= logW;
+        const under = inline ? [] : wrapWords(val, logW - 4).slice(0, 3);
+        return { i, name, val, inline, under, h: 1 + under.length };
+      });
+      // the latest ones that fit above the line being written
+      const roomRows = Math.max(1, r.y + r.h - ly - 3);
+      let used = 0, from = rows.length;
+      while (from > 0 && used + rows[from - 1].h <= roomRows) used += rows[--from].h;
+      for (const { i, name, val, inline, under, h } of rows.slice(from)) {
+        const row = { x: lx, y: ly, w: logW, h };
+        const hot = ui.hovered(row);
+        ui.text(lx, ly, `${hot ? "‹" : "›"} ${name}`, { fg: hot ? c.accent : c.muted }, logW - 2);
+        if (inline) {
+          const dotsFrom = lx + 2 + strWidth(name) + 1;
+          const valX = lx + logW - strWidth(val);
+          if (valX - dotsFrom > 1) ui.text(dotsFrom, ly, "·".repeat(valX - dotsFrom - 1), { fg: c.faint });
+          ui.text(valX, ly, val, { fg: c.accent, attrs: hot ? BOLD : 0 });
+        } else under.forEach((l, k) => ui.textRight(lx + logW, ly + 1 + k, l, { fg: c.accent, attrs: hot ? BOLD : 0 }));
         ui.hit(row, { onClick: () => this.jumpTo(i), tip: t("click: change it") });
-        ly++;
+        ly += h;
       }
       // the line being written: the cursor blinks there
       ui.text(lx, ly, `▸ ${t(st.title).toLowerCase()}`, { fg: c.fg, attrs: BOLD }, logW - 2);

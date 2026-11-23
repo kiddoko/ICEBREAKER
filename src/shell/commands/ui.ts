@@ -1,4 +1,4 @@
-import { padEnd } from "../../core/unicode";
+import { padEnd, strWidth } from "../../core/unicode";
 import { allWidgetKeys, forgetWidget, newWidgetKey, widgetIdOf } from "../../widgets/instances";
 import { addToMenu, quickItems } from "../../workspace/quickmenu";
 import { closeMany } from "../../workspace/menus";
@@ -219,7 +219,10 @@ const launch: Command = {
     // each page by the name on its tab ("nexus", "catalog", "manual"), not its inner id (E2)
     const tabName = (a: { title: string }) => a.title.toLowerCase().replace(/\s*\(.*\)$/, "");
     if (!kind) {
-      for (const a of d.apps.list()) if (a.kind !== "note") ctx.out(`${padEnd(a.icon ?? "·", 2)} ${padEnd(tabName(a), 13)} ${fmt.dim(a.description ?? "")}\n`);
+      // the icons' column as wide as the widest one (STATS' « ▁▃▇ » is 3 cells: its name went a column right)
+      const apps = d.apps.list().filter((a) => a.kind !== "note");
+      const iw = Math.max(1, ...apps.map((a) => strWidth(a.icon ?? "·")));
+      for (const a of apps) ctx.out(`${padEnd(a.icon ?? "·", iw)} ${padEnd(tabName(a), 13)} ${fmt.dim(a.description ?? "")}\n`);
       return 0;
     }
     // a module's name works too: `launch nexus` is its page, explorer (it said "no app")
