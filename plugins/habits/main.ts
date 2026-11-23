@@ -237,7 +237,7 @@ export function activate(ib: IcebreakerAPI): void {
     const due = dueOn(h, new Date());
     const done = doneOn(h, new Date());
     let cx = ui.text(x + 1, y, due ? boxes(h) : "—", { fg: done ? c.success : due ? c.accent : c.faint, attrs: BOLD, ...st });
-    const stripW = w >= 50 ? 14 : w >= 36 ? 7 : 0;
+    const stripW = stripOf(w);
     const s = streak(h);
     const right = x + w - 1;
     // the streak in a column of its own width (▲999): starting a streak never moves the days' squares
@@ -252,7 +252,65 @@ export function activate(ib: IcebreakerAPI): void {
       }
     }
     cx += 1;
-    ui.text(cx, y, h.name, { fg: due ? (done ? c.subtle : c.fg) : c.muted, attrs: done ? 0 : BOLD, ...st }, sEnd - (stripW ? stripW + 3 : 1) - cx);
+    const nameEnd = sEnd - (stripW ? stripW + 3 : 1);
+    cx = ui.text(cx, y, h.name, { fg: due ? (done ? c.subtle : c.fg) : c.muted, attrs: done ? 0 : BOLD, ...st }, nameEnd - cx);
+    // when it's due, small after the name: "· 2× a day · mon wed fri" (as much as fits)
+    const when = [h.per > 1 ? t("{n}× a day", { n: h.per }) : "", h.days.length ? daysLabel(h) : ""].filter(Boolean).join(" · ");
+    if (when && nameEnd - cx > 6) ui.text(cx + 1, y, `· ${when}`, { fg: c.faint, ...st }, nameEnd - cx - 1);
+  };
+
+  /** the strip's width for a row this wide (the header lines up with it) */
+  const stripOf = (w: number) => (w >= 50 ? 14 : w >= 36 ? 7 : 0);
+
+  /** above the list: what each column is — today's boxes, the habit, the last days (their initials), the streak */
+  const drawHeader = (ui: UI, x: number, y: number, w: number) => {
+    const c = ui.c;
+    const st = { fg: c.subtle };
+    ui.text(x + 1, y, t("today"), st);
+    const right = x + w - 1;
+    // the streak's column is ▲12: its name is its glyph (the word ran into the days)
+    ui.textRight(right, y, "▲", { fg: c.warning });
+    ui.hit({ x: right - 3, y, w: 4, h: 1 }, { tip: t("streak: days in a row") });
+    const stripW = stripOf(w);
+    if (!stripW) return;
+    let sx = right - 4 - stripW - 2;
+    for (let i = stripW - 1; i >= 0; i--) {
+      const d = back(i);
+      const letter = d.toLocaleDateString(undefined, { weekday: "narrow" }).toLowerCase();
+      ui.text(sx++, y, letter, { fg: i === 0 ? c.accent : d.getDay() === 0 || d.getDay() === 6 ? c.faint : c.subtle, attrs: i === 0 ? BOLD : 0 });
+    }
+  };
+
+  /**
+   * Under the list, when there's room: this week day by day (how much of what was due got done)
+   * and the best streak.
+   *
+   *   this week   l  m  m  j  v  s  d        best streak  ▲12 read 20 pages
+   *               █  ▆  █  ▃  ·  ·  ·
+   */
+  const drawWeek = (ui: UI, x: number, y: number, w: number) => {
+    const c = ui.c;
+    ui.text(x + 1, y, t("this week"), { fg: c.subtle, attrs: BOLD });
+    const now = new Date();
+    const monday = back((now.getDay() + 6) % 7);
+    let cx = x + 14;
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
+      const future = d.getTime() > now.getTime();
+      const dueHere = habits.filter((h) => dueOn(h, d));
+      const share = dueHere.length ? dueHere.filter((h) => doneOn(h, d)).length / dueHere.length : 0;
+      const isToday = ymd(d) === ymd(now);
+      ui.text(cx, y, d.toLocaleDateString(undefined, { weekday: "narrow" }).toLowerCase(), { fg: isToday ? c.accent : c.subtle, attrs: isToday ? BOLD : 0 });
+      const bar = future || !dueHere.length ? "·" : " ▁▂▃▄▅▆▇█"[Math.max(1, Math.round(share * 8))];
+      ui.text(cx, y + 1, bar, { fg: share >= 1 ? c.success : c.accent });
+      ui.hit({ x: cx, y, w: 1, h: 2 }, { tip: future ? d.toLocaleDateString() : `${d.toLocaleDateString()} · ${Math.round(share * 100)} %` });
+      cx += 3;
+    }
+    const best = habits.map((h) => ({ h, s: streak(h) })).sort((a, b) => b.s - a.s)[0];
+    if (best?.s && x + w - cx > 24) {
+      const label = ib.lib.truncate(`${t("best streak")}  ▲${best.s} ${best.h.name}`, x + w - cx - 2);
+      ui.textRight(x + w - 1, y, label, { fg: c.warning });
+    }
   };
 
   class HabitsApp implements App {
@@ -301,7 +359,16 @@ export function activate(ib: IcebreakerAPI): void {
       y += 2;
       this.list.items = habits;
       if (!habits.length) return void ui.text(x, y, t("no habits yet — a adds one (drink water ×8, read, stretch on mon wed fri…)"), { fg: c.muted }, w);
-      this.list.render(ui, { x, y, w, h: r.y + r.h - 1 - y }, focused, (h, row) => drawRow(ui, row.x, row.y, row.w, h));
+      // the columns' names on the line above, lined up with the rows as the list draws them
+      const headY = y;
+      y += 1;
+      // the week under the list when there's room for both
+      const weekH = r.y + r.h - 1 - y - habits.length >= 5 ? 3 : 0;
+      const listH = r.y + r.h - 1 - y - weekH;
+      let geo = { x, w };
+      this.list.render(ui, { x, y, w, h: listH }, focused, (h, row) => ((geo = { x: row.x, w: row.w }), drawRow(ui, row.x, row.y, row.w, h)));
+      drawHeader(ui, geo.x, headY, geo.w);
+      if (weekH) drawWeek(ui, x, y + Math.min(listH, habits.length) + 1, w);
     }
   }
   ib.apps.register({ kind: "habits", title: "Habits", description: "daily habits with streaks", icon: "◉", launcher: true, create: () => new HabitsApp() });
@@ -395,6 +462,11 @@ export function activate(ib: IcebreakerAPI): void {
     "space / enter check · u uncheck · a add · x remove": "espace / entrée cocher · u décocher · a ajouter · x retirer",
     "Remove {name}?": "Retirer {name} ?",
     "Its history goes too.": "Son historique part aussi.",
+    "{n}× a day": "{n}× par jour",
+    "today": "aujourd'hui",
+    "streak: days in a row": "série : jours d'affilée",
+    "this week": "cette semaine",
+    "best streak": "meilleure série",
     "+ new habit": "+ nouvelle habitude",
     "{done} of {n} today": "{done} sur {n} aujourd'hui",
     "no habits yet — a adds one (drink water ×8, read, stretch on mon wed fri…)": "pas encore d'habitudes — a en ajoute une (boire de l'eau ×8, lire, s'étirer lun mer ven…)",
