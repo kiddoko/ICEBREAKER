@@ -159,7 +159,7 @@ pointer wins**. So to let a widget's own buttons work, register its frame *befor
 drawing its content; to make a whole thing draggable (edit mode), register the
 frame *after* (see `apps/home.ts`, `workspace/sidepanel.ts`). `onClick` fires on
 press; a drag gets `onDrag` then `onUp` even outside the area. A `cmd` hit runs
-that shell command (and the shell's LOG tab shows it: clicks teach the command line).
+that shell command (and the shell's log shows it: clicks teach the command line).
 
 Text goes through a hidden `<textarea>` so IME (日本語), dead keys (ê, ü) and
 paste work like in any native app.

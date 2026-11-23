@@ -187,6 +187,7 @@ export class InputManager {
   private swipeLast = 0;
   private swipeFiredAt = 0;
   private pinch = 0;
+  private pinchAt = 0;
   private buttons = 0;
   private composing = false;
 
@@ -361,10 +362,18 @@ export class InputManager {
         e.preventDefault();
         this.onActivity();
         const t0 = performance.now();
-        // a pinch (Chromium / WebView2 send it as ctrl+wheel) or ctrl+wheel: zoom
+        // a pinch (Chromium / WebView2 send it as ctrl+wheel) or ctrl+wheel: the interface scale,
+        // on every system. A mouse's notch is one step whatever it sends (Linux and Windows often
+        // send lines — 3 "pixels" a notch, which took ~14 notches for one step); a pinch's
+        // stream of small deltas adds up
         if (e.ctrlKey) {
-          this.pinch += -e.deltaY;
-          if (Math.abs(this.pinch) > 40) {
+          const cellH = this.renderer.cellH || 16;
+          const px = e.deltaMode === 1 ? e.deltaY * cellH : e.deltaMode === 2 ? e.deltaY * cellH * 20 : e.deltaY;
+          const lone = t0 - this.pinchAt > 250;
+          this.pinchAt = t0;
+          if (lone || Math.sign(px) !== Math.sign(-this.pinch)) this.pinch = 0;
+          this.pinch += -px;
+          if (Math.abs(this.pinch) > 40 || (lone && Math.abs(px) >= 24)) {
             this.onGesture(this.pinch > 0 ? "zoom-in" : "zoom-out");
             this.pinch = 0;
           }

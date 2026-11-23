@@ -1,4 +1,4 @@
-import { t } from "../core/i18n";
+import { t, dateLocale } from "../core/i18n";
 import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
 import { BOLD, DIM, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
@@ -193,7 +193,7 @@ async function loadSource(deck: Deck, s: NewsSource, f: SourceFeed): Promise<voi
   f.loading = true;
   try {
     const rss = deck.platform.newsRss;
-    if (!rss) throw new Error("news needs the desktop app");
+    if (!rss) throw new Error(t("news needs the desktop app"));
     const fresh = (l: Headline[]) => l.filter((h) => !h.at || Date.now() - h.at < 21 * 86400_000);
     const add = (base: Headline[], more: Headline[]) => [...base, ...more.filter((m) => !base.some((b) => b.title === m.title))].slice(0, 30);
     const get = (q: string, p: "bing" | "google") => rss(q, langOf(deck), countryOf(deck), p).then(parse).catch(() => [] as Headline[]);
@@ -247,8 +247,8 @@ export function openArticle(deck: Deck, h: Headline | undefined): void {
   if (h?.link && deck.platform.openUrl) void deck.platform.openUrl(h.link);
 }
 
-function when(deck: Deck, at: number): string {
-  return at ? new Date(at).toLocaleString(deck.settings.data.user.locale || undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+function when(_deck: Deck, at: number): string {
+  return at ? new Date(at).toLocaleString(dateLocale(), { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
 }
 
 const seenAt = new Map<string, number>();
@@ -274,7 +274,7 @@ export const newsWidget: WidgetSpec = {
     if (key) ui.hit(head, { cmd: `widget ${key}`, tip: t("what this widget shows: click to change it") });
     if (!items.length) {
       ui.text(r.x + 1, r.y, header, { fg: c.accentAlt, attrs: BOLD }, r.w - 2);
-      if (r.h > 1) ui.text(r.x + 1, r.y + 1, f.error ? `⚠ ${f.error}` : `${ui.spinner()} ${t("pulling the feed…")}`, { fg: f.error ? c.error : c.muted }, r.w - 2);
+      if (r.h > 1) ui.textFit(r.x + 1, r.y + 1, f.error ? [`⚠ ${f.error}`, `⚠ ${/desktop app|app de bureau/.test(f.error) ? t("desktop app only") : t("no feed")}`, `⚠ ${/desktop app|app de bureau/.test(f.error) ? t("desktop only") : t("no feed")}`] : [`${ui.spinner()} ${t("pulling the feed…")}`], { fg: f.error ? c.error : c.muted }, r.w - 2);
       return;
     }
     const open = (i: number) => showCard(deck, items, i + 1);
@@ -325,7 +325,7 @@ export const newsWidget: WidgetSpec = {
       if (tagW) ui.text(r.x + 3, y, `[${h.tag}]`, { fg: c.subtle });
       const shown = ui.reveal(h.title, p);
       ui.text(r.x + 3 + tagW, y, shown, { fg: hot ? c.accent : i === 0 ? c.fg : c.muted }, room - tagW);
-      if (src2) ui.textRight(r.x + r.w - 1, y, src2, { fg: c.faint, attrs: DIM });
+      if (src2) ui.textRight(r.x + r.w - 1, y, src2, { fg: c.subtle, attrs: DIM });
       ui.hit(row, { onClick: () => open(i), tip: t("summary, then open it in your browser") });
     });
     ui.marqueeZone = zone;
@@ -398,7 +398,7 @@ class NewsCard implements Overlay {
     ui.text(inner.x + 1, y++, `${h.source}${h.at ? ` · ${when(this.deck, h.at)}` : ""}`, { fg: c.subtle }, tw);
     y++;
     if (summary.length) for (const l of summary) { if (y >= inner.y + inner.h - 2) break; ui.text(inner.x + 1, y++, l, { fg: c.muted }, tw); }
-    else ui.text(inner.x + 1, y++, "no summary in the feed — open the article to read it", { fg: c.faint }, tw);
+    else ui.text(inner.x + 1, y++, "no summary in the feed — open the article to read it", { fg: c.subtle }, tw);
     const by = inner.y + inner.h - 1;
     let bx = inner.x + 1;
     if (h.link && this.deck.platform.openUrl) bx += ui.button(bx, by, "open in browser ↗  (enter)", () => this.open()) + 2;

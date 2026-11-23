@@ -17,6 +17,9 @@ import { INSET } from "../ui/layout";
 /** Grid geometry: 12 columns, one row unit = 2 text rows. */
 const COLS = 12;
 const ROW = 2;
+/** a grid row's height on screen = a column's width × this (and never more than ROW_MAX lines) */
+const ROW_SHAPE = 0.6;
+const ROW_MAX = 6;
 
 /**
  * HOME — a dashboard of widgets on a 12-column grid.
@@ -104,6 +107,7 @@ export class HomeApp implements App {
     if (this.overlaps(layout, i, next)) return;
     layout[i] = next;
     this.want = { i, w: next.w, h: next.h }; // a deliberate resize sets the size to come back to
+    this.reveal = true; // grown past the bottom: HOME follows it (shift+↓ left it out of view)
     this.save(layout);
   }
 
@@ -191,20 +195,16 @@ export class HomeApp implements App {
           }
       return null;
     };
-    // here if it fits on screen; else the next page with room; else a new page.
-    // Never below the bottom of the screen, where nobody would see it.
-    const pages = this.pageCount();
-    let spot = fit(this.page, visible);
-    for (let k = 1; !spot && k < pages; k++) spot = fit((this.page + k) % pages, visible);
-    spot ??= fit(pages, visible) ?? { id, ...(key !== id ? { key } : {}), page: pages, x: 0, y: 0, w: Math.min(COLS, spec.size.w), h: spec.size.h };
+    // here if it fits on screen; else below the rest of this page, at its own size, and HOME
+    // scrolls down to it (a new page nobody looks at hid it)
+    const bottom = layout.filter((p) => (p.page ?? 0) === this.page).reduce((m, p) => Math.max(m, p.y + p.h), 0);
+    const spot = fit(this.page, visible) ?? { id, ...(key !== id ? { key } : {}), page: this.page || undefined, x: 0, y: bottom, w: Math.min(COLS, spec.size.w), h: spec.size.h };
+    if (!spot.page) delete spot.page;
     layout.push(spot);
     this.selected = layout.length - 1;
     this.reveal = true;
     this.save(layout);
-    if ((spot.page ?? 0) !== this.page) {
-      this.setPage(spot.page ?? 0);
-      this.deck.notify(t("{name}: no room here — it's on page {n}", { name: t(spec.title), n: (spot.page ?? 0) + 1 }));
-    }
+    if (spot.y + spot.h > visible) this.deck.notify(t("{name}: added below — HOME scrolls", { name: t(spec.title) }));
     return true;
   }
 
@@ -444,18 +444,23 @@ export class HomeApp implements App {
     }
     if (this.deck.settings.data.fx.ambient && !this.editing) drawBackground(ui, r, ui.theme, 0.8);
     // one free cell on each side (a widget's right edge already leaves a 1-cell gap)
-    const area = { x: r.x + 1, y: r.y + 1, w: r.w - 1, h: r.h - 1 };
+    // the pages' line at the bottom (when there are pages, or while editing) is not the widgets':
+    // a widget on the last row was drawn under it
+    const pagesLine = this.pageCount() > 1 || this.editing ? 1 : 0;
+    const area = { x: r.x + 1, y: r.y + 1, w: r.w - 1, h: r.h - 1 - pagesLine };
     // Columns stretch to the full width (cell edges are rounded, so they never drift).
     this.colW = Math.max(4, area.w / COLS);
     this.origin = { x: area.x, y: area.y };
     const colX = (n: number) => this.origin.x + Math.round(n * this.colW);
     this.areaH = area.h;
-    // Rows stretch to fill the page (themes have different font sizes, so a fixed
-    // row height left half the screen empty on one and overflowed on another);
-    // the same in and out of edit mode. Too much to fit: 2 lines a row, and it scrolls.
-    const used = this.compact(this.layout).filter((p) => (p.page ?? 0) === this.page && this.deck.widgets.get(p.id)).reduce((m, p) => Math.max(m, p.y + p.h), 0);
-    this.rowH = used ? Math.max(ROW, Math.min(4, (area.h + 1) / used)) : ROW;
+    // A grid row is as tall as a share of a column is wide, on screen: a widget keeps its
+    // shape whatever the theme's font (more or fewer cells) and the window — it used to stretch
+    // to fill the page. At least ROW lines; what doesn't fit scrolls.
+    this.rowH = Math.max(ROW, Math.min(ROW_MAX, this.colW * (ui.cellAspect || 0.5) * ROW_SHAPE));
     const contentH = (this.editing ? this.layout : this.compact(this.layout)).filter((p) => ((p.page ?? 0) === this.page)).reduce((m, p) => Math.max(m, Math.round((p.y + p.h) * this.rowH) - 1), 0); // the last row is a gap, not content
+    // more than fits and no pages line: the last line is the "↓ more" tab's (it covered a widget's bottom)
+    if (!pagesLine && contentH > area.h) area.h -= 1;
+    this.areaH = area.h;
     const maxScroll = Math.max(0, contentH - area.h);
     // widgets sit where they were placed: top-left, the same in and out of edit mode
     if (this.reveal) {
@@ -546,6 +551,8 @@ export class HomeApp implements App {
         },
         onDouble: () => !this.editing && (spec.popup || spec.activate || spec.open) && void this.deck.act(`widget ${keyOf(p)}`),
         menu: () => this.widgetMenu(i),
+        // edit mode: the hand says it can be picked up (and the ✥ on its frame)
+        ...(this.editing ? { cursor: "grab" as const } : {}),
         tip: this.editing ? "drag to move · shift+arrows resize · x remove" : spec.popup || spec.activate || spec.open ? `${spec.description ?? spec.title}\ndouble-click / enter → widget ${keyOf(p)}` : spec.description,
       };
       // normally the widget's own buttons sit on top of its frame; while editing,
@@ -574,11 +581,15 @@ export class HomeApp implements App {
         // too small to draw anything: show its name, so it never just vanishes
         if (inner.w > 0 && inner.h > 0 && blank(ui, inner)) {
           ui.textCenter(inner, inner.y + Math.floor((inner.h - 1) / 2), spec.title, { fg: c.subtle });
-          if (inner.h > 2) ui.textCenter(inner, inner.y + Math.floor((inner.h - 1) / 2) + 1, t("bigger: e, shift+arrows"), { fg: c.faint });
+          if (inner.h > 2) ui.textCenter(inner, inner.y + Math.floor((inner.h - 1) / 2) + 1, t("bigger: e, shift+arrows"), { fg: c.subtle });
         }
       });
       if (this.editing) {
         ui.hit(rect, frameHit);
+        // ✥ on its bottom edge, left (◢ resizes on the right): you can pick it up — a tester didn't
+        // see the widgets could be dragged
+        const over = ui.hovered(rect) || this.drag?.index === i;
+        if (rect.w >= 8 && rect.h >= 2) ui.text(rect.x + INSET, rect.y + rect.h - 1, over ? ` ✥ ${t("drag")} ` : " ✥ ", { fg: over || sel ? c.bg : c.accent, bg: over || sel ? c.accent : undefined, attrs: BOLD });
         // the bottom-right corner: drag it to resize (like shift+arrows)
         const corner = { x: rect.x + rect.w - 2, y: rect.y + rect.h - 1, w: 2, h: 1 };
         const hot = ui.hovered(corner) || this.sizing === i;
@@ -592,6 +603,7 @@ export class HomeApp implements App {
             if (w !== p.w || h !== p.h) this.change(i, (q) => ({ ...q, w, h }));
           },
           onUp: () => (this.sizing = -1),
+          cursor: "nwse-resize",
           tip: t("drag: bigger / smaller · shift+arrows"),
         });
       }

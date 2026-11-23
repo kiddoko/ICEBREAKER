@@ -11,6 +11,7 @@ import { askNumber, slider } from "../ui/slider";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import { mix } from "../core/color";
+import { GAP } from "../ui/layout";
 import { displayKeys } from "../core/shortcuts";
 import { defaultOf, kindOf, resetRow, rowIsDefault, rowResettable, type SettingRow as Row } from "../core/prefs";
 import type { Deck } from "../deck";
@@ -100,7 +101,9 @@ export class SettingsApp implements App {
     }
     return secs.flatMap((sec) =>
       sec.rows
-        .filter((row) => visible(row) && !row.head && `${row.label} ${t(row.label)} ${row.key ?? ""} ${sec.name} ${t(sec.name)} ${row.value()}`.toLowerCase().includes(q))
+        // its name in both languages, its key, its section, its value — and what it does, in both
+        // languages ("barre" found nothing: the word was only in its French explanation)
+        .filter((row) => visible(row) && !row.head && `${row.label} ${t(row.label)} ${row.key ?? ""} ${sec.name} ${t(sec.name)} ${row.value()} ${(SETTINGS_HELP[row.key ?? row.label] ?? []).join(" ")}`.toLowerCase().includes(q))
         .map((row) => ({ row, from: sec.name })),
     );
   }
@@ -283,13 +286,18 @@ export class SettingsApp implements App {
     ui.vline(sx + catW + 1, top, r.y + r.h - top - 2, { fg: c.faint });
 
     // right: the settings of that category (or the search results)
-    const rx = sx + catW + 3, rw = Math.min(r.w - (rx - r.x) - 2, 80);
+    const rx = sx + catW + 3;
+    // what a setting does goes to the right of its row when the frame is wide enough (the whole
+    // text, next to what you're looking at); a narrower frame keeps it under the list
+    const avail = r.w - (rx - r.x) - 2;
+    const sideW = avail >= SIDE_MIN_ROWS + GAP + SIDE_MIN ? Math.min(SIDE_MAX, Math.max(SIDE_MIN, avail - 62)) : 0;
+    const rw = Math.min(sideW ? avail - sideW - GAP - 1 : avail, 80);
     const rows = this.shown();
     this.sel = Math.min(this.sel, Math.max(0, rows.length - 1));
     if (rows[this.sel]?.row.head) this.sel = this.step(rows, this.sel, 1);
     // a big interface scale leaves few lines: the help at the bottom goes first, the settings stay
     // (5 lines of help when there's room: some explanations are long and were cut mid-sentence)
-    const helpH = r.h - (top - r.y) >= 18 ? 7 : r.h - (top - r.y) >= 14 ? 5 : 1;
+    const helpH = sideW ? 1 : r.h - (top - r.y) >= 18 ? 7 : r.h - (top - r.y) >= 14 ? 5 : 1;
     const room = Math.max(1, r.y + r.h - top - helpH);
     // a line of air under each setting (the empty line before a heading is air already; the
     // long lists of KEYS stay one per line). `at[i]`: the line row i starts on; scroll counts lines.
@@ -306,6 +314,7 @@ export class SettingsApp implements App {
     ui.hit({ x: rx, y: top, w: rw, h: room }, { onWheel: (d) => this.wheel(d, false) });
     if (!rows.length) ui.text(rx + 2, top, t("nothing matches — esc clears the search"), { fg: c.muted });
     let hoverRow: Row | undefined;
+    let hoverY = -1, selY = -1;
     // the mouse hasn't moved since ↑↓ chose a row: the row under it isn't "the one you're on"
     this.mouseAt = `${ui.mouse.x},${ui.mouse.y}`;
     if (this.mouseStill && this.mouseStill !== this.mouseAt) this.mouseStill = "";
@@ -348,7 +357,8 @@ export class SettingsApp implements App {
       const bg = selected && focused ? mix(c.accent, c.bg, 0.84) : hovered ? c.highlight : undefined;
       if (bg !== undefined) ui.fill(line, { bg });
       const st = bg !== undefined ? { bg } : {};
-      if (hovered) hoverRow = row;
+      if (hovered) (hoverRow = row), (hoverY = y);
+      if (i === this.sel) selY = y;
       const changed = this.resettable(row) && !this.rowDefault(row);
       const disabled = row.disabled?.() ?? false;
       if (changed) ui.text(rx, y, "▎", { fg: c.accent, ...st });
@@ -360,14 +370,15 @@ export class SettingsApp implements App {
       const labelRoom = Math.max(6, vx - vw - (rx + 2) - 2);
       const label = row.keys?.remove ? row.label : t(row.label); // yours: the command as you wrote it
       const lend = ui.text(rx + 2, y, label, { fg: disabled ? c.faint : selected ? c.fg : kind === "keys" && !row.keys?.editCombo ? c.subtle : c.muted, attrs: selected ? BOLD : 0, ...st }, labelRoom);
-      if (this.query) ui.text(lend + 2, y, t(from).toLowerCase(), { fg: c.faint, ...st }, Math.max(0, vx - vw - lend - 4));
+      if (this.query) ui.text(lend + 2, y, t(from).toLowerCase(), { fg: c.subtle, ...st }, Math.max(0, vx - vw - lend - 4));
 
       const pick = () => ((this.sel = i), (this.pane = "rows"));
       // greyed (it depends on another setting): chosen, never changed
       const act = (dir: 1 | -1 = 1) => (pick(), disabled ? undefined : void row.change?.(dir));
       const tip = row.cmd?.();
       // the whole line: choose it; a box ticks, text and actions open, at once
-      ui.hit(line, { onClick: () => (kind === "toggle" || kind === "text" || kind === "action" ? act() : pick()), tip });
+      // (with the description at the side, its command is there: no tip on top of it)
+      ui.hit(line, { onClick: () => (kind === "toggle" || kind === "text" || kind === "action" ? act() : pick()), tip: sideW ? undefined : tip });
 
       const valFg = disabled ? c.faint : kind === "info" ? c.subtle : kind === "text" ? c.fg : c.accent;
       if (kind === "slider") {
@@ -418,7 +429,8 @@ export class SettingsApp implements App {
         ui.button(bx, by, label, () => void this.resetSection(sec.name, sec.rows), { tip: `${t("everything in {cat} back to default", { cat: t(sec.name) })} (${nChanged}) · shift+del`, accent: c.warning });
       }
     }
-    if (help && helpH > 1) {
+    if (sideW && cur) this.drawSide(ui, cur, help?.[fr ? 1 : 0], { x: re + GAP + 1, w: sideW, top, bottom: r.y + r.h - 1, rowY: hoverRow ? hoverY : selY, rowEnd: re });
+    else if (help && helpH > 1) {
       helpRoom = rw - 2;
       // keys written the Mac way ("⌘K") read the way this keyboard does (Ctrl+K on Windows / Linux)
       const lines = wrapWords(osKeys(uiCase(help[fr ? 1 : 0])), helpRoom);
@@ -429,6 +441,46 @@ export class SettingsApp implements App {
       if (lines.length > n) shown[n - 1] = `${shown[n - 1].slice(0, Math.max(0, helpRoom - 2))} …`;
       shown.forEach((l, j) => ui.text(rx + 2, by - n + j, l, { fg: c.muted }, helpRoom));
     }
+  }
+
+  /**
+   * The description beside the list: the row's name, what it does (all of it), its command and
+   * its default. It sits level with the row (moved up when it would run off the bottom),
+   * a thin line joining them:
+   *
+   *   ▸ fade in letters ………… [■] ──┐ fade in letters
+   *                                 │ letters fade in as they appear…
+   *                                 │ ❯ set appearance.fadeIn off
+   */
+  private drawSide(ui: UI, row: Row, help: string | undefined, o: { x: number; w: number; top: number; bottom: number; rowY: number; rowEnd: number }): void {
+    const c = ui.c;
+    const inner = o.w - GAP;
+    const lines: { s: string; fg: number; attrs?: number }[] = [];
+    const label = row.keys?.remove ? row.label : t(row.label);
+    for (const l of wrapWords(label, inner)) lines.push({ s: l, fg: c.fg, attrs: BOLD });
+    if (help) {
+      lines.push({ s: "", fg: c.muted });
+      for (const l of wrapWords(osKeys(uiCase(help)), inner)) lines.push({ s: l, fg: c.muted });
+    }
+    const cmd = row.cmd?.();
+    if (cmd) {
+      lines.push({ s: "", fg: c.muted });
+      for (const l of wrapWords(`❯ ${cmd}`, inner)) lines.push({ s: l, fg: c.accent });
+    }
+    if (row.key && this.resettable(row)) {
+      const def = defaultOf(this.deck, row.key);
+      if (def !== undefined && def !== "" && typeof def !== "object") lines.push({ s: t("default: {v}", { v: t(String(def === true ? "on" : def === false ? "off" : def)) }), fg: c.subtle });
+    }
+    const room = Math.max(1, o.bottom - o.top);
+    const shown = lines.slice(0, room);
+    if (lines.length > room) shown[room - 1] = { ...shown[room - 1], s: `${truncate(shown[room - 1].s, inner - 2)} …` };
+    const rowY = o.rowY >= 0 ? o.rowY : o.top;
+    const y0 = Math.max(o.top, Math.min(rowY, o.bottom - shown.length));
+    // the thread from the row to its description
+    ui.hline(o.rowEnd + 1, rowY, o.x - o.rowEnd - 1, { fg: mix(c.accent, c.bg, 0.55) }, "─");
+    ui.vline(o.x, y0, shown.length, { fg: mix(c.accent, c.bg, 0.55) });
+    ui.text(o.x, rowY, shown.length === 1 ? "─" : rowY === y0 ? "┐" : rowY === y0 + shown.length - 1 ? "┘" : "┤", { fg: mix(c.accent, c.bg, 0.4) });
+    shown.forEach((l, j) => ui.text(o.x + GAP, y0 + j, l.s, { fg: l.fg, attrs: l.attrs ?? 0 }, inner));
   }
 
   /** A shortcut row: its keys and its key on THE MENU (≡); × for yours. */
@@ -474,6 +526,11 @@ export class SettingsApp implements App {
     }
   }
 }
+
+/** the description beside the list: its width, and the list's least width before it goes under */
+const SIDE_MIN = 28;
+const SIDE_MAX = 46;
+const SIDE_MIN_ROWS = 52;
 
 export const settingsSpec: AppSpec = {
   kind: "settings",

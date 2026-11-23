@@ -25,8 +25,9 @@ const PATTERNS: RegExp[] = [
   /(?<![\w+])(?:Esc|esc|Échap|échap|Enter|enter|Entrée|entrée|Delete|Del|del|Suppr|suppr|Space|space|Backspace|backspace|Tab|PgUp|PgDn|pgup|pgdn)(?![\w+])/g,
   // arrows as keys: "←→ choose", "↑↓" — not the arrows of data ("↑08:05", "↓9°", "17 km/h ↗")
   /(?<![\p{L}\d)]\s)[←↑↓→]{1,4}(?![\d°%.,:+\-…])|[⏎⌫⌦⇥]/gu,
-  // hint lines: "e edit · a add · [ ] pages" — a letter key at the start of a · segment
-  /(?:^|(?<=·\s))(?:[a-zA-Z]|tab|\[ \]|[[\]/?:])(?=\s+\p{L})/gu,
+  // hint lines: "e edit · a add · [ ] pages" — a letter key at the start of a · segment; "a" only
+  // before the verb it runs ("a full path…" is the article: it was drawn as a key)
+  /(?:^|(?<=·\s))(?:[aA](?=\s+(?:add|adds|ajouter|ajoute|archive|ask)\b)|[b-zB-Z]|tab|\[ \]|[[\]/?:])(?=\s+\p{L})/gu,
 ];
 
 const cache = new Map<string, [number, number][]>();

@@ -156,6 +156,6 @@ export class BootScreen {
     // still loading: a spinner on the next line; loaded: the blinking cursor
     if (!this.finished && n === this.lines.length && y < ui.rows - 2) ui.text(x, y, `[  ${ui.spinner()}   ] working…`, { fg: c.subtle });
     else if (n < this.lines.length || Math.floor(ui.now / 300) % 2) ui.text(x, y, "█", { fg: c.accent });
-    if (this.elapsed < this.logoEnd) ui.textRight(ui.cols - 2, ui.rows - 1, "any key to skip", { fg: c.faint });
+    if (this.elapsed < this.logoEnd) ui.textRight(ui.cols - 2, ui.rows - 1, "any key to skip", { fg: c.subtle });
   }
 }

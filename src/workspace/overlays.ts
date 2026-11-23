@@ -52,9 +52,33 @@ export interface MessageOptions {
 }
 
 export class ConfirmDialog implements Overlay {
+  /** the clock (tests set their own) */
+  static clock: () => number = () => performance.now();
+  /**
+   * Keys answer only this long after it appears, and never held down: the enter that chose a file
+   * (CALENDAR's import) answered the question that followed — the events came in unasked.
+   */
+  static readonly SETTLE_MS = 250;
   modal = true;
   done = false;
   private choice = true;
+  /** when it appeared (a click waits SETTLE_MS from then) */
+  private readonly openedAt = ConfirmDialog.clock();
+  /** when keys start to count — pushed back by each key typed before, like a permission question */
+  private readyAt = this.openedAt + ConfirmDialog.SETTLE_MS;
+  /** a key may answer now; one too soon is swallowed and makes the wait start again */
+  private settled(k?: KeyInput): boolean {
+    const now = ConfirmDialog.clock();
+    if (k?.repeat) return false;
+    if (now >= this.readyAt) return true;
+    this.readyAt = now + ConfirmDialog.SETTLE_MS;
+    return false;
+  }
+  /** a click on a button: answers, unless it came in its first moment (meant for the page behind) */
+  click(ok: boolean): void {
+    if (ConfirmDialog.clock() < this.openedAt + ConfirmDialog.SETTLE_MS) return;
+    this.finish(ok);
+  }
   /** its text's name for the typewriter */
   private readonly tw = `confirm:${++typewriterIds}`;
 
@@ -77,6 +101,8 @@ export class ConfirmDialog implements Overlay {
   }
 
   onKey(k: KeyInput): boolean {
+    // too soon (or held): the arrows still move the choice, nothing answers
+    if (!this.settled(k) && !["left", "right", "tab"].includes(k.key)) return true;
     if (this.message) {
       if (k.key === "enter" || k.key === "esc" || k.key === "space") this.finish(true);
       return true;
@@ -92,13 +118,14 @@ export class ConfirmDialog implements Overlay {
   }
 
   onText(t: string): boolean {
-    if (this.message) return true;
+    if (this.message || !this.settled()) return true;
     if (/^[yYoO]$/.test(t)) this.finish(true);
     else if (/^[nN]$/.test(t)) this.finish(false);
     return true;
   }
 
   onAction(a: Action): boolean {
+    if ((a === "confirm" || a === "back") && !this.settled()) return true;
     if (this.message) {
       if (a === "back" || a === "confirm") this.finish(true);
       return true;
@@ -120,7 +147,7 @@ export class ConfirmDialog implements Overlay {
     const lines = raw.flatMap((l) => (l ? wrapWords(l, Math.max(10, w - 4)) : [""]));
     const box = centered(screen, w, lines.length + 6);
     const tone = this.message?.tone === "error" ? c.error : this.message?.tone === "success" ? c.success : undefined;
-    const inner = ui.box(box, { title: this.message ? t(this.message.frame ?? "MESSAGE") : "CONFIRM", focused: true, bg: c.panelAlt });
+    const inner = ui.box(box, { title: this.message ? t(this.message.frame ?? "MESSAGE") : t("CONFIRM"), focused: true, bg: c.panelAlt });
     // the question types itself out (ui/typewriter.ts), then the details
     const all = [this.title, ...lines].join("\n");
     let left = typed(ui, this.tw, all);
@@ -136,10 +163,10 @@ export class ConfirmDialog implements Overlay {
       if (inner.y + 2 + i < inner.y + inner.h - 2) ui.text(inner.x + 1, inner.y + 2 + i, part, { fg: c.muted }, inner.w - 2);
     });
     // bottom right, the way out on the left, Yes always in the same place (ui/dialog.ts)
-    if (this.message) return void dialogButtons(ui, inner, [{ label: OK(), run: () => this.finish(true), selected: true, accent: tone }]);
+    if (this.message) return void dialogButtons(ui, inner, [{ label: OK(), run: () => this.click(true), selected: true, accent: tone }]);
     dialogButtons(ui, inner, [
-      { label: NO(), run: () => this.finish(false), selected: !this.choice, accent: c.error },
-      { label: YES(), run: () => this.finish(true), selected: this.choice },
+      { label: NO(), run: () => this.click(false), selected: !this.choice, accent: c.error },
+      { label: YES(), run: () => this.click(true), selected: this.choice },
     ]);
   }
 }
@@ -270,7 +297,7 @@ export class PromptDialog implements Overlay {
     const list = sugg && this.open ? this.matches() : [];
     const shown = Math.min(8, list.length);
     const box = centered(screen, 64, 6 + (shown ? shown + 1 : 0));
-    const inner = ui.box(box, { title: "INPUT", focused: true, bg: c.panelAlt });
+    const inner = ui.box(box, { title: t("input"), focused: true, bg: c.panelAlt });
     ui.text(inner.x + 1, inner.y, this.title, { fg: c.fg, attrs: BOLD }, inner.w - 2);
     const fw = inner.w - 2 - (sugg ? 3 : 0);
     this.field.render(ui, { x: inner.x + 1, y: inner.y + 2, w: fw, h: 1 }, { focused: true });
@@ -364,7 +391,7 @@ export class ChooseDialog implements Overlay {
       const room = row.x + row.w - 2 - end - 3;
       if (x.o.hint && room > 4) {
         const h = truncate(x.o.hint, room);
-        ui.textRight(row.x + row.w - 2, row.y, h, { fg: c.faint });
+        ui.textRight(row.x + row.w - 2, row.y, h, { fg: c.subtle });
       }
     });
     if (!this.list.items.length) ui.textCenter(listRect, listRect.y, "no match", { fg: c.subtle });
@@ -379,7 +406,15 @@ export class Toasts implements Overlay {
   modal = false;
   private items: { text: string; kind: ToastKind; until: number; id: string }[] = [];
 
+  /** how many are shown */
+  get count(): number {
+    return this.items.length;
+  }
+
   push(text: string, kind: ToastKind = "info"): void {
+    // the same message still on screen: it stays longer, not twice (a double click gave two)
+    const same = this.items.find((t) => t.text === text && t.kind === kind && t.until > performance.now());
+    if (same) return void (same.until = performance.now() + 3500 + text.length * 25);
     this.items.push({ text, kind, until: performance.now() + 3500 + text.length * 25, id: `toast:${++typewriterIds}` });
     if (this.items.length > 4) this.items.shift();
   }

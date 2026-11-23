@@ -46,6 +46,8 @@ import { Mixer } from "./core/mixer";
 import { DEFAULT_SETTINGS, type SettingsStore } from "./core/settings";
 import { UndoHistory } from "./core/undo";
 import { setTypewriterHost } from "./ui/typewriter";
+import { TIP_CSS, TipView } from "./ui/tipview";
+import type { WhenOptions, WhenResult } from "./workspace/whenpicker";
 import { applyTweaks, ThemeManager, type Theme } from "./core/theme";
 import { glitch } from "./fx/glitch";
 import type { Platform } from "./platform/types";
@@ -76,7 +78,7 @@ import { storeCommand, storeSpec } from "./apps/store";
 import { updateCommand } from "./shell/commands/update";
 import { detachCorePackages } from "./plugins/core-packages";
 import { installStealth } from "./core/stealth";
-import { setLang, t } from "./core/i18n";
+import { setLang, setDateLocale, dateLocale, t } from "./core/i18n";
 import type { ChoiceOption } from "./plugins/api";
 import { LockScreen } from "./workspace/lock";
 import type { PromptOptions } from "./workspace/overlays";
@@ -276,6 +278,12 @@ export class Deck implements InputSink {
     this.loop = new FrameLoop(this.frame, settings.data.appearance.maxFps);
     this.loop.mustAnimate = () => !!this.boot || !!this.lock;
     this.input = new InputManager(this, this.renderer, el("deck"), el("keyboard-sink") as HTMLTextAreaElement);
+    this.tipView = new TipView(el("deck"));
+    this.tipView.wake = () => this.requestFrame();
+    if (!document.getElementById("ib-tip-style")) {
+      const st = Object.assign(document.createElement("style"), { id: "ib-tip-style", textContent: TIP_CSS });
+      document.head.appendChild(st);
+    }
     this.input.onKeyPress = (kind) => this.typingSound(kind);
     // shift twice: THE MENU, from anywhere (Settings → KEYS can switch it off)
     this.input.onDoubleShift = () => {
@@ -341,6 +349,7 @@ export class Deck implements InputSink {
     const t0 = performance.now();
     installStealth(this); // before anything goes online
     setLang(s.user.language);
+    setDateLocale(s.user.locale);
     // this account's last start never reached its desktop (a crash): this one starts safe,
     // effects off (the curved glass is WebGL) — or a crash would come back at every login
     const who = await this.platform.account.session().catch(() => null);
@@ -563,6 +572,21 @@ export class Deck implements InputSink {
   /** `debug perf`: every frame's cost while it records (shell/commands/log.ts) */
   perfRec: { until: number; frames: { at: number; build: number; paint: number; cells: number; glyphs: number; wanted: number }[] } | null = null;
 
+  /** the hover tip above the grid (ui/tipview.ts): this frame's wish, in the theme's colours */
+  private tipView: TipView;
+  private showTip(ui: UI): void {
+    const want = this.workspace.tipWant;
+    const c = ui.c;
+    const wait = this.tipView.want(
+      want?.content ?? null,
+      want?.key ?? "",
+      { bg: css(c.panelAlt), fg: css(c.fg), muted: css(c.muted), accent: css(c.accent), border: css(c.accent) },
+      { family: this.renderer.fontFamily, px: this.renderer.fontSize },
+      !!this.settings.data.appearance.reduceMotion,
+    );
+    if (wait > 0) ui.animate(wait);
+  }
+
   private frame = (now: number): number => {
     const t0 = performance.now();
     if (this.grid.cols !== this.renderer.cols || this.grid.rows !== this.renderer.rows) this.grid = new Grid(this.renderer.cols, this.renderer.rows);
@@ -584,8 +608,10 @@ export class Deck implements InputSink {
       if (!this.lock) this.sessionReady();
     }
     const probe = this.showLayout && !this.boot ? (ui.probe = new LayoutProbe(this.grid.cols, this.grid.rows)) : null;
+    this.workspace.tipWant = null;
     if (!this.boot && this.lock) this.lock.render(ui);
     else if (!this.boot) this.workspace.render(ui);
+    this.showTip(ui);
     if (probe) (ui.probe = null), (this.layoutIssues = probe.issues);
 
     // theme motion on the finished frame: changed cells, then page transitions
@@ -850,6 +876,16 @@ export class Deck implements InputSink {
   /** Pick one option (type to filter): its index, or null. */
   choose(title: string, options: ChoiceOption[], opts: { selected?: number } = {}): Promise<number | null> {
     const p = this.workspace.choose(title, options, opts.selected ?? 0);
+    this.requestFrame();
+    return p;
+  }
+
+  /**
+   * WHEN? — a day, a time, days of the week, in a little calendar and clock (or typed):
+   * `pickedText(r)` (ui/calendar.ts) writes it the way the commands read it.
+   */
+  pickWhen(title: string, opts: WhenOptions = {}): Promise<WhenResult | null> {
+    const p = this.workspace.pickWhen(t(title), opts, dateLocale());
     this.requestFrame();
     return p;
   }
@@ -1153,6 +1189,7 @@ export class Deck implements InputSink {
   applySettings(key: string): void {
     const s = this.settings.data;
     if (key === "user.language") setLang(s.user.language);
+    if (key === "user.language" || key === "user.locale") setDateLocale(s.user.locale);
     if (key === "appearance.theme") this.setTheme(s.appearance.theme);
     else if (key === "appearance.tweaks") this.refreshTheme();
     else if (key === "appearance.fontWeight" || key === "appearance.fontSize" || key === "appearance.scale") void this.applyFont();

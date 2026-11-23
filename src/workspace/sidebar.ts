@@ -17,6 +17,8 @@ import type { UI } from "../ui/ui";
 import { basename, dirname, join } from "../vault/paths";
 import { ICON_CHOICES, TAG_NAMES, tagRGB, type TagColor } from "../vault/marks";
 import { colourSquares } from "../ui/filterbar";
+import { TRASH } from "../core/glyphs";
+import { INSET } from "../ui/layout";
 
 interface Row {
   entry: VaultEntry;
@@ -282,7 +284,7 @@ export class Sidebar {
       { label: t("Copy path"), run: () => (copyToClipboard(p), d.notify(t("path copied"))) },
       ...(md ? [{ label: t("Copy link"), tip: t("a [[link]] to paste in a note"), run: () => (copyToClipboard(`[[${e.name.replace(/\.md$/, "")}]]`), d.notify(t("link copied"))) }] : []),
       "-",
-      { label: t("Delete"), tip: t("goes to the trash — ⌘Z or the TRASH page brings it back"), cmd: `rm ${e.isDir ? "-r " : ""}${abs}`, danger: true, hint: "del" },
+      { label: t("Move to the trash"), tip: t("⌘Z or the trash (the tree's last line) brings it back"), cmd: `rm ${e.isDir ? "-r " : ""}${abs}`, danger: true, hint: "del" },
     ];
   }
 
@@ -322,7 +324,7 @@ export class Sidebar {
       { label: t("New note"), tip: t("a new note in this folder"), run: () => this.deck.newNote("notes"), hint: "n" },
       { label: t("New folder"), tip: t("a new folder inside this one"), run: () => this.deck.newFolder("") },
       { label: t("Refresh"), tip: t("read the vault folder again (files changed outside the deck)"), run: () => this.deck.vault.rescan(), hint: "r" },
-      { label: t("Trash"), tip: t("what's in the trash, and put things back"), cmd: "trash open" },
+      { label: t("Open the trash"), tip: t("what's in the trash, and put things back"), cmd: "trash open" },
     ];
   }
 
@@ -385,6 +387,36 @@ export class Sidebar {
     return this.list.onAction(a);
   }
 
+  /** how many things the trash holds (read again when the vault changes) */
+  private trashCount = 0;
+  private trashFor = -1;
+  private drawTrash(ui: UI, line: Rect): void {
+    const c = ui.c;
+    if (this.trashFor !== this.version) {
+      this.trashFor = this.version;
+      void this.deck.vault.list(".trash").then((e) => ((this.trashCount = e.length), this.deck.requestFrame()), () => (this.trashCount = 0));
+    }
+    ui.hline(line.x, line.y - 1, line.w, { fg: c.faint }, "┄");
+    const open = this.deck.workspace.activeApp?.kind === "trash";
+    const hot = ui.hovered(line);
+    const bg = open ? mix(c.accent, c.bg, 0.8) : hot ? c.highlight : undefined;
+    const st = bg !== undefined ? { bg } : {};
+    if (bg !== undefined) ui.fill(line, { bg });
+    const end = line.x + line.w - INSET;
+    const x = ui.text(line.x + INSET, line.y, `${TRASH} `, { fg: this.trashCount ? c.accent : c.subtle, ...st });
+    const count = this.trashCount ? String(this.trashCount) : "";
+    ui.text(x, line.y, t("trash"), { fg: hot || open ? c.fg : c.muted, attrs: open ? BOLD : 0, ...st }, end - x - strWidth(count) - INSET);
+    if (count) ui.textRight(end, line.y, count, { fg: c.subtle, ...st });
+    ui.hit(line, {
+      cmd: "trash open",
+      tip: this.trashCount === 1 ? t("1 thing in the trash: see it, put it back") : this.trashCount ? t("{n} in the trash: see them, put them back", { n: this.trashCount }) : t("the trash is empty · what you delete waits here"),
+      menu: () => [
+        { label: t("Open"), cmd: "trash open" },
+        { label: t("Empty the trash…"), cmd: "trash empty --window", danger: true, disabled: !this.trashCount, tip: t("asks first: it can't be undone") },
+      ],
+    });
+  }
+
   /** The folder new things go in: the selected folder, or the selected file's folder. */
   private here(): string {
     const cur = this.list.current?.entry;
@@ -405,8 +437,6 @@ export class Sidebar {
     let bx = r.x + 1;
     bx += ui.button(bx, r.y, "+ note", () => void this.deck.newNote(here || "notes"), { tip: `new note in /${here || "notes"}\nctrl+n · n` }) + 1;
     bx += ui.button(bx, r.y, "+ dir", () => void this.deck.newFolder(here), { tip: `new folder in /${here}\nctrl+shift+n` }) + 1;
-    // the trash, one click away (see it, put things back)
-    if (bx + 3 < r.x + r.w) ui.button(r.x + r.w - 4, r.y, "⌫", () => void this.deck.act("trash open"), { tip: t("the trash: see it, put things back · trash open") });
     // colour tags, on a row of their own: ● has some, ○ none yet, ◉ the one shown
     // (click = see only that colour)
     const counts = this.deck.marks.counts();
@@ -471,7 +501,10 @@ export class Sidebar {
       ui.hline(r.x, top, r.w, { fg: c.faint }, "┄");
       top++;
     }
-    const list = { x: r.x, y: top, w: r.w, h: Math.max(0, r.y + r.h - top) };
+    // the trash: the tree's last line, like a file manager's (see it, put things back)
+    const trashH = r.y + r.h - top >= 8 ? 2 : 0;
+    if (trashH) this.drawTrash(ui, { x: r.x, y: r.y + r.h - 1, w: r.w, h: 1 });
+    const list = { x: r.x, y: top, w: r.w, h: Math.max(0, r.y + r.h - top - trashH) };
     this.lastList = list;
 
     const guide = { fg: mix(c.subtle, c.bg, 0.35) };

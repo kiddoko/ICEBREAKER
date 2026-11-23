@@ -16,7 +16,7 @@ import { DEFAULT_SETTINGS } from "../../core/settings";
 
 const DEFAULT_MACROS = () => DEFAULT_SETTINGS.shell.macros.map((m) => ({ ...m }));
 import type { Command, ShellContext } from "../types";
-import { frameCommand, layoutCommand } from "./layout";
+import { frameCommand, layoutCommand, statusbarCommand } from "./layout";
 
 /*
  * Everything you can click has a command (the click runs it, visibly, in the
@@ -539,6 +539,7 @@ const panelCmd: Command = {
 export const uiCommands: Command[] = [
   layoutCommand,
   frameCommand,
+  statusbarCommand,
   menuCmd,
   notifyCmd,
   catalogCmd,

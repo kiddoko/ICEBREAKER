@@ -239,7 +239,7 @@ export class ModulesApp implements App {
     });
     if (!carts.length) {
       ui.textCenter(r, horizon + 2, t("nothing matches"), { fg: c.muted, attrs: BOLD });
-      ui.textCenter(r, horizon + 3, t("esc clears the search · × shows everything"), { fg: c.faint });
+      ui.textCenter(r, horizon + 3, t("esc clears the search · × shows everything"), { fg: c.subtle });
       return;
     }
 

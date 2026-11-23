@@ -283,7 +283,7 @@ class StoreApp implements App {
     if (this.tab !== "installed" && this.tab !== "sources" && !cache.entries.length) {
       const msg = cache.loading ? t("reaching the indexes…") : cache.errors.length ? t("couldn't read the index (offline, private repo or stealth mode)") : t("nothing here yet");
       ui.text(r.x + 2, top, msg, { fg: cache.errors.length ? c.warning : c.muted }, r.w - 4);
-      cache.errors.slice(0, 4).forEach((e, i) => ui.text(r.x + 4, top + 2 + i, `${e.source}: ${e.error}`, { fg: c.faint }, r.w - 6));
+      cache.errors.slice(0, 4).forEach((e, i) => ui.text(r.x + 4, top + 2 + i, `${e.source}: ${e.error}`, { fg: c.subtle }, r.w - 6));
       return;
     }
 
@@ -310,8 +310,8 @@ class StoreApp implements App {
     if (this.tab === "sources") {
       const y = top + rows.length + 1;
       ui.button(r.x + 2, y, t("+ add a source"), () => void this.addSource(), { tip: "store sources add <url | user/repo>" });
-      ui.text(r.x + 2, y + 2, t("An index is a JSON list of modules and themes (see docs/COMMUNITY.md)."), { fg: c.faint }, listW);
-      ui.text(r.x + 2, y + 3, t("Host yours anywhere: GitHub, your server, a NAS on your network."), { fg: c.faint }, listW);
+      ui.text(r.x + 2, y + 2, t("An index is a JSON list of modules and themes (see docs/COMMUNITY.md)."), { fg: c.subtle }, listW);
+      ui.text(r.x + 2, y + 3, t("Host yours anywhere: GitHub, your server, a NAS on your network."), { fg: c.subtle }, listW);
     }
 
     // the details of the selected row
@@ -330,7 +330,7 @@ class StoreApp implements App {
     if ("repo" in row) {
       ui.text(dx, y++, row.repo, { fg: c.subtle }, dw);
       if (row.permissions?.length) ui.text(dx, y++, `${t("asks for")}: ${sayPerms(row.permissions, t)}`, { fg: c.warning }, dw);
-      if (row.index && row.index !== d.settings.data.plugins.registry) ui.text(dx, y++, `${t("from")} ${row.index}`, { fg: c.faint }, dw);
+      if (row.index && row.index !== d.settings.data.plugins.registry) ui.text(dx, y++, `${t("from")} ${row.index}`, { fg: c.subtle }, dw);
       // reviewed or not: always said (themes are only colours, modules are code)
       if (row.kind === "plugin") ui.text(dx, y++, isVerified(row) ? `✓ ${t("verified: reviewed in the official STORE")}` : `⚠ ${t("not verified: nobody from ICEBREAKER checked its code")}`, { fg: isVerified(row) ? c.success : c.warning }, dw);
       y++;

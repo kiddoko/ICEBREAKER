@@ -242,8 +242,8 @@ export class SidePanel {
     if (maxScroll > 0) ui.art(() => ui.textRight(inner.x + inner.w, this.scroll < maxScroll ? inner.y + inner.h - 1 : inner.y, this.scroll < maxScroll ? "↓" : "↑", { fg: c.accent, attrs: BOLD }));
     if (!slots.length) {
       ui.textCenter(inner, inner.y + 1, t("empty"), { fg: c.muted });
-      ui.textCenter(inner, inner.y + 3, t("a: add a widget · right-click"), { fg: c.faint });
-      ui.textCenter(inner, inner.y + 4, t("or drag one here from HOME (edit mode)"), { fg: c.faint });
+      ui.textCenter(inner, inner.y + 3, t("a: add a widget · right-click"), { fg: c.subtle });
+      ui.textCenter(inner, inner.y + 4, t("or drag one here from HOME (edit mode)"), { fg: c.subtle });
     }
     // a HOME widget hovering over the panel: a line where it lands, and its outline
     const hint = this.dropHint;

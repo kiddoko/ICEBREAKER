@@ -15,8 +15,12 @@ import { col, frame, row, todaySizes, type Frame, type Node, type Size, type Tod
  * arrangement, which gives exactly today's screen (tests/frames.test.ts).
  */
 
-/** a size in a saved arrangement: today's sizes (`auto`) or the solver's own kinds */
-export type ArrangedSize = Size | { auto: FrameId };
+/**
+ * a size in a saved arrangement: today's sizes (`auto`), a share of the screen along the split
+ * (`frac`: what a dragged border leaves — another font, so another number of cells, keeps the
+ * proportions), or the solver's own kinds
+ */
+export type ArrangedSize = Size | { auto: FrameId } | { frac: number };
 
 export type FrameId = "vault" | "main" | "panel" | "shell";
 export const FRAME_IDS: FrameId[] = ["vault", "main", "panel", "shell"];
@@ -119,6 +123,7 @@ function validSize(s: unknown): boolean {
   if ("cells" in o) return typeof o.cells === "number" && Number.isFinite(o.cells) && o.cells >= 0 && o.cells <= 1000;
   if ("fill" in o) return typeof o.fill === "number" && Number.isFinite(o.fill) && o.fill > 0 && o.fill <= 100;
   if ("auto" in o) return typeof o.auto === "string" && FRAME_IDS.includes(o.auto as FrameId);
+  if ("frac" in o) return typeof o.frac === "number" && Number.isFinite(o.frac) && o.frac > 0 && o.frac < 1;
   return false;
 }
 
@@ -139,6 +144,13 @@ export function autoLength(id: FrameId, dir: "row" | "col", s: Today): number {
     case "shell": return dir === "col" ? z.shellH : Math.max(30, Math.min(s.cols - 50, Math.round(s.cols * 0.38)));
     default: return 0;
   }
+}
+
+/** a saved size in the solver's terms: `auto` and `frac` become cells on this screen */
+function resolve(size: ArrangedSize, dir: "row" | "col", s: Today): Size {
+  if ("auto" in size) return { cells: autoLength(size.auto, dir, s) };
+  if ("frac" in size) return { cells: Math.max(1, Math.round(size.frac * (dir === "row" ? s.cols : s.bodyH))) };
+  return size;
 }
 
 /** a frame's real thing: its minimum, whether it folds away when the page needs room */
@@ -166,7 +178,7 @@ export function effectiveLayout(arr: ANode, s: Today): Node {
       if (b.strip) strips.add(parts.length);
       const size = n.sizes[i];
       // a folded frame: one cell along the split, whatever its size was
-      parts.push([b.node, b.strip ? { cells: 1 } : "auto" in size ? { cells: autoLength(size.auto, n.dir, s) } : size]);
+      parts.push([b.node, b.strip ? { cells: 1 } : resolve(size, n.dir, s)]);
     });
     if (!parts.length || !first) return null;
     // one child left: it is the split (its size is the split's own, decided by the parent)
@@ -219,7 +231,7 @@ export function describe(arr: ANode): string[] {
   const out: string[] = [];
   const walk = (n: ANode, depth: number, size?: ArrangedSize) => {
     const pad = "  ".repeat(depth);
-    const sz = !size ? "" : "auto" in size ? "" : "cells" in size ? ` (${size.cells} cells)` : size.fill !== 1 ? ` (×${size.fill})` : " (the rest)";
+    const sz = !size ? "" : "auto" in size ? "" : "frac" in size ? ` (${Math.round(size.frac * 100)} %)` : "cells" in size ? ` (${size.cells} cells)` : size.fill !== 1 ? ` (×${size.fill})` : " (the rest)";
     if (n.kind === "frame") out.push(`${pad}${n.id}${sz}`);
     else {
       out.push(`${pad}${n.dir === "row" ? "side by side" : "stacked"}${sz}`);
@@ -255,7 +267,10 @@ export function isFolded(arr: ANode, id: FrameId): boolean {
  * length in cells; two fill parts change their shares. Returns the arrangement unchanged
  * when `a` and `b` aren't neighbours along `dir`.
  */
-export function resizeBetween(arr: ANode, a: FrameId, b: FrameId, dir: "row" | "col", aLen: number, bLen: number): ANode {
+export function resizeBetween(arr: ANode, a: FrameId, b: FrameId, dir: "row" | "col", aLen: number, bLen: number, screen?: number): ANode {
+  // with the screen's length along `dir` (its columns, or the body's rows), a fixed side keeps a
+  // share of it, so a theme with another font doesn't stretch it; without, cells (older callers)
+  const fixed = (len: number): ArrangedSize => (screen && screen > 0 ? { frac: Math.max(0.01, Math.min(0.99, Math.round((len / screen) * 10000) / 10000)) } : { cells: Math.max(1, Math.round(len)) });
   const holds = (n: ANode, id: FrameId): boolean => (n.kind === "frame" ? n.id === id : n.children.some((c) => holds(c, id)));
   const walk = (n: ANode): ANode => {
     if (n.kind === "frame") return n;
@@ -274,8 +289,8 @@ export function resizeBetween(arr: ANode, a: FrameId, b: FrameId, dir: "row" | "
       sizes[ia] = { fill: Math.round(total * share * 1000) / 1000 };
       sizes[ib] = { fill: Math.round(total * (1 - share) * 1000) / 1000 };
     } else {
-      if (!fill(sa)) sizes[ia] = { cells: Math.max(1, Math.round(aLen)) };
-      if (!fill(sb)) sizes[ib] = { cells: Math.max(1, Math.round(bLen)) };
+      if (!fill(sa)) sizes[ia] = fixed(aLen);
+      if (!fill(sb)) sizes[ib] = fixed(bLen);
     }
     return { ...n, sizes };
   };

@@ -7,10 +7,11 @@
  */
 import { mix } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
-import { t } from "../core/i18n";
+import { t, dateLocale } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
-import type { UI } from "../ui/ui";
+import { q, type UI } from "../ui/ui";
+import { pickedText } from "../ui/calendar";
 import { fitMatrix, matrixSize, matrixText } from "../ui/dots";
 import { drawClock } from "../widgets/clockfaces";
 import { clockState, dur, durTenths, swNow } from "../widgets/clockstate";
@@ -114,7 +115,7 @@ class ClocksApp implements App {
     if (!list.length) return void ui.text(inner.x + INSET, inner.y, t("none — a sets one"), { fg: c.muted }, inner.w - INSET * 2);
     const next = clock.soonest()?.alarm;
     const room = list.length > inner.h ? Math.max(1, inner.h - 1) : inner.h;
-    if (list.length > room && inner.h > 1) ui.text(inner.x + INSET, inner.y + room, `+${list.length - room} · clock alarm`, { fg: c.faint }, inner.w - INSET * 2);
+    if (list.length > room && inner.h > 1) ui.text(inner.x + INSET, inner.y + room, `+${list.length - room} · clock alarm`, { fg: c.subtle }, inner.w - INSET * 2);
     list.forEach((al, i) => {
       const y = inner.y + i;
       if (i >= room) return;
@@ -134,17 +135,16 @@ class ClocksApp implements App {
     });
   }
 
-  /** A new alarm by mouse: the time (and what for), then which days from a list — no syntax to know. */
+  /** A new alarm by mouse: the time and the days in a little clock (none ticked: once), then what for. */
   private async newAlarm(): Promise<void> {
-    const v = await this.deck.prompt(t("Alarm: what time, and what for?"), { placeholder: "7:30 wake up · 6h45 · 8am" });
-    const line = v?.trim();
-    if (!line) return;
-    // typed the days already (--days …): as typed
-    if (/--days\b/.test(line)) return void this.deck.act(`clock alarm ${line}`);
-    const days: [string, string][] = [["", t("once")], ["mon-fri", t("weekdays (mon–fri)")], ["weekend", t("the weekend")], ["daily", t("every day")]];
-    const i = await this.deck.choose(t("Which days?"), days.map(([, label]) => ({ label })));
-    if (i === null) return;
-    void this.deck.act(`clock alarm ${line}${days[i][0] ? ` --days ${days[i][0]}` : ""}`);
+    const picked = await this.deck.pickWhen(t("Alarm: what time, which days? (none ticked: once)"), { time: true, days: true, defaultTime: 7 * 60 + 30, placeholder: t("or type it: 7:30 wake up --days mon-fri") });
+    if (!picked) return;
+    // typed: as typed (a time, a label, maybe --days)
+    if (picked.text !== undefined) return void (picked.text.trim() && this.deck.act(`clock alarm ${picked.text.trim()}`));
+    const label = await this.deck.prompt(t("What for? (optional)"), { placeholder: t("wake up") });
+    if (label === null) return;
+    const days = picked.days?.length ? ` --days ${pickedText({ days: picked.days })}` : "";
+    void this.deck.act(`clock alarm ${pickedText({ time: picked.time ?? 7 * 60 + 30 })}${label.trim() ? ` ${q(label.trim())}` : ""}${days}`);
   }
 
   /** A card's frame and title, its button on its top line. Returns the inside. */
@@ -271,7 +271,7 @@ class ClocksApp implements App {
     // more cities than rows: the last row says how many are left (the pop-up and `worldclock` list them all)
     // (one row only: the first city, with "+N" on its line)
     const room = zones.length > inner.h ? Math.max(1, inner.h - 1) : inner.h;
-    if (zones.length > room && inner.h > 1) ui.text(inner.x + INSET, inner.y + room, `+${zones.length - room} · worldclock`, { fg: c.faint }, inner.w - INSET * 2);
+    if (zones.length > room && inner.h > 1) ui.text(inner.x + INSET, inner.y + room, `+${zones.length - room} · worldclock`, { fg: c.subtle }, inner.w - INSET * 2);
     // the names in a column of one width (the longest, a third of the card at most): every
     // day strip then starts at the same place
     const cityOf = (tz: string) => tz.split("/").pop()!.replace(/_/g, " ");
@@ -281,7 +281,7 @@ class ClocksApp implements App {
       if (i >= room) return;
       let time = "--:--", hour = 12, min = 0, off = 0;
       try {
-        time = now.toLocaleTimeString(undefined, { timeZone: tz, hour: "2-digit", minute: "2-digit" });
+        time = now.toLocaleTimeString(dateLocale(), { timeZone: tz, hour: "2-digit", minute: "2-digit" });
         const parts = now.toLocaleString("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false }).split(":").map(Number);
         hour = parts[0] % 24;
         min = parts[1] ?? 0;
@@ -305,8 +305,8 @@ class ClocksApp implements App {
           ui.text(x + k, y, k === pos ? "▮" : lit ? "▬" : "▭", { fg: k === pos ? c.accent : lit ? mix(c.warning, c.bg, 0.55) : mix(0x7fb4ea, c.bg, 0.6) });
         }
       }, { priority: 2 });
-      bar.text(rel, { fg: c.faint }, { side: "right", priority: 3 });
-      if (inner.h === 1 && zones.length > 1) bar.text(`+${zones.length - 1}`, { fg: c.faint }, { side: "right", priority: 7 });
+      bar.text(rel, { fg: c.subtle }, { side: "right", priority: 3 });
+      if (inner.h === 1 && zones.length > 1) bar.text(`+${zones.length - 1}`, { fg: c.subtle }, { side: "right", priority: 7 });
       bar.text(time, { fg: c.accent, attrs: BOLD }, { side: "right", priority: 10 });
       bar.draw();
       ui.hit({ x: inner.x, y, w: inner.w, h: 1 }, { tip: `${tz}\nworldclock rm ${tz}` });

@@ -8,7 +8,6 @@ import { gradient } from "../../core/color";
 import { padEnd, strWidth } from "../../core/unicode";
 import { ICE_ART } from "../../ui/bigtext";
 import type { Command } from "../types";
-import { humanSize } from "./files";
 
 /** Shell built-ins and "system" commands. */
 
@@ -213,40 +212,71 @@ const which: Command = {
   },
 };
 
+/** a gauge for neofetch: [■■■■□□□□□□] 34% */
+export function gauge(ratio: number, cells = 10): string {
+  const r = Math.max(0, Math.min(1, ratio));
+  const on = Math.round(r * cells);
+  return `[${"■".repeat(on)}${"□".repeat(cells - on)}] ${String(Math.round(r * 100)).padStart(3)}%`;
+}
+
+/**
+ * neofetch, the deck's way: the logo, then a HUD of the machine — the system, the cpu and the
+ * memory with their gauges, the graphics card, the vault (and whether it's encrypted), the uplink,
+ * the modules, the theme and its palette. `--plain`: no colours (a pipe gets none either).
+ *
+ *   ┌─[ netrunner@deck ]──────────── link established
+ *   │ ◢ system   ICEBREAKER 0.7.0 // macOS 26 (aarch64)
+ *   │ ◢ CPU      Apple M2 ×8      [■■■□□□□□□□]  34%
+ *   └─[ ICE ● armed ]──────────── signal ▂▄▆█
+ */
 const neofetch: Command = {
   name: "neofetch",
   aliases: ["fastfetch", "deckfetch"],
-  summary: "show deck info with style",
+  summary: "the deck and the machine it runs on, as a HUD",
+  usage: "neofetch [--plain]",
   async run(ctx) {
-    const s = await ctx.deck.platform.system.stats();
     const d = ctx.deck;
+    const s = await d.platform.system.stats();
+    const gpu = (await d.platform.system.gpu?.().catch(() => []))?.[0];
+    const crypt = await d.platform.vault.crypt?.status().catch(() => null);
     const t = d.theme;
+    const color = ctx.isTTY && !ctx.args.includes("--plain");
+    const rgb = (c: number, text: string) => (color ? `\x1b[38;2;${(c >> 16) & 255};${(c >> 8) & 255};${c & 255}m${text}\x1b[0m` : text);
+    const acc = (x: string) => rgb(t.c.accent, x), alt = (x: string) => rgb(t.c.accentAlt, x), dim = (x: string) => rgb(t.c.subtle, x), ok = (x: string) => rgb(t.c.success, x), warn = (x: string) => rgb(t.c.warning, x);
     const user = d.settings.data.user.handle;
-    const rgb = (c: number, text: string) => (ctx.isTTY ? `\x1b[38;2;${(c >> 16) & 255};${(c >> 8) & 255};${c & 255}m${text}\x1b[0m` : text);
-    const key = (k: string) => (ctx.isTTY ? fmt.bold(fmt.magenta(k)) : k);
-    const info = [
-      `${fmt.bold(fmt.pink(user))}@${fmt.bold(fmt.pink(s.host.toLowerCase()))}`,
-      "─".repeat(strWidth(`${user}@${s.host}`)),
-      `${key("OS")}: ICEBREAKER 0.1.0 on ${s.os}`,
-      `${key("Kernel")}: ${s.kernel || "n/a"} (${s.arch})`,
-      `${key("Uptime")}: ${formatUptime(s.uptime)}`,
-      `${key("Shell")}: ibsh ${pkg.version}`,
-      `${key("Theme")}: ${t.name}`,
-      `${key("Font")}: ${d.theme.font.family} ${d.settings.data.appearance.fontSize}px @ ${d.settings.data.appearance.scale}%`,
-      `${key("CPU")}: ${s.cpuBrand || "unknown"} (${s.cores.length})`,
-      `${key("Memory")}: ${humanSize(s.memUsed).replace("M", " MiB")} / ${humanSize(s.memTotal).replace("M", " MiB")}`,
-      `${key("Vault")}: ${d.vault.markdown().length} notes · ${d.vault.journalDates().size} journal days`,
-      `${key("AI link")}: ${d.ai.ready ? d.ai.provider.label : "offline"}`,
-      `${key("Plugins")}: ${d.plugins.active().length} active`,
+    const host = s.host.toLowerCase();
+    const W = 46;
+    const head = `[ ${user}@${host} ]`;
+    const status = d.ai.ready ? "link established" : "link down";
+    const top = `${dim("┌─")}${acc(head)}${dim("─".repeat(Math.max(2, W - strWidth(head) - strWidth(status) - 3)))} ${d.ai.ready ? ok(status) : warn(status)}`;
+    const row = (k: string, v: string) => `${dim("│")} ${alt("◢")} ${color ? fmt.bold(padEnd(k, 9)) : padEnd(k, 9)}${v}`;
+    const memR = s.memUsed / Math.max(1, s.memTotal);
+    const gib = (n: number) => `${(n / 1024 ** 3).toFixed(1)}`;
+    const cpuLine = `${s.cpuBrand || "unknown"} ×${s.cores.length}`;
+    const lines = [
+      top,
+      row("system", `ICEBREAKER ${pkg.version} ${dim("//")} ${s.os} ${dim(`(${s.arch})`)}`),
+      row("kernel", s.kernel || "n/a"),
+      row("uptime", formatUptime(s.uptime)),
+      row("shell", `ibsh ${pkg.version}`),
+      row("CPU", `${padEnd(cpuLine.length > 22 ? `${cpuLine.slice(0, 21)}…` : cpuLine, 23)}${acc(gauge(s.cpu / 100))}`),
+      row("memory", `${padEnd(`${gib(s.memUsed)} / ${gib(s.memTotal)} GiB`, 23)}${acc(gauge(memR))}`),
+      ...(gpu?.name ? [row("GPU", `${padEnd(gpu.name.length > 22 ? `${gpu.name.slice(0, 21)}…` : gpu.name, 23)}${typeof gpu.busy === "number" ? acc(gauge(gpu.busy / 100)) : ""}`)] : []),
+      row("vault", `${d.vault.markdown().length} notes · ${d.vault.journalDates().size} journal days · ${crypt?.encrypted ? ok("encrypted ◆") : dim("plain files")}`),
+      row("uplink", d.ai.ready ? `${d.ai.provider.label} ${ok("●")}` : `${dim("offline")} ${warn("○")}`),
+      row("modules", `${d.plugins.active().length} active`),
+      row("theme", `${t.name} · ${t.font.family} ${d.settings.data.appearance.fontSize}px @ ${d.settings.data.appearance.scale}%`),
+      `${dim("└─")}${acc(`[ ICE ${d.settings.data.privacy.stealth ? "◉ stealth" : "● armed"} ]`)}${dim("─".repeat(W - 30))} ${dim("signal")} ${acc("▂▄▆█")}`,
       "",
-      t.ansi.slice(0, 8).map((c) => rgb(c, "███")).join(""),
-      t.ansi.slice(8, 16).map((c) => rgb(c, "███")).join(""),
+      `   ${t.ansi.slice(0, 8).map((c) => rgb(c, "███")).join("")}`,
+      `   ${t.ansi.slice(8, 16).map((c) => rgb(c, "███")).join("")}`,
     ];
-    const rows = Math.max(ICE_ART.length, info.length);
+    const rows = Math.max(ICE_ART.length, lines.length);
+    const artW = strWidth(ICE_ART[0]);
     for (let i = 0; i < rows; i++) {
-      const art = ICE_ART[i] ?? " ".repeat(ICE_ART[0].length);
-      const colored = ctx.isTTY ? rgb(gradient(t.gradient, i / ICE_ART.length), art) : art;
-      ctx.out(`${colored}   ${info[i] ?? ""}\n`);
+      const art = ICE_ART[i] ?? " ".repeat(artW);
+      const colored = color ? rgb(gradient(t.gradient, i / ICE_ART.length), art) : art;
+      ctx.out(`${colored}   ${lines[i] ?? ""}\n`);
     }
   },
 };

@@ -1,6 +1,6 @@
 import { gradient as sampleGradient, mix, NONE, type RGB } from "../core/color";
 import { keySpans } from "./keycaps";
-import { BOLD, Grid, PIXELS, type Rect, type Style } from "../core/grid";
+import { BOLD, Grid, type Rect, type Style } from "../core/grid";
 import type { MouseInput } from "../core/input";
 import type { Theme } from "../core/theme";
 import { charWidth, strWidth, truncate } from "../core/unicode";
@@ -61,7 +61,7 @@ export interface Hit {
   /** Hover tooltip text (shortcuts, what it does). */
   tip?: string;
   /** The system pointer over it (a border you drag: "col-resize" / "row-resize"); else the arrow. */
-  cursor?: "col-resize" | "row-resize";
+  cursor?: "col-resize" | "row-resize" | "grab" | "grabbing" | "nwse-resize";
   /** Nothing under it gets the mouse (modal backdrops, pop-ups). */
   block?: boolean;
 }
@@ -191,6 +191,18 @@ export class UI {
    * Draw text at (x, y). Returns the x just after the last character.
    * `maxW` truncates with an ellipsis.
    */
+  /**
+   * The first of `versions` (longest first) that fits whole in `maxW`: a widget's long sentence
+   * when there's room, its short one in a small square — never a sentence cut in the middle
+   * ("nothing to rem…"). None fits: the shortest, cut with …. Returns where it ended.
+   *
+   *   ui.textFit(x, y, [t("nothing to remember"), t("none")], { fg: c.muted }, r.w)
+   */
+  textFit(x: number, y: number, versions: string[], style: Style = {}, maxW: number): number {
+    const fit = versions.find((v) => strWidth(v) <= maxW) ?? versions[versions.length - 1] ?? "";
+    return this.text(x, y, fit, style, maxW);
+  }
+
   text(x: number, y: number, s: string, style: Style = {}, maxW?: number): number {
     if (maxW !== undefined) s = maxW > 2 && strWidth(s) > maxW && this.marqueeHere(x, y, maxW) ? this.scrolled(x, y, s, maxW) : truncate(s, maxW);
     if (this.probe) this.probeText(this.probe, x, y, s);
@@ -314,7 +326,8 @@ export class UI {
   /**
    * What's behind a dialog, a menu, a pop-up: every text in `fg` and every background pushed
    * towards the page's (a light background — the tab shown, a chosen button — kept its colour
-   * while its text went grey: unreadable). A picture's half blocks go flat (PIXELS).
+   * while its text went grey: unreadable). Block glyphs — a picture's half blocks too — keep
+   * their colours, darkened (the moon stays a moon, dimmer).
    */
   dim(r: Rect, fg: RGB): void {
     const g = this.grid;
@@ -323,9 +336,10 @@ export class UI {
         const i = y * g.cols + x;
         if (g.bg[i] !== NONE) g.bg[i] = mix(g.bg[i], this.c.bg, 0.6);
         const ch = g.ch[i];
-        // block glyphs (▀ ▄ █ ▌…: a tab's bar, a logo) are shapes, not text: their own colour,
-        // darkened — in the text's grey a tab's dark bar came out as a light one
-        if (ch >= 0x2580 && ch <= 0x259f && !(g.attr[i] & PIXELS)) g.fg[i] = mix(g.fg[i], this.c.bg, 0.6);
+        // block glyphs (▀ ▄ █ ▌…: a tab's bar, a logo, a picture's pixels: the moon) are shapes,
+        // not text: their own colour, darkened like their background — in the text's grey a
+        // tab's dark bar came out as a light one, and the moon as a flat grey disc
+        if (ch >= 0x2580 && ch <= 0x259f) g.fg[i] = mix(g.fg[i], this.c.bg, 0.6);
         else if (g.inClip(x, y)) g.tint(x, y, fg, NONE);
       }
   }

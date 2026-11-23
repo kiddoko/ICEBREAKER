@@ -309,6 +309,19 @@ describe("dragging the border between two frames", () => {
     expect(solve(p).get("panel")!.w).toBe(40);
     expect(parseArrangement({ version: 1, root: p })).not.toBeNull();
   });
+  it("a dragged size is a share of the screen: another font (more or fewer cells) keeps the proportions", () => {
+    // dragged on a 160-column screen to 48 cells (30 %)
+    const a = resizeBetween(CLASSIC, "vault", "main", "row", 48, 100, 160);
+    expect(parseArrangement({ version: 1, root: a })).not.toBeNull();
+    // a theme with a wider font: 120 columns → still 30 % (36 cells), not 48
+    const narrow = { ...S, cols: 120 };
+    const r = solveLayout(effectiveLayout(a, narrow), { x: 1, y: 1, w: 118, h: S.bodyH }).rects;
+    expect(r.get("vault")!.w).toBe(36);
+    // the shell's height too (a share of the body's rows)
+    const sh = resizeBetween(CLASSIC, "vault", "shell", "col", 30, 13, 43);
+    const tall = solveLayout(effectiveLayout(sh, { ...S, bodyH: 86 }), { x: 1, y: 1, w: 158, h: 86 }).rects;
+    expect(tall.get("shell")!.h).toBe(26);
+  });
   it("the shell's height, dragged from its top border", () => {
     const a = resizeBetween(CLASSIC, "vault", "shell", "col", 40, 14);
     expect(solve(a).get("shell")!.h).toBe(14);

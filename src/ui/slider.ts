@@ -149,7 +149,7 @@ export function slider(ui: UI, r: Rect, value: number, min: number, max: number,
   if (o.disabled) {
     // greyed: the track and the number, no handle to grab
     ui.text(r.x, r.y, "─".repeat(tw), { fg: c.faint });
-    ui.textRight(r.x + r.w, r.y, text, { fg: c.faint });
+    ui.textRight(r.x + r.w, r.y, text, { fg: c.subtle });
     ui.hit(track, { onClick: () => {}, tip: o.tip ?? "locked" });
     return;
   }

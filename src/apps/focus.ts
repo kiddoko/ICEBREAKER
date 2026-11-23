@@ -8,7 +8,7 @@ import { mmss } from "../core/time";
  */
 import { mix } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
-import { t } from "../core/i18n";
+import { t, dateLocale } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
 import { dayKey } from "../core/stats";
 import type { Deck } from "../deck";
@@ -167,7 +167,7 @@ class FocusApp implements App {
     ui.textCenter(r, y++, t("today: {n} sessions · {m} min of focus", { n: sess?.days[today] ?? 0, m: st?.days[today] ?? 0 }), { fg: c.subtle });
     const log = focus.log.filter((l) => new Date(l.at).toDateString() === new Date().toDateString());
     for (const l of log.slice(-Math.max(0, r.y + r.h - y - 1)).reverse()) {
-      const at = new Date(l.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+      const at = new Date(l.at).toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" });
       ui.textCenter(r, y++, `${at} · ${l.min} min${l.task ? ` · ${l.task}` : ""}`, { fg: c.muted });
     }
   }

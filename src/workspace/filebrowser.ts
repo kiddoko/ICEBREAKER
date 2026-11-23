@@ -115,10 +115,13 @@ export class FileBrowser implements Overlay {
   private entries(): Entry[] {
     const raw = this.vault
       ? this.deck.vault.entries.filter((e) => dirname(e.path) === this.dir && !e.name.startsWith("."))
-      : (this.cache.get(this.dir) ?? []);
+      : // the places the deck never reads (AppData, Library, the system's): not shown — you could go
+        // in, then the file was refused ("hidden and system files…")
+        (this.cache.get(this.dir) ?? []).filter((e) => !privatePlace(e.path));
+    const q = this.filter.query;
     return raw
       .filter((e) => this.filter.matches(e.name, this.vault ? this.deck.marks.tagOf(e.path) ?? null : null))
-      .sort((a, b) => Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name, undefined, { numeric: true }));
+      .sort((a, b) => (q ? searchRank(a.name, q) - searchRank(b.name, q) : 0) || Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name, undefined, { numeric: true }));
   }
 
   private goTo(dir: string): void {
@@ -133,6 +136,12 @@ export class FileBrowser implements Overlay {
   /** A folder: go in. A file: pick it, or open it in the deck. */
   private open(e: Entry): void {
     if (e.isDir) return this.goTo(e.path);
+    // asked for some kinds (.csv, .wav…): another kind is said here, not refused later without a word
+    const exts = this.o.pick ? this.o.exts ?? [] : [];
+    if (exts.length && !exts.some((x) => e.name.toLowerCase().endsWith(x.toLowerCase()))) {
+      // (a toast: the folder's list stays where it is)
+      return void this.deck.notify(t("choose a {kinds} file (the ones in bold)", { kinds: exts.map((x) => `.${x.replace(/^\./, "")}`).join(" ") }), "warning");
+    }
     this.done = true;
     if (this.o.pick) this.o.pick(e.path);
     else void this.deck.act(`open ${q(e.path)}`);
@@ -187,6 +196,8 @@ export class FileBrowser implements Overlay {
   }
 
   onKey(k: KeyInput): boolean {
+    // enter opens what the search left on top (a folder: in, a file: chosen), search or not
+    if (k.combo === "enter") return this.list.onAction("confirm"), true;
     if (this.filter.onKey(k)) return this.list.select(0), true;
     switch (k.combo) {
       case "esc": this.close(); return true;
@@ -248,7 +259,7 @@ export class FileBrowser implements Overlay {
         const wanted = !e.isDir && (this.o.exts ?? []).some((x) => e.name.toLowerCase().endsWith(x));
         ui.text(row.x + 1, row.y, e.isDir ? "▸" : e.name.endsWith(".md") ? "≡" : fileIcon(e.name), { fg: e.isDir ? c.warning : c.accentAlt, ...st });
         ui.text(row.x + 3, row.y, e.isDir ? `${e.name}/` : this.vault ? e.name.replace(/\.md$/, "") : e.name, { fg: sel || wanted ? c.fg : c.muted, attrs: e.isDir || wanted ? BOLD : 0, ...st }, row.w - 12);
-        if (!e.isDir && !this.vault) ui.textRight(row.x + row.w - 1, row.y, e.size < 1024 ? `${e.size} B` : `${Math.round(e.size / 1024)} KB`, { fg: c.faint, ...st });
+        if (!e.isDir && !this.vault) ui.textRight(row.x + row.w - 1, row.y, e.size < 1024 ? `${e.size} B` : `${Math.round(e.size / 1024)} KB`, { fg: c.subtle, ...st });
       });
 
     // what you can do here
@@ -265,19 +276,76 @@ export class FileBrowser implements Overlay {
       const drives = drivesFolder();
       if (drives) btn("⏏", () => this.goTo(drives), t("the drives (a USB key…)"));
       if (this.o.pickDir) btn(t("choose this folder"), () => this.chooseHere(), "ctrl+enter", c.success);
-      else ui.text(fx + 1, fy, t("enter on a file chooses it"), { fg: c.faint, bg: c.panel }, inner.x + inner.w - fx - 1);
+      else ui.text(fx + 1, fy, t("enter on a file chooses it"), { fg: c.subtle, bg: c.panel }, inner.x + inner.w - fx - 1);
     }
   }
 }
 
 /** Pick a folder anywhere on the computer (a vault, where to move it). Resolves with its path, or null. */
+/**
+ * Where the last pick happened (this run): the next picker opens there, not at your home folder
+ * every time — unless it's given a start (the field's path).
+ */
+let lastFolder = "";
+const remember = (resolve: (p: string | null) => void, isDir: boolean) => (p: string | null) => {
+  if (p) lastFolder = isDir ? p : p.replace(/[\\/][^\\/]*$/, "") || lastFolder;
+  resolve(p);
+};
+
 export function pickFolder(deck: Deck, title: string, start?: string): Promise<string | null> {
   if (!deck.platform.files) return deck.notify(t("picking folders needs the desktop app"), "warning"), Promise.resolve(null);
-  return new Promise((resolve) => deck.workspace.push(new FileBrowser(deck, { source: "computer", title, start, pickDir: resolve })));
+  return new Promise((resolve) => deck.workspace.push(new FileBrowser(deck, { source: "computer", title, start: start || lastFolder || undefined, pickDir: remember(resolve, true) })));
+}
+
+/**
+ * A text file the user chooses, read for the one who asked (a module's import): the user's
+ * choice is the consent, nothing else of the computer is opened. 2 MB at most.
+ */
+export async function pickFileText(deck: Deck, title: string, exts: string[] = []): Promise<{ name: string; text: string } | null> {
+  const path = await pickFile(deck, title, exts);
+  if (!path || !deck.platform.files) return null;
+  const text = await deck.platform.files.readText(path).catch((e) => (deck.notify(String((e as Error)?.message ?? e), "error"), null));
+  if (text === null) return null;
+  if (text.length > 2_000_000) return deck.notify(t("that file is too big to import (2 MB at most)"), "warning"), null;
+  return { name: fileNameOf(path), text };
+}
+
+/**
+ * A place of the computer the deck never reads (src-tauri/src/files.rs `allowed`, the same rules):
+ * the system's folders, and your Library (macOS) / AppData (Windows) — apps' data, keychains.
+ */
+export function privatePlace(path: string): boolean {
+  const lower = path.replace(/\\/g, "/").toLowerCase();
+  const roots = ["/library", "/etc", "/private", "/system", "/var", "/proc", "/sys", "/root", "/dev", "/run", "/boot", "/usr", "/bin", "/sbin", "c:/windows", "c:/program files", "c:/programdata"];
+  if (roots.some((r) => lower === r || lower.startsWith(`${r}/`) || lower.startsWith(`${r} `))) return true;
+  const parts = lower.split("/");
+  return parts.some((p, i) => (p === "users" || p === "home") && (parts[i + 2] === "library" || parts[i + 2] === "appdata"));
+}
+
+/** how well a name answers a search: 0 the name itself, 1 it starts with it, 2 it holds it */
+export function searchRank(name: string, query: string): number {
+  const n = name.toLowerCase(), q = query.toLowerCase().trim();
+  return n === q ? 0 : n.startsWith(q) ? 1 : 2;
+}
+
+/** a path's last part, written with / or \ */
+export const fileNameOf = (path: string): string => path.split(/[\\/]/).pop() || path;
+
+/**
+ * A sound or a picture the user chooses, read for the one who asked (a tracker's sample): the
+ * choice is the consent. 64 MB at most (src-tauri/src/files.rs fs_read_bytes).
+ */
+export async function pickFileBytes(deck: Deck, title: string, exts: string[] = []): Promise<{ name: string; bytes: Uint8Array } | null> {
+  const files = deck.platform.files;
+  if (!files?.readBytes) return deck.notify(t("picking files needs the desktop app"), "warning"), null;
+  const path = await pickFile(deck, title, exts);
+  if (!path) return null;
+  const buf = await files.readBytes(path).catch((e) => (deck.notify(String((e as Error)?.message ?? e), "error"), null));
+  return buf ? { name: fileNameOf(path), bytes: new Uint8Array(buf) } : null;
 }
 
 /** Pick a file anywhere on the computer (the deck's own picker). Resolves with its path, or null. */
 export function pickFile(deck: Deck, title: string, exts: string[] = [], start?: string): Promise<string | null> {
   if (!deck.platform.files) return deck.notify(t("picking files needs the desktop app"), "warning"), Promise.resolve(null);
-  return new Promise((resolve) => deck.workspace.push(new FileBrowser(deck, { source: "computer", title, exts, start, pick: resolve })));
+  return new Promise((resolve) => deck.workspace.push(new FileBrowser(deck, { source: "computer", title, exts, start: start || lastFolder || undefined, pick: remember(resolve, false) })));
 }

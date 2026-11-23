@@ -50,6 +50,14 @@ Bundled fonts (SIL OFL): JetBrains Mono (default), IBM Plex Mono, Fira Code,
 Space Mono, VT323, Share Tech Mono. Any font installed on the system works too.
 A theme without `[font]` uses JetBrains Mono and the user's weight setting.
 
+## Readable, whatever the colours
+
+When a theme is loaded (built-in, yours, or tweaked), its secondary text (`muted`) is kept at
+**4.5:1** contrast at least and its hints (`subtle`) at **4.5:1** too (they carry instructions), against the background, the
+panels and the pop-ups (WCAG 2.1): a colour paler than that is moved towards the theme's text
+colour just enough (`core/color.ts readable`). `faint` is for lines and grids only — the deck
+never writes text in it (`tests/contrast.test.ts` checks every built-in theme).
+
 ## Built-in themes
 
 | theme | look | motion |
@@ -84,7 +92,7 @@ before, as a block and on text. Enter or a double-click keeps it (a
 `theme tweak` command), **↺ theme's value** (or del) removes the tweak, esc
 leaves it as it was.
 
-It's all commands (the shell's LOG tab shows them), so this works too:
+It's all commands (the shell's log shows them), so this works too:
 
 ```
 theme tweak accent #ff2e88

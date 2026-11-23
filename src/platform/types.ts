@@ -95,6 +95,16 @@ export interface VaultCrypt {
   adopt(): Promise<VaultCryptReport>;
 }
 
+/** a graphics card (src-tauri/src/gpu.rs): its name, and what the system tells of it */
+export interface GpuStats {
+  name: string;
+  /** 0..100 */
+  busy?: number | null;
+  memUsed?: number | null;
+  memTotal?: number | null;
+  temp?: number | null;
+}
+
 export interface SystemStats {
   cpu: number; // 0..100
   cores: number[];
@@ -131,6 +141,8 @@ export interface Platform {
   };
   system: {
     stats(): Promise<SystemStats>;
+    /** the graphics cards, as far as the system says without privileges (none: [] — the page uses WebGL's name) */
+    gpu?(): Promise<GpuStats[]>;
     /** on battery (true), on the mains (false), can't tell (null): the smoothness setting */
     onBattery?(): Promise<boolean | null>;
   };
@@ -258,6 +270,8 @@ export interface Platform {
     home(): Promise<string>;
     list(path: string): Promise<{ name: string; path: string; isDir: boolean; size: number }[]>;
     readText(path: string): Promise<string>;
+    /** a sound or a picture (64 MB at most), for a module's import of a file the user chose */
+    readBytes?(path: string): Promise<ArrayBuffer>;
     /** Copy a file / folder from the computer into a vault folder (never overwrites). Returns its vault path. */
     importInto(src: string, dir: string): Promise<string>;
     /**

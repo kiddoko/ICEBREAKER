@@ -1,3 +1,4 @@
+import { dateLocale } from "../../core/i18n";
 import { fmt } from "../../core/ansi";
 import { SOUND_NAMES, SOUND_PACKS, type SoundName } from "../../core/sound";
 import type { Command } from "../types";
@@ -23,7 +24,7 @@ export const errorsCommand: Command = {
       return 0;
     }
     if (!log.list.length) return ctx.out(fmt.dim("no errors · errors codes lists what they could be\n")), 0;
-    for (const e of [...log.list].reverse()) ctx.out(`${fmt.red(e.code)} ${fmt.dim(new Date(e.at).toLocaleTimeString())} ${e.title}\n   ${e.detail}\n`);
+    for (const e of [...log.list].reverse()) ctx.out(`${fmt.red(e.code)} ${fmt.dim(new Date(e.at).toLocaleTimeString(dateLocale()))} ${e.title}\n   ${e.detail}\n`);
     log.unseen = 0;
     return 0;
   },

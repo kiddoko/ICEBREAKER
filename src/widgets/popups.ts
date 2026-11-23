@@ -1,9 +1,10 @@
 import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
+import { Row } from "../ui/layout";
 import { checkbox, choice } from "../ui/controls";
 import { parseTimer, clockState, dur, soonestTimer, swNow, type ClockTimer } from "./clockstate";
 import { followedCats, followedWords, hasArea, NEWS_CATEGORIES, sourceLabel, widgetSource, type NewsSource } from "./news";
 import { clockCommand } from "./clockfaces";
-import { t } from "../core/i18n";
+import { t, dateLocale } from "../core/i18n";
 /**
  * Pop-ups of the built-in widgets (enter / double-click on HOME, or
  * `widget <id>`): the widget, bigger and usable. Every button runs a command.
@@ -23,7 +24,7 @@ import { q } from "../ui/ui";
 import { basename } from "../vault/paths";
 import { currentWeather, sky } from "./builtin";
 import { isoDay, mmss, streakOf } from "../core/time";
-import { focus, MATRIX_SETS, matrixLook, tickFocus } from "./extra";
+import { focus, MATRIX_SETS, matrixLook, tickFocus, uplinkLook } from "./extra";
 import type { PopupContext, WidgetPopupSpec, WidgetSpec } from "./types";
 import { Field } from "../ui/field";
 import { drawMoon } from "./moondraw";
@@ -138,7 +139,7 @@ const moonPopup: WidgetPopupSpec = {
       const y = r.y + 3 + i;
       if (y >= r.y + r.h) return;
       ui.text(x, y, `${p.glyph} ${t(p.name)}`, { fg: c.fg }, w - 12);
-      ui.textRight(x + w, y, p.at.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }), { fg: c.accent });
+      ui.textRight(x + w, y, p.at.toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric", month: "short" }), { fg: c.accent });
     });
   },
   onAction: (a, { deck }) => (a === "confirm" ? (deck.openApp("moon"), true) : false),
@@ -152,7 +153,7 @@ export const moonCommand: Command = {
     if (ctx.args[0] === "open") return void ctx.deck.openApp("moon");
     const now = Date.now();
     ctx.out(`${fmt.bold(phaseName(now))} · ${Math.round(moonLit(now) * 100)}% lit · day ${moonAge(now).toFixed(1)} of ${SYNODIC.toFixed(1)}\n`);
-    for (const p of upcoming(now)) ctx.out(`${p.glyph} ${p.name.padEnd(14)} ${fmt.dim(p.at.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }))}\n`);
+    for (const p of upcoming(now)) ctx.out(`${p.glyph} ${p.name.padEnd(14)} ${fmt.dim(p.at.toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric", month: "short" }))}\n`);
   },
 };
 
@@ -184,7 +185,7 @@ const recentPopup: WidgetPopupSpec = {
       ui.textRight(r.x + r.w - 2, y, n.path.split("/").slice(0, -1).join("/") || "/", { fg: c.faint, ...st });
       ui.hit(row, { cmd: `open ${q(n.path)}`, tip: n.path });
     });
-    if (!list.length) ui.text(r.x + 2, r.y + 2, t("no match"), { fg: c.faint });
+    if (!list.length) ui.text(r.x + 2, r.y + 2, t("no match"), { fg: c.subtle });
   },
   onText: (t) => (recentField.onText(t), (recentSel = 0), true),
   onKey: (k, ctx) => {
@@ -273,8 +274,8 @@ const weatherPopup: WidgetPopupSpec = {
         .text(`${t("feels")} ${Math.round(w.feels)}°`, { fg: c.subtle }, { priority: 7 })
         .text(`${t("wind")} ${Math.round(w.wind)} km/h`, { fg: c.subtle }, { priority: 5 })
         .text(`☂ ${w.rainChance}%`, { fg: mix(0x7fb4ea, c.bg, 0.2) }, { priority: 8 })
-        .text(`${w.humidity}%rh`, { fg: c.faint }, { priority: 3 })
-        .text(`↑${w.sunrise} ↓${w.sunset}`, { fg: c.faint }, { side: "right", priority: 4 })
+        .text(`${w.humidity}%rh`, { fg: c.subtle }, { priority: 3 })
+        .text(`↑${w.sunrise} ↓${w.sunset}`, { fg: c.subtle }, { side: "right", priority: 4 })
         .draw();
     }
     if (!weekR) return;
@@ -286,7 +287,7 @@ const weatherPopup: WidgetPopupSpec = {
     w.days.slice(0, weekR.h).forEach((d, i) => {
       const y = weekR.y + i;
       const k = sky(d.code);
-      ui.text(x0, y, new Date(`${d.date}T12:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric" }), { fg: c.muted }, DAY - 1);
+      ui.text(x0, y, new Date(`${d.date}T12:00`).toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric" }), { fg: c.muted }, DAY - 1);
       ui.text(x0 + DAY, y, SKY[k] ?? "·", { fg: k === "sun" || k === "partly" ? c.warning : k === "snow" ? c.fg : mix(0x7fb4ea, c.bg, 0.15) });
       ui.textRight(barX - 1, y, `${Math.round(d.min)}°`, { fg: mix(0x7fb4ea, c.bg, 0.1) });
       const a = Math.round(((d.min - lo) / span) * barW), b = Math.max(a + 1, Math.round(((d.max - lo) / span) * barW));
@@ -377,8 +378,8 @@ const clockPopup: WidgetPopupSpec = {
     const now = new Date();
     const start = new Date(now.getFullYear(), 0, 0);
     const doy = Math.floor((now.getTime() - start.getTime()) / 86400000);
-    ui.textCenter(r, r.y, now.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" }), { fg: c.accent, attrs: BOLD });
-    ui.textCenter(r, r.y + 1, now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" }), { fg: c.fg });
+    ui.textCenter(r, r.y, now.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" }), { fg: c.accent, attrs: BOLD });
+    ui.textCenter(r, r.y + 1, now.toLocaleDateString(dateLocale(), { weekday: "long", day: "numeric", month: "long", year: "numeric" }), { fg: c.fg });
     ui.textCenter(r, r.y + 2, `${t("day {n}", { n: doy })} · ${Intl.DateTimeFormat().resolvedOptions().timeZone}`, { fg: c.subtle });
     // timer
     const tm = soonestTimer();
@@ -646,6 +647,14 @@ const aiPopup: WidgetPopupSpec = {
     const lines = wrapWords(body, r.w - 6);
     lines.slice(-(r.h - 6)).forEach((l, i) => ui.text(r.x + 3, r.y + 4 + i, l, { fg: asked.error ? c.error : asked.a ? c.fg : c.faint }));
     if (asked.a) ui.button(r.x + 2, r.y + r.h - 1, t("◖ say it"), () => {}, { cmd: `voice say ${q(asked.a.slice(0, 1500))}`, tip: "ctrl+s" });
+    // its personality, on the last line: where the eye looks, the little lines, the blinks
+    const look = uplinkLook(deck, widgetTarget("ai") ?? undefined);
+    const row = new Row(ui, r.x + (asked.a ? 16 : 2), r.y + r.h - 1, r.x + r.w - 2);
+    row.label(t("eye"));
+    for (const [v, label] of [["hover", t("when hovered")], ["always", t("follows the pointer")], ["off", t("closed")]] as const)
+      row.button(label, () => void deck.act(`uplink eye ${v}`), { selected: look.eye === v, quiet: look.eye !== v, tip: `uplink eye ${v}` });
+    row.checkbox(look.quips, { label: t("talks"), onClick: () => void deck.act(`uplink quips ${look.quips ? "off" : "on"}`), tip: "uplink quips on|off" });
+    row.checkbox(look.blinks, { label: t("blinks"), onClick: () => void deck.act(`uplink blinks ${look.blinks ? "off" : "on"}`), tip: "uplink blinks on|off" });
   },
   onText: (t) => (askField.onText(t), true),
   onKey: (k, { deck }) => {
@@ -712,4 +721,29 @@ export function withPopups(specs: WidgetSpec[]): WidgetSpec[] {
   return specs.map((s) => (POPUPS[s.id] ? { ...s, ...POPUPS[s.id] } : s));
 }
 
-export const popupCommands: Command[] = [focusCommand, moonCommand, timerCommand, stopwatchCommand, matrixCommand, clockCommand];
+/** The UPLINK widget's personality (its pop-up's last line). */
+export const uplinkCommand: Command = {
+  name: "uplink",
+  summary: "the UPLINK widget's personality: where its eye looks, whether it talks and blinks",
+  usage: "uplink                      how it is now\nuplink eye hover|always|off  looks at the pointer when hovered, all the time, or never\nuplink quips on|off          a little line when the pointer arrives\nuplink blinks on|off         a blink now and then",
+  examples: [["uplink eye always", "its eye follows the pointer across the screen"]],
+  complete: () => ["eye", "quips", "blinks", "hover", "always", "off", "on"],
+  run(ctx) {
+    const [a, b] = ctx.args;
+    const key = widgetTarget("ai") ?? "ai";
+    const all = { ...(ctx.deck.settings.data.home.widgetConfig ?? {}) };
+    const set = (name: string, v: unknown) => {
+      all[key] = { ...(all[key] ?? {}), [name]: v };
+      ctx.deck.settings.set("home.widgetConfig", all);
+    };
+    if (a === "eye" && (b === "hover" || b === "always" || b === "off")) set("eye", b);
+    else if ((a === "quips" || a === "blinks") && (b === "on" || b === "off")) set(a, b === "on");
+    else if (a) return ctx.err("usage: uplink eye hover|always|off · uplink quips on|off · uplink blinks on|off\n"), 1;
+    const look = uplinkLook(ctx.deck, key);
+    ctx.out(`uplink: eye ${look.eye} · quips ${look.quips ? "on" : "off"} · blinks ${look.blinks ? "on" : "off"}\n`);
+    ctx.deck.requestFrame();
+    return 0;
+  },
+};
+
+export const popupCommands: Command[] = [focusCommand, moonCommand, timerCommand, stopwatchCommand, matrixCommand, clockCommand, uplinkCommand];

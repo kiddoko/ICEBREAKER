@@ -2,7 +2,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import type { AppUpdateInfo, LocalTrack, MediaStatus, Platform, PlayerStatus, SystemStats, VaultCryptReport, VaultCryptStatus, VaultEntry } from "./types";
+import type { AppUpdateInfo, LocalTrack, MediaStatus, Platform, PlayerStatus, SystemStats, GpuStats, VaultCryptReport, VaultCryptStatus, VaultEntry } from "./types";
 
 /**
  * Desktop platform: thin wrappers around the Rust commands defined in
@@ -48,7 +48,7 @@ export function createTauriPlatform(): Platform {
       read: (name) => invoke<string | null>("config_read", { name }),
       write: (name, content) => invoke<void>("config_write", { name, content }),
     },
-    system: { stats: () => invoke<SystemStats>("system_stats"), onBattery: () => invoke<boolean | null>("power_on_battery") },
+    system: { stats: () => invoke<SystemStats>("system_stats"), gpu: () => invoke<GpuStats[]>("gpu_stats"), onBattery: () => invoke<boolean | null>("power_on_battery") },
     envApiKey: () => invoke<string | null>("env_api_key"),
     newsRss: (query, lang, country, provider) => invoke<string>("news_rss", { query, lang, country, provider: provider ?? null }),
     notify: async (title, body) => {
@@ -101,6 +101,7 @@ export function createTauriPlatform(): Platform {
       home: () => invoke<string>("fs_home"),
       list: (path) => invoke("fs_list", { path }),
       readText: (path) => invoke<string>("fs_read_text", { path }),
+      readBytes: (path) => invoke<ArrayBuffer>("fs_read_bytes", { path }),
       importInto: (src, dir) => invoke<string>("vault_import", { src, dir }),
       onDragDrop: (cb) => {
         let paths: string[] = [];

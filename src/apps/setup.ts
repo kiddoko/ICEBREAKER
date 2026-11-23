@@ -14,6 +14,8 @@ import { applyFxPreset, FX_PRESET_NAMES, FX_PRESETS } from "../workspace/fxpanel
 import type { App, AppSpec } from "./types";
 import { GAP, INSET } from "../ui/layout";
 import { completeFolder, osOf, pathExamples, vaultPathProblem } from "./setuppath";
+import { IS_MAC } from "../core/input";
+import { pickFolder } from "../workspace/filebrowser";
 
 /** this system's examples: its shells, a vault folder's path */
 const HERE = pathExamples(osOf(navigator.platform, navigator.userAgent));
@@ -88,7 +90,9 @@ export class SetupApp implements App {
     this.firstRun = !s.setup.done;
     // a new account: what the deck calls you starts as its name
     const handle = s.user.handle === "netrunner" && deck.account ? deck.account : s.user.handle;
-    this.a = { handle, locale: s.user.locale, precision: s.user.location.precision };
+    // the deck's language is the first answer already (run again on a French deck, "English" was
+    // chosen and enter switched the deck to English)
+    this.a = { handle, language: s.user.language, locale: s.user.locale, precision: s.user.location.precision };
     // stealth already on (a setup run again, or a half-finished one): the questions start from it
     if (s.privacy.stealth) this.a.mode = "stealth";
     this.steps = [
@@ -149,7 +153,17 @@ export class SetupApp implements App {
         ],
         skip: () => !this.deck.platform.vault.crypt,
       },
-      { id: "locale", title: "LANGUAGE", question: "Dates, calendar and news language.", options: () => [{ value: "fr-FR", label: "Français" }, { value: "en-US", label: "English (US)" }, { value: "en-GB", label: "English (UK)" }, { value: "", label: "Same as the system" }] },
+      {
+        // the deck's language was the first question: this one is only how dates are written
+        id: "locale", title: "DATE FORMAT",
+        question: "How should dates and times be written? (the calendar, the journal, the clock, the news) — the deck's language was the first question.",
+        options: () => [
+          { value: "fr-FR", label: "Français", hint: dateExample("fr-FR") },
+          { value: "en-GB", label: "English (UK)", hint: dateExample("en-GB") },
+          { value: "en-US", label: "English (US)", hint: dateExample("en-US") },
+          { value: "", label: "Same as the system", hint: dateExample(undefined) },
+        ],
+      },
       {
         skip: () => this.stealth,
         id: "precision", title: "LOCATION", question: "Weather and local news need to know roughly where you are. Share only what you want — it stays on this machine.",
@@ -223,6 +237,7 @@ export class SetupApp implements App {
       },
       { id: "done", title: "READY", question: "Deck configured. Everything is in Settings if you change your mind.", options: () => [{ value: "go", label: "Jack in" }] },
     ];
+    this.sel = Math.max(0, LANGS.findIndex((l) => l.id === s.user.language));
   }
 
   title(): string {
@@ -241,6 +256,8 @@ export class SetupApp implements App {
   private finished = false;
 
   status(): string {
+    // the vault's folder: tab completes the path there, ⌘O browses (it said "tab skip")
+    if (this.cur.id === "vault-path") return t("type a path · tab completes · ⌘O browse · enter next · esc back");
     return t(this.cur.text ? "type · enter next · tab skip · esc back · ctrl+enter finish" : this.cur.slider ? "←→ or drag · enter next · tab skip · esc back · ctrl+enter finish" : "a number, ↑↓ or a click chooses · enter or a 2nd click keeps · tab skip · esc back");
   }
 
@@ -352,13 +369,22 @@ export class SetupApp implements App {
   /** Typing replaces the suggestion; enter on empty keeps it. */
   private placeholder(st: Step): string {
     if (st.id === "handle") return this.a.handle || "netrunner";
+    // a path is never translated nor lowered (it was: "/volumes/nas/…"); the suggestion is
+    // where the vault is now, on this system
+    if (st.id === "vault-path") return this.deck.vault.root || (st.text?.placeholder ?? "");
     return t(st.text?.placeholder ?? "");
   }
 
   /** The vault's folder, typed: kept (absolute, or ~/…), else said why and asked again. */
   private async submitVaultPath(): Promise<void> {
     const typed = this.input.trim();
-    if (!typed) return void (this.error = t("type the folder's full path (or esc: keep this folder)"));
+    // enter on the grey suggestion — where the vault is now — keeps it (it said "type the full path")
+    if (!typed) {
+      if (!this.deck.vault.root) return void (this.error = t("type the folder's full path (or esc: keep this folder)"));
+      this.a.vault = "keep";
+      delete this.a["vault-path"];
+      return this.go(1);
+    }
     const why = vaultPathProblem(typed);
     if (why) return void (this.error = t(why));
     this.a["vault-path"] = typed;
@@ -555,12 +581,25 @@ export class SetupApp implements App {
     // the vault's folder: tab completes the folder name, like a terminal (it skipped the
     // question and dropped what was typed — the vault stayed in the default folder)
     if (k.combo === "tab" && this.cur.id === "vault-path") return void this.completeVaultPath(), true;
+    // ⌘O: the folder browser (every path asked can be chosen with the mouse too)
+    if (k.combo === "ctrl+o" && this.cur.id === "vault-path") return void this.browseVault(), true;
     // typed something: tab keeps it, like enter (skipping threw it away)
     if (k.combo === "tab" && this.cur.text && this.input.trim() && !this.places.length) return void this.next(), true;
     if (k.combo === "tab" && this.cur.id !== "done") return this.go(1), true;
     if (k.combo === "ctrl+enter" && !this.busy) return this.finish(false), true;
     if (this.cur.text && !this.places.length) return this.field.onKey(k);
     return false;
+  }
+
+  /** The vault's folder, chosen in the deck's file browser instead of typed. */
+  private async browseVault(): Promise<void> {
+    // from what's typed, else where the vault is now (it opened at the home folder)
+    const start = this.input.trim() || this.deck.vault.root || undefined;
+    const path = await pickFolder(this.deck, t("the vault's folder"), start);
+    if (!path) return;
+    this.plain.text = path;
+    this.error = "";
+    this.deck.requestFrame();
   }
 
   /** The sound step's value moved: hear it (at most ~8 blips a second). */
@@ -611,24 +650,38 @@ export class SetupApp implements App {
     if (age < 600) ui.animate(16);
 
     // ── top: the chapters, and how far along ───────────────────────────────
-    let y = r.y + 1;
+    // a short frame (a small window with the tree and the shell open): the question first — the
+    // title and the bar take one line, or none at all (the box with its buttons was cut off)
+    const header = r.h >= 14 ? "full" : r.h >= 9 ? "line" : "none";
+    let y = r.y + (header === "full" ? 1 : 0);
     const brand = "◢◤ ICEBREAKER // setup";
-    ui.text(r.x + 2, y, brand, { fg: c.accent, attrs: BOLD });
-    if (this.deck.account) ui.text(r.x + 3 + strWidth(brand), y, `· ${this.deck.account}`, { fg: c.title });
-    const cur = chapterOf(st.id);
-    let cx = r.x + r.w - 2;
-    for (let k = CHAPTERS.length - 1; k >= 0; k--) {
-      const name = t(CHAPTERS[k].name);
-      const label = k < cur ? `✓ ${name}` : name;
-      cx -= strWidth(label);
-      ui.text(cx, y, label, { fg: k === cur ? c.accent : k < cur ? c.subtle : c.faint, attrs: k === cur ? BOLD : 0 });
-      if (k) (cx -= 3), ui.text(cx, y, " ─ ", { fg: c.faint });
+    if (header !== "none") {
+      ui.text(r.x + 2, y, brand, { fg: c.accent, attrs: BOLD });
+      if (this.deck.account) ui.text(r.x + 3 + strWidth(brand), y, `· ${this.deck.account}`, { fg: c.title });
+      const cur = chapterOf(st.id);
+      const brandEnd = r.x + 3 + strWidth(brand) + (this.deck.account ? strWidth(`· ${this.deck.account}`) + 1 : 0);
+      const labels = CHAPTERS.map((ch, k) => (k < cur ? `✓ ${t(ch.name)}` : t(ch.name)));
+      const allW = labels.reduce((n, l) => n + strWidth(l), 0) + (labels.length - 1) * 3;
+      let cx = r.x + r.w - 2;
+      if (cx - allW > brandEnd + GAP) {
+        for (let k = CHAPTERS.length - 1; k >= 0; k--) {
+          cx -= strWidth(labels[k]);
+          ui.text(cx, y, labels[k], { fg: k === cur ? c.accent : k < cur ? c.subtle : c.faint, attrs: k === cur ? BOLD : 0 });
+          if (k) (cx -= 3), ui.text(cx, y, " ─ ", { fg: c.faint });
+        }
+      } else {
+        // a narrow window: the chapter you're in and how far along (they overlapped the title)
+        const label = `${t(CHAPTERS[cur].name)} · ${cur + 1}/${CHAPTERS.length}`;
+        if (cx - strWidth(label) > brandEnd + GAP) ui.textRight(cx, y, label, { fg: c.accent, attrs: BOLD });
+      }
+      y += 1;
     }
-    y += 1;
     const visible = this.steps.filter((s2) => !s2.skip?.());
     const at = Math.max(0, visible.indexOf(st));
-    ui.bar(r.x + 2, y, r.w - 4, visible.length > 1 ? at / (visible.length - 1) : 1, c.accent, c.faint);
-    y += 2;
+    if (header === "full") {
+      ui.bar(r.x + 2, y, r.w - 4, visible.length > 1 ? at / (visible.length - 1) : 1, c.accent, c.faint);
+      y += 2;
+    }
 
     // ── left: the deck writing your answers down (wide screens) ────────────
     const logW = r.w >= 100 ? 34 : 0;
@@ -664,7 +717,8 @@ export class SetupApp implements App {
     const w = st.id === "warning" ? Math.min(110, area.w) : Math.min(76, area.w);
     const slide = Math.round((1 - easeOut(age / 220)) * 6);
     const x = area.x + Math.floor((area.w - w) / 2) + slide;
-    const box = { x, y, w, h: Math.max(8, r.y + r.h - y - 2) };
+    // never taller than the frame (8 at least ran its bottom — the buttons — out of a small frame)
+    const box = { x, y, w, h: Math.max(4, Math.min(r.y + r.h - y, Math.max(8, r.y + r.h - y - 2))) };
     const inner = ui.box(box, { title: age < 400 ? decrypt(t(st.title), age / 400, ui.now) : t(st.title), focused: true, bg: c.panel, info: `${at + 1}/${visible.length}` });
     let iy = inner.y + 1;
     let qText = t(st.question, { vault: this.deck.vault.root, shells: HERE.shells });
@@ -676,6 +730,17 @@ export class SetupApp implements App {
       const room = inner.h - 4;
       if (qLines.length > room) qLines = qLines.filter((l) => l.trim());
       if (qLines.length > room) qLines = qLines.slice(0, Math.max(1, room));
+    } else {
+      // a short window: what you answer with (the choices, the field) and the buttons come first,
+      // the question is cut with … (it ran over the buttons' line)
+      const need = st.text || st.slider ? 2 : Math.min(this.options().length, 3);
+      const room = Math.max(1, inner.h - 3 - need);
+      if (qLines.length > room) qLines = qLines.filter((l) => l.trim());
+      // (a line truncate already ended with … gets no second one: "… …")
+      if (qLines.length > room) {
+        const last = truncate(qLines[room - 1], inner.w - 6);
+        qLines = [...qLines.slice(0, room - 1), last.endsWith("…") ? last : `${last} …`];
+      }
     }
     const shownChars = typed(ui, `setup:${st.id}`, qText);
     let used = 0;
@@ -689,16 +754,23 @@ export class SetupApp implements App {
     }
     iy++;
     if (st.text && !this.places.length) {
-      this.field.render(ui, { x: inner.x + 2, y: iy, w: inner.w - 4, h: 1 }, { focused, placeholder: this.placeholder(st) });
+      // a path: a "browse…" button beside its field (the deck's file browser)
+      const browse = st.id === "vault-path" ? `${t("browse…")}  ${IS_MAC ? "⌘O" : "ctrl+O"}` : "";
+      const bw = browse ? strWidth(browse) + 2 + GAP : 0;
+      this.field.render(ui, { x: inner.x + GAP, y: iy, w: inner.w - GAP * 2 - bw, h: 1 }, { focused, placeholder: this.placeholder(st) });
+      if (browse) ui.button(inner.x + inner.w - GAP * 2 - strWidth(browse), iy, browse, () => void this.browseVault(), { tip: t("choose the folder with the mouse") });
       iy += 2;
-      if (this.busy) ui.text(inner.x + 2, iy, `${ui.spinner()} ${t("locating…")}`, { fg: c.muted, bg: c.panel });
-      else ui.text(inner.x + 2, iy, t("enter: keep the grey suggestion · type to replace it"), { fg: c.faint, bg: c.panel }, inner.w - 4);
+      const footY = inner.y + inner.h - 1;
+      if (iy >= footY - (this.error ? 1 : 0)) {
+        // no room for the hint under the field
+      } else if (this.busy) ui.text(inner.x + 2, iy, `${ui.spinner()} ${t("locating…")}`, { fg: c.muted, bg: c.panel });
+      else ui.text(inner.x + 2, iy, st.id === "vault-path" ? t("a full path (~/notes works) · tab completes the folder's name · or browse…") : t("enter: keep the grey suggestion · type to replace it"), { fg: c.subtle, bg: c.panel }, inner.w - 4);
     } else if (st.slider) {
       // a real slider: drag, hold, ←→ one at a time (faster when held) — you hear the level as it moves
       const v = Number(this.a[st.id] ?? st.slider.start);
       slider(ui, { x: inner.x + 2, y: iy, w: inner.w - 4, h: 1 }, v, st.slider.min, st.slider.max, (nv) => this.setSound(nv), { zeroIsOff: true });
       iy += 2;
-      ui.text(inner.x + 2, iy, t("enter: keep it"), { fg: c.faint, bg: c.panel }, inner.w - 4);
+      if (iy < inner.y + inner.h - 1) ui.text(inner.x + 2, iy, t("enter: keep it"), { fg: c.subtle, bg: c.panel }, inner.w - 4);
     } else {
       // more options than rows (the themes in a small window): the ones around the cursor, ▲ ▼ for the rest
       const all = this.options();
@@ -744,7 +816,7 @@ export class SetupApp implements App {
           }
         }
         if (o.hint && hx - lend > 6 && (sel || hot || w >= 70)) {
-          const hint = st.id === "theme" ? o.hint : t(o.hint);
+          const hint = st.id === "theme" || st.id === "locale" ? o.hint : t(o.hint);
           ui.textRight(hx - 1, iy, truncate(hint, hx - lend - 1), { fg: fade(sel ? c.fg : c.subtle) });
         }
         // one click chooses it (a theme shows at once), a click on the chosen one keeps it
@@ -755,18 +827,40 @@ export class SetupApp implements App {
       if (last < all.length) ui.text(inner.x + inner.w - GAP, topY + (last - first) - INSET, "▼", { fg: c.accent });
     }
     if (this.error) ui.text(inner.x + 2, inner.y + inner.h - 2, `⚠ ${this.error}`, { fg: c.error, bg: c.panel }, inner.w - 4);
-    // the way out, always in the same place
-    const keys = st.text ? t("enter next · tab skip · esc back") : st.slider ? t("←→ · enter next · tab skip · esc back") : t("↑↓ or a number · enter keeps · esc back");
-    // the button on the right, the keys in the room left of it
-    let keysRoom = inner.w - 4;
+    // the way back and the way past, always in the same place, as buttons (esc going back
+    // was said nowhere a tester looked), then the keys
+    const keys = st.id === "vault-path" ? t("tab completes the folder · enter next") : st.text ? t("enter next") : st.slider ? t("←→ · enter next") : t("↑↓ or a number · enter keeps");
+    // the button on the right first; back / skip on the left only where they fit before it (they
+    // ran into it: "‹ retour esc ir passer tab eurs par défaut ^⏎"), short when the room is short;
+    // then the keys, if there's still room
+    const fy = inner.y + inner.h - 1;
+    let right = inner.x + inner.w - GAP;
     if (st.id !== "done" && this.warned) {
-      const fin = `${t("finish with the defaults")} ⌃⏎`;
-      const bx = inner.x + inner.w - strWidth(fin) - 3;
-      ui.button(bx, inner.y + inner.h - 1, fin, () => this.finish(false), { accent: c.subtle });
-      keysRoom = bx - inner.x - 4;
+      const fin = [`${t("finish with the defaults")} ⌃⏎`, `${t("finish")} ⌃⏎`].find((f) => strWidth(f) + 2 <= inner.w / 2) ?? "";
+      if (fin) {
+        right -= strWidth(fin) + 2;
+        ui.button(right, fy, fin, () => this.finish(false), { accent: c.subtle });
+        right -= GAP;
+      }
     }
-    ui.text(inner.x + 2, inner.y + inner.h - 1, keys, { fg: c.subtle, bg: c.panel }, keysRoom);
+    let fx = inner.x + GAP;
+    // back and skip chosen together, long or short, so both fit (skip went first when room was short)
+    const firstShown = this.steps.findIndex((s2) => !s2.skip?.());
+    const back = this.step > firstShown, skip = st.id !== "done" && st.id !== "warning" && st.id !== "vault-path";
+    const pairs: [string, string][] = [[`‹ ${t("back")}  esc`, `${t("skip")}  tab`], ["‹ esc", `${t("skip")} ⇥`], ["‹", "⇥"]];
+    const width = (p: [string, string]) => (back ? strWidth(p[0]) + 2 + GAP : 0) + (skip ? strWidth(p[1]) + 2 + GAP : 0);
+    const pair = pairs.find((p) => fx + width(p) <= right);
+    if (pair && back) fx += ui.button(fx, fy, pair[0], () => this.go(-1), { quiet: true, tip: t("the question before (esc)") }) + GAP;
+    if (pair && skip) fx += ui.button(fx, fy, pair[1], () => this.go(1), { quiet: true, tip: t("keep the default and go on (tab)") }) + GAP;
+    const left = right - fx;
+    if (left > 6) ui.text(fx, fy, keys, { fg: c.subtle, bg: c.panel }, left);
   }
+}
+
+/** today, written the way a date format writes it: "lun. 23 nov. · 14:30" — what the DATE FORMAT step shows */
+function dateExample(locale: string | undefined): string {
+  const d = new Date();
+  return `${d.toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" })} · ${d.toLocaleDateString(locale)} · ${d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 export const setupSpec: AppSpec = {

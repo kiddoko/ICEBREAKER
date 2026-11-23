@@ -4,6 +4,7 @@
  * time in big dot-matrix digits, and a ticker of netrunner chatter.
  * Everything is a function of the time: no state, any size.
  */
+import { dateLocale } from "../core/i18n";
 import { mix } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
 import { fitMatrix, matrixSize, matrixText } from "../ui/dots";
@@ -82,9 +83,9 @@ function drawTerminal(ui: UI, r: Rect): void {
     const box = { x: bx, y: r.y + 2, w: bw, h: Math.min(r.h - 4, 12) };
     ui.box(box, { border: "double", fill: true, bg: c.bg, title: "SYSTEM CLOCK" });
     const bottom = bigTime(ui, box, box.x + box.w / 2, box.y + box.h / 2 - 1, () => c.accent, box.w - 4);
-    ui.textCenter(box, Math.min(box.y + box.h - 2, bottom + 1), new Date().toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }).toUpperCase(), { fg: c.subtle });
+    ui.textCenter(box, Math.min(box.y + box.h - 2, bottom + 1), new Date().toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric", month: "short" }).toUpperCase(), { fg: c.subtle });
   }
-  ui.textRight(r.x + r.w - 2, r.y + r.h - 1, "READY. ANY KEY", { fg: c.faint });
+  ui.textRight(r.x + r.w - 2, r.y + r.h - 1, "READY. ANY KEY", { fg: c.subtle });
   ui.animate(60);
 }
 
@@ -146,7 +147,7 @@ function drawWarp(ui: UI, r: Rect): void {
     ui.text(x, y, ch, { fg: mix(c.bg, z > 0.6 ? c.fg : c.accent, 0.45 + z * 0.55), attrs: z > 0.75 ? BOLD : 0 });
   }
   const bottom = bigTime(ui, r, cx, cy - 1, (row, rows) => (ui.theme.gradient[Math.min(ui.theme.gradient.length - 1, Math.floor((row / rows) * ui.theme.gradient.length))] ?? c.accent));
-  ui.textCenter(r, Math.min(r.y + r.h - 2, bottom + 1), new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }), { fg: c.subtle });
+  ui.textCenter(r, Math.min(r.y + r.h - 2, bottom + 1), new Date().toLocaleDateString(dateLocale(), { weekday: "long", day: "numeric", month: "long" }), { fg: c.subtle });
   ui.animate(40);
 }
 
@@ -210,7 +211,7 @@ function drawPaper(ui: UI, r: Rect): void {
   }
   ui.hline(art.x, art.y + art.h, art.w, { fg: ink(0.6) }, "─");
   // the time, big, and the date
-  const time = now.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  const time = now.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" });
   const below = art.y + art.h + 1;
   const kk = fitMatrix(time, Math.floor(f.w * 0.6), Math.max(3, f.y + f.h - below - 6), 3);
   let ty = below;
@@ -219,9 +220,9 @@ function drawPaper(ui: UI, r: Rect): void {
     matrixText(ui, r.x + Math.floor((r.w - sz.w) / 2), ty, time, kk, () => c.fg);
     ty += sz.h + 1;
   } else ui.textCenter(r, ty++, time, { fg: c.fg, attrs: BOLD });
-  ui.textCenter(r, ty, now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }), { fg: c.muted });
+  ui.textCenter(r, ty, now.toLocaleDateString(dateLocale(), { weekday: "long", day: "numeric", month: "long" }), { fg: c.muted });
   ui.textCenter(r, ty + 2, `— ${PAPER_LINES[seed % PAPER_LINES.length]} —`, { fg: c.subtle });
-  ui.textCenter(r, f.y + f.h - 2, "ICEBREAKER · asleep · any key", { fg: c.faint });
+  ui.textCenter(r, f.y + f.h - 2, "ICEBREAKER · asleep · any key", { fg: c.subtle });
   // next change: the next minute
   ui.animate(60_000 - (now.getSeconds() * 1000 + now.getMilliseconds()) + 30);
 }
@@ -290,7 +291,7 @@ function drawCity(ui: UI, r: Rect): void {
     const tx = r.x + Math.floor((r.w - sz.w) / 2) + glitch, ty = r.y + Math.floor(r.h * 0.12);
     const grad = ui.theme.gradient.length ? ui.theme.gradient : [c.accent, c.accentAlt];
     matrixText(ui, tx, ty, time, kk, (row, rows) => grad[Math.min(grad.length - 1, Math.floor((row / rows) * grad.length))]);
-    ui.textCenter(r, ty + sz.h + 1, now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }).toUpperCase(), { fg: c.subtle });
+    ui.textCenter(r, ty + sz.h + 1, now.toLocaleDateString(dateLocale(), { weekday: "long", day: "numeric", month: "long" }).toUpperCase(), { fg: c.subtle });
   }
 
   // the ticker
@@ -299,6 +300,6 @@ function drawCity(ui: UI, r: Rect): void {
   const line = (msg.slice(off) + msg).slice(0, r.w);
   ui.fill({ x: r.x, y: r.y + r.h - 1, w: r.w, h: 1 }, { bg: c.panelAlt });
   ui.text(r.x, r.y + r.h - 1, line, { fg: c.accent, bg: c.panelAlt });
-  ui.text(r.x + r.w - 22, r.y + r.h - 2, " any key to jack in ", { fg: c.faint });
+  ui.text(r.x + r.w - 22, r.y + r.h - 2, " any key to jack in ", { fg: c.subtle });
   ui.animate(80);
 }

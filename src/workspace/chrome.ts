@@ -5,17 +5,20 @@
  * they read the workspace, they don't own any state.
  */
 import { mix } from "../core/color";
-import { t } from "../core/i18n";
+import { t, tLoose, dateLocale } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC } from "../core/input";
 import { osKeys } from "../core/keyhints";
 import { strWidth } from "../core/unicode";
-import { inside, q, type Hit, type UI } from "../ui/ui";
+import { inside, q, type Hit, type MenuEntry, type UI } from "../ui/ui";
 import { Bar, GAP, INSET } from "../ui/layout";
 import { Osk } from "./overlays";
+import { MiniCalendar } from "./minical";
+import { NONE } from "../core/color";
 import { SystemTerminal, terminalKeysHint } from "../shell/systerm";
 import type { ShellTab, Workspace } from "./workspace";
 import { chipStyle, drawChip, placeChips, tabbedBox } from "./tabstrip";
+import { moveStatusItem, statusOrder } from "./statusbar";
 import { DECK_MENU_TITLE, editMacro, macroMenu, shellMenu, termTabMenu } from "./menus";
 
 /**
@@ -36,11 +39,15 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
   // a tab moved here (tab move <n> shell) may be the one shown instead of the terminals
   const moved = ws.shownIn("shell");
   if (ws.termAvailable && !ws.terms.length) ws.terms.push(new SystemTerminal(d));
+  // a wide shell keeps the log on its right, always in view (Settings → shell: log beside the shell);
+  // a narrow one keeps it as a tab
+  const logSide = !moved && si.w >= LOG_SIDE_MIN && d.settings.data.shell.logSide !== false;
+  if (logSide && ws.shellTab === "log") ws.shellTab = ws.termAvailable ? "term" : "ibsh";
   const tabs: [ShellTab, string, number][] = [
     ...(ws.termAvailable ? ws.terms.map((tm, i) => ["term", tm.name, i] as [ShellTab, string, number]) : []),
     ["ibsh", "ibsh", -1],
     // the log: everything that happened, filtered as you like; blinks red while errors are unread
-    ["log", d.log.unseenErrors ? `⚠ ${t("log")} ${d.log.unseenErrors}` : d.log.unseen ? `${t("log")} •${d.log.unseen}` : t("log"), -1],
+    ...(logSide ? [] : [["log", d.log.unseenErrors ? `⚠ ${t("log")} ${d.log.unseenErrors}` : d.log.unseen ? `${t("log")} •${d.log.unseen}` : t("log"), -1] as [ShellTab, string, number]]),
   ];
   // the panel's buttons on the right, like a program window's: one icon in a little square each
   const buttons: [string, string, string][] = [
@@ -119,12 +126,21 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
   if (moved) return void ui.clip(si, () => moved.render(ui, si, shellFocused));
   // the shell's own menu first: what's drawn on it (macros, the terminal) registers after and wins the right-click
   ui.hit(si, { menu: () => shellMenu(ws) });
+  // the log's column on the right, a thin line between
+  let main = si;
+  if (logSide) {
+    const lw = Math.min(60, Math.max(36, Math.floor(si.w * 0.3)));
+    main = { ...si, w: si.w - lw - 1 };
+    const lr = { x: si.x + si.w - lw, y: si.y, w: lw, h: si.h };
+    ui.vline(lr.x - 1, si.y, si.h, { fg: c.faint });
+    ui.clip(lr, () => ws.logPane.render(ui, lr, true));
+  }
   // macro bar above the system terminal (one free row under the tabs)
-  let termR = si;
+  let termR = main;
   const macrosShown = d.settings.data.shell.macrosShown !== false;
   if (ws.shellTab === "term" && ws.termAvailable && si.h > 6 && macrosShown) {
     const my = si.y + 1;
-    termR = { ...si, y: si.y + 3, h: si.h - 3 };
+    termR = { ...main, y: si.y + 3, h: si.h - 3 };
     // ◂ first: folds the macros away (⌗ on the panel's top brings them back)
     const fold = { x: si.x, y: my, w: 3, h: 1 };
     ui.text(fold.x, my, " ◂ ", { fg: ui.hovered(fold) ? c.bg : c.subtle, bg: ui.hovered(fold) ? c.accent : c.highlight, attrs: BOLD });
@@ -133,7 +149,7 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
     d.settings.data.shell.macros.forEach((m, i) => {
       const label = ` ${m.label} `;
       const rect = { x: bx, y: my, w: strWidth(label), h: 1 };
-      if (bx + rect.w > si.x + si.w - 4) return;
+      if (bx + rect.w > main.x + main.w - 4) return;
       const hot = ui.hovered(rect);
       const bound = Object.entries(d.settings.data.keys ?? {}).find(([, cmd]) => cmd.split(/\s*;\s*/).includes(`macro run ${q(m.label)}`))?.[0];
       ui.text(bx, my, label, hot ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: c.fg, bg: c.highlight });
@@ -148,15 +164,19 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
     ui.text(bx, my, " + ", { fg: ui.hovered(plus) ? c.accent : c.subtle, bg: c.highlight, attrs: BOLD });
     ui.hit(plus, { onClick: () => void editMacro(ws, -1), tip: "new macro · or: macro add <label> <command>" });
   }
-  ui.clip(si, () => {
+  ui.clip(main, () => {
     if (ws.shellTab === "term") ws.terminal.render(ui, termR, shellFocused);
-    else if (ws.shellTab === "log") ws.logPane.render(ui, si);
-    else d.shell.render(ui, si, shellFocused);
+    else if (ws.shellTab === "log") ws.logPane.render(ui, main);
+    else d.shell.render(ui, main, shellFocused);
   });
 }
 
+/** a shell at least this wide shows the log on its right instead of in a tab */
+export const LOG_SIDE_MIN = 110;
+
 /** After ~0.6 s on something clickable: its shell command and a tip. */
-export function renderTip(ws: Workspace, ui: UI, screen: Rect): void {
+export function renderTip(ws: Workspace, ui: UI, _screen: Rect): void {
+  ws.tipWant = null;
   // (a tab dragged over the panel showed a widget's tip over the drop box)
   if (ws.isDragging) return;
   const { x, y } = ui.mouse;
@@ -173,20 +193,40 @@ export function renderTip(ws: Workspace, ui: UI, screen: Rect): void {
     ws.tipHidden = false;
   }
   if (!h || ws.tipHidden) return;
-  const wait = 650 - (ui.now - ws.tip.since);
-  if (wait > 0) return ui.animate(wait);
+  // the deck shows it above the grid (ui/tipview.ts): to the pixel, crisp, gone when the pointer moves
+  // a tip written without t() is translated here when it can be (core/i18n.ts tLoose)
+  ws.tipWant = { key, content: { text: h.tip ? osKeys(tLoose(h.tip)) : undefined, cmd: h.cmd } };
+}
+
+/**
+ * The menu bar after the logo: ` modules  store  nexus  settings  help ` — each the page it
+ * names (the ✓ page lit), the rightmost ones dropped first when the bar is short. Returns
+ * where it ends.
+ */
+function renderMenuBar(ws: Workspace, ui: UI, x: number, y: number, xEnd: number): number {
   const c = ui.c;
-  const lines: { t: string; fg: number; attrs?: number }[] = [];
-  if (h.cmd) lines.push({ t: `❯ ${h.cmd}`, fg: c.accent, attrs: BOLD });
-  if (h.tip) for (const l of osKeys(h.tip).split("\n")) lines.push({ t: l, fg: c.muted });
-  const w = Math.min(screen.w - 2, Math.max(...lines.map((l) => strWidth(l.t))) + 4);
-  const hgt = lines.length + 2;
-  let bx = Math.min(x + 2, screen.w - w - 1);
-  let by = y + 1;
-  if (by + hgt > screen.h - 1) by = Math.max(0, y - hgt);
-  if (bx < 0) bx = 0;
-  ui.box({ x: bx, y: by, w, h: hgt }, { bg: c.panelAlt, border: "single" });
-  lines.forEach((l, i) => ui.text(bx + 2, by + 1 + i, l.t, { fg: l.fg, bg: c.panelAlt, attrs: l.attrs }, w - 4));
+  const d = ws.deck;
+  const items: [string, string, string, string][] = [
+    ["modules", t("modules"), "launch modules", t("every app and module: open, switch on or off · ⌘⇧M")],
+    ["store", t("store"), "store", t("modules and themes to install, from GitHub")],
+    ["explorer", "nexus", "launch explorer", t("NEXUS: your vault as a 3D map · ⌘⇧E")],
+    ["settings", t("settings"), "settings", t("theme, effects, keys, AI, privacy… · ⌘,")],
+    ["", t("help"), "manual", t("the manual, the shortcuts, the tour · F1")],
+  ];
+  let at = x;
+  for (const [kind, label, cmd, tip] of items) {
+    if (kind && !d.apps.get(kind)) continue; // its module is off
+    const text = ` ${label} `;
+    const w = strWidth(text);
+    if (at + w > xEnd) break;
+    const rect = { x: at, y, w, h: 1 };
+    const on = !!kind && ws.activeApp?.kind === kind;
+    const hot = ui.hovered(rect);
+    ui.text(at, y, text, { fg: on ? c.accent : hot ? c.fg : c.muted, bg: hot ? c.highlight : c.panelAlt, attrs: on ? BOLD : 0 });
+    ui.hit(rect, { cmd, tip: osKeys(tip) });
+    at += w;
+  }
+  return at;
 }
 
 /**
@@ -204,14 +244,17 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
   const logoRect = { x: r.x, y: r.y, w: strWidth(logo), h: 1 };
   const menuOpen = ws.overlays.some((o) => !o.done && (o as { title?: string }).title === DECK_MENU_TITLE());
   const hot = ui.hovered(logoRect) || menuOpen;
-  if (hot) ui.fill(logoRect, { bg: c.highlight });
+  // a button, never mistaken for a title: its own tinted block, the ▾ in the accent (a tester
+  // didn't know there was a menu behind the logo)
+  const chipBg = hot ? mix(c.accent, c.panelAlt, 0.62) : mix(c.accent, c.panelAlt, 0.84);
+  ui.fill(logoRect, { bg: chipBg });
   ui.gradientText(r.x + INSET, r.y, logo.trim().slice(0, -2), ui.theme.gradient, BOLD, (ui.now / 8000) % 1);
-  ui.text(r.x + logoRect.w - GAP, r.y, "▾", { fg: hot ? c.accent : c.subtle, bg: hot ? c.highlight : c.panelAlt });
-  ui.hit(logoRect, { onClick: () => ws.openDeckMenu(), tip: t("the deck's menu: modules, store, NEXUS, settings, log out…") });
+  ui.text(r.x + logoRect.w - GAP, r.y, "▾", { fg: c.accent, bg: chipBg, attrs: BOLD });
+  ui.hit(logoRect, { onClick: () => ws.openDeckMenu(), tip: t("the deck's menu: modules, store, NEXUS, settings, manual, updates, log out · click") });
 
   const now = new Date();
-  const time = now.toLocaleTimeString(d.settings.data.user.locale || undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  const date = now.toLocaleDateString(d.settings.data.user.locale || undefined, { weekday: "short", day: "numeric", month: "short" });
+  const time = now.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const date = now.toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric", month: "short" });
   ui.animate(1000 - now.getMilliseconds());
   // UPLINK ■: green when the AI is there and answering, amber while it thinks, red when it's off
   // (the provider and the model are in its tip); narrow: the ■ alone, the time without seconds
@@ -222,16 +265,24 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
   const ai = narrow ? "■" : "UPLINK ■";
   const right = narrow ? ` ${ai}  ${time.slice(0, 5)} ` : ` ${ai}  │  ${date}  ${time} `;
   const rx = r.x + r.w - strWidth(right);
-  if (rx <= logoRect.x + logoRect.w) return;
+  // a menu bar after the logo, like a desktop app's: the deck's places one click away (as many as fit)
+  const menuEnd = renderMenuBar(ws, ui, logoRect.x + logoRect.w + 1, r.y, rx - GAP * 2);
+  if (rx <= Math.max(menuEnd, logoRect.x + logoRect.w)) return;
   // " uplink ■  │  date  time", each part once (drawn over each other, `debug layout` saw an overlap)
   const lamp = !d.ai.ready ? c.error : d.ai.busy > 0 ? c.warning : c.success;
   let lx = ui.text(rx, r.y, " ", { bg: c.panelAlt });
   if (!narrow) lx = ui.text(lx, r.y, "uplink ", { fg: d.ai.ready ? c.fg : c.muted, bg: c.panelAlt, attrs: BOLD });
   lx = ui.text(lx, r.y, "■", { fg: lamp, bg: c.panelAlt });
-  ui.text(lx, r.y, right.slice(1 + ai.length), { fg: c.muted, bg: c.panelAlt });
+  // the date and the time: a click opens the mini calendar under them (workspace/minical.ts)
+  const clockR = { x: lx + 1, y: r.y, w: r.x + r.w - lx - 1, h: 1 };
+  const calOpen = ws.overlays.some((o) => !o.done && o instanceof MiniCalendar);
+  const clockHot = ui.hovered(clockR) || calOpen;
+  ui.text(lx, r.y, right.slice(1 + ai.length), { fg: clockHot ? c.fg : c.muted, bg: c.panelAlt });
+  if (clockHot) ui.tint({ ...clockR, x: clockR.x + (narrow ? 1 : 3), w: clockR.w - (narrow ? 1 : 3) }, NONE, c.highlight);
+  ui.hit(clockR, { cmd: "clock calendar", tip: t("the month, today, the days with events · click") });
   // "◈ reads notes/ideas.md", left of UPLINK, while the AI reads (as much of the name as fits)
   if (reading) {
-    const room = rx - (logoRect.x + logoRect.w) - GAP * 2;
+    const room = rx - menuEnd - GAP * 2;
     const label = `◈ ${t("the AI reads")} ${reading}`;
     if (room >= 12) ui.textRight(rx - GAP, r.y, strWidth(label) > room ? `${label.slice(0, Math.max(0, room - 1))}…` : label, { fg: c.warning, bg: c.panelAlt, attrs: BOLD });
   }
@@ -292,55 +343,159 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
   ui.fill(r, { bg: c.statusBg });
   // a frame showing a tab moved there speaks for that page
   const page = ws.focus === "main" ? ws.activeApp : ws.focusedPage;
-  const pane = page ? page.kind : ws.focus === "main" ? "deck" : ws.focus === "sidebar" ? "vault" : ws.focus === "panel" ? "panel" : "shell";
-  const status = page && ws.focus !== "main" ? osKeys(page.status?.() ?? "")
+  // the page's name as its tab writes it ("nexus", not its kind "explorer")
+  const pane = page ? page.title?.() ?? page.kind : ws.focus === "main" ? "deck" : ws.focus === "sidebar" ? "vault" : ws.focus === "panel" ? "panel" : "shell";
+  const status = page && ws.focus !== "main" ? osKeys(tLoose(page.status?.() ?? ""))
     : ws.focus === "shell" && ws.shellTab === "term" && ws.termAvailable
     ? `${ws.sysTerm?.shellName ?? "terminal"} · ${terminalKeysHint()} · ⇧⇧ menu · F12 tabs`
-    : ws.focus === "shell" ? d.shell.status() : ws.focus === "sidebar" ? "enter open · n new note · r rescan" : ws.focus === "panel" ? t("e edit · a add a widget · right-click: move, remove · ⌘⇧P hide") : osKeys(ws.activeApp?.status?.() ?? "");
+    : ws.focus === "shell" ? d.shell.status() : ws.focus === "sidebar" ? t("enter open · n new note · r rescan") : ws.focus === "panel" ? t("e edit · a add a widget · right-click: move, remove · ⌘⇧P hide") : osKeys(tLoose(ws.activeApp?.status?.() ?? ""));
 
-  // right side: each with its priority — when the bar is too narrow, the least important go
-  // first (ui/layout.ts Bar), the keys on the left shrink (cut with …): nothing overlaps
-  const parts: { text: string; fg: number; cmd?: string; tip?: string; priority: number }[] = [];
-  if (d.settings.data.privacy.stealth) parts.push({ text: `◉ ${t("stealth")}`, fg: c.success, cmd: "stealth", tip: t("100 % local: no internet · stealth off"), priority: 9 });
-  if (d.voice.speaking) parts.push({ text: `◖ ${t("voice")}`, fg: c.accentAlt, cmd: "voice stop", tip: t("speaking · click to stop"), priority: 8 });
-  if (d.gamepad.connected) parts.push({ text: "◈ pad", fg: c.success, priority: 4 });
-  if (ws.terminalOn) parts.push(ws.shellVisible ? { text: "▾ shell", fg: c.muted, cmd: "term hide", tip: "fold the shell away · ctrl+`", priority: 6 } : { text: "▴ shell", fg: c.accent, cmd: "term show", tip: "bring the shell back · ctrl+`", priority: 6 });
-  parts.push({ text: "⌨", fg: ws.overlays.some((o) => o instanceof Osk) ? c.accent : c.muted, cmd: "osk", tip: "on-screen keyboard · pad: X", priority: 2 });
-  parts.push({ text: "✦ fx", fg: c.accentAlt, cmd: "view fx", tip: "bloom, scanlines… · `fx` in the shell", priority: 3 });
+  // right side: your items in your order (workspace/statusbar.ts: drag one sideways, right-click
+  // to move or hide it, `statusbar`), each with its priority — when the bar is too narrow, the
+  // least important go first (ui/layout.ts Bar), the keys on the left shrink: nothing overlaps
+  type Part = { id: string; text: string; fg: number; cmd?: string; tip?: string; priority: number };
+  const byId = new Map<string, Part[]>();
+  const add = (p: Part) => byId.set(p.id, [...(byId.get(p.id) ?? []), p]);
+  if (d.settings.data.privacy.stealth) add({ id: "stealth", text: `◉ ${t("stealth")}`, fg: c.success, cmd: "stealth", tip: t("100 % local: no internet · stealth off"), priority: 9 });
+  if (d.voice.speaking) add({ id: "voice", text: `◖ ${t("voice")}`, fg: c.accentAlt, cmd: "voice stop", tip: t("speaking · click to stop"), priority: 8 });
+  if (d.gamepad.connected) add({ id: "pad", text: "◈ pad", fg: c.success, tip: t("a gamepad is plugged in"), priority: 4 });
+  add({ id: "osk", text: "⌨", fg: ws.overlays.some((o) => o instanceof Osk) ? c.accent : c.muted, cmd: "osk", tip: t("on-screen keyboard · pad: X"), priority: 2 });
+  add({ id: "fx", text: "✦ fx", fg: c.accentAlt, cmd: "view fx", tip: t("the effects: bloom, scanlines, curvature… · fx in the shell"), priority: 3 });
   // a module playing sound of its own (ib.audio): its name, one click silences it
-  for (const id of d.mixer.playing()) parts.push({ text: `♪ ${d.plugins.list().find((p) => p.manifest.id === id)?.manifest.name ?? id}`, fg: c.accent, cmd: `audio stop ${id}`, tip: t("a module is playing sound · click to stop it"), priority: 7 });
+  for (const id of d.mixer.playing()) add({ id: "audio", text: `♪ ${d.plugins.list().find((p) => p.manifest.id === id)?.manifest.name ?? id}`, fg: c.accent, cmd: `audio stop ${id}`, tip: t("a module is playing sound · click to stop it"), priority: 7 });
   const muted = !!d.settings.data.sound.muted;
-  parts.push({ text: muted ? "⊘ mute" : "♪", fg: muted ? c.error : c.muted, cmd: "mute", tip: muted ? t("muted: click to hear things again") : t("mute everything (sounds, voice, alerts)"), priority: muted ? 7 : 3 });
-  parts.push({ text: "☾", fg: c.muted, cmd: "screensaver", tip: t("screensaver now (any key brings you back)"), priority: 1 });
-  if (d.settings.data.appearance.showFps) parts.push({ text: `${d.loop.fps}fps ${d.loop.frameMs.toFixed(1)}ms`, fg: c.subtle, priority: 2 });
-  parts.push({ text: `${IS_MAC ? "⌘K" : "^K"} ${t("menu")}`, fg: c.muted, cmd: "menu", priority: 9 });
-  parts.push({ text: `F1 ${t("help")}`, fg: c.muted, cmd: "manual", priority: 5 });
-  // the two side frames' switches, last on the right: the tree (left, ◧) and the panel (right, ◨)
-  parts.push({ text: `◧ ${t("tree")}`, fg: d.workspace.sidebarVisible ? c.accent : c.muted, cmd: "view sidebar", tip: `${t("the file tree on the left · view sidebar")} · ${IS_MAC ? "⌘B" : "ctrl+B"}`, priority: 8 });
-  parts.push({ text: `◨ ${t("panel")}`, fg: d.settings.data.panel?.shown ? c.accent : c.muted, cmd: "panel", tip: `${t("the side panel: widgets always in view · panel")} · ${IS_MAC ? "⌘⇧P" : "ctrl+shift+P"}`, priority: 8 });
+  add({ id: "mute", text: muted ? `⊘ ${t("muted")}` : "♪", fg: muted ? c.error : c.muted, cmd: "mute", tip: muted ? t("muted: click to hear things again") : t("mute everything (sounds, voice, alerts)"), priority: muted ? 7 : 3 });
+  add({ id: "screensaver", text: "☾", fg: c.muted, cmd: "screensaver", tip: t("screensaver now (any key brings you back)"), priority: 1 });
+  if (d.settings.data.appearance.showFps) add({ id: "fps", text: `${d.loop.fps}fps ${d.loop.frameMs.toFixed(1)}ms`, fg: c.subtle, tip: t("frames drawn per second, and the last one's cost"), priority: 2 });
+  add({ id: "menu", text: `${IS_MAC ? "⌘K" : "^K"} ${t("menu")}`, fg: c.muted, cmd: "menu", tip: t("THE MENU: search everything, run anything · ⌘K"), priority: 9 });
+  add({ id: "help", text: `F1 ${t("help")}`, fg: c.muted, cmd: "manual", tip: t("the manual · F1"), priority: 5 });
 
   // the things touch: each right part carries its own "│ " and spaces
   const bar = new Bar(ui, r.x, r.y, r.x + r.w, 0);
+  // the page's own name, as its tab writes it (one name: "setup" on the tab, not "configuration" here)
   const label = ` ${pane.toLowerCase()} `;
   bar.item(strWidth(label) + 1, (x) => {
     const e = ui.text(x, r.y, label, { fg: c.panel, bg: c.accent, attrs: BOLD });
     ui.text(e, r.y, "", { fg: c.accent, bg: c.statusBg });
   }, { priority: 10 });
   if (status) bar.text(` ${status} `, { fg: c.statusFg, bg: c.statusBg }, { priority: 1, fit: 12 });
-  for (const p of parts) {
-    const w = strWidth(p.text);
-    bar.item(w + 3, (rx) => {
-      ui.text(rx, r.y, "│ ", { fg: c.faint, bg: c.statusBg });
-      // the whole cell is the button (the separator and the spaces around the text too):
-      // a one-character button like ◨ is hard to hit otherwise
-      const cell = { x: rx, y: r.y, w: w + 3, h: 1 };
-      const hot = !!p.cmd && ui.hovered(cell);
-      if (hot) ui.fill({ x: rx + 1, y: r.y, w: w + 2, h: 1 }, { bg: c.highlight });
-      ui.text(rx + 2, r.y, p.text, { fg: hot ? c.accent : p.fg, bg: hot ? c.highlight : c.statusBg });
-      if (p.cmd) ui.hit(cell, { cmd: p.cmd, tip: p.tip });
-    }, { side: "right", priority: p.priority });
+  const order = statusOrder(d.settings.data.statusBar);
+  ws.statusSlots = [];
+  const drag = ws.statusDrag;
+  for (const id of order) {
+    if (id === "frames") {
+      bar.item(FRAMES_W + 2, (rx) => {
+        statusGrip(ws, ui, rx, r.y, id, order);
+        drawFrameSwitches(ws, ui, rx + 2, r.y);
+        ws.statusSlots.push({ id, x: rx, w: FRAMES_W + 2 });
+      }, { side: "right", priority: 8 });
+      continue;
+    }
+    for (const p of byId.get(id) ?? []) {
+      const w = strWidth(p.text);
+      bar.item(w + 3, (rx) => {
+        // the whole cell is the button (the separator and the spaces around the text too):
+        // a one-character button like ☾ is hard to hit otherwise
+        const cell = { x: rx, y: r.y, w: w + 3, h: 1 };
+        const hot = !!p.cmd && ui.hovered(cell) && !drag;
+        ui.text(rx, r.y, "│ ", { fg: drag?.id === id ? c.accent : c.faint, bg: c.statusBg });
+        if (hot) ui.fill({ x: rx + 1, y: r.y, w: w + 2, h: 1 }, { bg: c.highlight });
+        ui.text(rx + 2, r.y, p.text, { fg: drag?.id === id ? c.accent : hot ? c.accent : p.fg, bg: hot ? c.highlight : c.statusBg });
+        ws.statusSlots.push({ id, x: rx, w: w + 3 });
+        statusHit(ws, ui, cell, id, order, p.cmd, p.tip);
+      }, { side: "right", priority: p.priority });
+    }
   }
   bar.draw();
+  // dragging an item: where it would land, a bright bar between two items
+  if (drag && drag.to !== undefined) {
+    const slots = [...ws.statusSlots].sort((a, b) => a.x - b.x);
+    const at = drag.to >= slots.length ? (slots.length ? slots[slots.length - 1].x + slots[slots.length - 1].w : r.x + r.w) : slots[drag.to]?.x;
+    if (at !== undefined) ui.text(Math.min(r.x + r.w - 1, at), r.y, "┃", { fg: c.accent, bg: c.statusBg, attrs: BOLD });
+  }
+}
+
+/** the frames' switches: ` ◧  ▾  ◨  ▣ ` — the tree, the shell, the panel, the page alone */
+const FRAMES_W = 12;
+function drawFrameSwitches(ws: Workspace, ui: UI, x: number, y: number): void {
+  const c = ui.c;
+  const d = ws.deck;
+  const mod = IS_MAC ? "⌘" : "ctrl+";
+  const items: [string, boolean, string, string][] = [
+    ["◧", ws.sidebarVisible, "view sidebar", `${t("the file tree")} · ${mod}B`],
+    [ws.shellVisible ? "▾" : "▴", ws.terminalOn && ws.shellVisible, ws.shellVisible ? "term hide" : "term show", `${t("the shell")} · ctrl+\``],
+    ["◨", !!d.settings.data.panel?.shown, "panel", `${t("the side panel: widgets always in view")} · ${IS_MAC ? "⌘⇧P" : "ctrl+shift+P"}`],
+    ["▣", ws.solo, "frame solo", t("the page alone: the tree, the shell and the panel folded away — again: they come back")],
+  ];
+  items.forEach(([icon, on, cmd, tip], k) => {
+    const rect = { x: x + k * 3, y, w: 3, h: 1 };
+    const hot = ui.hovered(rect) && !ws.statusDrag;
+    ui.text(rect.x, y, ` ${icon} `, { fg: hot ? c.bg : on ? c.accent : c.subtle, bg: hot ? c.accent : on ? mix(c.statusBg, c.accent, 0.18) : c.statusBg, attrs: on ? BOLD : 0 });
+    const state = k === 3 ? "" : `\n${on ? t("shown · click to hide") : t("hidden · click to show")}`;
+    ui.hit(rect, { cmd, tip: `${osKeys(tip)}${state}`, menu: () => statusItemMenu(ws, "frames") });
+  });
+}
+
+/** the "│ " before an item, its grip: drag it sideways to move the item */
+function statusGrip(ws: Workspace, ui: UI, x: number, y: number, id: string, order: string[]): void {
+  const c = ui.c;
+  const grip = { x, y, w: 2, h: 1 };
+  ui.text(x, y, "│ ", { fg: ws.statusDrag?.id === id ? c.accent : ui.hovered(grip) ? c.accent : c.faint, bg: c.statusBg });
+  statusHit(ws, ui, grip, id, order, undefined, t("drag sideways: move it · right-click: move, hide…"));
+}
+
+/**
+ * An item's mouse: a click runs its command, a drag sideways moves it (let go: it stays
+ * there), right-click: move it, hide it, show the hidden ones, back to the default.
+ */
+function statusHit(ws: Workspace, ui: UI, rect: Rect, id: string, order: string[], cmd: string | undefined, tip: string | undefined): void {
+  ui.hit(rect, {
+    onClick: (m) => (ws.statusDrag = { id, x0: m.x, moved: false }),
+    onDrag: (m) => {
+      const g = ws.statusDrag;
+      if (!g || g.id !== id) return;
+      if (!g.moved && Math.abs(m.x - g.x0) < 2) return;
+      g.moved = true;
+      ws.ghost = { label: `⇄ ${id}` };
+      // the slot under the pointer (left to right) is where it goes
+      const slots = [...ws.statusSlots].sort((a, b) => a.x - b.x);
+      let to = slots.findIndex((s) => m.x < s.x + s.w / 2);
+      if (to < 0) to = slots.length;
+      g.to = to;
+    },
+    onUp: () => {
+      const g = ws.statusDrag;
+      ws.statusDrag = null;
+      ws.ghost = null;
+      if (!g) return;
+      if (!g.moved) return void (cmd && ws.deck.act(cmd));
+      // dropped before the item that was in that slot (or after the last one): the items not on
+      // the bar right now (stealth off, no gamepad…) keep their places
+      const shown = [...ws.statusSlots].sort((a, b) => a.x - b.x).map((s) => s.id).filter((x, i, a) => a.indexOf(x) === i);
+      const before = shown.slice(g.to ?? 0).find((x) => x !== id);
+      const rest = order.filter((x) => x !== id);
+      const at = before ? rest.indexOf(before) : rest.indexOf(shown.filter((x) => x !== id).pop() ?? "") + 1;
+      void ws.deck.act(`statusbar order ${moveStatusItem([...rest, id], id, at).join(" ")}`);
+    },
+    tip: [tip ? osKeys(tip) : "", cmd ? `❯ ${cmd}` : ""].filter(Boolean).join("\n") || undefined,
+    menu: () => statusItemMenu(ws, id),
+  });
+}
+
+/** Right-click on an item of the status bar. */
+function statusItemMenu(ws: Workspace, id: string): MenuEntry[] {
+  const d = ws.deck;
+  const order = statusOrder(d.settings.data.statusBar);
+  const i = order.indexOf(id);
+  const hidden = d.settings.data.statusBar?.hidden ?? [];
+  return [
+    { label: t("Move left"), cmd: `statusbar move ${id} left`, disabled: i <= 0 },
+    { label: t("Move right"), cmd: `statusbar move ${id} right`, disabled: i < 0 || i >= order.length - 1 },
+    { label: t("Hide"), cmd: `statusbar hide ${id}`, tip: t("statusbar show brings it back") },
+    ...(hidden.length ? [{ label: t("Show again"), sub: hidden.map((h) => ({ label: h, cmd: `statusbar show ${h}` })) }] : []),
+    "-",
+    { label: t("Status bar back to default"), cmd: "statusbar reset" },
+  ];
 }
 
 /**

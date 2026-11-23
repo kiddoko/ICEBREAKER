@@ -45,7 +45,7 @@ const STEPS: TourStep[] = [
   },
   {
     title: "vault",
-    text: "Your notes, files and folders. One click selects, a double-click opens. ⌘N a new note, F2 renames, Delete (⌘⌫ on a Mac) sends to the trash — nothing is lost, ⌘Z brings it back. ⌘⇧T shows or hides the tree.",
+    text: "Your notes, files and folders. One click selects, a double-click opens. ⌘N a new note, F2 renames, Delete (⌘⌫ on a Mac) sends to the trash — the tree's last line — nothing is lost, ⌘Z brings it back. ⌘⇧T shows or hides the tree.",
     prep: (ws) => void (ws.sidebarVisible = true),
     at: (ws) => ws.rects.sidebar,
   },
@@ -63,7 +63,7 @@ const STEPS: TourStep[] = [
   },
   {
     title: "shell",
-    text: "ibsh is the deck's own shell: help lists the commands, man <command> explains one. + opens your computer's real terminal. The LOG tab keeps what happened: the commands your clicks ran, errors, messages — tick a filter to see only those.",
+    text: "ibsh is the deck's own shell: help lists the commands, man <command> explains one. + opens your computer's real terminal. The log, on the shell's right (a tab when it's narrow), keeps what happened: the commands your clicks ran, errors, messages — tick a filter to see only those.",
     prep: (ws) => void (ws.shellVisible = true),
     at: (ws) => ws.rects.shell,
   },

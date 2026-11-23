@@ -35,7 +35,7 @@ export function activate(ib: IcebreakerAPI): void {
   /** "14 nov" */
   const dayText = (key: string) => {
     const [y, m, d] = key.split("-").map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+    return new Date(y, m - 1, d).toLocaleDateString(ib.lib.dateLocale(), { day: "numeric", month: "short" });
   };
   const run = (line: string) => void ib.shell.run(line);
   let all: Stat[] = [];
@@ -125,7 +125,7 @@ export function activate(ib: IcebreakerAPI): void {
         const p = await values(s.id, days);
         const lo = Math.min(...p), hi = Math.max(...p), sum = p.reduce((x, y) => x + y, 0);
         ctx.out(`${fmt.bold(t(s.label))} ${fmt.dim(`· ${s.id} · ${s.kind} · ${t("from")} ${s.source}`)}\n`);
-        ctx.out(`${fmt.bold(show(s))}  ${fmt.dim(t("updated"))} ${new Date(s.updated).toLocaleString()}\n`);
+        ctx.out(`${fmt.bold(show(s))}  ${fmt.dim(t("updated"))} ${new Date(s.updated).toLocaleString(ib.lib.dateLocale())}\n`);
         for (let i = 0; i < p.length; i += 60) ctx.out(`${fmt.cyan(sparkline(p, p.length).slice(i, i + 60))}\n`);
         ctx.out(fmt.dim(`${days} ${t("days")} · min ${show(s, lo)} · max ${show(s, hi)} · ${s.kind === "counter" ? `${t("total")} ${show(s, sum)}` : `${t("avg")} ${show(s, sum / p.length)}`}\n`));
         return 0;
@@ -440,7 +440,7 @@ export function activate(ib: IcebreakerAPI): void {
         const gutter = Math.min(10, Math.max(...[hi, (hi + lo) / 2, lo].map((x) => strW(show(st, x)))) + 1);
         const px = plotR.x + INSET + gutter, pw = Math.max(1, plotR.x + plotR.w - INSET - px);
         ui.text(plotR.x + INSET, plotR.y, show(st, hi), { fg: c.subtle }, gutter - 1);
-        if (plotR.h >= 5) ui.text(plotR.x + INSET, plotR.y + Math.floor(plotR.h / 2), show(st, (hi + lo) / 2), { fg: c.faint }, gutter - 1);
+        if (plotR.h >= 5) ui.text(plotR.x + INSET, plotR.y + Math.floor(plotR.h / 2), show(st, (hi + lo) / 2), { fg: c.subtle }, gutter - 1);
         ui.text(plotR.x + INSET, plotR.y + plotR.h - 1, show(st, lo), { fg: c.subtle }, gutter - 1);
         // the average as a dashed line behind
         const avgRow = plotR.y + Math.round((plotR.h - 1) * (1 - (f.avg - lo) / (hi - lo || 1)));
@@ -470,7 +470,7 @@ export function activate(ib: IcebreakerAPI): void {
           b.text(t("max {a}", { a: show(st, f.max) }), { fg: c.fg }, { priority: 8 });
           b.text(t("avg {a}", { a: show(st, f.avg) }), { fg: c.subtle }, { priority: 6 });
         }
-        b.text(`${t("updated")} ${new Date(st.updated).toLocaleDateString()}`, { fg: c.faint }, { side: "right", priority: 2 });
+        b.text(`${t("updated")} ${new Date(st.updated).toLocaleDateString(ib.lib.dateLocale())}`, { fg: c.subtle }, { side: "right", priority: 2 });
         b.draw();
       }
     }

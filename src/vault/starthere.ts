@@ -46,15 +46,15 @@ the keyboard, the mouse or a gamepad.
 ## The 30-second tour
 
 \`\`\`
-┌─ tabs ─────────────────────────────────────── nexus · store · modules · ⚙ ─┐
+┌ ◆ ICEBREAKER ▾ modules · store · nexus · settings · help ─── uplink · time ┐
 │ ┌ VAULT ┐ ┌ HOME ───────────────────────────────────────────────────────┐ │
 │ │ ★ pins │ │  widgets: clock · weather · todo · habits · stats · chat… │ │
 │ │ tree   │ │  e = edit the layout · a = add a widget · enter = open it  │ │
 │ └────────┘ └───────────────────────────────────────────────────────────┘ │
-│ ┌ shell: icbrkr_trm · ibsh · log ────────────────────────── ≡ ─ □ ───┐ │
+│ ┌ shell: zsh · ibsh · log ────────────────────────────────── ≡ ─ □ ───┐ │
 │ │ ◆ ~/notes ❯ _                                                         │ │
 │ └───────────────────────────────────────────────────────────────────────┘ │
-└ status bar: what keys do here · ▾ shell · ✦ fx · ⌘K menu · F1 help ────┘
+└ status bar: what keys do here · ◧ ▾ ◨ ▣ · ✦ fx · ⌘K menu · F1 help ────┘
 \`\`\`
 
 | You want to… | Do this |
@@ -65,7 +65,8 @@ the keyboard, the mouse or a gamepad.
 | the journal (today) | **⌘J / Ctrl+J**, or \`journal\` · \`journal "a line"\` adds a line without opening it |
 | change the look | settings (◆ ICEBREAKER ▾ top left, or **⌘, / Ctrl+,**) → APPEARANCE, or \`theme\` |
 | switch a feature off | **MODULES** (⌘⇧M) → space |
-| learn the shell | click anything: the command it runs shows in the shell's **log** tab |
+| learn the shell | click anything: the command it runs shows in the shell's **log** (on its right) |
+| know what something does | rest the pointer on it: a tip says what it does and the command it runs |
 | see everything the deck can do | **BLOCKS** (\`blocks\`): every command, setting, shortcut, function… and how to call it |
 | someone else on this deck (or a work deck) | the login page → **+ new account**: its own settings, theme and vault |
 
@@ -157,12 +158,14 @@ its line is chosen — everywhere in the deck.
 ## The tree (left)
 \`\`\`
 VAULT              8
- + note   + dir    ⌫   ← ⌫: the trash (see it, put things back)
+ + note   + dir
  ■■■■■■■■            ← colour tags: click one to see only that colour
  ★ ✎ ideas          ← pinned (p pins the selected thing)
  ▾ journal/      2
  ├─ 2026-11-17
  └─ 2026-11-18
+ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+ 🗑 trash       3   ← the last line: the trash (see it, put things back)
  ▸ϟ projects/  ■ 3   ← a custom icon, tagged cyan (the square, on the right)
 \`\`\`
 
@@ -245,8 +248,27 @@ the tree and the shell shown or hidden, the shell's tab, the page you were on, t
   hues × 10 shades at the saturation you choose, greys, the theme's own colours;
   arrows or the mouse, tab for the saturation and the #hex field, enter keeps it.
   A changed knob shows **•** and, on its line, **↺**: back to the theme's value.
-- Status bar, right: **♪** mutes everything · **☾** the screensaver (each theme
-  has its own: a neon city, an 80s mainframe, sonar, warp, an e-reader).
+- Status bar, right: **◧ ▾ ◨ ▣** — the tree, the shell, the panel, and **the page
+  alone** (everything else folded away; again: it all comes back, \`frame solo\`) ·
+  **♪** mutes everything · **☾** the screensaver (each theme has its own: a neon city,
+  an 80s mainframe, sonar, warp, an e-reader). **The bar is yours to arrange**: drag an
+  item sideways, right-click it to move or hide it (\`statusbar\`, \`statusbar reset\`).
+- **Hover tips**: rest the pointer on anything — a tip says what it does and the command
+  it runs; it goes as soon as you move. In Settings, what a setting does sits to the
+  right of its line.
+- **WHEN?**: wherever a day or a time is asked (a due date, a reminder, an event, an
+  alarm, a habit's days), a little calendar and clock — arrows, a click, today / tomorrow —
+  or type it as always ("demain 9h", "+3d"). A click on the **date and time** at the top
+  right opens a **mini calendar** (the days with events have a dot).
+- **SYSMON** shows the graphics card too (its use and memory where the system tells them);
+  **NEXUS** writes on each node what it is (folder, note, pdf…) and, when the pointer rests on
+  one, unfolds a small window of what's inside; **CALENDAR → ⇣ import** reads a CSV or an
+  .ics (\`cal import\`); **UPLINK**'s pop-up sets its eye (when hovered, everywhere, closed),
+  whether it talks and blinks; \`neofetch\` draws the machine as a HUD.
+- **Readable in every theme**: secondary text and hints keep enough contrast whatever the
+  theme's colours (THEMES.md).
+- **Ctrl + wheel** changes the interface scale (every system), like ctrl+= / ctrl+-.
+  **⇧ + wheel** goes to what's under the pointer; over the tree it walks the selection.
 - **◨ side panel** (status bar, ⌘⇧P, or \`panel\`): a column on the right whose
   widgets stay in view on every page. Click it: **a** adds a widget; the **✎ edit** button (bottom right) or **⌘E / ctrl+E** edits.
   **Edit mode is shared** by HOME and the panel (e on either, esc ends it), and
@@ -283,8 +305,10 @@ the tree and the shell shown or hidden, the shell's tab, the page you were on, t
   one, nothing else); **a** on the CLOCKS page. A full
   screen rings (s snooze 5 min, enter stop; the gamepad's B / A), with the sound and a
   notification — while ICEBREAKER is running. \`clock alarm test\` tries it.
-- **◆ ICEBREAKER ▾** (top left): the deck's menu — MODULES, STORE, NEXUS, settings,
-  the manual, what's new, updates, and **⏻ log out** (back to the login page, ⌘⇧L / Ctrl+Shift+L).
+- **◆ ICEBREAKER ▾** (top left, the tinted button): the deck's menu — MODULES, STORE,
+  NEXUS, settings, the manual, what's new, updates, and **⏻ log out** (back to the login
+  page, ⌘⇧L / Ctrl+Shift+L). Beside it, a menu bar: modules · store · nexus · settings ·
+  help, one click each.
 - **What's new**: after each update, a short page opens once — the version big,
   what's new, what's fixed. To see it again: \`changelog\`, Settings → UPDATES →
   *What's new*, or THE MENU; ← → for the versions before.
@@ -404,9 +428,9 @@ it, ⌘\` brings it back):
 
 | Tab | What |
 |---|---|
-| **icbrkr_trm** | your real shell (zsh, bash, PowerShell…) **plus** every ICEBREAKER command. + opens another, right-click renames it |
+| **zsh** (bash, powershell…) | your real shell, named after itself, **plus** every ICEBREAKER command. + opens another, right-click renames it |
 | **ibsh** | ICEBREAKER's own shell: it only sees the vault, \`rm\` goes to .trash |
-| **log** | what you typed and clicked (with the output), errors (a code — E102… — and what to do: \`errors E102\`), messages; chips on top filter them (\`log show errors\`) |
+| **log** | on the shell's right when it's wide (a tab when it's narrow, or with \`log side off\`): what you typed and clicked (with the output), errors (a code — E102… — and what to do: \`errors E102\`), messages; chips on top filter them (\`log show errors\`) |
 
 \`\`\`
 ◆ ~/notes ❯ todo add "ship it" --urgent --due fri
@@ -461,7 +485,7 @@ with nothing selected, ctrl+C still stops the command). Right-click → Copy too
 \`rm\`, Delete in the tree and right-click → trash move things to .trash (not
 deleted yet). A note sent there closes its tabs and leaves the pins; ⌘Z brings
 the note and its pins back (not the tab: open it again). \`trash\` lists it, \`trash restore 2\` puts one back where it
-lived. ⌫ above the tree (or \`trash open\`) opens the TRASH page: everything in
+lived. The tree's last line, *trash* (or \`trash open\`), opens the TRASH page: everything in
 it, newest first, with where it lived — enter puts it back, r somewhere else,
 o opens it to read. **Delete permanently** (del), or *✕ empty the trash* at the
 top: it asks first and it **can't be undone** — no ⌘Z, no copy kept
@@ -512,7 +536,7 @@ and its key on THE MENU, changed with one click.
 
 | Mouse | |
 |---|---|
-| click | does it — and the shell's **log** tab shows the command |
+| click | does it — and the shell's **log** shows the command |
 | double-click | open (in the tree too: one click selects, one click folds a folder) |
 | drag · double · triple-click | select text in a note, ibsh or the terminal (a word, a line) — ⌘C copies |
 | back / forward buttons | like a browser: the note this tab showed before / after (opened in place from the tree) |
@@ -640,7 +664,7 @@ todo add "pack the books" --every sat --cycles 3
   waits for your yes: say no and you keep the version you have.
 - **The access journal**: who used which permission, when, on what — a module, the
   AI, your real terminal. Names only (a note's path, a site), 30 days, on this
-  computer only. The LOG tab's **◈ access** filter, or \`plugin perms <module>\`.
+  computer only. The log's **◈ access** filter, or \`plugin perms <module>\`.
 - **What the AI may read** (Settings → PERMISSIONS): nothing · what you give it — a
   note you name in your message ("summarize ideas"), pipe to it or have in front ·
   your whole vault. The top bar says **◈ the AI reads …** while it does. Writing a
@@ -702,7 +726,7 @@ nothing is drawn (0 % CPU).
 
 **Clicks**: while drawing, \`ui.hit(rect, { onClick, cmd, menu, tip })\` marks
 an area; the last one drawn under the pointer wins. A \`cmd\` area runs that
-shell command and the shell's LOG tab shows it — the mouse teaches the command line.
+shell command and the shell's log shows it — the mouse teaches the command line.
 
 **Traps**: a new setting needs its default in \`core/settings.ts\` (setting an
 unknown key fails); dialogs get raw keys, not "up/confirm" actions.

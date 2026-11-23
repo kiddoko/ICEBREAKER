@@ -1,4 +1,5 @@
 import { mix } from "../core/color";
+import { TRASH } from "../core/glyphs";
 import type { Rect } from "../core/grid";
 import { FileBrowser } from "../workspace/filebrowser";
 import type { UI } from "../ui/ui";
@@ -241,14 +242,14 @@ export async function newLinkFlow(deck: Deck): Promise<void> {
     }
   } else if (k === 3) {
     const pages = [
-      { label: "HOME", cmd: "home", icon: "⌂" },
-      { label: "NEXUS", cmd: "nexus", icon: "⬡" },
-      { label: "MODULES", cmd: "modules", icon: "▦" },
-      { label: "STORE", cmd: "store", icon: "⇣" },
-      { label: "SETTINGS", cmd: "settings", icon: "⚙" },
-      { label: "SHORTCUTS", cmd: "shortcuts", icon: "⌨" },
-      { label: "TRASH", cmd: "trash open", icon: "⌫" },
-      { label: "JOURNAL", cmd: "journal", icon: "✎" },
+      { label: "home", cmd: "home", icon: "⌂" },
+      { label: "nexus", cmd: "nexus", icon: "⬡" },
+      { label: "modules", cmd: "modules", icon: "▦" },
+      { label: "store", cmd: "store", icon: "⇣" },
+      { label: "settings", cmd: "settings", icon: "⚙" },
+      { label: "shortcuts", cmd: "shortcuts", icon: "⌨" },
+      { label: "trash", cmd: "trash open", icon: TRASH },
+      { label: "journal", cmd: "journal", icon: "✎" },
     ];
     const i = await deck.choose(t("Which page?"), pages.map((p) => ({ label: `${p.icon}  ${p.label}`, hint: p.cmd })));
     if (i !== null) pick = pages[i];

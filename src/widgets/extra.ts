@@ -2,7 +2,7 @@ import { strWidth, wrapWords } from "../core/unicode";
 import { typed } from "../ui/typewriter";
 import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
 import { chatWidget } from "./chatbox";
-import { t } from "../core/i18n";
+import { t, dateLocale } from "../core/i18n";
 import { BOLD } from "../core/grid";
 import type { Deck } from "../deck";
 import { Rain } from "../fx/rain";
@@ -69,7 +69,7 @@ const moonWidget: WidgetSpec = {
   size: { w: 4, h: 4 },
   min: { w: 2, h: 2 },
   open: "launch moon",
-  render(ui, r, { deck }) {
+  render(ui, r) {
     const c = ui.c;
     const now = Date.now();
     // the moon drawn (moondraw.ts), its words beside it when there's room
@@ -83,7 +83,7 @@ const moonWidget: WidgetSpec = {
     const lines: [string, number, number][] = [
       [t(phaseName(now)), c.fg, BOLD],
       [t("{n} % lit", { n: Math.round(moonLit(now) * 100) }), c.muted, 0],
-      ...(full ? ([[`● ${t("full moon {d}", { d: full.at.toLocaleDateString(deck.settings.data.user.locale || undefined, { weekday: "short", day: "numeric" }) })}`, c.subtle, 0]] as [string, number, number][]) : []),
+      ...(full ? ([[`● ${t("full moon {d}", { d: full.at.toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric" }) })}`, c.subtle, 0]] as [string, number, number][]) : []),
     ];
     const ty = r.y + Math.max(0, Math.floor((r.h - lines.length) / 2));
     lines.slice(0, r.h).forEach(([s, fg, attrs], i) => ui.text(tx, ty + i, s, { fg, attrs }, tw));
@@ -170,7 +170,7 @@ const worldWidget: WidgetSpec = {
           time = new Intl.DateTimeFormat("en-GB", { timeZone: tz, weekday: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date());
         } catch {}
         ui.text(r.x + 1, y, tz.split("/").pop()!.replace(/_/g, " "), { fg: sel ? c.fg : c.muted, ...(sel ? { bg: c.highlight } : {}) });
-        ui.text(r.x + 18, y, tz, { fg: c.faint, ...(sel ? { bg: c.highlight } : {}) }, r.w - 36);
+        ui.text(r.x + 18, y, tz, { fg: c.subtle, ...(sel ? { bg: c.highlight } : {}) }, r.w - 36);
         ui.textRight(r.x + r.w - 5, y, time.toLowerCase(), { fg: c.accent, ...(sel ? { bg: c.highlight } : {}) });
         ui.text(r.x + r.w - 3, y, "✕", { fg: ui.hovered({ x: r.x + r.w - 3, y, w: 1, h: 1 }) ? c.error : c.faint, ...(sel ? { bg: c.highlight } : {}) });
         ui.hit({ x: r.x + r.w - 3, y, w: 1, h: 1 }, { cmd: `worldclock rm ${tz}`, tip: "x · remove" });
@@ -364,13 +364,23 @@ const aiWidget: WidgetSpec = {
   description: "your AI uplink: its state, a quick question",
   size: { w: 3, h: 6 },
   min: { w: 2, h: 2 },
-  render(ui, r, { deck }) {
+  render(ui, r, { deck, key }) {
     const c = ui.c;
     const ok = deck.ai.ready;
     const label = deck.ai.provider.label;
+    // its personality (its pop-up, `uplink eye|quips|blinks`): the eye on hover / always / never
+    const look0 = uplinkLook(deck, key);
     // four moods: idle (a slow orbit) · thinking (fast, two signals) · speaking (a voice wave) · offline
     const thinking = deck.ai.busy > 0;
     const speaking = deck.voice.speaking;
+    // its smallest size: no room for the core (a cut ring) — who it is and how it is, in words
+    if (r.h < 5) {
+      const st = !ok ? `○ ${t("offline")}` : thinking ? `◌ ${t("processing")}` : speaking ? `◖ ${t("speaking")}` : `● ${t("up")}`;
+      ui.textFit(r.x + INSET, r.y, [label, "AI"], { fg: c.fg, attrs: BOLD }, r.w - INSET * 2);
+      if (r.h > 1) ui.text(r.x + INSET, r.y + 1, st, { fg: !ok ? c.error : thinking ? c.accentAlt : speaking ? c.info : c.success }, r.w - INSET * 2);
+      ui.animate(ok ? 1000 : 5000);
+      return;
+    }
     // ring + a blank line + the label lines, centered in the card; the ring grows with it
     const lines = ok ? 2 : 3;
     const rows = Math.max(3, Math.min(r.h - lines - 1, 9));
@@ -378,29 +388,38 @@ const aiWidget: WidgetSpec = {
     const cols = Math.min(r.w, cellsFor(ui, rows));
     const box = { x: r.x + Math.floor((r.w - cols) / 2), y: top, w: cols, h: rows };
     // the pointer over the widget: the core becomes an eye that looks at it
-    const over = ui.hovered(r);
+    const over = ui.hovered(r) && look0.eye !== "off";
     if (over && !hover) hover = { since: ui.now, quip: QUIPS[Math.floor(Math.random() * QUIPS.length)].replace("{name}", deck.settings.data.user.handle) };
     if (!over) hover = null;
     let look: { x: number; y: number } | null = null;
-    if (hover) {
+    // "always": it watches the pointer wherever it is on the screen
+    if (hover || (look0.eye === "always" && ui.mouse.x >= 0)) {
       const ox = (cols * ui.cellAspect) / 2, oy = rows / 2;
       const mx = (ui.mouse.x - box.x + 0.5) * ui.cellAspect - ox, my = ui.mouse.y - box.y + 0.5 - oy;
       const len = Math.hypot(mx, my) || 1;
       look = { x: mx / len, y: my / len };
     }
     // the face itself is shared with the guided tour (ui/uplinkcore.ts)
-    drawUplinkCore(ui, box, { mood: !ok ? "offline" : thinking ? "thinking" : speaking ? "speaking" : "idle", look, blink: !!hover && ui.now - hover.since < 140 });
+    // a blink when you arrive, and now and then by itself (every 4–7 s)
+    const idleBlink = look0.blinks && look !== null && ui.now % 5300 < 130;
+    drawUplinkCore(ui, box, { mood: !ok ? "offline" : thinking ? "thinking" : speaking ? "speaking" : "idle", look, blink: (!!hover && ui.now - hover.since < 140) || idleBlink });
     const y = top + rows + 1;
     if (y < r.y + r.h) ui.textCenter(r, y, label, { fg: c.fg, attrs: BOLD });
     // its little line types itself out, with blips (ui/typewriter.ts)
-    const quip = hover ? `“${hover.quip}”` : "";
-    const state = hover ? [...quip].slice(0, typed(ui, `uplink-quip:${hover.since}`, quip)).join("") : !ok ? "○ offline" : thinking ? "◌ processing" : speaking ? "◖ speaking" : "● uplink up";
+    const quip = hover && look0.quips ? `“${hover.quip}”` : "";
+    const state = quip && hover ? [...quip].slice(0, typed(ui, `uplink-quip:${hover.since}`, quip)).join("") : !ok ? `○ ${t("offline")}` : thinking ? `◌ ${t("processing")}` : speaking ? `◖ ${t("speaking")}` : `● ${t("uplink up")}`;
     if (y + 1 < r.y + r.h) ui.textCenter(r, y + 1, state, { fg: !ok ? c.error : thinking ? c.accentAlt : speaking ? c.info : c.success });
-    if (!ok && y + 2 < r.y + r.h) ui.textCenter(r, y + 2, deck.settings.data.privacy.stealth ? "stealth: local model only" : "enter: settings", { fg: c.faint });
+    if (!ok && y + 2 < r.y + r.h) ui.textCenter(r, y + 2, deck.settings.data.privacy.stealth ? t("stealth: local model only") : t("enter: settings"), { fg: c.subtle });
     ui.animate(ok ? (thinking || speaking ? 33 : 50) : 1000);
   },
   activate: ({ deck }) => void deck.openApp(deck.ai.ready ? "link" : "settings"),
 };
+
+/** the UPLINK widget's personality, per copy: where its eye looks, whether it talks and blinks */
+export function uplinkLook(deck: Parameters<typeof widgetConfig>[0], key?: string): { eye: "hover" | "always" | "off"; quips: boolean; blinks: boolean } {
+  const k = key ?? "ai";
+  return { eye: widgetConfig(deck, k, "eye", "hover"), quips: widgetConfig(deck, k, "quips", true), blinks: widgetConfig(deck, k, "blinks", true) };
+}
 
 export { aiWidget };
 export const EXTRA_WIDGETS: WidgetSpec[] = [aiWidget, chatWidget, newsWidget, focusWidget, moonWidget, matrixWidget, worldWidget, quoteWidget, streakWidget];

@@ -7,6 +7,7 @@
  *   binary    BCD columns ●○ — hours, minutes, (seconds)
  *   minimal   just the time, big and quiet
  */
+import { dateLocale } from "../core/i18n";
 import { strWidth } from "../core/unicode";
 import { bigText } from "../ui/bigtext";
 import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
@@ -52,7 +53,7 @@ export function drawClock(ui: UI, r: Rect, deck: Deck, now = new Date(), key?: s
   const want = widgetConfig(deck, key, "style", h.clockStyle);
   const style = (CLOCK_STYLES as readonly string[]).includes(want) ? (want as ClockStyle) : "dots";
   const secs = !!widgetConfig(deck, key, "seconds", h.clockSeconds);
-  const locale = deck.settings.data.user.locale || undefined;
+  const locale = dateLocale();
   const date = now.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
   const grad = ui.theme.gradient.length ? ui.theme.gradient : [c.accent, c.accentAlt];
   const hh = pad(now.getHours()), mm = pad(now.getMinutes()), ss = pad(now.getSeconds());
@@ -210,7 +211,7 @@ export function drawClock(ui: UI, r: Rect, deck: Deck, now = new Date(), key?: s
 export const clockCommand: Command = {
   name: "clock",
   summary: "the clock widget's face (dots, segment, analog, binary, minimal), and wake-up alarms",
-  usage: "clock                       what it shows now\nclock style <name>          dots · segment · analog · binary · minimal\nclock style next | prev     the next / the one before\nclock seconds on|off        show the seconds\n" + ALARM_USAGE,
+  usage: "clock                       what it shows now\nclock style <name>          dots · segment · analog · binary · minimal\nclock style next | prev     the next / the one before\nclock seconds on|off        show the seconds\nclock calendar              the mini calendar (a click on the top bar's date)\n" + ALARM_USAGE,
   examples: [
     ["clock style analog", "a round dial"],
     ["clock seconds on", "with the seconds"],
@@ -218,12 +219,13 @@ export const clockCommand: Command = {
     ["clock alarm 6h45", "once, the next 6:45"],
     ["clock alarm", "the alarms"],
   ],
-  complete: () => ["style", "seconds", "alarm", ...CLOCK_STYLES, "on", "off", "next", "prev", "rm", "snooze", "stop", "test", "--days"],
+  complete: () => ["style", "seconds", "calendar", "alarm", ...CLOCK_STYLES, "on", "off", "next", "prev", "rm", "snooze", "stop", "test", "--days"],
   run(ctx) {
     const d = ctx.deck;
     const h = d.settings.data.home;
     const [sub, v] = ctx.args;
     if (sub === "alarm" || sub === "alarms") return alarmCommand(ctx, ctx.args.slice(1));
+    if (sub === "calendar") return ctx.deck.workspace.openMiniCalendar(), 0;
     // the copy whose pop-up is open (or that's selected) changes; else every clock without its own face
     const key = widgetTarget("clock") ?? undefined;
     const style = widgetConfig(d, key, "style", h.clockStyle);

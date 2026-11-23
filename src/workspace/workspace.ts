@@ -1,5 +1,9 @@
 import { RecoveryDialog } from "./recoverydialog";
 import { DECK_MENU_TITLE, deckMenu, frameMenu, editMenu, shellMenu } from "./menus";
+import type { TipContent } from "../ui/tipview";
+import { MiniCalendar } from "./minical";
+import { PageAlone } from "./pagealone";
+import { WhenPicker, type WhenOptions, type WhenResult } from "./whenpicker";
 import { editBand, renderNotchBand, renderShellPanel, renderStatusBar, renderSubtitles, renderTip, renderTopBar } from "./chrome";
 import { shortcutFor, type Shortcut } from "../core/shortcuts";
 import { SidePanel } from "./sidepanel";
@@ -111,6 +115,8 @@ export class Workspace {
   private borderDrag: { b: Border; arr: ANode; m: MouseInput } | null = null;
 
   /** Move the border being dragged to the pointer: both sides' new lengths, saved (⌘Z: one step per drag). */
+  /** the last frame's switches and size (a dragged border keeps a share of it) */
+  private today: Today = { sidebar: true, shell: true, shellMax: false, panel: false, shellRatio: 0.3, cols: 1, bodyH: 1 };
   private dragBorder(m: MouseInput): void {
     const g = this.borderDrag;
     if (!g) return;
@@ -122,7 +128,8 @@ export class Workspace {
     const gap = row ? b.rb.x - (b.ra.x + b.ra.w) : 0;
     const pos = Math.max(start + MIN, Math.min(end - MIN - gap, row ? m.x : m.y));
     const aLen = pos - start, bLen = end - pos - gap;
-    const next = resizeBetween(g.arr, b.a as FrameId, b.b as FrameId, b.dir, aLen, bLen);
+    // kept as a share of the screen: a theme with another font keeps the proportions
+    const next = resizeBetween(g.arr, b.a as FrameId, b.b as FrameId, b.dir, aLen, bLen, row ? this.today.cols : this.today.bodyH);
     this.deck.settings.set("layout", { version: 1, root: next });
   }
 
@@ -149,6 +156,9 @@ export class Workspace {
    * drags it, gone when the button comes up. Where it would land is lit by that source.
    */
   ghost: { label: string } | null = null;
+  /** the status bar's items as drawn (left to right) and the one being dragged (chrome.ts) */
+  statusSlots: { id: string; x: number; w: number }[] = [];
+  statusDrag: { id: string; x0: number; moved: boolean; to?: number } | null = null;
 
   /** the ghost: a small lit label just under-right of the pointer */
   private drawGhost(ui: UI, screen: Rect): void {
@@ -169,6 +179,8 @@ export class Workspace {
   /** Hover tooltip: what's under the mouse and since when. */
   tip = { key: "", since: 0 };
   tipHidden = false;
+  /** this frame's tip (renderTip): what the deck shows above the grid (ui/tipview.ts) */
+  tipWant: { key: string; content: TipContent } | null = null;
   /** where the text cursor was last frame (the menu key opens the menu there) */
   private lastCaret: { x: number; y: number } | null = null;
   /** The shell panel's tabs: your system terminal, ibsh, what clicks ran. */
@@ -846,6 +858,41 @@ export class Workspace {
     this.focus = "shell";
   }
 
+  /**
+   * Everything folded away but the page in the middle (the status bar's ▣, `frame solo`), and
+   * back: the tree, the panel and the shell come back as they were.
+   */
+  private soloWas: { tree: boolean; panel: boolean; shell: boolean } | null = null;
+  get solo(): boolean {
+    return !this.sidebarVisible && !this.deck.settings.data.panel?.shown && !(this.terminalOn && this.shellVisible);
+  }
+  /** a module's page alone (ib.ui.fullWindow, workspace/pagealone.ts) */
+  readonly pageAlone = new PageAlone();
+  /** the page `app` asks to be alone (`on`) or not; true when it now is */
+  fullWindow(app: App, on: boolean): boolean {
+    const what = this.pageAlone.request(app, on, this.solo);
+    if (what) this.toggleSolo();
+    return this.solo && this.pageAlone.owner === app;
+  }
+
+  toggleSolo(): void {
+    const panel = !!this.deck.settings.data.panel?.shown;
+    if (!this.solo) {
+      this.soloWas = { tree: this.sidebarVisible, panel, shell: this.shellVisible };
+      this.sidebarVisible = false;
+      if (panel) this.deck.settings.set("panel.shown", false);
+      this.shellVisible = false;
+      this.focus = "main";
+    } else {
+      const was = this.soloWas ?? { tree: true, panel: false, shell: true };
+      this.soloWas = null;
+      if (was.tree) this.sidebarVisible = true;
+      if (was.panel) this.deck.settings.set("panel.shown", true);
+      if (was.shell && this.terminalOn) this.shellVisible = true;
+    }
+    this.deck.requestFrame();
+  }
+
   toggleSidebar(): void {
     // folded into a strip: ⌘B opens it rather than hiding it
     if (this.sidebarVisible && isFolded(this.arrangement, "vault")) {
@@ -932,6 +979,11 @@ export class Workspace {
     return new Promise((resolve) => this.push(new RecoveryDialog(words, resolve)));
   }
 
+  /** a day, a time, days of the week (workspace/whenpicker.ts) */
+  pickWhen(title: string, opts: WhenOptions, locale: string): Promise<WhenResult | null> {
+    return new Promise((resolve) => this.push(new WhenPicker(title, opts, locale, resolve)));
+  }
+
   prompt(title: string, opts: PromptOptions = {}): Promise<string | null> {
     return new Promise((resolve) => this.push(new PromptDialog(title, opts, resolve)));
   }
@@ -957,6 +1009,13 @@ export class Workspace {
    * On text with nothing of its own: copy / paste.
    */
   /** "◆ ICEBREAKER ▾", under the logo (a click on it, or esc with nothing else to close). */
+  /** the mini calendar under the top bar's date (a click on it, `clock calendar`); again: closed */
+  openMiniCalendar(): void {
+    const open = this.overlays.find((o) => o instanceof MiniCalendar && !o.done);
+    if (open) return void (open.done = true);
+    this.push(new MiniCalendar(this.deck, { x: this.today.cols - 1, y: this.topBarY + 1 }));
+  }
+
   openDeckMenu(): void {
     this.openMenu(deckMenu(this), 0, this.topBarY + 1, DECK_MENU_TITLE());
   }
@@ -1255,8 +1314,11 @@ export class Workspace {
       case "wheel": {
         this.tipHidden = true;
         const h = pick((x) => !!x.onWheel);
-        // shift + wheel walks the tree from anywhere (Settings → VAULT), but a slider keeps its wheel
-        if (m.shift && this.sidebarVisible && !h?.fine && !m.fine && this.sidebar.walkWheel(m.delta)) break;
+        // shift + wheel goes to what's under the pointer, like the wheel (Settings scroll); it walks
+        // the tree's selection over the tree — or with the tree focused and nothing to scroll there
+        const overTree = !!this.rects.sidebar && inside(this.rects.sidebar, m.x, m.y);
+        const treeWalk = overTree || (!h && this.focus === "sidebar");
+        if (m.shift && treeWalk && this.sidebarVisible && !h?.fine && !m.fine && this.sidebar.walkWheel(m.delta)) break;
         if (!m.fine || h?.fine) h?.onWheel?.(m.delta, m); // less than a line: only sliders want it
         break;
       }
@@ -1367,6 +1429,8 @@ export class Workspace {
     this.tidyPlaces();
     this.noteVisit();
     this.saveSession();
+    // a page that asked for the whole window gives the frames back when it leaves the front
+    if (this.pageAlone.tick(this.activeApp, this.solo) === "restore") this.toggleSolo();
     const W = ui.cols;
     const N = this.notchRows;
     const H = ui.rows - N;
@@ -1385,7 +1449,7 @@ export class Workspace {
     // a row of air under the top bar: the frames' tabs (VAULT, home…, PANEL) sat right against it
     const body = { x: 1, y: N + TOP_H + SECTION, w: W - 2, h: H - TOP_H - SECTION - 1 };
     const max = this.shellVisible && this.shellMax;
-    const today: Today = { sidebar: this.sidebarVisible, shell: this.shellVisible, shellMax: this.shellMax, panel: !!d.settings.data.panel?.shown, shellRatio: this.shellRatio, cols: W, bodyH: body.h };
+    const today: Today = (this.today = { sidebar: this.sidebarVisible, shell: this.shellVisible, shellMax: this.shellMax, panel: !!d.settings.data.panel?.shown, shellRatio: this.shellRatio, cols: W, bodyH: body.h });
     const layout = max ? todayLayout(today) : effectiveLayout(this.arrangement, today);
     const at = solveLayout(layout, body).rects;
     this.layout = layout;
@@ -1509,6 +1573,8 @@ export class Workspace {
     const { x, y } = ui.mouse;
     let want = "";
     if (this.borderDrag) want = this.borderDrag.b.dir === "row" ? "col-resize" : "row-resize";
+    // something held (a widget in HOME's edit mode): the hand that grabs it, whatever is under it
+    else if (this.dragging?.cursor === "grab") want = "grabbing";
     else
       for (let i = ui.hits.length - 1; i >= 0; i--) {
         const h = ui.hits[i];

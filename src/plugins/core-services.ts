@@ -4,6 +4,7 @@
  * Bundled plugins (todo, calendar, reminders, music…) expose theirs from
  * their own main.ts with `ib.modules.expose`.
  */
+import { dateLocale } from "../core/i18n";
 import type { Deck } from "../deck";
 import { appendLog, ensureEntry } from "../vault/journal";
 import { currentWeather } from "../widgets/builtin";
@@ -13,7 +14,7 @@ import { q } from "../ui/ui";
 import type { Caller, ServiceSpec } from "./services";
 
 export function coreServices(deck: Deck): Record<string, Record<string, ServiceSpec>> {
-  const locale = () => deck.settings.data.user.locale || undefined;
+  const locale = () => dateLocale();
   // a command line run for a caller: a module's runs as that module, never as you (frame-services.ts)
   const run = (c: Caller | undefined, l: string) => (!l ? 0 : c?.origin ? deck.shell.runUntrusted(l, c.origin) : deck.act(l));
   const line = (doc: string, make: (...a: any[]) => string): ServiceSpec => ({ // eslint-disable-line @typescript-eslint/no-explicit-any

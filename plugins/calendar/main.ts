@@ -17,6 +17,8 @@
  * The app and the widget change nothing themselves: they run `cal …` commands.
  */
 import type { App } from "../../src/apps/types";
+import { parseEventsFile } from "./importer";
+import { monthShape, weekShape, WEEK_W } from "./sizes";
 import type { Rect } from "../../src/core/grid";
 import type { Action, KeyInput } from "../../src/core/input";
 import type { IcebreakerAPI } from "../../src/plugins/api";
@@ -182,7 +184,7 @@ export function activate(ib: IcebreakerAPI): void {
     await ib.vault.mkdir(DIR).catch(() => {});
     for (const ym of months) {
       const path = `${DIR}/${ym}.md`;
-      const head = extra.get(path) ?? [`# ${dayOf(`${ym}-01`).toLocaleDateString(undefined, { month: "long", year: "numeric" })}`, "", "<!-- ICEBREAKER calendar: one event per line. `cal -h` for the syntax. -->"];
+      const head = extra.get(path) ?? [`# ${dayOf(`${ym}-01`).toLocaleDateString(ib.lib.dateLocale(), { month: "long", year: "numeric" })}`, "", "<!-- ICEBREAKER calendar: one event per line. `cal -h` for the syntax. -->"];
       const lines = local
         .filter((e) => ymd(dayOf(e.start)).slice(0, 7) === ym)
         .sort((a, b) => dayOf(a.start).getTime() - dayOf(b.start).getTime())
@@ -354,7 +356,7 @@ export function activate(ib: IcebreakerAPI): void {
   const when = (e: Ev) => (e.allDay ? t("all day") : `${hm(dayOf(e.start))}–${hm(dayOf(e.end))}`);
   const dayTitle = (d: Date) => {
     const n = Math.round((startOfDay(d).getTime() - startOfDay(new Date()).getTime()) / DAY);
-    const label = d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+    const label = d.toLocaleDateString(ib.lib.dateLocale(), { weekday: "long", day: "numeric", month: "long" });
     return n === 0 ? `${t("today")} · ${label}` : n === 1 ? `${t("tomorrow")} · ${label}` : label;
   };
   const printDays = (ctx: ShellContext, from: Date, days: number, emptyToo: boolean) => {
@@ -370,7 +372,7 @@ export function activate(ib: IcebreakerAPI): void {
     }
     if (!any) ctx.out(fmt.dim("nothing planned\n"));
   };
-  const status = () => (mode === "local" && !connected ? t("calendar in your vault ({dir}/)", { dir: DIR }) : connected ? (syncing ? t("google: syncing…") : syncError ? `google: ${syncError}` : google.at ? t("google: synced {time}", { time: new Date(google.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) }) : t("google: connected")) : t("google: not connected (cal google connect)"));
+  const status = () => (mode === "local" && !connected ? t("calendar in your vault ({dir}/)", { dir: DIR }) : connected ? (syncing ? t("google: syncing…") : syncError ? `google: ${syncError}` : google.at ? t("google: synced {time}", { time: new Date(google.at).toLocaleTimeString(ib.lib.dateLocale(), { hour: "2-digit", minute: "2-digit" }) }) : t("google: connected")) : t("google: not connected (cal google connect)"));
 
   // ── add / remove ─────────────────────────────────────────────────────────
   async function addEvent(cal: Cal, title: string, start: Date, allDay: boolean, minutes: number, where?: string): Promise<Ev> {
@@ -452,7 +454,7 @@ export function activate(ib: IcebreakerAPI): void {
             },
             help: "Connect: your browser opens Google's consent page, you allow, done (Mac, Windows, Linux alike). On Windows, if the firewall asks about ICEBREAKER, allow it: Google sends you back to the app on 127.0.0.1. A build without ICEBREAKER's Google client needs your own: see the next rows and docs/GOOGLE.md.",
           },
-          { key: "sync", label: "sync with Google now", type: "action" as const, value: () => (syncing ? t("syncing…") : google.at ? new Date(google.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "—"), cmd: "cal sync", help: "Fetch your Google calendars now (it also syncs by itself every few minutes while connected)." },
+          { key: "sync", label: "sync with Google now", type: "action" as const, value: () => (syncing ? t("syncing…") : google.at ? new Date(google.at).toLocaleTimeString(ib.lib.dateLocale(), { hour: "2-digit", minute: "2-digit" }) : "—"), cmd: "cal sync", help: "Fetch your Google calendars now (it also syncs by itself every few minutes while connected)." },
           { key: "googleClient", label: "your own Google client (advanced)", type: "action" as const, cmd: "cal google setup", help: "Use your own OAuth client from console.cloud.google.com (Desktop app type) instead of ICEBREAKER's: needed on builds without one. `cal google setup --default` goes back." },
         ]
       : []),
@@ -483,6 +485,7 @@ export function activate(ib: IcebreakerAPI): void {
       "cal month [day]          this month as a grid",
       'cal add "title" <day> [14:30[-16:00]] [--for 1h] [--cal name] [--where place]',
       "cal rm <ref>             remove an event ([ref] is shown next to it)",
+      "cal import [file]        events from a CSV or an .ics (no file: choose one on the computer)",
       "cal open [day]           the CALENDAR app",
       "cal settings             its settings: calendars, Google, local files",
       "cal calendars            your calendars",
@@ -520,7 +523,7 @@ export function activate(ib: IcebreakerAPI): void {
       "  4. cal google setup   (paste the client ID and secret) · cal google setup --default goes back",
       "  5. cal google connect",
     ].join("\n"),
-    complete: () => ["today", "tomorrow", "week", "next", "month", "add", "rm", "open", "settings", "calendars", t("default"), "show", "hide", "sync", "google"],
+    complete: () => ["today", "tomorrow", "week", "next", "month", "add", "rm", "import", "open", "settings", "calendars", t("default"), "show", "hide", "sync", "google"],
     async run(ctx) {
       await ready;
       await recheck();
@@ -542,7 +545,7 @@ export function activate(ib: IcebreakerAPI): void {
             if (!evs.length) return ctx.out(fmt.dim("nothing coming up\n")), 0;
             for (const e of evs) {
               const s = dayOf(e.start);
-              ctx.out(`${ansiColor(e.cal, "●")} ${fmt.dim(s.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }).padEnd(14))} ${fmt.dim(e.allDay ? "all day" : hm(s))}  ${e.title} ${fmt.dim(`· ${until(s)} [${ref(e)}]`)}\n`);
+              ctx.out(`${ansiColor(e.cal, "●")} ${fmt.dim(s.toLocaleDateString(ib.lib.dateLocale(), { weekday: "short", day: "numeric", month: "short" }).padEnd(14))} ${fmt.dim(e.allDay ? "all day" : hm(s))}  ${e.title} ${fmt.dim(`· ${until(s)} [${ref(e)}]`)}\n`);
             }
             return 0;
           }
@@ -550,7 +553,7 @@ export function activate(ib: IcebreakerAPI): void {
             const d = rest[0] ? parseDay(rest[0]) : today;
             if (!d) return ctx.err(`cal: can't read the day "${rest[0]}"\n`), 1;
             const first = new Date(d.getFullYear(), d.getMonth(), 1);
-            ctx.out(`${fmt.bold(first.toLocaleDateString(undefined, { month: "long", year: "numeric" }))}\n`);
+            ctx.out(`${fmt.bold(first.toLocaleDateString(ib.lib.dateLocale(), { month: "long", year: "numeric" }))}\n`);
             ctx.out(fmt.dim(ws() ? " mo  tu  we  th  fr  sa  su\n" : " su  mo  tu  we  th  fr  sa\n"));
             let line = "    ".repeat(dow(first));
             for (let day = first; day.getMonth() === first.getMonth(); day = addDays(day, 1)) {
@@ -579,6 +582,7 @@ export function activate(ib: IcebreakerAPI): void {
             return 0;
           }
           case "add": return await add(ctx, rest);
+          case "import": return await importFile(ctx, rest);
           case "rm": case "remove": case "del": {
             const e = rest[0] && byRef(rest[0]);
             if (!e) return ctx.err(`cal: no event "${rest[0] ?? ""}" (the [ref] next to it in \`cal\`)\n`), 1;
@@ -784,13 +788,42 @@ export function activate(ib: IcebreakerAPI): void {
   }
 
   /** Ask title / day / time / calendar, then run the `cal add` it adds up to. */
+  /**
+   * `cal import [file]`: events from a CSV (Google's or Outlook's export, a sheet with a title and
+   * a date) or an .ics, into the local calendar (plain Markdown in the vault). No file: the
+   * deck's browser, the user chooses one on the computer. Says how many and asks first.
+   */
+  async function importFile(ctx: ShellContext, args: string[]): Promise<number> {
+    const path = args.filter((a) => !a.startsWith("--")).join(" ");
+    let picked: { name: string; text: string } | null;
+    if (path) picked = { name: path, text: await ib.vault.read(path) };
+    else picked = await ib.ui.pickFileText(t("events to import (CSV or .ics)"), ["csv", "ics", "txt"]);
+    if (!picked) return 0;
+    const evs = parseEventsFile(picked.text, picked.name);
+    if (!evs.length) return ctx.err(t("cal import: no events found in {name} (a CSV needs a title column and a date column)", { name: picked.name }) + "\n"), 1;
+    const first = evs[0];
+    const ok = await ib.ui.confirm((evs.length === 1 ? t("Import 1 event into the local calendar?") : t("Import {n} events into the local calendar?", { n: evs.length })), `${first.title} · ${first.start.toLocaleDateString(ib.lib.dateLocale())}${evs.length > 1 ? ` … ${evs[evs.length - 1].title}` : ""}`);
+    if (!ok) return 0;
+    const added: Ev[] = [];
+    for (const e of evs) {
+      const end = e.allDay ? addDays(e.start, Math.max(1, Math.round(e.minutes / 1440))) : new Date(e.start.getTime() + e.minutes * 60_000);
+      const ev: Ev = { id: `l${nextLocal++}`, cal: "local", title: e.title, start: e.allDay ? ymd(e.start) : e.start.toISOString(), end: e.allDay ? ymd(end) : end.toISOString(), allDay: e.allDay, where: e.where };
+      local.push(ev);
+      added.push(ev);
+    }
+    await writeMonths(added);
+    ib.ui.redraw();
+    ctx.out(fmt.green((added.length === 1 ? t("1 event imported into the local calendar (calendar/ in the vault)") : t("{n} events imported into the local calendar (calendar/ in the vault)", { n: added.length }))) + "\n");
+    return 0;
+  }
+
   async function addFlow(day: Date): Promise<void> {
     const title = await ib.ui.prompt("New event", { placeholder: t("dentist") });
     if (!title?.trim()) return;
-    const when = await ib.ui.prompt(t("When? ({day})", { day: day.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) }), {
-      placeholder: t("14:30 · 9:30-10:15 · empty = all day · or another day: fri 18h"),
-    });
-    if (when === null) return;
+    // the little calendar and clock: a day and a time, "all day", or typed (9:30-10:15, fri 18h)
+    const picked = await ib.ui.pickWhen(t("When?"), { date: true, time: true, allDay: true, initial: `${ymd(day)} 09:00`, placeholder: t("or type it: 14:30 · 9:30-10:15 · fri 18h") });
+    if (picked === null) return;
+    const when = picked.typed ? picked.text : picked.time ? `${picked.date} ${picked.time}` : picked.date ?? "";
     const writable = calendars().filter((c) => c.writable);
     let cal = calOf(defaultCal) ?? LOCAL;
     if (writable.length > 1) {
@@ -923,7 +956,7 @@ export function activate(ib: IcebreakerAPI): void {
 
       // weekday names, cyber caps
       for (let i = 0; i < 7; i++) {
-        const n = colDay(i).toLocaleDateString(undefined, { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "").toLowerCase();
+        const n = colDay(i).toLocaleDateString(ib.lib.dateLocale(), { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "").toLowerCase();
         ui.text(X(i) + 1, gy, n.slice(0, cw), { fg: wkd(i) ? c.accentAlt : c.subtle, attrs: BOLD });
       }
       // the grid lines
@@ -942,7 +975,7 @@ export function activate(ib: IcebreakerAPI): void {
       let selCell: Rect | null = null;
       for (let w = 0; w < weeks; w++) {
         const monday = addDays(first, w * 7 - offset);
-        if (gutter) ui.text(r.x + 1, Y(w) + 1, `W${String(isoWeek(addDays(monday, 1 - ws()))).padStart(2, "0")}`, { fg: c.faint });
+        if (gutter) ui.text(r.x + 1, Y(w) + 1, `${t("W")}${String(isoWeek(addDays(monday, 1 - ws()))).padStart(2, "0")}`, { fg: c.subtle });
         for (let i = 0; i < 7; i++) {
           const d = addDays(monday, i);
           const other = d.getMonth() !== first.getMonth();
@@ -1022,7 +1055,7 @@ export function activate(ib: IcebreakerAPI): void {
       };
       dayHead(ay, dayTitle(this.day), ymd(this.day) === ymd(today));
       const evs = this.events;
-      if (!evs.length) ui.text(ax, ay + 1, t("nothing · a / enter adds"), { fg: c.faint }, aw);
+      if (!evs.length) ui.text(ax, ay + 1, t("nothing · a / enter adds"), { fg: c.subtle }, aw);
       let y = ay + 1;
       evs.forEach((e, k) => {
         if (y > bottom) return;
@@ -1034,11 +1067,11 @@ export function activate(ib: IcebreakerAPI): void {
         ui.text(ax, y, "▍", { fg: colorOf(ui, e.cal), ...st });
         ui.text(ax + 2, y, when(e).padEnd(11), { fg: c.subtle, ...st });
         const cal = calOf(e.cal)?.name ?? "";
-        const rx = cal && aw > 44 ? ui.textRight(ax + aw, y, cal, { fg: c.faint, ...st }) : ax + aw;
+        const rx = cal && aw > 44 ? ui.textRight(ax + aw, y, cal, { fg: c.subtle, ...st }) : ax + aw;
         ui.text(ax + 14, y, e.title, { fg: c.fg, attrs: isSel ? BOLD : 0, ...st }, rx - ax - 15);
         ui.hit(row, { onClick: () => (this.sel = k), tip: `${e.title}${e.where ? `\n${e.where}` : ""}\nx / delete: remove · cal rm ${ref(e)}` });
         y++;
-        if (e.where && y <= bottom) ui.text(ax + 14, y++, `@ ${e.where}`, { fg: c.faint }, aw - 14);
+        if (e.where && y <= bottom) ui.text(ax + 14, y++, `@ ${e.where}`, { fg: c.subtle }, aw - 14);
       });
       if (y + 3 < bottom) {
         y++;
@@ -1061,7 +1094,7 @@ export function activate(ib: IcebreakerAPI): void {
         }
       }
       // the keys, on the last line — only when it's free (a short page put them over the header's ‹)
-      if (r.y + r.h - 1 >= Math.max(y, ay + 2)) ui.text(ax, r.y + r.h - 1, t("arrows · enter · a add · x remove · [ ] months · t today · c settings"), { fg: c.faint }, aw);
+      if (r.y + r.h - 1 >= Math.max(y, ay + 2)) ui.text(ax, r.y + r.h - 1, t("arrows · enter · a add · x remove · [ ] months · t today · c settings"), { fg: c.subtle }, aw);
     }
 
     private header(ui: UI, r: Rect): void {
@@ -1076,11 +1109,12 @@ export function activate(ib: IcebreakerAPI): void {
       };
       if (this.view === "month") {
         btn(" ‹ ", () => this.onText("["), "previous month · [");
-        const month = new Date(this.day.getFullYear(), this.day.getMonth(), 1).toLocaleDateString(undefined, { month: "long", year: "numeric" }).toLowerCase();
+        const month = new Date(this.day.getFullYear(), this.day.getMonth(), 1).toLocaleDateString(ib.lib.dateLocale(), { month: "long", year: "numeric" }).toLowerCase();
         hx = ui.gradientText(hx + 1, r.y, month, ui.theme.gradient) + 2;
         btn(" › ", () => this.onText("]"), "next month · ]");
         btn(t(" today "), () => this.goto(new Date()), "t");
         btn(t(" + add "), () => void addFlow(this.day), "a · or: cal add \"title\" <day> <time>");
+        btn(t(" ⇣ import "), () => run("cal import"), t("events from a file: a CSV (Google, Outlook, a sheet) or an .ics · cal import"));
         if (connected) btn(syncing ? ` ${ui.spinner()} sync ` : t(" ⟳ sync "), () => run("cal sync"), "s · cal sync");
       } else btn(t(" ‹ back "), () => (this.view = "month"), "esc");
       btn(t(" ⚙ settings "), () => (this.view = this.view === "settings" ? "month" : "settings"), "c · calendars, Google, local files", this.view === "settings");
@@ -1105,7 +1139,7 @@ export function activate(ib: IcebreakerAPI): void {
         const rect = { x, y, w, h: 1 };
         ui.text(x, y, on ? "◉" : "○", { fg: on ? c.accent : c.subtle });
         ui.text(x + 2, y, label, { fg: ui.hovered(rect) ? c.accent : c.fg, attrs: on ? BOLD : 0 });
-        ui.text(x + 30, y, hint, { fg: c.faint }, w - 30);
+        ui.text(x + 30, y, hint, { fg: c.subtle }, w - 30);
         ui.hit(rect, { cmd: `cal mode ${m}`, tip: `cal mode ${m}` });
         y++;
       };
@@ -1138,8 +1172,8 @@ export function activate(ib: IcebreakerAPI): void {
         ui.button(x + 16, y, t("disconnect Google"), () => run("cal google disconnect"), { cmd: "cal google disconnect", accent: c.error });
         y += 2;
       }
-      if (y < r.y + r.h - 1) ui.text(x, y, t("local calendar: calendar/YYYY-MM.md in your vault — one event per line, edit it anywhere"), { fg: c.faint }, w);
-      ui.text(x, r.y + r.h - 1, t("↑↓ choose · space show/hide · d default · esc back"), { fg: c.faint }, w);
+      if (y < r.y + r.h - 1) ui.text(x, y, t("local calendar: calendar/YYYY-MM.md in your vault — one event per line, edit it anywhere"), { fg: c.subtle }, w);
+      ui.text(x, r.y + r.h - 1, t("↑↓ choose · space show/hide · d default · esc back"), { fg: c.subtle }, w);
     }
   }
 
@@ -1165,8 +1199,8 @@ export function activate(ib: IcebreakerAPI): void {
       const first = new Date(popDay.getFullYear(), popDay.getMonth(), 1);
       const offset = dow(first);
       const today = ymd(new Date());
-      ui.text(r.x + 2, r.y, first.toLocaleDateString(undefined, { month: "long", year: "numeric" }).toLowerCase(), { fg: c.accent, attrs: BOLD });
-      for (let i = 0; i < 7; i++) ui.text(r.x + 2 + i * 4, r.y + 2, colDay(i).toLocaleDateString(undefined, { weekday: "narrow" }).toLowerCase(), { fg: wkd(i) ? c.accentAlt : c.subtle });
+      ui.text(r.x + 2, r.y, first.toLocaleDateString(ib.lib.dateLocale(), { month: "long", year: "numeric" }).toLowerCase(), { fg: c.accent, attrs: BOLD });
+      for (let i = 0; i < 7; i++) ui.text(r.x + 2 + i * 4, r.y + 2, colDay(i).toLocaleDateString(ib.lib.dateLocale(), { weekday: "narrow" }).toLowerCase(), { fg: wkd(i) ? c.accentAlt : c.subtle });
       for (let k = 0; k < 42; k++) {
         const d = addDays(first, k - offset);
         if (d.getMonth() !== first.getMonth()) continue;
@@ -1184,7 +1218,7 @@ export function activate(ib: IcebreakerAPI): void {
       ui.vline(ax - 2, r.y, r.h - 1, { fg: c.faint });
       ui.text(ax, r.y, dayTitle(popDay).toLowerCase(), { fg: c.fg, attrs: BOLD }, aw);
       const evs = between(popDay, addDays(popDay, 1));
-      if (!evs.length) ui.text(ax, r.y + 2, t("nothing · a adds"), { fg: c.faint });
+      if (!evs.length) ui.text(ax, r.y + 2, t("nothing · a adds"), { fg: c.subtle });
       evs.slice(0, r.h - 4).forEach((e, i) => {
         ui.text(ax, r.y + 2 + i, "●", { fg: colorOf(ui, e.cal) });
         ui.text(ax + 2, r.y + 2 + i, when(e).padEnd(11), { fg: c.subtle });
@@ -1233,10 +1267,13 @@ export function activate(ib: IcebreakerAPI): void {
       const gx = r.x + Math.floor((r.w - cw * 7) / 2);
       const gy = r.y + 2 + Math.max(0, Math.floor((r.h - 2 - weeks * ch) / 2));
       const colX = (i: number) => gx + i * cw;
-      ui.textCenter(r, r.y, first.toLocaleDateString(undefined, { month: "long", year: "numeric" }).toLowerCase(), { fg: c.fg, attrs: BOLD });
-      if (r.h < 3) return;
+      // its size decides (plugins/calendar/sizes.ts): the whole month, today's week, or today
+      const shape = monthShape(r.w, r.h, weeks);
+      if (shape === "today") return todayCard(ui, r);
+      ui.textCenter(r, r.y, first.toLocaleDateString(ib.lib.dateLocale(), { month: "long", year: "numeric" }).toLowerCase(), { fg: c.fg, attrs: BOLD });
+      if (shape === "week") return weekStrip(ui, { x: r.x, y: r.y + 1, w: r.w, h: r.h - 1 }, true);
       for (let i = 0; i < 7; i++) {
-        const n = colDay(i).toLocaleDateString(undefined, { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "").slice(0, cw - 1);
+        const n = colDay(i).toLocaleDateString(ib.lib.dateLocale(), { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "").slice(0, cw - 1);
         ui.text(colX(i) + cw - 1 - strWidth(n), r.y + 1, n, { fg: wkd(i) ? c.accentAlt : c.subtle });
       }
       for (let d = 1; d <= days; d++) {
@@ -1256,6 +1293,81 @@ export function activate(ib: IcebreakerAPI): void {
     },
   });
 
+  /**
+   * The small version of the month and the week: today in words (as much as fits), then its
+   * events — or what's next.
+   *
+   *   mon 23 nov
+   *   ▪ 14:30 dentist
+   */
+  function todayCard(ui: UI, r: Rect): void {
+    const c = ui.c;
+    const { INSET } = ib.lib;
+    const x = r.x + INSET, w = r.w - INSET * 2;
+    const now = new Date();
+    const loc = ib.lib.dateLocale();
+    const long = now.toLocaleDateString(loc, { weekday: "long", day: "numeric", month: "long" }).toLowerCase();
+    const mid = now.toLocaleDateString(loc, { weekday: "short", day: "numeric", month: "short" }).replace(/\./g, "").toLowerCase();
+    const short = now.toLocaleDateString(loc, { weekday: "short", day: "numeric" }).replace(/\./g, "").toLowerCase();
+    ui.textFit(x, r.y, [long, mid, short, String(now.getDate())], { fg: c.accent, attrs: BOLD }, w);
+    const today = startOfDay(now);
+    const evs = between(today, addDays(today, 1));
+    for (let k = 0; k < r.h - 1; k++) {
+      const e = evs[k];
+      if (!e) {
+        if (k === 0) ui.textFit(x, r.y + 1, [t("nothing today"), t("free")], { fg: c.muted }, w);
+        break;
+      }
+      const tx = ui.text(x, r.y + 1 + k, "▪ ", { fg: colorOf(ui, e.cal) });
+      ui.text(tx, r.y + 1 + k, e.allDay ? e.title : `${hm(dayOf(e.start))} ${e.title}`, { fg: c.fg }, x + w - tx);
+    }
+    ui.hit(r, { cmd: `cal open ${ymd(today)}`, tip: dayTitle(today) });
+  }
+
+  /**
+   * Today's week in a row — the weekdays (when `names`), the 7 days, today lit, a dot under a
+   * busy day — then today's events: the month and the week in a small square.
+   *
+   *    l  m  m  j  v  s  d
+   *   17 18 19 20 21 22 23
+   *   ▪ 14:30 dentist
+   */
+  function weekStrip(ui: UI, r: Rect, names: boolean): void {
+    const c = ui.c;
+    const today = startOfDay(new Date());
+    const monday = addDays(today, -dow(today));
+    const gx = r.x + Math.floor((r.w - WEEK_W) / 2);
+    let y = r.y;
+    if (names && r.h >= 3) {
+      for (let i = 0; i < 7; i++) {
+        const n = colDay(i).toLocaleDateString(ib.lib.dateLocale(), { weekday: "narrow" }).toLowerCase();
+        ui.text(gx + i * 3 + 2 - strWidth(n), y, n, { fg: wkd(i) ? c.accentAlt : c.subtle });
+      }
+      y++;
+    }
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(monday, i);
+      const evs = between(d, addDays(d, 1));
+      const isToday = ymd(d) === ymd(today);
+      const x = gx + i * 3;
+      ui.text(x, y, String(d.getDate()).padStart(2), isToday ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: evs.length ? c.fg : c.muted, attrs: evs.length ? BOLD : 0 });
+      if (evs.length && !isToday) ui.text(x + 2, y, "·", { fg: colorOf(ui, evs[0].cal), attrs: BOLD });
+      ui.hit({ x, y, w: 3, h: 1 }, { cmd: `cal open ${ymd(d)}`, tip: `${dayTitle(d)}\n${evs.map((e) => `${when(e)} ${e.title}`).join("\n") || t("nothing")}` });
+    }
+    // today's events under the days, as many as fit
+    const evs = between(today, addDays(today, 1));
+    const { INSET } = ib.lib;
+    for (let k = 0; y + 1 + k < r.y + r.h; k++) {
+      const e = evs[k];
+      if (!e) {
+        if (k === 0) ui.textFit(r.x + INSET, y + 1, [t("nothing today"), t("free")], { fg: c.muted }, r.w - INSET * 2);
+        break;
+      }
+      const tx = ui.text(r.x + INSET, y + 1 + k, "▪ ", { fg: colorOf(ui, e.cal) });
+      ui.text(tx, y + 1 + k, e.allDay ? e.title : `${hm(dayOf(e.start))} ${e.title}`, { fg: c.fg }, r.x + r.w - INSET - tx);
+    }
+  }
+
   // ── HOME widget: this week, day by day ───────────────────────────────────
   ib.widgets.register({
     id: "week",
@@ -1272,11 +1384,15 @@ export function activate(ib: IcebreakerAPI): void {
       const today = startOfDay(new Date());
       const monday = addDays(today, -dow(today));
       const cw = Math.floor(r.w / 7);
+      // its size decides (plugins/calendar/sizes.ts): a column a day, a strip of days, or today
+      const shape = weekShape(r.w, r.h);
+      if (shape === "today") return todayCard(ui, r);
+      if (shape === "strip") return weekStrip(ui, r, true);
       for (let i = 0; i < 7; i++) {
         const d = addDays(monday, i);
         const x = r.x + i * cw;
         const isToday = ymd(d) === ymd(today);
-        const head = `${d.toLocaleDateString(undefined, { weekday: "short" }).replace(".", "")} ${d.getDate()}`;
+        const head = `${d.toLocaleDateString(ib.lib.dateLocale(), { weekday: "short" }).replace(".", "")} ${d.getDate()}`;
         ui.text(x + 1, r.y, head.slice(0, cw - 1), isToday ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: wkd(i) ? c.accentAlt : c.subtle, attrs: BOLD });
         if (i > 0) ui.vline(x, r.y, r.h, { fg: c.faint });
         between(d, addDays(d, 1)).slice(0, r.h - 1).forEach((e, k) => {
@@ -1304,7 +1420,7 @@ export function activate(ib: IcebreakerAPI): void {
       ui.animate(30_000); // "in 12 min" moves on
       const evs = upcoming(r.h * 2);
       if (!evs.length) {
-        ui.text(r.x + 1, r.y, t("nothing coming up"), { fg: c.muted }, r.w - 2);
+        ui.textFit(r.x + ib.lib.INSET, r.y, [t("nothing coming up"), t("nothing yet")], { fg: c.muted }, r.w - ib.lib.INSET * 2);
         if (r.h > 1) ui.hit({ x: r.x, y: r.y, w: r.w, h: 1 }, { cmd: "cal open", tip: "the CALENDAR app" });
         return;
       }
@@ -1330,7 +1446,7 @@ export function activate(ib: IcebreakerAPI): void {
         if (key !== lastDay) {
           lastDay = key;
           const n = Math.round((startOfDay(s).getTime() - startOfDay(new Date()).getTime()) / DAY);
-          const label = n <= 0 ? "today" : n === 1 ? "tomorrow" : s.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" }).toLowerCase();
+          const label = n <= 0 ? "today" : n === 1 ? "tomorrow" : s.toLocaleDateString(ib.lib.dateLocale(), { weekday: "long", day: "numeric", month: "short" }).toLowerCase();
           ui.text(r.x + 1, y++, label, { fg: n <= 0 ? c.accent : c.subtle, attrs: BOLD }, r.w - 2);
         }
         const row = { x: r.x, y, w: r.w, h: 1 };

@@ -132,6 +132,10 @@ themselves (`menu add <key> "<command>"`).
   `appearance.reduceMotion`.
 - Mouse areas: **the last `ui.hit` registered wins**. Register a row first,
   then the buttons on it.
+- **A design per size.** A widget is drawn from 2×2 to a whole page: its smallest version shows
+  the one thing that matters (the calendar: today and its events; UPLINK: who and how), never a
+  cut sentence (`ui.textFit` for the short version), never a shape cut in half (a ring, a grid).
+  Check it with `sizeClass(rect)`; HOME keeps its proportions, so a size looks the same everywhere.
 - Show less. The value, not its explanation: the explanation goes in a `tip`
   (on hover) or in `help`. Controls (arrows, ✎, ×) only appear on the row
   you're on.
@@ -171,7 +175,8 @@ A theme is one TOML file ([THEMES.md](THEMES.md)). A good theme:
 
 - **Is readable first.** `fg` on `bg` and on `panel` must be easy to read for a
   whole evening; `muted` is still readable, `subtle` is for hints and `faint`
-  only for lines and grids. Check a long note, the settings and the shell.
+  only for lines and grids — never text. The deck keeps `muted` at 4.5:1 and
+  `subtle` at 4.5:1 on its own (THEMES.md), but pick them so it doesn't have to. Check a long note, the settings and the shell.
 - **Has one accent.** `accent` says "this is the thing you're on / can act
   on". `accentAlt` is for the occasional second level. `success` / `warning` /
   `error` keep their meaning, whatever the palette.

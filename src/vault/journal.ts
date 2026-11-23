@@ -1,4 +1,5 @@
 import { isoDate } from "./paths";
+import { dateLocale } from "../core/i18n";
 import { parseDay } from "../core/dates";
 import { parseFlags } from "../shell/parser";
 import type { Vault } from "./vault";
@@ -23,7 +24,7 @@ mood:
 `;
 
 export function titleFor(date: Date, locale: string): string {
-  const s = date.toLocaleDateString(locale || undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const s = date.toLocaleDateString(locale || dateLocale(), { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
@@ -45,8 +46,8 @@ export async function ensureEntry(vault: Vault, date: Date, locale: string): Pro
   const content = tpl
     .replaceAll("{{date}}", isoDate(date))
     .replaceAll("{{title}}", titleFor(date, locale))
-    .replaceAll("{{weekday}}", date.toLocaleDateString(locale || undefined, { weekday: "long" }))
-    .replaceAll("{{time}}", new Date().toLocaleTimeString(locale || undefined, { hour: "2-digit", minute: "2-digit" }));
+    .replaceAll("{{weekday}}", date.toLocaleDateString(locale || dateLocale(), { weekday: "long" }))
+    .replaceAll("{{time}}", new Date().toLocaleTimeString(locale || dateLocale(), { hour: "2-digit", minute: "2-digit" }));
   await vault.write(path, content);
   return path;
 }
@@ -58,7 +59,7 @@ export async function ensureEntry(vault: Vault, date: Date, locale: string): Pro
 export async function appendLog(vault: Vault, date: Date, text: string, locale: string): Promise<string> {
   const path = await ensureEntry(vault, date, locale);
   const lines = (await vault.read(path)).split("\n");
-  const time = new Date().toLocaleTimeString(locale || undefined, { hour: "2-digit", minute: "2-digit" });
+  const time = new Date().toLocaleTimeString(locale || dateLocale(), { hour: "2-digit", minute: "2-digit" });
   const entry = `- ${time} ${text.trim()}`;
 
   const logIdx = lines.findIndex((l) => /^##\s+log\b/i.test(l));

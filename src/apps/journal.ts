@@ -1,3 +1,4 @@
+import { dateLocale } from "../core/i18n";
 import { BOLD, DIM, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
@@ -157,7 +158,7 @@ export class JournalApp implements App {
 
   private drawCalendar(ui: UI, r: Rect, focused: boolean): void {
     const c = ui.c;
-    const locale = this.deck.settings.data.user.locale || undefined;
+    const locale = dateLocale();
     const y0 = r.y + 1; // one row of air under the pane title
     const month = new Date(this.day.getFullYear(), this.day.getMonth(), 1);
     const label = month.toLocaleDateString(locale, { month: "long", year: "numeric" });
@@ -221,7 +222,7 @@ export class JournalApp implements App {
       x += ui.button(x, by, "today", () => {}, { cmd: "journal today", tip: "ctrl+j from anywhere" }) + 1;
       ui.button(x, by, "ask ◆", () => this.deck.openApp("link", { prompt: `Read my journal entries from the last 7 days and give me a short recap: themes, mood, open tasks.` }), { tip: "LINK recaps your last 7 days\nin the shell: journal ls -n 7 | ask \"recap\"" });
     }
-    if (focused) ui.text(r.x + 2, r.y + r.h - 1, "←↑↓→ day · [ ] month · enter", { fg: c.faint });
+    if (focused) ui.text(r.x + 2, r.y + r.h - 1, "←↑↓→ day · [ ] month · enter", { fg: c.subtle });
   }
 }
 

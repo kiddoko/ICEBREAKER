@@ -1,4 +1,5 @@
 import { fmt } from "../../core/ansi";
+import { dateLocale } from "../../core/i18n";
 import { ASK_SYSTEM_PROMPT } from "../../ai/prompts";
 import { ensureEntry } from "../../vault/journal";
 import { isoDate } from "../../vault/paths";
@@ -32,7 +33,7 @@ async function checkIn(ctx: ShellContext): Promise<number> {
   let text = await deck.vault.read(path);
   const has = text.split("\n").some((l) => SECTION.test(l));
 
-  const day = now.toLocaleDateString(locale || undefined, { weekday: "long", day: "numeric", month: "long" });
+  const day = now.toLocaleDateString(locale || dateLocale(), { weekday: "long", day: "numeric", month: "long" });
   ctx.out(`\n${fmt.magenta(fmt.bold(`── DAILY LOG · ${day} `))}${fmt.dim("─".repeat(20))}\n`);
   ctx.out(fmt.dim("quick answers: 1-5 · text: enter skips · esc stops (nothing is saved)\n\n"));
 

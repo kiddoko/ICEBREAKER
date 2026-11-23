@@ -70,16 +70,45 @@ export interface PermDialogSpec {
 
 const LEVEL_WORD: Record<Level, string> = { low: "low", medium: "medium", high: "HIGH", total: "TOTAL" };
 
+/**
+ * The keyboard waits this long after the question appears, and after every key typed meanwhile:
+ * a question that pops up while you type (a module's autosave asking to write) took the next
+ * keys — "n" answered No, the rest went to the page behind. Keep typing and it never answers;
+ * stop, then press its key. A click answers at once.
+ */
+export const SETTLE_MS = 450;
+
 export class PermissionDialog implements Overlay {
   modal = true;
   done = false;
   private sel: number;
+  /** when its keys start to count (pushed back by each key typed before) */
+  private armedAt: number;
 
   constructor(
     private readonly spec: PermDialogSpec,
     private readonly resolve: (value: string) => void,
+    private readonly now: () => number = () => performance.now(),
   ) {
     this.sel = Math.max(0, Math.min(spec.buttons.length - 1, spec.selected));
+    this.openedAt = now();
+    this.armedAt = this.openedAt + SETTLE_MS;
+  }
+
+  /** a key may answer now; one that came too soon is swallowed and makes the wait start again */
+  private settled(): boolean {
+    const t = this.now();
+    if (t >= this.armedAt) return true;
+    this.armedAt = t + SETTLE_MS;
+    return false;
+  }
+
+  /** when it appeared: a click in its first moment was meant for the page behind (fixed: keys don't move it) */
+  private readonly openedAt: number;
+  /** a button clicked: answers — after its first moment */
+  choose(i: number): void {
+    if (this.now() < this.openedAt + SETTLE_MS) return;
+    this.finish(i);
   }
 
   private finish(i: number): void {
@@ -105,6 +134,7 @@ export class PermissionDialog implements Overlay {
   }
 
   onKey(k: KeyInput): boolean {
+    if (k.repeat || !this.settled()) return true;
     const n = this.spec.buttons.length;
     if (k.key === "esc") this.finish(0);
     else if (k.key === "enter") this.finish(this.sel);
@@ -116,11 +146,12 @@ export class PermissionDialog implements Overlay {
   }
 
   onText(s: string): boolean {
-    this.byKey(s);
+    if (this.settled()) this.byKey(s);
     return true;
   }
 
   onAction(a: Action): boolean {
+    if (!this.settled()) return true;
     const n = this.spec.buttons.length;
     if (a === "back") this.finish(0);
     else if (a === "confirm") this.finish(this.sel);
@@ -188,7 +219,7 @@ export class PermissionDialog implements Overlay {
     dialogButtons(
       ui,
       inner,
-      s.buttons.map((b, i) => ({ label: b.label, run: () => this.finish(i), selected: i === this.sel, accent: b.tone === "error" ? c.error : b.tone === "warning" ? c.warning : undefined })),
+      s.buttons.map((b, i) => ({ label: b.label, run: () => this.choose(i), selected: i === this.sel, accent: b.tone === "error" ? c.error : b.tone === "warning" ? c.warning : undefined })),
     );
     // esc is always the way out
     const first = s.buttons[0];

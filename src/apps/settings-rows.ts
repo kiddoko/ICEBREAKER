@@ -12,7 +12,7 @@ import { followedCats, followedWords, newsPage, setPageSource } from "../widgets
 import { AvatarPicker } from "../workspace/avatarpicker";
 import { SOUND_PACKS } from "../core/sound";
 import { describePerm } from "../plugins/permissions";
-import { t } from "../core/i18n";
+import { t, tLoose, dateLocale } from "../core/i18n";
 import { displayKeys, keysOf, menuKeyOf, SHORTCUT_CATEGORIES, SHORTCUTS } from "../core/shortcuts";
 import { rebind, rebindMenuKey } from "./shortcuts";
 import { KeyCapture } from "../workspace/keycapture";
@@ -74,7 +74,7 @@ function runAsking(deck: Deck, line: string): void {
  */
 function permissionRows(d: Deck, head: (label: string) => Row): Row[] {
   const out: Row[] = [];
-  const when = (at?: number) => (at ? new Date(at).toLocaleString(d.settings.data.user.locale || undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
+  const when = (at?: number) => (at ? new Date(at).toLocaleString(dateLocale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
   // the modules from the STORE or the vault first (the ones you approved), then the deck's own
   const mods = d.plugins.list().filter((p) => p.active || p.source === "vault").sort((a, b) => Number(a.source === "builtin") - Number(b.source === "builtin") || a.manifest.name.localeCompare(b.manifest.name));
   for (const p of mods) {
@@ -180,7 +180,8 @@ export function coreSettingRows(deck: Deck): Row[] {
     cmd: () => `config set ${key} ${q(String(s.get(key) ?? ""))}`,
     value: () => String(s.get(key) || "—"),
     change: async () => {
-      const v = await d.prompt(t(label), { initial: String(s.get(key) ?? ""), placeholder, suggestions: await suggestions?.() });
+      // (a placeholder holds codes — fr-FR, a model's name: translated as it is, never lowered)
+      const v = await d.prompt(t(label), { initial: String(s.get(key) ?? ""), placeholder: tLoose(placeholder), suggestions: await suggestions?.() });
       if (v !== null) set(key, v);
     },
   });
@@ -219,7 +220,8 @@ export function coreSettingRows(deck: Deck): Row[] {
     // your account: who you are, log out (new accounts are made on the login page)
     head("Account"),
     { label: "Account", kind: "action", value: () => d.account ?? "—", cmd: () => "account passwd", change: () => void d.shell.runLine("account passwd").then(() => d.workspace.focusShell()) },
-    { label: "Log out", kind: "action", value: () => "⏻", cmd: () => "logout", change: () => d.lockNow() },
+    // (its value was ⏻, a glyph most fonts don't have: it came out cut in half)
+    { label: "Log out", kind: "action", value: () => t("to the login page"), cmd: () => "logout", change: () => d.lockNow() },
     { section: "APPEARANCE", label: "", value: () => "" },
     head("Screen"),
     cycle("appearance.theme", "Theme", d.themes.list().map((t) => t.name)),
@@ -411,6 +413,7 @@ export function coreSettingRows(deck: Deck): Row[] {
     // the TERMINAL module (core-packages.ts) off: no panel, these mean nothing
     needs(() => d.workspace.terminalOn, cycle("shell.mode", "Shell", ["system", "ibsh"], undefined, (v) => (v === "system" ? "my terminal + ICEBREAKER" : "ibsh only"))),
     needs(() => d.workspace.terminalOn, cycle("shell.prompt", "Prompt", ["icebreaker", "mine"], undefined, (v) => (v === "mine" ? "mine (my own theme)" : "ICEBREAKER's"))),
+    toggle("shell.logSide", "Log beside the shell"),
     { section: "UPLINK (AI)", label: "", value: () => "" },
     head("Provider"),
     cycle("ai.provider", "Provider", ["claude-code", "anthropic", "ollama"], undefined, (v) => (v === "claude-code" ? "claude code (subscription)" : v === "anthropic" ? "anthropic api (tokens)" : "ollama (local)")),

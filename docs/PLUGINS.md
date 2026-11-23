@@ -228,7 +228,7 @@ The full surface is typed and commented in
 - `ib.settings.register([...])` → your section in Settings (◇ YOUR MODULE, after the normal ones). Row types: `toggle`, `choice` (`options`), `text`, `number`, and `action` — a row that does something when chosen: `cmd` (a shell command, shown under the row like every setting) or `run()` (a picker, a confirmation…), plus `value()` for the status on the right ("connected", a name…). Read with `ib.settings.get(key)`, react with `onChange`; shell: `modules set <id> <key> <value>`. Example: the CALENDAR module (`plugins/calendar/main.ts`).
 - `ib.net.get(url)` → the internet, one approved host at a time (permission `net:<host>`): an
   https GET, text back, through the deck's native side. Nothing in stealth mode.
-- `ib.shell.run(line)` → run a command, shown in the shell's LOG tab (what your clicks should do;
+- `ib.shell.run(line)` → run a command, shown in the shell's log (what your clicks should do;
   permission `shell` for the deck's commands — your own commands need nothing).
   Only the commands modules may run: an allow-list (`src/shell/classes.ts`), so a command that
   isn't classed is refused; `weather` and `news` go online and are never a module's to run.
@@ -265,6 +265,18 @@ The full surface is typed and commented in
   the page's too (alt + arrows included, the deck's pane keys on Windows / Linux), and ⌘Z / ⌘⇧Z reach it (its own
   undo), ⌘S / ⌘⇧S (save, save as), **Tab / ⇧Tab** (next / previous track…), **F1–F8** and **⌘ / ctrl + ← →**.
   Other ⌘ / ctrl shortcuts stay the deck's (F1 is the manual outside the page); **esc** leaves the page (the tree takes the keys back).
+  The same holds for a sandboxed module's page (`plugins/sandbox/bridge.ts moduleTakesKey`, tested).
+- **Your page alone**: `ib.ui.fullWindow(true)` folds the tree, the panel and the shell away while your page
+  is in front (a tracker's 8 tracks on a laptop); `fullWindow(false)` — or another tab in front, or your page
+  closing — brings them back. Only your own page, only while it's in front; frames the user folded themselves
+  stay as they were.
+- **Scenery that moves** (a scrolling pattern, a starfield): draw it inside `ui.art(() => …)` — the deck's
+  letter fade-in leaves it alone (no pale copies while it scrolls) and `debug layout` doesn't count it.
+- **Importing a file the user chooses**: `ib.ui.pickFileText(title, ["csv", "ics"])` → `{ name, text }` (2 MB),
+  `ib.ui.pickFileBytes(title, ["wav", "flac"])` → `{ name, bytes }` (a sound or a picture, 64 MB). The deck's
+  browser opens, the user picks; the choice is the consent, nothing else of the computer is opened. Desktop only.
+- **An autosave never asks**: with `vault:write:songs/`, writing in `songs/.recovery/` (any `.recovery/` folder
+  inside a folder you were granted) never opens the "this time / always" question mid-work.
 - `ib.apps.open(kind, args)`: your own pages take any `args`; the deck's pages only a note,
   a folder or a day.
 - `ib.ui.confirm / prompt / choose / alert` are headed with your module's name; what your
@@ -279,6 +291,7 @@ The full surface is typed and commented in
   themes…): a module's own data goes through `ib.storage`.
 - `ib.catalog.list(kind?, words?)` → everything the deck can do, as plain data: commands, actions, shortcuts, settings (with their value), functions (`ib.use`), widgets, apps, themes, modules — each with `name`, `doc`, `from` and `call` (how to call it). `get(kind, id)` for one. The BLOCKS page and `catalog … --json` show the same.
 - `ib.ui.notify / confirm / prompt / choose` → talk to the user (`choose` = pick one option from a filtered list; `prompt(title, { suggestions })` adds a ▾ list, a grey completion and Tab to complete). `notify(text, "error")` also lands in the error log with a code — see [ERRORS.md](ERRORS.md).
+- `ib.ui.pickWhen(title, { date, time, days, initial, initialDays, clear, allDay, typed })` → the deck's little calendar and clock (a day, a time, days of the week — or typed: "tomorrow 9h"). You get `{ text }` ready for your command ("2026-12-24 09:30", "07:30", "mon,fri", or what was typed), plus `date`, `time`, `days`, `typed`, `cleared`; null when cancelled. Use it wherever a day or a time is asked, never a bare prompt.
 - `ib.ui.alert(title, body)` → get the user's attention, the way they chose in Settings → NOTIFICATIONS (on screen, sound, the system's notification center — by default only when the deck isn't in front —, read aloud). See the REMINDERS module. The shell: `notify --alert "<title>" [body]`.
 - `ib.ui.say(text, topic?)` → the voice says it, only if the user lets that topic speak (Settings → VOICE → say aloud: `calendar`, `reminders`, `timers`, `weather`, `system`; anything else is `modules`).
 - `ib.stats` → numbers kept over time, shown by the STATS module and its widget. `define("left", { label: "budget left", unit: "€" })`, `set("left", 412.5)` for a level, `add("pages", 12)` for a counter (adds up per day), `series(id, 30)` → one point per day, `onChange(fn)`. Names without a dot are yours (`left` → `budget.left`); you write only your own, reading another module's stats needs `stats:read`. The deck itself keeps `deck.commands` and `deck.notes`. Stored in the vault (`.icebreaker/stats.json`); recording works even while STATS is switched off.
@@ -334,7 +347,7 @@ Inside `render(ui, rect, focused)` you get the full drawing toolkit
 ICEBREAKER modules follow one rule: **everything the UI does is a shell
 command.** Your app and widget don't change data themselves, they run your
 command with `ib.shell.run("mymodule do-thing 3")`, which the shell's
-LOG tab shows. Users learn the command line just by clicking around, and power users
+log shows. Users learn the command line just by clicking around, and power users
 get a scriptable module for free.
 
 For plain clicks you don't even need a handler: `ui.hit(rect, { cmd: "todo done 3", tip: "space" })`

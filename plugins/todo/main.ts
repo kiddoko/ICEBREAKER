@@ -415,9 +415,9 @@ export function activate(ib: IcebreakerAPI): void {
       extra = ` --times ${Number(n) || 2}`;
     }
     if (rule === "days") {
-      const d = await ib.ui.prompt(ib.lib.t("Which days?"), { placeholder: "mon,wed,sat" });
-      if (!d?.trim()) return;
-      rule = d.trim().replace(/\s+/g, "");
+      const d = await ib.ui.pickWhen(ib.lib.t("Which days?"), { days: true, placeholder: "or type them: mon,wed,sat" });
+      if (!d?.text.trim()) return;
+      rule = d.text.trim().replace(/\s+/g, "");
     }
     const spans: [string, string][] = [[ib.lib.t("forever"), "forever"], ["10×", "10"], ["100×", "100"], [ib.lib.t("for a year"), "1y"], [ib.lib.t("for a month"), "1m"], [ib.lib.t("a number of times…"), "ask"]];
     const c = await ib.ui.choose(ib.lib.t("For how long?"), spans.map(([label]) => ({ label })));
@@ -820,8 +820,8 @@ export function activate(ib: IcebreakerAPI): void {
     }
 
     private async due(t: Task): Promise<void> {
-      const v = await ib.ui.prompt(`due date for #${t.id}`, { initial: t.due ?? "", placeholder: "today, tomorrow, fri, +3d, 24/12 — or - to clear" });
-      if (v !== null) run(`todo due ${t.id} ${q(v.trim() || "-")}`);
+      const v = await ib.ui.pickWhen(`due date for #${t.id}`, { date: true, initial: t.due ?? "", clear: true, placeholder: "or type it: tomorrow, fri, +3d, 24/12" });
+      if (v) run(`todo due ${t.id} ${q(v.cleared ? "-" : v.text.trim() || "-")}`);
     }
 
     onText(t: string): boolean {
@@ -993,7 +993,7 @@ export function activate(ib: IcebreakerAPI): void {
         ui.text(x0 + 1, ry, box, { fg: t.done ? c.success : pc(t.prio), bg: rbg, attrs: BOLD });
         ui.hit({ x: x0 + 1, y: ry, w: bw, h: 1 }, { cmd: `todo ${t.done ? "undo" : "done"} ${t.id}`, tip: "space / enter" });
         let tx = x0 + 2 + bw;
-        ui.text(tx, ry, String(t.id).padStart(3), { fg: c.faint, bg: rbg });
+        ui.text(tx, ry, String(t.id).padStart(3), { fg: c.subtle, bg: rbg });
         tx += 4;
         // priority mark: click to cycle
         const mark = prioMark(t.prio);
@@ -1051,8 +1051,8 @@ export function activate(ib: IcebreakerAPI): void {
     if (v?.trim() && v.trim() !== t.text) run(`todo edit ${t.id} ${q(v.trim())}`);
   };
   const dueTask = async (t: Task) => {
-    const v = await ib.ui.prompt(`due date for #${t.id}`, { initial: t.due ?? "", placeholder: "today, tomorrow, fri, +3d, 24/12 — or - to clear", suggestions: ["today", "tomorrow", "mon", "fri", "+3d", "+1w", "-"] });
-    if (v !== null) run(`todo due ${t.id} ${q(v.trim() || "-")}`);
+    const v = await ib.ui.pickWhen(`due date for #${t.id}`, { date: true, initial: t.due ?? "", clear: true, placeholder: "or type it: tomorrow, fri, +3d, 24/12" });
+    if (v) run(`todo due ${t.id} ${q(v.cleared ? "-" : v.text.trim() || "-")}`);
   };
   /** right-click on a task, in the widget and its pop-up */
   const taskMenu = (t: Task) => [
@@ -1136,7 +1136,7 @@ export function activate(ib: IcebreakerAPI): void {
         ui.text(tx, y, n.text, { fg: hot ? c.accent : c.fg, attrs: hot ? STRIKE : 0 }, Math.max(1, dx - tx - 1));
       });
       const below = total - fits - wTop;
-      if (fits < total) ui.text(r.x + 1, r.y + r.h - 1, below > 0 ? `↓ ${below} more · wheel · enter opens the list` : `↑ ${wTop} above · wheel`, { fg: c.faint }, r.w - 2);
+      if (fits < total) ui.textFit(r.x + 1, r.y + r.h - 1, below > 0 ? [`↓ ${below} more · wheel · enter opens the list`, `↓ ${below} more · wheel`, `↓ ${below} more`, `↓${below}`] : [`↑ ${wTop} above · wheel`, `↑ ${wTop} above`, `↑${wTop}`], { fg: c.subtle }, r.w - 2);
     },
     open: "todo open",
     popup: {

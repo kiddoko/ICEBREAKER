@@ -1,5 +1,5 @@
 import { widgetConfig } from "./instances";
-import { t } from "../core/i18n";
+import { t, dateLocale } from "../core/i18n";
 import { focus } from "./focusstate";
 import { ago, isoDay, streakOf } from "../core/time";
 import { q } from "../ui/ui";
@@ -9,7 +9,7 @@ import { geocode, langOf, resolvePlace } from "../core/location";
 import { strWidth } from "../core/unicode";
 import type { Deck } from "../deck";
 import type { SystemStats } from "../platform/types";
-import { Bar, cards, INSET, stack } from "../ui/layout";
+import { Bar, cards, INSET, stack, GAP } from "../ui/layout";
 import { drawSky, sceneFor, skyIcon } from "../apps/weathersky";
 import type { UI } from "../ui/ui";
 import { basename, dirname } from "../vault/paths";
@@ -215,8 +215,10 @@ const weatherWidget: WidgetSpec = {
     if (stale && !sl.loading && (!sl.error || retry)) void loadWeather(key, deck, city).then(() => deck.requestFrame());
     if (sl.error && !sl.w) ui.animate(60_000); // (the retry needs a frame)
     if (!sl.w) {
-      ui.text(r.x + 1, r.y + 1, sl.error ? `⚠ ${sl.error}` : `${ui.spinner()} contacting the sky…`, { fg: sl.error ? c.error : c.muted }, r.w - 2);
-      if (sl.error) ui.text(r.x + 1, r.y + 2, "enter: retry", { fg: c.faint });
+      // stealth: no weather, said plainly (it showed a cut "stealth mode: geocoding-api.o…" and a useless retry)
+      if (deck.settings.data.privacy.stealth) return void ui.textFit(r.x + INSET, r.y + 1, [t("stealth mode is on: no weather"), t("stealth: no weather")], { fg: c.muted }, r.w - INSET * 2);
+      ui.text(r.x + 1, r.y + 1, sl.error ? `⚠ ${sl.error}` : `${ui.spinner()} ${t("contacting the sky…")}`, { fg: sl.error ? c.error : c.muted }, r.w - 2);
+      if (sl.error) ui.text(r.x + 1, r.y + 2, t("enter: retry"), { fg: c.subtle });
       return;
     }
     const w = sl.w;
@@ -229,7 +231,7 @@ const weatherWidget: WidgetSpec = {
       new Bar(ui, r.x + INSET, y, r.x + r.w - INSET)
         .text(w.place, { fg: c.fg, attrs: BOLD }, { priority: 6, fit: 4 })
         .text(`${Math.round(w.temp)}°`, { fg: c.accent, attrs: BOLD }, { priority: 10 })
-        .text(SKY_LABEL[s], { fg: c.subtle }, { priority: 4 })
+        .text(t(SKY_LABEL[s]), { fg: c.subtle }, { priority: 4 })
         .draw();
       if (r.h >= 2)
         new Bar(ui, r.x + INSET, y + 1, r.x + r.w - INSET)
@@ -255,15 +257,15 @@ const weatherWidget: WidgetSpec = {
         .text(w.place, { fg: c.fg, attrs: BOLD }, { priority: 7, fit: 4 })
         .text(`${Math.round(w.temp)}°`, { fg: c.accent, attrs: BOLD }, { side: "right", priority: 9 })
         .draw();
-      if (skyR.h >= 2) ui.text(skyR.x + INSET, skyR.y + 1, SKY_LABEL[s], { fg: c.subtle }, skyR.w - INSET * 2);
+      if (skyR.h >= 2) ui.text(skyR.x + INSET, skyR.y + 1, t(SKY_LABEL[s]), { fg: c.subtle }, skyR.w - INSET * 2);
     }
     if (detailR) {
       new Bar(ui, detailR.x + INSET, detailR.y, detailR.x + detailR.w - INSET)
         .text(`${t("feels")} ${Math.round(w.feels)}°`, { fg: c.subtle }, { priority: 6 })
         .text(`${arrow} ${Math.round(w.wind)} km/h`, { fg: c.subtle, raw: true }, { priority: 5 })
         .text(`☂ ${Math.round(w.rainChance)}%`, { fg: mix(0x7fb4ea, c.bg, 0.2) }, { priority: 7 })
-        .text(`${Math.round(w.humidity)}%rh`, { fg: c.faint }, { priority: 2 })
-        .text(`↑${w.sunrise} ↓${w.sunset}`, { fg: c.faint }, { side: "right", priority: 1 })
+        .text(`${Math.round(w.humidity)}%rh`, { fg: c.subtle }, { priority: 2 })
+        .text(`↑${w.sunrise} ↓${w.sunset}`, { fg: c.subtle }, { side: "right", priority: 1 })
         .draw();
     }
     if (hoursR && w.hourly.length && hoursR.w >= 12) {
@@ -273,11 +275,11 @@ const weatherWidget: WidgetSpec = {
       const vals = Array.from({ length: cw * 2 }, (_, i) => ((w.hourly[Math.floor((i / (cw * 2)) * w.hourly.length)] - lo) / Math.max(1, hi - lo)) * 0.85 + 0.1);
       ui.chart({ x: hoursR.x + INSET, y: hoursR.y, w: cw, h: 2 }, vals, mix(c.accent, c.bg, 0.15));
       ui.text(hoursR.x + INSET + cw + 1, hoursR.y, lab, { fg: c.subtle });
-      ui.text(hoursR.x + INSET + cw + 1, hoursR.y + 1, `${Math.round(lo)}°`, { fg: c.faint });
+      ui.text(hoursR.x + INSET + cw + 1, hoursR.y + 1, `${Math.round(lo)}°`, { fg: c.subtle });
     }
     if (weekR) {
       // the next days as cards: the day, a little sky, max and min
-      const locale = deck.settings.data.user.locale || undefined;
+      const locale = dateLocale();
       const inner = { x: weekR.x + INSET, y: weekR.y, w: weekR.w - INSET * 2, h: weekR.h };
       const { rects, perRow } = cards(inner, w.days.length, { minW: 7, maxW: 12, h: 4, gap: 1, gapY: 0 });
       w.days.slice(0, perRow).forEach((d, i) => {
@@ -291,7 +293,7 @@ const weatherWidget: WidgetSpec = {
         ui.text(cr.x, cr.y + 2, i2, { fg: tint }, cr.w);
         new Bar(ui, cr.x, cr.y + 3, cr.x + cr.w, 1)
           .text(`${Math.round(d.max)}°`, { fg: c.fg }, { priority: 9 })
-          .text(`${Math.round(d.min)}°`, { fg: c.faint }, { priority: 5 })
+          .text(`${Math.round(d.min)}°`, { fg: c.subtle }, { priority: 5 })
           .draw();
       });
     }
@@ -318,7 +320,7 @@ const calendar: WidgetSpec = {
     if (month) return month.render(ui, r, ctx);
     const { deck } = ctx;
     const c = ui.c;
-    const locale = deck.settings.data.user.locale || undefined;
+    const locale = dateLocale();
     const now = new Date();
     const first = new Date(now.getFullYear(), now.getMonth(), 1);
     const offset = (first.getDay() + 6) % 7;
@@ -404,7 +406,7 @@ const system: WidgetSpec = {
     if (r.h >= 3) {
       ui.chart({ x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 2 }, cpuHistory, mix(c.accent, c.bg, 0.25));
       const up = stats.uptime;
-      ui.text(r.x + 1, r.y + r.h - 1, `up ${Math.floor(up / 86400)}d ${Math.floor((up % 86400) / 3600)}h · ${stats.processes} procs · ${stats.cores.length} cores`, { fg: c.faint }, r.w - 2);
+      ui.text(r.x + 1, r.y + r.h - 1, `up ${Math.floor(up / 86400)}d ${Math.floor((up % 86400) / 3600)}h · ${stats.processes} procs · ${stats.cores.length} cores`, { fg: c.subtle }, r.w - 2);
     }
   },
   activate: ({ deck }) => void deck.openApp("sysmon"),
@@ -431,7 +433,7 @@ const recent: WidgetSpec = {
       ui.text(r.x + 1, row.y, hot ? "▸" : i === 0 ? "◆" : "·", { fg: i === 0 || hot ? c.accent : c.faint, bg });
       ui.text(r.x + 3, row.y, basename(e.path, ".md"), { fg: hot ? c.accent : c.fg, bg, attrs: i === 0 ? BOLD : 0 }, r.w - 10 - folderW);
       if (folderW) ui.text(r.x + r.w - 8 - folderW, row.y, dirname(e.path) || "/", { fg: c.subtle, bg }, folderW);
-      ui.textRight(r.x + r.w - 1, row.y, ago(e.modified), { fg: c.faint, bg });
+      ui.textRight(r.x + r.w - 1, row.y, ago(e.modified), { fg: c.subtle, bg });
       ui.hit(row, { cmd: `open ${q(e.path)}` });
     });
   },
@@ -465,7 +467,7 @@ async function refreshPulse(deck: Deck): Promise<void> {
   pulseAt = Date.now();
   const lines: PulseLine[] = [];
   const has = (m: string, fn: string) => deck.services.has(m, fn);
-  const time = (d: Date) => d.toLocaleTimeString(deck.settings.data.user.locale || undefined, { hour: "2-digit", minute: "2-digit" });
+  const time = (d: Date) => d.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" });
   const tryLine = async (f: () => Promise<PulseLine | null>) => {
     try {
       const l = await f();
@@ -535,7 +537,8 @@ const modules: WidgetSpec = {
       ui.textCenter(r, r.y + Math.floor(r.h / 2), t("all quiet"), { fg: c.subtle });
       return;
     }
-    const nameW = Math.min(10, Math.max(...lines.map((l) => strWidth(l.name))) + 1);
+    // narrow: the icon says which module, the room goes to what it says (the names cut the values)
+    const nameW = r.w < 24 ? -GAP : Math.min(10, Math.max(...lines.map((l) => strWidth(l.name))) + 1);
     lines.slice(0, r.h).forEach((l, i) => {
       const y = r.y + i;
       const row = { x: r.x, y, w: r.w, h: 1 };
@@ -543,7 +546,7 @@ const modules: WidgetSpec = {
       if (hotRow) ui.fill(row, { bg: c.highlight });
       const st = hotRow ? { bg: c.highlight } : {};
       ui.text(r.x, y, l.icon, { fg: l.hot ? c.warning : c.accent, ...st });
-      ui.text(r.x + 2, y, l.name, { fg: c.subtle, ...st }, nameW);
+      if (nameW > 0) ui.text(r.x + 2, y, l.name, { fg: c.subtle, ...st }, nameW);
       ui.text(r.x + 3 + nameW, y, l.text, { fg: l.hot ? c.fg : c.muted, attrs: l.hot ? BOLD : 0, ...st }, r.w - nameW - 3);
       ui.hit(row, { cmd: l.cmd, tip: `${l.name}: ${l.text}` });
     });

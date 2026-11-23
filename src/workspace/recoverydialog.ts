@@ -94,14 +94,14 @@ export class RecoveryDialog implements Overlay {
     y += 1;
     ui.text(inner.x + 1, y, t("They open your vault if you forget your password. ICEBREAKER keeps no copy."), { fg: c.muted }, inner.w - 2);
     y += 1;
-    ui.text(inner.x + 1, y, t("whoever has them can open your vault: keep them safe"), { fg: c.faint }, inner.w - 2);
+    ui.text(inner.x + 1, y, t("whoever has them can open your vault: keep them safe"), { fg: c.subtle }, inner.w - 2);
     y += 2;
     // 4 columns of 6, numbered top to bottom
     const colW = Math.floor((inner.w - 2) / 4);
     for (let i = 0; i < this.list.length; i++) {
       const col = Math.floor(i / 6), row = i % 6;
       const x = inner.x + 1 + col * colW;
-      ui.text(x, y + row, String(i + 1).padStart(2), { fg: c.faint });
+      ui.text(x, y + row, String(i + 1).padStart(2), { fg: c.subtle });
       ui.text(x + 3, y + row, padEnd(this.list[i], colW - 4), { fg: c.accent, attrs: BOLD }, colW - 4);
     }
     y += 7;

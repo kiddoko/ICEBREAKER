@@ -32,6 +32,52 @@ export interface VersionNotes {
 
 export const NOTES: VersionNotes[] = [
   {
+    version: "0.7.0",
+    date: "2026-11-23",
+    en: {
+      headline: "Everything in plain sight: clearer, steadier, readable",
+      added: [
+        "Calendars and clocks wherever a day or a time is chosen",
+        "A mini calendar on the top bar's date and time",
+        "A menu bar beside ◆ ICEBREAKER: modules, store, nexus, settings, help",
+        "The status bar is yours: drag, hide, ▣ the page alone",
+        "CALENDAR imports a CSV or an .ics; SYSMON shows the graphics card",
+        "NEXUS says what each thing is and shows what's inside",
+        "UPLINK's eye can follow your pointer; neofetch is a HUD",
+      ],
+      fixed: [
+        "Tips are crisp and go as soon as you move; Settings explain beside",
+        "Themes no longer stretch frames or widgets",
+        "The setup: back / skip buttons, browse…, nothing cut",
+        "Readable hints in every theme; every date in your format",
+        "The trash is the tree's last line; the log sits beside the shell",
+        "A question that pops up never takes the keys you were typing",
+        "Small widgets show what matters, never a cut sentence",
+      ],
+    },
+    fr: {
+      headline: "Tout à portée de vue : plus clair, plus stable, lisible",
+      added: [
+        "Calendrier et horloge partout où l'on choisit un jour ou une heure",
+        "Un mini calendrier sur la date et l'heure en haut",
+        "Une barre de menus à côté de ◆ ICEBREAKER : modules, store, nexus…",
+        "La barre du bas est à toi : glisser, cacher, ▣ la page seule",
+        "CALENDAR importe un CSV ou un .ics ; SYSMON montre la carte graphique",
+        "NEXUS dit ce qu'est chaque chose et montre ce qu'il y a dedans",
+        "L'œil d'UPLINK peut suivre ton pointeur ; neofetch devient un HUD",
+      ],
+      fixed: [
+        "Bulles nettes qui partent dès qu'on bouge ; réglages expliqués à côté",
+        "Les thèmes n'étirent plus les cadres ni les widgets",
+        "Le setup : boutons retour / passer, parcourir…, plus rien de coupé",
+        "Indications lisibles dans chaque thème ; chaque date dans ton format",
+        "La corbeille en bas de l'arbre ; le log à côté du shell",
+        "Une question qui surgit ne prend jamais les touches que tu tapais",
+        "Les petits widgets montrent l'essentiel, jamais une phrase coupée",
+      ],
+    },
+  },
+  {
     version: "0.6.3",
     date: "2026-11-23",
     en: {

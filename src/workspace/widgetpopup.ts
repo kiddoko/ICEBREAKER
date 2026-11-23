@@ -69,9 +69,11 @@ export class WidgetPopup implements Overlay {
     const p = this.spec.popup!;
     ui.dim(screen, c.subtle);
     ui.hit(screen, { onClick: () => (this.done = true), onWheel: () => {}, block: true });
-    const w = Math.min(screen.w - 4, p.size?.w ?? 60);
-    const h = Math.min(screen.h - 2, (p.size?.h ?? 14) + 3);
-    const box = { x: screen.x + Math.floor((screen.w - w) / 2), y: screen.y + Math.floor((screen.h - h) / 3), w, h };
+    // about two thirds of the screen (a pop-up the size of its content looked lost on a big
+    // screen), at least what the widget asks for, never past the screen
+    const w = Math.min(screen.w - 4, Math.max(p.size?.w ?? 60, Math.min(POPUP_MAX_W, Math.round(screen.w * POPUP_SHARE))));
+    const h = Math.min(screen.h - 2, Math.max((p.size?.h ?? 14) + 3, Math.round(screen.h * POPUP_SHARE)));
+    const box = { x: screen.x + Math.floor((screen.w - w) / 2), y: screen.y + Math.floor((screen.h - h) / 2), w, h };
     ui.hit(box, { onClick: () => {}, block: true });
     const inner = ui.box(box, { title: t(p.title ?? this.spec.title).toLowerCase(), focused: true, bg: c.panelAlt });
     const body = { x: inner.x, y: inner.y, w: inner.w, h: inner.h - 2 };
@@ -108,3 +110,7 @@ export function fitPieces(hint: string, room: number): string {
   }
   return out;
 }
+
+/** a widget's pop-up takes this share of the screen (each way), up to POPUP_MAX_W columns */
+export const POPUP_SHARE = 2 / 3;
+const POPUP_MAX_W = 150;

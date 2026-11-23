@@ -394,7 +394,33 @@ export interface IcebreakerAPI {
      * permissions (desktop only; null elsewhere).
      */
     pickFolder(title: string, start?: string): Promise<string | null>;
+    /**
+     * WHEN? — the deck's little calendar and clock: a day (`date`), a time (`time`), days of the
+     * week (`days`), or what the user typed instead. `text` is ready for your command
+     * ("2026-12-24", "2026-12-24 09:30", "07:30", "mon,fri", or what was typed); null: cancelled.
+     * `clear: true` adds a "none" button (→ `{ cleared: true, text: "" }`).
+     */
+    pickWhen(title: string, opts?: { date?: boolean; time?: boolean; days?: boolean; initial?: string; initialDays?: string[]; clear?: boolean; allDay?: boolean; placeholder?: string; typed?: string }): Promise<{ text: string; date?: string; time?: string; days?: string[]; typed?: boolean; cleared?: boolean } | null>;
     pickFile(title: string, exts?: string[], start?: string): Promise<string | null>;
+    /**
+     * The user chooses a text file on the computer (the deck's browser) and you get its text —
+     * the deck reads it because they chose it: no permission needed (2 MB at most). For an
+     * import (events, contacts…). `{ name, text }`, or null (cancelled, too big, the web).
+     */
+    pickFileText(title: string, exts?: string[]): Promise<{ name: string; text: string } | null>;
+    /**
+     * The same for a sound or a picture (wav, aiff, flac, mp3, ogg, m4a, mid, png, jpg…, 64 MB at
+     * most): its bytes. A tracker's "import a sample from this computer". Desktop only (null on the web).
+     */
+    pickFileBytes(title: string, exts?: string[]): Promise<{ name: string; bytes: Uint8Array } | null>;
+    /**
+     * Your page alone in the window: the tree, the panel and the shell fold away while it's in
+     * front (`true`), come back with `false` — and by themselves when another tab comes in front or
+     * your page closes. Only for your own page, when it's the one in front and has the keyboard.
+     * Returns whether your page now holds the window. If the user brings the frames back, your page
+     * can't fold them again until it has left the front once. The user's ▣ and `frame solo` do the same.
+     */
+    fullWindow(on?: boolean): boolean | Promise<boolean>;
     theme(): Theme;
     /** Ask for a redraw (after changing state outside an input handler). */
     redraw(): void;

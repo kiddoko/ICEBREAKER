@@ -2,6 +2,7 @@ import { fmt } from "../../core/ansi";
 import { osKeys } from "../../core/keyhints";
 import type { Command } from "../types";
 import { SHELL_RATIO } from "../../workspace/workspace";
+import { moveStatusItem, STATUS_IDS, STATUS_ITEMS, statusOrder } from "../../workspace/statusbar";
 import { CLASSIC, describe, moveFrame, parseArrangement, PRESETS, type FrameId, type Side } from "../../workspace/layout/arrange";
 
 /** what you call a frame → its id ("tree" is the vault frame) */
@@ -63,13 +64,18 @@ export const frameCommand: Command = {
     "frame move <tree|panel|shell> <left|right|top|bottom>   it goes along that edge, the rest keeps its places\n" +
     "frame fold <tree|panel|shell>     a thin strip with its name (a click on it opens it again)\n" +
     "frame unfold <tree|panel|shell>   open it again\n" +
+    "frame solo                        the page alone: the tree, the panel and the shell away (again: they come back)\n" +
     "(⌘Z undoes any of these; drag the border between two frames to resize them)",
   examples: [["frame move shell right", "the shell along the right edge"], ["frame move tree bottom", "the tree along the bottom"], ["frame fold panel", "the panel folded into a strip"]],
-  complete: () => ["move", "fold", "unfold", "tree", "panel", "shell", ...SIDES],
+  complete: () => ["move", "fold", "unfold", "solo", "tree", "panel", "shell", ...SIDES],
   run(ctx) {
     const d = ctx.deck;
     const [a, who, side] = ctx.args;
     const id = who ? NAMES[who.toLowerCase()] : undefined;
+    if (a === "solo") {
+      d.workspace.toggleSolo();
+      return ctx.out(d.workspace.solo ? "the page alone — frame solo again brings the rest back\n" : "the frames are back\n"), 0;
+    }
     if (a === "fold" || a === "unfold") {
       if (!id || id === "main") return ctx.err("usage: frame fold|unfold <tree|panel|shell> (the page never folds)\n"), 1;
       d.workspace.setFrameFolded(id, a === "fold");
@@ -89,5 +95,69 @@ export const frameCommand: Command = {
     if (id === "shell" && !ws.shellVisible) ws.toggleShell(true);
     d.requestFrame();
     return ctx.out(osKeys(`${who} → ${side} — ⌘Z puts it back · layout reset for the classic layout\n`)), 0;
+  },
+};
+
+/** The status bar's right side: its items, their order, which are hidden (workspace/statusbar.ts). */
+export const statusbarCommand: Command = {
+  name: "statusbar",
+  summary: "arrange the status bar: which items, in which order (or drag one sideways, right-click it)",
+  usage:
+    "statusbar                       its items, in order, and the hidden ones\n" +
+    "statusbar move <item> left|right|<n>   one place left / right, or to place n (1 = first)\n" +
+    "statusbar hide <item>           take it off the bar\n" +
+    "statusbar show <item>           put it back\n" +
+    "statusbar order <items…>        this order (the ones not named keep their default places)\n" +
+    "statusbar reset                 back to the default",
+  examples: [["statusbar move help 1", "the manual first"], ["statusbar hide screensaver", "no ☾ on the bar"]],
+  complete: () => ["move", "hide", "show", "order", "reset", ...STATUS_IDS],
+  run(ctx) {
+    const d = ctx.deck;
+    const [a, id, where] = ctx.args;
+    const cfg = d.settings.data.statusBar ?? { order: [], hidden: [] };
+    const hidden = new Set(cfg.hidden ?? []);
+    const save = (order: string[], h = hidden) => {
+      d.settings.set("statusBar", { order, hidden: [...h] });
+      d.requestFrame();
+    };
+    const known = (x: string | undefined): x is string => !!x && STATUS_IDS.includes(x);
+    if (!a) {
+      for (const x of statusOrder(cfg)) ctx.out(`  ${fmt.bold(x.padEnd(12))} ${fmt.dim(STATUS_ITEMS.find((i) => i.id === x)?.about ?? "")}\n`);
+      if (hidden.size) ctx.out(fmt.dim(`hidden: ${[...hidden].join(" ")} (statusbar show <item>)\n`));
+      return 0;
+    }
+    if (a === "reset") return save([], new Set()), ctx.out(fmt.dim("the status bar is back to its default\n")), 0;
+    if (a === "order") {
+      const ids = ctx.args.slice(1).filter(known);
+      if (!ids.length) return ctx.err(`statusbar order: name some items (${STATUS_IDS.join(" ")})\n`), 1;
+      return save(statusOrder({ order: ids, hidden: [] })), 0;
+    }
+    if (!known(id)) return ctx.err(`statusbar: no item "${id ?? ""}" (${STATUS_IDS.join(" ")})\n`), 1;
+    if (a === "hide" || a === "show") {
+      if (a === "hide") hidden.add(id);
+      else hidden.delete(id);
+      save(cfg.order ?? [], hidden);
+      return ctx.out(fmt.dim(a === "hide" ? `${id} hidden — statusbar show ${id} brings it back\n` : `${id} is back\n`)), 0;
+    }
+    if (a === "move") {
+      const shown = statusOrder({ order: cfg.order, hidden: [] });
+      // left / right: past the next item really on the bar (stealth off, no gamepad… aren't
+      // drawn: moving past them changed nothing on screen)
+      const drawn = [...d.workspace.statusSlots].sort((p, q) => p.x - q.x).map((s) => s.id).filter((x, i, all) => all.indexOf(x) === i);
+      const at = drawn.indexOf(id);
+      const next = at >= 0 && (where === "left" || where === "right") ? drawn[at + (where === "left" ? -1 : 1)] : undefined;
+      if (next) {
+        const rest = shown.filter((x) => x !== id);
+        const k = rest.indexOf(next) + (where === "right" ? 1 : 0);
+        save(moveStatusItem([...rest, id], id, k));
+        return 0;
+      }
+      const from = shown.indexOf(id);
+      const to = where === "left" ? from - 1 : where === "right" ? from + 1 : Number(where) - 1;
+      if (!Number.isFinite(to)) return ctx.err("usage: statusbar move <item> left|right|<n>\n"), 1;
+      save(moveStatusItem(shown, id, to));
+      return 0;
+    }
+    return ctx.err(`usage: ${statusbarCommand.usage}\n`), 1;
   },
 };

@@ -28,14 +28,14 @@ export const COMMAND_CLASS: Readonly<Record<string, CommandClass>> = Object.from
   // looking around, help
   ...list("open", "help man date cal whoami uname hostname uptime sleep which neofetch fortune colors changelog context catalog errors manual tour"),
   // pages, widgets, the look
-  ...list("open", "rain fullscreen panel worldclock quote focus moon timer stopwatch matrix explore widget launch view scale palette osk settings sound mute audio sysmon fx link"),
+  ...list("open", "rain fullscreen panel worldclock quote focus moon timer stopwatch matrix explore widget launch view scale palette osk settings sound mute audio sysmon fx link uplink"),
   // open, with sub-commands that are yours (shell/privileged.ts)
   ...list("mixed", "vault plugin store update config macro modules menu keys shortcuts home stealth trash theme voice encoders layout tab clock term"),
   ...list("notify", "notify say"),
   ...list("ai", "ask chat"),
   ...list("online", "weather news"),
   // yours: accounts, what runs later, what you did, where you are in the shell, the screen
-  ...list("yours", "exit reboot undo redo account logout login factory-reset script bind unbind pin unpin starthere frame history env export clear cd avatar log debug"),
+  ...list("yours", "exit reboot undo redo account logout login factory-reset script bind unbind pin unpin starthere frame history env export clear cd avatar log debug statusbar"),
 ]);
 
 /** What your real terminal may run when it's limited to your notes (`shell.bridge` = "notes"). */

@@ -269,7 +269,7 @@ export class NoteApp implements App {
     const tool = (label: string, run: () => void, tip: string, o: { accent?: number; off?: boolean } = {}) => {
       if (x + strWidth(label) + 2 > r.x + r.w) return;
       if (o.off) {
-        x = ui.text(x, r.y, ` ${label} `, { fg: c.faint, bg: c.panelAlt, raw: true }) + 1;
+        x = ui.text(x, r.y, ` ${label} `, { fg: c.subtle, bg: c.panelAlt, raw: true }) + 1;
         return;
       }
       x += ui.button(x, r.y, label, run, { tip, accent: o.accent }) + 1;

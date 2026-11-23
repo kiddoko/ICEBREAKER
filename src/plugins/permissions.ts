@@ -168,6 +168,21 @@ function coversOne(have: Parsed, base: Base, target?: string): boolean {
 }
 
 /**
+ * A write that never asks (gate), though its permission is a high one: a module's own autosave —
+ * a `.recovery/` folder inside the folder you granted ("vault:write:songs/" → songs/.recovery/…).
+ * A grant of the whole vault is no folder of its own: it still asks. BreakerMED's autosave used
+ * to open the question in the middle of your work.
+ */
+export function quietWrite(target: string, grant: string): boolean {
+  const g = parsePerm(grant);
+  if (!g || g.base !== "vault:write" || !g.scope) return false;
+  const path = target.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (path.split("/").some((p) => p === ".." || p === ".")) return false;
+  // the .recovery folder itself (its mkdir) or anything in it
+  return coversOne(g, "vault:write", path) && /(^|\/)\.recovery(\/|$)/.test(path.slice(g.scope.length - 1));
+}
+
+/**
  * A set of granted permissions, asked the way the code asks: `has("vault:write", "songs/a.bmed")`.
  * `list` is read at every question, so a permission you take away stops working at once.
  * Without a target the question is "at all?" (a narrowed permission says yes).

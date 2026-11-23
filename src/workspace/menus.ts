@@ -24,7 +24,7 @@ export function macroMenu(ws: Workspace, i: number): MenuEntry[] {
     { label: t("Edit…"), run: () => void editMacro(ws, i), hint: "shift+click" },
     "-",
     { label: t("Hide macros"), tip: t("⌗ or ⌘⇧K brings them back"), cmd: "macro hide" },
-    { label: t("Delete"), tip: t("goes to the trash — ⌘Z or the TRASH page brings it back"), cmd: `macro rm ${q(m.label)}`, danger: true },
+    { label: t("Remove"), tip: t("this macro goes (⌘Z brings it back)"), cmd: `macro rm ${q(m.label)}`, danger: true },
   ];
 }
 

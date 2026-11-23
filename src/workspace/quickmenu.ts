@@ -3,7 +3,7 @@ import { Field } from "../ui/field";
 import { mix } from "../core/color";
 import { fuzzyFilter } from "../core/fuzzy";
 import { BOLD, type Rect } from "../core/grid";
-import { t } from "../core/i18n";
+import { t, tLoose } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
 import { DECK_KEYS, menuKeyOf, MENU, shortcutFor } from "../core/shortcuts";
 import { strWidth, truncate } from "../core/unicode";
@@ -116,7 +116,8 @@ export class QuickMenu implements Overlay {
       .map((i): PaletteAction => ({ id: `menu.${i.key}`, title: i.from === "deck" ? t(i.label) : i.label, group: `≡ ${i.key}`, hint: t("enter"), run: () => i.run() }));
     // what's named like you typed first, and among those a module's page before its command
     // ("weather" + enter wrote the forecast into ibsh; the page came second)
-    const found = fuzzyFilter(q, this.deck.paletteEntries(), (a) => `${a.group ?? ""} ${a.title}`, 300);
+    // the title as written and as shown (French words find French titles too)
+    const found = fuzzyFilter(q, this.deck.paletteEntries(), (a) => `${a.group ?? ""} ${a.title} ${tLoose(a.title)}`, 300);
     const ql = q.trim().toLowerCase();
     const rank = (a: PaletteAction) => (a.title.toLowerCase().startsWith(ql) ? (a.group === "open" ? 0 : 1) : 2);
     return [...exact, ...found.map((a, i) => ({ a, i })).sort((x, y) => rank(x.a) - rank(y.a) || x.i - y.i).map((x) => x.a)];
@@ -213,9 +214,10 @@ export class QuickMenu implements Overlay {
     if (this.query) {
       this.list.render(ui, body, true, (a, row, selected) => {
         const gx = ui.text(row.x + 1, row.y, a.group ? `${a.group} ` : "", { fg: selected ? c.accentAlt : a.id.startsWith("menu.") ? c.accent : c.subtle, attrs: a.id.startsWith("menu.") ? BOLD : 0 });
-        const hintW = a.hint ? Math.min(strWidth(a.hint), Math.floor(row.w / 3)) : 0;
-        const tx = ui.text(gx, row.y, a.title, { fg: selected ? c.fg : c.muted, attrs: selected ? BOLD : 0 }, row.w - (gx - row.x) - hintW - 3);
-        if (a.hint && row.x + row.w - 2 - hintW > tx) ui.textRight(row.x + row.w - 2, row.y, truncate(a.hint, hintW), { fg: c.faint });
+        const hint = a.hint ? tLoose(a.hint) : "";
+        const hintW = hint ? Math.min(strWidth(hint), Math.floor(row.w / 3)) : 0;
+        const tx = ui.text(gx, row.y, tLoose(a.title), { fg: selected ? c.fg : c.muted, attrs: selected ? BOLD : 0 }, row.w - (gx - row.x) - hintW - 3);
+        if (hint && row.x + row.w - 2 - hintW > tx) ui.textRight(row.x + row.w - 2, row.y, truncate(hint, hintW), { fg: c.subtle });
       });
       if (!this.list.items.length) ui.textCenter(body, body.y + 1, t("nothing matches"), { fg: c.subtle });
       return;
@@ -235,7 +237,7 @@ export class QuickMenu implements Overlay {
       ui.text(cell.x + 3, cell.y, label, { fg: it.from === "yours" ? c.title : on ? c.fg : c.muted, bg }, CELL - 5);
       ui.hit(cell, { onClick: () => this.runItem(it), tip: it.tip });
     });
-    ui.text(body.x + 1, body.y + body.h - 1, t("a key + enter runs it · type to search · ⌘K or shift twice, from anywhere"), { fg: c.faint, bg: c.panelAlt }, body.w - 2);
+    ui.text(body.x + 1, body.y + body.h - 1, t("a key + enter runs it · type to search · ⌘K or shift twice, from anywhere"), { fg: c.subtle, bg: c.panelAlt }, body.w - 2);
   }
 }
 

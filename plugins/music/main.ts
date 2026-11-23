@@ -537,7 +537,7 @@ export function activate(ib: IcebreakerAPI): void {
         const y = r.y + Math.floor(r.h / 2) - 2;
         ui.textCenter(r, y, scanning ? `${ui.spinner()} reading ${folder}…` : "no music yet", { fg: c.muted, attrs: BOLD });
         if (!scanning) {
-          ui.textCenter(r, y + 1, `folder: ${folder}`, { fg: c.faint });
+          ui.textCenter(r, y + 1, `folder: ${folder}`, { fg: c.subtle });
           const bx = r.x + Math.floor(r.w / 2) - 12;
           ui.button(bx, y + 3, "scan", () => run("music scan"), { cmd: "music scan" });
           ui.button(bx + 9, y + 3, "choose folder", () => void this.pickFolder(), { tip: "f · music folder <path>" });
@@ -550,7 +550,7 @@ export function activate(ib: IcebreakerAPI): void {
       ui.fill({ x: r.x + 1, y: sy, w: r.w - 2, h: 1 }, { bg: sbg });
       this.search.render(ui, { x: r.x + 1, y: sy, w: r.w - 30, h: 1 }, { focused: this.typing && focused, active: this.typing, bg: sbg, placeholder: this.typing ? "" : "search  (/)" });
       ui.hit({ x: r.x + 1, y: sy, w: r.w - 30, h: 1 }, { onClick: () => ((this.typing = true), this.search.clear()), tip: "search titles, artists, albums" });
-      ui.textRight(r.x + r.w - 2, sy, `${lib.length} tracks · ${scanning ? "scanning…" : folder}`, { fg: c.faint, bg: sbg });
+      ui.textRight(r.x + r.w - 2, sy, `${lib.length} tracks · ${scanning ? "scanning…" : folder}`, { fg: c.subtle, bg: sbg });
 
       // three columns + now playing bar
       const barH = 3;
@@ -585,7 +585,7 @@ export function activate(ib: IcebreakerAPI): void {
           const num = ci === 2 && !this.query ? `${String(tracks[i]?.track || i + 1).padStart(2)} ` : "";
           const lx = ui.text(col.x + 1, y, isPlaying ? (local?.playing ? "▶ " : "❚❚") : num, { fg: isPlaying ? c.accent : c.faint, ...st });
           const hint = col.hints[i] ?? "";
-          const hx = hint ? ui.textRight(col.x + col.w - 1, y, hint, { fg: c.faint, ...st }) : col.x + col.w;
+          const hx = hint ? ui.textRight(col.x + col.w - 1, y, hint, { fg: c.subtle, ...st }) : col.x + col.w;
           ui.text(isPlaying ? lx + 1 : lx, y, label, { fg: isPlaying ? c.accent : isSel ? c.fg : c.muted, attrs: isSel || isPlaying ? BOLD : 0, ...st }, hx - lx - 2);
           ui.hit(row, {
             onClick: () => {
@@ -625,7 +625,7 @@ export function activate(ib: IcebreakerAPI): void {
         ui.text(px + pw + 1, by + 1, clock(s.duration), { fg: c.subtle });
         ui.hit({ x: px, y: by + 1, w: pw, h: 1 }, { onClick: (m) => run(`music seek ${Math.floor(((m.x - px) / pw) * s.duration)}`), tip: "click to jump · music seek 1:30" });
         if (ui.now) ui.animate(250);
-      } else ui.text(r.x + 2, by + 1, "nothing playing · enter plays the selection", { fg: c.faint });
+      } else ui.text(r.x + 2, by + 1, "nothing playing · enter plays the selection", { fg: c.subtle });
       // controls
       let cx = r.x + r.w - 46;
       // THE button; a mode that's on (shuffle, repeat) in the accent, the rest quiet
@@ -662,13 +662,13 @@ export function activate(ib: IcebreakerAPI): void {
     min: { w: 2, h: 2 },
     render(ui, r) {
       const c = ui.c;
-      if (!ib.media.available() && !localActive()) return void ui.text(r.x + 1, r.y, "music needs the desktop app", { fg: c.muted }, r.w - 2);
+      if (!ib.media.available() && !localActive()) return void ui.textFit(r.x + 1, r.y, [ib.lib.t("music needs the desktop app"), ib.lib.t("desktop app only")], { fg: c.muted }, r.w - 2);
       if (!localActive() && Date.now() - polledAt > (shown()?.playing ? 2000 : 4000)) void poll();
       const status = shown();
       ui.animate(status?.playing ? 120 : 1000);
       if (error && !localActive()) {
         ui.text(r.x + 1, r.y, `⚠ ${error}`, { fg: c.error }, r.w - 2);
-        if (r.h > 1) ui.text(r.x + 1, r.y + 1, "enter: retry", { fg: c.faint });
+        if (r.h > 1) ui.text(r.x + 1, r.y + 1, "enter: retry", { fg: c.subtle });
         return;
       }
       if (!status && loading && !at) return void ui.textCenter(r, r.y + Math.floor((r.h - 1) / 2), `${ui.spinner()} listening…`, { fg: c.muted });
@@ -770,7 +770,7 @@ export function activate(ib: IcebreakerAPI): void {
         if (!s) {
           ui.textCenter(r, r.y + 3, "♪", { fg: c.accent, attrs: BOLD });
           ui.textCenter(r, r.y + 5, lib.length ? `nothing playing · ${lib.length} tracks in ${folder}` : "nothing playing", { fg: c.muted });
-          ui.textCenter(r, r.y + 6, lib.length ? "enter: your library" : "music folder <path> · or play something in Spotify / Music", { fg: c.faint });
+          ui.textCenter(r, r.y + 6, lib.length ? "enter: your library" : "music folder <path> · or play something in Spotify / Music", { fg: c.subtle });
           return;
         }
         // source · title · artist
@@ -834,7 +834,7 @@ export function activate(ib: IcebreakerAPI): void {
           for (let i = 0; i < n; i++) ui.text(vx + 2 + i, vy, i < lv ? "▮" : "▯", { fg: i < lv ? mix(c.accent, c.accentAlt, i / n) : c.faint });
           ui.text(vx + n + 3, vy, "+", { fg: c.subtle });
           ui.hit({ x: vx + n + 3, y: vy, w: 1, h: 1 }, { cmd: "music vol +" });
-          ui.text(vx + n + 5, vy, `${Math.round(s.volume)}%`, { fg: c.faint });
+          ui.text(vx + n + 5, vy, `${Math.round(s.volume)}%`, { fg: c.subtle });
         }
         // up next
         if (queue.length && qi >= 0 && r.h > 14) {

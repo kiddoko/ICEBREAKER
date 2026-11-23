@@ -23,6 +23,7 @@ mod screen;
 mod store;
 mod term;
 mod system;
+mod gpu;
 mod vault;
 mod voice;
 
@@ -63,6 +64,7 @@ pub fn run() {
         .manage(appupdate::UpdateState::default())
         .manage(vault::VaultState::default())
         .manage(system::SystemState::default())
+        .manage(gpu::GpuState::default())
         .manage(claude_code::ClaudeCodeState::default())
         .manage(account::AccountState::default())
         .manage(term::PtyState::default())
@@ -94,6 +96,7 @@ pub fn run() {
             files::fs_home,
             files::fs_list,
             files::fs_read_text,
+            files::fs_read_bytes,
             vault::vault_rename,
             vault::vault_exists,
             vault::vault_import,
@@ -121,6 +124,7 @@ pub fn run() {
             config::app_quit,
             quit::app_quit_cancelled,
             system::system_stats,
+            gpu::gpu_stats,
             system::power_on_battery,
             claude_code::claude_code_detect,
             claude_code::claude_code_run,

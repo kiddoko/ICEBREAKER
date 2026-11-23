@@ -1,5 +1,127 @@
 # Changelog
 
+## 0.7.0 — 2026-11-23
+
+The UX pass: everything discoverable, nothing stretched, the deck explains itself.
+
+- **Hover tips, redone.** They are drawn above the grid now, not in its cells: crisp (the CRT
+  bend, bloom and scanlines don't blur them), placed to the pixel next to the pointer instead of
+  jumping cell by cell, fading in after a short rest — and gone the moment the pointer moves, a
+  key is pressed or the wheel turns (`ui/tipview.ts`).
+- **Settings explain the row you're on, beside it**: on a wide enough page the whole text sits
+  to the right of the hovered (or chosen) row, joined to it by a thin line, with its command and
+  its default — not cut at the bottom any more. A narrow page keeps it under the list.
+- **The ◆ ICEBREAKER menu looks like a menu**: a tinted button with its ▾, and a menu bar after
+  it — modules · store · nexus · settings · help — like a desktop app's (a tester didn't know
+  the menu was there).
+- **The trash is the tree's last line**, with a bin of its own (drawn, it fits a cell) and how
+  many things it holds; right-click empties it. The ⌫ above the tree is gone.
+- **Terminal tabs are named after their shell** — zsh, bash, powershell, then "zsh 2" — instead
+  of "icbrkr_trm" (yours once renamed).
+- **The log sits on the shell's right** when the shell is wide: always in view, its filters as
+  glyphs, long lines wrapped. A narrow shell keeps it as a tab; Settings → shell or
+  `log side off` puts it back in a tab.
+- **Proportions hold, whatever the theme.** A dragged border is kept as a share of the screen,
+  not a number of cells: a theme whose font is wider or narrower no longer stretches the frames.
+  HOME's rows follow its columns' width, so widgets keep their shape (they stretched to fill the
+  page); what doesn't fit scrolls.
+- **A widget with no room goes below the others** on the same HOME page, which scrolls to it —
+  not to a new page nobody looks at.
+- **Widget pop-ups take about two thirds of the screen**, and the moon behind one stays a moon,
+  dimmed (it went flat grey).
+- **The frames' switches side by side in the status bar**: ◧ tree · ▾ shell · ◨ panel ·
+  ▣ the page alone (everything else folded away, again: back as it was — `frame solo`).
+- **The status bar is yours to arrange**: drag an item sideways, right-click to move or hide
+  it, `statusbar move help 1`, `statusbar hide screensaver`, `statusbar reset`.
+- **WHEN? — a little calendar and clock wherever a day, a time or days are chosen**: a todo's
+  due date (with *none*), a reminder, a new event (with *all day*), an alarm (its time and its
+  days), a habit's or a repeating todo's days. Arrows, a click, quick picks (today, tomorrow,
+  next monday, in a week) — or type it as before ("demain 9h", "+3d"). Modules get it:
+  `ib.ui.pickWhen`.
+- **A mini calendar under the top bar's date and time** (a click, `clock calendar`): the month,
+  today, a dot on the days with events (a click opens that day in CALENDAR), the week number.
+- **The setup, clearer**: *‹ back esc* and *skip tab* are buttons at the bottom of every
+  question (going back with esc was said nowhere a tester looked); the vault's folder has a
+  *browse…* button (⌘O) beside its field, its suggestion is where the vault is now, and tab
+  completes the folder's name; the second language question is now **DATE FORMAT**, each choice
+  showing today's date written that way; in a small window the choices and the buttons come
+  first — the question is cut with … and long lists scroll (they ran over the buttons), and the
+  chapters at the top shrink to the one you're in.
+- **SYSMON shows the graphics card**: its name everywhere (WebGL), and its use, video memory and
+  temperature where the system tells them without special rights (Linux's sysfs for AMD / Intel,
+  `nvidia-smi` for NVIDIA) — a third tile on a wide page. The processes say how they're sorted
+  ("sorted by cpu ▾", a click or s for memory) instead of a cryptic "· s".
+- **NEXUS tells folders from files**: each node says what it is (folder, note, or its file kind:
+  pdf, png…) in its colour, folders wear a tab, and resting the pointer on a node unfolds a small
+  window above it — what a folder holds (how many folders, notes, other files, the first names),
+  a note's first lines.
+- **HABITS, easier to read**: the columns are named (today, the last days' initials, ▲ the
+  streak), each habit says when it's due (2× a day · mon wed fri), and under the list this week
+  day by day and the best streak.
+- **CALENDAR imports events** from a CSV (Google's or Outlook's export, any sheet with a title
+  and a date, commas or semicolons, english or french headers) or an .ics: *⇣ import*, or
+  `cal import [file]`. Modules get `ib.ui.pickFileText`: the file the user chooses, read for them.
+- **UPLINK's personality** (its pop-up's last line, `uplink eye|quips|blinks`): its eye looks at
+  the pointer when hovered, follows it across the whole screen, or stays closed; it talks and
+  blinks now and then, if you like.
+- **neofetch, as a HUD**: the system, the cpu and the memory with their gauges, the graphics
+  card, the vault (encrypted or plain), the uplink, the modules, the theme and its palette — and
+  the right version (it said 0.1.0).
+- **French, everywhere**: tips and pages' status lines written without a translation are
+  translated where they're drawn (whole, by line, or by " · " part — a path or a command keeps its
+  case), 90 more strings; **every date is written in the deck's date format** (Settings → you →
+  date format) — empty, it never mixes languages (a French deck on an English Mac wrote its months
+  in English); `ib.lib.dateLocale()` for modules.
+- **Menus say what they do**: *move to the trash* (not "delete"), *remove* for a macro (it said
+  it went to the trash: it never did), *empty the trash…* asks first; HOME's page squares and the
+  log out row no longer cut or shout (⏻ came out halved: "to the login page").
+- **Readable in every theme** (WCAG 2.1 contrast): secondary text and hints at 4.5:1 at least
+  (WCAG AA), on the background, the panels and the pop-ups — five of the eleven themes had hints
+  around 2:1. 82 texts written in `faint` (meant for lines) now use `subtle`: the weather's hours,
+  the log's times, empty pages' help, the setup's hints…
+- **For modules (BreakerMED's needs)**: `ib.ui.pickFileBytes` (a sound or a picture the user
+  chooses — a tracker's sample), `ib.ui.fullWindow` (its page alone: the tree, the panel and the
+  shell fold away while it's in front, and come back when it leaves), `ui.art` documented for
+  scenery (no fade-in on a scrolling pattern), a sandboxed page that plays the keyboard gets F1–F8,
+  ⌘ ← →, Tab and ⇧Tab (tested), and an autosave in a `.recovery/` folder of a granted folder never
+  asks. Native side: the file picker reads CSV and .ics (the calendar import was refused) and sounds
+  and pictures (`fs_read_bytes`).
+- **A permission question that pops up while you type no longer takes your keys**: they're
+  swallowed until you stop for a moment (each key pushes the wait) — on Windows, "n" answered No,
+  then the next keys switched BreakerMED's autosave off and started playback. A click answers at once.
+- **HOME's edit mode shows what can be dragged**: ✥ on each widget's frame ("✥ drag" under the
+  pointer), a grabbing hand while it moves, the resize corner's own pointer.
+- **The setup's voice, theme and sound questions are French again** (their English had changed,
+  not their translation); a test now keeps every setup text translated.
+- **Widgets have a small version**: at their smallest size they show the one thing that
+  matters instead of a cut sentence — the calendar and the week show today and its events (they
+  showed "november 2026" or letters piled up), UPLINK says who and how (its ring was cut in half),
+  pulse drops its labels for the values, and every "nothing to rem…" became a short sentence that
+  fits whole (`ui.textFit`, for modules too).
+- **Found in the Windows and Mac passes and in Fable's review** (fixed before the release):
+  - a question (yes / no, or a permission) never takes the keys you were typing: each key pushes
+    its wait back, and a click in its first moment doesn't answer it (it was meant for the page);
+  - the setup run again on a French deck chooses Français, not English; in a short window it keeps
+    its buttons (back and skip, short when needed) and a one-line header; enter on the vault's grey
+    suggestion keeps it; WHEN?: a time typed alone ("14") goes with the day you clicked;
+  - small calendar widgets by the sizes HOME really gives (today's week, else today); HOME's widgets
+    stop above the pages line and the "↓ more" tab has its own line; HOME follows a widget grown
+    with shift+↓; NEXUS in a short page becomes a list (its nodes ran over the bar);
+  - French: no English left on HOME (weather in stealth, uplink, news, the question's title, the
+    week "S"), ⌘K's titles and descriptions, the setup's hints, "vue d'ensemble" / "mises à jour"
+    in lowercase, the log stays « log » (the vault has the journal), Settings search finds French
+    words; the article "a" no longer drawn as a key;
+  - files: the picker hides the places the deck never reads (AppData, Library, /usr…), puts an
+    exact name first and opens where the last pick was; reading a chosen file follows its link and
+    checks again, reads a regular file only, capped, off the window's thread (text and bytes); the
+    graphics card is read off the window's thread too;
+  - the status bar names a page as its tab does (nexus), `statusbar move` skips what isn't drawn;
+    the tip goes when the window resizes; a new terminal takes the smallest free number (zsh, not
+    zsh 2 alone); hints at 4.5:1 contrast like any text (WCAG AA).
+- **Ctrl + wheel changes the interface scale on every system**, one step a notch (Linux and
+  Windows mice send lines: it took ~14 notches). **⇧ + wheel goes to what's under the
+  pointer**, like the wheel — it walks the tree only over the tree (Settings scrolled the tree).
+
 ## 0.6.3 — 2026-11-23
 
 The serious bugs: a layout that comes back, a setup that holds, Linux.

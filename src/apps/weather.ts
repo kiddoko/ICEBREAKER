@@ -14,7 +14,7 @@
 import { fmt } from "../core/ansi";
 import { mix } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
-import { t } from "../core/i18n";
+import { t, dateLocale } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
 import { geocode, langOf, resolvePlace, type Place } from "../core/location";
 import type { Deck } from "../deck";
@@ -277,7 +277,7 @@ class WeatherApp implements App {
   private drawWeek(ui: UI, r: Rect, f: Forecast): void {
     const c = ui.c;
     const { rects, shown } = cards(r, f.days.length, { minW: 11, maxW: 18, h: 4, gap: GAP, gapY: 0 });
-    const locale = this.deck.settings.data.user.locale || undefined;
+    const locale = dateLocale();
     f.days.slice(0, shown).forEach((d, i) => {
       const cr = rects[i];
       const today = i === 0;

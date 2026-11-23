@@ -1,6 +1,6 @@
 import { PRIVILEGED_NAMES } from "../shell/privileged";
 import type { Origin } from "../shell/origin";
-import { describePerm, Grants, levelOf, levelRank, missing, parsePerm, readPerms, sortPerms } from "./permissions";
+import { describePerm, Grants, levelOf, levelRank, missing, parsePerm, readPerms, sortPerms, quietWrite } from "./permissions";
 import type { PermDialogSpec, PermLine } from "../workspace/permdialog";
 import { isOfficialSource } from "./install";
 import { stealth } from "../core/stealth";
@@ -10,7 +10,8 @@ import { isDeckPath } from "../vault/paths";
 import { FRAME_PARTS, frameServices } from "./frame-services";
 import { sandboxed } from "./sandbox/bridge";
 import { AudioStream } from "../core/audiostream";
-import { pickFile, pickFolder } from "../workspace/filebrowser";
+import { pickFile, pickFileBytes, pickFileText, pickFolder } from "../workspace/filebrowser";
+import { whenForModules } from "../ui/calendar";
 import { auditCode, auditReport, type AuditFinding } from "./audit";
 import { moduleSettingRows } from "../apps/settings-rows";
 import { BLOCK_KINDS } from "../core/catalog";
@@ -217,8 +218,10 @@ export class PluginHost {
     const d = describePerm(name, t);
     const no = () => new Error(t("{m}: you said no to “{p}”", { m: m.name.toLowerCase(), p: d.label }));
     // you just said no to this: the rest of the same action (an export's file after its folder) stops
-    // without a second question
+    // without a second question — its autosave too
     if (level !== "total" && (this.refused.get(key) ?? 0) > Date.now()) throw no();
+    // its own autosave (a .recovery/ folder in the folder you granted): never a question mid-work
+    if (want.base === "vault:write" && quietWrite(target, name)) return;
     const scope = parsePerm(name)?.scope;
     const what = want.base === "vault:write" ? t("It wants to write: {x}", { x: target || "?" }) : want.base === "net" ? t("It wants to reach: {x}", { x: target || "?" }) : "";
     const spec: PermDialogSpec = {
@@ -944,7 +947,17 @@ export class PluginHost {
         prompt: (t, o) => deck.prompt(from(t), o),
         choose: (t, options, o) => deck.choose(from(t), options, o),
         pickFolder: (title, start) => pickFolder(deck, from(title), start),
+        pickWhen: (title, o) => deck.pickWhen(from(title), o ?? {}).then((r) => (r ? whenForModules(r) : null)),
         pickFile: (title, exts, start) => pickFile(deck, from(title), exts, start),
+        pickFileText: (title, exts) => pickFileText(deck, from(title), exts),
+        pickFileBytes: (title, exts) => pickFileBytes(deck, from(title), exts),
+        // only the module's own page, only while it's the one in front — and only while the page
+        // has the keyboard: folding the shell away would hand it the keys typed there (a password)
+        fullWindow: (on = true) => {
+          const app = deck.workspace.activeApp;
+          if (!app || deck.apps.sourceOf(app.kind) !== m.id || deck.workspace.focus !== "main") return false;
+          return deck.workspace.fullWindow(app, on !== false);
+        },
         // on screen, a module from the STORE signs its alert; the voice reads only what it says
         alert: (title, body) => (need("notify"), deck.alert(from(title), body, "reminders", spokenAlert(String(title), body))),
         say: (text, topic) => (need("notify"), deck.speak((["calendar", "reminders", "timers", "weather", "system"].includes(topic ?? "") ? topic : "modules") as VoiceTopic, text)),
