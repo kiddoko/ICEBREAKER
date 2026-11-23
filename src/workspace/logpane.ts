@@ -126,21 +126,24 @@ export class LogPane {
     // ── the filters: one chip per kind, ticked or not, the count and clear at the right ──
     let x = r.x + 1;
     if (compact) x = ui.text(x, r.y, `≣ ${t("log")} `, { fg: c.title, attrs: BOLD }) + 1;
+    // the right end (the count and clear) is measured first: the chips stop before it (a count
+    // of 2 digits was drawn over the last chip)
+    const list = this.show.size ? log.list.filter((e) => this.show.has(e.kind)) : log.list;
+    const clear = ` ${t("✕ clear")} `; // its own key: "clear" is the weather's clear sky (dégagé)
+    const rightW = strWidth(clear) + 1 + strWidth(`${list.length}`) + 1;
     for (const [i, k] of LOG_KINDS.entries()) {
       const on = this.show.has(k.kind);
       const n = log.list.filter((e) => e.kind === k.kind).length;
       const label = compact ? ` ${k.glyph} ` : ` ${on ? "■" : "□"} ${k.glyph} ${t(k.label)} `;
       const w = strWidth(label);
-      if (x + w > r.x + r.w - (compact ? 10 : 14)) break;
+      if (x + w > r.x + r.w - 1 - rightW - (compact ? 0 : 3)) break;
       const rect = { x, y: r.y, w, h: 1 };
       const hot = ui.hovered(rect);
       ui.text(x, r.y, label, { fg: on ? c.panel : n ? c.fg : c.subtle, bg: on ? c.accent : hot ? c.highlight : mix(c.panel, c.fg, 0.08), attrs: on ? BOLD : 0 });
       ui.hit(rect, { onClick: () => this.toggle(k.kind), tip: `${compact ? `${t(k.label)} · ` : ""}${n} · ${i + 1}\n${on ? t("click: hide these") : t("click: show only these (several at once)")}` });
       x += w + (compact ? 0 : 1);
     }
-    const list = this.show.size ? log.list.filter((e) => this.show.has(e.kind)) : log.list;
     const xr = r.x + r.w - 1;
-    const clear = ` ${t("✕ clear")} `; // its own key: "clear" is the weather's clear sky (dégagé)
     const cr = { x: xr - strWidth(clear), y: r.y, w: strWidth(clear), h: 1 };
     ui.text(cr.x, r.y, clear, { fg: ui.hovered(cr) ? c.panel : c.subtle, bg: ui.hovered(cr) ? c.error : undefined });
     ui.hit(cr, { onClick: () => (log.clear(this.show.size ? [...this.show] : undefined), (this.deck.errors.unseen = 0)), tip: t("empty what is shown · log clear") });

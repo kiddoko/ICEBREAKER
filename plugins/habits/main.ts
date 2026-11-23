@@ -353,8 +353,12 @@ export function activate(ib: IcebreakerAPI): void {
       const w = Math.min(r.w - 4, 90), x = r.x + Math.floor((r.w - w) / 2);
       let y = r.y + 1;
       const due = today(), done = due.filter((h) => doneOn(h, new Date())).length;
-      ui.button(x, y, t("+ new habit"), () => void addFlow(), { tip: "a" });
-      ui.textRight(x + w, y, due.length ? t("{done} of {n} today", { done, n: due.length }) : "", { fg: done === due.length && due.length ? c.success : c.subtle, attrs: BOLD });
+      // a Bar: on a narrow page the button keeps its place (shorter: « + »), the count goes first
+      const head = new ib.lib.Bar(ui, x, y, x + w);
+      const add = ib.lib.strWidth(t("+ new habit")) + 2 <= w ? t("+ new habit") : "+";
+      head.button(add, () => void addFlow(), { tip: `${t("+ new habit")} · a` }, { priority: 9 });
+      if (due.length) head.text(t("{done} of {n} today", { done, n: due.length }), { fg: done === due.length ? c.success : c.subtle, attrs: BOLD }, { side: "right", priority: 2 });
+      head.draw();
       y += 1;
       if (due.length) ui.bar(x, ++y, w, done / due.length, c.accent, c.faint);
       y += 2;

@@ -134,13 +134,13 @@ export class BootScreen {
     if (this.finished && n === this.lines.length && !Number.isFinite(this.postEnd)) this.schedule(this.shownAt[n - 1] ?? t);
     const x = 2;
     let y = 1;
-    ui.text(x, y++, `ICEBREAKER BIOS v${pkg.version} · open firmware · no warranty, no masters`, { fg: c.accent, attrs: BOLD });
-    ui.text(x, y++, "(c) the ICEBREAKER contributors — MIT licensed — https://github.com/kiddoko/ICEBREAKER", { fg: c.subtle, attrs: DIM });
-    ui.text(x, y++, "⚠ test software, never audited: store nothing sensitive · back up your vault · report bugs (DISCLAIMER.md)", { fg: c.warning });
+    ui.text(x, y++, `ICEBREAKER BIOS v${pkg.version} · ${tr("open firmware · no warranty, no masters")}`, { fg: c.accent, attrs: BOLD });
+    ui.text(x, y++, `(c) ${tr("the ICEBREAKER contributors — MIT licensed")} — https://github.com/kiddoko/ICEBREAKER`, { fg: c.subtle, attrs: DIM });
+    ui.text(x, y++, `⚠ ${tr("test software, never audited: store nothing sensitive · back up your vault · report bugs")} (DISCLAIMER.md)`, { fg: c.warning });
     y++;
     // memory check counts up
     const memP = this.memMB ? Math.min(1, t / 400) : 0;
-    ui.text(x, y++, `MEM  ${this.memMB ? "testing" : "probing"} ${String(Math.floor(this.memMB * memP)).padStart(6)} MB ${memP >= 1 ? "OK" : ""}`, { fg: c.fg });
+    ui.text(x, y++, `MEM  ${tr(this.memMB ? "testing" : "probing")} ${String(Math.floor(this.memMB * memP)).padStart(6)} MB ${memP >= 1 ? "OK" : ""}`, { fg: c.fg });
     y++;
     for (let i = 0; i < n && y < ui.rows - 2; i++, y++) {
       const l = this.lines[i];
@@ -157,8 +157,8 @@ export class BootScreen {
       if (ms) ui.textRight(ui.cols - 2, y, ms, { fg: (l.ms ?? 0) > 500 ? c.warning : c.subtle, attrs: DIM });
     }
     // still loading: a spinner on the next line; loaded: the blinking cursor
-    if (!this.finished && n === this.lines.length && y < ui.rows - 2) ui.text(x, y, `[  ${ui.spinner()}   ] working…`, { fg: c.subtle });
+    if (!this.finished && n === this.lines.length && y < ui.rows - 2) ui.text(x, y, `[  ${ui.spinner()}   ] ${tr("working…")}`, { fg: c.subtle });
     else if (n < this.lines.length || Math.floor(ui.now / 300) % 2) ui.text(x, y, "█", { fg: c.accent });
-    if (this.elapsed < this.logoEnd) ui.textRight(ui.cols - 2, ui.rows - 1, "any key to skip", { fg: c.subtle });
+    if (this.elapsed < this.logoEnd) ui.textRight(ui.cols - 2, ui.rows - 1, tr("any key to skip"), { fg: c.subtle });
   }
 }

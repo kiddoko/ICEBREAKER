@@ -24,6 +24,7 @@ import type { UI } from "../ui/ui";
 import { sky } from "../widgets/builtin";
 import type { App, AppSpec } from "./types";
 import { atLeast, Bar, cards, GAP, INSET, stack } from "../ui/layout";
+import { strWidth } from "../core/unicode";
 import { drawSky, sceneFor, skyIcon } from "./weathersky";
 import { places } from "../core/suggest";
 
@@ -162,9 +163,12 @@ class WeatherApp implements App {
   render(ui: UI, r: Rect, _focused: boolean): void {
     const c = ui.c;
     if (!this.f) {
-      ui.textCenter(r, r.y + Math.floor(r.h / 2), this.loading ? `${ui.spinner()} ${t("reading the sky…")}` : this.error || t("no data"), { fg: this.error ? c.error : c.muted });
+      // the search button on top (shorter on a narrow page), the message under it, never on its row
+      const label = [t("⌕ search a place"), t("⌕ search"), "⌕"].find((l) => strWidth(l) + 2 <= r.w - INSET * 4) ?? "⌕";
+      ui.button(r.x + INSET * 2, r.y + 1, label, () => void this.search(), { tip: "s" });
+      const my = Math.max(r.y + 3, r.y + Math.floor(r.h / 2));
+      if (my < r.y + r.h) ui.textCenter(r, my, this.loading ? `${ui.spinner()} ${t("reading the sky…")}` : this.error || t("no data"), { fg: this.error ? c.error : c.muted });
       if (this.loading) ui.animate(100);
-      ui.button(r.x + 2, r.y + 1, t("⌕ search a place"), () => void this.search(), { tip: "s" });
       return;
     }
     const f = this.f;

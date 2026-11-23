@@ -359,7 +359,7 @@ export function activate(ib: IcebreakerAPI): void {
       bar.button(t("test the notification"), () => {}, { cmd: "remind test" });
       y += 2;
       this.list.items = upcoming();
-      if (!this.list.items.length) return void ui.text(x, y, t("nothing to remember — a adds a reminder"), { fg: c.muted });
+      if (!this.list.items.length) return void ui.textFit(x, y, [t("nothing to remember — a adds a reminder"), t("nothing to remember"), t("nothing yet")], { fg: c.muted }, w);
       this.list.render(ui, { x, y, w, h: r.y + r.h - 1 - y }, focused, (rem, row, sel) => {
         const late = new Date(rem.due).getTime() < Date.now();
         // (the list paints the row's background: the text keeps it)
