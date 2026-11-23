@@ -8,6 +8,7 @@ import { gradient } from "../../core/color";
 import { padEnd, strWidth } from "../../core/unicode";
 import { ICE_ART } from "../../ui/bigtext";
 import type { Command } from "../types";
+import { t } from "../../core/i18n";
 
 /** Shell built-ins and "system" commands. */
 
@@ -313,18 +314,31 @@ const rain: Command = {
   },
 };
 
-const exit: Command = {
-  name: "exit",
-  aliases: ["quit"],
+const quit: Command = {
+  name: "quit",
   summary: "quit ICEBREAKER (like ⌘Q / Alt+F4)",
-  man: `The normal way out, like ⌘Q / Alt+F4 or THE MENU's "Quit ICEBREAKER": open pages save,
-the vault locks (an encrypted vault's key leaves the memory), and an update waiting to be
-installed "by itself" installs as the app closes.
-In a script, \`exit\` ends the script, not the app. In your real terminal (the term tab),
-\`exit\` is that shell's own: it ends that terminal, not ICEBREAKER.
-To hide the shell panel instead: ctrl+\` (it shows and hides it).`,
+  man: `The normal way out, like ⌘Q / Alt+F4 or the ◆ menu's "quit": open pages save, the vault
+locks (an encrypted vault's key leaves the memory), and an update waiting to be installed "by
+itself" installs as the app closes.`,
   async run(ctx) {
     await ctx.deck.quit();
+  },
+};
+
+/**
+ * `exit` folds the shell, like ctrl+\`. In a real terminal `exit` ends the shell, not the program
+ * around it: typed by habit, it closed the whole deck at once (it looked like a crash).
+ */
+const exit: Command = {
+  name: "exit",
+  summary: "hide the shell (ctrl+` brings it back) — quit: quits ICEBREAKER",
+  man: `Like ctrl+\`: the shell panel folds away, what runs in it keeps running. To quit the deck:
+\`quit\` (or ⌘Q / Alt+F4).
+In a script, \`exit\` ends the script. In your real terminal (zsh, bash, PowerShell), \`exit\` is
+that shell's own: it ends that terminal.`,
+  run(ctx) {
+    ctx.deck.workspace.toggleShell(false);
+    ctx.out(t("shell hidden — ctrl+` brings it back · quit: quits ICEBREAKER") + "\n");
   },
 };
 
@@ -361,4 +375,4 @@ export function formatUptime(sec: number): string {
   return [d && `${d}d`, h && `${h}h`, `${m}m`].filter(Boolean).join(" ");
 }
 
-export const systemCommands: Command[] = [help, man, clear, history, date, cal, whoami, avatar, uname, hostname, uptime, env, exportCmd, sleep, which, neofetch, fortune, rain, exit, reboot, fullscreen, colors];
+export const systemCommands: Command[] = [help, man, clear, history, date, cal, whoami, avatar, uname, hostname, uptime, env, exportCmd, sleep, which, neofetch, fortune, rain, exit, quit, reboot, fullscreen, colors];

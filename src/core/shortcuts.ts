@@ -48,7 +48,8 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: "ctrl+= · ctrl+- · ctrl+0", what: "interface bigger · smaller · 100 %", cat: "everywhere" },
   { id: "fullscreen", keys: "f11", what: "fullscreen", cat: "everywhere", cmd: "fullscreen", global: true, menuKey: "F", short: "fullscreen" },
   { id: "back", keys: "shift+esc", what: "close the tab and show the one before it (HOME stays)", cat: "everywhere", global: true, menuKey: "q", short: "close, go back" },
-  { keys: "esc", what: "back to the page (from the tree or the shell); closes NEXUS, STORE, MODULES, settings; with nothing to close, opens the ◆ ICEBREAKER menu", cat: "everywhere" },
+  { keys: "esc", what: "back to the page (from the tree or the shell); on HOME, with nothing to close, opens the ◆ ICEBREAKER menu", cat: "everywhere" },
+  { id: "deck-menu", keys: "f10", what: IS_MAC ? "the ◆ ICEBREAKER menu" : "the ◆ ICEBREAKER menu (alt alone too)", cat: "everywhere", global: true, short: "◆ menu" },
   { keys: "1…9", what: "go to that tab (when you're not typing)", cat: "panes & tabs" },
   { keys: "right-click · menu key · shift+f10", what: "the menu of the thing under the mouse (or the selected one): rename, pin, colour, copy, paste…", cat: "everywhere" },
 
@@ -81,7 +82,7 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: "drag", what: "in the tree: onto a folder to move it there (files from the Finder / Explorer are copied in)", cat: "notes" },
   { keys: "wheel", what: "over the tree: file by file, each one shown at once", cat: "notes" },
   { keys: "shift+↑ · shift+↓", what: "in the tree: file by file, each one shown at once (like shift + wheel)", cat: "notes" },
-  { keys: IS_MAC ? "shift+backspace · alt+backspace" : "shift+backspace · ctrl+backspace", what: "delete the whole previous word (notes and text fields)", cat: "notes" },
+  { keys: IS_MAC ? "alt+backspace" : "ctrl+backspace", what: "delete the whole previous word (notes and text fields)", cat: "notes" },
 
   // home
   { keys: "←↑↓→ · tab", what: "choose a widget", cat: "home" },

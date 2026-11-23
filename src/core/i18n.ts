@@ -26,6 +26,8 @@ const tables: Record<Lang, Record<string, string>> = { en: {}, fr: { ...FR } };
 
 export function setLang(l: string): void {
   current = l === "fr" ? "fr" : "en";
+  // the page's language (WCAG 3.1.1): a screen reader or a translator reads it in the right one
+  if (typeof document !== "undefined") document.documentElement.lang = current;
 }
 
 export function lang(): Lang {

@@ -400,7 +400,6 @@ export class ShellApp implements App {
         return true;
       case "ctrl+w":
       case "ctrl+backspace":
-      case "shift+backspace":
       case "alt+backspace": {
         const before = this.input.slice(0, this.cursor).replace(/\S+\s*$/, "");
         this.input = before + this.input.slice(this.cursor);

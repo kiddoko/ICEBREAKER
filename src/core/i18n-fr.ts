@@ -2123,4 +2123,10 @@ export const FR: Record<string, string> = {
   "W": "S",
   // ── 0.7.1: note
   "the text it had is in the trash": "le texte qu'elle avait est dans la corbeille",
+  // ── 0.7.1: exit, esc
+  "shell hidden — ctrl+` brings it back · quit: quits ICEBREAKER": "shell caché — ctrl+` le ramène · quit : quitte ICEBREAKER",
+  "the ◆ ICEBREAKER menu": "le menu ◆ ICEBREAKER",
+  "the ◆ ICEBREAKER menu (alt alone too)": "le menu ◆ ICEBREAKER (alt seul aussi)",
+  "◆ menu": "menu ◆",
+  "back to the page (from the tree or the shell); on HOME, with nothing to close, opens the ◆ ICEBREAKER menu": "retour à la page (depuis l'arbre ou le shell) ; sur HOME, sans rien à fermer, ouvre le menu ◆ ICEBREAKER",
 };

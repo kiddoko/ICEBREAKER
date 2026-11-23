@@ -1194,8 +1194,10 @@ export class Workspace {
         if (this.focus === "main" && this.activeApp?.rawKeys && this.activeApp !== this.page && source !== "gamepad") this.focus = this.sidebarVisible ? "sidebar" : this.shellVisible ? "shell" : "main";
         else if (this.focus !== "main") this.focus = "main";
         else if (this.activeApp === this.page || source === "gamepad") void this.closeAndGoBack();
-        // nothing left to close or leave: esc opens the ◆ ICEBREAKER menu (esc again closes it)
-        else if (source === "keyboard") this.openDeckMenu();
+        // nothing left to close or leave, on HOME: esc opens the ◆ ICEBREAKER menu (esc again
+        // closes it). Anywhere else esc does nothing: in a note (a vim reflex, a tip to close) the
+        // menu came over the text and the next letters went to it
+        else if (source === "keyboard" && this.activeApp?.kind === "home") this.openDeckMenu();
         break;
     }
   }
@@ -1212,6 +1214,7 @@ export class Workspace {
     "shell-tabs": () => (this.focus === "shell" && this.shellVisible ? this.cycleShellTab() : this.focusShell()),
     back: () => void this.closeAndGoBack(),
     menu: () => void this.menu(),
+    "deck-menu": () => this.openDeckMenu(),
   };
 
   /** The guided tour (workspace/tour.ts): UPLINK shows the deck, one part at a time. */

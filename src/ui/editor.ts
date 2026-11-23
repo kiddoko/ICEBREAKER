@@ -488,8 +488,9 @@ export class TextEditor {
     switch (k.key) {
       case "backspace":
         this.checkpoint("delete");
-        // the whole previous word: ⇧⌫ everywhere, ⌥⌫ on a Mac, ctrl+⌫ on Windows / Linux
-        if (!this.deleteSelection()) this.deleteRange(this.prevPos(this.cursor, word || k.shift), this.cursor);
+        // the whole previous word: ⌥⌫ on a Mac, ctrl+⌫ on Windows / Linux. ⇧⌫ is a plain ⌫: a
+        // word typed in capitals (shift held) lost all of it at the first ⌫
+        if (!this.deleteSelection()) this.deleteRange(this.prevPos(this.cursor, word), this.cursor);
         return true;
       case "delete":
         this.checkpoint("delete");
