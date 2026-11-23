@@ -2301,6 +2301,14 @@ export const FR: Record<string, string> = {
   "── in your notes ({n}) · todo done <note:line> ticks one": "── dans tes notes ({n}) · todo done <note:ligne> en coche une",
   "todo: \"{x}\"? try {y} (todo add \"{z}\" to add it)": "todo : « {x} » ? essaie {y} (todo add \"{z}\" pour l'ajouter)",
   "{n}d late": "{n} j de retard",
+  // help (shell/help.ts helpList)
+  "to start": "pour commencer",
+  "help all       every command": "help all       toutes les commandes",
+  "help <module>  a module's commands (help todo)": "help <module>  les commandes d'un module (help todo)",
+  "<command> -h   its help and examples · ⌘K / shift twice: THE MENU · F1 manual": "<commande> -h  son aide et des exemples · ⌘K / maj deux fois : LE MENU · F1 manuel",
+  "<command> -h   its help and examples · Ctrl+K / shift twice: THE MENU · F1 manual": "<commande> -h  son aide et des exemples · Ctrl+K / maj deux fois : LE MENU · F1 manuel",
+  "module: {x}": "module : {x}",
+  'help: no command or module "{x}" (help all)': "help : aucune commande ni module « {x} » (help all)",
   // todo's repeats (describeRepeat)
   "every other week on {days}": "une semaine sur deux : {days}",
   "every week": "chaque semaine",

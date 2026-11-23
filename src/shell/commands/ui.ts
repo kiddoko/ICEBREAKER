@@ -238,7 +238,9 @@ const opener = (name: string, kind: string, summary: string, aliases?: string[])
 
 const view: Command = {
   name: "view",
-  summary: "show / hide parts of the screen",
+  // an old name: `frame` (and ctrl+b, ctrl+`, F11, fx) say the same — kept for habits, not in `help` (E1)
+  hidden: true,
+  summary: "show / hide parts of the screen (old name: frame fold|unfold, fullscreen, fx)",
   usage: "view sidebar     file tree (ctrl+b)\nview shell       this panel (ctrl+`)\nview fullscreen  (F11, ⌃⌘F)\nview fx          the effects panel",
   complete: () => ["sidebar", "shell", "fullscreen", "fx"],
   async run(ctx) {
