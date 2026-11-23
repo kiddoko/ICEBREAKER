@@ -56,6 +56,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev
+          # the sound: WebKitGTK plays through GStreamer (appsrc, autoaudiosink…) — the AppImage
+          # carries these plugins (tauri.conf.json bundleMediaFramework), the .deb depends on them
+          sudo apt-get install -y gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
 
       - run: npm ci
 
@@ -87,6 +90,23 @@ jobs:
           else
             npm run tauri -- build ${{ matrix.args }}
           fi
+
+      # the AppImage uses the system's GLib, not Ubuntu 22.04's (Arch & co. crashed at launch:
+      # g_once_init_leave_pointer) — then its updater signature is made again
+      - name: AppImage with the system's GLib
+        if: matrix.name == 'linux'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        shell: bash
+        run: |
+          for f in src-tauri/target/release/bundle/appimage/*.AppImage; do
+            scripts/appimage-system-glib.sh "$f"
+            if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] && [ -f "$f.sig" ]; then
+              rm -f "$f.sig"
+              npm run tauri -- signer sign "$f"
+            fi
+          done
 
       # .app bundles are folders: zip them (ditto keeps permissions and symlinks)
       - name: Package macOS app
