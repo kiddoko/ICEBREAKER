@@ -27,7 +27,8 @@ pub struct GpuState {
     last: Mutex<Option<(Vec<Gpu>, Instant)>>,
 }
 
-#[tauri::command]
+/// Async: nvidia-smi takes tens to hundreds of ms, never on the window's thread.
+#[tauri::command(async)]
 pub fn gpu_stats(state: tauri::State<GpuState>) -> Vec<Gpu> {
     let mut g = match state.last.lock() {
         Ok(g) => g,

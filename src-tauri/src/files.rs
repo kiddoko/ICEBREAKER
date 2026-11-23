@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 #[cfg(test)]
 mod tests {
-    use super::{readable, readable_media};
+    use super::{read_capped, readable, readable_media};
     #[test]
     fn only_scripts_and_text_outside_hidden_and_system_places() {
         assert!(readable("/Users/neo/Downloads/backup.sh").is_ok());
@@ -18,6 +18,8 @@ mod tests {
         assert!(readable("/Users/neo/project/.env").is_err());
         assert!(readable("/Users/neo/Library/Keychains/x.txt").is_err());
         assert!(readable("/etc/passwd").is_err());
+        assert!(readable("/dev/stdin.txt").is_err());
+        assert!(readable("/usr/share/doc/readme.txt").is_err());
         assert!(readable("/Users/neo/a/../.aws/creds.txt").is_err());
         assert!(readable("/Users/neo/photo.jpg").is_err());
         assert!(readable("C:/Users/neo/AppData/Roaming/x.txt").is_err());
@@ -26,6 +28,31 @@ mod tests {
         // an import's text: events, a sheet
         assert!(readable("/Users/neo/Downloads/agenda.csv").is_ok());
         assert!(readable("/Users/neo/Downloads/agenda.ics").is_ok());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn reads_only_a_real_file_where_the_link_really_points() {
+        // in the home folder: the system's temp folder (/var…) and a checkout under a hidden folder
+        // are places never read
+        let dir = std::path::PathBuf::from(std::env::var("HOME").unwrap()).join(format!("ib-files-test-{}", std::process::id()));
+        let secret = dir.join(".ssh");
+        std::fs::create_dir_all(&secret).unwrap();
+        std::fs::write(secret.join("key.txt"), "secret").unwrap();
+        std::fs::write(dir.join("notes.txt"), "hello").unwrap();
+        let link = dir.join("a.txt");
+        let _ = std::fs::remove_file(&link);
+        std::os::unix::fs::symlink(secret.join("key.txt"), &link).unwrap();
+        let zero = dir.join("zero.txt");
+        let _ = std::fs::remove_file(&zero);
+        std::os::unix::fs::symlink("/dev/zero", &zero).unwrap();
+        // a regular file: read
+        assert_eq!(read_capped(&dir.join("notes.txt").to_string_lossy(), readable, 1024).unwrap(), b"hello");
+        // a link to a hidden folder's file: refused where it really points
+        assert!(read_capped(&link.to_string_lossy(), readable, 1024).is_err());
+        // a link to a device that never ends: refused (not a file)
+        assert!(read_capped(&zero.to_string_lossy(), readable, 1024).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -93,7 +120,7 @@ fn allowed(path: &str, exts: &[&str], what: &str) -> Result<(), String> {
     let hidden = p.components().any(|c| matches!(c, std::path::Component::Normal(n) if n.to_string_lossy().starts_with('.')) || matches!(c, std::path::Component::ParentDir));
     let lower = path.replace('\\', "/").to_lowercase();
     // the system's own places, and your user's Library (macOS) / AppData (Windows): apps' data, keychains
-    let roots = ["/library/", "/etc/", "/private/", "/system/", "/var/", "/proc/", "/sys/", "/root/", "c:/windows/", "c:/program files", "c:/programdata/"];
+    let roots = ["/library/", "/etc/", "/private/", "/system/", "/var/", "/proc/", "/sys/", "/root/", "/dev/", "/run/", "/boot/", "/usr/", "/bin/", "/sbin/", "c:/windows/", "c:/program files", "c:/programdata/"];
     let home_lib = lower.split('/').collect::<Vec<_>>().windows(3).any(|w| (w[0] == "users" || w[0] == "home") && (w[2] == "library" || w[2] == "appdata"));
     let system = roots.iter().any(|r| lower.starts_with(r)) || home_lib;
     if hidden || system {
@@ -103,14 +130,9 @@ fn allowed(path: &str, exts: &[&str], what: &str) -> Result<(), String> {
 }
 
 /// A text file up to 2 MB (scripts, notes), see `readable`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn fs_read_text(path: String) -> Result<String, String> {
-    readable(&path)?;
-    let meta = fs::metadata(&path).map_err(|e| format!("{path}: {e}"))?;
-    if meta.len() > 2 * 1024 * 1024 {
-        return Err(format!("{path}: bigger than 2 MB"));
-    }
-    let bytes = fs::read(&path).map_err(|e| format!("{path}: {e}"))?;
+    let bytes = read_capped(&path, readable, 2 * 1024 * 1024)?;
     Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
@@ -120,24 +142,30 @@ pub fn fs_read_text(path: String) -> Result<String, String> {
 /// a key), and never more than the cap, even if the file grows meanwhile.
 #[tauri::command(async)]
 pub fn fs_read_bytes(path: String) -> Result<tauri::ipc::Response, String> {
+    Ok(tauri::ipc::Response::new(read_capped(&path, readable_media, 64 * 1024 * 1024)?))
+}
+
+/// A file you chose, read safely (fs_read_text, fs_read_bytes): `check` on the path as written,
+/// then on where it really points (a link to a key is refused; Windows' real path \\?\C:\… is
+/// checked as C:\…), a regular file only (a link to /dev/zero or a pipe never ends), never more
+/// than `cap` bytes, even if the file grows meanwhile.
+fn read_capped(path: &str, check: fn(&str) -> Result<(), String>, cap: u64) -> Result<Vec<u8>, String> {
     use std::io::Read;
-    const CAP: u64 = 64 * 1024 * 1024;
-    readable_media(&path)?;
-    let real = fs::canonicalize(&path).map_err(|e| format!("{path}: {e}"))?;
-    // (Windows writes the real path \\?\C:\…: checked as C:\…, the way the rules name places)
+    check(path)?;
+    let real = fs::canonicalize(path).map_err(|e| format!("{path}: {e}"))?;
     let shown = real.to_string_lossy();
-    readable_media(shown.strip_prefix(r"\\?\").unwrap_or(&shown))?;
+    check(shown.strip_prefix(r"\\?\").unwrap_or(&shown))?;
     let meta = fs::metadata(&real).map_err(|e| format!("{path}: {e}"))?;
     if !meta.is_file() {
         return Err(format!("{path}: not a file"));
     }
-    if meta.len() > CAP {
-        return Err(format!("{path}: bigger than 64 MB"));
+    if meta.len() > cap {
+        return Err(format!("{path}: bigger than {} MB", cap / (1024 * 1024)));
     }
     let mut buf = Vec::with_capacity(meta.len() as usize);
-    fs::File::open(&real).and_then(|f| f.take(CAP + 1).read_to_end(&mut buf)).map_err(|e| format!("{path}: {e}"))?;
-    if buf.len() as u64 > CAP {
-        return Err(format!("{path}: bigger than 64 MB"));
+    fs::File::open(&real).and_then(|f| f.take(cap + 1).read_to_end(&mut buf)).map_err(|e| format!("{path}: {e}"))?;
+    if buf.len() as u64 > cap {
+        return Err(format!("{path}: bigger than {} MB", cap / (1024 * 1024)));
     }
-    Ok(tauri::ipc::Response::new(buf))
+    Ok(buf)
 }

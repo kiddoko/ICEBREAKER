@@ -316,7 +316,7 @@ export async function pickFileText(deck: Deck, title: string, exts: string[] = [
  */
 export function privatePlace(path: string): boolean {
   const lower = path.replace(/\\/g, "/").toLowerCase();
-  const roots = ["/library", "/etc", "/private", "/system", "/var", "/proc", "/sys", "/root", "c:/windows", "c:/program files", "c:/programdata"];
+  const roots = ["/library", "/etc", "/private", "/system", "/var", "/proc", "/sys", "/root", "/dev", "/run", "/boot", "/usr", "/bin", "/sbin", "c:/windows", "c:/program files", "c:/programdata"];
   if (roots.some((r) => lower === r || lower.startsWith(`${r}/`) || lower.startsWith(`${r} `))) return true;
   const parts = lower.split("/");
   return parts.some((p, i) => (p === "users" || p === "home") && (parts[i + 2] === "library" || parts[i + 2] === "appdata"));
