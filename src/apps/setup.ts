@@ -12,7 +12,11 @@ import { q, type UI } from "../ui/ui";
 import { easeOut, strWidth, truncate, wrapWords } from "../core/unicode";
 import { applyFxPreset, FX_PRESET_NAMES, FX_PRESETS } from "../workspace/fxpanel";
 import type { App, AppSpec } from "./types";
-import { completeFolder, vaultPathProblem } from "./setuppath";
+import { GAP, INSET } from "../ui/layout";
+import { completeFolder, osOf, pathExamples, vaultPathProblem } from "./setuppath";
+
+/** this system's examples: its shells, a vault folder's path */
+const HERE = pathExamples(osOf(navigator.platform, navigator.userAgent));
 
 interface Option { value: string; label: string; hint?: string }
 interface Step {
@@ -118,7 +122,7 @@ export class SetupApp implements App {
       { id: "gender-other", title: "PROFILE", question: "Your word for it (optional, enter to skip):", text: { placeholder: "" }, skip: () => this.a.gender !== "other" },
       {
         id: "terminal", title: "TERMINAL",
-        question: "The shell panel can be your real terminal (zsh, bash…) with ICEBREAKER's commands added — ssh, git, vim, everything works. Or ICEBREAKER's own shell, limited to the vault.",
+        question: "The shell panel can be your real terminal ({shells}…) with ICEBREAKER's commands added — ssh, git, vim, everything works. Or ICEBREAKER's own shell, limited to the vault.",
         options: () => [
           { value: "system", label: "My terminal + ICEBREAKER commands", hint: "careful: rm deletes for real there" },
           { value: "ibsh", label: "ICEBREAKER shell only", hint: "the vault only, rm goes to .trash" },
@@ -130,10 +134,10 @@ export class SetupApp implements App {
         question: "Your notes, journal and calendar live in one folder of plain files: {vault}. It can be any folder — a drive, a synced folder, or your own server mounted as a network drive, so everything stays on hardware you own.",
         options: () => [
           { value: "keep", label: "Keep this folder" },
-          { value: "other", label: "Another folder", hint: "a full path: /Volumes/nas/vault, /Users/you/Sync/notes…" },
+          { value: "other", label: "Another folder", hint: t("a full path: {examples}…", { examples: HERE.examples }) },
         ],
       },
-      { id: "vault-path", title: "VAULT", question: "Folder path (created if missing):", text: { placeholder: "/Volumes/nas/icebreaker" }, skip: () => this.a.vault !== "other" },
+      { id: "vault-path", title: "VAULT", question: "Folder path (created if missing):", text: { placeholder: HERE.placeholder }, skip: () => this.a.vault !== "other" },
       {
         // an option, never the default: plain files stay readable by everything
         id: "encrypt", title: "ENCRYPTION",
@@ -656,7 +660,7 @@ export class SetupApp implements App {
     const box = { x, y, w, h: Math.max(8, r.y + r.h - y - 2) };
     const inner = ui.box(box, { title: age < 400 ? decrypt(t(st.title), age / 400, ui.now) : t(st.title), focused: true, bg: c.panel, info: `${at + 1}/${visible.length}` });
     let iy = inner.y + 1;
-    let qText = t(st.question, { vault: this.deck.vault.root });
+    let qText = t(st.question, { vault: this.deck.vault.root, shells: HERE.shells });
     if (st.id === "place") qText = this.places.length ? t("Which one?") : this.a.precision === "precise" ? t("Coordinates (lat, lon):") : this.a.precision === "country" ? t("Which country?") : t("Which city?");
     // the question types itself in, with its blips (ui/typewriter.ts: the text speed setting)
     let qLines = wrapWords(qText, inner.w - 4);
@@ -689,9 +693,17 @@ export class SetupApp implements App {
       iy += 2;
       ui.text(inner.x + 2, iy, t("enter: keep it"), { fg: c.faint, bg: c.panel }, inner.w - 4);
     } else {
-      this.options().forEach((o, i) => {
+      // more options than rows (the themes in a small window): the ones around the cursor, ▲ ▼ for the rest
+      const all = this.options();
+      // (the error line and the keys line stay below)
+      const room = Math.max(1, inner.y + inner.h - GAP - iy);
+      const first = all.length > room ? Math.max(0, Math.min(this.sel - Math.floor(room / 2), all.length - room)) : 0;
+      const last = first + Math.min(room, all.length);
+      const topY = iy;
+      all.forEach((o, i) => {
+        if (i < first || i >= last) return;
         // the options arrive one after the other
-        const appear = easeOut((age - 60 - i * 35) / 160);
+        const appear = easeOut((age - 60 - (i - first) * 35) / 160);
         if (appear <= 0) return ui.animate(16);
         const row = { x: inner.x + 1, y: iy, w: inner.w - 2, h: 1 };
         const sel = i === this.sel;
@@ -732,6 +744,8 @@ export class SetupApp implements App {
         ui.hit(row, { onClick: () => { if (this.sel === i) void this.next(); else { this.sel = i; this.preview(); this.deck.sound.play("move"); } }, tip: sel ? t("click again (or enter): keep it") : undefined });
         iy++;
       });
+      if (first > 0) ui.text(inner.x + inner.w - GAP, topY, "▲", { fg: c.accent });
+      if (last < all.length) ui.text(inner.x + inner.w - GAP, topY + (last - first) - INSET, "▼", { fg: c.accent });
     }
     if (this.error) ui.text(inner.x + 2, inner.y + inner.h - 2, `⚠ ${this.error}`, { fg: c.error, bg: c.panel }, inner.w - 4);
     // the way out, always in the same place

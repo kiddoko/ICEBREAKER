@@ -10,6 +10,7 @@ The serious bugs: a layout that comes back, a setup that holds, Linux.
   frames already saved. Quitting (⌘Q, the close button, the Dock) now goes through the deck,
   which writes all that before the app closes — before, the last moments' changes were lost.
   A page that doesn't answer never keeps the app open: close it again within 4 s and it quits.
+  With a page open over the tabs (SETTINGS…), the tab under it comes back under it.
 - **The setup survives going back and forth.** Leaving EYE CANDY for THEME kept the preset
   tried on, and the next theme saved it as its own: a half-finished setup left heavy effects
   (the WebGL curvature) on, and on Linux every login crashed. Previews now wait for the cursor
@@ -21,7 +22,10 @@ The serious bugs: a layout that comes back, a setup that holds, Linux.
 - **The vault goes where you said.** Tab on the folder question skipped it and dropped what was
   typed (a Linux reflex): tab now completes the folder name; a relative path is refused at once;
   a folder that can't be used is said instead of silently keeping the default one.
-- **Encrypting in the setup: a wrong password asks again** (it gave up and started the tour);
+- **The setup speaks your system**: Windows paths and PowerShell on Windows (a Mac path was the
+  example everywhere); a long list (the themes) scrolls with the cursor instead of running out
+  of its box.
+- **Encrypting in the setup: a wrong password asks again**, and says so in the question (it gave up and started the tour);
   cancelled, the deck asks whether to try again. The same check guards `vault rekey` and
   `vault recovery`.
 - **A new account's approver is checked as soon as it's typed**, not after the whole new

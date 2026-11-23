@@ -145,7 +145,9 @@ export class LockScreen {
     }
     // (a paste on several lines — the recovery key — becomes one line, words apart)
     this.fields[this.field].onText(t);
-    this.error = "";
+    // typing again clears the last error — real typing only (a stray line break, an empty text
+    // event right after the answer wiped "wrong name or password" before it was seen)
+    if (t.replace(/[\r\n]/g, "")) this.error = "";
   }
 
   onKey(k: KeyInput): void {
@@ -221,9 +223,10 @@ export class LockScreen {
       const right = await this.deck.platform.account.check(user, pass).catch(() => false);
       this.busy = false;
       if (!right) {
-        this.error = "wrong name or password — an account of this deck must approve";
         this.put("pass", "");
         this.field = "pass";
+        this.error = "wrong name or password — an account of this deck must approve";
+        this.shakeAt = performance.now();
         this.deck.sound.play("error");
         this.deck.requestFrame();
         return;

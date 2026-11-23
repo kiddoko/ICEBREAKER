@@ -556,11 +556,14 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
   // the account's password, asked again while it's wrong (a typo gave up on the whole encryption:
   // the setup moved on to the tour with the vault still plain) — checked only, nothing unlocked
   const accountPassword = async (): Promise<string | null> => {
+    // the next question says what went wrong (a toast behind the dialog went unseen)
+    let label = "your account's password";
     for (;;) {
-      const pw = await password("your account's password");
+      const pw = await password(label);
       if (pw === null || !deck.account) return pw;
       if (await deck.platform.account.check(deck.account, pw).catch(() => true)) return pw;
-      if (window) deck.notify(t("wrong password — try again (esc: cancel)"), "error");
+      deck.sound.play("error");
+      if (window) label = t("wrong password — try again (esc: cancel)");
       else ctx.err("wrong password — try again (ctrl+c: cancel)\n");
     }
   };

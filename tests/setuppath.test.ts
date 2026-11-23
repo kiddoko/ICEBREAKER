@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { completeFolder, vaultPathProblem } from "../src/apps/setuppath";
+import { completeFolder, osOf, pathExamples, vaultPathProblem } from "../src/apps/setuppath";
 
 const fs: Record<string, { name: string; isDir: boolean }[]> = {
   "/home/neo": [
@@ -43,5 +43,21 @@ describe("the setup's vault folder", () => {
   it("nothing to complete: null", async () => {
     expect(await completeFolder("vault", "", list)).toBeNull();
     expect(await completeFolder("/home/neo/zzz", "", list)).toBeNull();
+  });
+});
+
+describe("the setup's examples follow the system", () => {
+  it("knows the system", () => {
+    expect(osOf("MacIntel", "")).toBe("mac");
+    expect(osOf("Win32", "Mozilla/5.0 (Windows NT 10.0)")).toBe("windows");
+    expect(osOf("Linux x86_64", "X11; Linux")).toBe("linux");
+  });
+  it("shows Windows paths and shells on Windows, never a Mac path", () => {
+    const w = pathExamples("windows");
+    expect(w.placeholder).toBe("D:\\Icebreaker");
+    expect(w.examples).not.toMatch(/Volumes|\/Users/);
+    expect(w.shells).toMatch(/PowerShell/);
+    expect(vaultPathProblem(w.placeholder)).toBeNull();
+    expect(vaultPathProblem(pathExamples("linux").placeholder)).toBeNull();
   });
 });

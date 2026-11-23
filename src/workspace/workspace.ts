@@ -1291,7 +1291,9 @@ export class Workspace {
       page: this.page && this.page.kind !== "setup" ? this.page.key : undefined,
       focus: this.focus === "sidebar" || this.focus === "shell" || this.focus === "panel" ? this.focus : "main",
     };
-    const active = Math.max(0, tabs.indexOf(this.tabs[Math.min(this.active, this.tabCount - 1)]?.key ?? ""));
+    // the tab you were on: with a page open (SETTINGS…), the one under it (where esc goes back to)
+    const under = this.page ? this.pageReturn : this.active;
+    const active = Math.max(0, tabs.indexOf(this.tabs[Math.min(under, this.tabCount - 1)]?.key ?? ""));
     const sig = `${tabs.join("|")}#${active}#${JSON.stringify(groups)}#${JSON.stringify(places)}#${JSON.stringify(shows)}#${JSON.stringify(view)}`;
     if (!this.sessionReady || sig === this.savedTabs) return;
     this.savedTabs = sig;

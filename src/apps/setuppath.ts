@@ -49,3 +49,18 @@ export async function completeFolder(typed: string, home: string, list: Lister):
   for (const n of names) while (!n.toLowerCase().startsWith(common.toLowerCase())) common = common.slice(0, -1);
   return { text: `${dir}${common.length >= prefix.length ? common : prefix}`, choices: names };
 }
+
+/** The system the deck runs on, for the examples the setup shows. */
+export type Os = "mac" | "windows" | "linux";
+export function osOf(platform: string, userAgent: string): Os {
+  if (/Mac|iPhone|iPad/.test(platform) || /Mac OS X/.test(userAgent)) return "mac";
+  if (/Win/.test(platform) || /Windows/.test(userAgent)) return "windows";
+  return "linux";
+}
+
+/** Examples of a vault folder on this system (a Mac path on Windows read like a mistake). */
+export function pathExamples(os: Os): { placeholder: string; examples: string; shells: string } {
+  if (os === "windows") return { placeholder: "D:\\Icebreaker", examples: "D:\\Icebreaker, C:\\Users\\you\\OneDrive\\notes, \\\\nas\\vault", shells: "PowerShell, cmd" };
+  if (os === "linux") return { placeholder: "/mnt/nas/icebreaker", examples: "/mnt/nas/vault, ~/Sync/notes", shells: "bash, zsh, fish" };
+  return { placeholder: "/Volumes/nas/icebreaker", examples: "/Volumes/nas/vault, ~/Sync/notes", shells: "zsh, bash" };
+}
