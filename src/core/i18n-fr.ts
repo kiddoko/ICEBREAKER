@@ -2023,4 +2023,9 @@ export const FR: Record<string, string> = {
   "desktop only": "bureau seulement",
 
   "type a path · tab completes · ⌘O browse · enter next · esc back": "tape un chemin · tab complète · ⌘O parcourir · entrée suivant · échap retour",
+
+  "Import 1 event into the local calendar?": "Importer 1 événement dans le calendrier local ?",
+  "1 event imported into the local calendar (calendar/ in the vault)": "1 événement importé dans le calendrier local (calendar/ dans le vault)",
+
+  "1 thing in the trash: see it, put it back": "1 élément dans la corbeille : le voir, le remettre",
 };

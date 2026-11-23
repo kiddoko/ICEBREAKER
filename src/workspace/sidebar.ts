@@ -409,7 +409,7 @@ export class Sidebar {
     if (count) ui.textRight(end, line.y, count, { fg: c.subtle, ...st });
     ui.hit(line, {
       cmd: "trash open",
-      tip: this.trashCount ? t("{n} in the trash: see them, put them back", { n: this.trashCount }) : t("the trash is empty · what you delete waits here"),
+      tip: this.trashCount === 1 ? t("1 thing in the trash: see it, put it back") : this.trashCount ? t("{n} in the trash: see them, put them back", { n: this.trashCount }) : t("the trash is empty · what you delete waits here"),
       menu: () => [
         { label: t("Open"), cmd: "trash open" },
         { label: t("Empty the trash…"), cmd: "trash empty --window", danger: true, disabled: !this.trashCount, tip: t("asks first: it can't be undone") },

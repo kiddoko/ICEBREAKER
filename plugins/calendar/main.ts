@@ -801,7 +801,7 @@ export function activate(ib: IcebreakerAPI): void {
     const evs = parseEventsFile(picked.text, picked.name);
     if (!evs.length) return ctx.err(t("cal import: no events found in {name} (a CSV needs a title column and a date column)", { name: picked.name }) + "\n"), 1;
     const first = evs[0];
-    const ok = await ib.ui.confirm(t("Import {n} events into the local calendar?", { n: evs.length }), `${first.title} · ${first.start.toLocaleDateString(ib.lib.dateLocale())}${evs.length > 1 ? ` … ${evs[evs.length - 1].title}` : ""}`);
+    const ok = await ib.ui.confirm((evs.length === 1 ? t("Import 1 event into the local calendar?") : t("Import {n} events into the local calendar?", { n: evs.length })), `${first.title} · ${first.start.toLocaleDateString(ib.lib.dateLocale())}${evs.length > 1 ? ` … ${evs[evs.length - 1].title}` : ""}`);
     if (!ok) return 0;
     const added: Ev[] = [];
     for (const e of evs) {
@@ -812,7 +812,7 @@ export function activate(ib: IcebreakerAPI): void {
     }
     await writeMonths(added);
     ib.ui.redraw();
-    ctx.out(fmt.green(t("{n} events imported into the local calendar (calendar/ in the vault)", { n: added.length })) + "\n");
+    ctx.out(fmt.green((added.length === 1 ? t("1 event imported into the local calendar (calendar/ in the vault)") : t("{n} events imported into the local calendar (calendar/ in the vault)", { n: added.length }))) + "\n");
     return 0;
   }
 

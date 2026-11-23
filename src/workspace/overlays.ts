@@ -52,9 +52,21 @@ export interface MessageOptions {
 }
 
 export class ConfirmDialog implements Overlay {
+  /** the clock (tests set their own) */
+  static clock: () => number = () => performance.now();
+  /**
+   * Keys answer only this long after it appears, and never held down: the enter that chose a file
+   * (CALENDAR's import) answered the question that followed — the events came in unasked.
+   */
+  static readonly SETTLE_MS = 250;
   modal = true;
   done = false;
   private choice = true;
+  private readonly readyAt = ConfirmDialog.clock() + ConfirmDialog.SETTLE_MS;
+  /** a key may answer now */
+  private settled(k?: KeyInput): boolean {
+    return !k?.repeat && ConfirmDialog.clock() >= this.readyAt;
+  }
   /** its text's name for the typewriter */
   private readonly tw = `confirm:${++typewriterIds}`;
 
@@ -77,6 +89,8 @@ export class ConfirmDialog implements Overlay {
   }
 
   onKey(k: KeyInput): boolean {
+    // too soon (or held): the arrows still move the choice, nothing answers
+    if (!this.settled(k) && !["left", "right", "tab"].includes(k.key)) return true;
     if (this.message) {
       if (k.key === "enter" || k.key === "esc" || k.key === "space") this.finish(true);
       return true;
@@ -92,13 +106,14 @@ export class ConfirmDialog implements Overlay {
   }
 
   onText(t: string): boolean {
-    if (this.message) return true;
+    if (this.message || !this.settled()) return true;
     if (/^[yYoO]$/.test(t)) this.finish(true);
     else if (/^[nN]$/.test(t)) this.finish(false);
     return true;
   }
 
   onAction(a: Action): boolean {
+    if ((a === "confirm" || a === "back") && !this.settled()) return true;
     if (this.message) {
       if (a === "back" || a === "confirm") this.finish(true);
       return true;
