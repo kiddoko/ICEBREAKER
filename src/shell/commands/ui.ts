@@ -1,5 +1,7 @@
 import { allWidgetKeys, forgetWidget, newWidgetKey, widgetIdOf } from "../../widgets/instances";
 import { addToMenu, quickItems } from "../../workspace/quickmenu";
+import { closeMany } from "../../workspace/menus";
+import { tLoose } from "../../core/i18n";
 import { MENU, normalizeCombo } from "../../core/shortcuts";
 import { BLOCK_KINDS, type BlockKind } from "../../core/catalog";
 import { addLink, links, newLinkFlow, NEW_LINK, removeLink } from "../../widgets/links";
@@ -134,13 +136,13 @@ const tab: Command = {
     ["tab close", "close the current one"],
   ],
   summary: "list, switch and close tabs",
-  usage: "tab              list\ntab <n>          switch (keys: ctrl+1…9)\ntab next | prev  (ctrl+tab)\ntab close [n]    (ctrl+w)\ntab move <n> <m> put tab n at place m (drag a tab sideways)\ntab move <n> tree|panel|shell|main  tab n into another frame (drag it onto that frame)\ntab group <n> <m> [name]  tab m joins tab n's group (drop a tab on another)\ntab ungroup <n>  tab n on its own again\ntab groupname <n> <name>  rename tab n's group\n(move, group, ungroup, groupname: in ibsh only — not from a module or your real terminal)",
+  usage: "tab              list\ntab <n>          switch (keys: ctrl+1…9)\ntab next | prev  (ctrl+tab)\ntab close [n]    (ctrl+w)\ntab close others|right|all [n]  the other tabs · those right of it · all (HOME stays)\ntab move <n> <m> put tab n at place m (drag a tab sideways)\ntab move <n> tree|panel|shell|main  tab n into another frame (drag it onto that frame)\ntab group <n> <m> [name]  tab m joins tab n's group (drop a tab on another)\ntab ungroup <n>  tab n on its own again · tab ungroup all\ntab groupname <n> <name>  rename tab n's group\n(move, group, ungroup, groupname: in ibsh only — not from a module or your real terminal)",
   complete: () => ["next", "prev", "close", "move", "group", "ungroup", "groupname"],
   async run(ctx) {
     const ws = ctx.deck.workspace;
     const [a, b] = ctx.args;
     if (!a) {
-      ws.tabs.forEach((t, i) => ctx.out(`${i === ws.active ? fmt.magenta("▸") : " "} ${i + 1} ${t.title()}${t.dirty?.() ? fmt.yellow(" ●") : ""}\n`));
+      ws.tabs.forEach((tab, i) => ctx.out(`${i === ws.active ? fmt.magenta("▸") : " "} ${i + 1} ${tLoose(tab.title()).toLowerCase()}${tab.dirty?.() ? fmt.yellow(" ●") : ""}\n`));
       return 0;
     }
     if (a === "next") return ws.stepTab(1), 0;
@@ -173,6 +175,19 @@ const tab: Command = {
       return 0;
     }
     if (a === "prev") return ws.stepTab(-1), 0;
+    if (a === "close" && (b === "others" || b === "right" || b === "all")) {
+      // like the tab's menu: within that tab's own frame (the other frames' tabs aren't "others")
+      const raw = ctx.args[2];
+      const i = raw ? Number(raw) - 1 : Math.max(0, ws.tabs.indexOf(ws.focusedPage ?? ws.tabs[ws.active]));
+      if (!ws.tabs[i]) return ctx.err(`tab: no tab ${raw}\n`), 1;
+      const same = (j: number) => ws.placeOf(j) === ws.placeOf(i);
+      await closeMany(ws, b === "all" ? same : b === "others" ? (j) => j !== i && same(j) : (j) => j > i && same(j));
+      return 0;
+    }
+    if (a === "ungroup" && b === "all") {
+      for (let j = ws.tabs.length - 1; j >= 0; j--) ws.ungroupTab(j);
+      return 0;
+    }
     if (a === "close") {
       // no number: the tab you're looking at — in the focused frame (a tab moved there), else the page's
       const n = b ? Number(b) - 1 : Math.max(0, ws.tabs.indexOf(ws.focusedPage ?? ws.tabs[ws.active]));
@@ -562,17 +577,23 @@ export const uiCommands: Command[] = [
   {
     name: "modules",
     summary: "all apps and plugins (key on HOME: m); what they expose to each other",
-    usage: "modules                         the MODULES ring\nmodules tag <module> <colour>   give it a colour (red, orange, yellow, green, cyan, blue, purple, pink) · modules tag <module> rm\nmodules view <colour…> | off   MODULES shows those colours (or: / to search, the squares)\nmodules api [module]            functions modules expose to each other (ib.modules)\nmodules call <module> <fn> [args…]   call one (args: text, numbers or JSON)",
+    usage: "modules [open]                  the MODULES ring\nmodules ls                      every module, on or off\nmodules on|off <module>         switch one on or off (plugin enable|disable)\nmodules tag <module> <colour>   give it a colour (red, orange, yellow, green, cyan, blue, purple, pink) · modules tag <module> rm\nmodules view <colour…> | off   MODULES shows those colours (or: / to search, the squares)\nmodules api [module]            functions modules expose to each other (ib.modules)\nmodules call <module> <fn> [args…]   call one (args: text, numbers or JSON)",
     examples: [
       ["modules api", "every function a module can call"],
       ['modules call todo add "walk the dog"', "add a task through the TODO module's API"],
       ["modules call sysmon stats", "the machine's vitals as JSON"],
     ],
-    complete: () => ["api", "call", "tag", "view", "set"],
+    complete: () => ["open", "ls", "on", "off", "api", "call", "tag", "view", "set"],
     async run(ctx) {
       const d = ctx.deck;
       const [sub, mod, fn, ...rest] = ctx.args;
-      if (!sub) return void d.openApp("modules"), 0;
+      if (!sub || sub === "open") return void d.openApp("modules"), 0;
+      // `modules on todo`: the word everything else uses ("module"); `plugin enable` stays the developers'
+      if (sub === "on" || sub === "off") {
+        if (!mod) return ctx.err(`usage: modules ${sub} <module>\n`), 1;
+        return ctx.shell.run(`plugin ${sub === "on" ? "enable" : "disable"} ${mod}`);
+      }
+      if (sub === "ls" || sub === "list") return ctx.shell.run("plugin ls");
       if (sub === "tag") {
         if (!mod || !fn) return ctx.err(`usage: modules tag <module> <colour|rm>   (${TAG_NAMES.join(", ")})\n`), 1;
         if (!d.plugins.list().some((p) => p.manifest.id === mod)) return ctx.err(`modules: no module ${mod}\n`), 1;

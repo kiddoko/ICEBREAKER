@@ -4,7 +4,7 @@ import { t } from "../core/i18n";
 import { mix } from "../core/color";
 import { strWidth } from "../core/unicode";
 import { BOLD, type Rect } from "../core/grid";
-import { IS_MAC, type Action, type KeyInput } from "../core/input";
+import { IS_MAC, undoKey, type Action, type KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import { drawBackground } from "../fx/backgrounds";
 import { inside, type MenuEntry, type UI } from "../ui/ui";
@@ -401,6 +401,9 @@ export class HomeApp implements App {
       if (k.combo === "m") return void this.deck.openApp("modules"), true;
       return false;
     }
+    // ⌘Z in edit mode: the layout steps made since it opened, never what's out of sight (it
+    // went on to undo a reminder, a task's priority…)
+    if (undoKey(k) === "undo" && this.deck.history.depth <= this.deck.workspace.editUndoDepth) return this.deck.notify(t("nothing else to undo here")), true;
     const i = this.selected;
     switch (k.combo) {
       case "left": this.move(i, -1, 0); return true;

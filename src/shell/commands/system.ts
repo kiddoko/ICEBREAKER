@@ -8,7 +8,7 @@ import { gradient } from "../../core/color";
 import { padEnd, strWidth } from "../../core/unicode";
 import { ICE_ART } from "../../ui/bigtext";
 import type { Command } from "../types";
-import { t } from "../../core/i18n";
+import { dateLocale, t } from "../../core/i18n";
 
 /** Shell built-ins and "system" commands. */
 
@@ -66,7 +66,9 @@ const date: Command = {
   name: "date",
   summary: "print the date and time",
   run(ctx) {
-    ctx.out(new Date().toString() + "\n");
+    // in the deck's language and date format (it wrote the system's: "… (heure normale d'Europe
+    // centrale)" on a deck in English)
+    ctx.out(new Date().toLocaleString(ctx.deck.settings.data.user.locale || dateLocale(), { dateStyle: "full", timeStyle: "long" }) + "\n");
   },
 };
 
@@ -143,7 +145,7 @@ const uname: Command = {
   usage: "uname [-a]",
   async run(ctx) {
     const s = await ctx.deck.platform.system.stats();
-    ctx.out(ctx.args.includes("-a") ? `ICEBREAKER 0.1.0 ${s.host} ${s.kernel || "-"} ${s.arch} (${s.os})\n` : "ICEBREAKER\n");
+    ctx.out(ctx.args.includes("-a") ? `ICEBREAKER ${pkg.version} ${s.host} ${s.kernel || "-"} ${s.arch} (${s.os})\n` : "ICEBREAKER\n");
   },
 };
 

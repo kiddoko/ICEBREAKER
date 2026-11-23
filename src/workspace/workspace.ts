@@ -21,6 +21,8 @@ import type { Deck } from "../deck";
 import { drawBackground } from "../fx/backgrounds";
 import { inside, q, type Hit, type MenuEntry, type MenuItem, type UI } from "../ui/ui";
 import { ContextMenu } from "./contextmenu";
+import { undoKey } from "../core/input";
+export { undoKey };
 import { ConfirmDialog, Osk, PromptDialog, Toasts, type MessageOptions, type Overlay, type PromptOptions, type ToastKind, ChooseDialog } from "./overlays";
 import type { ChoiceOption } from "../plugins/api";
 import { FxPanel } from "./fxpanel";
@@ -194,10 +196,13 @@ export class Workspace {
   set editing(on: boolean) {
     // the widgets are what's edited: the panel shows them (not a tab moved there)
     if (on) this.ownContent("panel");
+    if (on && !this._editing) this.editUndoDepth = this.deck.history.depth;
     this._editing = on;
     this._editingOn = on ? this.activeApp : undefined;
   }
   private _editing = false;
+  /** the undo history's depth when edit mode opened: ⌘Z there undoes only what was done since */
+  editUndoDepth = 0;
   /** the page edit mode started on */
   private _editingOn: unknown;
   shellTabChosen = false;
@@ -1015,7 +1020,8 @@ export class Workspace {
       // ⌘Z over a pop-up (a widget's settings, the effects…) undoes there too; not
       // where you type or choose something (a prompt, THE MENU's search, a key, a yes/no)
       const u = undoKey(k);
-      const typing = modal instanceof PromptDialog || modal instanceof QuickMenu || modal instanceof KeyCapture || modal instanceof ConfirmDialog || modal instanceof Tour;
+      // a menu too: ⌘Z there brought back files trashed minutes before, out of sight
+      const typing = modal instanceof PromptDialog || modal instanceof QuickMenu || modal instanceof KeyCapture || modal instanceof ConfirmDialog || modal instanceof Tour || modal instanceof ContextMenu;
       if (u && !typing) return void this.deck.undoLast(u === "redo");
       if (k.combo === "ctrl+backspace" && !typing) return void modal.onKey?.(asDelete(k));
       modal.onKey?.(k);
@@ -1533,14 +1539,6 @@ class Screensaver implements Overlay {
   }
 }
 
-/** ⌘Z → undo, ⌘⇧Z / ctrl+Y → redo (any layout: the letter typed, or the physical key). */
-export function undoKey(k: KeyInput): "undo" | "redo" | null {
-  if (!k.ctrl || k.alt) return null;
-  const letter = k.key.length === 1 ? k.key.toLowerCase() : "";
-  if (letter === "z" || (!letter && k.code === "KeyZ")) return k.shift ? "redo" : "undo";
-  if ((letter === "y" || (!letter && k.code === "KeyY")) && !k.shift) return "redo";
-  return null;
-}
 
 /** The same key press as Delete (⌘⌫ / ctrl+⌫ where nothing else uses it). */
 function asDelete(k: KeyInput): KeyInput {

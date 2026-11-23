@@ -32,17 +32,27 @@ export function fuzzyFilter<T>(query: string, items: T[], text: (item: T) => str
     .map((x) => x.item);
 }
 
-/** Classic edit distance, for "command not found — did you mean…". */
+/**
+ * Edit distance where two swapped letters count as one change (Damerau, "optimal string
+ * alignment"), for "command not found — did you mean…": `hlep` is one step from help, two from grep.
+ */
 export function levenshtein(a: string, b: string): number {
-  const dp = Array.from({ length: b.length + 1 }, (_, i) => i);
+  const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) => Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)));
   for (let i = 1; i <= a.length; i++) {
-    let prev = dp[0];
-    dp[0] = i;
     for (let j = 1; j <= b.length; j++) {
-      const tmp = dp[j];
-      dp[j] = Math.min(dp[j] + 1, dp[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
-      prev = tmp;
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
     }
   }
-  return dp[b.length];
+  return d[a.length][b.length];
+}
+
+/** The closest name to a mistyped one (at most 2 changes), preferring one made of the same letters. */
+export function didYouMean(typed: string, names: string[]): string | undefined {
+  const letters = (s: string) => [...s].sort().join("");
+  const best = names
+    .map((n) => ({ n, d: levenshtein(typed, n) - (letters(n) === letters(typed) ? 0.5 : 0) }))
+    .sort((a, b) => a.d - b.d || a.n.length - b.n.length)[0];
+  return best && best.d <= 2 ? best.n : undefined;
 }

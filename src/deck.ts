@@ -56,6 +56,7 @@ import { Updater } from "./core/updater";
 import { deckCommands } from "./shell/commands/deck";
 import { devCommands } from "./shell/commands/dev";
 import { fileCommands } from "./shell/commands/files";
+import { docCommands } from "./shell/commands/doc";
 import { iconCommand, tagCommand } from "./shell/commands/marks";
 import { trashCommand } from "./shell/commands/trash";
 import { Marks } from "./vault/marks";
@@ -549,7 +550,7 @@ export class Deck implements InputSink {
   private registerCore(): void {
     // the settings rows: the deck's own (apps/settings-rows.ts, modules' rows included)
     this.prefs.register("core", () => coreSettingRows(this));
-    for (const c of [...fileCommands, ...systemCommands, ...deckCommands, storeCommand, updateCommand, ...shortcutCommands, scriptCommand, pinCommand, unpinCommand, tagCommand, iconCommand, trashCommand, weatherCommand, startHereCommand]) this.commands.register({ ...c, source: "core" });
+    for (const c of [...fileCommands, ...docCommands, ...systemCommands, ...deckCommands, storeCommand, updateCommand, ...shortcutCommands, scriptCommand, pinCommand, unpinCommand, tagCommand, iconCommand, trashCommand, weatherCommand, startHereCommand]) this.commands.register({ ...c, source: "core" });
     // developer tools (factory-reset): only in a build that has them (npm run app:mac, the
     // web preview while developing). A release never registers them: not in help, man, Tab,
     // THE MENU or BLOCKS — they don't exist there.

@@ -8,7 +8,7 @@ import { addToMenu } from "./quickmenu";
 import { t } from "../core/i18n";
 import { IS_MAC } from "../core/input";
 import { q, type MenuEntry, type MenuItem } from "../ui/ui";
-import { copyToClipboard, readClipboard } from "../core/clipboard";
+import { readClipboard } from "../core/clipboard";
 import type { Workspace } from "./workspace";
 import { CANCEL_KEY } from "../shell/shell";
 import { APP_VERSION } from "../plugins/host";
@@ -139,8 +139,8 @@ export function tabMenu(ws: Workspace, i: number): MenuEntry[] {
     // HOME is pinned: it can't be closed
     { label: t("Close"), cmd: `tab close ${i + 1}`, hint: IS_MAC ? "⌘W" : "ctrl+W", disabled: app?.kind === "home", tip: app?.kind === "home" ? t("HOME is pinned: always the first tab") : undefined },
     // (within the tab's own frame: the other frames' tabs aren't "others" here)
-    { label: t("Close others"), run: () => closeMany(ws, (j) => j !== i && ws.placeOf(j) === ws.placeOf(i)), disabled: ws.tabs.length < 2 },
-    { label: t("Close tabs to the right"), run: () => closeMany(ws, (j) => j > i && ws.placeOf(j) === ws.placeOf(i)), disabled: i >= ws.tabs.length - 1 },
+    { label: t("Close others"), cmd: `tab close others ${i + 1}`, disabled: ws.tabs.length < 2 },
+    { label: t("Close tabs to the right"), cmd: `tab close right ${i + 1}`, disabled: i >= ws.tabs.length - 1 },
   ];
   // into another frame (Refonte UI 3b): the tree's, the panel's, the shell's, or back to the page's
   if (i < ws.tabCount) {
@@ -153,10 +153,10 @@ export function tabMenu(ws: Workspace, i: number): MenuEntry[] {
     const doc = app as { save?: () => Promise<void>; dirty?: () => boolean };
     items.push(
       "-",
-      { label: t("Save"), run: () => void doc.save?.().then(() => ws.deck.notify(`saved ${note}`, "success")), hint: IS_MAC ? "⌘S" : "ctrl+S", disabled: !doc.dirty?.() },
-      { label: t("Reveal in tree"), run: () => { if (!ws.sidebarVisible) ws.toggleSidebar(); ws.sidebar.reveal(note); ws.focus = "sidebar"; } },
+      { label: t("Save"), cmd: `save ${q("/" + note)}`, hint: IS_MAC ? "⌘S" : "ctrl+S", disabled: !doc.dirty?.() },
+      { label: t("Reveal in tree"), cmd: `tree reveal ${q("/" + note)}` },
       { label: pinned ? t("Unpin") : t("Pin"), cmd: `${pinned ? "unpin" : "pin"} ${q("/" + note)}` },
-      { label: t("Copy path"), run: () => (copyToClipboard(note), ws.notify(t("path copied"))) },
+      { label: t("Copy path"), cmd: `copy path ${q("/" + note)}` },
     );
   }
   return items;

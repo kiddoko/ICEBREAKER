@@ -369,12 +369,14 @@ const fx: Command = {
     ["fx party", "everything at the max"],
   ],
   summary: "toggle visual effects (bloom, scanlines, ambient…)",
-  usage: "fx                      show current state\nfx <effect> on|off      bloom scanlines vignette ambient flicker glitch\nfx none | light | medium | heavy | party   how much CRT, from nothing to everything (light: the default)\nfx panel                open the FX panel (also: ✦ fx in the status bar)\nfx <effect> <0-200>     strength, 0 = off: bloom scanlines vignette chroma (RGB split) glow\nfx sharpness <0-100>    100 = razor sharp, lower = a CRT's soft focus\nfx curve <0-100>        the curved glass of a CRT (0 = flat, the default)\nfx flicker <10-300>     CRT flicker on, at this speed (100 = the default pace)\nfx fps                  measure the frames a second the screen really gives",
+  usage: "fx                      show current state\nfx <effect> on|off      bloom scanlines vignette ambient flicker glitch\nfx none (off) | light | medium | heavy | party   how much CRT, from nothing to everything (light: the default)\nfx panel                open the FX panel (also: ✦ fx in the status bar)\nfx <effect> <0-200>     strength, 0 = off: bloom scanlines vignette chroma (RGB split) glow\nfx sharpness <0-100>    100 = razor sharp, lower = a CRT's soft focus\nfx curve <0-100>        the curved glass of a CRT (0 = flat, the default)\nfx flicker <10-300>     CRT flicker on, at this speed (100 = the default pace)\nfx fps                  measure the frames a second the screen really gives",
   man: "bloom: a blurred copy of the screen laid over it — bright things bleed a soft halo of light onto what's around them; the number sets how far and how strong.\nchroma (RGB split): red and blue fringes on the text, the frames and the glyphs (never on the backgrounds).\ncurve: the picture bulges like the curved glass of a tube — lines bend towards the edges, rounded corners, a darker rim, a soft reflection (the mouse follows the bend).\nflicker: a faint, irregular brightness flicker and a slow rolling band; fx flicker 200 makes it twice as fast.",
   async run(ctx) {
     const d = ctx.deck;
     const effects = ["bloom", "scanlines", "vignette", "ambient", "flicker", "glitch"] as const;
-    const [what, state] = ctx.args;
+    const [said, state] = ctx.args;
+    // `fx off` = `fx none` (people type off, the preset is called none)
+    const what = said === "off" && state === undefined ? "none" : said;
     if (!what) {
       for (const e of effects) ctx.out(`${padEnd(e, 10)} ${d.settings.data.fx[e] ? fmt.green("on") : fmt.gray("off")}\n`);
       ctx.out(`${padEnd("chroma", 10)} ${d.settings.data.fx.levels.chroma ?? 0}%\n${padEnd("sharpness", 10)} ${d.settings.data.fx.levels.sharpness ?? 100}%\n${padEnd("curve", 10)} ${d.settings.data.fx.levels.curve ?? 0}%\n${padEnd("flicker ⏵", 10)} ${d.settings.data.fx.flickerSpeed ?? 100}% speed\n`);

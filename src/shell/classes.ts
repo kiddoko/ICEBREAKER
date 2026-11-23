@@ -24,7 +24,7 @@ const list = (klass: CommandClass, names: string): [string, CommandClass][] => n
 
 export const COMMAND_CLASS: Readonly<Record<string, CommandClass>> = Object.fromEntries([
   // files and text: reading and writing notes is checked on every path by the vault's guard
-  ...list("open", "ls pwd tree cat head tail wc grep find mkdir touch rm mv cp echo sort uniq open journal note checkboxes daily tag icon"),
+  ...list("open", "save copy ls pwd tree cat head tail wc grep find mkdir touch rm mv cp echo sort uniq open journal note checkboxes daily tag icon"),
   // looking around, help
   ...list("open", "help man date cal whoami uname hostname uptime sleep which neofetch fortune colors changelog context catalog errors manual tour"),
   // pages, widgets, the look

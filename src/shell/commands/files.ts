@@ -106,18 +106,29 @@ const cd: Command = {
 
 const pwd: Command = {
   name: "pwd",
-  summary: "print working directory",
+  summary: "print working directory (~ is the vault's folder, like the prompt says)",
   run(ctx) {
-    ctx.out(`/${ctx.cwd}\n`);
+    ctx.out(ctx.cwd ? `~/${ctx.cwd}\n` : "~\n");
   },
 };
 
 const tree: Command = {
   name: "tree",
-  summary: "show the folder hierarchy",
-  usage: "tree [-L depth] [path]",
+  summary: "show the folder hierarchy · tree reveal <path>: show it in the tree",
+  usage: "tree [-L depth] [path]\ntree reveal [path]   the tree opens at that file (no path: the note in front)",
   complete: "path",
   run(ctx) {
+    if (ctx.args[0] === "reveal") {
+      const ws = ctx.deck.workspace;
+      const front = ws.focusedPage ?? ws.activeApp;
+      const given = ctx.args.slice(1).join(" ").trim();
+      const path = given ? ctx.resolve(given) : front?.kind === "note" ? front.key.slice(5) : "";
+      if (!path) return ctx.err("usage: tree reveal <path>\n"), 1;
+      if (!ws.sidebarVisible) ws.toggleSidebar();
+      ws.sidebar.reveal(path);
+      ws.focus = "sidebar";
+      return 0;
+    }
     const { flags, rest } = parseFlags(ctx.args, ["L"]);
     const root = ctx.resolve(rest[0] ?? ".");
     const maxDepth = flags.L ? Number(flags.L) : Infinity;

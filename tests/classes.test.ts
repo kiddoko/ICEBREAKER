@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { classOf, COMMAND_CLASS, NOTE_COMMANDS } from "../src/shell/classes";
 import { isPrivileged } from "../src/shell/privileged";
 import { fileCommands } from "../src/shell/commands/files";
+import { docCommands } from "../src/shell/commands/doc";
 import { systemCommands } from "../src/shell/commands/system";
 import { deckCommands } from "../src/shell/commands/deck";
 import { shortcutCommands } from "../src/apps/shortcuts";
@@ -17,7 +18,7 @@ import { devCommands } from "../src/shell/commands/dev";
 import { CORE_PACKAGES } from "../src/plugins/core-packages";
 
 /** every command the deck itself registers (deck.ts registerCore, the developer tools) */
-const CORE = [...fileCommands, ...systemCommands, ...deckCommands, storeCommand, updateCommand, ...shortcutCommands, scriptCommand, pinCommand, unpinCommand, tagCommand, iconCommand, trashCommand, weatherCommand, startHereCommand, ...devCommands];
+const CORE = [...fileCommands, ...docCommands, ...systemCommands, ...deckCommands, storeCommand, updateCommand, ...shortcutCommands, scriptCommand, pinCommand, unpinCommand, tagCommand, iconCommand, trashCommand, weatherCommand, startHereCommand, ...devCommands];
 
 describe("every command of the deck is classed for modules (shell/classes.ts)", () => {
   it("a new command must be classed before it ships: open, mixed, notify, ai, online or yours", () => {

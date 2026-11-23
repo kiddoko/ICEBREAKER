@@ -228,11 +228,11 @@ export class NoteApp implements App {
       { label: t("Redo"), run: () => ed.redo(), hint: "⇧⌘Z" },
       ...(link ? ["-" as const, { label: /^https?:/.test(link) ? t("Copy link") : t("Follow link"), run: () => (/^https?:/.test(link) ? copyToClipboard(link) : void this.followLink()), hint: "⌘⏎" }] : []),
       "-",
-      { label: t("Save"), run: () => this.save().then(() => d.notify(`saved ${this.path}`, "success")), hint: "⌘S", disabled: !this.dirty() },
+      { label: t("Save"), cmd: "save", hint: "⌘S", disabled: !this.dirty() },
       { label: pinned ? t("Unpin") : t("Pin"), cmd: `${pinned ? "unpin" : "pin"} ${q(this.path)}` },
-      { label: t("Reveal in tree"), run: () => { d.workspace.sidebar.reveal(this.path); } },
-      { label: t("Copy path"), run: () => (copyToClipboard(this.path), d.notify(t("path copied"))) },
-      ...(this.path.endsWith(".md") ? [{ label: t("Copy link"), tip: t("a [[link]] to paste in a note"), run: () => (copyToClipboard(`[[${basename(this.path, ".md")}]]`), d.notify(t("link copied"))) }] : []),
+      { label: t("Reveal in tree"), cmd: `tree reveal ${q(this.path)}` },
+      { label: t("Copy path"), cmd: `copy path ${q(this.path)}` },
+      ...(this.path.endsWith(".md") ? [{ label: t("Copy link"), tip: t("a [[link]] to paste in a note"), cmd: `copy link ${q(this.path)}` }] : []),
     ];
   }
 
@@ -260,14 +260,20 @@ export class NoteApp implements App {
   }
 
   /** Save under another name: the copy opens, this note stays as it was saved. */
-  private async saveAs(): Promise<void> {
-    const to = await this.deck.prompt(t("Save as"), { initial: this.path, placeholder: "notes/new name.md", suggestions: folders(this.deck).map((f) => `${f}/${basename(this.path)}`) });
-    if (!to?.trim() || to.trim() === this.path) return;
+  async saveAs(given?: string): Promise<string | null> {
+    const to = given ?? (await this.deck.prompt(t("Save as"), { initial: this.path, placeholder: "notes/new name.md", suggestions: folders(this.deck).map((f) => `${f}/${basename(this.path)}`) }));
+    if (!to?.trim() || to.trim() === this.path) return null;
     const path = to.trim().endsWith(".md") || /\.[a-z0-9]+$/i.test(to.trim()) ? to.trim() : `${to.trim()}.md`;
-    if (await this.deck.vault.exists(path)) return void this.deck.notify(t("{path} already exists", { path }), "error");
+    if (await this.deck.vault.exists(path)) return void this.deck.notify(t("{path} already exists", { path }), "error"), null;
     await this.deck.vault.write(path, this.editor.text);
     this.deck.vault.recordCreated(path);
     await this.deck.openFile(path);
+    return path;
+  }
+
+  /** the note's file (the `save`, `copy path` commands) */
+  get file(): string {
+    return this.path;
   }
 
   /** The note before / after this one in its folder (by name). */
