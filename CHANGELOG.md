@@ -86,6 +86,13 @@ The UX pass: everything discoverable, nothing stretched, the deck explains itsel
   ⌘ ← →, Tab and ⇧Tab (tested), and an autosave in a `.recovery/` folder of a granted folder never
   asks. Native side: the file picker reads CSV and .ics (the calendar import was refused) and sounds
   and pictures (`fs_read_bytes`).
+- **A permission question that pops up while you type no longer takes your keys**: they're
+  swallowed until you stop for a moment (each key pushes the wait) — on Windows, "n" answered No,
+  then the next keys switched BreakerMED's autosave off and started playback. A click answers at once.
+- **HOME's edit mode shows what can be dragged**: ✥ on each widget's frame ("✥ drag" under the
+  pointer), a grabbing hand while it moves, the resize corner's own pointer.
+- **The setup's voice, theme and sound questions are French again** (their English had changed,
+  not their translation); a test now keeps every setup text translated.
 - **Ctrl + wheel changes the interface scale on every system**, one step a notch (Linux and
   Windows mice send lines: it took ~14 notches). **⇧ + wheel goes to what's under the
   pointer**, like the wheel — it walks the tree only over the tree (Settings scrolled the tree).
