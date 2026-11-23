@@ -173,7 +173,7 @@ export class Sidebar {
       return;
     }
     const ws = this.deck.workspace;
-    const cur = ws.page ? undefined : ws.activeApp;
+    const cur = ws.activeApp;
     const path = row.entry.path;
     const already = ws.tabs.some((a) => a.kind === "note" && a.key === `note:${path}`);
     if (newTab || already || !cur || cur.kind !== "note" || cur.dirty?.()) return void this.deck.act(`open ${q(path)}`);

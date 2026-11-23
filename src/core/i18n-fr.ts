@@ -2129,4 +2129,9 @@ export const FR: Record<string, string> = {
   "the ◆ ICEBREAKER menu (alt alone too)": "le menu ◆ ICEBREAKER (alt seul aussi)",
   "◆ menu": "menu ◆",
   "back to the page (from the tree or the shell); on HOME, with nothing to close, opens the ◆ ICEBREAKER menu": "retour à la page (depuis l'arbre ou le shell) ; sur HOME, sans rien à fermer, ouvre le menu ◆ ICEBREAKER",
+  // ── 0.7.1: ◆ menu
+  "Setup again": "Refaire le setup",
+  "the first-run questions, to change your answers": "les questions du premier lancement, pour changer tes réponses",
+  "Guided tour": "Visite guidée",
+  "the deck's menu: what's new, updates, setup, tour, log out, quit · click · F10": "le menu du deck : nouveautés, mises à jour, setup, visite, déconnexion, quitter · clic · F10",
 };

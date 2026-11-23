@@ -361,59 +361,15 @@ export class Workspace {
   // ── tabs ─────────────────────────────────────────────────────────────────
 
   /**
-   * Pages reached from the deck menu, ◆ ICEBREAKER (NEXUS, STORE, MODULES, settings):
-   * they show in the main area without a tab of their own, and go away when you
-   * go anywhere else. One at a time, kept last in `tabs`.
+   * The pages of the ◆ menu and the menu bar (NEXUS, STORE, MODULES, settings, trash) were
+   * pages without a tab until 0.7.0 (one at a time, left of HOME, gone when you went elsewhere).
+   * They are tabs like the others now; a session saved then may still name one to open.
    */
-  static readonly PAGES = new Set(["modules", "store", "explorer", "settings", "trash"]);
-  /** the tab to come back to when the page closes */
-  private pageReturn = 0;
+  private static readonly OLD_PAGES = new Set(["modules", "store", "explorer", "settings", "trash"]);
 
-  /** the open button-page, if any (always the last of `tabs`) */
-  get page(): App | undefined {
-    const last = this.tabs[this.tabs.length - 1];
-    return last && Workspace.PAGES.has(last.kind) ? last : undefined;
-  }
-
-  /** the real tabs (what the tab bar shows and 1…9 count) */
+  /** the tabs (what the tab bar shows and 1…9 count) */
   get tabCount(): number {
-    return this.tabs.length - (this.page ? 1 : 0);
-  }
-
-  /** Close the open page (STORE, settings…: × on its chip, esc) and go back to the tab before. */
-  closePage(): void {
-    this.dropPage();
-    this.deck.requestFrame();
-  }
-
-  /**
-   * NEXUS set aside while the note opened from it is shown (not closed: it keeps where you
-   * were); esc on that note brings it back (the user's call: a page from the ◆ menu has no tab,
-   * but NEXUS is for exploring).
-   */
-  private parked: { app: App; opened: string } | null = null;
-
-  /** Esc on the note opened from NEXUS: NEXUS again, as you left it. True if it did. */
-  backToParked(): boolean {
-    const p = this.parked;
-    if (!p || this.activeApp?.key !== p.opened) return false;
-    this.parked = null;
-    if (this.page) this.dropPage();
-    this.pageReturn = this.active;
-    this.tabs.push(p.app);
-    this.active = this.tabs.length - 1;
-    this.focus = "main";
-    this.deck.requestFrame();
-    return true;
-  }
-
-  /** Close the button-page without going anywhere. */
-  private dropPage(): void {
-    const p = this.page;
-    if (!p) return;
-    void p.close?.();
-    this.tabs.pop();
-    this.active = Math.max(0, Math.min(this.pageReturn, this.tabs.length - 1));
+    return this.tabs.length;
   }
 
   /** Show an app; if one with the same key is open, switch to it instead. */
@@ -446,7 +402,6 @@ export class Workspace {
     const spec = this.deck.apps.get("note");
     if (!spec) return;
     const app = spec.create(this.deck, path);
-    if (this.page) this.dropPage();
     const at = this.previewTab ? this.tabs.indexOf(this.previewTab) : -1;
     if (at >= 0 && !this.previewTab?.dirty?.()) {
       void this.tabs[at].close?.();
@@ -461,29 +416,6 @@ export class Workspace {
 
   open(app: App): App {
     if (this.deck.log.debugOn) this.deck.debug(`opened ${app.kind}`);
-    if (Workspace.PAGES.has(app.kind)) {
-      const cur = this.page;
-      if (cur?.key === app.key) {
-        void app.close?.();
-        this.active = this.tabs.length - 1;
-      } else {
-        // another page: a NEXUS set aside closes for good
-        if (this.parked) void this.parked.app.close?.(), (this.parked = null);
-        if (cur) this.dropPage();
-        else this.pageReturn = this.active;
-        this.tabs.push(app);
-        this.active = this.tabs.length - 1;
-      }
-      this.focus = "main";
-      return this.tabs[this.active];
-    }
-    // a note (or any page with a tab) opened from NEXUS: NEXUS is set aside, esc brings it back
-    let parkNexus: App | null = null;
-    if (this.page?.kind === "explorer") {
-      if (this.parked) void this.parked.app.close?.();
-      parkNexus = this.tabs.pop()!;
-      this.active = Math.max(0, Math.min(this.pageReturn, this.tabs.length - 1));
-    } else if (this.page) this.dropPage();
     const existing = this.tabs.findIndex((t) => t.key === app.key);
     // already open in another frame: shown there
     if (existing >= 0 && this.reachOf(existing) !== "main") {
@@ -502,7 +434,6 @@ export class Workspace {
     }
     this.focus = "main";
     const opened = this.tabs[this.active];
-    if (parkNexus) this.parked = { app: parkNexus, opened: opened.key };
     if (opened.kind === "note") this.sidebar.reveal(opened.key.slice(5));
     return opened;
   }
@@ -602,7 +533,6 @@ export class Workspace {
     // HOME is pinned: it can't be closed by mistake (⌘W, ×) — it's always the first tab
     if (app.kind === "home" && this.tabs.length > 0) return void this.notify(t("HOME stays: it's pinned (the first tab, ⌘1)"));
     if ((await app.close?.()) === false) return;
-    const wasPage = app === this.page;
     const at = this.placeOf(i);
     this.tabs.splice(i, 1);
     // it lived in another frame: that frame shows its own content again (the page's frame is unchanged)
@@ -614,8 +544,7 @@ export class Workspace {
       return void this.deck.requestFrame();
     }
     // closing the tab you're on shows the one before it (in tab order)
-    if (wasPage) this.active = Math.max(0, Math.min(this.pageReturn, this.tabs.length - 1));
-    else if (i < this.active || (i === this.active && i > 0)) this.active--;
+    if (i < this.active || (i === this.active && i > 0)) this.active--;
     if (this.active >= this.tabs.length) this.active = Math.max(0, this.tabs.length - 1);
     if (this.tabs.length === 0) this.deck.openApp("home");
     this.deck.requestFrame();
@@ -638,8 +567,6 @@ export class Workspace {
 
   /** `quick`: a swipe or a mouse side button (an even shorter transition). */
   switchTab(i: number, quick = false): void {
-    // leaving a button-page closes it (it's not a tab)
-    if (this.page && i !== this.tabs.length - 1) this.dropPage();
     const n = this.tabCount || this.tabs.length;
     if (n === 0) return;
     const next = ((i % n) + n) % n;
@@ -800,7 +727,6 @@ export class Workspace {
 
   /** The page's frame shows a tab that lives there (the nearest one; HOME comes back if none is left). */
   private fixActive(): void {
-    if (this.page && this.active === this.tabs.length - 1) return;
     if (this.reachOf(this.active) === "main" && this.active < this.tabCount) return;
     let mine = this.mainTabs();
     if (!mine.length) {
@@ -1190,10 +1116,9 @@ export class Workspace {
       // Tabs close with shift+esc (or ctrl+W), so a stray esc never loses one. The gamepad's B still closes.
       case "back":
         // leaving a page that plays the keyboard (App.rawKeys): esc gives the keys back to the deck
-        if (this.focus === "main" && this.backToParked()) break; // the note opened from NEXUS: NEXUS again
-        if (this.focus === "main" && this.activeApp?.rawKeys && this.activeApp !== this.page && source !== "gamepad") this.focus = this.sidebarVisible ? "sidebar" : this.shellVisible ? "shell" : "main";
+        if (this.focus === "main" && this.activeApp?.rawKeys && source !== "gamepad") this.focus = this.sidebarVisible ? "sidebar" : this.shellVisible ? "shell" : "main";
         else if (this.focus !== "main") this.focus = "main";
-        else if (this.activeApp === this.page || source === "gamepad") void this.closeAndGoBack();
+        else if (source === "gamepad") void this.closeAndGoBack();
         // nothing left to close or leave, on HOME: esc opens the ◆ ICEBREAKER menu (esc again
         // closes it). Anywhere else esc does nothing: in a note (a vim reflex, a tip to close) the
         // menu came over the text and the next letters went to it
@@ -1355,12 +1280,9 @@ export class Workspace {
       ratio: Math.round(this.shellRatio * 1000) / 1000,
       shellTab: this.shellTab,
       terms: this.terms.length,
-      page: this.page && this.page.kind !== "setup" ? this.page.key : undefined,
       focus: this.focus === "sidebar" || this.focus === "shell" || this.focus === "panel" ? this.focus : "main",
     };
-    // the tab you were on: with a page open (SETTINGS…), the one under it (where esc goes back to)
-    const under = this.page ? this.pageReturn : this.active;
-    const active = Math.max(0, tabs.indexOf(this.tabs[Math.min(under, this.tabCount - 1)]?.key ?? ""));
+    const active = Math.max(0, tabs.indexOf(this.tabs[Math.min(this.active, this.tabCount - 1)]?.key ?? ""));
     const sig = `${tabs.join("|")}#${active}#${JSON.stringify(groups)}#${JSON.stringify(places)}#${JSON.stringify(shows)}#${JSON.stringify(view)}`;
     if (!this.sessionReady || sig === this.savedTabs) return;
     this.savedTabs = sig;
@@ -1403,7 +1325,7 @@ export class Workspace {
         const app = new TerminalApp(this.deck);
         rename[key] = app.key;
         this.open(app);
-      } else if (this.deck.apps.get(key) && !Workspace.PAGES.has(key)) this.deck.openApp(key);
+      } else if (this.deck.apps.get(key) && key !== "setup") this.deck.openApp(key);
     }
     const saved = renameKeys(ses, rename);
     const want = (ses.tabs ?? [])[ses.active ?? 0];
@@ -1417,8 +1339,8 @@ export class Workspace {
     this.fixActive();
     const i = this.tabs.findIndex((t) => t.key === wantKey);
     if (i >= 0 && this.placeOf(i) === "main") this.switchTab(i);
-    // the page that was open over the tabs (SETTINGS, STORE, NEXUS…)
-    if (view?.page && Workspace.PAGES.has(view.page) && this.deck.apps.get(view.page)) this.deck.openApp(view.page);
+    // a page that was open over the tabs in 0.7.0 (SETTINGS, STORE, NEXUS…): a tab now
+    if (view?.page && Workspace.OLD_PAGES.has(view.page) && this.deck.apps.get(view.page)) this.deck.openApp(view.page);
     // the frame that had the focus (one that is shown)
     const f = view?.focus ?? "main";
     this.focus = (f === "sidebar" && this.sidebarVisible) || (f === "shell" && this.shellVisible) || (f === "panel" && this.deck.settings.data.panel?.shown) ? f : "main";

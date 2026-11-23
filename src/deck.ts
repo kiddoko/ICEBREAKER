@@ -299,8 +299,6 @@ export class Deck implements InputSink {
         // like a browser: the mouse's back / forward buttons (a two-finger swipe on a Mac) walk
         // the pages this tab showed; with shift, the tabs
         if (shift) ws.stepTab(g === "forward" ? 1 : -1, true);
-        // "back" on the note opened from NEXUS: NEXUS again
-        else if (g === "back" && ws.backToParked()) return void this.requestFrame();
         else void this.tabHistoryStep(g === "forward" ? 1 : -1);
       } else this.zoom(g === "zoom-in" ? 1 : -1);
       this.requestFrame();
@@ -947,7 +945,7 @@ export class Deck implements InputSink {
 
   /** The mouse's back (-1) / forward (1) button: the note this tab showed before / after. */
   async tabHistoryStep(dir: 1 | -1): Promise<void> {
-    const cur = this.workspace.page ? undefined : this.workspace.activeApp;
+    const cur = this.workspace.activeApp;
     const h = cur && this.tabHistory.get(cur);
     if (!cur || !h || cur.kind !== "note") return;
     const from = dir < 0 ? h.back : h.forward;

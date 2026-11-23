@@ -18,7 +18,7 @@
 /** Command names (and aliases) no module may take over. */
 export const PRIVILEGED_NAMES = new Set([
   "vault", "account", "passwd", "logout", "lock", "login", "password", "sudo", "factory-reset", "plugin", "plugins", "config", "set", "script", "scripts",
-  "bind", "unbind", "macro", "store", "update", "updates", "modules", "menu", "wheel", "keys", "shortcuts", "pin", "unpin", "stealth", "encoders", "exit", "quit", "reboot",
+  "bind", "unbind", "macro", "store", "update", "updates", "modules", "menu", "wheel", "keys", "shortcuts", "pin", "unpin", "stealth", "encoders", "exit", "quit", "reboot", "setup",
 ]);
 
 /** the settings that hold commands, or decide what runs, where things go and what leaves the computer */
@@ -106,6 +106,6 @@ export function isPrivileged(name: string, args: string[], from?: string): boole
       return true;
     }
     default:
-      return ["account", "passwd", "logout", "lock", "factory-reset", "script", "scripts", "bind", "unbind", "pin", "unpin", "exit", "quit", "reboot", "starthere", "undo", "redo"].includes(name);
+      return ["account", "passwd", "logout", "lock", "factory-reset", "script", "scripts", "bind", "unbind", "pin", "unpin", "exit", "quit", "reboot", "setup", "starthere", "undo", "redo"].includes(name);
   }
 }

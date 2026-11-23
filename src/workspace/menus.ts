@@ -114,28 +114,20 @@ export function shellMenu(ws: Workspace): MenuEntry[] {
 export const DECK_MENU_TITLE = () => `ICEBREAKER ${APP_VERSION}`;
 
 /**
- * "◆ ICEBREAKER ▾", top left: the deck's own menu, like the apple on a Mac — the pages
- * without a tab (MODULES, STORE, NEXUS, settings), the manual, what's new, updates,
- * log out. Their keys and commands stay the same.
+ * "◆ ICEBREAKER ▾", top left: the deck's own menu, like the apple on a Mac — what the menu bar
+ * beside it doesn't have (MODULES, STORE, NEXUS, settings and the manual are there, one click
+ * each): what's new, updates, the setup, the tour, log out, quit.
  */
-export function deckMenu(ws: Workspace): MenuEntry[] {
-  const d = ws.deck;
-  // the page you're on shows ✓ in place of its mark: no tick column, every label flush left
-  const mark = (kind: string, icon: string) => (ws.activeApp?.kind === kind ? "✓" : icon);
-  const page = (kind: string, icon: string, label: string, cmd: string, hint: string, tip: string): MenuEntry[] =>
-    d.apps.get(kind) ? [{ label: `${mark(kind, icon)} ${label}`, cmd, hint, tip }] : []; // its module is off or removed
+export function deckMenu(_ws: Workspace): MenuEntry[] {
   return [
-    // every line with its mark, so they all start at the same place; the deck's real keys
-    ...page("modules", "▦", t("Modules"), "launch modules", IS_MAC ? "⌘⇧M" : "ctrl+shift+M", t("all apps and modules")),
-    ...page("store", "⇣", t("Store"), "store", "", t("modules and themes from GitHub")),
-    ...page("explorer", "⬡", "NEXUS", "launch explorer", IS_MAC ? "⌘⇧E" : "ctrl+shift+E", t("the vault in 3D")),
-    { label: `${mark("settings", "⚙")} ${t("Settings")}`, cmd: "settings", hint: IS_MAC ? "⌘," : "ctrl+," },
-    "-",
-    { label: `? ${t("Manual")}`, cmd: "manual", hint: "F1" },
     { label: `✦ ${t("What's new")}`, cmd: "changelog" },
     { label: `⇡ ${t("Check for updates")}`, cmd: "update" },
     "-",
+    { label: `⚙ ${t("Setup again")}`, cmd: "setup", tip: t("the first-run questions, to change your answers") },
+    { label: `◉ ${t("Guided tour")}`, cmd: "tour" },
+    "-",
     { label: `⏻ ${t("Log out")}`, cmd: "logout", hint: IS_MAC ? "⌘⇧L" : "ctrl+shift+L", danger: true },
+    { label: `✕ ${t("Quit ICEBREAKER")}`, cmd: "quit", hint: IS_MAC ? "⌘Q" : "alt+F4" },
   ];
 }
 

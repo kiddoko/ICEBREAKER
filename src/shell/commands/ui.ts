@@ -634,4 +634,5 @@ export const uiCommands: Command[] = [
     },
   },
   opener("manual", "help", "the manual: keys, mouse, gamepad, commands (F1)"),
+  opener("setup", "setup", "the first-run questions again, to change your answers (◆ menu → setup)"),
 ];

@@ -197,27 +197,12 @@ let dragging: { from: number; to: number; onto: boolean } | null = null;
 
 /**
  * Draw the main frame's tabs in `r` (2 rows: the names, then the frame's top line for
- * their bars): an open page without a tab (STORE, settings…) first, then HOME, the lone
- * tabs and the groups (workspace/tabgroups.ts).
+ * their bars): HOME, the lone tabs and the groups (workspace/tabgroups.ts).
  */
 export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
   const c = ui.c;
   const focused = ws.focus === "main" && !ws.topModal;
   let x = r.x;
-  // a page from the deck menu (no tab of its own): shown first, lit, × closes it
-  const page = ws.page;
-  if (page) {
-    const label = `${ws.deck.apps.get(page.kind)?.icon?.trim()?.slice(0, 2) || "·"} ${t(page.title()).toLowerCase()}`;
-    const w = Math.min(r.w, strWidth(label) + 5);
-    const st = chipStyle(ui, true, focused, false);
-    drawChip(ui, x, r.y, w, st.bg);
-    ui.text(x + 1, r.y, label, { fg: st.fg, bg: st.bg, attrs: BOLD }, w - 4);
-    const xr = { x: x + w - 3, y: r.y, w: 3, h: 1 };
-    ui.text(x + w - 2, r.y, "×", { fg: ui.hovered(xr) ? c.error : st.fg, bg: st.bg, attrs: BOLD });
-    ui.hit({ x, y: r.y, w, h: 2 }, { tip: t("esc closes it") });
-    ui.hit(xr, { onClick: () => ws.closePage(), tip: t("close · esc") });
-    x += w + SEP + 1;
-  }
   const entries = ws.stripEntries();
   const n = entries.length;
   // the pinned tab (HOME) keeps its own small width; the others share the rest
@@ -226,7 +211,7 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
   const others = n - pinned.length;
   const avail = r.x + r.w - x - PLUS_W - pinnedW;
   let tabW = others ? Math.max(MINW, Math.min(MAXW, Math.floor(avail / others) - 1)) : MAXW;
-  const activeEntry = page ? -1 : entries.findIndex((e) => (e.kind === "tab" ? e.index === ws.active : e.indexes.includes(ws.active)));
+  const activeEntry = entries.findIndex((e) => (e.kind === "tab" ? e.index === ws.active : e.indexes.includes(ws.active)));
   let shown = Array.from({ length: n }, (_, i) => i);
   if (others * (tabW + 1) > avail) {
     tabW = MINW;

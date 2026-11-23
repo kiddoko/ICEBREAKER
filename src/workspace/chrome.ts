@@ -250,7 +250,7 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
   ui.fill(logoRect, { bg: chipBg });
   ui.gradientText(r.x + INSET, r.y, logo.trim().slice(0, -2), ui.theme.gradient, BOLD, (ui.now / 8000) % 1);
   ui.text(r.x + logoRect.w - GAP, r.y, "▾", { fg: c.accent, bg: chipBg, attrs: BOLD });
-  ui.hit(logoRect, { onClick: () => ws.openDeckMenu(), tip: t("the deck's menu: modules, store, NEXUS, settings, manual, updates, log out · click") });
+  ui.hit(logoRect, { onClick: () => ws.openDeckMenu(), tip: t("the deck's menu: what's new, updates, setup, tour, log out, quit · click · F10") });
 
   const now = new Date();
   const time = now.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" });
