@@ -67,7 +67,7 @@ the keyboard, the mouse or a gamepad.
 | switch a feature off | **MODULES** (⌘⇧M) → space |
 | learn the shell | click anything: the command it runs shows in the shell's **log** (on its right) |
 | know what something does | rest the pointer on it: a tip says what it does and the command it runs |
-| see everything the deck can do | **BLOCKS** (\`blocks\`): every command, setting, shortcut, function… and how to call it |
+| see everything the deck can do | **CATALOG** (\`catalog\`): every command, setting, shortcut, function… and how to call it |
 | someone else on this deck (or a work deck) | the login page → **+ new account**: its own settings, theme and vault |
 
 ## Read next
@@ -119,8 +119,8 @@ has the same bar. The tree's colour squares tick several colours too (\`tag view
 | **VOICE** | the deck speaks (local voices) — you pick what it says: errors, reminders, events, the time… | \`voice test\` · \`say hello\` |
 
 Each module's own settings: ⚙ → the ◇ sections at the bottom.
-Modules talk to each other (\`modules api\` lists what they share). **BLOCKS**
-(\`blocks\`, or \`catalog\` in the shell) shows everything the deck and its modules
+Modules talk to each other (\`modules api\` lists what they share). **CATALOG**
+(\`catalog\` in the shell) shows everything the deck and its modules
 can do — commands, settings, shortcuts, functions, widgets — and how to call each.
 
 A module from the STORE or your vault starts **switched off**: switching it on
@@ -433,8 +433,9 @@ it, ⌘\` brings it back):
 
 | Tab | What |
 |---|---|
-| **zsh** (bash, powershell…) | your real shell, named after itself, **plus** every ICEBREAKER command. + opens another, right-click renames it |
-| **ibsh** | ICEBREAKER's own shell: it only sees the vault, \`rm\` goes to .trash |
+| **zsh** (bash, powershell…) | your real shell, named after itself, **plus** every ICEBREAKER command |
+| **ibsh** | ICEBREAKER's own shell: it only sees the vault, \`rm\` goes to .trash. Open several: each has its own folder and ↑ history |
+| **+** (ctrl+shift+\`) | a new tab: **ibsh** (enter), or any shell of this computer — zsh, bash, fish; PowerShell, cmd, WSL on Windows (\`term new bash\`, \`term shells\`). Right-click a tab: rename, close. The tabs come back as you left them |
 | **log** | on the shell's right when it's wide (a tab when it's narrow, or with \`log side off\`): what you typed and clicked (with the output), errors (a code — E102… — and what to do: \`errors E102\`), messages; chips on top filter them (\`log show errors\`) |
 
 \`\`\`
@@ -460,7 +461,8 @@ it, ⌘\` brings it back):
 | | |
 |---|---|
 | \`menu\` | THE MENU (\`menu add t "launch todo"\`: ⌘K t ⏎ runs it) |
-| \`catalog function todo\` | what you can call — \`--json\` for scripts |
+| \`help\` · \`help all\` · \`help todo\` | the commands to start with · every one · a module's |
+| \`catalog function todo\` | what you can call — \`--json\` for scripts; \`catalog api\`: every \`ib.ui\` / \`ib.lib\` piece |
 | \`notify --alert "tea" "it's ready"\` | call yourself like a reminder does |
 | \`account\` · \`lock\` | who you're logged in as · log out (the login page) |
 | \`say "tea's ready"\` | the deck's voice says it — the voice and language of Settings → VOICE, like UPLINK (silent when muted or the voice is off) |
@@ -702,7 +704,7 @@ src-tauri/      the native side (Rust)       docs/      the full docs
 Three rules the whole deck follows: **one feature = one module**, **every
 click is a shell command** (so it can be typed, bound to a key, put on THE MENU
 or in a macro), and **everything works offline, without an online account, without AI**.
-**BLOCKS** (\`blocks\`) lists everything there is to call.
+**CATALOG** (\`catalog\`) lists everything there is to call.
 
 Where the safety lines are (read before you publish a module): \`docs/SANDBOX.md\` (what a
 module can reach), \`docs/SECURITY_AUDIT.md\` (what was found, fixed, still open),
@@ -804,8 +806,9 @@ export function activate(ib) {
 | \`modules\` | call other modules (\`todo.add\`, \`journal.append\`…), expose yours |
 | \`settings\` | your settings, shown in ⚙ under your name |
 | \`ui\` | ask the user (no permission: they answer): \`notify\`, \`alert\` (stays until clicked), \`confirm\`, \`prompt\` (with \`suggestions\`: ▾ and Tab), \`choose\`, \`pickWhen\` (the WHEN? calendar and clock), \`pickFolder\`, \`pickFile\`, \`pickFileText\` / \`pickFileBytes\` (a file read for you), \`fullWindow\` (your page alone) |
-| \`lib\` | the deck's own pieces (fields, lists, layout, colours, \`t\` and \`dateLocale\` for the user's language and dates, \`dates\` to read "demain 9h") — every export in docs/PLUGINS.md |
-| \`catalog\` | everything the deck can do, as plain data: \`ib.catalog.list("function", "todo")\` |
+| \`lib\` | the deck's own pieces (fields, lists, layout, colours, \`t\` and \`dateLocale\` for the user's language and dates, \`dates\` to read "demain 9h" and write a day: \`dayShort\` "mon 23 nov", \`dayLong\` "monday 23 november") — every export in docs/PLUGINS.md and \`catalog api\` |
+| \`catalog\` | everything the deck can do, as plain data: \`ib.catalog.list("function", "todo")\`; the frame too: \`frames.fold\`, \`statusbar.move\`, \`log.tail\`, \`trash.list\`, \`deck.stealth\` (\`ib.use("frames").fold("shell")\`) |
+| \`render(ui…)\` | \`ui.animate(ms)\` only while something moves; a deck left alone rests (12 then 2 frames a second): \`ui.stayAwake()\` while the user watches without touching (music playing) |
 | \`ai\` · \`media\` · \`google\` · \`storage\` | the rest |
 
 Right-click menus: give a clickable area a \`menu\`: \`ui.hit(rect, { cmd, menu: () => [{ label: "done", cmd: "todo done 3" }] })\`.

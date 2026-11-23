@@ -95,9 +95,23 @@ export class SystemTerminal {
     this.ownName = v.trim();
   }
   private ownName = "";
+  /** the name you gave it ("" = the shell's own): kept across a relaunch */
+  get ownLabel(): string {
+    return this.ownName;
+  }
   private readonly number: number;
   /** the numbers in use: a new terminal takes the smallest free one (closing zsh then opening one gave "zsh 2" alone) */
-  private static used = new Set<number>();
+  private static usedBy = new Map<string, Set<number>>();
+  /** the shell's name its number counts in, fixed at its start (the login shell's name can change once it answers) */
+  private family = "";
+  private get used(): Set<number> {
+    // by the shell's name: the login shell (no `shell`) and the same one chosen in « + » are one
+    // family — a 2nd powershell was « powershell », not « powershell 2 » (Windows bench)
+    const k = (this.family ||= (this.shell ?? SystemTerminal.lastShell()).split(/[\\/]/).pop()!.replace(/\.exe$/i, "").toLowerCase());
+    let set = SystemTerminal.usedBy.get(k);
+    if (!set) SystemTerminal.usedBy.set(k, (set = new Set()));
+    return set;
+  }
   private started = false;
   /** the native shell is really running (pty_spawn answered) */
   private spawned = false;
@@ -132,9 +146,14 @@ export class SystemTerminal {
   };
   private lastR: Rect = { x: 0, y: 0, w: 0, h: 0 };
 
-  constructor(private readonly deck: Deck) {
-    this.number = freeNumber(SystemTerminal.used);
-    SystemTerminal.used.add(this.number);
+  /**
+   * `shell`: which of this computer's shells it runs ("bash", "/opt/homebrew/bin/fish", "pwsh" —
+   * from platform.pty.shells()); none: the login shell. Each shell numbers its own tabs: zsh, zsh 2, bash.
+   */
+  constructor(private readonly deck: Deck, readonly shell?: string) {
+    if (shell) this.shellName = shell;
+    this.number = freeNumber(this.used);
+    this.used.add(this.number);
     this.term = new Terminal({ cols: 80, rows: 24, scrollback: 10000, allowProposedApi: true });
     // The terminal's own answers (cursor position, device attributes…) go back to
     // the shell. Windows' ConPTY asks where the cursor is at start-up and shows
@@ -173,12 +192,13 @@ export class SystemTerminal {
           this.exited = true;
         }
         this.term.write(data, () => this.deck.requestFrame());
-      }, this.moduleCommands(), this.deck.settings.data.shell.prompt ?? "icebreaker")
+      }, this.moduleCommands(), this.deck.settings.data.shell.prompt ?? "icebreaker", this.shell)
       .then((name) => {
         // an empty answer keeps the name it had (it went back to "terminal")
         if (name?.trim()) {
           this.shellName = name.trim();
-          SystemTerminal.remember(this.shellName);
+          // the login shell's name, for the next terminal's tab until its shell answers
+          if (!this.shell) SystemTerminal.remember(this.shellName);
         }
         this.ready();
       })
@@ -221,7 +241,7 @@ export class SystemTerminal {
   }
 
   dispose(): void {
-    SystemTerminal.used.delete(this.number);
+    this.used.delete(this.number);
     void this.deck.platform.pty?.kill(this.id);
   }
 

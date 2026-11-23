@@ -118,8 +118,11 @@ export class Renderer {
         "@keyframes ib-caret-breathe{0%,40%{opacity:1}70%,85%{opacity:.18}100%{opacity:1}}",
         // a key pressed: a short flare
         "@keyframes ib-caret-key{0%{filter:brightness(1.9);box-shadow:0 0 10px currentColor}100%{filter:none}}",
-        ".ib-caret{animation:ib-caret-breathe 1.2s cubic-bezier(.45,0,.55,1) .7s infinite}",
-        ".ib-caret.key{animation:ib-caret-key .22s ease-out,ib-caret-breathe 1.2s cubic-bezier(.45,0,.55,1) .9s infinite}",
+        // a few breaths after the last key or move, then solid: a never-ending CSS animation kept
+        // the compositor redrawing the whole stack (canvases, bloom) 60 times a second — 22 % of a
+        // core with a note open while the deck itself drew 2 frames (Windows bench, 0.7.2)
+        `.ib-caret{animation:ib-caret-breathe 1.2s cubic-bezier(.45,0,.55,1) .7s ${Renderer.CARET_BREATHS}}`,
+        `.ib-caret.key{animation:ib-caret-key .22s ease-out,ib-caret-breathe 1.2s cubic-bezier(.45,0,.55,1) .9s ${Renderer.CARET_BREATHS}}`,
         ".ib-caret-trail{opacity:.3;filter:blur(1px)}",
         ".ib-caret.still,.ib-caret-trail.still{transition:none!important}",
       ].join("");
@@ -136,6 +139,9 @@ export class Renderer {
    * Where the caret is this frame (null: none). `typedAt` restarts the breathing
    * (solid while you type); `still` drops the glide (reduce motion).
    */
+  /** how many times the caret breathes after the last key or move before it stays solid */
+  static readonly CARET_BREATHS = 5;
+
   setCaret(pos: { x: number; y: number } | null, color: string, typedAt: number, still: boolean): void {
     const el = this.caretEl, tr = this.trailEl;
     if (!pos || !this.cellW) {
@@ -171,11 +177,15 @@ export class Renderer {
       el.style.transform = to;
       tr.style.transform = to;
     }
-    if (typedAt !== this.caretAt.typed) {
-      // a key: a short flare, then it breathes again (solid while you type)
+    if (typedAt !== this.caretAt.typed || (moved && shown)) {
+      // a key: a short flare, then it breathes again (solid while you type); moved (a click, the
+      // arrows): it breathes again. Both from the start: a finished breath of the same name is
+      // kept as it is by the browser unless the animations are cleared first
       el.classList.remove("key");
+      el.style.animation = "none";
       void el.offsetWidth;
-      el.classList.add("key");
+      el.style.animation = "";
+      if (typedAt !== this.caretAt.typed) el.classList.add("key");
     }
     this.caretAt = { x: pos.x, y: pos.y, typed: typedAt };
   }

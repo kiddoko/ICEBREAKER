@@ -25,6 +25,13 @@ export interface SessionView {
   shellTab: ShellTabName;
   /** how many terminals the shell panel had (new ones are started for them) */
   terms: number;
+  /**
+   * The shell panel's tabs, in order (0.7.2): a terminal and the shell it ran, an ibsh and its
+   * folder, and the names you gave them. New shells start in their place. Older views: `terms`.
+   */
+  shellTabs?: ShellTabSave[];
+  /** which of shellTabs was shown */
+  shellAt?: number;
   /** the page open over the tabs (SETTINGS, STORE, NEXUS…), if any */
   page?: string;
   /** the frame that had the focus */
@@ -32,6 +39,37 @@ export interface SessionView {
 }
 
 const SHELL_TABS: readonly string[] = ["term", "ibsh", "log"];
+
+export interface ShellTabSave {
+  kind: "term" | "ibsh";
+  /** a terminal's shell ("bash", "pwsh"; none: the login shell) */
+  shell?: string;
+  /** the name you gave the tab */
+  name?: string;
+  /** an ibsh's folder in the vault */
+  cwd?: string;
+}
+
+const shortText = (v: unknown, max: number): string | undefined => (typeof v === "string" && v.length > 0 && v.length <= max ? v : undefined);
+
+function parseShellTabs(raw: unknown): ShellTabSave[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: ShellTabSave[] = [];
+  for (const it of raw.slice(0, 12)) {
+    if (!it || typeof it !== "object") continue;
+    const o = it as Record<string, unknown>;
+    if (o.kind !== "term" && o.kind !== "ibsh") continue;
+    const tab: ShellTabSave = { kind: o.kind };
+    const shell = o.kind === "term" ? shortText(o.shell, 260) : undefined;
+    const name = shortText(o.name, 24);
+    const cwd = o.kind === "ibsh" ? shortText(o.cwd, 400) : undefined;
+    if (shell) tab.shell = shell;
+    if (name) tab.name = name;
+    if (cwd) tab.cwd = cwd;
+    out.push(tab);
+  }
+  return out;
+}
 const FOCUSES: readonly string[] = ["main", "sidebar", "shell", "panel"];
 
 /** A saved view, checked (anything odd falls back to today's default for that part). */
@@ -45,6 +83,12 @@ export function parseView(raw: unknown): SessionView | null {
     ratio,
     shellTab: typeof o.shellTab === "string" && SHELL_TABS.includes(o.shellTab) ? (o.shellTab as ShellTabName) : "ibsh",
     terms: typeof o.terms === "number" && Number.isFinite(o.terms) ? Math.max(0, Math.min(9, Math.floor(o.terms))) : 0,
+    ...(() => {
+      const shellTabs = parseShellTabs(o.shellTabs);
+      if (!shellTabs) return {};
+      const at = typeof o.shellAt === "number" && Number.isInteger(o.shellAt) && o.shellAt >= 0 && o.shellAt < shellTabs.length ? o.shellAt : 0;
+      return { shellTabs, shellAt: at };
+    })(),
     page: typeof o.page === "string" && o.page.length < 100 ? o.page : undefined,
     focus: typeof o.focus === "string" && FOCUSES.includes(o.focus) ? (o.focus as FocusName) : "main",
   };

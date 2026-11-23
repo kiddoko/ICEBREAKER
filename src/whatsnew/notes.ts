@@ -32,6 +32,40 @@ export interface VersionNotes {
 
 export const NOTES: VersionNotes[] = [
   {
+    version: "0.7.2",
+    date: "2026-11-23",
+    en: {
+      added: [
+        "+ on the shell: ibsh or any of your shells; several ibsh tabs",
+        "help is short: the commands to start with; help all for every one",
+        "The catalog lists the module API too (catalog api)",
+        "Days written one way everywhere: « mon 23 nov », « monday 23 november »",
+      ],
+      fixed: [
+        "A deck left alone sleeps: 2 frames a second after a minute",
+        "31/02 or 99:99 is refused, not moved; a reminder in the past asks first",
+        "A long title makes a file name of 80 characters at most",
+        "The log speaks your language from the first login",
+        "« blocks » is « catalog » everywhere; todo's repeats in French",
+      ],
+    },
+    fr: {
+      added: [
+        "+ sur le shell : ibsh ou n'importe lequel de tes shells ; plusieurs ibsh",
+        "help est court : les commandes pour commencer ; help all pour toutes",
+        "Le catalogue liste aussi l'API des modules (catalog api)",
+        "Les jours s'écrivent pareil partout : « lun 23 nov », « lundi 23 novembre »",
+      ],
+      fixed: [
+        "Un deck laissé seul s'endort : 2 images par seconde après une minute",
+        "31/02 ou 99:99 est refusé, plus déplacé ; un rappel dans le passé demande",
+        "Un long titre donne un nom de fichier de 80 caractères au plus",
+        "Le log parle ta langue dès la première connexion",
+        "« blocks » devient « catalogue » ; les répétitions de todo en français",
+      ],
+    },
+  },
+  {
     version: "0.7.1",
     date: "2026-11-23",
     en: {

@@ -767,6 +767,7 @@ export function activate(ib: IcebreakerAPI): void {
         const s = shown();
         const playing = !!s?.playing;
         ui.animate(playing ? 33 : 500);
+        if (playing) ui.stayAwake?.();
         const w = r.w - 4, x0 = r.x + 2;
         if (!s) {
           ui.textCenter(r, r.y + 3, "♪", { fg: c.accent, attrs: BOLD });

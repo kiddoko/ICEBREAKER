@@ -67,11 +67,14 @@ On-screen keyboard: A types, B deletes, Y space, Start enter, LB/RB move the cur
 A small POSIX-like shell over your vault: pipes \`|\`, redirections \`> >> <\`, \`&&\` \`||\` \`;\`,
 quotes, \`$VARS\`, globs \`*.md\`, history (↑), fish-style suggestions (→), Tab completion.
 \`/\` and \`~\` are the vault root. \`<cmd> -h\` (or \`man <cmd>\`) shows a command's help with full examples: \`todo -h\`.
+- \`help\` — the commands to start with; \`help all\` every command, \`help todo\` a module's. The **CATALOG** (\`catalog\`) lists everything else: commands, settings, shortcuts, the functions modules share, the module API (\`catalog api\`).
+- **At rest**: 20 s without a key or the mouse, animations slow to 12 frames a second; after a minute, to 2 (the clock still ticks) — the first key wakes everything (Settings → APPEARANCE → save energy).
 - **Stop a command**: \`Ctrl+C\` (on a Mac \`⌘X\`, or the real Control key + C) stops what's running or the question it asks — it ends with ^C and the prompt comes back. \`Esc\` stops a question too. In your real terminal, \`⌘X\` on a Mac sends ctrl+C.
 - **Copy what a command printed**: drag over it with the mouse (double-click: a word, triple-click: a line), then \`⌘C\` on a Mac, \`Ctrl+C\` on Windows / Linux — \`Ctrl+C\` with nothing selected still stops the command. Right-click → Copy works too, in ibsh and in your real terminal.
 - **Names with spaces**: Tab puts them between quotes — \`cd STA\` + Tab gives \`cd "START HERE/"\`.
 - \`exit\` — hides the shell, like **Ctrl+\`** (what runs in it keeps running). \`quit\` — quits ICEBREAKER, like ⌘Q / Alt+F4: pages save, the vault locks, an update waiting installs. In a script \`exit\` ends the script; in your real terminal it's that shell's own \`exit\`.
 - **Every click has its command**: \`save\`, \`save as <path>\`, \`copy path|link\`, \`tree reveal\`, \`tab close others|right|all\`, \`modules on|off <id>\`, \`settings <category>\`, \`setup\` — what a menu does shows in the log.
+- **Shell tabs**: **+** (or **Ctrl+Shift+\`**) opens a little menu — **ibsh** (enter), then each shell of this computer (zsh, bash, fish; PowerShell, cmd, WSL on Windows), then rename. Several ibsh tabs, each with its own folder and ↑ history; any tab closes (×) and renames (right-click, \`term rename <n> <name>\`). \`term new [ibsh|bash|pwsh…]\`, \`term shells\`; Settings → SHELL → New tab picks what + opens with enter. The tabs come back as you left them.
 - **Your real terminal** (zsh, bash, PowerShell): pasting several lines asks first; \`Shift+PgUp\` / \`Shift+PgDn\` scroll back; 10 000 lines are kept.
 - \`say <text>\` — the deck's voice says it, with the voice and the language chosen in Settings → VOICE, like UPLINK (in Japanese, a text that isn't Japanese is translated first by your AI). Silent when the sound is muted or the voice is off. In your real terminal too (\`command say\` is macOS's own).
 
@@ -105,7 +108,7 @@ ${cmds}
 - **Menu bar** (top): modules · store · nexus · settings · help. The date on the right opens a **mini calendar** (\`clock calendar\`).
 - **Frames**: the tree, the page, the side panel, the shell. **▣** in the status bar (\`frame solo\`): the page alone, the others folded away; again: they come back.
 - **Status bar** (bottom): arrange it — drag an item sideways, right-click it (move, hide, **join the one on its left** / on its own: groups like tabs), \`statusbar move | hide | show | join | alone | reset\`. ◧ ▾ ◨ ▣ (the tree, the shell, the panel, the page alone) are four items that each move.
-- **Log** beside a wide shell: what you type, what clicks run, errors, messages. **›** on its line folds it into a tab (\`log side off\`), the line drags its width (\`log width 40\`); in its tab, **‹ beside the shell** puts it back.
+- **Log** beside a wide shell: what you type, what clicks run, errors, messages. **›** on its line folds it into a tab (\`log side off\`), the line drags its width (\`log width 40\`); **‹ log** on the shell's right edge (or **‹ beside the shell** in its tab) puts it back.
 - **HOME**: widgets on pages; ✎ edit shows near the top right (or \`Ctrl+E\`); a widget's pop-up has **⚙ settings** for its module. \`neofetch\` sums up the machine.
 - **NEXUS**: the vault as a place — folders are boxes, files are sheets with a little drawing of their kind.
 

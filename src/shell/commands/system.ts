@@ -1,9 +1,8 @@
 import pkg from "../../../package.json";
 import { AVATAR_COLORS, AVATARS, avatarOf } from "../../core/avatar";
 import { AvatarPicker } from "../../workspace/avatarpicker";
-import { helpText } from "../help";
+import { helpList, helpText } from "../help";
 import { fmt } from "../../core/ansi";
-import { osKeys } from "../../core/keyhints";
 import { gradient } from "../../core/color";
 import { padEnd, strWidth } from "../../core/unicode";
 import { ICE_ART } from "../../ui/bigtext";
@@ -14,18 +13,18 @@ import { dateLocale, t } from "../../core/i18n";
 
 const help: Command = {
   name: "help",
-  summary: "list commands",
+  summary: "the commands to start with · help all · help <module>",
+  usage: "help             the commands to start with\nhelp all         every command\nhelp <module>    a module's commands (help todo)\nhelp <command>   its help (like <command> -h)",
+  complete: () => ["all"],
   run(ctx) {
-    const groups = new Map<string, Command[]>();
-    for (const c of ctx.deck.commands.all()) {
-      const g = c.source && c.source !== "core" ? `plugin: ${c.source}` : "core";
-      (groups.get(g) ?? groups.set(g, []).get(g)!).push(c);
-    }
-    for (const [g, cmds] of groups) {
-      ctx.out(`\n${ctx.isTTY ? fmt.bold(fmt.magenta(g.toUpperCase())) : g.toUpperCase()}\n`);
-      for (const c of cmds) ctx.out(`  ${ctx.isTTY ? fmt.green(padEnd(c.name, 12)) : padEnd(c.name, 12)} ${c.summary}\n`);
-    }
-    ctx.out(`\n${fmt.dim(osKeys("<command> -h for its help and examples (todo -h) · ⌘K / shift twice: THE MENU · F1 manual"))}\n`);
+    const cmds = ctx.deck.commands.all();
+    const a = ctx.args[0];
+    const out = helpList(cmds, ctx.args, ctx.isTTY);
+    if (out) return ctx.out(out), 0;
+    // help <command>: its page
+    const c = a ? ctx.deck.commands.get(a) : undefined;
+    if (c) return ctx.out(helpText(c, ctx.isTTY)), 0;
+    return ctx.err(`help: no command or module "${a}" (help all)\n`), 1;
   },
 };
 

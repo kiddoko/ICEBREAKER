@@ -414,6 +414,8 @@ export function coreSettingRows(deck: Deck): Row[] {
     // the TERMINAL module (core-packages.ts) off: no panel, these mean nothing
     needs(() => d.workspace.terminalOn, cycle("shell.mode", "Shell", ["system", "ibsh"], undefined, (v) => (v === "system" ? "my terminal + ICEBREAKER" : "ibsh only"))),
     needs(() => d.workspace.terminalOn, cycle("shell.prompt", "Prompt", ["icebreaker", "mine"], undefined, (v) => (v === "mine" ? "mine (my own theme)" : "ICEBREAKER's"))),
+    // what « + » and `term new` open: ibsh, or one of this computer's shells (asked once)
+    needs(() => d.workspace.terminalOn, { ...cycle("shell.defaultShell", "New tab", ["ibsh", ...(d.workspace.shellList ?? (void d.workspace.loadShells(), [])).map((x) => x.name)]), cmd: () => `config set shell.defaultShell ${s.data.shell.defaultShell || "ibsh"}` }),
     toggle("shell.logSide", "Log beside the shell"),
     { section: "UPLINK (AI)", label: "", value: () => "" },
     head("Provider"),

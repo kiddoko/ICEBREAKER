@@ -19,7 +19,8 @@ import { SystemTerminal, terminalKeysHint } from "../shell/systerm";
 import type { ShellTab, Workspace } from "./workspace";
 import { chipStyle, drawChip, placeChips, tabbedBox } from "./tabstrip";
 import { FRAME_IDS, joinedLeft, moveStatusItem, statusOrder } from "./statusbar";
-import { DECK_MENU_TITLE, editMacro, macroMenu, shellMenu, termTabMenu } from "./menus";
+import { DECK_MENU_TITLE, editMacro, macroMenu, shellMenu, shellTabMenu } from "./menus";
+import { dayShort } from "../core/dates";
 
 /**
  * The shell panel: tabs on its top border (your terminals [+] │ ibsh · history ·
@@ -43,9 +44,9 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
   // a narrow one keeps it as a tab
   const logSide = !moved && si.w >= LOG_SIDE_MIN && d.settings.data.shell.logSide !== false;
   if (logSide && ws.shellTab === "log") ws.shellTab = ws.termAvailable ? "term" : "ibsh";
+  // your terminals and the ibsh tabs, each with its index in its own list (shellEntries), then the log
   const tabs: [ShellTab, string, number][] = [
-    ...(ws.termAvailable ? ws.terms.map((tm, i) => ["term", tm.name, i] as [ShellTab, string, number]) : []),
-    ["ibsh", "ibsh", -1],
+    ...ws.shellEntries().map((e) => [e.kind, e.name, e.i] as [ShellTab, string, number]),
     // the log: everything that happened, filtered as you like; blinks red while errors are unread
     ...(logSide ? [] : [["log", d.log.unseenErrors ? `⚠ ${t("log")} ${d.log.unseenErrors}` : d.log.unseen ? `${t("log")} •${d.log.unseen}` : t("log"), -1] as [ShellTab, string, number]]),
   ];
@@ -69,12 +70,13 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
   let tx = r.x + INSET;
   let lastGroup = "";
   for (const [id, label, ti] of tabs) {
-    const group = id === "term" ? "term" : "deck";
-    if (lastGroup && group !== lastGroup) tx += 1; // your terminals, then the deck's own
+    const group = id === "log" ? "log" : "shells";
+    if (lastGroup && group !== lastGroup) tx += 1; // the shells, then the log
     lastGroup = group;
-    const on = !moved && id === ws.shellTab && (ti < 0 || ti === ws.termIndex);
+    const on = !moved && id === ws.shellTab && (id === "log" || ti === (id === "term" ? ws.termIndex : d.shellIndex));
     const icon = id === "term" ? "❯" : id === "ibsh" ? ui.theme.glyphs.mark : id === "log" ? "≣" : "";
-    const closable = id === "term" && on && ws.terms.length > 1;
+    // any shell tab closes (the ibsh one too) — the panel keeps one at least
+    const closable = id !== "log" && on && tabs.filter(([k]) => k !== "log").length > 1;
     const text = ` ${icon && !label.startsWith("⚠") ? `${icon} ` : ""}${label} ${closable ? "× " : ""}`;
     const rect = { x: tx, y: r.y, w: strWidth(text), h: 2 };
     if (rect.x + rect.w > bxr) break;
@@ -86,20 +88,22 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
     const style = alarm ? { fg: blink ? c.panel : c.error, bg: blink ? c.error : st.bg, attrs: BOLD } : { ...st, attrs: on ? BOLD : 0 };
     drawChip(ui, tx, r.y, rect.w, style.bg);
     ui.text(tx, r.y, text, style);
-    ui.hit(rect, { onClick: () => (moved && ws.showIn("shell", null), ti >= 0 && (ws.termIndex = ti), ws.showShellTab(id)), menu: ti >= 0 ? () => termTabMenu(ws, ti) : undefined, tip: id === "term" ? `right-click: rename, close… · term rename <name> · F12 next tab\n${ws.terms[ti]?.shellName ?? ""}: your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)` : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash · F12 next tab" : "the log: what you typed, what clicks ran, errors, messages, debug — tick what you want to see · log" });
-    // the terminal shown, when there are several: its × is part of its tab
+    const entry = id === "log" ? null : { kind: id as "term" | "ibsh", i: ti };
+    ui.hit(rect, { onClick: () => (moved && ws.showIn("shell", null), entry ? ws.showEntry(entry) : ws.showShellTab(id)), menu: entry ? () => shellTabMenu(ws, entry) : undefined, tip: id === "term" ? `${t("right-click: rename, close… · term rename <name> · F12 next tab")}\n${ws.terms[ti]?.shellName ?? ""}: ${t("your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)")}` : id === "ibsh" ? t("ICEBREAKER's own shell: works on the vault, rm goes to .trash · each ibsh tab its own folder and history · F12 next tab") : t("the log: what you typed, what clicks ran, errors, messages, debug — tick what you want to see · log") });
+    // the tab shown, when there are several: its × is part of its tab
     if (closable) {
       const xr = { x: tx + rect.w - GAP, y: r.y, w: GAP, h: 1 };
       ui.text(xr.x, r.y, "×", { fg: ui.hovered(xr) ? c.error : style.fg, bg: style.bg, attrs: BOLD });
-      ui.hit(xr, { cmd: "term close", tip: t("close this terminal") });
+      ui.hit(xr, { cmd: "term close", tip: t("close this tab · term close") });
     }
     tx += rect.w + INSET;
-    // [+] a new terminal, right after the last one
-    // (only where it fits before the panel's buttons: a narrow shell — on the right — keeps `term new`)
-    if (id === "term" && ti === ws.terms.length - 1 && tx + 3 <= bxr) {
+    // [+] after the last shell tab: a little menu — ibsh, each shell of this computer, rename
+    // (ctrl+shift+` opens the same); only where it fits before the panel's buttons (else: term new)
+    const lastShell = tabs.filter(([k]) => k !== "log").at(-1);
+    if (lastShell && lastShell[0] === id && lastShell[2] === ti && tx + 3 <= bxr) {
       const pr = { x: tx, y: r.y, w: 3, h: 1 };
       ui.text(tx, r.y, " + ", { fg: ui.hovered(pr) ? c.bg : c.accent, bg: ui.hovered(pr) ? c.accent : mix(c.panel, c.accent, 0.1), attrs: BOLD });
-      ui.hit(pr, { cmd: "term new", tip: t("another terminal · term new") });
+      ui.hit(pr, { onClick: () => void ws.newShellMenu(pr.x, r.y + 1), tip: t("a new tab: ibsh or one of your shells · ctrl+shift+` · term new <shell>") });
       tx += 4;
     }
   }
@@ -149,6 +153,21 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
     ui.text(fold.x, fold.y, "›", { fg: ui.hovered(fold) ? c.panel : c.accent, bg: ui.hovered(fold) ? c.accent : undefined, attrs: BOLD });
     ui.hit(fold, { cmd: "log side off", tip: t("fold the log into a tab · log side on brings it back") });
     ui.clip(lr, () => ws.logPane.render(ui, lr, true));
+  }
+  // the log folded away (›) on a shell wide enough to hold it: a thin « ‹ log » on the shell's right
+  // edge, where it was — the way back (only the link inside the log tab said it, nobody found it)
+  else if (!moved && si.w >= LOG_SIDE_MIN && d.settings.data.shell.logSide === false && si.h >= 3) {
+    // the handle: a line and a column of letters, GAP wide, on the right edge
+    main = { ...si, w: si.w - GAP };
+    const word = [..."‹", ...t("log")];
+    const hx = si.x + si.w - INSET;
+    const hy = si.y + Math.max(0, Math.floor((si.h - word.length) / 2));
+    const handle = { x: si.x + si.w - GAP, y: si.y, w: GAP, h: si.h };
+    const hot = ui.hovered(handle);
+    const alarm = d.log.unseenErrors > 0;
+    ui.vline(handle.x, si.y, si.h, { fg: hot ? c.accent : c.faint });
+    word.slice(0, si.h).forEach((ch, k) => ui.text(hx, hy + k, ch, { fg: hot ? c.panel : alarm ? c.error : c.accent, bg: hot ? c.accent : undefined, attrs: BOLD }));
+    ui.hit(handle, { cmd: "log side on", tip: t("the log beside the shell again · log side on") });
   }
   // macro bar above the system terminal (one free row under the tabs)
   let termR = main;
@@ -272,7 +291,7 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
 
   const now = new Date();
   const time = now.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  const date = now.toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric", month: "short" });
+  const date = dayShort(now, dateLocale());
   ui.animate(1000 - now.getMilliseconds());
   // UPLINK ■: green when the AI is there and answering, amber while it thinks, red when it's off
   // (the provider and the model are in its tip); narrow: the ■ alone, the time without seconds

@@ -199,7 +199,7 @@ themselves (`menu add <key> "<command>"`).
 ## Borrowing from other modules
 
 - **Call, don't copy.** `await ib.use("todo").add("…")` instead of writing
-  your own todo list. The BLOCKS page (`blocks`), `catalog function` and
+  your own todo list. The CATALOG page (`catalog`), `catalog function` and
   `ib.catalog.list("function")` list everything callable, with how to call it.
 - **The deck's own parts** are callable the same way: `tree`, `terminal`,
   `shell`, `theme`, `home`, `panel`, `tabs`, `notes`, `sound`, `menu`, `keys`,

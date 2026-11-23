@@ -24,11 +24,15 @@ import type { Caller, ServiceSpec } from "./services";
 import { trusted } from "../shell/origin";
 import { DECK_KEYS, keysOf, menuKeyOf } from "../core/shortcuts";
 import { quickItems } from "../workspace/quickmenu";
+import { isFolded, type FrameId } from "../workspace/layout/arrange";
+import { statusOrder } from "../workspace/statusbar";
+import { stealth } from "../core/stealth";
+import { trashItems } from "../shell/commands/trash";
 
 const hexOf = (n: number) => `#${(n & 0xffffff).toString(16).padStart(6, "0")}`;
 
 /** The frame's parts (callable like modules, provided by the deck itself). */
-export const FRAME_PARTS = new Set(["tree", "terminal", "shell", "theme", "home", "panel", "tabs", "notes", "sound", "menu", "keys", "deck"]);
+export const FRAME_PARTS = new Set(["tree", "terminal", "shell", "theme", "home", "panel", "tabs", "notes", "sound", "menu", "keys", "deck", "frames", "statusbar", "log", "trash"]);
 
 export function frameServices(deck: Deck): Record<string, Record<string, ServiceSpec>> {
   const ws = () => deck.workspace;
@@ -128,7 +132,32 @@ export function frameServices(deck: Deck): Record<string, Record<string, Service
       },
       bind: line('bind(keys, command) → one of the user\'s shortcuts ("ctrl+shift+1") (the deck\'s own code only: a module can\'t plant a command)', (keys: string, cmd: string) => `bind ${q(String(keys))} ${q(String(cmd))}`),
     },
+    // the frames around the page (0.7): the same words as `frame`, so ⌘Z and the log see them
+    frames: {
+      fold: line("fold(frame) → folds the tree, the panel or the shell into a thin strip", (f: string) => `frame fold ${q(String(f))}`),
+      unfold: line("unfold(frame) → opens it again", (f: string) => `frame unfold ${q(String(f))}`),
+      solo: line("solo() → the page alone: the tree, the panel and the shell away (again: they come back)", () => "frame solo"),
+      move: line('move(frame, side) → the tree, the panel or the shell along "left" · "right" · "top" · "bottom"', (f: string, side: string) => `frame move ${q(String(f))} ${q(String(side))}`),
+      folded: { doc: 'folded() → the frames folded right now: ["tree", "shell"…]', fn: () => (Object.entries({ tree: "vault", panel: "panel", shell: "shell" }) as [string, FrameId][]).filter(([, id]) => isFolded(ws().arrangement, id)).map(([n]) => n) },
+      isSolo: { doc: "isSolo() → true when the page is alone (▣)", fn: () => ws().solo },
+    },
+    statusbar: {
+      items: { doc: "items() → the status bar's items, in order (the hidden ones left out)", fn: () => statusOrder(deck.settings.data.statusBar).filter((x) => !(deck.settings.data.statusBar?.hidden ?? []).includes(x)) },
+      move: line('move(item, where) → "left" · "right" · a place (1 = first)', (item: string, where: string | number) => `statusbar move ${q(String(item))} ${q(String(where))}`),
+      hide: line("hide(item) → off the bar", (item: string) => `statusbar hide ${q(String(item))}`),
+      show: line("show(item) → back on the bar", (item: string) => `statusbar show ${q(String(item))}`),
+      reset: line("reset() → the default bar", () => "statusbar reset"),
+    },
+    log: {
+      // what you typed and what happened: yours to read — a module needs "shell" (it sees your commands)
+      tail: { doc: 'tail(n?) → the last n lines of the log (default 20): [{ at, kind, text }] (needs "shell")', needs: "shell", fn: (n = 20) => deck.log.list.slice(-Math.max(1, Math.min(1000, Number(n) || 20))).map((e) => ({ at: e.at, kind: e.kind, text: e.text })) },
+    },
+    trash: {
+      list: { doc: 'list() → [{ n, name, from, at }] what\'s in the trash (needs "vault:read")', needs: "vault:read", fn: async () => (await trashItems(deck)).map((it, i) => ({ n: i + 1, name: it.name, from: it.from, at: it.at.getTime() })) },
+      restore: line("restore(n | name) → back where it was (the deck's own code and you only: a module can't run trash)", (what: string | number) => `trash restore ${q(String(what))}`, "vault:write"),
+    },
     deck: {
+      stealth: { doc: "stealth() → true while stealth mode keeps the deck offline (100 % local)", fn: () => stealth.on },
       // (a STORE / vault module's are signed with its name, like ib.ui.notify / alert)
       alert: { doc: 'alert(title, body?) → calls the user the way they chose (Settings → NOTIFICATIONS: screen, sound, notification center, voice) (needs "notify")', needs: "notify", fn: (title: string, body = "") => deck.alert(String(title), String(body)), by: (c: Caller) => (title: string, body = "") => deck.alert(signer(c) ? `${signer(c)} (module) — ${String(title)}` : String(title), String(body)) },
       notify: { doc: 'notify(text, kind?) → a toast ("info" · "success" · "warning" · "error") (needs "notify")', needs: "notify", fn: (text: string, kind?: "info" | "success" | "warning" | "error") => deck.notify(String(text), kind), by: (c: Caller) => (text: string, kind?: "info" | "success" | "warning" | "error") => deck.notify(signer(c) ? `${signer(c)}: ${String(text)}` : String(text), kind) },

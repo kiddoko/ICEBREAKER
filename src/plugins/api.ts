@@ -320,7 +320,7 @@ export interface IcebreakerAPI {
    * Everything the deck can do, as blocks you can read: commands, THE MENU's
    * actions, shortcuts, settings, functions (ib.use), widgets, apps, themes,
    * modules — each with who provides it, one line of doc and how to call it.
-   * Plain data (JSON), the same as the BLOCKS page and `catalog` in the shell.
+   * Plain data (JSON), the same as the CATALOG page and `catalog` in the shell.
    *
    *   const fns = ib.catalog.list("function", "todo");   // [{ kind, id, name, doc, from, call, value }]
    *   const theme = ib.catalog.get("setting", "appearance.theme")?.value;

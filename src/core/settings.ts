@@ -91,6 +91,8 @@ export interface Settings {
     logSide?: boolean;
     /** the log column's width beside the shell, in columns (dragged; 0 = 30 % of the shell) */
     logWidth?: number;
+    /** what a new shell tab runs (« + », `term new`): "ibsh" or one of this computer's shells ("zsh", "pwsh"…) */
+    defaultShell?: string;
   };
   /** UI sounds (core/sound.ts). Volume 0–100. */
   /** muted: everything silent (ui sounds, voice, alerts) — the ♪ button, `mute` */
@@ -268,6 +270,7 @@ export const DEFAULT_SETTINGS: Settings = {
     macrosShown: true,
     logSide: true,
     logWidth: 0,
+    defaultShell: "ibsh",
     macros: [
       { label: "ls", cmd: "ls -la" },
       { label: "cd ..", cmd: "cd .." },

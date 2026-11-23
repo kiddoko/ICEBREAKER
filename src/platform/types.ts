@@ -284,7 +284,10 @@ export interface Platform {
   pty?: {
     /** Starts the shell; resolves with its name ("zsh"). */
     /** `modules`: command names that win over same-named system programs (cal, todo…). */
-    spawn(id: string, cols: number, rows: number, onData: (text: string) => void, modules?: string[], prompt?: "icebreaker" | "mine"): Promise<string>;
+    /** `shell`: a name or path from shells() (none: the login shell; anything else is refused). */
+    spawn(id: string, cols: number, rows: number, onData: (text: string) => void, modules?: string[], prompt?: "icebreaker" | "mine", shell?: string): Promise<string>;
+    /** The shells of this computer: the login shell first, then /etc/shells (pwsh, powershell, cmd, wsl on Windows). */
+    shells(): Promise<{ name: string; path: string }[]>;
     write(id: string, data: string): Promise<void>;
     resize(id: string, cols: number, rows: number): Promise<void>;
     kill(id: string): Promise<void>;

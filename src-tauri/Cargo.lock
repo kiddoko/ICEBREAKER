@@ -2125,7 +2125,7 @@ dependencies = [
 
 [[package]]
 name = "icebreaker"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "argon2",
  "bip39",

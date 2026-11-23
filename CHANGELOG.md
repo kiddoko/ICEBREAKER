@@ -1,5 +1,93 @@
 # Changelog
 
+## 0.7.2 — 2026-11-23
+
+What 0.7.1 left: a deck that rests, the last English, one name per thing, and the docs and the
+catalog level with the code.
+
+**An idle deck sleeps (I1)**
+- A deck left alone on HOME drew 20 frames a second (the animated background, the clock), 13–20 %
+  of a core on the Windows bench. Now 20 s without a key or the mouse slows every animation to 12
+  frames a second, a minute to 2 (the clock still ticks); the first key or mouse move wakes it at
+  once. Measured in the web build on HOME (default theme and effects): 2.0 frames a second asleep.
+  Settings → APPEARANCE → « save energy » off keeps the full pace.
+- **A note open at rest** cost 22 % of a core on Windows while the deck drew 2 frames a second:
+  the text cursor's « breathing » was a never-ending CSS animation, and the webview redrew the
+  whole stack for it 60 times a second. It now breathes five times after a key or a move, then
+  stays solid (HOME, SYSMON and the catalog were already low).
+- `ui.stayAwake()` for what you watch without touching: the MUSIC pop-up while it plays.
+
+**One « new shell tab » (your answer to the Review 0.7 proposal)**
+- **+** on the shell panel (and **ctrl+shift+\`**) opens a little menu: **ibsh** first (enter), then
+  each shell of this computer, then « rename… ». The list: the login shell and /etc/shells on macOS
+  and Linux; PowerShell 7, Windows PowerShell, cmd and WSL on Windows (`src-tauri/src/shells.rs`,
+  tested for both). A terminal only ever starts a shell from that list.
+- **ibsh is a tab like the others**: open several, each with its own folder and its own ↑ history
+  (one history file, like bash); the fixed ibsh tab is gone — any tab closes (×) and renames
+  (right-click, `term rename <n> <name>`); the last ibsh only hides (clicks still run in it).
+- `term new [ibsh|zsh|bash|pwsh…]`, `term shells`, `term menu`; `term <n>` / `close <n>` count the
+  panel's tabs. Settings → SHELL → « New tab »: what + opens with enter (ibsh by default).
+- Tab names are the shell's, numbered per shell (zsh, zsh 2, bash; a 2nd powershell is « powershell 2 »
+  whether it's the login shell or chosen in +); WSL is offered only with a Linux installed. After a relaunch the panel's
+  tabs come back in order: each terminal with its shell, each ibsh in its folder, the names you gave.
+
+- The log folded away (›) leaves a thin **‹ log** on the shell's right edge: a click puts it back
+  beside the shell (`log side on`) — the link inside the log tab was the only way, and nobody found it.
+
+**Words**
+- **A sandboxed module speaks the deck's language**: its `ib.lib.t` was always English (its worker
+  has its own copy of the translations and was never told the language). The language and the date
+  format go with "load" and again when they change; its `addTranslations` reach the deck, and what
+  its commands print is translated with **its own table first** (BreakerMED's « tracks » were the
+  music player's « morceaux »).
+- `plugin enable` / `plugin install` / `plugin disable` ask in the deck's language: the question
+  (« allumer le module x ? [o/N] »), what it asks for and its levels, the code's quick audit, the
+  sandbox sentence, the « nobody has checked it » warning; any shell question answers `o` too.
+- The LOG shows its messages in the deck's language as they're drawn: a module left off at the
+  first login (« breakerMED: its code changed… ») was logged in English before the account's
+  language loaded.
+- `help` is short: the commands to start with, then `help all` (every command, lowercase headers,
+  « module: todo » instead of « PLUGIN: TODO »), `help <module>`, `help <command>`. `view` is a hidden
+  old name of `frame` (E1).
+- « blocks » is « catalog » everywhere: the page, its tab, `launch`, the docs (E2). `launch` lists
+  pages by their tab's name.
+- todo's repeats in French (« ↻ une semaine sur deux : lun jeu · encore 3 »).
+- One way to write a day (E4): `dayShort` (« mon 23 nov »), `dayLong` (« monday 23 november »),
+  `weekdayShort` in `core/dates.ts` (`ib.lib.dates`), lowercase, in the deck's language — the top
+  bar, reminders, todo, the calendar, the journal, the moon, the screensaver, the setup.
+
+**From the Windows bench's account test (0.7.1)**
+- A new account speaks the login page's language from its first second (the first try only wrote
+  the setting: the language itself was applied by the setup — now at once, before the boot) (it was English until the
+  setup's first answer): its LOG, the shell's banner, and its first note — **Bienvenue.md** in
+  French; the shell's prompt says its name, not « netrunner ».
+- In French: `account delete` (its question, « mot de passe actuel »), and a toast once it's done;
+  the voice's lines in the LOG (« salutation : oui », « la voix parle français »); the shell's
+  banner; the boot's « appuie sur une touche pour te brancher »; the setup's « Réglages → VOIX ».
+- The setup at a big size: an option's description is never cut — the chosen one's is written
+  whole under the list when it doesn't fit on its line; the answers' column is wider, and a long
+  answer goes on the lines under its name, whole.
+- A key's name inside a sentence is a word, not a key: « Space Mono », « Delete the account? ».
+- Skipping the tour: « tu peux la refaire… le menu ◆ → visite guidée » (it said « le rejouer…
+  LE MENU → tour »).
+
+**A real shell (B4)**
+- Impossible dates and times are refused, never moved: `todo --due 31/02`, `cal add "x" 99:99`,
+  `remind "x" 31/02 9h` say « no such date or time » (31/02 became 3 March; 99:99 an all-day event
+  named « x 99:99 »). `readWhen` gives the word (`invalid`).
+- A reminder in the past asks first (it rang at once, « late »); in a pipe it's refused.
+- A note's file name is cut at 80 characters, at a word (a 250-character title was a raw « os error
+  123 » on Windows); the whole title stays in the note.
+
+**The catalog and the docs (J4)**
+- The frame's services: `frames.fold · unfold · solo · move · folded · isSolo`, `statusbar.items ·
+  move · hide · show · reset`, `log.tail`, `trash.list · restore`, `deck.stealth`, and the modules'
+  `calendar.import`, `stats.value` — the same rules as the commands they run.
+- An « api » kind of block: every `ib.ui` member and `ib.lib` export in one line
+  (`src/plugins/apidocs.ts`; a test fails when one is missing).
+- The F1 manual (EN/FR), START HERE, PLUGINS.md, UI_KIT.md say all this.
+- The tree's Refresh and a macro's Run go through their commands (`vault rescan`, `macro run`).
+
 ## 0.7.1 — 2026-11-23
 
 First steps, one name per thing, safety nets — from Fable's exploration of 0.7.0 (web and the

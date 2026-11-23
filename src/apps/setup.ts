@@ -16,6 +16,7 @@ import { GAP, INSET } from "../ui/layout";
 import { checkVaultFolder, icebreakerInside, completeFolder, osOf, pathExamples, vaultPathProblem } from "./setuppath";
 import { IS_MAC } from "../core/input";
 import { pickFolder } from "../workspace/filebrowser";
+import { dayShort } from "../core/dates";
 
 /** this system's examples: its shells, a vault folder's path */
 const HERE = pathExamples(osOf(navigator.platform, navigator.userAgent));
@@ -625,7 +626,10 @@ export class SetupApp implements App {
     // the guided tour (workspace/tour.ts), then the Welcome note
     if (!skipped)
       setTimeout(() => {
-        this.deck.workspace.tour(() => void this.deck.vault.exists("Welcome.md").then((ok) => (ok ? this.deck.openFile("Welcome.md") : undefined)));
+        this.deck.workspace.tour(() => void (async () => {
+          // the welcome note, in whichever language the vault was seeded
+          for (const f of ["Bienvenue.md", "Welcome.md"]) if (await this.deck.vault.exists(f)) return void this.deck.openFile(f);
+        })());
       }, 1200);
     this.deck.notify(skipped ? t("setup skipped — ctrl+k → Setup to run it later") : t("welcome, {handle}", { handle: this.a.handle || "netrunner" }), "success");
   }
@@ -770,25 +774,38 @@ export class SetupApp implements App {
     }
 
     // ── left: the deck writing your answers down (wide screens) ────────────
-    const logW = r.w >= 100 ? 34 : 0;
+    // wider on a big screen: the answers were cut at 14 letters (« mon terminal… », « garder ce dos… »)
+    const logW = r.w >= 160 ? 48 : r.w >= 130 ? 40 : r.w >= 100 ? 34 : 0;
     if (logW) {
       const lx = r.x + 2;
       ui.text(lx, y, t("// what you told the deck"), { fg: c.subtle });
       let ly = y + 2;
       const answered = this.steps.map((s2, i) => ({ s2, i })).filter(({ s2, i }) => i < this.step && !s2.skip?.() && this.answerOf(s2) !== "");
-      const fit = answered.slice(-Math.max(1, r.y + r.h - ly - 3));
-      for (const { s2, i } of fit) {
-        const row = { x: lx, y: ly, w: logW, h: 1 };
-        const hot = ui.hovered(row);
+      // each answer on its name's line when it fits, else on the lines under it, whole (it was cut
+      // with … : « mon terminal + les c… », « j'ai lu — j'ai… »)
+      const rows = answered.map(({ s2, i }) => {
         const name = t(s2.title).toLowerCase();
-        ui.text(lx, ly, `${hot ? "‹" : "›"} ${name}`, { fg: hot ? c.accent : c.muted }, logW - 12);
-        const val = truncate(this.answerOf(s2), 14);
-        const dotsFrom = lx + 2 + strWidth(name) + 1;
-        const valX = lx + logW - strWidth(val);
-        if (valX - dotsFrom > 1) ui.text(dotsFrom, ly, "·".repeat(valX - dotsFrom - 1), { fg: c.faint });
-        ui.text(valX, ly, val, { fg: c.accent, attrs: hot ? BOLD : 0 });
+        const val = this.answerOf(s2);
+        const inline = strWidth(name) + 4 + strWidth(val) <= logW;
+        const under = inline ? [] : wrapWords(val, logW - 4).slice(0, 3);
+        return { i, name, val, inline, under, h: 1 + under.length };
+      });
+      // the latest ones that fit above the line being written
+      const roomRows = Math.max(1, r.y + r.h - ly - 3);
+      let used = 0, from = rows.length;
+      while (from > 0 && used + rows[from - 1].h <= roomRows) used += rows[--from].h;
+      for (const { i, name, val, inline, under, h } of rows.slice(from)) {
+        const row = { x: lx, y: ly, w: logW, h };
+        const hot = ui.hovered(row);
+        ui.text(lx, ly, `${hot ? "‹" : "›"} ${name}`, { fg: hot ? c.accent : c.muted }, logW - 2);
+        if (inline) {
+          const dotsFrom = lx + 2 + strWidth(name) + 1;
+          const valX = lx + logW - strWidth(val);
+          if (valX - dotsFrom > 1) ui.text(dotsFrom, ly, "·".repeat(valX - dotsFrom - 1), { fg: c.faint });
+          ui.text(valX, ly, val, { fg: c.accent, attrs: hot ? BOLD : 0 });
+        } else under.forEach((l, k) => ui.textRight(lx + logW, ly + 1 + k, l, { fg: c.accent, attrs: hot ? BOLD : 0 }));
         ui.hit(row, { onClick: () => this.jumpTo(i), tip: t("click: change it") });
-        ly++;
+        ly += h;
       }
       // the line being written: the cursor blinks there
       ui.text(lx, ly, `▸ ${t(st.title).toLowerCase()}`, { fg: c.fg, attrs: BOLD }, logW - 2);
@@ -865,6 +882,7 @@ export class SetupApp implements App {
       const first = all.length > room ? Math.max(0, Math.min(this.sel - Math.floor(room / 2), all.length - room)) : 0;
       const last = first + Math.min(room, all.length);
       const topY = iy;
+      let longHint = "";
       all.forEach((o, i) => {
         if (i < first || i >= last) return;
         // the options arrive one after the other
@@ -903,7 +921,10 @@ export class SetupApp implements App {
         }
         if (o.hint && hx - lend > 6 && (sel || hot || w >= 70)) {
           const hint = st.id === "theme" || st.id === "locale" ? o.hint : t(o.hint);
-          ui.textRight(hx - 1, iy, truncate(hint, hx - lend - 1), { fg: fade(sel ? c.fg : c.subtle) });
+          // whole or not on the line (it was cut mid-word: « sans jetons d… »); the chosen one's,
+          // when it doesn't fit, is written in full under the list
+          if (strWidth(hint) <= hx - lend - 1) ui.textRight(hx - 1, iy, hint, { fg: fade(sel ? c.fg : c.subtle) });
+          else if (sel) longHint = hint;
         }
         // one click chooses it (a theme shows at once), a click on the chosen one keeps it
         ui.hit(row, { onClick: () => { if (this.sel === i) void this.next(); else { this.sel = i; this.preview(); this.deck.sound.play("move"); } }, tip: sel ? t("click again (or enter): keep it") : undefined });
@@ -911,6 +932,12 @@ export class SetupApp implements App {
       });
       if (first > 0) ui.text(inner.x + inner.w - GAP, topY, "▲", { fg: c.accent });
       if (last < all.length) ui.text(inner.x + inner.w - GAP, topY + (last - first) - INSET, "▼", { fg: c.accent });
+      // the chosen option's description, whole, under the list (two lines at most, in the room left)
+      if (longHint) {
+        const lines = wrapWords(longHint, Math.max(10, inner.w - 6));
+        const room2 = inner.y + inner.h - 3 - (iy + 1);
+        lines.slice(0, Math.max(0, Math.min(2, room2))).forEach((l, k) => ui.text(inner.x + 3, iy + 1 + k, l, { fg: c.muted }, inner.w - 6));
+      }
     }
     if (this.error) ui.text(inner.x + 2, inner.y + inner.h - 2, `⚠ ${this.error}`, { fg: c.error, bg: c.panel }, inner.w - 4);
     // the way back and the way past, always in the same place, as buttons (esc going back
@@ -946,7 +973,7 @@ export class SetupApp implements App {
 /** today, written the way a date format writes it: "lun. 23 nov. · 14:30" — what the DATE FORMAT step shows */
 function dateExample(locale: string | undefined): string {
   const d = new Date();
-  return `${d.toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" })} · ${d.toLocaleDateString(locale)} · ${d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}`;
+  return `${dayShort(d, locale)} · ${d.toLocaleDateString(locale)} · ${d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 export const setupSpec: AppSpec = {

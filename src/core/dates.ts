@@ -10,12 +10,15 @@
  *            · "dans 1h" · "à 19h" · "tomorrow at 9am" → the moment (a Date), or null
  *   readWhen(words) → { day, time, inMinutes, rest } (rest: the words that say no time, a title)
  *   ymd(date) → "2026-11-19"
+ *   dayShort(date) → "mon 23 nov" · dayLong(date) → "monday 23 november" · weekdayShort(1) → "mon"
+ *            (lowercase, in the deck's language: the one way a day is written on screen)
  *
  * "1h"… "6h" on their own mean "in that long" (nobody sets a reminder for 3 a.m. by
  * writing "3h"); with a day ("demain 6h"), or from 7h on, they're a time of day.
  * "+1h" is always a length of time, "01:00" always a time of day.
  */
 import { pad2 } from "./time";
+import { dateLocale } from "./i18n";
 
 export const WEEKDAYS: Record<string, number> = {
   sun: 0, sunday: 0, dim: 0, dimanche: 0, mon: 1, monday: 1, lun: 1, lundi: 1, tue: 2, tuesday: 2, mar: 2, mardi: 2,
@@ -27,6 +30,25 @@ export const startOfDay = (d: Date): Date => new Date(d.getFullYear(), d.getMont
 export const addDays = (d: Date, n: number): Date => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 /** a day as YYYY-MM-DD (local) */
 export const ymd = (d: Date): string => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+const word = (s: string): string => s.replace(/[.,]/g, "").trim().toLowerCase();
+
+/** "mon" · "lun": a weekday's short name (0 = sunday), lowercase */
+export function weekdayShort(day: number, locale = dateLocale()): string {
+  return word(new Date(2026, 10, 22 + day).toLocaleDateString(locale, { weekday: "short" }));
+}
+
+/** "mon 23 nov" · "lun 23 nov" (with the year: "mon 23 nov 2026") — every list, every tip */
+export function dayShort(d: Date, locale = dateLocale(), year = false): string {
+  const wd = word(d.toLocaleDateString(locale, { weekday: "short" })), mo = word(d.toLocaleDateString(locale, { month: "short" }));
+  return `${wd} ${d.getDate()} ${mo}${year ? ` ${d.getFullYear()}` : ""}`;
+}
+
+/** "monday 23 november" · "lundi 23 novembre" (with the year: "… 2026") — titles */
+export function dayLong(d: Date, locale = dateLocale(), year = false): string {
+  const wd = word(d.toLocaleDateString(locale, { weekday: "long" })), mo = word(d.toLocaleDateString(locale, { month: "long" }));
+  return `${wd} ${d.getDate()} ${mo}${year ? ` ${d.getFullYear()}` : ""}`;
+}
 
 /** A day written the way people write it, or null. Local midnight. */
 export function parseDay(raw: string, from = new Date()): Date | null {
@@ -43,16 +65,37 @@ export function parseDay(raw: string, from = new Date()): Date | null {
   if (m) return addDays(today, Number(m[1]) * 7);
   if (s in WEEKDAYS) return addDays(today, (WEEKDAYS[s] - today.getDay() + 7) % 7 || 7);
   m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s);
-  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (m) return realDay(Number(m[1]), Number(m[2]), Number(m[3]));
   m = /^(\d{1,2})[/.](\d{1,2})(?:[/.](\d{2,4}))?$/.exec(s);
   if (m) {
     let y = m[3] ? Number(m[3]) : today.getFullYear();
     if (y < 100) y += 2000;
-    const d = new Date(y, Number(m[2]) - 1, Number(m[1]));
+    const day = Number(m[1]), month = Number(m[2]);
+    // 29/02 with no year: the next one to come
+    if (!m[3] && day === 29 && month === 2) return nextLeapDay(today);
+    // a day that doesn't exist is no day (31/02 was taken as 3 March)
+    const d = realDay(y, month, day);
+    if (!d) return null;
     if (!m[3] && d < today) d.setFullYear(y + 1); // "24/12" means the next one to come
     return d;
   }
   return null;
+}
+
+/** That day, or null when it doesn't exist (31/02 was taken as 3 March) */
+function realDay(y: number, month: number, day: number): Date | null {
+  const d = new Date(y, month - 1, day);
+  return d.getFullYear() === y && d.getMonth() === month - 1 && d.getDate() === day ? d : null;
+}
+function nextLeapDay(today: Date): Date {
+  let y = today.getFullYear();
+  while (!realDay(y, 2, 29) || new Date(y, 1, 29) < today) y++;
+  return new Date(y, 1, 29);
+}
+
+/** A word written like a date or a time ("31/02", "99:99", "2026-13-01", "25h") — to refuse it when it isn't one */
+export function looksLikeWhen(word: string): boolean {
+  return /^\d{1,2}[/.]\d{1,2}([/.]\d{2,4})?$|^\d{4}-\d{1,2}-\d{1,2}$|^\d{1,2}[:h]\d{2}$|^\d{1,2}:\d{1,2}$/.test(word.trim().toLowerCase());
 }
 
 /** A time of day ("18:00", "9h", "9h30", "7pm", "noon", "midi"), as minutes after midnight, or null. */
@@ -124,6 +167,8 @@ export interface When {
   todayToo?: boolean;
   /** the words that say no time (a reminder's title…), as written */
   rest: string[];
+  /** a word written like a date or a time that isn't one ("31/02", "99:99"): say "no such date", don't keep it as a title */
+  invalid?: string;
 }
 
 /**
@@ -188,6 +233,7 @@ export function readWhen(input: string | string[], from = new Date()): When {
       out.todayToo = s in WEEKDAYS && WEEKDAYS[s] === from.getDay();
       continue;
     }
+    if (out.invalid === undefined && looksLikeWhen(s)) out.invalid = toks[i];
     out.rest.push(toks[i]);
   }
   if (next) out.todayToo = false;

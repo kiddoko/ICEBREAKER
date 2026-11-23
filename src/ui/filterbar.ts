@@ -25,7 +25,7 @@ export interface FilterBarOptions {
   /** a letter or a digit starts the search at once (MODULES, NEXUS: pages without letter shortcuts) */
   typeToSearch?: boolean;
   /**
-   * the search always has the keyboard (Settings, BLOCKS, SHORTCUTS): every key types,
+   * the search always has the keyboard (Settings, CATALOG, SHORTCUTS): every key types,
    * the caret shows whenever the page is focused — ←→ home end stay the page's
    */
   always?: boolean;
@@ -49,7 +49,7 @@ export interface FilterBarDraw {
 
 /**
  * THE search bar of the deck — every page that filters a list uses it (MODULES, NEXUS,
- * the file browser, Settings, BLOCKS, SHORTCUTS, the STORE), so searching works and
+ * the file browser, Settings, CATALOG, SHORTCUTS, the STORE), so searching works and
  * looks the same everywhere. Options choose how it takes the keyboard.
  */
 export class FilterBar {

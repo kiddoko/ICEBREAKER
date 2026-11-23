@@ -8,7 +8,10 @@ use std::path::PathBuf;
 
 #[cfg(test)]
 mod tests {
-    use super::{read_capped, readable, readable_media};
+    // read_capped is only tested where symlinks are made the Unix way
+    #[cfg(unix)]
+    use super::read_capped;
+    use super::{readable, readable_media};
     #[test]
     fn only_scripts_and_text_outside_hidden_and_system_places() {
         assert!(readable("/Users/neo/Downloads/backup.sh").is_ok());

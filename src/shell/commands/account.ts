@@ -1,16 +1,17 @@
+import { t } from "../../core/i18n";
 import { fmt } from "../../core/ansi";
 import type { Command, ShellContext } from "../types";
 
 /** Ask for a new password twice; null if cancelled or they don't match. */
 async function newPassword(ctx: ShellContext): Promise<string | null> {
   for (let i = 0; i < 3; i++) {
-    const a = await ctx.read("new password", { mask: true, placeholder: "8 characters or more" });
+    const a = await ctx.read(t("new password"), { mask: true, placeholder: t("8 characters or more") });
     if (a === null) return null;
     if (a.length < 8) {
       ctx.err("too short: 8 characters or more\n");
       continue;
     }
-    const b = await ctx.read("again", { mask: true });
+    const b = await ctx.read(t("again"), { mask: true });
     if (b === null) return null;
     if (a === b) return a;
     ctx.err("they don't match, once more\n");
@@ -42,10 +43,10 @@ export const account: Command = {
     if (sub === "create") return ctx.err("account: new accounts are made on the login page (lock, then + new account)\n"), 1;
     if (!ctx.isTTY) return ctx.err("account: needs the terminal\n"), 1;
     try {
-      const cur = await ctx.read("current password", { mask: true });
+      const cur = await ctx.read(t("current password"), { mask: true });
       if (cur === null) return 130;
       if (sub === "passwd") {
-        const user = (await ctx.read("account name", { placeholder: deck.account ?? "" }))?.trim();
+        const user = (await ctx.read(t("account name"), { placeholder: deck.account ?? "" }))?.trim();
         if (user === undefined) return 130;
         const pw = await newPassword(ctx);
         if (!pw) return 130;
@@ -55,10 +56,13 @@ export const account: Command = {
         return 0;
       }
       if (sub === "delete" || sub === "remove") {
-        if (!(await deck.confirm(`Delete the account ${deck.account}?`, "Its settings go for good. Its vault — your notes — stays where it is."))) return 1;
+        const user0 = deck.account ?? "";
+        if (!(await deck.confirm(t("Delete the account {name}?", { name: deck.account ?? "" }), t("Its settings go for good. Its vault — your notes — stays where it is.")))) return 1;
         await acc.remove(cur);
         ctx.out(`${fmt.green("✓")} account deleted\n`);
-        setTimeout(() => location.reload(), 600);
+        // said where you look, before the deck goes back to the login page
+        deck.notify(t("account {name} deleted — its vault stays where it was", { name: user0 }), "success");
+        setTimeout(() => location.reload(), 1800);
         return 0;
       }
       ctx.err(`account: unknown subcommand ${sub}\n`);

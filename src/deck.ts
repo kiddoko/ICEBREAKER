@@ -36,7 +36,7 @@ import { css, mix } from "./core/color";
 import { GamepadInput } from "./core/gamepad";
 import { Grid } from "./core/grid";
 import { InputManager, IS_MAC, type Action, type ActionSource, type InputSink, type KeyInput, type MouseInput } from "./core/input";
-import { FrameLoop } from "./core/loop";
+import { FrameLoop, restLevel } from "./core/loop";
 import { fontStack, loadFont, WEIGHTS } from "./core/fonts";
 import { Renderer } from "./core/renderer";
 import { macMenuActions } from "./workspace/macmenu";
@@ -137,7 +137,7 @@ export class Deck implements InputSink {
   }
   /** every setting row, the deck's and the modules' (core/prefs.ts): Settings draws them */
   readonly prefs = new SettingsRegistry();
-  /** everything the deck can do, as blocks (core/catalog.ts): the BLOCKS page, `catalog`, ib.catalog */
+  /** everything the deck can do, as blocks (core/catalog.ts): the CATALOG page, `catalog`, ib.catalog */
   readonly catalog = new Catalog(this);
   readonly widgets = new WidgetRegistry();
   readonly ai: AIManager;
@@ -209,7 +209,28 @@ export class Deck implements InputSink {
   /** ICEBREAKER's and the modules' updates (core/updater.ts) */
   readonly updater: Updater;
   readonly workspace: Workspace;
-  readonly shell: ShellApp;
+  /**
+   * Every ibsh (the shell panel's ibsh tabs, each with its own folder and ↑ history); the one
+   * shown, or last shown, is `shell` — what clicks, THE MENU and modules run their lines in.
+   */
+  readonly shells: ShellApp[] = [];
+  shellIndex = 0;
+  get shell(): ShellApp {
+    return this.shells[Math.min(this.shellIndex, this.shells.length - 1)];
+  }
+  /** one more ibsh (`term new ibsh`, the « + » menu): in the vault's root, with the whole history */
+  newShell(): ShellApp {
+    // the last one's tab was closed: it comes back instead of a new one (its output is still there)
+    const spare = this.shells.find((s) => s.hidden);
+    if (spare) return (spare.hidden = false), (this.shellIndex = this.shells.indexOf(spare)), spare;
+    const sh = new ShellApp(this);
+    this.shells.push(sh);
+    this.shellIndex = this.shells.length - 1;
+    if (this.shellsGreeted) sh.motd();
+    return sh;
+  }
+  /** the vault is there: a new ibsh prints its banner and reads the history at once */
+  private shellsGreeted = false;
   readonly renderer: Renderer;
   readonly loop: FrameLoop;
   readonly input: InputManager;
@@ -239,6 +260,8 @@ export class Deck implements InputSink {
   private readonly transitions = new Transitions();
   private readonly cellFx = new CellFx();
   private lastActivity = performance.now();
+  /** the last frame something asked to stay awake (ui.stayAwake: music playing…) */
+  private awakeAt = 0;
 
   /** Undo / redo for everything (⌘Z, ⌘⇧Z): core/undo.ts */
   readonly history = new UndoHistory();
@@ -306,12 +329,12 @@ export class Deck implements InputSink {
     };
     this.input.onActivity = () => {
       this.lastActivity = performance.now();
-      this.loop.idle = false;
+      this.loop.rest("awake");
       this.loop.request();
     };
     this.gamepad = new GamepadInput((a) => {
       this.lastActivity = performance.now();
-      this.loop.idle = false;
+      this.loop.rest("awake");
       this.action(a, "gamepad");
     });
     // hold RB: THE MENU (the stick chooses, letting go runs it)
@@ -329,7 +352,7 @@ export class Deck implements InputSink {
     };
     this.workspace = new Workspace(this);
     this.voice = new DeckVoice(this);
-    this.shell = new ShellApp(this);
+    this.shells.push(new ShellApp(this));
 
     // files dragged in from the Finder / Explorer land in the tree
     this.platform.files?.onDragDrop((e) => this.workspace.sidebar.externalDrop(e));
@@ -371,6 +394,21 @@ export class Deck implements InputSink {
     const session = await this.platform.account.session().catch(() => null);
     if (!session) return this.startLogin();
     this.account = session.user;
+    // a new account, before its setup: the prompt and the greeting say its name, not « netrunner »
+    // (the setup's handle question starts from it)
+    if (!s.setup.done && (!s.user.handle || s.user.handle === "netrunner") && session.user) this.settings.set("user.handle", session.user);
+    // …and speaks the login page's language from its first second: its LOG, its banner, its
+    // Welcome note were English before the setup's first answer
+    if (!s.setup.done) {
+      const dev = await readDevice(this.platform).catch(() => null);
+      if (dev?.lang === "fr" && s.user.language !== "fr") {
+        this.settings.set("user.language", "fr");
+        // settings.set only records it: the language itself was still English until the setup
+        // (applySettings runs for commands) — the boot, the banner, the vault's first note need it now
+        setLang("fr");
+        setDateLocale(s.user.locale);
+      }
+    }
 
     // the POST runs live: each line shows when its step is really done
     const boot = s.boot.mode !== "off" ? new BootScreen(s.boot.mode) : null;
@@ -462,6 +500,7 @@ export class Deck implements InputSink {
     boot?.log({ text: `Input: keyboard · mouse${pads ? ` · ${pads} gamepad${pads > 1 ? "s" : ""}` : " · gamepad (none plugged in)"}`, status: "OK" });
 
     this.shell.motd();
+    this.shellsGreeted = true;
     this.openApp("home");
     if (!s.setup.done) this.openApp("setup");
     void this.askVaultSettings();
@@ -472,7 +511,7 @@ export class Deck implements InputSink {
     this.lastBoot = boot;
     this.starting = false;
     this.sound.play("boot");
-    setInterval(() => this.checkIdle(), 15_000);
+    setInterval(() => this.checkIdle(), 5_000);
     this.watchVisibility();
     // what starting changed (migrations, the vault path, restored tabs) isn't something to ⌘Z
     this.history.clear();
@@ -554,7 +593,7 @@ export class Deck implements InputSink {
     for (const c of [...fileCommands, ...docCommands, ...systemCommands, ...deckCommands, storeCommand, updateCommand, ...shortcutCommands, scriptCommand, pinCommand, unpinCommand, tagCommand, iconCommand, trashCommand, weatherCommand, startHereCommand]) this.commands.register({ ...c, source: "core" });
     // developer tools (factory-reset): only in a build that has them (npm run app:mac, the
     // web preview while developing). A release never registers them: not in help, man, Tab,
-    // THE MENU or BLOCKS — they don't exist there.
+    // THE MENU or the CATALOG — they don't exist there.
     void this.platform.dev?.available().then((on) => {
       if (on) for (const c of devCommands) this.commands.register({ ...c, source: "core" });
     }, () => {});
@@ -653,6 +692,7 @@ export class Deck implements InputSink {
     if (ui.caret) this.input.placeCaret(ui.caret.x, ui.caret.y);
     this.renderer.setCaret(ui.softCaret ? ui.caret : null, css(ui.c.cursor), ui.caretTyped, !!this.settings.data.appearance.reduceMotion);
     this.hits = ui.hits;
+    if (ui.awake) this.awakeAt = performance.now(), this.loop.rest("awake");
     return ui.wakeIn;
   };
 
@@ -841,7 +881,20 @@ export class Deck implements InputSink {
     return this.shell.runAction(line);
   }
 
+  /**
+   * For screen readers (H4): everything is drawn in a canvas, so what the deck tells you is also
+   * written in a hidden live region (index.html #announce). Cleared first: the same text twice
+   * is read twice.
+   */
+  announce(text: string): void {
+    const el = document.getElementById("announce");
+    if (!el) return;
+    el.textContent = "";
+    setTimeout(() => (el.textContent = text.replace(/\x1b\[[0-9;]*m/g, "")), 50);
+  }
+
   notify(text: string, kind: ToastKind = "info"): void {
+    this.announce(text);
     this.sound.play(kind === "error" ? "error" : kind === "success" ? "success" : "notify");
     if (kind === "error") this.errors.add(text);
     else this.log.add("notify", text, { source: kind });
@@ -1502,8 +1555,11 @@ export class Deck implements InputSink {
   }
 
   private checkIdle(): void {
-    // 90 s without a key or the mouse: ambient animations slow down (energy)
-    if (performance.now() - this.lastActivity > 90_000) this.loop.idle = true;
+    // 20 s without a key or the mouse: ambient animations slow down to 12 frames a second, after
+    // 60 s to 2 (energy: a deck left alone on HOME used 13–20 % of a core); "save energy" off keeps
+    // them at full pace
+    const rested = this.settings.data.appearance.backgroundSlow !== false && !this.boot;
+    this.loop.rest(rested ? restLevel(performance.now() - Math.max(this.lastActivity, this.awakeAt)) : "awake");
     const min = this.settings.data.fx.screensaverMinutes;
     if (min > 0 && performance.now() - this.lastActivity > min * 60_000 && !this.boot && !this.workspace.overlays.length) this.screensaver();
   }

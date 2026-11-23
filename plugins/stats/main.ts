@@ -53,6 +53,12 @@ export function activate(ib: IcebreakerAPI): void {
     loaded = true;
     ib.ui.redraw();
   };
+  // for other modules and the CATALOG: one number, the last one recorded
+  ib.modules.expose("value", {
+    doc: 'value(id) → the last value of a stat ("todo.done", "deck.notes"…) or null (needs "stats:read")',
+    needs: "stats:read",
+    fn: async (id: string) => (await ib.stats.series(String(id), 30)).at(-1)?.value ?? null,
+  });
   const ready = (async () => {
     pinned = await ib.storage.get<string[]>("pinned", []);
     hidden = await ib.storage.get<string[]>("hidden", []);

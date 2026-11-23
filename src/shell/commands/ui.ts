@@ -1,3 +1,4 @@
+import { padEnd, strWidth } from "../../core/unicode";
 import { allWidgetKeys, forgetWidget, newWidgetKey, widgetIdOf } from "../../widgets/instances";
 import { addToMenu, quickItems } from "../../workspace/quickmenu";
 import { closeMany } from "../../workspace/menus";
@@ -214,14 +215,19 @@ const launch: Command = {
   complete: () => [],
   run(ctx) {
     const d = ctx.deck;
-    const kind = ctx.args[0];
+    const kind = ctx.args.join(" ");
+    // each page by the name on its tab ("nexus", "catalog", "manual"), not its inner id (E2)
+    const tabName = (a: { title: string }) => a.title.toLowerCase().replace(/\s*\(.*\)$/, "");
     if (!kind) {
-      for (const a of d.apps.list()) if (a.kind !== "note") ctx.out(`${(a.icon ?? "·").padEnd(2)} ${a.kind.padEnd(10)} ${fmt.dim(a.description ?? "")}\n`);
+      // the icons' column as wide as the widest one (STATS' « ▁▃▇ » is 3 cells: its name went a column right)
+      const apps = d.apps.list().filter((a) => a.kind !== "note");
+      const iw = Math.max(1, ...apps.map((a) => strWidth(a.icon ?? "·")));
+      for (const a of apps) ctx.out(`${padEnd(a.icon ?? "·", iw)} ${padEnd(tabName(a), 13)} ${fmt.dim(a.description ?? "")}\n`);
       return 0;
     }
     // a module's name works too: `launch nexus` is its page, explorer (it said "no app")
     const name = kind.toLowerCase();
-    const found = d.apps.get(name) ? name : d.apps.list().find((x) => x.title.toLowerCase() === name)?.kind ?? CORE_PACKAGES.find((x) => x.id === name)?.apps?.find((k) => d.apps.get(k));
+    const found = d.apps.get(name) ? name : d.apps.list().find((x) => x.title.toLowerCase() === name || tabName(x) === name)?.kind ?? CORE_PACKAGES.find((x) => x.id === name)?.apps?.find((k) => d.apps.get(k));
     if (!found) return ctx.err(`launch: no app "${kind}" (launch to list)\n`), 1;
     d.openApp(found);
   },
@@ -238,7 +244,9 @@ const opener = (name: string, kind: string, summary: string, aliases?: string[])
 
 const view: Command = {
   name: "view",
-  summary: "show / hide parts of the screen",
+  // an old name: `frame` (and ctrl+b, ctrl+`, F11, fx) say the same — kept for habits, not in `help` (E1)
+  hidden: true,
+  summary: "show / hide parts of the screen (old name: frame fold|unfold, fullscreen, fx)",
   usage: "view sidebar     file tree (ctrl+b)\nview shell       this panel (ctrl+`)\nview fullscreen  (F11, ⌃⌘F)\nview fx          the effects panel",
   complete: () => ["sidebar", "shell", "fullscreen", "fx"],
   async run(ctx) {
@@ -309,11 +317,26 @@ const explore: Command = {
 
 const termCmd: Command = {
   name: "term",
-  summary: "the shell panel: your terminals, ibsh, the log; a terminal in the main window",
-  usage: "term            your system terminal (zsh, bash…)\nterm new        another terminal tab (+ on the panel)\nterm close [n]  close one (× on the panel)\nterm rename [n] <name>   rename one (right-click on its tab)\nterm <n>        go to terminal n\nterm open       a terminal in the main window (a tab of its own)\nterm hide       fold the shell panel away (term show, ctrl+`)\nterm max        the shell becomes a big tab after the others (⤢)\nterm dock       a terminal tab goes back to the panel\nterm ibsh       ICEBREAKER's shell\nterm log        the log (what happened, with filters)\nterm restart    a fresh system shell\nterm mode system|ibsh   which one the panel uses",
-  examples: [["term", "jump to your real terminal"], ["term new", "a second terminal"], ["term open", "a terminal as a big tab"], ["term hide", "fold the panel away"]],
-  complete: () => ["new", "close", "rename", "open", "dock", "hide", "show", "max", "ibsh", "log", "restart", "mode"],
-  run(ctx) {
+  summary: "the shell panel: its tabs (ibsh and your shells), the log; a terminal in the main window",
+  usage:
+    "term                 your system terminal (zsh, bash…)\n" +
+    "term new [shell]     a new tab: ibsh, or one of your shells (term shells) — none: the default (Settings → SHELL)\n" +
+    "term shells          the shells of this computer\n" +
+    "term menu            the « + » menu (ctrl+shift+`)\n" +
+    "term <n>             go to tab n (your terminals, then the ibsh tabs)\n" +
+    "term close [n]       close one (× on its tab)\n" +
+    "term rename [n] <name>   rename one (right-click on its tab); \"\" gives back its shell's name\n" +
+    "term open            a terminal in the main window (a tab of its own)\n" +
+    "term hide            fold the shell panel away (term show, ctrl+`)\n" +
+    "term max             the shell becomes a big tab after the others (⤢)\n" +
+    "term dock            a terminal tab goes back to the panel\n" +
+    "term ibsh            ICEBREAKER's shell\n" +
+    "term log             the log (what happened, with filters)\n" +
+    "term restart         a fresh system shell\n" +
+    "term mode system|ibsh   which one the panel uses",
+  examples: [["term new ibsh", "a second ibsh, with its own folder and history"], ["term new bash", "a bash tab next to your zsh"], ["term shells", "what « + » offers"], ["term rename 2 build", "tab 2 is called « build »"]],
+  complete: () => ["new", "shells", "menu", "close", "rename", "open", "dock", "hide", "show", "max", "ibsh", "log", "restart", "mode", ...(lastShells ?? []).map((x) => x.name)],
+  async run(ctx) {
     const d = ctx.deck;
     const ws = d.workspace;
     const [a, b] = ctx.args;
@@ -329,30 +352,60 @@ const termCmd: Command = {
     if (a === "open") return void d.openApp("terminal", { fresh: true }), 0;
     if (a === "ibsh") return ws.showShellTab("ibsh"), 0;
     if (a === "log" || a === "history" || a === "errors") return ws.showShellTab("log"), 0;
-    if (!d.platform.pty) return ctx.err("term: needs the desktop app\n"), 1;
-    if (!ws.termAvailable) return ctx.err("term: the panel is in ibsh mode (term mode system)\n"), 1;
-    if (a === "new") return ws.newTerminal(), 0;
+    if (a === "menu") return void ws.newShellMenu(), 0;
+    if (a === "shells") {
+      const list = (lastShells = await ws.loadShells());
+      const def = d.settings.data.shell.defaultShell || "ibsh";
+      ctx.out(`${def === "ibsh" ? "●" : " "} ibsh  ${fmt.dim(t("ICEBREAKER's own shell"))}\n`);
+      for (const sh of list) ctx.out(`${def === sh.name || def === sh.path ? "●" : " "} ${sh.name.padEnd(5)} ${fmt.dim(sh.path)}\n`);
+      if (!list.length) ctx.out(fmt.dim(`${d.platform.pty ? t("(the panel is in ibsh mode: term mode system)") : t("(your shells need the desktop app)")}\n`));
+      return 0;
+    }
+    if (a === "new") {
+      const want = (b ?? (d.settings.data.shell.defaultShell || "ibsh")).trim();
+      if (want === "ibsh") return ws.newIbsh(), 0;
+      if (!d.platform.pty) return ctx.err(`term: ${t("your shells need the desktop app (term new ibsh works here)")}\n`), 1;
+      if (!ws.termAvailable) return ctx.err("term: the panel is in ibsh mode (term mode system)\n"), 1;
+      const list = (lastShells = await ws.loadShells());
+      const name = want.split(/[\\/]/).pop()!.replace(/\.exe$/i, "").toLowerCase();
+      const found = list.find((x) => x.path === want || x.name === name);
+      // asked by name with nothing listed (an old /etc/shells): the login shell, if it's that one
+      if (!found && list.length) return ctx.err(`term: ${t("no shell « {x} » on this computer — term shells lists them", { x: want })}\n`), 1;
+      return ws.newTerminal(found?.name), 0;
+    }
+    // the panel's tabs by number (your terminals, then the ibsh tabs) — rename, close, go
+    const entries = ws.shellEntries();
+    const pick = (n: string | undefined) => (n && /^\d+$/.test(n) ? entries[Number(n) - 1] : ws.shownEntry ?? undefined);
     if (a === "rename") {
       // term rename <name> (the one shown) · term rename <n> <name>
       const rest = ctx.args.slice(1);
-      const i = rest.length > 1 && /^\d+$/.test(rest[0]) ? Number(rest.shift()) - 1 : ws.termIndex;
+      const e = rest.length > 1 && /^\d+$/.test(rest[0]) ? pick(rest.shift()) : pick(undefined);
+      if (!e) return ctx.err("term: no such tab\n"), 1;
       const name = rest.join(" ").trim();
-      if (!ws.terms[i]) return ctx.err("term: no such terminal\n"), 1;
-      if (!name) return void ws.renameTerminal(i), 0;
-      ws.terms[i].name = name.slice(0, 24);
-      return ctx.out(`terminal ${i + 1}: ${ws.terms[i].name}\n`), 0;
+      if (!rest.length) return void ws.renameShellTab(e), 0;
+      ws.renameEntry(e, name === '""' ? "" : name);
+      const now = ws.shellEntries().find((x) => x.kind === e.kind && x.i === e.i);
+      return ctx.out(`${t("tab")} ${entries.indexOf(entries.find((x) => x.kind === e.kind && x.i === e.i)!) + 1}: ${now?.name ?? name}\n`), 0;
     }
-    if (a === "close") return ws.closeTerminal(b ? Number(b) - 1 : undefined), 0;
-    if (a === "restart") return ws.sysTerm?.restart(), ws.showShellTab("term"), 0;
+    if (a === "close") {
+      const e = pick(b);
+      if (!e) return ctx.err(`term: ${t("no tab {n} (there are {m})", { n: b ?? "", m: entries.length })}\n`), 1;
+      return ws.closeEntry(e), 0;
+    }
     if (a && /^\d+$/.test(a)) {
-      const i = Number(a) - 1;
-      if (!ws.terms[i]) return ctx.err(`term: no terminal ${a} (there are ${ws.terms.length})\n`), 1;
-      ws.termIndex = i;
-      return ws.showShellTab("term"), 0;
+      const e = pick(a);
+      if (!e) return ctx.err(`term: ${t("no tab {n} (there are {m})", { n: a, m: entries.length })}\n`), 1;
+      return ws.showEntry(e), 0;
     }
+    if (!d.platform.pty) return ctx.err("term: needs the desktop app\n"), 1;
+    if (!ws.termAvailable) return ctx.err("term: the panel is in ibsh mode (term mode system)\n"), 1;
+    if (a === "restart") return ws.sysTerm?.restart(), ws.showShellTab("term"), 0;
     ws.showShellTab("term");
   },
 };
+
+/** the shells last listed (Tab completes `term new <shell>` with them) */
+let lastShells: { name: string; path: string }[] | null = null;
 
 const macro: Command = {
   name: "macro",
@@ -441,7 +494,7 @@ const catalogCmd: Command = {
   name: "catalog",
   aliases: ["blocks"],
   summary: "everything the deck can do — commands, settings, functions, shortcuts… — and how to call it",
-  usage: "catalog                      the BLOCKS page\ncatalog <kind> [words]       one kind: " + BLOCK_KINDS.join(" · ") + "\ncatalog all <words>          search every kind\ncatalog … --json             as JSON (scripts)",
+  usage: "catalog                      the CATALOG page\ncatalog <kind> [words]       one kind: " + BLOCK_KINDS.join(" · ") + "\ncatalog all <words>          search every kind\ncatalog … --json             as JSON (scripts)",
   examples: [
     ["catalog function todo", "what the TODO module lets you call"],
     ["catalog setting voice", "every voice setting and its value"],
@@ -451,14 +504,14 @@ const catalogCmd: Command = {
     const d = ctx.deck;
     const json = ctx.args.includes("--json");
     const args = ctx.args.filter((a) => a !== "--json");
-    if (!args.length && !json) return void d.openApp("blocks"), 0;
+    if (!args.length && !json) return void d.openApp("blocks"), 0; // (the page's inner id stays "blocks": saved sessions)
     const [k, ...words] = args;
     const kind = (BLOCK_KINDS as readonly string[]).includes(k) ? (k as BlockKind) : undefined;
     const q = (kind || k === "all" ? words : args).join(" ");
     const list = d.catalog.info(kind, q);
     if (json) return ctx.out(`${JSON.stringify(list, null, 2)}\n`), 0;
     for (const b of list) ctx.out(`${fmt.dim(b.kind.padEnd(9))}${fmt.bold(b.name.padEnd(28))} ${b.doc.slice(0, 60)}${b.from !== "core" ? fmt.cyan(`  ${b.from}`) : ""}\n`);
-    ctx.out(fmt.dim(`${list.length} blocks\n`));
+    ctx.out(fmt.dim(`${list.length} entries\n`));
     return 0;
   },
 };

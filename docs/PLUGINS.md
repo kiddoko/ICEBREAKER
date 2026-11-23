@@ -189,6 +189,8 @@ await ib.use("terminal").run("git status");        // the user's real shell (per
 const { accent, bg } = await ib.use("theme").colors(); // the theme's colours, #rrggbb
 await ib.use("home").link("deploy", "macro run deploy", "⚡"); // a shortcut square on HOME
 await ib.use("deck").say("build finished", "modules");   // the voice, if the user lets modules speak
+await ib.use("frames").fold("shell");               // the frames: fold · unfold · solo · move · folded
+await ib.use("statusbar").move("help", 1);          // the status bar: items · move · hide · show · reset
 ```
 
 Every function returns a Promise. `modules api` in the shell lists them all with
@@ -216,7 +218,10 @@ Inside the deck's own code it's the same: `deck.use("todo").add("…")` (with ev
 
 The user adds it from HOME: **✎ edit** (or `⌘E` / `ctrl+E`) then `a`. Widgets render every
 frame they're visible: keep `render` cheap, cache anything slow (network, AI)
-in a variable, and call `ui.animate(ms)` only if something moves.
+in a variable, and call `ui.animate(ms)` only if something moves. A deck left
+alone rests: after 20 s without input animations drop to 12 frames a second,
+after a minute to 2. Something the user watches without touching (music playing,
+a game) calls `ui.stayAwake()` in the frames it runs.
 
 The full surface is typed and commented in
 [`src/plugins/api.ts`](../src/plugins/api.ts). Highlights:
@@ -289,7 +294,7 @@ The full surface is typed and commented in
   `settings.json`, `secrets.json` (the native side refuses them to everyone but itself); and
   `ib.vault.write / append / mkdir` never touch `.icebreaker/` at all (other modules' code,
   themes…): a module's own data goes through `ib.storage`.
-- `ib.catalog.list(kind?, words?)` → everything the deck can do, as plain data: commands, actions, shortcuts, settings (with their value), functions (`ib.use`), widgets, apps, themes, modules — each with `name`, `doc`, `from` and `call` (how to call it). `get(kind, id)` for one. The BLOCKS page and `catalog … --json` show the same.
+- `ib.catalog.list(kind?, words?)` → everything the deck can do, as plain data: commands, actions, shortcuts, settings (with their value), functions (`ib.use`), widgets, apps, themes, modules — each with `name`, `doc`, `from` and `call` (how to call it). `get(kind, id)` for one. The CATALOG page and `catalog … --json` show the same.
 - `ib.ui.notify / confirm / prompt / choose` → talk to the user (`choose` = pick one option from a filtered list; `prompt(title, { suggestions })` adds a ▾ list, a grey completion and Tab to complete). `notify(text, "error")` also lands in the error log with a code — see [ERRORS.md](ERRORS.md).
 - `ib.ui.pickWhen(title, { date, time, days, initial, initialDays, clear, allDay, typed })` → the deck's little calendar and clock (a day, a time, days of the week — or typed: "tomorrow 9h"). You get `{ text }` ready for your command ("2026-12-24 09:30", "07:30", "mon,fri", or what was typed), plus `date`, `time`, `days`, `typed`, `cleared`; null when cancelled. Use it wherever a day or a time is asked, never a bare prompt.
 - `ib.ui.alert(title, body)` → get the user's attention, the way they chose in Settings → NOTIFICATIONS (on screen, sound, the system's notification center — by default only when the deck isn't in front —, read aloud). See the REMINDERS module. The shell: `notify --alert "<title>" [body]`.
@@ -357,15 +362,16 @@ The full surface is typed and commented in
 | `fuzzyFilter` | search a list like THE MENU |
 | `t`, `lang`, `addTranslations`, `dateLocale` | the user's language and date format |
 | `sparkline`, `formatStat`, `dayKey` | STATS' little charts and values |
-| `dates` | read a day, a time, a length: `parseDay`, `parseTime`, `parseWhen`, `readWhen`… (below) |
+| `dates` | read a day, a time, a length: `parseDay`, `parseTime`, `parseWhen`, `readWhen`… (below); write a day: `dayShort` ("mon 23 nov"), `dayLong` ("monday 23 november"), `weekdayShort` ("mon") |
 | `dialogButtons`, `YES`, `NO`, `OK`, `CANCEL`, `CLOSE` | a dialog's buttons, bottom right, in the deck's order |
 - `ib.lib` → the same building blocks the core uses: `TextEditor`, `ListView`, `FilterBar` (search + colours: `matches(text, tag)`, `onText/onKey/render`), `WheelSpin` (a ring's feel),
   `ChatView`, `bigText`, `fmt` (ANSI colors), color helpers, attribute flags,
   and `dates` — the deck's one way to read a day and a time: `dates.parseDay("tomorrow" | "fri" | "+3d" | "24/12")`,
   `dates.parseTime("18:00" | "9h" | "7pm" | "midi")` (minutes), `dates.parseDuration("+1h" | "30min" | "1h30")` (minutes),
   `dates.parseWhen("demain 9h" | "+1h" | "1h" | "19:00" | "fri 6pm" | "24/12 9:00" | "dans 1h" | "à 19h")` (a Date, or null
-  when a word isn't a time), `dates.readWhen(words)` → `{ day, time, inMinutes, rest }` (rest: the words that say no
-  time — a title), `dates.ymd(d)`, `addDays`, `startOfDay`, `WEEKDAYS` (English and French). "1h"…"6h" alone mean
+  when a word isn't a time), `dates.readWhen(words)` → `{ day, time, inMinutes, rest, invalid }` (rest: the words that say no
+  time — a title; `invalid`: a word written like a date or a time that isn't one, "31/02", "99:99" — say
+  "no such date or time", never keep it in the title), `dates.ymd(d)`, `addDays`, `startOfDay`, `WEEKDAYS` (English and French). "1h"…"6h" alone mean
   "in that long"; with a day, or from 7h on, a time of day. Use it instead of your own parser: "demain 9h" then
   means the same in every module.
 - `ib.history.record({ label, undo, redo })` → ⌘Z: record how to take back what your module just changed for the

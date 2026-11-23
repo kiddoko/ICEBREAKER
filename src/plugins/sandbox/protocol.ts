@@ -62,6 +62,8 @@ export interface MenuLine {
 /** Worker → deck */
 export type FromModule =
   | { t: "ready" }
+  /** its ib.lib.addTranslations: the deck translates its commands' output with them first */
+  | { t: "translations"; lang: string; strings: Record<string, string> }
   | { t: "failed"; error: string }
   | { t: "rpc"; id: number; path: string[]; args: unknown[] }
   | { t: "register"; what: "command"; spec: Record<string, unknown> }
@@ -83,7 +85,9 @@ export type FromModule =
 
 /** Deck → worker */
 export type ToModule =
-  | { t: "load"; code: string; manifest: unknown; version: string; audio: boolean; theme: unknown; notes: string[] | null; notesError: string; settings: Record<string, unknown> }
+  | { t: "load"; code: string; manifest: unknown; version: string; audio: boolean; theme: unknown; notes: string[] | null; notesError: string; settings: Record<string, unknown>; lang: string; locale: string }
+  /** the deck's language or date format changed: ib.lib.t and dateLocale follow */
+  | { t: "lang"; lang: string; locale: string }
   | { t: "rpc"; id: number; ok: boolean; value?: unknown; error?: string }
   | { t: "theme"; theme: unknown }
   | { t: "notes"; notes: string[] | null; notesError: string }

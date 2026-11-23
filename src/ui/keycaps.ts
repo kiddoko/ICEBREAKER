@@ -22,7 +22,10 @@ const PATTERNS: RegExp[] = [
   // F1 … F12 on their own
   /(?<![\w+])F(?:1[0-2]|[1-9])(?![\w+])/g,
   // the named keys people write in hints
-  /(?<![\w+])(?:Esc|esc|Échap|échap|Enter|enter|Entrée|entrée|Delete|Del|del|Suppr|suppr|Space|space|Backspace|backspace|Tab|PgUp|PgDn|pgup|pgdn)(?![\w+])/g,
+  // the named keys people write in hints: lowercase always; capitalised, not before a proper noun or
+  // an article — then it's a word (« Space Mono », « Delete the account? »)
+  /(?<![\w+])(?:esc|échap|enter|entrée|del|suppr|space|backspace|pgup|pgdn)(?![\w+])/g,
+  /(?<![\w+])(?:Esc|Échap|Enter|Entrée|Delete|Del|Suppr|Space|Backspace|Tab|PgUp|PgDn)(?![\w+])(?!\s+(?:\p{Lu}\p{Ll}|the\b|a\b|an\b|this\b|that\b|all\b|names?\b|le\b|la\b|les\b|un\b|une\b|ce\b|cette\b))/gu,
   // arrows as keys: "←→ choose", "↑↓" — not the arrows of data ("↑08:05", "↓9°", "17 km/h ↗")
   /(?<![\p{L}\d)]\s)[←↑↓→]{1,4}(?![\d°%.,:+\-…])|[⏎⌫⌦⇥]/gu,
   // hint lines: "e edit · a add · [ ] pages" — a letter key at the start of a · segment; "a" only

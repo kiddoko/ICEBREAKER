@@ -3,11 +3,27 @@ import { mix } from "../core/color";
 import { describe, ERRORS_DOC } from "../core/errors";
 import { LOG_KINDS, type LogEntry, type LogKind } from "../core/eventlog";
 import { BOLD, type Rect } from "../core/grid";
-import { t, dateLocale } from "../core/i18n";
+import { t, dateLocale, lang, tOutput } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
 import { strWidth, wrapWords } from "../core/unicode";
 import type { Deck } from "../deck";
 import type { UI } from "../ui/ui";
+
+/**
+ * A message's text in the deck's language as it's shown, whatever language it was written in
+ * (a module left off at the first login was logged before the account's language was known).
+ * What you typed (`cmd`) is never touched. Remembered: the log is drawn every frame.
+ */
+const shown = new Map<string, string>();
+function inLang(text: string): string {
+  const key = `${lang()}\u0000${text}`;
+  let v = shown.get(key);
+  if (v === undefined) {
+    if (shown.size > 2000) shown.clear();
+    shown.set(key, (v = tOutput(text)));
+  }
+  return v;
+}
 
 /** One drawn line of the log. */
 interface Line {
@@ -87,7 +103,7 @@ export class LogPane {
     for (const e of list) {
       const time = new Date(e.at).toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit", ...(short ? {} : { second: "2-digit" }), hour12: false });
       const glyph = LOG_KINDS.find((k) => k.kind === e.kind)?.glyph ?? "·";
-      const head = (e.kind === "debug" || e.kind === "access") && e.source && e.source !== "deck" ? `[${e.source}] ${e.text}` : e.text;
+      const head = (e.kind === "debug" || e.kind === "access") && e.source && e.source !== "deck" ? `[${e.source}] ${e.text}` : e.kind === "notify" || e.kind === "error" ? inLang(e.text) : e.text;
       out.push({ time, glyph, gfg: colour[e.kind], text: head, fg: e.kind === "error" || e.failed ? c.error : e.kind === "debug" || e.kind === "access" ? c.muted : c.fg, attrs: e.kind === "error" ? BOLD : 0, cmd: e.code ? `errors ${e.code}` : undefined });
       for (const l of (e.detail ?? "").replace(/\n+$/, "").split("\n")) if (l) out.push({ text: l, fg: c.muted });
       if (e.code) {

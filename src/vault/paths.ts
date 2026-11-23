@@ -85,15 +85,23 @@ export function display(p: string): string {
 
 /** "My Big Idea!" → "my-big-idea" */
 export function slugify(title: string): string {
-  return (
-    title
-      .normalize("NFKD")
-      .replace(/[̀-ͯ]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9぀-ヿ一-鿿]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "untitled"
-  );
+  let s = title
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9぀-ヿ一-鿿]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  // a file name stays short enough for every disk (a 250-character title was a raw "os error 123"
+  // on Windows): 80 characters, cut at a word when there's one; the whole title stays in the note
+  if (s.length > SLUG_MAX) {
+    const cut = s.slice(0, SLUG_MAX);
+    const dash = cut.lastIndexOf("-");
+    s = (dash > SLUG_MAX / 2 ? cut.slice(0, dash) : cut).replace(/-+$/, "");
+  }
+  return s || "untitled";
 }
+/** the longest file name a title gives (without ".md") */
+export const SLUG_MAX = 80;
 
 /** Simple glob → RegExp (* and ? only, within one path segment). */
 export function globToRegex(glob: string): RegExp {

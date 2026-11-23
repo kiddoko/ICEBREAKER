@@ -18,6 +18,7 @@ import { resolvePath } from "../../vault/paths";
 import * as lib from "../lib";
 import { AudioStream } from "../../core/audiostream";
 import { UNTOUCHED, type FromModule, type HitInfo, type MenuLine, type Target, type ToModule } from "./protocol";
+import { setDateLocale, setLang } from "../../core/i18n";
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 
@@ -224,7 +225,8 @@ function makeIb(manifest: unknown, version: string): unknown {
     history: { record: () => {} },
     // its sound is played by the deck (core/mixer.ts): this Worker has none of its own
     audio: { available: () => audio, stream: openStream, onStop: (fn: () => void) => (audioStops.add(fn), () => void audioStops.delete(fn)), now: rpc("audio", "now"), sample: rpc("audio", "sample"), drop: rpc("audio", "drop"), schedule: rpc("audio", "schedule"), stop: rpc("audio", "stop"), decode: rpc("audio", "decode"), encode: rpc("audio", "encode"), encoders: rpc("audio", "encoders") },
-    lib,
+    // its addTranslations also go to the deck: what its commands print is translated with them first
+    lib: { ...lib, addTranslations: (l: "en" | "fr", strings: Record<string, string>) => (lib.addTranslations(l, strings), post({ t: "translations", lang: l, strings: { ...strings } })) },
   });
 }
 
@@ -365,6 +367,9 @@ scope.onmessage = async (ev: MessageEvent<ToModule>) => {
   try {
     switch (m.t) {
       case "load": {
+        // the deck's language before the module's code runs: its ib.lib.t speaks it from the start
+        setLang(m.lang);
+        setDateLocale(m.locale);
         theme = m.theme as Theme;
         notes = m.notes;
         notesError = m.notesError;
@@ -390,6 +395,7 @@ scope.onmessage = async (ev: MessageEvent<ToModule>) => {
         return;
       }
       case "theme": theme = m.theme as Theme; return;
+      case "lang": setLang(m.lang); setDateLocale(m.locale); return;
       case "notes": notes = m.notes; notesError = m.notesError; return;
       case "settings": settings = m.settings; return;
       case "create": {

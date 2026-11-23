@@ -1,3 +1,4 @@
+import { t as tr } from "../core/i18n";
 import pkg from "../../package.json";
 import { mix } from "../core/color";
 import { BOLD, DIM } from "../core/grid";
@@ -111,13 +112,13 @@ export class BootScreen {
       const shown = decrypt(line, Math.min(1, p * 1.3 - i * 0.05), ui.now, SCRAMBLE_BLOCKS);
       ui.gradientText(lx, ly + i, shown, ui.theme.gradient, BOLD, p < 1 ? 0 : (ui.now / 3000) % 0.15);
     });
-    const tag = "open-source cyberdeck environment";
+    const tag = tr("open-source cyberdeck environment");
     ui.textCenter(screen, ly + logo.length + 1, decrypt(tag, p, ui.now), { fg: c.muted, attrs: BOLD });
     if (t > this.logoEnd) {
       // it breathes (accent ↔ muted) instead of blinking out half the time: always readable, and
       // nothing flashes (WCAG 2.3)
       const k = 0.5 + 0.5 * Math.sin(ui.now / 500);
-      ui.textCenter(screen, ly + logo.length + 3, "[ press any key to jack in ]", { fg: mix(c.muted, c.accent, k), attrs: BOLD });
+      ui.textCenter(screen, ly + logo.length + 3, `[ ${tr("press any key to jack in")} ]`, { fg: mix(c.muted, c.accent, k), attrs: BOLD });
     }
   }
 

@@ -400,10 +400,22 @@ export class PluginHost {
       let ok: boolean;
       if (ask) {
         // asked in the shell (`plugin enable`): the same words, as text
-        const lines = this.permLines(perms, m, fresh).map((l) => `  ${l.icon} ${l.label}${l.scope ? ` → ${l.scope}` : ""}  [${l.level}]${l.fresh ? " (new)" : ""}${l.note ? `\n      ${l.note}` : ""}`);
+        // (in the deck's language: the shell's question was English on a French deck)
+        const lines = this.permLines(perms, m, fresh).map((l) => `  ${l.icon} ${l.label}${l.scope ? ` → ${l.scope}` : ""}  [${t(l.level)}]${l.fresh ? ` ${t("(new)")}` : ""}${l.note ? `\n      ${l.note}` : ""}`);
         ok = await ask(
-          `Switch the module ${m.name} on?`,
-          `${m.description ?? ""}\nby ${m.author ?? "unknown"} · this copy: v${m.version}\n\nIt asks for:\n${lines.join("\n") || "  nothing"}${unknown.length ? `\n\n⚠ it also names permissions this deck doesn't know (ignored): ${unknown.join(", ")}` : ""}\n\n${report}\n\nIt runs in a sandbox: only what its permissions allow, nothing of the deck, the page or the network. Its code: ${VAULT_PLUGIN_DIR}/${id}/. You can take any permission away later: plugin revoke ${id} <permission>.`,
+          t("Switch the module {m} on?", { m: m.name }),
+          [
+            m.description ?? "",
+            `${t("by {a}", { a: m.author ?? t("unknown") })} · ${t("this copy: v{v}", { v: m.version })}`,
+            "",
+            t(perms.length ? "It asks for:" : "It asks for nothing."),
+            ...(perms.length ? [lines.join("\n")] : []),
+            ...(unknown.length ? ["", `⚠ ${t("it also names permissions this deck doesn't know (ignored): {l}", { l: unknown.join(", ") })}`] : []),
+            "",
+            report,
+            "",
+            t("It runs in a sandbox: only what its permissions allow, nothing of the deck, the page or the network. Its code: {dir}. You can take any permission away later: plugin revoke {id} <permission>.", { dir: `${VAULT_PLUGIN_DIR}/${id}/`, id }),
+          ].join("\n"),
         );
       } else {
         const answer = await this.deck.askPermission({

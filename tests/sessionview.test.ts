@@ -45,3 +45,17 @@ describe("the saved desktop view (relaunch = as you left it)", () => {
     expect(renameKeys({ groups: "x", places: [1], shows: null }, {})).toEqual({ groups: "x", places: [1], shows: null });
   });
 });
+
+describe("the shell panel's tabs come back after a relaunch (0.7.2: ibsh and your shells, mixed)", () => {
+  it("each tab: its kind, its shell, the name you gave it, an ibsh's folder; and the one shown", () => {
+    const v = parseView({ shellTab: "ibsh", terms: 1, shellTabs: [{ kind: "term", shell: "bash", name: "build" }, { kind: "ibsh" }, { kind: "ibsh", name: "notes", cwd: "/notes" }], shellAt: 2 });
+    expect(v?.shellTabs).toEqual([{ kind: "term", shell: "bash", name: "build" }, { kind: "ibsh" }, { kind: "ibsh", name: "notes", cwd: "/notes" }]);
+    expect(v?.shellAt).toBe(2);
+  });
+  it("anything odd is dropped, a 0.7.1 view (terms: n) still reads", () => {
+    const v = parseView({ shellTabs: [{ kind: "rm -rf" }, { kind: "term", shell: 42, name: "x".repeat(200) }, null], shellAt: -3, terms: 2 });
+    expect(v?.shellTabs).toEqual([{ kind: "term" }]);
+    expect(v?.shellAt).toBe(0);
+    expect(parseView({ terms: 2 })?.shellTabs).toBeUndefined();
+  });
+});

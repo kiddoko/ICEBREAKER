@@ -118,8 +118,26 @@ const patterns: Partial<Record<Lang, { re: RegExp; names: string[]; to: string }
 function patternsOf(l: Lang): { re: RegExp; names: string[]; to: string }[] {
   const have = patterns[l];
   if (have) return have;
-  const out: { re: RegExp; names: string[]; to: string }[] = [];
-  for (const [key, to] of Object.entries(tables[l])) {
+  return (patterns[l] = compile(tables[l]));
+}
+
+/**
+ * Each sandboxed module's own translations (its addTranslations, sent from its worker:
+ * plugins/sandbox): its command output is looked up there first, then in the deck's table.
+ */
+const moduleTables = new Map<string, { tables: Partial<Record<Lang, Record<string, string>>>; patterns: Partial<Record<Lang, Pattern[]>> }>();
+export function addModuleTranslations(source: string, l: string, strings: Record<string, string>): void {
+  const lg: Lang = l === "fr" ? "fr" : "en";
+  const m = moduleTables.get(source) ?? { tables: {}, patterns: {} };
+  m.tables[lg] = { ...(m.tables[lg] ?? {}), ...strings };
+  delete m.patterns[lg];
+  moduleTables.set(source, m);
+}
+
+type Pattern = { re: RegExp; names: string[]; to: string };
+function compile(table: Record<string, string>): Pattern[] {
+  const out: Pattern[] = [];
+  for (const [key, to] of Object.entries(table)) {
     if (!key.includes("{")) continue;
     // at least a few letters of its own: "{n}" alone would match anything
     if (key.replace(/\{\w+\}/g, "").replace(/[^A-Za-z]/g, "").length < 3) continue;
@@ -134,17 +152,27 @@ function patternsOf(l: Lang): { re: RegExp; names: string[]; to: string }[] {
   }
   // the longest keys first: the most precise wins
   out.sort((a, b) => b.re.source.length - a.re.source.length);
-  return (patterns[l] = out);
+  return out;
 }
 
 const table = () => tables[current];
 
 /** One piece of text (no colour codes in it): its translation, or undefined. */
-function outPiece(core: string): string | undefined {
-  const table = tables[current];
+function outPiece(core: string, source?: string): string | undefined {
+  // the module's own words first (its commands): « tracks » is a tracker's « pistes », not « morceaux »
+  const mod = source ? moduleTables.get(source) : undefined;
+  const mt = mod?.tables[current];
+  if (mod && mt) {
+    const own = lookup(core, mt, (mod.patterns[current] ??= compile(mt)));
+    if (own !== undefined) return own;
+  }
+  return lookup(core, tables[current], patternsOf(current));
+}
+
+function lookup(core: string, table: Record<string, string>, pats: Pattern[]): string | undefined {
   // a single word is left alone: it may be a note's name, a value, a command ("open", "done")
   if (core.includes(" ") && table[core] !== undefined) return uiCase(table[core]);
-  for (const p of patternsOf(current)) {
+  for (const p of pats) {
     const m = p.re.exec(core);
     // a value never spans pieces ("from /{x}" took "notes/a.md · 1 h ago" whole)
     if (!m || m.slice(1).some((v) => v.includes(" · "))) continue;
@@ -164,7 +192,7 @@ function outPiece(core: string): string | undefined {
  * codes is looked up whole (a key of the table, or one with {parts}), else piece by piece at
  * " · "; what isn't known stays as it is. `usage:` lines stay in English (like man pages).
  */
-export function tOutput(text: string): string {
+export function tOutput(text: string, source?: string): string {
   if (current === "en" || !text) return text;
   return text
     .split("\n")
@@ -177,11 +205,11 @@ export function tOutput(text: string): string {
           const lead = /^\s*/.exec(run)![0], trail = /\s*$/.exec(run)![0];
           const core = run.slice(lead.length, run.length - trail.length);
           if (!core) return run;
-          const whole = outPiece(core);
+          const whole = outPiece(core, source);
           if (whole !== undefined) return lead + whole + trail;
           if (!core.includes(" · ")) return run;
           // pieces: a single word too ("late", "tomorrow" — a name sits in its own run)
-          return lead + core.split(" · ").map((p) => outPiece(p) ?? (table()[p] !== undefined && !/\s/.test(p) ? uiCase(table()[p]) : p)).join(" · ") + trail;
+          return lead + core.split(" · ").map((p) => outPiece(p, source) ?? (table()[p] !== undefined && !/\s/.test(p) ? uiCase(table()[p]) : p)).join(" · ") + trail;
         })
         .join("");
     })

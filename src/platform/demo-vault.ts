@@ -48,6 +48,45 @@ Notes link with [[wikilinks]] like [[notes/ideas]] and get tags like #getting-st
 - [ ] try another theme: \`theme set amber\`
 `;
 
+/** The same note for an account in French (a new vault is seeded in its account's language). */
+export const WELCOME_NOTE_FR = `# Bienvenue dans ICEBREAKER
+
+Tu viens de te brancher sur ton deck. Tout ici est un simple fichier **Markdown**
+dans ton vault — ouvre-le avec Obsidian, vim, n'importe quoi. Rien n'est enfermé.
+
+> **⚠ Logiciel de test.** ICEBREAKER est un projet de loisir, jamais audité, pas prêt pour un usage
+> intensif, sécurisé ou professionnel. **N'y mets rien de sensible** (vault chiffré ou non) et
+> **sauvegarde ce dossier régulièrement**. Bugs, idées, modules et thèmes bienvenus :
+> github.com/kiddoko/ICEBREAKER. Plus dans **START HERE/README**.
+
+## Premiers gestes
+- \`Ctrl+K\` (ou maj deux fois) ouvre LE MENU — tout est dedans
+- \`Ctrl+Z\` annule n'importe quoi ; \`tour\` dans le shell te fait visiter
+- \`Ctrl+J\` ouvre l'entrée du journal du jour
+- \`Ctrl+\`\` (la touche sous Échap) montre ou cache le shell
+- \`F1\` ouvre le manuel ; **START HERE/** dans l'arbre est le guide (en anglais pour l'instant)
+
+## Le shell est presque vrai
+Essaie ceci dans le panneau du shell :
+
+\`\`\`sh
+ls -la
+tree
+grep -i ice *.md
+journal "branché pour la première fois"
+cat Bienvenue.md | ask "résume ça en une ligne"
+neofetch
+\`\`\`
+
+## Liens et étiquettes
+Les notes se lient avec des [[wikiliens]] comme [[notes/ideas]] et ont des étiquettes comme #premiers-pas.
+\`Ctrl+Entrée\` sur un lien le suit.
+
+- [ ] écrire une première entrée de journal
+- [ ] choisir ton nom : \`config set user.handle <toi>\`
+- [ ] essayer un autre thème : \`theme set amber\`
+`;
+
 export function demoVault(): Record<string, string> {
   return {
     "Welcome.md": WELCOME_NOTE,

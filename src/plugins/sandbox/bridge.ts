@@ -9,6 +9,7 @@ import type { WidgetContext, WidgetSpec } from "../../widgets/types";
 import type { IcebreakerAPI, PluginManifest, PluginModule } from "../api";
 import { UNTOUCHED, type Frame, type FromModule, type MenuLine, type Target, type ToModule } from "./protocol";
 import SandboxWorker from "./worker?worker&inline";
+import { addModuleTranslations, lang } from "../../core/i18n";
 
 /**
  * THE SANDBOX, the deck's side (docs/SANDBOX.md). A module from the STORE or
@@ -91,6 +92,8 @@ class Sandbox {
   private menus = new Map<number, { r: Rect; x: number; y: number }>();
   private nextInst = 0;
   private sentTheme: unknown = null;
+  /** the language and date format the module was last told (its ib.lib.t was always English) */
+  private sentLang = "";
   private notesKey = "";
   private ready: { ok: () => void; no: (e: Error) => void } | null = null;
   private logged = 0;
@@ -109,6 +112,12 @@ class Sandbox {
   }
 
   private send(m: ToModule): void {
+    // the deck's language changed since the module last heard: told first, whatever comes next
+    // (a command-only module never draws, so the frame's refresh never told it)
+    if (m.t !== "load" && m.t !== "lang" && this.sentLang) {
+      const lg = `${lang()}|${this.deck.settings.data.user.locale ?? ""}`;
+      if (lg !== this.sentLang) (this.sentLang = lg), this.worker.postMessage({ t: "lang", lang: lang(), locale: this.deck.settings.data.user.locale ?? "" } satisfies ToModule);
+    }
     this.worker.postMessage(m);
   }
 
@@ -123,7 +132,8 @@ class Sandbox {
       }
     }
     this.sentTheme = this.deck.theme;
-    this.send({ t: "load", code, manifest: JSON.parse(JSON.stringify(this.manifest)), version: this.ib.version, audio: this.ib.audio.available(), theme: JSON.parse(JSON.stringify(this.deck.theme)), notes: notes.notes, notesError: notes.error, settings: { ...((this.deck.settings.data.moduleSettings ?? {})[this.manifest.id] ?? {}) } });
+    this.send({ t: "load", code, manifest: JSON.parse(JSON.stringify(this.manifest)), version: this.ib.version, audio: this.ib.audio.available(), theme: JSON.parse(JSON.stringify(this.deck.theme)), notes: notes.notes, notesError: notes.error, settings: { ...((this.deck.settings.data.moduleSettings ?? {})[this.manifest.id] ?? {}) }, lang: lang(), locale: this.deck.settings.data.user.locale ?? "" });
+    this.sentLang = `${lang()}|${this.deck.settings.data.user.locale ?? ""}`;
     return new Promise((ok, no) => {
       this.ready = { ok, no };
       setTimeout(() => no(new Error("the module took more than 10 s to start")), 10_000);
@@ -168,6 +178,12 @@ class Sandbox {
   private async receive(m: FromModule): Promise<void> {
     switch (m.t) {
       case "ready": this.ready?.ok(); this.ready = null; return;
+      case "translations": {
+        // plain strings only, a few thousand at most: its output's French, never anything else's
+        const ok = m.strings && typeof m.strings === "object" ? Object.fromEntries(Object.entries(m.strings).filter(([k, v]) => typeof k === "string" && typeof v === "string" && k.length < 500 && v.length < 1000).slice(0, 5000)) : {};
+        addModuleTranslations(this.manifest.id, m.lang, ok);
+        return;
+      }
       case "closing": this.closeWaits.get(m.id)?.(m.ok !== false); return;
       case "failed": this.ready?.no(new Error(m.error)); this.ready = null; return;
       case "log":

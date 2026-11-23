@@ -65,6 +65,8 @@ export interface Command {
   examples?: (string | [string, string])[];
   /** It asks questions (ctx.read): clicks and the system shell run it in the ibsh tab. */
   interactive?: boolean;
+  /** Still works, but `help` doesn't list it (an old name kept for habits: `view` → `frame`). */
+  hidden?: boolean;
   /** What Tab completes for arguments. */
   complete?: "path" | "command" | "none" | (() => string[]);
   /** Who registered it: "core" or a plugin id. */

@@ -1,4 +1,5 @@
 import { fmt } from "../core/ansi";
+import { t, tOutput } from "../core/i18n";
 import type { ShellContext } from "./types";
 
 /**
@@ -8,11 +9,12 @@ import type { ShellContext } from "./types";
  */
 export async function askInShell(ctx: ShellContext, title: string, detail: string): Promise<boolean> {
   if (detail) ctx.out(fmt.dim(`${detail}\n`));
-  const a = await ctx.read(`${title} [y/N]`, { placeholder: "y or n" });
+  // the question in the deck's language too (its detail is, on its way out): « [o/N] » in French
+  const a = await ctx.read(`${tOutput(title)} ${t("[y/N]")}`, { placeholder: t("y or n") });
   return /^(y|yes|o|oui)$/i.test((a ?? "").trim());
 }
 
 /** The asking function for this command: a dialog with `--window`, else the shell. */
 export function asker(ctx: ShellContext, window: boolean): (title: string, detail: string) => Promise<boolean> {
-  return (title, detail) => (window ? ctx.deck.confirm(title, detail) : askInShell(ctx, title, detail));
+  return (title, detail) => (window ? ctx.deck.confirm(tOutput(title), tOutput(detail)) : askInShell(ctx, title, detail));
 }

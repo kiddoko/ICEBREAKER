@@ -27,7 +27,7 @@ label's first word; never `.toUpperCase()` a title. The rule: [GUIDELINES.md](GU
 | tabs | `tabs(ui, x, y, list, current, onPick)` | `ib.lib.tabs` | ` modules  themes  installed ` |
 | a number in a range | `slider(ui, rect, value, min, max, onSet, …)` · `askNumber` · `heldStep` | `ib.lib.slider` | `━━━━■── 80%` — drag the handle (it follows the pointer to the pixel); hold on the track, the wheel (one notch, one step; a trackpad's stream: a step every 10 px, never more than one an event) or ←→: **always 1 at a time** — held, the pace speeds up (`HoldClock`: 8 → 60 steps a second), never the step; ←→ go through `heldStep(id, dir, step)`; double-click the number to type it |
 | a list | `ListView<T>` (`onNavKey(k)` for ↑↓ page keys under a field) | `new ib.lib.ListView<T>()` | selection, scrolling (with glide), mouse, keys, gamepad, right-click, drag |
-| **the search bar** (any list you filter) | `FilterBar` · `colourSquares` | `ib.lib.FilterBar` | `⌕ type to search      ■ ■ □ □ ■ □ □ □` — options: `typeToSearch` (a letter starts it: MODULES, NEXUS), `always` (every key types: Settings, BLOCKS, SHORTCUTS, the STORE), `colours: false` (no squares: those four), `onChange` |
+| **the search bar** (any list you filter) | `FilterBar` · `colourSquares` | `ib.lib.FilterBar` | `⌕ type to search      ■ ■ □ □ ■ □ □ □` — options: `typeToSearch` (a letter starts it: MODULES, NEXUS), `always` (every key types: Settings, CATALOG, SHORTCUTS, the STORE), `colours: false` (no squares: those four), `onChange` |
 | a page's header line | `pageBar` | — | where you are · tools · its filter |
 | choose a file / a folder | `FileBrowser` · `pickFile` · `pickFolder` | `ib.ui.pickFile` · `ib.ui.pickFolder` (you get the path the user chose) | the deck's browser: ‹ › ↑ ⌂, ⏏ drives, *choose this folder* |
 | a dialog's buttons | `dialogButtons(ui, inner, [no, yes])` · `YES` `NO` `OK` `CANCEL` `CLOSE` | `ib.lib.dialogButtons` | always **bottom right**, the way out on the left, the way forward on the right: `[N]o  [Y]es` · `cancel  OK` · `close  open` — Yes never moves, whatever the text says (a test checks no dialog places its own) |
@@ -47,8 +47,9 @@ label's first word; never `.toUpperCase()` a title. The rule: [GUIDELINES.md](GU
 
 **A text that may not fit is never cut in the middle of a word**: give `ui.textFit` its shorter
 versions, or fold it on two lines (`ib.lib` has `strWidth` and `truncate` for the rest). **A date
-or a day** shown to the user: `toLocaleDateString(ib.lib.dateLocale(), …)` — the user's format,
-never `"en"`.
+or a day** shown to the user: `ib.lib.dates.dayShort(d)` ("mon 23 nov") in lists and tips,
+`dayLong(d)` ("monday 23 november") in titles, `weekdayShort(n)` for a column of days — lowercase,
+the user's language. Anything else: `toLocaleDateString(ib.lib.dateLocale(), …)`, never `"en"`.
 
 ## How to use a field
 
