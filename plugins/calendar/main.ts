@@ -262,6 +262,7 @@ export function activate(ib: IcebreakerAPI): void {
   ib.modules.expose("today", { doc: "today() → today's events", needs: "google-calendar", fn: () => (refreshLocal(), between(dayOf(ymd(new Date())), addDays(dayOf(ymd(new Date())), 1)).map((e) => ({ ...e }))) });
   // each word quoted: a ";" or a "|" in the words can never start another command
   ib.modules.expose("add", { doc: 'add("dentist fri 14:30 --cal work") → same words as `cal add`', needs: "google-calendar", fn: (words: string) => ib.shell.run(`cal add ${String(words).split(/\s+/).filter(Boolean).map((w) => ib.lib.q(w)).join(" ")}`) });
+  ib.modules.expose("import", { doc: 'import(path) → events from a CSV or an .ics in the vault, the same as `cal import <path>`', needs: "google-calendar", fn: (path: string) => ib.shell.run(`cal import ${ib.lib.q(String(path))}`) });
   const recordUpcoming = () => void ib.stats.set("week", upcomingAfter(dayOf(ymd(new Date())), 7).length, { label: "events this week" }).catch(() => {});
   setTimeout(recordUpcoming, 3000);
   const upcoming = (n: number) =>

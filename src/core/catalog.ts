@@ -18,8 +18,9 @@ import { t } from "./i18n";
 import { displayKeys, keysOf, menuKeyOf, SHORTCUTS } from "./shortcuts";
 import { kindOf } from "./prefs";
 import { FRAME_PARTS } from "../plugins/frame-services";
+import { API_DOCS } from "../plugins/apidocs";
 
-export const BLOCK_KINDS = ["command", "action", "shortcut", "setting", "function", "widget", "app", "theme", "module"] as const;
+export const BLOCK_KINDS = ["command", "action", "shortcut", "setting", "function", "api", "widget", "app", "theme", "module"] as const;
 export type BlockKind = (typeof BLOCK_KINDS)[number];
 
 export interface Block {
@@ -92,6 +93,9 @@ export class Catalog {
           .map((r) => ({ kind, id: r.key ?? r.label, name: t(r.label), doc: kindOf(r), from: r.from, value: t(r.value()), call: r.cmd?.() ?? (r.key ? `config get ${r.key}` : undefined), run: () => void r.change?.(1) }));
       case "function":
         return d.services.list().map((s) => ({ kind, id: `${s.module}.${s.name}`, name: `${s.module}.${s.name}`, doc: s.doc, from: FRAME_PARTS.has(s.module) ? "core" : s.module, value: s.needs ? `needs ${s.needs}` : undefined, call: `modules call ${s.module} ${s.name}` }));
+      case "api":
+        // what a module's code reaches without a command: ib.ui (talk to the user), ib.lib (the UI kit)
+        return API_DOCS.map(([name, doc]) => ({ kind, id: name, name, doc, from: "core", call: name.startsWith("ib.ui.") || /^ib\.lib\.[a-z]/.test(name) ? `${name}(…)` : name }));
       case "widget":
         return d.widgets.list().map((w) => ({ kind, id: w.id, name: w.title, doc: w.description ?? "", from: w.source, call: `home add ${w.id}`, run: () => void d.act(`home add ${w.id}`) }));
       case "app":
