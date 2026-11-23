@@ -535,12 +535,13 @@ export function activate(ib: IcebreakerAPI): void {
       const c = ui.c;
       if (!lib.length) {
         const y = r.y + Math.floor(r.h / 2) - 2;
-        ui.textCenter(r, y, scanning ? `${ui.spinner()} reading ${folder}…` : "no music yet", { fg: c.muted, attrs: BOLD });
+        ui.textCenter(r, y, scanning ? `${ui.spinner()} ${ib.lib.t("reading {d}…", { d: folder })}` : ib.lib.t("no music yet"), { fg: c.muted, attrs: BOLD });
         if (!scanning) {
-          ui.textCenter(r, y + 1, `folder: ${folder}`, { fg: c.subtle });
-          const bx = r.x + Math.floor(r.w / 2) - 12;
-          ui.button(bx, y + 3, "scan", () => run("music scan"), { cmd: "music scan" });
-          ui.button(bx + 9, y + 3, "choose folder", () => void this.pickFolder(), { tip: "f · music folder <path>" });
+          ui.textCenter(r, y + 1, `${ib.lib.t("folder:")} ${folder}`, { fg: c.subtle });
+          const scan = ib.lib.t("scan"), choose = ib.lib.t("choose folder");
+          const bx = r.x + Math.floor((r.w - strWidth(scan) - strWidth(choose) - 7) / 2);
+          const after = ui.button(bx, y + 3, scan, () => run("music scan"), { cmd: "music scan" });
+          ui.button(bx + after + 3, y + 3, choose, () => void this.pickFolder(), { tip: ib.lib.t("f · music folder <path>") });
         } else ui.animate(100);
         return;
       }

@@ -187,15 +187,19 @@ function daysUntil(due: string): number {
   return Math.round((new Date(y, mo - 1, d, 12).getTime() - now.getTime()) / 86_400_000);
 }
 
+/** the deck's words and date format (set when the module starts: these helpers live outside it) */
+let tt: (s: string, vars?: Record<string, string | number>) => string = (s) => s;
+let locale = () => "en";
+
 function dueLabel(due: string | null): string {
   if (!due) return "";
   const n = daysUntil(due);
-  if (n < -1) return `${-n}d late`;
-  if (n === -1) return "yesterday";
-  if (n === 0) return "today";
-  if (n === 1) return "tomorrow";
+  if (n < -1) return tt("{n}d late", { n: -n });
+  if (n === -1) return tt("yesterday");
+  if (n === 0) return tt("today");
+  if (n === 1) return tt("tomorrow");
   const d = new Date(`${due}T12:00`);
-  return n < 7 ? d.toLocaleDateString("en", { weekday: "short" }).toLowerCase() : d.toLocaleDateString("en", { day: "numeric", month: "short" }).toLowerCase();
+  return n < 7 ? d.toLocaleDateString(locale(), { weekday: "short" }).toLowerCase() : d.toLocaleDateString(locale(), { day: "numeric", month: "short" }).toLowerCase();
 }
 
 // ── parsing "walk the dog --urgent --due tomorrow +home" ──────────────────
@@ -293,6 +297,8 @@ function tokenize(s: string): string[] {
 // ── the module ─────────────────────────────────────────────────────────────
 
 export function activate(ib: IcebreakerAPI): void {
+  tt = ib.lib.t;
+  locale = ib.lib.dateLocale;
   D = ib.lib.dates;
   // its settings (Settings → ◇ TODO)
   ib.settings.register([
@@ -902,8 +908,8 @@ export function activate(ib: IcebreakerAPI): void {
 
       // ── input line ──
       const inRect = { x: x0, y, w, h: 1 };
-      this.add.render(ui, inRect, { focused: this.typing && focused, active: this.typing, bg: c.panelAlt, placeholder: this.typing ? "walk the dog --urgent --due tomorrow +home" : "add a task  (a)" });
-      ui.hit(inRect, { onClick: () => this.startTyping(), tip: "type, enter adds · same syntax as `todo add`" });
+      this.add.render(ui, inRect, { focused: this.typing && focused, active: this.typing, bg: c.panelAlt, placeholder: this.typing ? ib.lib.t("walk the dog --urgent --due tomorrow +home") : ib.lib.t("add a task  (a)") });
+      ui.hit(inRect, { onClick: () => this.startTyping(), tip: ib.lib.t("type, enter adds · same syntax as `todo add`") });
       y++;
       if (this.hint) ui.text(x0 + 1, y, `⚠ ${this.hint}`, { fg: c.error }, w - 2);
       y += 2;
@@ -911,17 +917,17 @@ export function activate(ib: IcebreakerAPI): void {
       // ── filters + counters ──
       let fx = x0;
       for (const f of FILTERS) {
-        const label = ` ${f} ${pick(f).length + (f === "open" || f === "all" ? notes.list().length : 0)} `;
+        const label = ` ${ib.lib.t(f === "open" ? "to do" : f)} ${pick(f).length + (f === "open" || f === "all" ? notes.list().length : 0)} `;
         const on = f === this.filter;
         const rect = { x: fx, y, w: strWidth(label), h: 1 };
         ui.text(fx, y, label, on ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: ui.hovered(rect) ? c.accent : c.muted, bg: c.highlight });
-        ui.hit(rect, { onClick: () => ((this.filter = f), (this.sel = 0)), tip: "tab cycles the filters" });
+        ui.hit(rect, { onClick: () => ((this.filter = f), (this.sel = 0)), tip: ib.lib.t("tab cycles the filters") });
         fx += rect.w + 1;
       }
       const open = tasks.filter((t) => !t.done);
       const late = open.filter((t) => t.due && daysUntil(t.due) < 0).length;
       const urgent = open.filter((t) => t.prio === "urgent").length;
-      const sum = [urgent ? `${urgent} urgent` : "", late ? `${late} late` : ""].filter(Boolean).join(" · ");
+      const sum = [urgent ? ib.lib.t("{n} urgent", { n: urgent }) : "", late ? ib.lib.t("{n} late", { n: late }) : ""].filter(Boolean).join(" · ");
       if (sum) ui.textRight(x0 + w, y, sum, { fg: late ? c.error : c.warning });
       y += 2;
 
@@ -947,14 +953,14 @@ export function activate(ib: IcebreakerAPI): void {
       this.scroll = Math.max(0, Math.min(this.scroll, Math.max(0, rows.length - viewH)));
 
       if (!list.length && !inNotes.length) {
-        const msg = this.filter === "done" ? "nothing finished yet" : this.filter === "today" ? "nothing due today" : "nothing to do. suspicious.  (a to add)";
+        const msg = ib.lib.t(this.filter === "done" ? "nothing finished yet" : this.filter === "today" ? "nothing due today" : "nothing to do. suspicious.  (a to add)");
         ui.text(x0 + 1, y, msg, { fg: c.muted });
       }
       const pc = (p: Prio) => (p === "urgent" ? c.error : p === "high" ? c.warning : p === "moderate" ? c.accent : c.subtle);
       rows.slice(this.scroll, this.scroll + viewH).forEach((row, k) => {
         const ry = y + k;
         if ("head" in row) {
-          const label = row.head === "notes" ? ` ${ib.lib.t("IN YOUR NOTES")} ` : ` ${row.head.toLowerCase()} `;
+          const label = row.head === "notes" ? ` ${ib.lib.t("IN YOUR NOTES")} ` : ` ${ib.lib.t(row.head).toLowerCase()} `;
           ui.text(x0, ry, "──", { fg: c.faint });
           ui.text(x0 + 2, ry, label, { fg: row.head === "notes" ? c.accentAlt : pc(row.head), attrs: BOLD });
           ui.hline(x0 + 2 + strWidth(label), ry, w - strWidth(label) - 2, { fg: c.faint });

@@ -22,7 +22,7 @@ import { INSET } from "../ui/layout";
  */
 /** One conversation: its own chat on screen, AI session and transcript (a tab of UPLINK). */
 class Conversation {
-  readonly chat = new ChatView("ask anything — your vault is in reach. /help for commands");
+  readonly chat = new ChatView(t("ask anything — your vault is in reach. /help for commands"));
   session: ChatSession | null = null;
   abort: AbortController | null = null;
   startedAt = new Date();
@@ -112,10 +112,10 @@ export class LinkApp implements App {
   private greet(c: Conversation): void {
     const problem = this.deck.ai.problem;
     if (problem) {
-      c.chat.push("error", `Uplink down: ${problem}.`);
-      c.chat.push("info", this.deck.settings.data.ai.provider === "anthropic"
+      c.chat.push("error", t("Uplink down: {why}.", { why: problem }));
+      c.chat.push("info", t(this.deck.settings.data.ai.provider === "anthropic"
         ? "Get a key at console.anthropic.com, then run `config key` in the shell (or Ctrl+K → “Set API key”).\nPrefer local & offline? Install Ollama and run `config set ai.provider ollama`."
-        : "Start Ollama (ollama serve) and pull a model (ollama pull llama3.1).");
+        : "Start Ollama (ollama serve) and pull a model (ollama pull llama3.1)."));
     } else {
       c.chat.push("info", `Link established with ${this.deck.ai.provider.label}. Ask about your notes: “what did I write about last week?”`);
     }
@@ -348,7 +348,7 @@ export class LinkApp implements App {
 
   render(ui: UI, r: Rect, focused: boolean): void {
     const ready = this.deck.ai.ready;
-    const head = `${ready ? "●" : "○"} ${ready ? "LINKED" : "OFFLINE"} · ${this.deck.ai.provider.label}`;
+    const head = `${ready ? "●" : "○"} ${t(ready ? "LINKED" : "OFFLINE")} · ${this.deck.ai.provider.label}`;
     // the busy bar on the right only when there's room for it beside the state
     const room = r.w - INSET * 2;
     const busy = this.c.chat.busy && room - strWidth(head) >= 16;

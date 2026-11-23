@@ -1,6 +1,9 @@
 import { fmt, stripAnsi } from "../core/ansi";
 import { didYouMean } from "../core/fuzzy";
-import { t } from "../core/i18n";
+import { t, tOutput } from "../core/i18n";
+
+/** commands whose output is your data (a note's text, file names, what you typed): never translated */
+const RAW_OUTPUT = new Set(["cat", "head", "tail", "grep", "find", "ls", "tree", "echo", "sort", "uniq", "wc", "env", "history", "which", "export", "checkboxes", "help", "man"]);
 import { moduleOfCommand } from "../plugins/core-packages";
 import type { Deck } from "../deck";
 import { basename, dirname, globToRegex, resolvePath } from "../vault/paths";
@@ -243,13 +246,14 @@ export class ShellExecutor {
       signal,
       out: (t) => {
         if (signal.aborted) return; // stopped (^C): like a killed program, it says nothing more
-        if (isTTY) self.print(t, false);
+        // on screen, in the deck's language (a note's text, a pipe, a file never are)
+        if (isTTY) self.print(RAW_OUTPUT.has(cmd.name) ? t : tOutput(t), false);
         else stdout += t;
         self.deck.requestFrame();
       },
       err: (t) => {
         if (signal.aborted) return;
-        self.print(t, true);
+        self.print(tOutput(t), true);
         self.deck.requestFrame();
       },
       resolve: (p) => resolvePath(self.cwd, p),

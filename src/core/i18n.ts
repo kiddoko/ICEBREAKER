@@ -108,4 +108,82 @@ export function tLoose(text: string): string {
 export function addTranslations(l: Lang, strings: Record<string, string>): void {
   Object.assign(tables[l], strings);
   lowered[l].clear();
+  delete patterns[l];
+}
+
+// ── command output ──────────────────────────────────────────────────────────
+
+/** the table's keys with {parts}, as patterns (made once per language, again after addTranslations) */
+const patterns: Partial<Record<Lang, { re: RegExp; names: string[]; to: string }[]>> = {};
+function patternsOf(l: Lang): { re: RegExp; names: string[]; to: string }[] {
+  const have = patterns[l];
+  if (have) return have;
+  const out: { re: RegExp; names: string[]; to: string }[] = [];
+  for (const [key, to] of Object.entries(tables[l])) {
+    if (!key.includes("{")) continue;
+    // at least a few letters of its own: "{n}" alone would match anything
+    if (key.replace(/\{\w+\}/g, "").replace(/[^A-Za-z]/g, "").length < 3) continue;
+    const names: string[] = [];
+    const src = key.split(/(\{\w+\})/).map((part) => {
+      const m = /^\{(\w+)\}$/.exec(part);
+      if (!m) return part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      names.push(m[1]);
+      return "(.+?)";
+    });
+    out.push({ re: new RegExp(`^${src.join("")}$`), names, to });
+  }
+  // the longest keys first: the most precise wins
+  out.sort((a, b) => b.re.source.length - a.re.source.length);
+  return (patterns[l] = out);
+}
+
+const table = () => tables[current];
+
+/** One piece of text (no colour codes in it): its translation, or undefined. */
+function outPiece(core: string): string | undefined {
+  const table = tables[current];
+  // a single word is left alone: it may be a note's name, a value, a command ("open", "done")
+  if (core.includes(" ") && table[core] !== undefined) return uiCase(table[core]);
+  for (const p of patternsOf(current)) {
+    const m = p.re.exec(core);
+    // a value never spans pieces ("from /{x}" took "notes/a.md · 1 h ago" whole)
+    if (!m || m.slice(1).some((v) => v.includes(" · "))) continue;
+    const vars: Record<string, string> = {};
+    p.names.forEach((n, i) => (vars[n] = m[i + 1]));
+    let s = uiCase(p.to);
+    for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(v);
+    return s;
+  }
+  return undefined;
+}
+
+/**
+ * A command's output on its way to the screen, in the deck's language (French: the outputs
+ * were half English, half French). Only what's shown — never what goes into a pipe or a file,
+ * never a note's text (`cat`, `grep`… are never passed here). Each run of text between colour
+ * codes is looked up whole (a key of the table, or one with {parts}), else piece by piece at
+ * " · "; what isn't known stays as it is. `usage:` lines stay in English (like man pages).
+ */
+export function tOutput(text: string): string {
+  if (current === "en" || !text) return text;
+  return text
+    .split("\n")
+    .map((line) => {
+      if (/^(\x1b\[[0-9;]*m)*\s*usage:/.test(line)) return line;
+      return line
+        .split(/(\x1b\[[0-9;]*m)/)
+        .map((run) => {
+          if (!run || run.startsWith("\x1b")) return run;
+          const lead = /^\s*/.exec(run)![0], trail = /\s*$/.exec(run)![0];
+          const core = run.slice(lead.length, run.length - trail.length);
+          if (!core) return run;
+          const whole = outPiece(core);
+          if (whole !== undefined) return lead + whole + trail;
+          if (!core.includes(" · ")) return run;
+          // pieces: a single word too ("late", "tomorrow" — a name sits in its own run)
+          return lead + core.split(" · ").map((p) => outPiece(p) ?? (table()[p] !== undefined && !/\s/.test(p) ? uiCase(table()[p]) : p)).join(" · ") + trail;
+        })
+        .join("");
+    })
+    .join("\n");
 }
