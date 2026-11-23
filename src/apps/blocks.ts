@@ -13,7 +13,7 @@ import type { UI } from "../ui/ui";
 import type { App, AppSpec } from "./types";
 
 /**
- * BLOCKS (`blocks`, THE MENU) — the catalog (core/catalog.ts) as a page: every
+ * CATALOG (`catalog`, THE MENU) — the catalog (core/catalog.ts) as a page: every
  * command, action, shortcut, setting, function, widget, app, theme and module,
  * what it does, who provides it, and how to call it from the shell or from a
  * module. Type to search, ←→ change the kind, enter runs it (a setting: changes
@@ -38,7 +38,8 @@ class BlocksApp implements App {
   }
 
   title(): string {
-    return "blocks";
+    // its name everywhere: the tab, `launch`, the status bar (it said "blocks" here, "catalog" in the shell — E2)
+    return t("catalog");
   }
   status(): string {
     return t("type to search · ←→ kind · ↑↓ choose · enter run · ctrl+c copy the call");
@@ -175,7 +176,7 @@ class BlocksApp implements App {
 
 export const blocksSpec: AppSpec = {
   kind: "blocks",
-  title: "Blocks",
+  title: "Catalog",
   description: "everything the deck can do: commands, settings, functions, shortcuts… and how to call them",
   icon: "▦",
   launcher: true,

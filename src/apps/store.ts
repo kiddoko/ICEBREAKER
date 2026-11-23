@@ -176,7 +176,7 @@ class StoreApp implements App {
   readonly kind = "store";
   readonly key = "store";
   tab: Tab = "modules";
-  /** type anywhere: it searches (THE search bar, the same as Settings, BLOCKS, SHORTCUTS) */
+  /** type anywhere: it searches (THE search bar, the same as Settings, CATALOG, SHORTCUTS) */
   private readonly search = new FilterBar({ always: true, colours: false, onChange: () => this.list.select(0) });
   /** THE list (ui/list.ts): selection, scrolling, mouse */
   private readonly list = new ListView<StoreRow>();

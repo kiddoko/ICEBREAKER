@@ -1,3 +1,4 @@
+import { padEnd } from "../../core/unicode";
 import { allWidgetKeys, forgetWidget, newWidgetKey, widgetIdOf } from "../../widgets/instances";
 import { addToMenu, quickItems } from "../../workspace/quickmenu";
 import { closeMany } from "../../workspace/menus";
@@ -214,14 +215,16 @@ const launch: Command = {
   complete: () => [],
   run(ctx) {
     const d = ctx.deck;
-    const kind = ctx.args[0];
+    const kind = ctx.args.join(" ");
+    // each page by the name on its tab ("nexus", "catalog", "manual"), not its inner id (E2)
+    const tabName = (a: { title: string }) => a.title.toLowerCase().replace(/\s*\(.*\)$/, "");
     if (!kind) {
-      for (const a of d.apps.list()) if (a.kind !== "note") ctx.out(`${(a.icon ?? "·").padEnd(2)} ${a.kind.padEnd(10)} ${fmt.dim(a.description ?? "")}\n`);
+      for (const a of d.apps.list()) if (a.kind !== "note") ctx.out(`${(a.icon ?? "·").padEnd(2)} ${padEnd(tabName(a), 13)} ${fmt.dim(a.description ?? "")}\n`);
       return 0;
     }
     // a module's name works too: `launch nexus` is its page, explorer (it said "no app")
     const name = kind.toLowerCase();
-    const found = d.apps.get(name) ? name : d.apps.list().find((x) => x.title.toLowerCase() === name)?.kind ?? CORE_PACKAGES.find((x) => x.id === name)?.apps?.find((k) => d.apps.get(k));
+    const found = d.apps.get(name) ? name : d.apps.list().find((x) => x.title.toLowerCase() === name || tabName(x) === name)?.kind ?? CORE_PACKAGES.find((x) => x.id === name)?.apps?.find((k) => d.apps.get(k));
     if (!found) return ctx.err(`launch: no app "${kind}" (launch to list)\n`), 1;
     d.openApp(found);
   },
@@ -443,7 +446,7 @@ const catalogCmd: Command = {
   name: "catalog",
   aliases: ["blocks"],
   summary: "everything the deck can do — commands, settings, functions, shortcuts… — and how to call it",
-  usage: "catalog                      the BLOCKS page\ncatalog <kind> [words]       one kind: " + BLOCK_KINDS.join(" · ") + "\ncatalog all <words>          search every kind\ncatalog … --json             as JSON (scripts)",
+  usage: "catalog                      the CATALOG page\ncatalog <kind> [words]       one kind: " + BLOCK_KINDS.join(" · ") + "\ncatalog all <words>          search every kind\ncatalog … --json             as JSON (scripts)",
   examples: [
     ["catalog function todo", "what the TODO module lets you call"],
     ["catalog setting voice", "every voice setting and its value"],
@@ -453,14 +456,14 @@ const catalogCmd: Command = {
     const d = ctx.deck;
     const json = ctx.args.includes("--json");
     const args = ctx.args.filter((a) => a !== "--json");
-    if (!args.length && !json) return void d.openApp("blocks"), 0;
+    if (!args.length && !json) return void d.openApp("blocks"), 0; // (the page's inner id stays "blocks": saved sessions)
     const [k, ...words] = args;
     const kind = (BLOCK_KINDS as readonly string[]).includes(k) ? (k as BlockKind) : undefined;
     const q = (kind || k === "all" ? words : args).join(" ");
     const list = d.catalog.info(kind, q);
     if (json) return ctx.out(`${JSON.stringify(list, null, 2)}\n`), 0;
     for (const b of list) ctx.out(`${fmt.dim(b.kind.padEnd(9))}${fmt.bold(b.name.padEnd(28))} ${b.doc.slice(0, 60)}${b.from !== "core" ? fmt.cyan(`  ${b.from}`) : ""}\n`);
-    ctx.out(fmt.dim(`${list.length} blocks\n`));
+    ctx.out(fmt.dim(`${list.length} entries\n`));
     return 0;
   },
 };

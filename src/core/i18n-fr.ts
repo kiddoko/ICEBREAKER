@@ -1229,6 +1229,7 @@ export const FR: Record<string, string> = {
   "THE MENU: search everything, or a key + enter (m ⏎ = MODULES)": "LE MENU : tout chercher, ou une touche + entrée (m ⏎ = MODULES)",
   "THE MENU too: shift twice, quickly — works anywhere, even while typing": "LE MENU aussi : maj deux fois, vite — marche partout, même en écrivant",
   "blocks": "blocs",
+  "catalog": "catalogue",
   // ── setup, side panel, accounts
   "// what you told the deck": "// ce que tu as dit au deck",
   "a number or a click chooses · enter (or a 2nd click) keeps · esc back": "un numéro ou un clic choisit · entrée (ou un 2e clic) garde · échap retour",

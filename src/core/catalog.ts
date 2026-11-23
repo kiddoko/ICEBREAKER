@@ -8,7 +8,7 @@
  * the shell or from a module. So anything can be found, read and used from
  * anywhere:
  *
- *   BLOCKS page (`blocks`)          browse, search, run, change a setting
+ *   CATALOG page (`catalog`)          browse, search, run, change a setting
  *   `catalog [kind] [words]`        the same in the shell (`--json` for scripts)
  *   ib.catalog.list("function")     the same in a module
  *   deck.catalog.list()             the same in the deck's own code
@@ -36,7 +36,7 @@ export interface Block {
   call?: string;
   /** settings: the value now; shortcuts: the keys */
   value?: string;
-  /** what enter does on the BLOCKS page (run it, open it…) */
+  /** what enter does on the CATALOG page (run it, open it…) */
   run?: () => void | Promise<void>;
 }
 

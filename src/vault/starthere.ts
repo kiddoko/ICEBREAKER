@@ -67,7 +67,7 @@ the keyboard, the mouse or a gamepad.
 | switch a feature off | **MODULES** (⌘⇧M) → space |
 | learn the shell | click anything: the command it runs shows in the shell's **log** (on its right) |
 | know what something does | rest the pointer on it: a tip says what it does and the command it runs |
-| see everything the deck can do | **BLOCKS** (\`blocks\`): every command, setting, shortcut, function… and how to call it |
+| see everything the deck can do | **CATALOG** (\`catalog\`): every command, setting, shortcut, function… and how to call it |
 | someone else on this deck (or a work deck) | the login page → **+ new account**: its own settings, theme and vault |
 
 ## Read next
@@ -119,8 +119,8 @@ has the same bar. The tree's colour squares tick several colours too (\`tag view
 | **VOICE** | the deck speaks (local voices) — you pick what it says: errors, reminders, events, the time… | \`voice test\` · \`say hello\` |
 
 Each module's own settings: ⚙ → the ◇ sections at the bottom.
-Modules talk to each other (\`modules api\` lists what they share). **BLOCKS**
-(\`blocks\`, or \`catalog\` in the shell) shows everything the deck and its modules
+Modules talk to each other (\`modules api\` lists what they share). **CATALOG**
+(\`catalog\` in the shell) shows everything the deck and its modules
 can do — commands, settings, shortcuts, functions, widgets — and how to call each.
 
 A module from the STORE or your vault starts **switched off**: switching it on
@@ -702,7 +702,7 @@ src-tauri/      the native side (Rust)       docs/      the full docs
 Three rules the whole deck follows: **one feature = one module**, **every
 click is a shell command** (so it can be typed, bound to a key, put on THE MENU
 or in a macro), and **everything works offline, without an online account, without AI**.
-**BLOCKS** (\`blocks\`) lists everything there is to call.
+**CATALOG** (\`catalog\`) lists everything there is to call.
 
 Where the safety lines are (read before you publish a module): \`docs/SANDBOX.md\` (what a
 module can reach), \`docs/SECURITY_AUDIT.md\` (what was found, fixed, still open),

@@ -137,7 +137,7 @@ export class Deck implements InputSink {
   }
   /** every setting row, the deck's and the modules' (core/prefs.ts): Settings draws them */
   readonly prefs = new SettingsRegistry();
-  /** everything the deck can do, as blocks (core/catalog.ts): the BLOCKS page, `catalog`, ib.catalog */
+  /** everything the deck can do, as blocks (core/catalog.ts): the CATALOG page, `catalog`, ib.catalog */
   readonly catalog = new Catalog(this);
   readonly widgets = new WidgetRegistry();
   readonly ai: AIManager;
@@ -556,7 +556,7 @@ export class Deck implements InputSink {
     for (const c of [...fileCommands, ...docCommands, ...systemCommands, ...deckCommands, storeCommand, updateCommand, ...shortcutCommands, scriptCommand, pinCommand, unpinCommand, tagCommand, iconCommand, trashCommand, weatherCommand, startHereCommand]) this.commands.register({ ...c, source: "core" });
     // developer tools (factory-reset): only in a build that has them (npm run app:mac, the
     // web preview while developing). A release never registers them: not in help, man, Tab,
-    // THE MENU or BLOCKS — they don't exist there.
+    // THE MENU or the CATALOG — they don't exist there.
     void this.platform.dev?.available().then((on) => {
       if (on) for (const c of devCommands) this.commands.register({ ...c, source: "core" });
     }, () => {});

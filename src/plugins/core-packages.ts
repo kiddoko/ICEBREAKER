@@ -56,7 +56,7 @@ export const CORE_PACKAGES: CorePackage[] = [
     commands: ["term", "script"],
     apps: ["terminal"],
     actions: ["terminal.open", "shell.focus", "shell.history", "scripts.menu"],
-    // off: no shell panel at all; commands still run (THE MENU, BLOCKS, macros) and what
+    // off: no shell panel at all; commands still run (THE MENU, the CATALOG, macros) and what
     // they ask comes as dialogs (shell/shell.ts readLine)
     onSwitch: (deck, on) => deck.workspace.setTerminalModule(on),
   },
