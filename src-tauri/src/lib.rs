@@ -43,6 +43,15 @@ pub fn run() {
     });
 
     builder
+        // first of all (the plugin's rule): a second start gives the focus to this window and
+        // quits — two decks on the same vault wrote over each other's settings
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(w) = tauri::Manager::get_webview_window(app, "main") {
+                let _ = w.unminimize();
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }))
         // closing the window quits: the page saves the layout first (quit.rs)
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

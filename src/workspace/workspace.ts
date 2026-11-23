@@ -1121,6 +1121,8 @@ export class Workspace {
       // esc: back to the page from the tree / shell; a button-page (NEXUS, STORE…) closes.
       // Tabs close with shift+esc (or ctrl+W), so a stray esc never loses one. The gamepad's B still closes.
       case "back":
+        // a reminder on screen: esc puts it away first
+        if (source === "keyboard" && this.toasts.dismissSticky()) break;
         // leaving a page that plays the keyboard (App.rawKeys): esc gives the keys back to the deck
         if (this.focus === "main" && this.activeApp?.rawKeys && source !== "gamepad") this.focus = this.sidebarVisible ? "sidebar" : this.shellVisible ? "shell" : "main";
         else if (this.focus !== "main") this.focus = "main";

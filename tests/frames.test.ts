@@ -14,7 +14,8 @@ function before(s: Today, W: number): Record<string, Rect> {
   const H = s.bodyH + 2;
   const body = { x: 1, y: 1, w: W - 2, h: H - 2 };
   let shellH = 0;
-  if (s.shell) shellH = Math.max(5, Math.min(body.h - 8, Math.round(body.h * s.shellRatio)));
+  // 0.7.1: the default height gives the shell ~10 lines of text
+  if (s.shell) shellH = Math.max(s.shellRatio === 0.3 ? Math.min(14, body.h - 12) : 5, 5, Math.min(body.h - 8, Math.round(body.h * s.shellRatio)));
   const top = { x: body.x, y: body.y, w: body.w, h: body.h - shellH };
   const max = s.shell && s.shellMax;
   const stripH = Math.max(6, Math.round(body.h * 0.3));

@@ -2236,4 +2236,9 @@ export const FR: Record<string, string> = {
   "deck": "deck",
   // ── 0.7.1: tips
   "ctrl+space · or `chat` right here in the shell": "ctrl+space · ou `chat` ici même dans le shell",
+  // ── 0.7.1: open
+  "{file} isn't text: the deck can't show it here yet — open it from the vault's folder with your system": "{file} n'est pas du texte : le deck ne sait pas encore l'afficher — ouvre-le depuis le dossier du vault avec ton système",
+  // ── 0.7.1: terminal
+  "paste {n} lines?": "coller {n} lignes ?",
+  "each line runs as you paste it": "chaque ligne s'exécute en arrivant",
 };

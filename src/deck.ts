@@ -542,6 +542,7 @@ export class Deck implements InputSink {
     this.loop.background = !document.hasFocus() && this.settings.data.appearance.backgroundSlow !== false;
     // some webviews don't report a minimized window as hidden: ask the window itself
     void this.platform.onMinimized?.((min) => {
+      this.minimized = min;
       this.loop.setPaused(min || document.hidden);
       if (min) this.releaseTimer = setTimeout(() => this.renderer.release(), 60_000);
     });
@@ -923,6 +924,8 @@ export class Deck implements InputSink {
   }
 
   async openFile(path: string): Promise<void> {
+    // a picture, a sound, a PDF… isn't text: the editor said "stream did not contain valid UTF-8"
+    if (isBinaryName(path)) return void this.notify(t("{file} isn't text: the deck can't show it here yet — open it from the vault's folder with your system", { file: path }), "info");
     this.openApp("note", path);
   }
 
@@ -1351,9 +1354,15 @@ export class Deck implements InputSink {
   alert(title: string, body = "", topic: VoiceTopic = "reminders", spoken?: string): void {
     // one box each in Settings → NOTIFICATIONS
     const n = this.settings.data.notifications;
+    const text = body ? `${title} — ${body}` : title;
     if (n.sound) this.sound.play("alert");
-    if (n.screen) this.workspace.notify(body ? `${title} — ${body}` : title, "warning");
-    if (n.system && (!n.systemOnlyAway || document.hidden || !document.hasFocus())) void this.platform.notify?.(title, body).catch((e) => console.warn("[notify]", e));
+    // always in the log (a reminder seen by nobody can be found there), and on screen until it's
+    // clicked or esc'd — it went at the next key, a second later, while you typed
+    this.log.add("notify", text, { source: "warning" });
+    if (n.screen) this.workspace.toasts.push(text, "warning", true);
+    // the window is away (minimized: some webviews never say "hidden"): the system's notification
+    const away = this.minimized || document.hidden || !document.hasFocus();
+    if (n.system && (!n.systemOnlyAway || away)) void this.platform.notify?.(title, body).catch((e) => console.warn("[notify]", e));
     if (n.voice) this.speak(topic, spoken ?? spokenAlert(title, body));
   }
 
@@ -1370,6 +1379,9 @@ export class Deck implements InputSink {
   }
 
 
+
+  /** the window is minimized (platform.onMinimized) */
+  private minimized = false;
 
   /** start() went all the way (the vault, the modules, the tabs) */
   private started = false;
@@ -1517,4 +1529,10 @@ export class Deck implements InputSink {
     }
     return out;
   }
+}
+
+/** Files the editor can't show (pictures, sounds, video, archives, documents of other apps). */
+const BINARY = /\.(png|jpe?g|gif|webp|bmp|ico|heic|tiff?|psd|mp3|wav|flac|ogg|m4a|aac|mp4|mov|mkv|avi|webm|pdf|zip|7z|rar|gz|tar|dmg|exe|msi|app|docx?|xlsx?|pptx?|odt|ods|key|pages|numbers|ttf|otf|woff2?|bin|sqlite|db)$/i;
+export function isBinaryName(path: string): boolean {
+  return BINARY.test(path);
 }
