@@ -1,6 +1,7 @@
 import { fmt } from "../core/ansi";
 import { osKeys } from "../core/keyhints";
 import { padEnd } from "../core/unicode";
+import { t } from "../core/i18n";
 import type { Command } from "./types";
 
 /**
@@ -55,20 +56,21 @@ export function helpList(commands: Command[], args: string[], tty: boolean): str
   const out: string[] = [];
   const what = args[0]?.toLowerCase();
   if (!what) {
-    out.push(h("to start"));
+    out.push(h(t("to start")));
     for (const n of HELP_START) {
       const c = shown.find((x) => x.name === n);
       if (c) out.push(line(c));
     }
-    out.push("", d("help all       every command"), d("help <module>  a module's commands (help todo)"), d(osKeys("<command> -h   its help and examples · ⌘K / shift twice: THE MENU · F1 manual")));
+    // (help's output isn't translated on its way out — the summaries are English, like man pages — its own lines are)
+    out.push("", d(t("help all       every command")), d(t("help <module>  a module's commands (help todo)")), d(t(osKeys("<command> -h   its help and examples · ⌘K / shift twice: THE MENU · F1 manual"))));
     return `${out.join("\n")}\n`;
   }
   const groups = new Map<string, Command[]>();
   for (const c of shown) {
-    const k = c.source && c.source !== "core" ? `module: ${c.source}` : "deck";
+    const k = c.source && c.source !== "core" ? t("module: {x}", { x: c.source }) : t("deck");
     (groups.get(k) ?? groups.set(k, []).get(k)!).push(c);
   }
-  const pick = what === "all" ? [...groups.keys()] : [`module: ${what}`].filter((k) => groups.has(k));
+  const pick = what === "all" ? [...groups.keys()] : [t("module: {x}", { x: what })].filter((k) => groups.has(k));
   if (!pick.length) return "";
   for (const k of pick) {
     out.push("", h(k));
