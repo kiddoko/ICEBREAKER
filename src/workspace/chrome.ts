@@ -20,6 +20,7 @@ import type { ShellTab, Workspace } from "./workspace";
 import { chipStyle, drawChip, placeChips, tabbedBox } from "./tabstrip";
 import { FRAME_IDS, joinedLeft, moveStatusItem, statusOrder } from "./statusbar";
 import { DECK_MENU_TITLE, editMacro, macroMenu, shellMenu, termTabMenu } from "./menus";
+import { dayShort } from "../core/dates";
 
 /**
  * The shell panel: tabs on its top border (your terminals [+] │ ibsh · history ·
@@ -272,7 +273,7 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
 
   const now = new Date();
   const time = now.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  const date = now.toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric", month: "short" });
+  const date = dayShort(now, dateLocale());
   ui.animate(1000 - now.getMilliseconds());
   // UPLINK ■: green when the AI is there and answering, amber while it thinks, red when it's off
   // (the provider and the model are in its tip); narrow: the ■ alone, the time without seconds

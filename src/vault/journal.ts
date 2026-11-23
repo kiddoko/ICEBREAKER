@@ -1,6 +1,6 @@
 import { isoDate } from "./paths";
 import { dateLocale } from "../core/i18n";
-import { parseDay } from "../core/dates";
+import { dayLong, parseDay } from "../core/dates";
 import { parseFlags } from "../shell/parser";
 import type { Vault } from "./vault";
 
@@ -24,7 +24,7 @@ mood:
 `;
 
 export function titleFor(date: Date, locale: string): string {
-  const s = date.toLocaleDateString(locale || dateLocale(), { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const s = dayLong(date, locale || dateLocale(), true);
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 

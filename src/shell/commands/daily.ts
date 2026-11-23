@@ -5,6 +5,7 @@ import { ensureEntry } from "../../vault/journal";
 import { isoDate } from "../../vault/paths";
 import type { Command, ShellContext } from "../types";
 import { q } from "../../ui/ui";
+import { dayLong } from "../../core/dates";
 
 /**
  * `daily`: the end-of-day check-in, asked right in the shell.
@@ -33,7 +34,7 @@ async function checkIn(ctx: ShellContext): Promise<number> {
   let text = await deck.vault.read(path);
   const has = text.split("\n").some((l) => SECTION.test(l));
 
-  const day = now.toLocaleDateString(locale || dateLocale(), { weekday: "long", day: "numeric", month: "long" });
+  const day = dayLong(now, locale || dateLocale());
   ctx.out(`\n${fmt.magenta(fmt.bold(`── DAILY LOG · ${day} `))}${fmt.dim("─".repeat(20))}\n`);
   ctx.out(fmt.dim("quick answers: 1-5 · text: enter skips · esc stops (nothing is saved)\n\n"));
 

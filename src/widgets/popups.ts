@@ -33,6 +33,7 @@ import { chatPopup } from "./chatbox";
 import { DURATIONS, NEWS_TOPICS, places } from "../core/suggest";
 import { Bar, GAP, INSET, SECTION, stack } from "../ui/layout";
 import { drawSky, sceneFor } from "../apps/weathersky";
+import { dayShort, dayLong } from "../core/dates";
 
 
 /* ─────────── focus: start / pause / reset, durations ─────────── */
@@ -139,7 +140,7 @@ const moonPopup: WidgetPopupSpec = {
       const y = r.y + 3 + i;
       if (y >= r.y + r.h) return;
       ui.text(x, y, `${p.glyph} ${t(p.name)}`, { fg: c.fg }, w - 12);
-      ui.textRight(x + w, y, p.at.toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric", month: "short" }), { fg: c.accent });
+      ui.textRight(x + w, y, dayShort(p.at, dateLocale()), { fg: c.accent });
     });
   },
   onAction: (a, { deck }) => (a === "confirm" ? (deck.openApp("moon"), true) : false),
@@ -153,7 +154,7 @@ export const moonCommand: Command = {
     if (ctx.args[0] === "open") return void ctx.deck.openApp("moon");
     const now = Date.now();
     ctx.out(`${fmt.bold(phaseName(now))} · ${Math.round(moonLit(now) * 100)}% lit · day ${moonAge(now).toFixed(1)} of ${SYNODIC.toFixed(1)}\n`);
-    for (const p of upcoming(now)) ctx.out(`${p.glyph} ${p.name.padEnd(14)} ${fmt.dim(p.at.toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric", month: "short" }))}\n`);
+    for (const p of upcoming(now)) ctx.out(`${p.glyph} ${p.name.padEnd(14)} ${fmt.dim(dayShort(p.at, dateLocale()))}\n`);
   },
 };
 
@@ -379,7 +380,7 @@ const clockPopup: WidgetPopupSpec = {
     const start = new Date(now.getFullYear(), 0, 0);
     const doy = Math.floor((now.getTime() - start.getTime()) / 86400000);
     ui.textCenter(r, r.y, now.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" }), { fg: c.accent, attrs: BOLD });
-    ui.textCenter(r, r.y + 1, now.toLocaleDateString(dateLocale(), { weekday: "long", day: "numeric", month: "long", year: "numeric" }), { fg: c.fg });
+    ui.textCenter(r, r.y + 1, dayLong(now, dateLocale(), true), { fg: c.fg });
     ui.textCenter(r, r.y + 2, `${t("day {n}", { n: doy })} · ${Intl.DateTimeFormat().resolvedOptions().timeZone}`, { fg: c.subtle });
     // timer
     const tm = soonestTimer();

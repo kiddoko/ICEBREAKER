@@ -16,6 +16,7 @@ import type { UI } from "../ui/ui";
 import { drawMoon, moonBox, moonTone } from "../widgets/moondraw";
 import { daysUntil, moonAge, moonLit, nextPhase, phaseName, SYNODIC, upcoming, waxing } from "../widgets/moonphase";
 import type { App, AppSpec } from "./types";
+import { dayShort, dayLong } from "../core/dates";
 
 const DAY = 86_400_000;
 
@@ -74,7 +75,7 @@ class MoonApp implements App {
 
     // the day shown, and the way back to today
     const bar = new Bar(ui, body.x, body.y, body.x + body.w);
-    const day = new Date(when).toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
+    const day = dayLong(new Date(when), locale);
     bar.text(this.offset ? t("on {day}", { day }) : `${t("tonight")} · ${day}`, { fg: this.offset ? c.warning : c.muted }, { priority: 8, fit: 6 });
     bar.button("◂", () => this.go(-1), { tip: t("the day before · ←") }, { side: "right", priority: 7 });
     bar.button(t("today"), () => this.go("today"), { selected: !this.offset, tip: "t" }, { side: "right", priority: 6 });
@@ -144,7 +145,7 @@ class MoonApp implements App {
       new Bar(ui, r.x, y++, r.x + r.w)
         .text(`${p.glyph} ${t(p.name)}`, { fg: p.name === "full moon" ? moonTone(ui) : c.fg }, { priority: 9, fit: 8 })
         .text(inDays, { fg: n <= 2 ? c.accent : c.muted }, { side: "right", priority: 8 })
-        .text(p.at.toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" }), { fg: c.subtle }, { side: "right", priority: 5 })
+        .text(dayShort(p.at, locale), { fg: c.subtle }, { side: "right", priority: 5 })
         .draw();
     }
     return y;
@@ -195,7 +196,7 @@ class MoonApp implements App {
       const glyph = exact.get(n) ?? (waxing(at) ? "◑" : "◐");
       const label = big ? String(n) : `${String(n).padStart(2)} ${glyph}`;
       ui.text(x + Math.max(0, Math.floor((cellW - 1 - strWidth(label)) / 2)), y + rowH - 1, label, { fg: isToday ? c.accent : isShown ? c.fg : c.muted, bg, attrs: isToday || isShown ? BOLD : 0 });
-      ui.hit(cell, { onClick: () => this.go(daysUntil(new Date(at), today) - this.offset), tip: new Date(at).toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" }) + ` · ${t(phaseName(at))}` });
+      ui.hit(cell, { onClick: () => this.go(daysUntil(new Date(at), today) - this.offset), tip: dayLong(new Date(at), locale) + ` · ${t(phaseName(at))}` });
     }
   }
 }

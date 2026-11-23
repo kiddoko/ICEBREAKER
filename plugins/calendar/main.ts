@@ -356,7 +356,7 @@ export function activate(ib: IcebreakerAPI): void {
   const when = (e: Ev) => (e.allDay ? t("all day") : `${hm(dayOf(e.start))}–${hm(dayOf(e.end))}`);
   const dayTitle = (d: Date) => {
     const n = Math.round((startOfDay(d).getTime() - startOfDay(new Date()).getTime()) / DAY);
-    const label = d.toLocaleDateString(ib.lib.dateLocale(), { weekday: "long", day: "numeric", month: "long" });
+    const label = D.dayLong(d, ib.lib.dateLocale());
     return n === 0 ? `${t("today")} · ${label}` : n === 1 ? `${t("tomorrow")} · ${label}` : label;
   };
   const printDays = (ctx: ShellContext, from: Date, days: number, emptyToo: boolean) => {
@@ -545,7 +545,7 @@ export function activate(ib: IcebreakerAPI): void {
             if (!evs.length) return ctx.out(fmt.dim("nothing coming up\n")), 0;
             for (const e of evs) {
               const s = dayOf(e.start);
-              ctx.out(`${ansiColor(e.cal, "●")} ${fmt.dim(s.toLocaleDateString(ib.lib.dateLocale(), { weekday: "short", day: "numeric", month: "short" }).padEnd(14))} ${fmt.dim(e.allDay ? "all day" : hm(s))}  ${e.title} ${fmt.dim(`· ${until(s)} [${ref(e)}]`)}\n`);
+              ctx.out(`${ansiColor(e.cal, "●")} ${fmt.dim(D.dayShort(s, ib.lib.dateLocale()).padEnd(14))} ${fmt.dim(e.allDay ? "all day" : hm(s))}  ${e.title} ${fmt.dim(`· ${until(s)} [${ref(e)}]`)}\n`);
             }
             return 0;
           }
@@ -683,6 +683,8 @@ export function activate(ib: IcebreakerAPI): void {
       } else others.push(w);
     }
     const w = D.readWhen(others);
+    // "99:99", "31/02": no such time or day (it became an all-day event named "bad 99:99")
+    if (w.invalid) return ctx.err(`cal: ${t('no such date or time: "{x}"', { x: w.invalid })}\n`), 1;
     if (w.inMinutes !== null) {
       // "in an hour": that day, that minute
       const at = new Date(Date.now() + w.inMinutes * 60_000);
@@ -1313,8 +1315,8 @@ export function activate(ib: IcebreakerAPI): void {
     const x = r.x + INSET, w = r.w - INSET * 2;
     const now = new Date();
     const loc = ib.lib.dateLocale();
-    const long = now.toLocaleDateString(loc, { weekday: "long", day: "numeric", month: "long" }).toLowerCase();
-    const mid = now.toLocaleDateString(loc, { weekday: "short", day: "numeric", month: "short" }).replace(/\./g, "").toLowerCase();
+    const long = D.dayLong(now, loc).toLowerCase();
+    const mid = D.dayShort(now, loc).replace(/\./g, "").toLowerCase();
     const short = now.toLocaleDateString(loc, { weekday: "short", day: "numeric" }).replace(/\./g, "").toLowerCase();
     ui.textFit(x, r.y, [long, mid, short, String(now.getDate())], { fg: c.accent, attrs: BOLD }, w);
     const today = startOfDay(now);

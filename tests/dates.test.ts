@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseDay, parseDuration, parseTime, parseWhen, readWhen, ymd } from "../src/core/dates";
+import { dayLong, dayShort, parseDay, parseDuration, parseTime, parseWhen, readWhen, weekdayShort, ymd } from "../src/core/dates";
 
 const from = new Date(2026, 10, 19, 15, 0); // Thursday 19 Nov 2026, 15:00
 const day = (s: string) => {
@@ -114,5 +114,37 @@ describe("when — reminders, todo --due, cal add (English and French)", () => {
     expect(readWhen("dentist at 9h", from).rest).toEqual(["dentist"]);
     // a quoted shell word stays whole: "Sam" isn't read as saturday
     expect(readWhen(["coffee with Sam", "fri"], from).rest).toEqual(["coffee with Sam"]);
+  });
+});
+
+describe("impossible dates and times are refused, never moved (B4)", () => {
+  const from = new Date(2026, 10, 23, 10, 0);
+  it("31/02 and 2026-02-30 are no day", () => {
+    expect(parseDay("31/02", from)).toBeNull();
+    expect(parseDay("2026-02-30", from)).toBeNull();
+    expect(parseDay("29/02/2028", from)?.getDate()).toBe(29);
+  });
+  it("99:99 and 25h are no time, and readWhen says which word was wrong", () => {
+    expect(parseTime("99:99")).toBeNull();
+    const w = readWhen(["bad", "99:99"], from);
+    expect(w.invalid).toBe("99:99");
+    expect(readWhen(["dentist", "31/02", "9h"], from).invalid).toBe("31/02");
+    expect(readWhen(["dentist", "fri", "9h"], from).invalid).toBeUndefined();
+  });
+});
+
+describe("one way to write a day (E4)", () => {
+  const d = new Date(2026, 10, 23, 9, 0);
+  it("dayShort / dayLong, lowercase, in the deck's language", () => {
+    expect(dayShort(d, "en-GB")).toBe("mon 23 nov");
+    expect(dayLong(d, "en-GB")).toBe("monday 23 november");
+    expect(dayShort(d, "fr-FR")).toBe("lun 23 nov");
+    expect(dayLong(d, "fr-FR")).toBe("lundi 23 novembre");
+    expect(dayLong(d, "fr-FR", true)).toBe("lundi 23 novembre 2026");
+    expect(dayShort(d, "en-US")).toBe("mon 23 nov");
+  });
+  it("weekday names, short", () => {
+    expect(weekdayShort(1, "en-GB")).toBe("mon");
+    expect(weekdayShort(0, "fr-FR")).toBe("dim");
   });
 });

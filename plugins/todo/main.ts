@@ -76,7 +76,6 @@ interface Repeat {
   anchor: string;
 }
 
-const WD = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 /** "day", "2d", "other-day", "week", "2w", "mon,wed,sat", "month", "3m"… → a rule, or an error */
 export function parseRepeat(raw: string): Omit<Repeat, "left" | "anchor"> | string {
   const v = raw.toLowerCase().trim();
@@ -116,11 +115,13 @@ function parseCycles(raw: string): { left: number | null; until: string | null }
 }
 
 function describeRepeat(r: Repeat): string {
+  // in the deck's language: "↻ every other week on mon thu · 3 left" · "↻ une semaine sur deux lun jeu · 3 restantes"
+  const days = r.days?.map((d) => D.weekdayShort(d, locale())).join(" ") ?? "";
   const every = r.unit === "week" && r.days?.length
-    ? `${r.n === 2 ? "every other week on " : ""}${r.days.map((d) => WD[d]).join(" ")}`
-    : r.n === 1 ? `every ${r.unit}` : r.n === 2 ? `every other ${r.unit}` : `every ${r.n} ${r.unit}s`;
+    ? r.n === 2 ? tt("every other week on {days}", { days }) : days
+    : r.n === 1 ? tt(`every ${r.unit}`) : r.n === 2 ? tt(`every other ${r.unit}`) : tt(`every {n} ${r.unit}s`, { n: r.n });
   const times = r.times && r.times > 1 ? ` ×${r.times}` : "";
-  const end = r.left !== null ? ` · ${r.left} left` : r.until ? ` · until ${r.until}` : "";
+  const end = r.left !== null ? ` · ${tt("{n} left", { n: r.left })}` : r.until ? ` · ${tt("until {d}", { d: D.dayShort(new Date(`${r.until}T12:00`), locale()) })}` : "";
   return `↻ ${every}${times}${end}`;
 }
 
@@ -199,7 +200,7 @@ function dueLabel(due: string | null): string {
   if (n === 0) return tt("today");
   if (n === 1) return tt("tomorrow");
   const d = new Date(`${due}T12:00`);
-  return n < 7 ? d.toLocaleDateString(locale(), { weekday: "short" }).toLowerCase() : d.toLocaleDateString(locale(), { day: "numeric", month: "short" }).toLowerCase();
+  return n < 7 ? D.weekdayShort(d.getDay(), locale()) : D.dayShort(d, locale()).replace(/^\S+ /, "");
 }
 
 // ── parsing "walk the dog --urgent --due tomorrow +home" ──────────────────
@@ -236,7 +237,8 @@ export function parseTask(tokens: string[]): Parsed {
         // "--due demain 9h", "--due fri 6 pm": the words after it that still say when
         while (v !== undefined && i + 1 < tokens.length && !tokens[i + 1].startsWith("-") && parseDue(`${v} ${tokens[i + 1]}`) !== undefined) v = `${v} ${tokens[++i]}`;
         const d = v === undefined ? undefined : parseDue(v);
-        if (d === undefined) out.error = `can't read the date "${v ?? ""}" — try today, tomorrow, fri, +3d, 2026-12-01, 24/12, demain 9h`;
+        if (d === undefined && v && D.looksLikeWhen(v)) out.error = tt('no such date or time: "{x}"', { x: v });
+        else if (d === undefined) out.error = `can't read the date "${v ?? ""}" — try today, tomorrow, fri, +3d, 2026-12-01, 24/12, demain 9h`;
         else (out.due = d), (out.dueRaw = v);
         continue;
       }

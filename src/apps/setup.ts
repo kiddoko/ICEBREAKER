@@ -16,6 +16,7 @@ import { GAP, INSET } from "../ui/layout";
 import { checkVaultFolder, icebreakerInside, completeFolder, osOf, pathExamples, vaultPathProblem } from "./setuppath";
 import { IS_MAC } from "../core/input";
 import { pickFolder } from "../workspace/filebrowser";
+import { dayShort } from "../core/dates";
 
 /** this system's examples: its shells, a vault folder's path */
 const HERE = pathExamples(osOf(navigator.platform, navigator.userAgent));
@@ -946,7 +947,7 @@ export class SetupApp implements App {
 /** today, written the way a date format writes it: "lun. 23 nov. · 14:30" — what the DATE FORMAT step shows */
 function dateExample(locale: string | undefined): string {
   const d = new Date();
-  return `${d.toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" })} · ${d.toLocaleDateString(locale)} · ${d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}`;
+  return `${dayShort(d, locale)} · ${d.toLocaleDateString(locale)} · ${d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 export const setupSpec: AppSpec = {

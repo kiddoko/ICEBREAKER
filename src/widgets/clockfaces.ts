@@ -18,6 +18,7 @@ import type { UI } from "../ui/ui";
 import type { Deck } from "../deck";
 import { Braille } from "../ui/braille";
 import { ALARM_USAGE, alarmCommand } from "./alarmring";
+import { dayLong } from "../core/dates";
 
 export const CLOCK_STYLES = ["dots", "segment", "analog", "binary", "minimal"] as const;
 export type ClockStyle = (typeof CLOCK_STYLES)[number];
@@ -54,7 +55,7 @@ export function drawClock(ui: UI, r: Rect, deck: Deck, now = new Date(), key?: s
   const style = (CLOCK_STYLES as readonly string[]).includes(want) ? (want as ClockStyle) : "segment";
   const secs = !!widgetConfig(deck, key, "seconds", h.clockSeconds);
   const locale = dateLocale();
-  const date = now.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
+  const date = dayLong(now, locale);
   const grad = ui.theme.gradient.length ? ui.theme.gradient : [c.accent, c.accentAlt];
   const hh = pad(now.getHours()), mm = pad(now.getMinutes()), ss = pad(now.getSeconds());
   const blink = now.getSeconds() % 2 === 0 || secs ? ":" : " ";

@@ -96,7 +96,7 @@ export function activate(ib: IcebreakerAPI): void {
   const when = (r: Reminder) => {
     const d = new Date(r.due);
     const today = new Date().toDateString() === d.toDateString();
-    return `${today ? t("today") : d.toLocaleDateString(ib.lib.dateLocale(), { weekday: "short", day: "numeric", month: "short" })} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return `${today ? t("today") : D.dayShort(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
   const left = (r: Reminder) => {
     const min = Math.round((new Date(r.due).getTime() - Date.now()) / 60000);
@@ -139,15 +139,20 @@ export function activate(ib: IcebreakerAPI): void {
    * Words → the title, and the time if some words say one (fri 18:00, demain 9h, +10m, 1h).
    * `--at "…"` gives the time on its own: then every other word is the title.
    */
-  function parseWhen(words: string[], at?: string | true): { title: string[]; due: Date | null; inMin: number | null; bad?: string } {
+  function parseWhen(words: string[], at?: string | true): { title: string[]; due: Date | null; inMin: number | null; bad?: string; invalid?: string } {
     if (typeof at === "string") {
       const w = D.readWhen(at);
+      if (w.invalid) return { title: words, due: null, inMin: null, bad: at, invalid: w.invalid };
       if (w.rest.length) return { title: words, due: null, inMin: null, bad: at };
       return { title: words, due: D.resolveWhen(w), inMin: w.inMinutes };
     }
     const w = D.readWhen(words);
+    // "31/02", "99:99": no such day or time — said, never kept as part of the title
+    if (w.invalid) return { title: w.rest, due: null, inMin: null, bad: w.invalid, invalid: w.invalid };
     return { title: w.rest, due: D.resolveWhen(w), inMin: w.inMinutes };
   }
+  const badWhen = (p: { bad?: string; invalid?: string }): string =>
+    p.invalid ? t('no such date or time: "{x}"', { x: p.invalid }) : t('I didn\'t understand "{at}" — try {examples}', { at: p.bad ?? "", examples: EXAMPLES });
   /** the last reminder `remind` added (the pop-up checks it got there) */
   let lastAdded = 0;
 
@@ -204,7 +209,7 @@ export function activate(ib: IcebreakerAPI): void {
         if (!r) return ctx.err(`remind: no reminder ${rest[0] ?? ""} (remind ls)\n`), 1;
         const { flags: ef, rest: ew } = parseFlags(rest.slice(1), ["before", "at"]);
         const p = parseWhen(ew, ef.at);
-        if (p.bad) return ctx.err(`remind: ${t('I didn\'t understand "{at}" — try {examples}', { at: p.bad, examples: EXAMPLES })}\n`), 1;
+        if (p.bad) return ctx.err(`remind: ${badWhen(p)}\n`), 1;
         if (p.title.length) r.title = p.title.join(" ");
         if (p.due) {
           r.due = p.due.toISOString();
@@ -218,11 +223,17 @@ export function activate(ib: IcebreakerAPI): void {
       }
       // remind "title" <when…>
       const { flags, rest: words } = parseFlags(ctx.args, ["before", "at"]);
-      const { title, due: parsed, inMin, bad } = parseWhen(words, flags.at);
-      if (bad) return ctx.err(`remind: ${t('I didn\'t understand "{at}" — try {examples}', { at: bad, examples: EXAMPLES })}\n`), 1;
+      const pw = parseWhen(words, flags.at);
+      const { title, due: parsed, inMin, bad } = pw;
+      if (bad) return ctx.err(`remind: ${badWhen(pw)}\n`), 1;
       if (!title.length) return ctx.err('usage: remind "title" <day> <time> | +10m\n'), 1;
       // no time given: in an hour
       const due = parsed ?? new Date(Date.now() + 3600_000);
+      // in the past ("yesterday 9h"): it would ring at once, as late — asked first (refused in a pipe)
+      if (due.getTime() < Date.now() - 60_000) {
+        const yes = await ctx.read(t("{x} is already past — remind anyway?", { x: when({ due: due.toISOString() } as Reminder) }), { choices: [t("no"), t("yes")] }).catch(() => null);
+        if (yes !== t("yes") && yes !== "yes" && yes !== "2") return ctx.err(`remind: ${t("that time is already past: nothing added")}\n`), 1;
+      }
       const b = typeof flags.before === "string" ? /^(\d+)(m|min|h)?$/.exec(flags.before) : null;
       const dflt = Number(ib.settings.get("before") ?? 15);
       const before = b ? Number(b[1]) * (b[2] === "h" ? 60 : 1) : inMin !== null && inMin <= dflt ? 0 : dflt;
