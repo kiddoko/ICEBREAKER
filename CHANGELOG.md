@@ -40,6 +40,13 @@ The UX pass: everything discoverable, nothing stretched, the deck explains itsel
   `ib.ui.pickWhen`.
 - **A mini calendar under the top bar's date and time** (a click, `clock calendar`): the month,
   today, a dot on the days with events (a click opens that day in CALENDAR), the week number.
+- **The setup, clearer**: *‹ back esc* and *skip tab* are buttons at the bottom of every
+  question (going back with esc was said nowhere a tester looked); the vault's folder has a
+  *browse…* button (⌘O) beside its field, its suggestion is where the vault is now, and tab
+  completes the folder's name; the second language question is now **DATE FORMAT**, each choice
+  showing today's date written that way; in a small window the choices and the buttons come
+  first — the question is cut with … and long lists scroll (they ran over the buttons), and the
+  chapters at the top shrink to the one you're in.
 - **Ctrl + wheel changes the interface scale on every system**, one step a notch (Linux and
   Windows mice send lines: it took ~14 notches). **⇧ + wheel goes to what's under the
   pointer**, like the wheel — it walks the tree only over the tree (Settings scrolled the tree).

@@ -1853,4 +1853,18 @@ export const FR: Record<string, string> = {
   "What for? (optional)": "Pour quoi ? (facultatif)",
   "the month, today, the days with events · click": "le mois, aujourd'hui, les jours avec des événements · clic",
   "week {n}": "semaine {n}",
+
+  "DATE FORMAT": "FORMAT DES DATES",
+  "How should dates and times be written? (the calendar, the journal, the clock, the news) — the deck's language was the first question.": "Comment écrire les dates et les heures ? (le calendrier, le journal, l'horloge, les actus) — la langue du deck était la première question.",
+  "browse…": "parcourir…",
+  "choose the folder with the mouse": "choisir le dossier à la souris",
+  "the vault's folder": "le dossier du vault",
+  "tab completes the folder · enter next": "tab complète le dossier · entrée suivant",
+  "enter next": "entrée suivant",
+  "←→ · enter next": "←→ · entrée suivant",
+  "↑↓ or a number · enter keeps": "↑↓ ou un numéro · entrée garde",
+  "the question before (esc)": "la question d'avant (échap)",
+  "keep the default and go on (tab)": "garder la valeur par défaut et continuer (tab)",
+
+  "a full path (~/notes works) · tab completes the folder's name · or browse…": "un chemin complet (~/notes marche) · tab complète le nom du dossier · ou parcourir…",
 };
