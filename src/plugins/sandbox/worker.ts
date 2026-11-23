@@ -102,6 +102,10 @@ interface AppLike {
   onText?(t: string): boolean;
   onAction?(a: string): boolean;
   close?(): unknown;
+  /** a file of a kind the module opens (plugin.json `opens`), for this page already open */
+  openFile?(path: string): void;
+  /** a key let go (BreakerMED's note off) */
+  onKeyUp?(k: unknown): void;
 }
 interface WidgetLike {
   id: string;
@@ -405,6 +409,10 @@ scope.onmessage = async (ev: MessageEvent<ToModule>) => {
         const spec = appSpecs.get(m.kind);
         if (spec) apps.set(m.inst, spec.create(undefined, m.args));
         return;
+      }
+      case "file": {
+        apps.get(m.inst)?.openFile?.(m.path);
+        return post({ t: "redraw" });
       }
       case "close": {
         await apps.get(m.inst)?.close?.();

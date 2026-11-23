@@ -38,6 +38,11 @@ export interface App {
   menu?(): MenuEntry[];
   /** Called before closing; return false to cancel. */
   close?(): Promise<boolean> | boolean;
+  /**
+   * A file of a kind its module opens (plugin.json `opens`), opened while this page is already
+   * open — from the tree, NEXUS or `open <file>`. A new page gets it in its args instead: `{ file }`.
+   */
+  openFile?(path: string): void;
 }
 
 export interface AppSpec {

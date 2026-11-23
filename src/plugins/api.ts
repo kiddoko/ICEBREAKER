@@ -85,6 +85,13 @@ export interface PluginManifest {
    * first; it wakes up after them (plugins/deps.ts).
    */
   requires?: Record<string, string>;
+  /**
+   * The kinds of files it opens: `["bmed", "mod", "med"]` (in its own page) or
+   * `[{ "types": ["bmed"], "page": "breakermed" }]`. Opened from the tree, NEXUS or `open <file>`,
+   * such a file opens in that page: `{ file }` in the page's `create` args, or its `openFile(path)`
+   * when it's already open (plugins/fileassoc.ts). Never `.md`: notes are the deck's.
+   */
+  opens?: (string | { types: string[]; page?: string })[];
 }
 
 export interface IcebreakerAPI {

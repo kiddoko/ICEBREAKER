@@ -489,6 +489,10 @@ class ModuleApp implements App {
     this.box.send2({ t: "action", inst: this.inst, target: { kind: "app" }, a });
     return true;
   }
+  /** a file of a kind its module opens (plugin.json `opens`), for this page already open */
+  openFile(path: string): void {
+    this.box.send2({ t: "file", inst: this.inst, path });
+  }
   /** its own close() first (it can ask "save?" and keep the tab): the tab waits for its answer */
   close(): Promise<boolean> {
     return this.box.askClose(this.inst);

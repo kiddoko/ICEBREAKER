@@ -24,6 +24,7 @@ import { spokenAlert } from "../core/voice";
 import type { IcebreakerAPI, PluginManifest, PluginModule } from "./api";
 import * as lib from "./lib";
 import type { App } from "../apps/types";
+import { chooseHandler, extOf, handlersFor, readOpens, type Handler } from "./fileassoc";
 
 import pkg from "../../package.json";
 import { describeNeeds, unmet, wakeOrder, dependents, type Need } from "./deps";
@@ -148,6 +149,86 @@ export class PluginHost {
     const base = p.source === "vault" ? (Array.isArray(s.granted?.[id]) ? s.granted[id] : []) : this.asks(p.manifest);
     const off = s.revoked?.[id] ?? [];
     return off.length ? base.filter((x) => !off.includes(x)) : base;
+  }
+
+  // ── files it opens (plugin.json `opens`, plugins/fileassoc.ts) ──────────
+
+  /**
+   * Files you opened in a module outside the folders it was granted (you said yes): it may read
+   * them — and save them, if it may write notes at all — until the deck closes. Never kept.
+   */
+  private handed = new Map<string, Set<string>>();
+
+  /** you opened this file in that module: it may read it (and save it, if it writes notes at all) */
+  handedOver(id: string, path: string): boolean {
+    return this.handed.get(id)?.has(path) ?? false;
+  }
+
+  /** every module switched on that opens this kind of file */
+  handlersFor(path: string): Handler[] {
+    return handlersFor(path, this.active().map((p) => ({ id: p.manifest.id, opens: readOpens(p.manifest) })));
+  }
+
+  /** the page of a module that opens its files: the one it names, else the one named like it, else its first */
+  private pageOf(h: Handler): string | null {
+    const mine = this.deck.apps.list().map((a) => a.kind).filter((k) => this.deck.apps.sourceOf(k) === h.module);
+    if (h.page) return mine.includes(h.page) ? h.page : null;
+    return mine.includes(h.module) ? h.module : (mine[0] ?? null);
+  }
+
+  /**
+   * A file opened from the tree, NEXUS or `open <file>`: in the module that opens its kind, if any
+   * (false: none does — the deck opens it). Two modules for one kind: asked once, remembered
+   * (`plugins.openWith`; `with` names one for this time). A file outside the folders the module may
+   * read: asked first.
+   */
+  async openWith(path: string, withId?: string): Promise<boolean> {
+    const ext = extOf(path);
+    const all = this.handlersFor(path);
+    const name = (id: string) => (this.plugins.find((p) => p.manifest.id === id)?.manifest.name ?? id).toLowerCase();
+    let h: Handler | "ask" | null;
+    if (withId) {
+      h = all.find((x) => x.module === withId) ?? null;
+      if (!h) return void this.deck.notify(t("{m} doesn't open .{ext} files", { m: withId, ext }), "error"), true;
+    } else h = chooseHandler(all, this.deck.settings.data.plugins.openWith ?? {}, ext);
+    if (!h) return false;
+    if (!(await this.deck.vault.exists(path))) return void this.deck.notify(t("no such file: {file}", { file: path }), "error"), true;
+    if (h === "ask") {
+      const i = await this.deck.choose(t("open .{ext} files with", { ext }), all.map((x) => ({ label: name(x.module), hint: t("remembered: plugin open-with {ext} <module>", { ext }) })));
+      if (i === null) return true; // cancelled: nothing opens
+      h = all[i];
+      this.deck.settings.set("plugins.openWith", { ...(this.deck.settings.data.plugins.openWith ?? {}), [ext]: h.module });
+    }
+    const kind = this.pageOf(h);
+    if (!kind) return void this.deck.notify(t("{m} has no page to open {file}", { m: name(h.module), file: path }), "error"), true;
+    if (!(await this.mayOpen(h.module, path))) return true;
+    const ws = this.deck.workspace;
+    const open = ws.findTab(kind);
+    if (open) {
+      ws.switchTab(ws.tabs.indexOf(open));
+      open.openFile?.(path);
+      this.deck.requestFrame();
+    } else this.deck.openApp(kind, { file: path });
+    return true;
+  }
+
+  /** may the module read this file? Inside the folders it was granted: yes; elsewhere: you're asked (this file only) */
+  private async mayOpen(id: string, path: string): Promise<boolean> {
+    const granted = new Grants(() => this.effective(id));
+    if (granted.has("vault:read", path) || this.handedOver(id, path)) return true;
+    const p = this.plugins.find((x) => x.manifest.id === id);
+    const m = (p?.manifest.name ?? id).toLowerCase();
+    const save = granted.has("vault:write");
+    const ok = await this.deck.confirm(
+      t("open {file} in {m}?", { file: path, m }),
+      save ? t("{m} may read this file and save it — only this one, until the deck closes. its permissions don't reach it otherwise.", { m }) : t("{m} may read this file — only this one, until the deck closes. its permissions don't reach it otherwise.", { m }),
+    );
+    if (!ok) return false;
+    const set = this.handed.get(id) ?? new Set<string>();
+    set.add(path);
+    this.handed.set(id, set);
+    this.deck.access.note(id, "vault:read", path);
+    return true;
   }
 
   /** A module's permissions, for the page and `plugin perms`: each with whether it's on and when it was last used. */
@@ -671,6 +752,8 @@ export class PluginHost {
     /** `perm` — on `target` (a note's path, a host) when given — or a clear error */
     const need = (perm: string, target?: string) => {
       if (granted.has(perm, target)) return;
+      // a file you opened in it (plugin.json `opens`) outside its folders: that file, read — saved too if it writes notes at all
+      if (target !== undefined && this.handedOver(m.id, target) && (perm === "vault:read" || (perm === "vault:write" && granted.has("vault:write")))) return;
       const label = describePerm(perm).label;
       const want = parsePerm(perm) ?? (perm === "net" ? { base: "net" as const } : null);
       const off = (deck.settings.data.plugins.revoked?.[m.id] ?? []).some((x) => parsePerm(x)?.base === want?.base);

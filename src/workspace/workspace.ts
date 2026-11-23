@@ -498,6 +498,8 @@ export class Workspace {
    * open is just brought forward.
    */
   previewNote(path: string): void {
+    // a file a module opens (a song): walking past it in the tree doesn't start the module
+    if (this.deck.plugins.handlersFor(path).length) return;
     const key = `note:${path}`;
     const existing = this.tabs.findIndex((t) => t.key === key);
     if (existing >= 0) return void (this.active = existing);

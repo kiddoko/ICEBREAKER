@@ -2827,4 +2827,13 @@ export const FR: Record<string, string> = {
   "there was no encoder pack": "il n'y avait pas de pack d'encodeurs",
   "encoders: \"{x}\"? try encoders -h": "encoders : « {x} » ? essaie encoders -h",
   "clock: styles are {x}": "clock : les styles sont {x}",
+  // ── 0.8.1: files a module opens (plugin.json `opens`)
+  "{m} doesn't open .{ext} files": "{m} n'ouvre pas les fichiers .{ext}",
+  "open .{ext} files with": "ouvrir les fichiers .{ext} avec",
+  "remembered: plugin open-with {ext} <module>": "retenu : plugin open-with {ext} <module>",
+  "{m} has no page to open {file}": "{m} n'a pas de page pour ouvrir {file}",
+  "no such file: {file}": "fichier introuvable : {file}",
+  "open {file} in {m}?": "ouvrir {file} dans {m} ?",
+  "{m} may read this file and save it — only this one, until the deck closes. its permissions don't reach it otherwise.": "{m} pourra lire ce fichier et l'enregistrer — celui-là seulement, jusqu'à la fermeture du deck. ses permissions n'y donnent pas accès autrement.",
+  "{m} may read this file — only this one, until the deck closes. its permissions don't reach it otherwise.": "{m} pourra lire ce fichier — celui-là seulement, jusqu'à la fermeture du deck. ses permissions n'y donnent pas accès autrement.",
 };

@@ -97,6 +97,8 @@ export type ToModule =
   | { t: "settings"; settings: Record<string, unknown> }
   | { t: "create"; inst: string; kind: string; args?: unknown }
   | { t: "close"; inst: string }
+  /** a file of a kind it opens (plugin.json `opens`) for its page already open: the page's openFile(path) */
+  | { t: "file"; inst: string; path: string }
   /** its tab is closing: may it? (its close() can ask "save?" first) — answered with "closing" */
   | { t: "closing"; inst: string; id: number }
   /** `pad`: the pad in use, if any — the module's shortcuts show its buttons (ui/keyicons.ts) */
