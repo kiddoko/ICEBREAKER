@@ -1,6 +1,6 @@
 import { NONE } from "../../core/color";
 import type { Rect } from "../../core/grid";
-import type { Action, KeyInput, MouseInput } from "../../core/input";
+import { rawPageKey, type Action, type KeyInput, type MouseInput } from "../../core/input";
 import type { Deck } from "../../deck";
 import type { App } from "../../apps/types";
 import type { Command, ShellContext } from "../../shell/types";
@@ -445,10 +445,9 @@ class ModuleApp implements App {
     this.box.draw(ui, r, this.inst, { kind: "app" }, focused);
   }
   onKey(k: KeyInput): boolean {
-    // a page that plays the keyboard (App.rawKeys) undoes and saves its own work: ⌘Z / ⌘⇧Z and
-    // ⌘S / ⌘⇧S (save, save as — BreakerMED) go to it
-    // tab / shift+tab too (next / previous track: esc gives the keys back to the deck)
-    const own = this.rawKeys && ((k.ctrl && !k.alt && (k.key === "z" || k.code === "KeyZ" || k.key === "s" || k.code === "KeyS")) || (k.key === "tab" && !k.ctrl && !k.alt));
+    // a page that plays the keyboard (App.rawKeys) keeps some of the deck's keys (core/input.ts
+    // rawPageKey: ⌘Z, ⌘S, Tab / ⇧Tab, F1–F8, ⌘ ← → — BreakerMED's undo, save, tracks, octave, positions)
+    const own = this.rawKeys && rawPageKey(k);
     if (deckKey(k) && !own) return false;
     this.box.send2({ t: "key", inst: this.inst, target: { kind: "app" }, k: plainKey(k) });
     return true;

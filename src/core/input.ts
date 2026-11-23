@@ -136,6 +136,18 @@ export function typesText(e: { key: string; ctrlKey: boolean; metaKey: boolean; 
   return !(e.ctrlKey || e.metaKey || e.altKey) || (altGr && !e.metaKey) || macOption;
 }
 
+/**
+ * The deck's keys a page that plays the keyboard (App.rawKeys) keeps for itself while it's in
+ * front — a tracker's: ⌘Z / ⌘⇧Z (its undo), ⌘S / ⌘⇧S (save, save as), Tab / ⇧Tab (next /
+ * previous track), F1–F8 (octave), ⌘ / ctrl + ← → (positions). Everywhere else they stay the
+ * deck's (F1: the manual). Esc always gives the keys back to the deck.
+ */
+export function rawPageKey(k: KeyInput): boolean {
+  if (k.alt || k.meta) return false;
+  if (k.ctrl) return k.key === "z" || k.code === "KeyZ" || k.key === "s" || k.code === "KeyS" || k.key === "left" || k.key === "right";
+  return k.key === "tab" || /^f[1-8]$/.test(k.key);
+}
+
 /** A synthetic ctrl+<letter> press (used to turn native menu commands into our shortcuts). */
 export function ctrlKey(letter: string, shift = false): KeyInput {
   return { key: letter, code: `Key${letter.toUpperCase()}`, ctrl: true, alt: false, shift, meta: false, combo: `ctrl+${shift ? "shift+" : ""}${letter}` };
