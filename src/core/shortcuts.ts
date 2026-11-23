@@ -64,7 +64,8 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "tree", keys: "ctrl+shift+t · ctrl+b", what: "show / hide the file tree", cat: "panes & tabs", global: true, menuKey: "t", short: "file tree" },
   { id: "panel", keys: "ctrl+shift+p", what: "show / hide the side panel (widgets on the right)", cat: "panes & tabs", cmd: "panel", global: true, menuKey: "p", short: "side panel" },
   { id: "shell", keys: "ctrl+`", what: "show / focus the shell (again: hide it)", cat: "panes & tabs", global: true, menuKey: "s", short: "shell" },
-  { id: "shell-tabs", keys: "f12", what: "shell tabs: your terminals → ibsh → log", cat: "panes & tabs", global: true },
+  { id: "shell-new", keys: "ctrl+shift+`", what: "a new shell tab: ibsh or one of your shells (the « + » menu)", cat: "panes & tabs", cmd: "term menu", global: true },
+  { id: "shell-tabs", keys: "f12", what: "shell tabs: your terminals → the ibsh tabs → log", cat: "panes & tabs", global: true },
   { id: "macros", keys: "ctrl+shift+k", what: "show / hide the macro buttons above the terminal", cat: "panes & tabs", cmd: "macro toggle", global: true, menuKey: "k", short: "macros" },
 
   // notes

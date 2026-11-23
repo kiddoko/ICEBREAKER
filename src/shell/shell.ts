@@ -60,6 +60,20 @@ export class ShellApp implements App {
   readonly key = "shell";
   readonly term = new TerminalBuffer();
   readonly exec: ShellExecutor;
+  /** ibsh, ibsh 2…: each ibsh tab its own number (the smallest free one) */
+  readonly number: number;
+  private static used = new Set<number>();
+  /** the name you gave its tab (term rename, right-click); "" = "ibsh" / "ibsh 2" */
+  ownLabel = "";
+  /** its tab was closed while it was the last ibsh: kept (clicks and questions need a shell), shown again by the next ibsh */
+  hidden = false;
+  get name(): string {
+    return this.ownLabel || (this.number === 1 ? "ibsh" : `ibsh ${this.number}`);
+  }
+  /** its tab is gone for good: its number is free again */
+  dispose(): void {
+    ShellApp.used.delete(this.number);
+  }
 
   private input = "";
   private cursor = 0;
@@ -69,7 +83,6 @@ export class ShellApp implements App {
   /** the wheel's glide (ui/glide.ts) */
   private readonly glide = new Glide();
   private lastInputAt = 0;
-  private saveTimer: ReturnType<typeof setTimeout> | undefined;
   /** An interactive command is waiting for an answer (ctx.read). */
   private reading: Reading | null = null;
   /**
@@ -86,6 +99,10 @@ export class ShellApp implements App {
   };
 
   constructor(private readonly deck: Deck) {
+    let n = 1;
+    while (ShellApp.used.has(n)) n++;
+    this.number = n;
+    ShellApp.used.add(n);
     this.exec = new ShellExecutor(
       deck,
       (text, isError) => {
@@ -210,7 +227,7 @@ export class ShellApp implements App {
     if (echo) this.echoPrompt(line);
     if (keepInHistory(line) && this.exec.history[this.exec.history.length - 1] !== line) {
       this.exec.history.push(line);
-      this.saveHistory();
+      this.saveHistory(line);
     }
     const code = await this.exec.run(line);
     if (line.trim()) this.deck.log.add("cmd", line, { failed: code !== 0 });
@@ -272,7 +289,7 @@ export class ShellApp implements App {
     }
     if (keepInHistory(line) && this.exec.history[this.exec.history.length - 1] !== line) {
       this.exec.history.push(line);
-      this.saveHistory();
+      this.saveHistory(line);
     }
     // the LOG tab shows it, with its output (the terminals stay clean)
     const entry = this.deck.log.add("action", line);
@@ -653,21 +670,36 @@ export class ShellApp implements App {
 
   // ── history persistence (.icebreaker/shell_history in the vault) ─────────
 
+  /**
+   * Every ibsh tab's lines, in the order they were typed: what the history file keeps (like
+   * bash: each tab walks its own history with ↑, a new tab starts with all of it).
+   */
+  private static shared: string[] | null = null;
+  private static saveTimer: ReturnType<typeof setTimeout> | undefined;
+
   private async loadHistory(): Promise<void> {
     try {
-      if (await this.deck.vault.exists(HISTORY_FILE)) {
-        this.exec.history = (await this.deck.vault.read(HISTORY_FILE)).split("\n").filter(Boolean).slice(-1000);
-      }
+      if (!ShellApp.shared) ShellApp.shared = (await this.deck.vault.exists(HISTORY_FILE)) ? (await this.deck.vault.read(HISTORY_FILE)).split("\n").filter(Boolean).slice(-1000) : [];
+      // what this tab typed before the file was read stays after it
+      this.exec.history = [...ShellApp.shared, ...this.exec.history.filter((l) => !ShellApp.shared!.includes(l))].slice(-1000);
     } catch {
       /* no history yet */
     }
   }
 
-  private saveHistory(): void {
-    clearTimeout(this.saveTimer);
-    this.saveTimer = setTimeout(() => {
-      void this.deck.vault.write(HISTORY_FILE, this.exec.history.slice(-1000).join("\n") + "\n").catch(() => {});
+  private saveHistory(line: string): void {
+    const all = (ShellApp.shared ??= []);
+    all.push(line);
+    if (all.length > 1000) all.splice(0, all.length - 1000);
+    clearTimeout(ShellApp.saveTimer);
+    ShellApp.saveTimer = setTimeout(() => {
+      void this.deck.vault.write(HISTORY_FILE, all.join("\n") + "\n").catch(() => {});
     }, 1000);
+  }
+
+  /** a new account or vault (logging in again): its own history file */
+  static forgetHistory(): void {
+    ShellApp.shared = null;
   }
 }
 

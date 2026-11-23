@@ -209,7 +209,28 @@ export class Deck implements InputSink {
   /** ICEBREAKER's and the modules' updates (core/updater.ts) */
   readonly updater: Updater;
   readonly workspace: Workspace;
-  readonly shell: ShellApp;
+  /**
+   * Every ibsh (the shell panel's ibsh tabs, each with its own folder and ↑ history); the one
+   * shown, or last shown, is `shell` — what clicks, THE MENU and modules run their lines in.
+   */
+  readonly shells: ShellApp[] = [];
+  shellIndex = 0;
+  get shell(): ShellApp {
+    return this.shells[Math.min(this.shellIndex, this.shells.length - 1)];
+  }
+  /** one more ibsh (`term new ibsh`, the « + » menu): in the vault's root, with the whole history */
+  newShell(): ShellApp {
+    // the last one's tab was closed: it comes back instead of a new one (its output is still there)
+    const spare = this.shells.find((s) => s.hidden);
+    if (spare) return (spare.hidden = false), (this.shellIndex = this.shells.indexOf(spare)), spare;
+    const sh = new ShellApp(this);
+    this.shells.push(sh);
+    this.shellIndex = this.shells.length - 1;
+    if (this.shellsGreeted) sh.motd();
+    return sh;
+  }
+  /** the vault is there: a new ibsh prints its banner and reads the history at once */
+  private shellsGreeted = false;
   readonly renderer: Renderer;
   readonly loop: FrameLoop;
   readonly input: InputManager;
@@ -331,7 +352,7 @@ export class Deck implements InputSink {
     };
     this.workspace = new Workspace(this);
     this.voice = new DeckVoice(this);
-    this.shell = new ShellApp(this);
+    this.shells.push(new ShellApp(this));
 
     // files dragged in from the Finder / Explorer land in the tree
     this.platform.files?.onDragDrop((e) => this.workspace.sidebar.externalDrop(e));
@@ -464,6 +485,7 @@ export class Deck implements InputSink {
     boot?.log({ text: `Input: keyboard · mouse${pads ? ` · ${pads} gamepad${pads > 1 ? "s" : ""}` : " · gamepad (none plugged in)"}`, status: "OK" });
 
     this.shell.motd();
+    this.shellsGreeted = true;
     this.openApp("home");
     if (!s.setup.done) this.openApp("setup");
     void this.askVaultSettings();

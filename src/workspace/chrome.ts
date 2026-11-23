@@ -19,7 +19,7 @@ import { SystemTerminal, terminalKeysHint } from "../shell/systerm";
 import type { ShellTab, Workspace } from "./workspace";
 import { chipStyle, drawChip, placeChips, tabbedBox } from "./tabstrip";
 import { FRAME_IDS, joinedLeft, moveStatusItem, statusOrder } from "./statusbar";
-import { DECK_MENU_TITLE, editMacro, macroMenu, shellMenu, termTabMenu } from "./menus";
+import { DECK_MENU_TITLE, editMacro, macroMenu, shellMenu, shellTabMenu } from "./menus";
 import { dayShort } from "../core/dates";
 
 /**
@@ -44,9 +44,9 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
   // a narrow one keeps it as a tab
   const logSide = !moved && si.w >= LOG_SIDE_MIN && d.settings.data.shell.logSide !== false;
   if (logSide && ws.shellTab === "log") ws.shellTab = ws.termAvailable ? "term" : "ibsh";
+  // your terminals and the ibsh tabs, each with its index in its own list (shellEntries), then the log
   const tabs: [ShellTab, string, number][] = [
-    ...(ws.termAvailable ? ws.terms.map((tm, i) => ["term", tm.name, i] as [ShellTab, string, number]) : []),
-    ["ibsh", "ibsh", -1],
+    ...ws.shellEntries().map((e) => [e.kind, e.name, e.i] as [ShellTab, string, number]),
     // the log: everything that happened, filtered as you like; blinks red while errors are unread
     ...(logSide ? [] : [["log", d.log.unseenErrors ? `⚠ ${t("log")} ${d.log.unseenErrors}` : d.log.unseen ? `${t("log")} •${d.log.unseen}` : t("log"), -1] as [ShellTab, string, number]]),
   ];
@@ -70,12 +70,13 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
   let tx = r.x + INSET;
   let lastGroup = "";
   for (const [id, label, ti] of tabs) {
-    const group = id === "term" ? "term" : "deck";
-    if (lastGroup && group !== lastGroup) tx += 1; // your terminals, then the deck's own
+    const group = id === "log" ? "log" : "shells";
+    if (lastGroup && group !== lastGroup) tx += 1; // the shells, then the log
     lastGroup = group;
-    const on = !moved && id === ws.shellTab && (ti < 0 || ti === ws.termIndex);
+    const on = !moved && id === ws.shellTab && (id === "log" || ti === (id === "term" ? ws.termIndex : d.shellIndex));
     const icon = id === "term" ? "❯" : id === "ibsh" ? ui.theme.glyphs.mark : id === "log" ? "≣" : "";
-    const closable = id === "term" && on && ws.terms.length > 1;
+    // any shell tab closes (the ibsh one too) — the panel keeps one at least
+    const closable = id !== "log" && on && tabs.filter(([k]) => k !== "log").length > 1;
     const text = ` ${icon && !label.startsWith("⚠") ? `${icon} ` : ""}${label} ${closable ? "× " : ""}`;
     const rect = { x: tx, y: r.y, w: strWidth(text), h: 2 };
     if (rect.x + rect.w > bxr) break;
@@ -87,20 +88,22 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
     const style = alarm ? { fg: blink ? c.panel : c.error, bg: blink ? c.error : st.bg, attrs: BOLD } : { ...st, attrs: on ? BOLD : 0 };
     drawChip(ui, tx, r.y, rect.w, style.bg);
     ui.text(tx, r.y, text, style);
-    ui.hit(rect, { onClick: () => (moved && ws.showIn("shell", null), ti >= 0 && (ws.termIndex = ti), ws.showShellTab(id)), menu: ti >= 0 ? () => termTabMenu(ws, ti) : undefined, tip: id === "term" ? `right-click: rename, close… · term rename <name> · F12 next tab\n${ws.terms[ti]?.shellName ?? ""}: your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)` : id === "ibsh" ? "ICEBREAKER's own shell: works on the vault, rm goes to .trash · F12 next tab" : "the log: what you typed, what clicks ran, errors, messages, debug — tick what you want to see · log" });
-    // the terminal shown, when there are several: its × is part of its tab
+    const entry = id === "log" ? null : { kind: id as "term" | "ibsh", i: ti };
+    ui.hit(rect, { onClick: () => (moved && ws.showIn("shell", null), entry ? ws.showEntry(entry) : ws.showShellTab(id)), menu: entry ? () => shellTabMenu(ws, entry) : undefined, tip: id === "term" ? `${t("right-click: rename, close… · term rename <name> · F12 next tab")}\n${ws.terms[ti]?.shellName ?? ""}: ${t("your real shell, with ICEBREAKER's commands added (ib <cmd> forces one)")}` : id === "ibsh" ? t("ICEBREAKER's own shell: works on the vault, rm goes to .trash · each ibsh tab its own folder and history · F12 next tab") : t("the log: what you typed, what clicks ran, errors, messages, debug — tick what you want to see · log") });
+    // the tab shown, when there are several: its × is part of its tab
     if (closable) {
       const xr = { x: tx + rect.w - GAP, y: r.y, w: GAP, h: 1 };
       ui.text(xr.x, r.y, "×", { fg: ui.hovered(xr) ? c.error : style.fg, bg: style.bg, attrs: BOLD });
-      ui.hit(xr, { cmd: "term close", tip: t("close this terminal") });
+      ui.hit(xr, { cmd: "term close", tip: t("close this tab · term close") });
     }
     tx += rect.w + INSET;
-    // [+] a new terminal, right after the last one
-    // (only where it fits before the panel's buttons: a narrow shell — on the right — keeps `term new`)
-    if (id === "term" && ti === ws.terms.length - 1 && tx + 3 <= bxr) {
+    // [+] after the last shell tab: a little menu — ibsh, each shell of this computer, rename
+    // (ctrl+shift+` opens the same); only where it fits before the panel's buttons (else: term new)
+    const lastShell = tabs.filter(([k]) => k !== "log").at(-1);
+    if (lastShell && lastShell[0] === id && lastShell[2] === ti && tx + 3 <= bxr) {
       const pr = { x: tx, y: r.y, w: 3, h: 1 };
       ui.text(tx, r.y, " + ", { fg: ui.hovered(pr) ? c.bg : c.accent, bg: ui.hovered(pr) ? c.accent : mix(c.panel, c.accent, 0.1), attrs: BOLD });
-      ui.hit(pr, { cmd: "term new", tip: t("another terminal · term new") });
+      ui.hit(pr, { onClick: () => void ws.newShellMenu(pr.x, r.y + 1), tip: t("a new tab: ibsh or one of your shells · ctrl+shift+` · term new <shell>") });
       tx += 4;
     }
   }

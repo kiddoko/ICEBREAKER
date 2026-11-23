@@ -57,14 +57,20 @@ export function editMenu(ws: Workspace, opts: { copy?: boolean; cut?: boolean; s
 }
 
 /** Right-click on a terminal tab. */
-export function termTabMenu(ws: Workspace, i: number): MenuEntry[] {
+/** Right-click on a shell tab (a terminal or an ibsh): rename, a new one, restart, close. */
+export function shellTabMenu(ws: Workspace, e: { kind: "term" | "ibsh"; i: number }): MenuEntry[] {
+  const n = ws.shellEntries().findIndex((x) => x.kind === e.kind && x.i === e.i) + 1;
   return [
-    { label: t("Rename…"), run: () => ws.renameTerminal(i), hint: "term rename" },
-    { label: t("New terminal"), cmd: "term new" },
-    { label: t("Restart"), tip: t("start this shell again"), run: () => { ws.termIndex = i; void ws.deck.act("term restart"); } },
-    { label: t("Open in a tab"), run: () => { ws.termIndex = i; void ws.deck.act("term max"); } },
+    { label: t("Rename…"), run: () => ws.renameShellTab(e), hint: "term rename" },
+    { label: t("New tab…"), tip: t("ibsh or one of your shells · ctrl+shift+`"), run: () => void ws.newShellMenu() },
+    ...(e.kind === "term"
+      ? [
+          { label: t("Restart"), tip: t("start this shell again"), run: () => { ws.termIndex = e.i; void ws.deck.act("term restart"); } },
+          { label: t("Open in a tab"), run: () => { ws.termIndex = e.i; void ws.deck.act("term max"); } },
+        ]
+      : []),
     "-",
-    { label: t("Close"), cmd: `term close ${i + 1}`, danger: true, disabled: ws.terms.length < 2 },
+    { label: t("Close"), cmd: `term close ${n}`, danger: true, disabled: ws.shellEntries().length < 2 },
   ];
 }
 
@@ -100,7 +106,7 @@ export function shellMenu(ws: Workspace): MenuEntry[] {
   else if (ws.shellTab === "ibsh") items.push({ label: t("Clear"), cmd: "clear" });
   items.push(
     { label: t("New terminal"), cmd: "term new" },
-    ...(term ? [{ label: t("Rename…"), run: () => ws.renameTerminal() } as MenuItem] : []),
+    ...(ws.shownEntry ? [{ label: t("Rename…"), run: () => ws.renameShellTab(ws.shownEntry!) } as MenuItem] : []),
     { label: t("Scripts"), tip: t("your saved scripts"), cmd: "script menu" },
     "-",
     { label: ws.shellMax ? t("Restore") : t("Maximize"), cmd: ws.shellMax ? "term dock" : "term max" },

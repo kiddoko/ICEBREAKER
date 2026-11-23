@@ -1,3 +1,4 @@
+import type { ShellApp } from "../shell/shell";
 import type { Rect } from "../core/grid";
 import { IS_MAC, type Action, type KeyInput } from "../core/input";
 import type { Deck } from "../deck";
@@ -61,24 +62,30 @@ export const terminalSpec: AppSpec = {
 export class IbshApp implements App {
   readonly kind = "ibsh";
   readonly key = "ibsh";
-  constructor(private readonly deck: Deck) {}
+  /** the ibsh it shows: the one shown in the panel when it was maximized */
+  private readonly sh: ShellApp;
+  constructor(private readonly deck: Deck) {
+    this.sh = deck.shell;
+  }
   title(): string {
-    return "ibsh";
+    return this.sh.name;
   }
   status(): string {
-    return `${this.deck.shell.status()} · term dock: back to the panel`;
+    return `${this.sh.status()} · term dock: back to the panel`;
   }
   onKey(k: KeyInput): boolean {
-    return this.deck.shell.onKey(k);
+    return this.sh.onKey(k);
   }
   onText(t: string): boolean {
-    return this.deck.shell.onText(t);
+    return this.sh.onText(t);
   }
   onAction(a: Action): boolean {
-    return this.deck.shell.onAction(a);
+    return this.sh.onAction(a);
   }
   render(ui: UI, r: Rect, focused: boolean): void {
-    this.deck.shell.render(ui, r, focused);
+    // typing here runs in this ibsh: it's the one clicks use while it's in front
+    if (focused) this.deck.shellIndex = Math.max(0, this.deck.shells.indexOf(this.sh));
+    this.sh.render(ui, r, focused);
     dockButton(ui, r);
   }
 }

@@ -38,7 +38,7 @@ import { drawDropFrame, placeChips, renderTabStrip, soloTab, tabbedBox } from ".
 import { frameOfPane, PANE_OF, parsePlaces, parseShows, prunePlaces, type PlaceFrame, type Places, type Shows } from "./tabplaces";
 import { groupOf, joinGroup, parseGroups, pick, prune, renameGroup, stripEntries, takeOut, type StripEntry, type TabGroup } from "./tabgroups";
 import { GAP, INSET, SECTION } from "../ui/layout";
-import { isTerminalKey, parseView, renameKeys, type SessionView } from "./sessionview";
+import { isTerminalKey, parseView, type ShellTabSave, renameKeys, type SessionView } from "./sessionview";
 import { strWidth, truncate } from "../core/unicode";
 
 export type ShellTab = "term" | "ibsh" | "log";
@@ -213,20 +213,115 @@ export class Workspace {
     return this.terms[this.termIndex] ?? null;
   }
 
-  /** One more system terminal, shown at once. */
-  newTerminal(): void {
+  /** One more system terminal, shown at once. `shell`: which one (a name or path from `term shells`); none: your login shell. */
+  newTerminal(shell?: string): void {
     if (!this.termAvailable) return this.deck.notify(this.deck.platform.pty ? "the shell panel is in ibsh mode (term mode system)" : "needs the desktop app", "warning");
-    this.terms.push(new SystemTerminal(this.deck));
+    this.terms.push(new SystemTerminal(this.deck, shell));
     this.termIndex = this.terms.length - 1;
     this.showShellTab("term");
   }
 
-  /** Ask for a new name for terminal i (right-click on its tab, or `term rename`). */
-  async renameTerminal(i = this.termIndex): Promise<void> {
-    const tm = this.terms[i];
-    if (!tm) return;
-    const v = await this.deck.prompt("Terminal name", { initial: tm.name });
-    if (v?.trim()) void this.deck.act(`term rename ${i + 1} ${q(v.trim())}`);
+  /** One more ibsh tab (its own folder and ↑ history), shown at once. */
+  newIbsh(): void {
+    this.deck.newShell();
+    this.showShellTab("ibsh");
+  }
+
+  /** the shells of this computer (the « + » menu), asked once */
+  shellList: { name: string; path: string }[] | null = null;
+  async loadShells(): Promise<{ name: string; path: string }[]> {
+    if (this.shellList) return this.shellList;
+    return (this.shellList = this.termAvailable ? await this.deck.platform.pty!.shells().catch(() => []) : []);
+  }
+
+  /**
+   * The shell panel's tabs, in their order: your terminals, then the ibsh tabs. `term <n>`,
+   * `term close <n>` and `term rename <n>` count in this order.
+   */
+  shellEntries(): { kind: "term" | "ibsh"; i: number; name: string }[] {
+    return [
+      ...(this.termAvailable ? this.terms.map((tm, i) => ({ kind: "term" as const, i, name: tm.name })) : []),
+      ...this.deck.shells.map((sh, i) => ({ kind: "ibsh" as const, i, name: sh.name, hidden: sh.hidden })).filter((e) => !e.hidden).map(({ kind, i, name }) => ({ kind, i, name })),
+    ];
+  }
+
+  /** the entry shown in the shell panel (null: the log, or nothing) */
+  get shownEntry(): { kind: "term" | "ibsh"; i: number } | null {
+    if (this.shellTab === "term" && this.termAvailable && this.terms.length) return { kind: "term", i: this.termIndex };
+    if (this.shellTab === "ibsh") return { kind: "ibsh", i: this.deck.shellIndex };
+    return null;
+  }
+
+  /** Show tab e of the shell panel. */
+  showEntry(e: { kind: "term" | "ibsh"; i: number }): void {
+    if (e.kind === "term") this.termIndex = e.i;
+    else this.deck.shellIndex = e.i;
+    this.showShellTab(e.kind);
+  }
+
+  /** Close tab e: a terminal's shell is killed; an ibsh goes (the last one only hides: clicks still need a shell). */
+  closeEntry(e: { kind: "term" | "ibsh"; i: number }): void {
+    if (this.shellEntries().length < 2) return void this.deck.notify(t("the shell panel keeps one tab at least (term hide folds it away)"), "warning");
+    if (e.kind === "term") return this.closeTerminal(e.i);
+    const shells = this.deck.shells;
+    const sh = shells[e.i];
+    if (!sh) return;
+    const others = shells.filter((x) => x !== sh && !x.hidden);
+    if (!others.length) sh.hidden = true;
+    else {
+      sh.dispose();
+      shells.splice(e.i, 1);
+      if (this.deck.shellIndex >= e.i) this.deck.shellIndex = Math.max(0, this.deck.shellIndex - 1);
+    }
+    // what's shown next: another ibsh, else a terminal
+    const next = shells.findIndex((x) => !x.hidden);
+    if (this.shellTab === "ibsh") {
+      if (next >= 0 && shells[this.deck.shellIndex]?.hidden !== false) this.deck.shellIndex = next;
+      if (shells[this.deck.shellIndex]?.hidden && this.termAvailable && this.terms.length) this.showShellTab("term");
+    }
+  }
+
+  /** Rename tab e (a terminal or an ibsh): "" gives it back its shell's name. */
+  renameEntry(e: { kind: "term" | "ibsh"; i: number }, name: string): void {
+    const v = name.trim().slice(0, 24);
+    if (e.kind === "term") {
+      const tm = this.terms[e.i];
+      if (tm) tm.name = v;
+    } else {
+      const sh = this.deck.shells[e.i];
+      if (sh) sh.ownLabel = v;
+    }
+  }
+
+  /** Ask for a new name for a shell tab (right-click on it, or `term rename`): through the command, like a click. */
+  async renameShellTab(e: { kind: "term" | "ibsh"; i: number } | null = this.shownEntry): Promise<void> {
+    if (!e) return;
+    const n = this.shellEntries().findIndex((x) => x.kind === e.kind && x.i === e.i) + 1;
+    const cur = e.kind === "term" ? this.terms[e.i]?.name : this.deck.shells[e.i]?.name;
+    const v = await this.deck.prompt(t("Tab name"), { initial: cur ?? "" });
+    if (v?.trim() && n > 0) void this.deck.act(`term rename ${n} ${q(v.trim())}`);
+  }
+  /** (the old name: terminal i) */
+  renameTerminal(i = this.termIndex): Promise<void> {
+    return this.renameShellTab({ kind: "term", i });
+  }
+
+  /**
+   * The « + » menu (and ctrl+shift+`): ibsh first — the deck's shell, chosen with enter — then
+   * each shell of this computer, then « rename… ». Each line runs `term new <shell>`.
+   */
+  async newShellMenu(x?: number, y?: number): Promise<void> {
+    const shells = await this.loadShells();
+    const def = this.deck.settings.data.shell.defaultShell || "ibsh";
+    const items: MenuEntry[] = [
+      { label: `${def === "ibsh" ? "● " : "  "}ibsh`, tip: t("ICEBREAKER's own shell, on the vault"), cmd: "term new ibsh" },
+      ...shells.map((sh) => ({ label: `${def === sh.name || def === sh.path ? "● " : "  "}${sh.name}`, tip: sh.path, cmd: `term new ${q(sh.name)}` })),
+      "-",
+      { label: t("Rename…"), run: () => void this.renameShellTab(), disabled: !this.shownEntry },
+    ];
+    const at = x ?? this.rects.shell?.x ?? 0;
+    const top = y ?? (this.rects.shell ? this.rects.shell.y + 1 : 0);
+    this.openMenu(items, at, top, t("new tab"));
   }
 
   /** Close terminal i (default: the one shown); its shell is killed. */
@@ -299,6 +394,8 @@ export class Workspace {
     if (big >= 0) return this.switchTab(big);
     this.unfold("shell");
     if (t === "term" && !this.termAvailable) t = "ibsh";
+    // the last ibsh's tab was closed: a click or a question brings it back
+    if (t === "ibsh" && this.deck.shell.hidden) this.deck.shell.hidden = false;
     this.ownContent("shell");
     this.shellTab = t;
     this.shellTabChosen = true;
@@ -311,12 +408,13 @@ export class Workspace {
   }
 
   private cycleShellTab(): void {
-    // every terminal, then ibsh, then history
-    if (this.shellTab === "term" && this.termIndex < this.terms.length - 1) return (this.termIndex++, this.showShellTab("term"));
-    const tabs: ShellTab[] = [...(this.termAvailable ? (["term"] as ShellTab[]) : []), "ibsh", "log"];
-    const next = tabs[(tabs.indexOf(this.shellTab) + 1) % tabs.length];
-    if (next === "term") this.termIndex = 0;
-    this.showShellTab(next);
+    // every terminal, every ibsh, then the log (when it's a tab)
+    const list = this.shellEntries();
+    const cur = this.shownEntry;
+    const at = cur ? list.findIndex((e) => e.kind === cur.kind && e.i === cur.i) : -1;
+    if (at >= 0 && at < list.length - 1) return this.showEntry(list[at + 1]);
+    if (at === list.length - 1 && this.shellTab !== "log") return this.showShellTab("log");
+    if (list.length) this.showEntry(list[0]);
   }
 
   /** Tabs in the order they were looked at (keys), for esc → back. */
@@ -1178,7 +1276,7 @@ export class Workspace {
   private globalKey(k: KeyInput): boolean {
     const d = this.deck;
     // ⌘/ on any layout (AZERTY types it with shift): the physical key counts
-    const c = k.ctrl && !k.alt && (k.key === "/" || k.code === "Slash") ? "ctrl+/" : k.code === "Backquote" && k.ctrl && !k.shift ? "ctrl+`" : k.combo;
+    const c = k.ctrl && !k.alt && (k.key === "/" || k.code === "Slash") ? "ctrl+/" : k.code === "Backquote" && k.ctrl && !k.shift ? "ctrl+`" : k.code === "Backquote" && k.ctrl && k.shift && !k.alt ? "ctrl+shift+`" : k.combo;
     // your own shortcuts first (bind / the SHORTCUTS page)
     const mine = d.settings.data.keys?.[c];
     if (mine) return void d.act(mine), true;
@@ -1294,6 +1392,22 @@ export class Workspace {
       ratio: Math.round(this.shellRatio * 1000) / 1000,
       shellTab: this.shellTab,
       terms: this.terms.length,
+      // each tab of the shell panel: a terminal's shell, an ibsh's folder, the names you gave
+      ...(() => {
+        const entries = this.shellEntries();
+        const shown = this.shownEntry;
+        const shellTabs = entries.map((e) => {
+          if (e.kind === "term") {
+            const tm = this.terms[e.i];
+            return { kind: "term" as const, ...(tm?.shell ? { shell: tm.shell } : {}), ...(tm?.ownLabel ? { name: tm.ownLabel } : {}) };
+          }
+          const sh = this.deck.shells[e.i];
+          const cwd = sh?.exec.cwd;
+          return { kind: "ibsh" as const, ...(sh?.ownLabel ? { name: sh.ownLabel } : {}), ...(cwd && cwd !== "/" ? { cwd } : {}) };
+        });
+        const shellAt = Math.max(0, shown ? entries.findIndex((e) => e.kind === shown.kind && e.i === shown.i) : 0);
+        return { shellTabs, shellAt };
+      })(),
       focus: this.focus === "sidebar" || this.focus === "shell" || this.focus === "panel" ? this.focus : "main",
     };
     const active = Math.max(0, tabs.indexOf(this.tabs[Math.min(this.active, this.tabCount - 1)]?.key ?? ""));
@@ -1302,6 +1416,36 @@ export class Workspace {
     this.savedTabs = sig;
     const s = this.deck.settings;
     s.set("session", { ...(s.data.session ?? {}), tabs, active, groups, places, shows, view });
+  }
+
+  /**
+   * The shell panel's tabs as they were: each terminal with its shell (a shell this computer
+   * no longer has: the login shell), each ibsh in its folder, the names you gave them, the
+   * one that was shown. The first ibsh is the one already there.
+   */
+  private reopenShellTabs(tabs: ShellTabSave[], at: number): void {
+    const d = this.deck;
+    let ibshSeen = 0;
+    const made: { kind: "term" | "ibsh"; i: number }[] = [];
+    for (const tab of tabs) {
+      if (tab.kind === "term") {
+        if (!this.termAvailable) continue;
+        const tm = new SystemTerminal(d, tab.shell);
+        if (tab.name) tm.name = tab.name;
+        this.terms.push(tm);
+        made.push({ kind: "term", i: this.terms.length - 1 });
+      } else {
+        const sh = ibshSeen++ === 0 ? d.shells[0] : d.newShell();
+        if (tab.name) sh.ownLabel = tab.name;
+        if (tab.cwd) void d.vault.exists(tab.cwd).then((ok) => ok && (sh.exec.cwd = tab.cwd!)).catch(() => {});
+        made.push({ kind: "ibsh", i: d.shells.indexOf(sh) });
+      }
+    }
+    // no ibsh tab was saved: the deck's one stays, hidden (clicks and questions still need it)
+    if (!ibshSeen && made.length) d.shells[0].hidden = true;
+    const shown = made[Math.min(at, made.length - 1)];
+    if (shown?.kind === "term") this.termIndex = shown.i;
+    else if (shown) d.shellIndex = shown.i;
   }
 
   /** Open again what was open when the deck closed (notes that still exist, modules that are still on). */
@@ -1322,8 +1466,9 @@ export class Workspace {
       this.shellShown = view.shell;
       if (view.ratio) this.shellRatio = view.ratio;
       if (view.shellTab !== "term" || this.termAvailable) (this.shellTab = view.shellTab), (this.shellTabChosen = true);
-      // the shell panel's terminals: as many as there were (the first starts by itself when shown)
-      if (this.termAvailable) while (this.terms.length < view.terms) this.terms.push(new SystemTerminal(this.deck));
+      if (view.shellTabs?.length) this.reopenShellTabs(view.shellTabs, view.shellAt ?? 0);
+      // (0.7.1) the shell panel's terminals: as many as there were (the first starts by itself when shown)
+      else if (this.termAvailable) while (this.terms.length < view.terms) this.terms.push(new SystemTerminal(this.deck));
     }
     // a terminal tab opens again as a new terminal: its group and frame follow its new key
     const rename: Record<string, string> = {};

@@ -124,11 +124,12 @@ export function createTauriPlatform(): Platform {
       });
     },
     pty: {
-      spawn: (id, cols, rows, onData, modules, prompt) => {
+      spawn: (id, cols, rows, onData, modules, prompt, shell) => {
         const ch = new Channel<string>();
         ch.onmessage = onData;
-        return invoke<string>("pty_spawn", { id, cols, rows, onData: ch, modules: modules ?? [], prompt: prompt ?? "icebreaker" });
+        return invoke<string>("pty_spawn", { id, cols, rows, onData: ch, modules: modules ?? [], prompt: prompt ?? "icebreaker", shell: shell ?? null });
       },
+      shells: () => invoke<{ name: string; path: string }[]>("pty_shells"),
       write: (id, data) => invoke<void>("pty_write", { id, data }),
       resize: (id, cols, rows) => invoke<void>("pty_resize", { id, cols, rows }),
       kill: (id) => invoke<void>("pty_kill", { id }),
