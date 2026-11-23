@@ -408,11 +408,11 @@ export class PluginHost {
     // the modules' pages open now are made again from the new code: a tab that kept the old
     // page would show the old module (a sandboxed one: its last frame, frozen) until reopened
     const deck = this.deck;
-    const theirs = deck.workspace.tabs.filter((a) => this.isModulePage(a.kind)).map((app) => ({ app, kind: app.kind, args: deck.appArgs.get(app) }));
+    const theirs = deck.workspace.tabs.filter((a) => this.isModulePage(a.kind)).map((app) => ({ app, kind: app.kind, args: deck.appArgs.get(app), from: deck.apps.sourceOf(app.kind) }));
     for (const { app } of theirs) await Promise.resolve(app.close?.()).catch(() => {});
     for (const p of this.active()) await this.deactivate(p);
     await this.init(trustChanges);
-    for (const { app, kind, args } of theirs) {
+    for (const { app, kind, args, from } of theirs) {
       const spec = this.isModulePage(kind) ? deck.apps.get(kind) : undefined;
       let fresh: App | null = null;
       try {
@@ -421,8 +421,36 @@ export class PluginHost {
         deck.log.add("error", `[${kind}] ${e instanceof Error ? e.message : String(e)}`);
       }
       if (fresh) deck.appArgs.set(fresh, args);
+      // its module stays off now (its code changed: an install, waiting for your yes): the page
+      // comes back, on the new code, when you switch it on (enable)
+      else if (from) this.parked.set(from, [...(this.parked.get(from) ?? []), { kind, args }]);
       deck.workspace.replaceTab(app, fresh);
     }
+  }
+
+  /** pages that were open when their module went off on a reload (an install over it): reopened by enable */
+  private parked = new Map<string, { kind: string; args: unknown }[]>();
+
+  /**
+   * A module just switched on: its pages come up on its new code — the ones a reload closed
+   * (parked), and any tab still showing a page made before (the old code: a frozen frame).
+   */
+  private freshPages(id: string): void {
+    const deck = this.deck;
+    const kinds = new Set(deck.apps.list().map((a) => a.kind).filter((k) => deck.apps.sourceOf(k) === id));
+    for (const app of deck.workspace.tabs.filter((a) => kinds.has(a.kind))) {
+      const args = deck.appArgs.get(app);
+      try {
+        const fresh = deck.apps.get(app.kind)!.create(deck, args);
+        deck.appArgs.set(fresh, args);
+        deck.workspace.replaceTab(app, fresh);
+      } catch (e) {
+        deck.log.add("error", `[${app.kind}] ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    const parked = this.parked.get(id) ?? [];
+    this.parked.delete(id);
+    for (const { kind, args } of parked) if (kinds.has(kind) && !deck.workspace.findTab(kind)) deck.openApp(kind, args);
   }
 
   /** a page that a module (not the deck's core) registered */
@@ -553,6 +581,8 @@ export class PluginHost {
       s.set("plugins.disabled", s.data.plugins.disabled.filter((x) => x !== id));
     }
     await this.activate(p);
+    // tabs still on its old code (an install over it) and pages a reload closed: up on this code
+    if (p.active) this.freshPages(id);
     return p.active;
   }
 
@@ -567,6 +597,7 @@ export class PluginHost {
   async disable(id: string): Promise<boolean> {
     const p = this.plugins.find((x) => x.manifest.id === id);
     if (!p) throw new Error(`no plugin "${id}"`);
+    this.parked.delete(id); // switched off on purpose: its pages don't come back by themselves
     const s = this.deck.settings;
     if (p.source === "vault") {
       s.set("plugins.enabled", s.data.plugins.enabled.filter((x) => x !== id));

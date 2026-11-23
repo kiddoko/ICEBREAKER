@@ -17,6 +17,9 @@
   off); keys held when the window loses the keyboard are let go then.
 - **esc in a module's page** closes what the page has open first (its menu, its dialog); with nothing
   of its own, the tree or the shell takes the keys back — the page alone in the window: the tab before.
+- **A module installed over itself** (`plugin install`, the STORE): its open page closed while the new
+  code waited for your yes, and didn't come back. Switched on again, its pages come up **on the new
+  code** — and a tab still showing the old one is made again.
 - Documented: `ib.ui.pickFileBytes`, `fullWindow` and `ui.art` in the sandbox (they were there since 0.7).
 
 ## 0.8 — unreleased (branch ui-0.8)
