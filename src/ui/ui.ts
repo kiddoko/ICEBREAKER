@@ -1,6 +1,6 @@
 import { gradient as sampleGradient, mix, NONE, type RGB } from "../core/color";
 import { keySpans } from "./keycaps";
-import { BOLD, Grid, PIXELS, type Rect, type Style } from "../core/grid";
+import { BOLD, Grid, type Rect, type Style } from "../core/grid";
 import type { MouseInput } from "../core/input";
 import type { Theme } from "../core/theme";
 import { charWidth, strWidth, truncate } from "../core/unicode";
@@ -314,7 +314,8 @@ export class UI {
   /**
    * What's behind a dialog, a menu, a pop-up: every text in `fg` and every background pushed
    * towards the page's (a light background — the tab shown, a chosen button — kept its colour
-   * while its text went grey: unreadable). A picture's half blocks go flat (PIXELS).
+   * while its text went grey: unreadable). Block glyphs — a picture's half blocks too — keep
+   * their colours, darkened (the moon stays a moon, dimmer).
    */
   dim(r: Rect, fg: RGB): void {
     const g = this.grid;
@@ -323,9 +324,10 @@ export class UI {
         const i = y * g.cols + x;
         if (g.bg[i] !== NONE) g.bg[i] = mix(g.bg[i], this.c.bg, 0.6);
         const ch = g.ch[i];
-        // block glyphs (▀ ▄ █ ▌…: a tab's bar, a logo) are shapes, not text: their own colour,
-        // darkened — in the text's grey a tab's dark bar came out as a light one
-        if (ch >= 0x2580 && ch <= 0x259f && !(g.attr[i] & PIXELS)) g.fg[i] = mix(g.fg[i], this.c.bg, 0.6);
+        // block glyphs (▀ ▄ █ ▌…: a tab's bar, a logo, a picture's pixels: the moon) are shapes,
+        // not text: their own colour, darkened like their background — in the text's grey a
+        // tab's dark bar came out as a light one, and the moon as a flat grey disc
+        if (ch >= 0x2580 && ch <= 0x259f) g.fg[i] = mix(g.fg[i], this.c.bg, 0.6);
         else if (g.inClip(x, y)) g.tint(x, y, fg, NONE);
       }
   }

@@ -1812,4 +1812,6 @@ export const FR: Record<string, string> = {
   "NEXUS: your vault as a 3D map · ⌘⇧E": "NEXUS : ton vault en carte 3D · ⌘⇧E",
   "theme, effects, keys, AI, privacy… · ⌘,": "thème, effets, touches, IA, vie privée… · ⌘,",
   "the manual, the shortcuts, the tour · F1": "le manuel, les raccourcis, la visite · F1",
+
+  "{name}: added below — HOME scrolls": "{name} : ajouté en dessous — HOME défile",
 };

@@ -112,6 +112,8 @@ export class Workspace {
   private borderDrag: { b: Border; arr: ANode; m: MouseInput } | null = null;
 
   /** Move the border being dragged to the pointer: both sides' new lengths, saved (⌘Z: one step per drag). */
+  /** the last frame's switches and size (a dragged border keeps a share of it) */
+  private today: Today = { sidebar: true, shell: true, shellMax: false, panel: false, shellRatio: 0.3, cols: 1, bodyH: 1 };
   private dragBorder(m: MouseInput): void {
     const g = this.borderDrag;
     if (!g) return;
@@ -123,7 +125,8 @@ export class Workspace {
     const gap = row ? b.rb.x - (b.ra.x + b.ra.w) : 0;
     const pos = Math.max(start + MIN, Math.min(end - MIN - gap, row ? m.x : m.y));
     const aLen = pos - start, bLen = end - pos - gap;
-    const next = resizeBetween(g.arr, b.a as FrameId, b.b as FrameId, b.dir, aLen, bLen);
+    // kept as a share of the screen: a theme with another font keeps the proportions
+    const next = resizeBetween(g.arr, b.a as FrameId, b.b as FrameId, b.dir, aLen, bLen, row ? this.today.cols : this.today.bodyH);
     this.deck.settings.set("layout", { version: 1, root: next });
   }
 
@@ -1388,7 +1391,7 @@ export class Workspace {
     // a row of air under the top bar: the frames' tabs (VAULT, home…, PANEL) sat right against it
     const body = { x: 1, y: N + TOP_H + SECTION, w: W - 2, h: H - TOP_H - SECTION - 1 };
     const max = this.shellVisible && this.shellMax;
-    const today: Today = { sidebar: this.sidebarVisible, shell: this.shellVisible, shellMax: this.shellMax, panel: !!d.settings.data.panel?.shown, shellRatio: this.shellRatio, cols: W, bodyH: body.h };
+    const today: Today = (this.today = { sidebar: this.sidebarVisible, shell: this.shellVisible, shellMax: this.shellMax, panel: !!d.settings.data.panel?.shown, shellRatio: this.shellRatio, cols: W, bodyH: body.h });
     const layout = max ? todayLayout(today) : effectiveLayout(this.arrangement, today);
     const at = solveLayout(layout, body).rects;
     this.layout = layout;

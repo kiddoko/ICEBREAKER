@@ -17,6 +17,9 @@ import { INSET } from "../ui/layout";
 /** Grid geometry: 12 columns, one row unit = 2 text rows. */
 const COLS = 12;
 const ROW = 2;
+/** a grid row's height on screen = a column's width × this (and never more than ROW_MAX lines) */
+const ROW_SHAPE = 0.6;
+const ROW_MAX = 6;
 
 /**
  * HOME — a dashboard of widgets on a 12-column grid.
@@ -191,20 +194,16 @@ export class HomeApp implements App {
           }
       return null;
     };
-    // here if it fits on screen; else the next page with room; else a new page.
-    // Never below the bottom of the screen, where nobody would see it.
-    const pages = this.pageCount();
-    let spot = fit(this.page, visible);
-    for (let k = 1; !spot && k < pages; k++) spot = fit((this.page + k) % pages, visible);
-    spot ??= fit(pages, visible) ?? { id, ...(key !== id ? { key } : {}), page: pages, x: 0, y: 0, w: Math.min(COLS, spec.size.w), h: spec.size.h };
+    // here if it fits on screen; else below the rest of this page, at its own size, and HOME
+    // scrolls down to it (a new page nobody looks at hid it)
+    const bottom = layout.filter((p) => (p.page ?? 0) === this.page).reduce((m, p) => Math.max(m, p.y + p.h), 0);
+    const spot = fit(this.page, visible) ?? { id, ...(key !== id ? { key } : {}), page: this.page || undefined, x: 0, y: bottom, w: Math.min(COLS, spec.size.w), h: spec.size.h };
+    if (!spot.page) delete spot.page;
     layout.push(spot);
     this.selected = layout.length - 1;
     this.reveal = true;
     this.save(layout);
-    if ((spot.page ?? 0) !== this.page) {
-      this.setPage(spot.page ?? 0);
-      this.deck.notify(t("{name}: no room here — it's on page {n}", { name: t(spec.title), n: (spot.page ?? 0) + 1 }));
-    }
+    if (spot.y + spot.h > visible) this.deck.notify(t("{name}: added below — HOME scrolls", { name: t(spec.title) }));
     return true;
   }
 
@@ -450,11 +449,10 @@ export class HomeApp implements App {
     this.origin = { x: area.x, y: area.y };
     const colX = (n: number) => this.origin.x + Math.round(n * this.colW);
     this.areaH = area.h;
-    // Rows stretch to fill the page (themes have different font sizes, so a fixed
-    // row height left half the screen empty on one and overflowed on another);
-    // the same in and out of edit mode. Too much to fit: 2 lines a row, and it scrolls.
-    const used = this.compact(this.layout).filter((p) => (p.page ?? 0) === this.page && this.deck.widgets.get(p.id)).reduce((m, p) => Math.max(m, p.y + p.h), 0);
-    this.rowH = used ? Math.max(ROW, Math.min(4, (area.h + 1) / used)) : ROW;
+    // A grid row is as tall as a share of a column is wide, on screen: a widget keeps its
+    // shape whatever the theme's font (more or fewer cells) and the window — it used to stretch
+    // to fill the page. At least ROW lines; what doesn't fit scrolls.
+    this.rowH = Math.max(ROW, Math.min(ROW_MAX, this.colW * (ui.cellAspect || 0.5) * ROW_SHAPE));
     const contentH = (this.editing ? this.layout : this.compact(this.layout)).filter((p) => ((p.page ?? 0) === this.page)).reduce((m, p) => Math.max(m, Math.round((p.y + p.h) * this.rowH) - 1), 0); // the last row is a gap, not content
     const maxScroll = Math.max(0, contentH - area.h);
     // widgets sit where they were placed: top-left, the same in and out of edit mode
