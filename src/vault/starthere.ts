@@ -516,7 +516,7 @@ On a Mac, ⌘ plays the role of Ctrl.
 | ⌘, | settings |
 | ⌘⇧H · ⌘⇧M · ⌘⇧E | HOME · MODULES · NEXUS (explore) |
 | ⌘⇧U | UPLINK, the AI chat |
-| ⌘⇧T · ⌘⇧P · ⌘⇧S | the tree · the side panel · the shell |
+| ⌘⇧T · ⌘⇧P · ⌃\` | the tree · the side panel · the shell |
 | ⌘K · ⇧⇧ | **THE MENU**: type to search everything, or a key + enter (m ⏎ = MODULES). Shift twice works anywhere, even while typing |
 | ⌘⇧K · ⌘⇧F | macros · effects |
 | ⌘N · ⌘⇧N | new note · new folder |

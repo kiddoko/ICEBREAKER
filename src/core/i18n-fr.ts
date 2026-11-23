@@ -2241,4 +2241,7 @@ export const FR: Record<string, string> = {
   // ── 0.7.1: terminal
   "paste {n} lines?": "coller {n} lignes ?",
   "each line runs as you paste it": "chaque ligne s'exécute en arrivant",
+  // ── 0.7.1: keys
+  "next · previous part of the screen: page → panel → shell → tree": "partie suivante · précédente de l'écran : page → panneau → shell → arbre",
+  "save as: a copy under another name (save as <path>)": "enregistrer sous : une copie sous un autre nom (save as <chemin>)",
 };

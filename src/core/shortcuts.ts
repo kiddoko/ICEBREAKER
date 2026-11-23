@@ -55,7 +55,7 @@ export const SHORTCUTS: Shortcut[] = [
 
   // panes & tabs
   { keys: "tab", what: "next thing on the screen: widget, card, line", cat: "panes & tabs" },
-  { keys: "shift+tab", what: "next part of the screen: tree → deck → shell", cat: "panes & tabs" },
+  { keys: "f6 · shift+f6 · shift+tab", what: "next · previous part of the screen: page → panel → shell → tree", cat: "panes & tabs" },
   { keys: IS_MAC ? "ctrl+alt+←↑↓→" : "alt+←↑↓→", what: IS_MAC ? "move to the pane in that direction" : "move to the pane in that direction (not in a page that plays the keyboard: esc first)", cat: "panes & tabs" },
   { id: "tab-next", keys: "ctrl+tab", what: "next tab", cat: "panes & tabs", cmd: "tab next", global: true, menuKey: "]", short: "next tab" },
   { id: "tab-prev", keys: "ctrl+shift+tab", what: "previous tab", cat: "panes & tabs", cmd: "tab prev", global: true, menuKey: "[", short: "previous tab" },
@@ -63,7 +63,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "tab-close", keys: "ctrl+w", what: "close the tab", cat: "panes & tabs", cmd: "tab close", global: true, menuKey: "w", short: "close the tab" },
   { id: "tree", keys: "ctrl+shift+t · ctrl+b", what: "show / hide the file tree", cat: "panes & tabs", global: true, menuKey: "t", short: "file tree" },
   { id: "panel", keys: "ctrl+shift+p", what: "show / hide the side panel (widgets on the right)", cat: "panes & tabs", cmd: "panel", global: true, menuKey: "p", short: "side panel" },
-  { id: "shell", keys: "ctrl+` · ctrl+shift+s", what: "show / focus the shell (again: hide it)", cat: "panes & tabs", global: true, menuKey: "s", short: "shell" },
+  { id: "shell", keys: "ctrl+`", what: "show / focus the shell (again: hide it)", cat: "panes & tabs", global: true, menuKey: "s", short: "shell" },
   { id: "shell-tabs", keys: "f12", what: "shell tabs: your terminals → ibsh → log", cat: "panes & tabs", global: true },
   { id: "macros", keys: "ctrl+shift+k", what: "show / hide the macro buttons above the terminal", cat: "panes & tabs", cmd: "macro toggle", global: true, menuKey: "k", short: "macros" },
 
@@ -71,7 +71,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "new-note", keys: "ctrl+n", what: "new note", cat: "notes", global: true, menuKey: "n", short: "new note" },
   { id: "new-folder", keys: "ctrl+shift+n", what: "new folder", cat: "notes", global: true, menuKey: "N", short: "new folder" },
   { keys: "ctrl+s", what: "save (notes also save themselves)", cat: "notes" },
-  { keys: "ctrl+shift+s", what: "save as: a copy under another name (in a note; elsewhere: the shell)", cat: "notes" },
+  { keys: "ctrl+shift+s", what: "save as: a copy under another name (save as <path>)", cat: "notes" },
   { keys: "ctrl+enter · ctrl+click", what: "follow the [[link]] under the cursor", cat: "notes" },
   { keys: "tab · shift+tab", what: "indent · unindent (shift+tab leaves the note when there's nothing to unindent)", cat: "notes" },
   { keys: "ctrl+z · ctrl+shift+z · ctrl+y", what: "undo · redo — anything: settings, widgets moved, trash, renames, new notes (in a note: the typing first) · `undo list`", cat: "everywhere" },

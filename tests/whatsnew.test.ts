@@ -67,3 +67,17 @@ describe("the notes", () => {
     }
   });
 });
+
+import { chipWindow } from "../src/workspace/whatsnew";
+describe("what's new: the version chips (Fable C7)", () => {
+  it("the newest that fit, the one being read among them", () => {
+    expect(chipWindow([5, 5, 5, 5, 5], 4, 12)).toEqual({ from: 3, to: 4 });
+    expect(chipWindow([5, 5, 5, 5, 5], 3, 12)).toEqual({ from: 3, to: 4 });
+  });
+  it("an older one read: the window starts at it", () => {
+    expect(chipWindow([5, 5, 5, 5, 5], 0, 12)).toEqual({ from: 0, to: 1 });
+  });
+  it("everything fits", () => {
+    expect(chipWindow([5, 5, 5], 1, 100)).toEqual({ from: 0, to: 2 });
+  });
+});

@@ -850,9 +850,9 @@ export class Workspace {
     else if (dir === "up" && this.focus === "shell") this.focus = "main";
   }
 
-  private cycleFocus(): void {
+  private cycleFocus(dir: 1 | -1 = 1): void {
     const order: Pane[] = ["main", ...(this.rects.panel ? (["panel"] as Pane[]) : []), ...(this.shellVisible ? (["shell"] as Pane[]) : []), ...(this.sidebarVisible ? (["sidebar"] as Pane[]) : [])];
-    this.focus = order[(order.indexOf(this.focus) + 1) % order.length];
+    this.focus = order[(order.indexOf(this.focus) + dir + order.length) % order.length];
   }
 
   // ── overlays ─────────────────────────────────────────────────────────────
@@ -1034,6 +1034,8 @@ export class Workspace {
       if (this.focus === "main" && (this.activeApp?.kind === "note" || this.rawKeys()) && this.activeApp?.onKey?.(k)) return;
       return this.cycleFocus();
     }
+    // F6 / shift+F6: the next / previous part of the screen (the usual key for it, in every app)
+    if (k.combo === "f6" || k.combo === "shift+f6") return this.cycleFocus(k.combo === "f6" ? 1 : -1);
     // the system terminal gets the keyboard (ctrl+c, ctrl+r, esc…); ⌘ shortcuts stay the deck's
     if (this.focus === "shell" && this.shellVisible && !this.shownIn("shell") && this.shellTab === "term" && this.termAvailable && this.terminal.wants(k)) {
       this.terminal.onKey(k);
