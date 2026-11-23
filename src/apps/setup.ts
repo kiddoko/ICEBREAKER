@@ -253,6 +253,8 @@ export class SetupApp implements App {
   private finished = false;
 
   status(): string {
+    // the vault's folder: tab completes the path there, ⌘O browses (it said "tab skip")
+    if (this.cur.id === "vault-path") return t("type a path · tab completes · ⌘O browse · enter next · esc back");
     return t(this.cur.text ? "type · enter next · tab skip · esc back · ctrl+enter finish" : this.cur.slider ? "←→ or drag · enter next · tab skip · esc back · ctrl+enter finish" : "a number, ↑↓ or a click chooses · enter or a 2nd click keeps · tab skip · esc back");
   }
 

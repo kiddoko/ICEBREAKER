@@ -2021,4 +2021,6 @@ export const FR: Record<string, string> = {
   "up": "en ligne",
 
   "desktop only": "bureau seulement",
+
+  "type a path · tab completes · ⌘O browse · enter next · esc back": "tape un chemin · tab complète · ⌘O parcourir · entrée suivant · échap retour",
 };
