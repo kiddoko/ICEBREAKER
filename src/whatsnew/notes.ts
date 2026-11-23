@@ -33,6 +33,7 @@ export interface VersionNotes {
 export const NOTES: VersionNotes[] = [
   {
     version: "0.7.1",
+    date: "2026-11-23",
     en: {
       added: [
         "Settings, NEXUS, STORE, MODULES and the trash are real tabs",

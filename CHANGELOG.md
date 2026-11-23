@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.7.1 — not released yet
+## 0.7.1 — 2026-11-23
 
 First steps, one name per thing, safety nets — from Fable's exploration of 0.7.0 (web and the
 Windows bench), the 12 answers to its questions, and the Review 0.7.
