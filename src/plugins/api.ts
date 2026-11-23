@@ -402,6 +402,12 @@ export interface IcebreakerAPI {
      */
     pickWhen(title: string, opts?: { date?: boolean; time?: boolean; days?: boolean; initial?: string; initialDays?: string[]; clear?: boolean; allDay?: boolean; placeholder?: string; typed?: string }): Promise<{ text: string; date?: string; time?: string; days?: string[]; typed?: boolean; cleared?: boolean } | null>;
     pickFile(title: string, exts?: string[], start?: string): Promise<string | null>;
+    /**
+     * The user chooses a text file on the computer (the deck's browser) and you get its text —
+     * the deck reads it because they chose it: no permission needed (2 MB at most). For an
+     * import (events, contacts…). `{ name, text }`, or null (cancelled, too big, the web).
+     */
+    pickFileText(title: string, exts?: string[]): Promise<{ name: string; text: string } | null>;
     theme(): Theme;
     /** Ask for a redraw (after changing state outside an input handler). */
     redraw(): void;

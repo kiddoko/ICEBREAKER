@@ -17,6 +17,7 @@
  * The app and the widget change nothing themselves: they run `cal …` commands.
  */
 import type { App } from "../../src/apps/types";
+import { parseEventsFile } from "./importer";
 import type { Rect } from "../../src/core/grid";
 import type { Action, KeyInput } from "../../src/core/input";
 import type { IcebreakerAPI } from "../../src/plugins/api";
@@ -483,6 +484,7 @@ export function activate(ib: IcebreakerAPI): void {
       "cal month [day]          this month as a grid",
       'cal add "title" <day> [14:30[-16:00]] [--for 1h] [--cal name] [--where place]',
       "cal rm <ref>             remove an event ([ref] is shown next to it)",
+      "cal import [file]        events from a CSV or an .ics (no file: choose one on the computer)",
       "cal open [day]           the CALENDAR app",
       "cal settings             its settings: calendars, Google, local files",
       "cal calendars            your calendars",
@@ -520,7 +522,7 @@ export function activate(ib: IcebreakerAPI): void {
       "  4. cal google setup   (paste the client ID and secret) · cal google setup --default goes back",
       "  5. cal google connect",
     ].join("\n"),
-    complete: () => ["today", "tomorrow", "week", "next", "month", "add", "rm", "open", "settings", "calendars", t("default"), "show", "hide", "sync", "google"],
+    complete: () => ["today", "tomorrow", "week", "next", "month", "add", "rm", "import", "open", "settings", "calendars", t("default"), "show", "hide", "sync", "google"],
     async run(ctx) {
       await ready;
       await recheck();
@@ -579,6 +581,7 @@ export function activate(ib: IcebreakerAPI): void {
             return 0;
           }
           case "add": return await add(ctx, rest);
+          case "import": return await importFile(ctx, rest);
           case "rm": case "remove": case "del": {
             const e = rest[0] && byRef(rest[0]);
             if (!e) return ctx.err(`cal: no event "${rest[0] ?? ""}" (the [ref] next to it in \`cal\`)\n`), 1;
@@ -784,6 +787,35 @@ export function activate(ib: IcebreakerAPI): void {
   }
 
   /** Ask title / day / time / calendar, then run the `cal add` it adds up to. */
+  /**
+   * `cal import [file]`: events from a CSV (Google's or Outlook's export, a sheet with a title and
+   * a date) or an .ics, into the local calendar (plain Markdown in the vault). No file: the
+   * deck's browser, the user chooses one on the computer. Says how many and asks first.
+   */
+  async function importFile(ctx: ShellContext, args: string[]): Promise<number> {
+    const path = args.filter((a) => !a.startsWith("--")).join(" ");
+    let picked: { name: string; text: string } | null;
+    if (path) picked = { name: path, text: await ib.vault.read(path) };
+    else picked = await ib.ui.pickFileText(t("events to import (CSV or .ics)"), ["csv", "ics", "txt"]);
+    if (!picked) return 0;
+    const evs = parseEventsFile(picked.text, picked.name);
+    if (!evs.length) return ctx.err(t("cal import: no events found in {name} (a CSV needs a title column and a date column)", { name: picked.name }) + "\n"), 1;
+    const first = evs[0];
+    const ok = await ib.ui.confirm(t("Import {n} events into the local calendar?", { n: evs.length }), `${first.title} · ${first.start.toLocaleDateString()}${evs.length > 1 ? ` … ${evs[evs.length - 1].title}` : ""}`);
+    if (!ok) return 0;
+    const added: Ev[] = [];
+    for (const e of evs) {
+      const end = e.allDay ? addDays(e.start, Math.max(1, Math.round(e.minutes / 1440))) : new Date(e.start.getTime() + e.minutes * 60_000);
+      const ev: Ev = { id: `l${nextLocal++}`, cal: "local", title: e.title, start: e.allDay ? ymd(e.start) : e.start.toISOString(), end: e.allDay ? ymd(end) : end.toISOString(), allDay: e.allDay, where: e.where };
+      local.push(ev);
+      added.push(ev);
+    }
+    await writeMonths(added);
+    ib.ui.redraw();
+    ctx.out(fmt.green(t("{n} events imported into the local calendar (calendar/ in the vault)", { n: added.length })) + "\n");
+    return 0;
+  }
+
   async function addFlow(day: Date): Promise<void> {
     const title = await ib.ui.prompt("New event", { placeholder: t("dentist") });
     if (!title?.trim()) return;
@@ -1081,6 +1113,7 @@ export function activate(ib: IcebreakerAPI): void {
         btn(" › ", () => this.onText("]"), "next month · ]");
         btn(t(" today "), () => this.goto(new Date()), "t");
         btn(t(" + add "), () => void addFlow(this.day), "a · or: cal add \"title\" <day> <time>");
+        btn(t(" ⇣ import "), () => run("cal import"), t("events from a file: a CSV (Google, Outlook, a sheet) or an .ics · cal import"));
         if (connected) btn(syncing ? ` ${ui.spinner()} sync ` : t(" ⟳ sync "), () => run("cal sync"), "s · cal sync");
       } else btn(t(" ‹ back "), () => (this.view = "month"), "esc");
       btn(t(" ⚙ settings "), () => (this.view = this.view === "settings" ? "month" : "settings"), "c · calendars, Google, local files", this.view === "settings");

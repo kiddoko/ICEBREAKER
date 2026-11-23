@@ -186,6 +186,7 @@ function makeIb(manifest: unknown, version: string): unknown {
       pickFolder: rpc("ui", "pickFolder"),
       pickWhen: rpc("ui", "pickWhen"),
       pickFile: rpc("ui", "pickFile"),
+      pickFileText: rpc("ui", "pickFileText"),
       theme: () => theme,
       redraw: () => post({ t: "redraw" }),
     },

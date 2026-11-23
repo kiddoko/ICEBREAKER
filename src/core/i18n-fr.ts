@@ -1882,4 +1882,14 @@ export const FR: Record<string, string> = {
   "{n} folders": "{n} dossiers",
   "{n} notes": "{n} notes",
   "{n} other files": "{n} autres fichiers",
+
+  " ⇣ import ": " ⇣ importer ",
+  "events from a file: a CSV (Google, Outlook, a sheet) or an .ics · cal import": "des événements depuis un fichier : un CSV (Google, Outlook, un tableur) ou un .ics · cal import",
+  "events to import (CSV or .ics)": "les événements à importer (CSV ou .ics)",
+  "cal import: no events found in {name} (a CSV needs a title column and a date column)": "cal import : aucun événement dans {name} (un CSV a besoin d'une colonne titre et d'une colonne date)",
+  "Import {n} events into the local calendar?": "Importer {n} événements dans le calendrier local ?",
+  "{n} events imported into the local calendar (calendar/ in the vault)": "{n} événements importés dans le calendrier local (calendar/ dans le vault)",
+  "that file is too big to import (2 MB at most)": "ce fichier est trop gros pour être importé (2 Mo au plus)",
+  "When?": "Quand ?",
+  "or type it: 14:30 · 9:30-10:15 · fri 18h": "ou tape-le : 14:30 · 9:30-10:15 · ven 18h",
 };

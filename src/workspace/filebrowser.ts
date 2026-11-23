@@ -276,6 +276,19 @@ export function pickFolder(deck: Deck, title: string, start?: string): Promise<s
   return new Promise((resolve) => deck.workspace.push(new FileBrowser(deck, { source: "computer", title, start, pickDir: resolve })));
 }
 
+/**
+ * A text file the user chooses, read for the one who asked (a module's import): the user's
+ * choice is the consent, nothing else of the computer is opened. 2 MB at most.
+ */
+export async function pickFileText(deck: Deck, title: string, exts: string[] = []): Promise<{ name: string; text: string } | null> {
+  const path = await pickFile(deck, title, exts);
+  if (!path || !deck.platform.files) return null;
+  const text = await deck.platform.files.readText(path).catch((e) => (deck.notify(String((e as Error)?.message ?? e), "error"), null));
+  if (text === null) return null;
+  if (text.length > 2_000_000) return deck.notify(t("that file is too big to import (2 MB at most)"), "warning"), null;
+  return { name: path.split(/[\\/]/).pop() ?? path, text };
+}
+
 /** Pick a file anywhere on the computer (the deck's own picker). Resolves with its path, or null. */
 export function pickFile(deck: Deck, title: string, exts: string[] = [], start?: string): Promise<string | null> {
   if (!deck.platform.files) return deck.notify(t("picking files needs the desktop app"), "warning"), Promise.resolve(null);

@@ -10,7 +10,7 @@ import { isDeckPath } from "../vault/paths";
 import { FRAME_PARTS, frameServices } from "./frame-services";
 import { sandboxed } from "./sandbox/bridge";
 import { AudioStream } from "../core/audiostream";
-import { pickFile, pickFolder } from "../workspace/filebrowser";
+import { pickFile, pickFileText, pickFolder } from "../workspace/filebrowser";
 import { whenForModules } from "../ui/calendar";
 import { auditCode, auditReport, type AuditFinding } from "./audit";
 import { moduleSettingRows } from "../apps/settings-rows";
@@ -947,6 +947,7 @@ export class PluginHost {
         pickFolder: (title, start) => pickFolder(deck, from(title), start),
         pickWhen: (title, o) => deck.pickWhen(from(title), o ?? {}).then((r) => (r ? whenForModules(r) : null)),
         pickFile: (title, exts, start) => pickFile(deck, from(title), exts, start),
+        pickFileText: (title, exts) => pickFileText(deck, from(title), exts),
         // on screen, a module from the STORE signs its alert; the voice reads only what it says
         alert: (title, body) => (need("notify"), deck.alert(from(title), body, "reminders", spokenAlert(String(title), body))),
         say: (text, topic) => (need("notify"), deck.speak((["calendar", "reminders", "timers", "weather", "system"].includes(topic ?? "") ? topic : "modules") as VoiceTopic, text)),
