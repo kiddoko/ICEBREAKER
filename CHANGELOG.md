@@ -40,6 +40,19 @@ catalog level with the code.
   `weekdayShort` in `core/dates.ts` (`ib.lib.dates`), lowercase, in the deck's language — the top
   bar, reminders, todo, the calendar, the journal, the moon, the screensaver, the setup.
 
+**From the Windows bench's account test (0.7.1)**
+- A new account speaks the login page's language from its first second (it was English until the
+  setup's first answer): its LOG, the shell's banner, and its first note — **Bienvenue.md** in
+  French; the shell's prompt says its name, not « netrunner ».
+- In French: `account delete` (its question, « mot de passe actuel »), and a toast once it's done;
+  the voice's lines in the LOG (« salutation : oui », « la voix parle français »); the shell's
+  banner; the boot's « appuie sur une touche pour te brancher »; the setup's « Réglages → VOIX ».
+- The setup at a big size: an option's description is never cut — the chosen one's is written
+  whole under the list when it doesn't fit on its line; the answers' column is wider.
+- A key's name inside a sentence is a word, not a key: « Space Mono », « Delete the account? ».
+- Skipping the tour: « tu peux la refaire… le menu ◆ → visite guidée » (it said « le rejouer…
+  LE MENU → tour »).
+
 **A real shell (B4)**
 - Impossible dates and times are refused, never moved: `todo --due 31/02`, `cal add "x" 99:99`,
   `remind "x" 31/02 9h` say « no such date or time » (31/02 became 3 March; 99:99 an all-day event

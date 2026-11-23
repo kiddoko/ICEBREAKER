@@ -136,7 +136,7 @@ export class Tour implements Overlay {
   private async skip(): Promise<void> {
     if (this.asking) return;
     this.asking = true;
-    const ok = await this.deck.confirm(t("Are you sure you want to skip the tutorial?"), t("You can play it again any time: `tour` in the shell, or THE MENU → tour."));
+    const ok = await this.deck.confirm(t("Are you sure you want to skip the tutorial?"), t("You can take it again any time: `tour` in the shell, or the ◆ menu → guided tour."));
     this.asking = false;
     if (ok) this.end();
     this.deck.requestFrame();

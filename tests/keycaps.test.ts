@@ -37,3 +37,15 @@ describe("the article a is not a key", () => {
     expect(keysIn("e éditer · a ajouter un widget")).toEqual(["e", "a"]);
   });
 });
+
+describe("a key's name in a sentence is a word, not a key (bench 0.7.1)", () => {
+  it("« Space Mono » (a font), « Delete the account? » (a question)", () => {
+    expect(keysIn("font: Space Mono")).toEqual([]);
+    expect(keysIn("Delete the account test3?")).toEqual([]);
+    expect(keysIn("Tab names follow the shell")).toEqual([]);
+  });
+  it("still keys in hints", () => {
+    expect(keysIn("Space plays · Esc back")).toEqual(["Space", "Esc"]);
+    expect(keysIn("Delete: to the trash")).toEqual(["Delete"]);
+  });
+});

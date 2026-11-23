@@ -218,8 +218,9 @@ export class ShellApp implements App {
   motd(): void {
     void this.loadHistory();
     const handle = this.deck.settings.data.user.handle;
-    this.term.write(`\x1b[2mICEBREAKER shell · ibsh ${APP_VERSION} · type \x1b[0m\x1b[35mhelp\x1b[0m\x1b[2m to list commands, \x1b[0m\x1b[35mman <cmd>\x1b[0m\x1b[2m for details\x1b[0m\n`);
-    this.term.write(`\x1b[2mlast login: ${new Date().toLocaleString(dateLocale())} on deck as \x1b[0m\x1b[95m${handle}\x1b[0m\n`);
+    // in the deck's language (it was English on a French deck)
+    this.term.write(`\x1b[2m${t("ICEBREAKER shell · ibsh {v} · type ", { v: APP_VERSION })}\x1b[0m\x1b[35mhelp\x1b[0m\x1b[2m${t(" to list commands, ")}\x1b[0m\x1b[35mman <cmd>\x1b[0m\x1b[2m${t(" for details")}\x1b[0m\n`);
+    this.term.write(`\x1b[2m${t("last login: {when} on deck as ", { when: new Date().toLocaleString(dateLocale()) })}\x1b[0m\x1b[95m${handle}\x1b[0m\n`);
   }
 
   /** Run a command line as if typed (used by the palette and buttons). */

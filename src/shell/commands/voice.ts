@@ -1,3 +1,4 @@
+import { t } from "../../core/i18n";
 import { fmt } from "../../core/ansi";
 import { phrase } from "../../core/voice";
 import type { Command } from "../types";
@@ -53,7 +54,7 @@ export const voiceCommand: Command = {
           return 0;
         case "stop": deck.voice.stop(); return 0;
         case "read": deck.settings.set("voice.readAI", onOff(b, v.readAI)); ctx.out(`read LINK's answers: ${deck.settings.data.voice.readAI ? "on" : "off"}\n`); return 0;
-        case "greet": deck.settings.set("voice.greet", onOff(b, v.greet)); ctx.out(`greeting: ${deck.settings.data.voice.greet ? "on" : "off"}\n`); return 0;
+        case "greet": deck.settings.set("voice.greet", onOff(b, v.greet)); ctx.out(`${t("greeting: {x}", { x: t(deck.settings.data.voice.greet ? "on" : "off") })}\n`); return 0;
         case "robot": case "rate": case "volume": {
           const n = Number(b);
           const [lo, hi] = a === "rate" ? [0.5, 2] : [0, 100];
@@ -78,7 +79,10 @@ export const voiceCommand: Command = {
           if (b !== "en" && b !== "fr" && b !== "ja") return ctx.err("usage: voice language en | fr | ja\n"), 1;
           deck.settings.set("voice.language", b);
           deck.settings.set("voice.name", "");
-          ctx.out(`the voice speaks ${b === "fr" ? "French" : b === "ja" ? "Japanese (the system voice; AI answers are translated before they're read)" : "English"}${b === "ja" || (await deck.platform.voice!.info()).piper_voices.some((x) => x.includes(`-${b}_`)) ? "" : ` · neural voice: voice install ${b}`}\n`);
+          // (said in the deck's language: it showed in English in the LOG after a French setup)
+          const speaks = t(b === "fr" ? "the voice speaks French" : b === "ja" ? "the voice speaks Japanese (the system voice; AI answers are translated before they're read)" : "the voice speaks English");
+          const neural = b === "ja" || (await deck.platform.voice!.info()).piper_voices.some((x) => x.includes(`-${b}_`)) ? "" : ` · ${t("neural voice: voice install {l}", { l: b })}`;
+          ctx.out(`${speaks}${neural}\n`);
           return 0;
         case "install": {
           const lang = b ?? v.language;

@@ -394,6 +394,15 @@ export class Deck implements InputSink {
     const session = await this.platform.account.session().catch(() => null);
     if (!session) return this.startLogin();
     this.account = session.user;
+    // a new account, before its setup: the prompt and the greeting say its name, not « netrunner »
+    // (the setup's handle question starts from it)
+    if (!s.setup.done && (!s.user.handle || s.user.handle === "netrunner") && session.user) this.settings.set("user.handle", session.user);
+    // …and speaks the login page's language from its first second: its LOG, its banner, its
+    // Welcome note were English before the setup's first answer
+    if (!s.setup.done) {
+      const dev = await readDevice(this.platform).catch(() => null);
+      if (dev?.lang === "fr" && s.user.language !== "fr") this.settings.set("user.language", "fr");
+    }
 
     // the POST runs live: each line shows when its step is really done
     const boot = s.boot.mode !== "off" ? new BootScreen(s.boot.mode) : null;
