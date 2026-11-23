@@ -787,10 +787,10 @@ export function activate(ib: IcebreakerAPI): void {
   async function addFlow(day: Date): Promise<void> {
     const title = await ib.ui.prompt("New event", { placeholder: t("dentist") });
     if (!title?.trim()) return;
-    const when = await ib.ui.prompt(t("When? ({day})", { day: day.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) }), {
-      placeholder: t("14:30 · 9:30-10:15 · empty = all day · or another day: fri 18h"),
-    });
-    if (when === null) return;
+    // the little calendar and clock: a day and a time, "all day", or typed (9:30-10:15, fri 18h)
+    const picked = await ib.ui.pickWhen(t("When?"), { date: true, time: true, allDay: true, initial: `${ymd(day)} 09:00`, placeholder: t("or type it: 14:30 · 9:30-10:15 · fri 18h") });
+    if (picked === null) return;
+    const when = picked.typed ? picked.text : picked.time ? `${picked.date} ${picked.time}` : picked.date ?? "";
     const writable = calendars().filter((c) => c.writable);
     let cal = calOf(defaultCal) ?? LOCAL;
     if (writable.length > 1) {

@@ -394,6 +394,13 @@ export interface IcebreakerAPI {
      * permissions (desktop only; null elsewhere).
      */
     pickFolder(title: string, start?: string): Promise<string | null>;
+    /**
+     * WHEN? — the deck's little calendar and clock: a day (`date`), a time (`time`), days of the
+     * week (`days`), or what the user typed instead. `text` is ready for your command
+     * ("2026-12-24", "2026-12-24 09:30", "07:30", "mon,fri", or what was typed); null: cancelled.
+     * `clear: true` adds a "none" button (→ `{ cleared: true, text: "" }`).
+     */
+    pickWhen(title: string, opts?: { date?: boolean; time?: boolean; days?: boolean; initial?: string; initialDays?: string[]; clear?: boolean; allDay?: boolean; placeholder?: string; typed?: string }): Promise<{ text: string; date?: string; time?: string; days?: string[]; typed?: boolean; cleared?: boolean } | null>;
     pickFile(title: string, exts?: string[], start?: string): Promise<string | null>;
     theme(): Theme;
     /** Ask for a redraw (after changing state outside an input handler). */

@@ -1,6 +1,8 @@
 import { RecoveryDialog } from "./recoverydialog";
 import { DECK_MENU_TITLE, deckMenu, frameMenu, editMenu, shellMenu } from "./menus";
 import type { TipContent } from "../ui/tipview";
+import { MiniCalendar } from "./minical";
+import { WhenPicker, type WhenOptions, type WhenResult } from "./whenpicker";
 import { editBand, renderNotchBand, renderShellPanel, renderStatusBar, renderSubtitles, renderTip, renderTopBar } from "./chrome";
 import { shortcutFor, type Shortcut } from "../core/shortcuts";
 import { SidePanel } from "./sidepanel";
@@ -967,6 +969,11 @@ export class Workspace {
     return new Promise((resolve) => this.push(new RecoveryDialog(words, resolve)));
   }
 
+  /** a day, a time, days of the week (workspace/whenpicker.ts) */
+  pickWhen(title: string, opts: WhenOptions, locale: string): Promise<WhenResult | null> {
+    return new Promise((resolve) => this.push(new WhenPicker(title, opts, locale, resolve)));
+  }
+
   prompt(title: string, opts: PromptOptions = {}): Promise<string | null> {
     return new Promise((resolve) => this.push(new PromptDialog(title, opts, resolve)));
   }
@@ -992,6 +999,13 @@ export class Workspace {
    * On text with nothing of its own: copy / paste.
    */
   /** "◆ ICEBREAKER ▾", under the logo (a click on it, or esc with nothing else to close). */
+  /** the mini calendar under the top bar's date (a click on it, `clock calendar`); again: closed */
+  openMiniCalendar(): void {
+    const open = this.overlays.find((o) => o instanceof MiniCalendar && !o.done);
+    if (open) return void (open.done = true);
+    this.push(new MiniCalendar(this.deck, { x: this.today.cols - 1, y: this.topBarY + 1 }));
+  }
+
   openDeckMenu(): void {
     this.openMenu(deckMenu(this), 0, this.topBarY + 1, DECK_MENU_TITLE());
   }

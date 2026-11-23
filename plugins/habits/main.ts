@@ -117,6 +117,9 @@ export function activate(ib: IcebreakerAPI): void {
     const n = count(h, d);
     return h.per === 1 ? (n ? ib.lib.BOX_ON : ib.lib.BOX_OFF) : h.per <= 8 ? "●".repeat(n) + "○".repeat(h.per - n) : `${n}/${h.per}`;
   };
+  /** a weekday's number (0 = sunday) as the picker names it, and the seven of them */
+  const dayId = (d: number) => ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][d];
+  const ALL_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
   const daysLabel = (h: Habit) => (h.days.length ? h.days.map((d) => ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][d]).join(" ") : t("every day"));
 
   ib.commands.register({
@@ -197,9 +200,10 @@ export function activate(ib: IcebreakerAPI): void {
     if (name === null) return;
     const times = await ib.ui.prompt(t("How many times a day?"), { initial: String(h.per) });
     if (times === null) return;
-    const days = await ib.ui.prompt(t("Which days? (- = every day)"), { initial: h.days.length ? daysLabel(h).replace(/ /g, ",") : "", placeholder: "mon,wed,fri" });
-    if (days === null) return;
-    run(`habit edit ${h.id} ${q(name.trim() || h.name)} --times ${Math.max(1, Number(times) || h.per)}${days.trim() ? ` --days ${days.trim().replace(/[\s,]+/g, ",")}` : ""}`);
+    const picked = await ib.ui.pickWhen(t("Which days?"), { days: true, initialDays: h.days.length ? h.days.map(dayId) : [...ALL_DAYS] });
+    if (picked === null) return;
+    const days = picked.text.trim() && picked.days?.length !== 7 ? picked.text.trim() : "-";
+    run(`habit edit ${h.id} ${q(name.trim() || h.name)} --times ${Math.max(1, Number(times) || h.per)} --days ${days.replace(/[\s,]+/g, ",")}`);
   }
   const askRemove = (h: Habit) => void ib.ui.confirm(t("Remove {name}?", { name: h.name }), t("Its history goes too.")).then((ok) => ok && run(`habit rm ${h.id}`));
   const isDelete = (k: KeyInput) => k.combo === "delete" || k.combo === "ctrl+backspace" || k.combo === "backspace";
@@ -217,9 +221,10 @@ export function activate(ib: IcebreakerAPI): void {
     if (!name?.trim()) return;
     const times = await ib.ui.prompt(t("How many times a day?"), { initial: "1" });
     if (times === null) return;
-    const days = await ib.ui.prompt(t("Which days? (empty = every day)"), { placeholder: "mon,wed,fri" });
-    if (days === null) return;
-    run(`habit add ${q(name.trim())}${Number(times) > 1 ? ` --times ${Number(times)}` : ""}${days.trim() ? ` --days ${days.trim().replace(/\s+/g, "")}` : ""}`);
+    const picked = await ib.ui.pickWhen(t("Which days?"), { days: true, initialDays: [...ALL_DAYS] });
+    if (picked === null) return;
+    const days = picked.days?.length === 7 ? "" : picked.text.trim();
+    run(`habit add ${q(name.trim())}${Number(times) > 1 ? ` --times ${Number(times)}` : ""}${days ? ` --days ${days.replace(/\s+/g, "")}` : ""}`);
   }
 
   ib.modules.expose("list", { needs: "vault:read", doc: "list() → [{ id, name, per, days, today (count), done, streak }]", fn: async () => (await ready, habits.map((h) => ({ ...h, today: count(h, new Date()), done: doneOn(h, new Date()), streak: streak(h) }))) });
@@ -377,7 +382,7 @@ export function activate(ib: IcebreakerAPI): void {
     "space check · u uncheck · a add · e edit · del remove · ↑↓": "espace cocher · u décocher · a ajouter · e modifier · suppr retirer · ↑↓",
     "space / enter check · u uncheck · a add · e edit · x remove": "espace / entrée cocher · u décocher · a ajouter · e modifier · x retirer",
     "The habit": "L'habitude",
-    "Which days? (- = every day)": "Quels jours ? (- = tous les jours)",
+    "Which days?": "Quels jours ?",
     "Edit…": "Modifier…",
     "Remove…": "Retirer…",
     tick: "cocher",
@@ -385,7 +390,6 @@ export function activate(ib: IcebreakerAPI): void {
     "A new habit": "Une nouvelle habitude",
     "read 20 pages · drink water · stretch": "lire 20 pages · boire de l'eau · s'étirer",
     "How many times a day?": "Combien de fois par jour ?",
-    "Which days? (empty = every day)": "Quels jours ? (vide = tous les jours)",
     "Habits": "Habitudes",
     "habits": "habitudes",
     "space / enter check · u uncheck · a add · x remove": "espace / entrée cocher · u décocher · a ajouter · x retirer",

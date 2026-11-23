@@ -47,6 +47,7 @@ import { DEFAULT_SETTINGS, type SettingsStore } from "./core/settings";
 import { UndoHistory } from "./core/undo";
 import { setTypewriterHost } from "./ui/typewriter";
 import { TIP_CSS, TipView } from "./ui/tipview";
+import type { WhenOptions, WhenResult } from "./workspace/whenpicker";
 import { applyTweaks, ThemeManager, type Theme } from "./core/theme";
 import { glitch } from "./fx/glitch";
 import type { Platform } from "./platform/types";
@@ -874,6 +875,17 @@ export class Deck implements InputSink {
   /** Pick one option (type to filter): its index, or null. */
   choose(title: string, options: ChoiceOption[], opts: { selected?: number } = {}): Promise<number | null> {
     const p = this.workspace.choose(title, options, opts.selected ?? 0);
+    this.requestFrame();
+    return p;
+  }
+
+  /**
+   * WHEN? — a day, a time, days of the week, in a little calendar and clock (or typed):
+   * `pickedText(r)` (ui/calendar.ts) writes it the way the commands read it.
+   */
+  pickWhen(title: string, opts: WhenOptions = {}): Promise<WhenResult | null> {
+    const u = this.settings.data.user;
+    const p = this.workspace.pickWhen(t(title), opts, u.locale || (u.language === "fr" ? "fr-FR" : navigator.language || "en-GB"));
     this.requestFrame();
     return p;
   }

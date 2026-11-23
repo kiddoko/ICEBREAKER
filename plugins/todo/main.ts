@@ -415,9 +415,9 @@ export function activate(ib: IcebreakerAPI): void {
       extra = ` --times ${Number(n) || 2}`;
     }
     if (rule === "days") {
-      const d = await ib.ui.prompt(ib.lib.t("Which days?"), { placeholder: "mon,wed,sat" });
-      if (!d?.trim()) return;
-      rule = d.trim().replace(/\s+/g, "");
+      const d = await ib.ui.pickWhen(ib.lib.t("Which days?"), { days: true, placeholder: "or type them: mon,wed,sat" });
+      if (!d?.text.trim()) return;
+      rule = d.text.trim().replace(/\s+/g, "");
     }
     const spans: [string, string][] = [[ib.lib.t("forever"), "forever"], ["10×", "10"], ["100×", "100"], [ib.lib.t("for a year"), "1y"], [ib.lib.t("for a month"), "1m"], [ib.lib.t("a number of times…"), "ask"]];
     const c = await ib.ui.choose(ib.lib.t("For how long?"), spans.map(([label]) => ({ label })));
@@ -820,8 +820,8 @@ export function activate(ib: IcebreakerAPI): void {
     }
 
     private async due(t: Task): Promise<void> {
-      const v = await ib.ui.prompt(`due date for #${t.id}`, { initial: t.due ?? "", placeholder: "today, tomorrow, fri, +3d, 24/12 — or - to clear" });
-      if (v !== null) run(`todo due ${t.id} ${q(v.trim() || "-")}`);
+      const v = await ib.ui.pickWhen(`due date for #${t.id}`, { date: true, initial: t.due ?? "", clear: true, placeholder: "or type it: tomorrow, fri, +3d, 24/12" });
+      if (v) run(`todo due ${t.id} ${q(v.cleared ? "-" : v.text.trim() || "-")}`);
     }
 
     onText(t: string): boolean {
@@ -1051,8 +1051,8 @@ export function activate(ib: IcebreakerAPI): void {
     if (v?.trim() && v.trim() !== t.text) run(`todo edit ${t.id} ${q(v.trim())}`);
   };
   const dueTask = async (t: Task) => {
-    const v = await ib.ui.prompt(`due date for #${t.id}`, { initial: t.due ?? "", placeholder: "today, tomorrow, fri, +3d, 24/12 — or - to clear", suggestions: ["today", "tomorrow", "mon", "fri", "+3d", "+1w", "-"] });
-    if (v !== null) run(`todo due ${t.id} ${q(v.trim() || "-")}`);
+    const v = await ib.ui.pickWhen(`due date for #${t.id}`, { date: true, initial: t.due ?? "", clear: true, placeholder: "or type it: tomorrow, fri, +3d, 24/12" });
+    if (v) run(`todo due ${t.id} ${q(v.cleared ? "-" : v.text.trim() || "-")}`);
   };
   /** right-click on a task, in the widget and its pop-up */
   const taskMenu = (t: Task) => [

@@ -13,6 +13,8 @@ import { strWidth } from "../core/unicode";
 import { inside, q, type Hit, type MenuEntry, type UI } from "../ui/ui";
 import { Bar, GAP, INSET } from "../ui/layout";
 import { Osk } from "./overlays";
+import { MiniCalendar } from "./minical";
+import { NONE } from "../core/color";
 import { SystemTerminal, terminalKeysHint } from "../shell/systerm";
 import type { ShellTab, Workspace } from "./workspace";
 import { chipStyle, drawChip, placeChips, tabbedBox } from "./tabstrip";
@@ -270,7 +272,13 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
   let lx = ui.text(rx, r.y, " ", { bg: c.panelAlt });
   if (!narrow) lx = ui.text(lx, r.y, "uplink ", { fg: d.ai.ready ? c.fg : c.muted, bg: c.panelAlt, attrs: BOLD });
   lx = ui.text(lx, r.y, "■", { fg: lamp, bg: c.panelAlt });
-  ui.text(lx, r.y, right.slice(1 + ai.length), { fg: c.muted, bg: c.panelAlt });
+  // the date and the time: a click opens the mini calendar under them (workspace/minical.ts)
+  const clockR = { x: lx + 1, y: r.y, w: r.x + r.w - lx - 1, h: 1 };
+  const calOpen = ws.overlays.some((o) => !o.done && o instanceof MiniCalendar);
+  const clockHot = ui.hovered(clockR) || calOpen;
+  ui.text(lx, r.y, right.slice(1 + ai.length), { fg: clockHot ? c.fg : c.muted, bg: c.panelAlt });
+  if (clockHot) ui.tint({ ...clockR, x: clockR.x + (narrow ? 1 : 3), w: clockR.w - (narrow ? 1 : 3) }, NONE, c.highlight);
+  ui.hit(clockR, { cmd: "clock calendar", tip: t("the month, today, the days with events · click") });
   // "◈ reads notes/ideas.md", left of UPLINK, while the AI reads (as much of the name as fits)
   if (reading) {
     const room = rx - menuEnd - GAP * 2;

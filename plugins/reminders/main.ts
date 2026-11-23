@@ -235,6 +235,17 @@ export function activate(ib: IcebreakerAPI): void {
     },
   });
 
+  /** "2026-11-23 15:40": an hour from now, to start the picker from */
+  const inAnHour = (): string => {
+    const d = new Date(Date.now() + 3600_000);
+    return `${D.ymd(d)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes() - (d.getMinutes() % 5)).padStart(2, "0")}`;
+  };
+  /** a reminder's moment as the picker reads it */
+  const isoOf = (r: Reminder): string => {
+    const d = new Date(r.due);
+    return `${D.ymd(d)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  };
+
   /** Title, then when — the same words as the command (`remind "title" --at "when"`). */
   async function addFlow(): Promise<void> {
     const title = await ib.ui.prompt(t("Remind me of…"), { placeholder: t("call mom") });
@@ -242,9 +253,10 @@ export function activate(ib: IcebreakerAPI): void {
     // ask again until the time is understood (it used to fail silently, in the shell)
     let initial = "";
     for (;;) {
-      const raw = await ib.ui.prompt(t("When? (empty: in 1 hour)"), { initial, placeholder: EXAMPLES, suggestions: ["+10m", "+30m", "1h", "19h", "today 18:00", "tomorrow 9:00", "demain 9h", "mon 9:00", "fri 18:00"] });
-      if (raw === null) return; // esc: no reminder
-      const at = raw.trim();
+      // a little calendar and clock (or typed: +10m, demain 9h…)
+      const picked = await ib.ui.pickWhen(t("When?"), { date: true, time: true, initial: inAnHour(), typed: initial, placeholder: t("or type it: {examples}", { examples: EXAMPLES }) });
+      if (picked === null) return; // esc: no reminder
+      const at = picked.text.trim();
       // nothing said: in an hour (the command's own default — nothing to read)
       if (at && !D.parseWhen(at)) {
         ib.ui.notify(t('I didn\'t understand "{at}" — try {examples}', { at, examples: EXAMPLES }), "warning");
@@ -266,9 +278,9 @@ export function activate(ib: IcebreakerAPI): void {
     if (title === null) return;
     let initial = "";
     for (;;) {
-      const raw = await ib.ui.prompt(t("When? (empty: keep {when})", { when: when(rem) }), { initial, placeholder: EXAMPLES, suggestions: ["+10m", "+30m", "1h", "today 18:00", "tomorrow 9:00", "mon 9:00", "fri 18:00"] });
-      if (raw === null) return;
-      const at = raw.trim();
+      const picked = await ib.ui.pickWhen(t("When? (now: {when})", { when: when(rem) }), { date: true, time: true, initial: isoOf(rem), typed: initial, placeholder: t("or type it: {examples}", { examples: EXAMPLES }) });
+      if (picked === null) return;
+      const at = picked.text.trim();
       if (at && !D.parseWhen(at)) {
         ib.ui.notify(t('I didn\'t understand "{at}" — try {examples}', { at, examples: EXAMPLES }), "warning");
         initial = at;
@@ -449,10 +461,10 @@ export function activate(ib: IcebreakerAPI): void {
     "a add · e edit · d done · del remove · ↑↓": "a ajouter · e modifier · d fait · suppr retirer · ↑↓",
     "a add · e edit · d done · x remove · t test the notification": "a ajouter · e modifier · d fait · x retirer · t tester la notification",
     "The reminder": "Le rappel",
-    "When? (empty: keep {when})": "Quand ? (vide : garder {when})",
+    "When? (now: {when})": "Quand ? (maintenant : {when})",
+    "or type it: {examples}": "ou tape-le : {examples}",
     "Edit…": "Modifier…",
     "del: remove · right-click: edit, more": "suppr : retirer · clic droit : modifier, plus",
-    "When? (empty: in 1 hour)": "Quand ? (vide : dans 1 heure)",
     'I didn\'t understand "{at}" — try {examples}': "je n'ai pas compris « {at} » — essaie {examples}",
     "the reminder couldn't be added (the LOG tab says why)": "le rappel n'a pas pu être ajouté (l'onglet LOG dit pourquoi)",
     reminder: "rappel",

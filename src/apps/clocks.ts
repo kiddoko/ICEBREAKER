@@ -10,7 +10,8 @@ import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
-import type { UI } from "../ui/ui";
+import { q, type UI } from "../ui/ui";
+import { pickedText } from "../ui/calendar";
 import { fitMatrix, matrixSize, matrixText } from "../ui/dots";
 import { drawClock } from "../widgets/clockfaces";
 import { clockState, dur, durTenths, swNow } from "../widgets/clockstate";
@@ -134,17 +135,16 @@ class ClocksApp implements App {
     });
   }
 
-  /** A new alarm by mouse: the time (and what for), then which days from a list — no syntax to know. */
+  /** A new alarm by mouse: the time and the days in a little clock (none ticked: once), then what for. */
   private async newAlarm(): Promise<void> {
-    const v = await this.deck.prompt(t("Alarm: what time, and what for?"), { placeholder: "7:30 wake up · 6h45 · 8am" });
-    const line = v?.trim();
-    if (!line) return;
-    // typed the days already (--days …): as typed
-    if (/--days\b/.test(line)) return void this.deck.act(`clock alarm ${line}`);
-    const days: [string, string][] = [["", t("once")], ["mon-fri", t("weekdays (mon–fri)")], ["weekend", t("the weekend")], ["daily", t("every day")]];
-    const i = await this.deck.choose(t("Which days?"), days.map(([, label]) => ({ label })));
-    if (i === null) return;
-    void this.deck.act(`clock alarm ${line}${days[i][0] ? ` --days ${days[i][0]}` : ""}`);
+    const picked = await this.deck.pickWhen(t("Alarm: what time, which days? (none ticked: once)"), { time: true, days: true, defaultTime: 7 * 60 + 30, placeholder: t("or type it: 7:30 wake up --days mon-fri") });
+    if (!picked) return;
+    // typed: as typed (a time, a label, maybe --days)
+    if (picked.text !== undefined) return void (picked.text.trim() && this.deck.act(`clock alarm ${picked.text.trim()}`));
+    const label = await this.deck.prompt(t("What for? (optional)"), { placeholder: t("wake up") });
+    if (label === null) return;
+    const days = picked.days?.length ? ` --days ${pickedText({ days: picked.days })}` : "";
+    void this.deck.act(`clock alarm ${pickedText({ time: picked.time ?? 7 * 60 + 30 })}${label.trim() ? ` ${q(label.trim())}` : ""}${days}`);
   }
 
   /** A card's frame and title, its button on its top line. Returns the inside. */

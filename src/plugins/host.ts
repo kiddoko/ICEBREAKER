@@ -11,6 +11,7 @@ import { FRAME_PARTS, frameServices } from "./frame-services";
 import { sandboxed } from "./sandbox/bridge";
 import { AudioStream } from "../core/audiostream";
 import { pickFile, pickFolder } from "../workspace/filebrowser";
+import { whenForModules } from "../ui/calendar";
 import { auditCode, auditReport, type AuditFinding } from "./audit";
 import { moduleSettingRows } from "../apps/settings-rows";
 import { BLOCK_KINDS } from "../core/catalog";
@@ -944,6 +945,7 @@ export class PluginHost {
         prompt: (t, o) => deck.prompt(from(t), o),
         choose: (t, options, o) => deck.choose(from(t), options, o),
         pickFolder: (title, start) => pickFolder(deck, from(title), start),
+        pickWhen: (title, o) => deck.pickWhen(from(title), o ?? {}).then((r) => (r ? whenForModules(r) : null)),
         pickFile: (title, exts, start) => pickFile(deck, from(title), exts, start),
         // on screen, a module from the STORE signs its alert; the voice reads only what it says
         alert: (title, body) => (need("notify"), deck.alert(from(title), body, "reminders", spokenAlert(String(title), body))),
