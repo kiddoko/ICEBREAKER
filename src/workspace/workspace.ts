@@ -14,7 +14,7 @@ import { QuickMenu } from "./quickmenu";
 import { drawScreensaver } from "../fx/screensaver";
 import { IbshApp, TerminalApp } from "../apps/terminal";
 import { t, tLoose } from "../core/i18n";
-import { opensBehind } from "./openbehind";
+import { keyKeepsBehind, opensBehind } from "./openbehind";
 import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC, rawPageKey, type Action, type ActionSource, type KeyInput, type MouseInput } from "../core/input";
 import type { App } from "../apps/types";
@@ -1146,6 +1146,8 @@ export class Workspace {
   handleKey(k: KeyInput): void {
     this.tipHidden = true;
     const modal = this.topModal;
+    // a key that isn't for the maximized shell (a dialog, ⌘K's list…): pages open in front again
+    if (!keyKeepsBehind({ modal: !!modal, focus: this.focus, activeKind: this.activeApp?.kind })) this.keepKeysUntil = 0;
     if (modal) {
       // ⌘Z over a pop-up (a widget's settings, the effects…) undoes there too; not
       // where you type or choose something (a prompt, THE MENU's search, a key, a yes/no)
@@ -1357,6 +1359,8 @@ export class Workspace {
   }
 
   handleMouse(m: MouseInput, hits: Hit[]): void {
+    // a click: the page it opens is one you chose to see, never behind the shell (openbehind.ts)
+    if (m.kind === "down") this.keepKeysUntil = 0;
     // right-click outside an open menu: that menu goes, the click lands on what's under it
     const open = this.overlays.find((o): o is ContextMenu => o instanceof ContextMenu && !o.done);
     if (open && m.kind === "down" && m.button === 2 && !open.contains(m.x, m.y)) {

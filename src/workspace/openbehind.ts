@@ -12,3 +12,12 @@ export function opensBehind(o: { now: number; keepUntil: number; focus: string; 
   if (o.now >= o.keepUntil || o.focus !== "main") return false;
   return o.activeKind === "ibsh" && o.newKind !== "ibsh";
 }
+
+/**
+ * Does a key keep that window open? Only one typed in the maximized shell itself: a key for a
+ * dialog or ⌘K's list, or anywhere else, means the next page is one you chose to see (a click
+ * ends the window too: Workspace.handleMouse).
+ */
+export function keyKeepsBehind(o: { modal: boolean; focus: string; activeKind: string | undefined }): boolean {
+  return !o.modal && o.focus === "main" && o.activeKind === "ibsh";
+}
