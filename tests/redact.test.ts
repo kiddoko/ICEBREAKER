@@ -54,6 +54,21 @@ describe("secrets never reach the logs", () => {
     expect(all).not.toContain("abandon ability");
   });
 
+  it("a long output: a key cut in two pieces is still masked, and it stays fast", () => {
+    const log = new EventLog();
+    const e = log.add("action", "cat big.md");
+    const line = "- [ ] some todo item with Text, 42 and words here\n";
+    for (let i = 0; i < 200; i++) log.append(e, line.repeat(20));
+    log.append(e, `api_key=${PASSWORD.slice(0, 5)}`);
+    log.append(e, `${PASSWORD.slice(5)} done\n`);
+    expect(e.detail).not.toContain(PASSWORD.slice(5));
+    expect(e.detail!.startsWith(line)).toBe(true);
+    const t0 = performance.now();
+    for (let i = 0; i < 3000; i++) log.append(e, line.repeat(20));
+    // masked again from its first line each time, this took seconds (and grew with the output)
+    expect(performance.now() - t0).toBeLessThan(1500);
+  });
+
   it("nor does the error log", () => {
     const errs = new ErrorLog();
     errs.add(`vault unlock: wrong recovery key ${WORDS}`);
