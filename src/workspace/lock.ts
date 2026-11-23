@@ -145,7 +145,9 @@ export class LockScreen {
     }
     // (a paste on several lines — the recovery key — becomes one line, words apart)
     this.fields[this.field].onText(t);
-    this.error = "";
+    // typing again clears the last error — real typing only (a stray line break, an empty text
+    // event right after the answer wiped "wrong name or password" before it was seen)
+    if (t.replace(/[\r\n]/g, "")) this.error = "";
   }
 
   onKey(k: KeyInput): void {
@@ -213,6 +215,23 @@ export class LockScreen {
     if (!user.trim()) return void (this.field = "user");
     if (this.mode === "recover" && !words.trim()) return void (this.field = "words");
     if (!pass) return void (this.field = "pass");
+    if (this.mode === "approve") {
+      // who approves it is checked now, not once everything else is typed — checked only:
+      // nothing is unlocked
+      this.busy = true;
+      this.deck.requestFrame();
+      const right = await this.deck.platform.account.check(user, pass).catch(() => false);
+      this.busy = false;
+      if (!right) {
+        this.put("pass", "");
+        this.field = "pass";
+        this.error = "wrong name or password — an account of this deck must approve";
+        this.shakeAt = performance.now();
+        this.deck.sound.play("error");
+        this.deck.requestFrame();
+        return;
+      }
+    }
     if (this.mode === "approve" && this.pending) {
       // a vault from elsewhere, approved: back to it, and on
       this.approver = { user, pass };
@@ -224,7 +243,7 @@ export class LockScreen {
       return void this.submit();
     }
     if (this.mode === "approve") {
-      // step 1 of a new account: remember who approves it (checked when it's made)
+      // step 1 of a new account: who approves it (right, checked above), kept until it's made
       this.approver = { user, pass };
       this.mode = "new";
       this.load({});

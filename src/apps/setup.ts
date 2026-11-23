@@ -12,6 +12,11 @@ import { q, type UI } from "../ui/ui";
 import { easeOut, strWidth, truncate, wrapWords } from "../core/unicode";
 import { applyFxPreset, FX_PRESET_NAMES, FX_PRESETS } from "../workspace/fxpanel";
 import type { App, AppSpec } from "./types";
+import { GAP, INSET } from "../ui/layout";
+import { completeFolder, osOf, pathExamples, vaultPathProblem } from "./setuppath";
+
+/** this system's examples: its shells, a vault folder's path */
+const HERE = pathExamples(osOf(navigator.platform, navigator.userAgent));
 
 interface Option { value: string; label: string; hint?: string }
 interface Step {
@@ -80,9 +85,12 @@ export class SetupApp implements App {
 
   constructor(private readonly deck: Deck) {
     const s = deck.settings.data;
+    this.firstRun = !s.setup.done;
     // a new account: what the deck calls you starts as its name
     const handle = s.user.handle === "netrunner" && deck.account ? deck.account : s.user.handle;
     this.a = { handle, locale: s.user.locale, precision: s.user.location.precision };
+    // stealth already on (a setup run again, or a half-finished one): the questions start from it
+    if (s.privacy.stealth) this.a.mode = "stealth";
     this.steps = [
       {
         id: "language", title: "LANGUAGE · LANGUE",
@@ -115,7 +123,7 @@ export class SetupApp implements App {
       { id: "gender-other", title: "PROFILE", question: "Your word for it (optional, enter to skip):", text: { placeholder: "" }, skip: () => this.a.gender !== "other" },
       {
         id: "terminal", title: "TERMINAL",
-        question: "The shell panel can be your real terminal (zsh, bash…) with ICEBREAKER's commands added — ssh, git, vim, everything works. Or ICEBREAKER's own shell, limited to the vault.",
+        question: "The shell panel can be your real terminal ({shells}…) with ICEBREAKER's commands added — ssh, git, vim, everything works. Or ICEBREAKER's own shell, limited to the vault.",
         options: () => [
           { value: "system", label: "My terminal + ICEBREAKER commands", hint: "careful: rm deletes for real there" },
           { value: "ibsh", label: "ICEBREAKER shell only", hint: "the vault only, rm goes to .trash" },
@@ -127,10 +135,10 @@ export class SetupApp implements App {
         question: "Your notes, journal and calendar live in one folder of plain files: {vault}. It can be any folder — a drive, a synced folder, or your own server mounted as a network drive, so everything stays on hardware you own.",
         options: () => [
           { value: "keep", label: "Keep this folder" },
-          { value: "other", label: "Another folder", hint: "a full path: /Volumes/nas/vault, /Users/you/Sync/notes…" },
+          { value: "other", label: "Another folder", hint: t("a full path: {examples}…", { examples: HERE.examples }) },
         ],
       },
-      { id: "vault-path", title: "VAULT", question: "Folder path (created if missing):", text: { placeholder: "/Volumes/nas/icebreaker" }, skip: () => this.a.vault !== "other" },
+      { id: "vault-path", title: "VAULT", question: "Folder path (created if missing):", text: { placeholder: HERE.placeholder }, skip: () => this.a.vault !== "other" },
       {
         // an option, never the default: plain files stay readable by everything
         id: "encrypt", title: "ENCRYPTION",
@@ -143,7 +151,7 @@ export class SetupApp implements App {
       },
       { id: "locale", title: "LANGUAGE", question: "Dates, calendar and news language.", options: () => [{ value: "fr-FR", label: "Français" }, { value: "en-US", label: "English (US)" }, { value: "en-GB", label: "English (UK)" }, { value: "", label: "Same as the system" }] },
       {
-        skip: () => this.a.mode === "stealth",
+        skip: () => this.stealth,
         id: "precision", title: "LOCATION", question: "Weather and local news need to know roughly where you are. Share only what you want — it stays on this machine.",
         options: () => [
           { value: "none", label: "Nothing", hint: "no weather, world news only" },
@@ -154,12 +162,14 @@ export class SetupApp implements App {
       },
       {
         id: "place", title: "WHERE", question: "", text: { placeholder: "Paris" },
-        skip: () => this.a.precision === "none" || this.a.mode === "stealth",
+        skip: () => this.a.precision === "none" || this.stealth,
       },
       {
         id: "ai", title: "UPLINK", question: "Which AI should your uplink (LINK) and the modules use?",
+        // stealth: nothing online is even offered (a local Ollama can be set up later: Settings → UPLINK)
+        skip: () => this.stealth,
         options: () => [
-          ...(this.a.mode === "stealth"
+          ...(this.stealth
             ? []
             : [
                 { value: "claude-code", label: "Claude Code", hint: deck.ai.claudeCodePath ? "found — uses your Claude plan, no API tokens" : "not found — install it and run `claude` once" },
@@ -174,7 +184,7 @@ export class SetupApp implements App {
         question: "Your agenda. It can live entirely in your vault (plain Markdown, offline, no account), or also show your Google calendars.",
         options: () => [
           { value: "local", label: "In my vault only", hint: "nothing leaves this computer" },
-          ...(deck.platform.google && this.a.mode !== "stealth" ? [{ value: "google", label: "Connect Google Calendar", hint: "your browser opens Google's page" }] : []),
+          ...(deck.platform.google && !this.stealth ? [{ value: "google", label: "Connect Google Calendar", hint: "your browser opens Google's page" }] : []),
           { value: "later", label: "Decide later", hint: "local works; cal google connect any time" },
         ],
         skip: () => !deck.commands.get("cal"),
@@ -219,6 +229,17 @@ export class SetupApp implements App {
     return "setup";
   }
 
+  /** stealth chosen (or already on): nothing online is offered, nothing goes online */
+  private get stealth(): boolean {
+    return this.a.mode === "stealth";
+  }
+
+  /** the account's first setup (not one run again from THE MENU, over a vault in use) */
+  private readonly firstRun: boolean;
+
+  /** the setup is over (finish ran): a second finish (a double click, ctrl+enter twice) does nothing */
+  private finished = false;
+
   status(): string {
     return t(this.cur.text ? "type · enter next · tab skip · esc back · ctrl+enter finish" : this.cur.slider ? "←→ or drag · enter next · tab skip · esc back · ctrl+enter finish" : "a number, ↑↓ or a click chooses · enter or a 2nd click keeps · tab skip · esc back");
   }
@@ -236,22 +257,42 @@ export class SetupApp implements App {
   /** The effects as they were before the EYE CANDY step tried presets on (put back if none is kept). */
   private fxBefore: string | null = null;
 
-  /** On the theme and EYE CANDY steps, the deck wears what's under the cursor. */
+  /** the theme / effects preview waiting for the cursor to settle */
+  private previewTimer: ReturnType<typeof setTimeout> | undefined;
+  /** how long the cursor rests on a theme or a preset before the whole deck wears it */
+  private static readonly PREVIEW_MS = 140;
+
+  /**
+   * On the theme and EYE CANDY steps, the deck wears what's under the cursor — once the
+   * cursor rests there: going through them fast (or back and forth between the steps)
+   * changed the whole look, fonts and WebGL glass included, at every key (a crash on Linux).
+   */
   private preview(): void {
-    const o = this.options()[this.sel];
-    if (this.cur.id === "theme") {
-      if (o && this.deck.theme.name !== o.value) this.deck.setTheme(o.value);
-    } else if (this.cur.id === "fx") {
-      this.fxBefore ??= JSON.stringify(this.deck.settings.data.fx);
-      if (o) applyFxPreset(this.deck, o.value);
-    } else this.fxBack();
+    clearTimeout(this.previewTimer);
+    // left EYE CANDY without keeping a preset — back to THEME too: the effects tried on go away.
+    // (They stayed on the theme step, and the next theme saved them as the old theme's own:
+    // a half-finished setup left "party" — WebGL curvature — on, and on Linux every login crashed.)
+    if (this.cur.id !== "fx") this.fxBack();
+    if (this.cur.id !== "theme" && this.cur.id !== "fx") return;
+    if (this.cur.id === "fx") this.fxBefore ??= JSON.stringify(this.deck.settings.data.fx);
+    const step = this.cur.id;
+    this.previewTimer = setTimeout(() => {
+      if (this.finished || this.cur.id !== step) return;
+      const o = this.options()[this.sel];
+      if (!o) return;
+      if (step === "theme" && this.deck.theme.name !== o.value) this.deck.setTheme(o.value);
+      if (step === "fx") applyFxPreset(this.deck, o.value);
+    }, SetupApp.PREVIEW_MS);
   }
 
   /** Left EYE CANDY without choosing: the effects you had. */
   private fxBack(): void {
+    clearTimeout(this.previewTimer);
     if (this.fxBefore === null || this.a.fx) return;
-    this.deck.settings.set("fx", JSON.parse(this.fxBefore));
+    const before = this.fxBefore;
     this.fxBefore = null;
+    if (before === JSON.stringify(this.deck.settings.data.fx)) return; // nothing was tried on
+    this.deck.settings.set("fx", JSON.parse(before));
     this.deck.applyFx();
   }
 
@@ -284,6 +325,9 @@ export class SetupApp implements App {
     if (this.busy) return;
     if (st.id === "place") return this.submitPlace();
     if (st.text) {
+      // the vault's folder: one that can really be used, checked now — not at the end, where a
+      // path that didn't work left the vault in the default folder without a word
+      if (st.id === "vault-path") return this.submitVaultPath();
       this.a[st.id] = this.input.trim() || this.placeholder(st);
       return this.go(1);
     }
@@ -297,6 +341,9 @@ export class SetupApp implements App {
       if (!this.a.locale) this.a.locale = o.value === "fr" ? "fr-FR" : "";
     }
     if (st.id === "warning") this.warned = true;
+    // stealth applies the moment it's chosen: nothing goes online during the rest of the setup
+    // (HOME's weather and news behind it, the update check…), not only once it's finished
+    if (st.id === "mode") this.deck.settings.set("privacy.stealth", o.value === "stealth");
     if (st.id === "intro" && o.value === "skip") return this.finish(true);
     if (st.id === "done") return this.finish(false);
     this.go(1);
@@ -306,6 +353,29 @@ export class SetupApp implements App {
   private placeholder(st: Step): string {
     if (st.id === "handle") return this.a.handle || "netrunner";
     return t(st.text?.placeholder ?? "");
+  }
+
+  /** The vault's folder, typed: kept (absolute, or ~/…), else said why and asked again. */
+  private async submitVaultPath(): Promise<void> {
+    const typed = this.input.trim();
+    if (!typed) return void (this.error = t("type the folder's full path (or esc: keep this folder)"));
+    const why = vaultPathProblem(typed);
+    if (why) return void (this.error = t(why));
+    this.a["vault-path"] = typed;
+    this.go(1);
+  }
+
+  /** Tab in the vault's folder: completes the folder name, like a terminal. */
+  private async completeVaultPath(): Promise<void> {
+    const files = this.deck.platform.files;
+    if (!files) return;
+    const typed = this.input;
+    const home = typed.startsWith("~") ? await files.home().catch(() => "") : "";
+    const done = await completeFolder(typed, home, (dir) => files.list(dir).catch(() => []));
+    if (!done) return void this.deck.sound.play("denied");
+    if (done.text !== typed) this.field.text = done.text;
+    this.error = done.choices.length > 1 ? done.choices.slice(0, 8).join("  ") + (done.choices.length > 8 ? "  …" : "") : "";
+    this.deck.requestFrame();
   }
 
   private async submitPlace(): Promise<void> {
@@ -337,12 +407,13 @@ export class SetupApp implements App {
   }
 
   private finish(skipped: boolean): void {
-    if (this.busy) return;
+    if (this.busy || this.finished) return;
     // nothing finishes before the warning was read (ctrl+enter on the first screen, the button)
     if (!this.warned) {
       const w = this.steps.findIndex((x) => x.id === "warning");
       if (w >= 0) return void ((this.step = w), (this.sel = 0), this.deck.requestFrame());
     }
+    this.finished = true;
     const set = (k: string, v: unknown) => this.deck.settings.set(k, v);
     this.fxBack();
     if (!skipped) {
@@ -370,7 +441,8 @@ export class SetupApp implements App {
       set("user.language", this.a.language || this.deck.settings.data.user.language || "en");
       set("user.gender", this.a.gender ?? "");
       set("user.genderOther", this.a.gender === "other" ? (this.a["gender-other"] ?? "") : "");
-      void this.deck.act(`stealth ${this.a.mode === "stealth" ? "on" : "off"}`);
+      // the CONNECTION question answered: that (not answered — tab, ctrl+enter: stealth stays as it is)
+      if (this.a.mode) void this.deck.act(`stealth ${this.stealth ? "on" : "off"}`);
       if (this.a.theme) void this.deck.act(`theme set ${this.a.theme}`);
       if (this.a.voice === "on") {
         void (async () => {
@@ -387,8 +459,8 @@ export class SetupApp implements App {
         // recovery key, where the backup went) — the deck, the tour and UPLINK wait for it
         this.busy = true;
         void (async () => {
-          if (path) await this.deck.act(`vault mount ${q(path)}`);
-          await this.deck.act("vault encrypt --window");
+          await this.mountChosen(path);
+          await this.encrypt();
           this.busy = false;
           this.leave(skipped);
           void modules();
@@ -396,11 +468,37 @@ export class SetupApp implements App {
         return;
       }
       void (async () => {
-        if (path) await this.deck.act(`vault mount ${q(path)}`);
+        await this.mountChosen(path);
         await modules();
       })();
     }
     this.leave(skipped);
+  }
+
+  /** The folder typed for the vault (none: the default one stays). A failure is said, not swallowed. */
+  private async mountChosen(path: string | undefined): Promise<void> {
+    if (!path) return;
+    const code = await this.deck.act(`vault mount ${q(path)}`).catch(() => 1);
+    // a new account's first setup: the default folder it was given at first (Icebreaker-<name>)
+    // goes, if nothing but the deck's own notes is in it (vault.rs vault_discard_seed)
+    if (code === 0 && this.firstRun) await this.deck.platform.vault.discardSeed?.().catch(() => false);
+    if (code !== 0)
+      this.deck.notify(t("the vault couldn't go to {path} — it stays in {root} (vault move: Settings → VAULT)", { path, root: this.deck.vault.root }), "error");
+  }
+
+  /**
+   * ENCRYPTION chosen: encrypt, over the setup. A wrong password asks again (it gave up on
+   * the encryption and started the tour); cancelled or failed, the deck says the vault is
+   * still plain and asks whether to try again — the tour waits.
+   */
+  private async encrypt(): Promise<void> {
+    for (;;) {
+      const code = await this.deck.act("vault encrypt --window").catch(() => 1);
+      const st = await this.deck.platform.vault.crypt?.status().catch(() => null);
+      if (code === 0 || st?.encrypted) return;
+      const again = await this.deck.confirm(t("The vault isn't encrypted"), t("It stays plain files for now. Try again?\n\n(Later: Settings → PRIVACY, or vault encrypt in the shell.)"));
+      if (!again) return void this.deck.notify(t("vault left plain — vault encrypt any time"), "warning");
+    }
   }
 
   /** The setup is done: HOME, then the tour and the Welcome note. */
@@ -454,6 +552,11 @@ export class SetupApp implements App {
   onKey(k: KeyInput): boolean {
     // fast: tab skips the question (its default stays), ctrl+enter finishes with the defaults
     if (k.combo === "tab" && this.cur.id === "warning") return true; // read it, then enter
+    // the vault's folder: tab completes the folder name, like a terminal (it skipped the
+    // question and dropped what was typed — the vault stayed in the default folder)
+    if (k.combo === "tab" && this.cur.id === "vault-path") return void this.completeVaultPath(), true;
+    // typed something: tab keeps it, like enter (skipping threw it away)
+    if (k.combo === "tab" && this.cur.text && this.input.trim() && !this.places.length) return void this.next(), true;
     if (k.combo === "tab" && this.cur.id !== "done") return this.go(1), true;
     if (k.combo === "ctrl+enter" && !this.busy) return this.finish(false), true;
     if (this.cur.text && !this.places.length) return this.field.onKey(k);
@@ -564,7 +667,7 @@ export class SetupApp implements App {
     const box = { x, y, w, h: Math.max(8, r.y + r.h - y - 2) };
     const inner = ui.box(box, { title: age < 400 ? decrypt(t(st.title), age / 400, ui.now) : t(st.title), focused: true, bg: c.panel, info: `${at + 1}/${visible.length}` });
     let iy = inner.y + 1;
-    let qText = t(st.question, { vault: this.deck.vault.root });
+    let qText = t(st.question, { vault: this.deck.vault.root, shells: HERE.shells });
     if (st.id === "place") qText = this.places.length ? t("Which one?") : this.a.precision === "precise" ? t("Coordinates (lat, lon):") : this.a.precision === "country" ? t("Which country?") : t("Which city?");
     // the question types itself in, with its blips (ui/typewriter.ts: the text speed setting)
     let qLines = wrapWords(qText, inner.w - 4);
@@ -597,9 +700,17 @@ export class SetupApp implements App {
       iy += 2;
       ui.text(inner.x + 2, iy, t("enter: keep it"), { fg: c.faint, bg: c.panel }, inner.w - 4);
     } else {
-      this.options().forEach((o, i) => {
+      // more options than rows (the themes in a small window): the ones around the cursor, ▲ ▼ for the rest
+      const all = this.options();
+      // (the error line and the keys line stay below)
+      const room = Math.max(1, inner.y + inner.h - GAP - iy);
+      const first = all.length > room ? Math.max(0, Math.min(this.sel - Math.floor(room / 2), all.length - room)) : 0;
+      const last = first + Math.min(room, all.length);
+      const topY = iy;
+      all.forEach((o, i) => {
+        if (i < first || i >= last) return;
         // the options arrive one after the other
-        const appear = easeOut((age - 60 - i * 35) / 160);
+        const appear = easeOut((age - 60 - (i - first) * 35) / 160);
         if (appear <= 0) return ui.animate(16);
         const row = { x: inner.x + 1, y: iy, w: inner.w - 2, h: 1 };
         const sel = i === this.sel;
@@ -640,6 +751,8 @@ export class SetupApp implements App {
         ui.hit(row, { onClick: () => { if (this.sel === i) void this.next(); else { this.sel = i; this.preview(); this.deck.sound.play("move"); } }, tip: sel ? t("click again (or enter): keep it") : undefined });
         iy++;
       });
+      if (first > 0) ui.text(inner.x + inner.w - GAP, topY, "▲", { fg: c.accent });
+      if (last < all.length) ui.text(inner.x + inner.w - GAP, topY + (last - first) - INSET, "▼", { fg: c.accent });
     }
     if (this.error) ui.text(inner.x + 2, inner.y + inner.h - 2, `⚠ ${this.error}`, { fg: c.error, bg: c.panel }, inner.w - 4);
     // the way out, always in the same place

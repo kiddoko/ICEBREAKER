@@ -11,7 +11,7 @@ import { drawScreensaver } from "../fx/screensaver";
 import { IbshApp, TerminalApp } from "../apps/terminal";
 import { t } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
-import { IS_MAC, type Action, type ActionSource, type KeyInput, type MouseInput } from "../core/input";
+import { IS_MAC, rawPageKey, type Action, type ActionSource, type KeyInput, type MouseInput } from "../core/input";
 import type { App } from "../apps/types";
 import type { Deck } from "../deck";
 import { drawBackground } from "../fx/backgrounds";
@@ -32,6 +32,7 @@ import { drawDropFrame, placeChips, renderTabStrip, soloTab, tabbedBox } from ".
 import { frameOfPane, PANE_OF, parsePlaces, parseShows, prunePlaces, type PlaceFrame, type Places, type Shows } from "./tabplaces";
 import { groupOf, joinGroup, parseGroups, pick, prune, renameGroup, stripEntries, takeOut, type StripEntry, type TabGroup } from "./tabgroups";
 import { GAP, INSET, SECTION } from "../ui/layout";
+import { isTerminalKey, parseView, renameKeys, type SessionView } from "./sessionview";
 import { strWidth, truncate } from "../core/unicode";
 
 export type ShellTab = "term" | "ibsh" | "log";
@@ -1035,10 +1036,11 @@ export class Workspace {
       modal.onKey?.(k);
       return;
     }
-    // shift+tab: the next part of the screen. Only a note may keep it (to unindent);
+    // shift+tab: the next part of the screen. A note may keep it (to unindent), and a page that
+    // plays the keyboard (a tracker's previous track: esc gives the keys back to the deck);
     // shells never get it (zsh/ibsh would open their completion instead)
     if (k.combo === "shift+tab") {
-      if (this.focus === "main" && this.activeApp?.kind === "note" && this.activeApp.onKey?.(k)) return;
+      if (this.focus === "main" && (this.activeApp?.kind === "note" || this.rawKeys()) && this.activeApp?.onKey?.(k)) return;
       return this.cycleFocus();
     }
     // the system terminal gets the keyboard (ctrl+c, ctrl+r, esc…); ⌘ shortcuts stay the deck's
@@ -1053,9 +1055,11 @@ export class Workspace {
     // a page that plays the keyboard (App.rawKeys) owns its keys, like an editor owns the arrows:
     // the ones that type (a piano's) and every ⌥ / alt combination (⌥ arrows, ⌥ letters, ⌥ digits —
     // on Windows and Linux the deck's pane and tab keys) are its own; ⌘ / ctrl ones stay the deck's
-    // ⌘S / ⌘⇧S too: its save and save as (⌘⇧S was the deck's "shell" key)
-    const saves = k.ctrl && !k.alt && (k.key === "s" || k.code === "KeyS") && this.rawKeys();
-    const owned = k.raw || saves || (k.alt && !k.ctrl && !k.meta && this.rawKeys());
+    // and the deck keys it keeps (core/input.ts rawPageKey): ⌘S / ⌘⇧S (⌘⇧S was the deck's
+    // "shell" key), F1–F8 (F1 is the manual elsewhere), ⌘ ← →, Tab / ⇧Tab
+    // a note in front keeps ⌘⇧S too (save as — elsewhere the deck's shell key)
+    const noteSaves = k.combo === "ctrl+shift+s" && this.focus === "main" && this.activeApp?.kind === "note" && !this.topModal;
+    const owned = k.raw || noteSaves || ((rawPageKey(k) || (k.alt && !k.ctrl && !k.meta)) && this.rawKeys());
     if (!owned && this.globalKey(k)) return;
     this.routeKey(k, false);
   }
@@ -1266,49 +1270,93 @@ export class Workspace {
   private savedTabs = "";
   /** nothing is saved before the last session has been reopened (it would be overwritten by HOME alone) */
   private sessionReady = false;
-  private saveSession(): void {
-    const tabs = this.tabs.slice(0, this.tabCount).filter((a) => !["setup", "terminal", "ibsh"].includes(a.kind)).map((a) => a.key);
-    // the groups of the tabs that are saved (a terminal tab doesn't come back, nor does its place in a group)
+  /**
+   * Save what the desktop looks like (settings.session): the tabs, their groups and frames,
+   * and the view — the tree and the shell shown or not, the shell's height and tab, its
+   * terminals, the open page, the focus (sessionview.ts). Called every frame, written only
+   * when something changed; `force` writes even before the last session came back (never
+   * used at start: HOME alone would overwrite it).
+   */
+  saveSession(): void {
+    // a terminal tab comes back as a new terminal (its shell can't be kept); the setup never comes back
+    const tabs = this.tabs.slice(0, this.tabCount).filter((a) => a.kind !== "setup").map((a) => a.key);
+    // the groups of the tabs that are saved
     const groups = prune(this.groups, tabs);
     // where the tabs moved to other frames live, and what those frames show
     const { places, shows } = prunePlaces(this.places, this.shows, tabs);
-    const sig = `${tabs.join("|")}#${Math.min(this.active, this.tabCount - 1)}#${JSON.stringify(groups)}#${JSON.stringify(places)}#${JSON.stringify(shows)}`;
+    const view: SessionView = {
+      tree: this.sidebarVisible,
+      shell: this.shellShown,
+      ratio: Math.round(this.shellRatio * 1000) / 1000,
+      shellTab: this.shellTab,
+      terms: this.terms.length,
+      page: this.page && this.page.kind !== "setup" ? this.page.key : undefined,
+      focus: this.focus === "sidebar" || this.focus === "shell" || this.focus === "panel" ? this.focus : "main",
+    };
+    // the tab you were on: with a page open (SETTINGS…), the one under it (where esc goes back to)
+    const under = this.page ? this.pageReturn : this.active;
+    const active = Math.max(0, tabs.indexOf(this.tabs[Math.min(under, this.tabCount - 1)]?.key ?? ""));
+    const sig = `${tabs.join("|")}#${active}#${JSON.stringify(groups)}#${JSON.stringify(places)}#${JSON.stringify(shows)}#${JSON.stringify(view)}`;
     if (!this.sessionReady || sig === this.savedTabs) return;
     this.savedTabs = sig;
     const s = this.deck.settings;
-    s.set("session", { ...(s.data.session ?? {}), tabs, active: Math.max(0, tabs.indexOf(this.tabs[this.active]?.key ?? "")), groups, places, shows });
+    s.set("session", { ...(s.data.session ?? {}), tabs, active, groups, places, shows, view });
   }
 
   /** Open again what was open when the deck closed (notes that still exist, modules that are still on). */
   async restoreSession(skip = false): Promise<void> {
     const ses = this.deck.settings.data.session;
     try {
-      if (!skip && ses?.tabs?.length) await this.reopen(ses);
+      if (!skip && ses) await this.reopen(ses);
     } finally {
       this.sessionReady = true;
     }
   }
 
-  private async reopen(ses: { tabs?: string[]; active?: number; groups?: unknown; places?: unknown; shows?: unknown }): Promise<void> {
-    if (!ses.tabs) return;
-    // the groups come back with their tabs (those that are still there)
-    this.groups = parseGroups(ses.groups);
-    for (const key of ses.tabs) {
-      if (key === "home" || this.findTab(key)) continue;
+  private async reopen(ses: { tabs?: string[]; active?: number; groups?: unknown; places?: unknown; shows?: unknown; view?: unknown }): Promise<void> {
+    const view = parseView(ses.view);
+    // the view first: the tabs below may show the shell (a terminal) or focus a frame
+    if (view) {
+      this.sidebarVisible = view.tree;
+      this.shellShown = view.shell;
+      if (view.ratio) this.shellRatio = view.ratio;
+      if (view.shellTab !== "term" || this.termAvailable) (this.shellTab = view.shellTab), (this.shellTabChosen = true);
+      // the shell panel's terminals: as many as there were (the first starts by itself when shown)
+      if (this.termAvailable) while (this.terms.length < view.terms) this.terms.push(new SystemTerminal(this.deck));
+    }
+    // a terminal tab opens again as a new terminal: its group and frame follow its new key
+    const rename: Record<string, string> = {};
+    for (const key of ses.tabs ?? []) {
+      // (a saved terminal key may be the key a terminal just reopened got: never "already open")
+      if (key === "home" || (!isTerminalKey(key) && this.findTab(key))) continue;
       if (key.startsWith("note:")) {
         const p = key.slice(5);
         if (await this.deck.vault.exists(p)) await this.deck.openFile(p);
+      } else if (key === "ibsh") this.open(new IbshApp(this.deck));
+      else if (isTerminalKey(key)) {
+        if (!this.termAvailable) continue;
+        const app = new TerminalApp(this.deck);
+        rename[key] = app.key;
+        this.open(app);
       } else if (this.deck.apps.get(key) && !Workspace.PAGES.has(key)) this.deck.openApp(key);
     }
+    const saved = renameKeys(ses, rename);
+    const want = (ses.tabs ?? [])[ses.active ?? 0];
+    const wantKey = want ? (rename[want] ?? want) : undefined;
+    // the groups come back with their tabs (those that are still there)
+    this.groups = parseGroups(saved.groups);
     // the tabs moved to other frames go back there (those that came back)
     const open = this.tabs.slice(0, this.tabCount).map((a) => a.key);
-    this.places = parsePlaces(ses.places, open);
-    this.shows = parseShows(ses.shows, this.places);
+    this.places = parsePlaces(saved.places, open);
+    this.shows = parseShows(saved.shows, this.places);
     this.fixActive();
-    const want = ses.tabs[ses.active ?? 0];
-    const i = this.tabs.findIndex((t) => t.key === want);
+    const i = this.tabs.findIndex((t) => t.key === wantKey);
     if (i >= 0 && this.placeOf(i) === "main") this.switchTab(i);
-    this.focus = "main";
+    // the page that was open over the tabs (SETTINGS, STORE, NEXUS…)
+    if (view?.page && Workspace.PAGES.has(view.page) && this.deck.apps.get(view.page)) this.deck.openApp(view.page);
+    // the frame that had the focus (one that is shown)
+    const f = view?.focus ?? "main";
+    this.focus = (f === "sidebar" && this.sidebarVisible) || (f === "shell" && this.shellVisible) || (f === "panel" && this.deck.settings.data.panel?.shown) ? f : "main";
   }
 
   /** rows hidden by the camera notch in full screen (deck.measureNotch): a band, the deck starts under it */

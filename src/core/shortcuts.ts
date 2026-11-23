@@ -70,6 +70,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "new-note", keys: "ctrl+n", what: "new note", cat: "notes", global: true, menuKey: "n", short: "new note" },
   { id: "new-folder", keys: "ctrl+shift+n", what: "new folder", cat: "notes", global: true, menuKey: "N", short: "new folder" },
   { keys: "ctrl+s", what: "save (notes also save themselves)", cat: "notes" },
+  { keys: "ctrl+shift+s", what: "save as: a copy under another name (in a note; elsewhere: the shell)", cat: "notes" },
   { keys: "ctrl+enter · ctrl+click", what: "follow the [[link]] under the cursor", cat: "notes" },
   { keys: "tab · shift+tab", what: "indent · unindent (shift+tab leaves the note when there's nothing to unindent)", cat: "notes" },
   { keys: "ctrl+z · ctrl+shift+z · ctrl+y", what: "undo · redo — anything: settings, widgets moved, trash, renames, new notes (in a note: the typing first) · `undo list`", cat: "everywhere" },

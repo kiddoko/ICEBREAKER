@@ -1,6 +1,6 @@
 [package]
 name = "icebreaker"
-version = "0.6.2"
+version = "0.6.3"
 description = "ICEBREAKER — open-source terminal-styled cyberdeck for notes, journaling and AI plugins"
 license = "MIT"
 edition = "2021"
@@ -42,6 +42,8 @@ tauri-plugin-clipboard-manager = "2"
 bip39 = { version = "2", default-features = false, features = ["std", "zeroize"] }
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+# the window comes back where it was, at its size (quit + relaunch = as you left it)
+tauri-plugin-window-state = "2"
 
 # Argon2 (64 MiB) and the cipher are very slow unoptimised: optimise them in dev and test builds too
 [profile.dev.package.argon2]

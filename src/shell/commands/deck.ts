@@ -1,3 +1,4 @@
+import { t } from "../../core/i18n";
 import { describePerm, sayPerms } from "../../plugins/permissions";
 import { contextCommand } from "../../ai/context";
 import { BOX_OFF, BOX_ON } from "../../ui/controls";
@@ -552,6 +553,20 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
   }
   if (!ctx.isTTY) return ctx.err(`vault ${sub}: needs the terminal\n`), 1;
   const password = async (label = "your password"): Promise<string | null> => (window ? deck.prompt(label, { mask: true }) : ctx.read(label, { mask: true }));
+  // the account's password, asked again while it's wrong (a typo gave up on the whole encryption:
+  // the setup moved on to the tour with the vault still plain) — checked only, nothing unlocked
+  const accountPassword = async (): Promise<string | null> => {
+    // the next question says what went wrong (a toast behind the dialog went unseen)
+    let label = "your account's password";
+    for (;;) {
+      const pw = await password(label);
+      if (pw === null || !deck.account) return pw;
+      if (await deck.platform.account.check(deck.account, pw).catch(() => true)) return pw;
+      deck.sound.play("error");
+      if (window) label = t("wrong password — try again (esc: cancel)");
+      else ctx.err("wrong password — try again (ctrl+c: cancel)\n");
+    }
+  };
   // typed in the shell: everything stays in the shell; --window (Settings, THE MENU, the setup): dialogs
   const ask = (title: string, detail: string): Promise<boolean> => (window ? deck.confirm(title, detail) : askInShell(ctx, title, detail));
   const tell = async (title: string, detail: string, tone: "info" | "success" | "error" = "success"): Promise<void> => {
@@ -588,7 +603,7 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
       );
       const ok = await ask("Encrypt this vault?", "Have paper and a pen ready: 24 words to write down at the end.");
       if (!ok) return 1;
-      const pw = await password("your account's password");
+      const pw = await accountPassword();
       if (pw === null) return 130;
       ctx.out(fmt.dim("backup, encryption, check… (don't quit)\n"));
       const r = await crypt.encrypt(pw, localStamp());
@@ -612,7 +627,7 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
       if (!st.unlocked) return ctx.err("unlock the vault first (vault unlock)\n"), 1;
       ctx.out("a new vault key: every file encrypted again (checked), and a new recovery key — the old key file, password or recovery key open nothing any more\n");
       if (!(await ask("Change the vault's key?", "Have paper and a pen ready: new recovery words at the end."))) return 1;
-      const pw = await password("your account's password");
+      const pw = await accountPassword();
       if (pw === null) return 130;
       ctx.out(fmt.dim("checking the password, then encrypting everything again and checking every file… (don't quit)\n"));
       const r = await crypt.rekey(pw);
@@ -625,7 +640,7 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
       if (!st.encrypted) return ctx.err("this vault isn't encrypted: no recovery key needed\n"), 1;
       if (!st.unlocked) return ctx.err("unlock the vault first (vault unlock)\n"), 1;
       if (st.recovery && !(await ask("Make a new recovery key?", "The old one stops working: throw its paper away."))) return 1;
-      const pw = await password("your account's password");
+      const pw = await accountPassword();
       if (pw === null) return 130;
       await words(await crypt.newRecovery(pw));
       return 0;

@@ -180,8 +180,9 @@ scrolls the tree.
 the Finder / Explorer onto a folder of the tree: they're **copied** into it
 (the originals stay where they were; never overwritten: "a copy.md").
 **One click selects** a note (so F2, Delete / ⌘⌫, p act on it), a **double-click**
-(or enter) opens it; one click folds a folder. The tree, your tabs and the page you
-were on come back as you left them next time.
+(or enter) opens it; one click folds a folder. **Quit and come back: everything is as you
+left it** — the tree's open folders, your tabs and their groups, the frames and their sizes,
+the tree and the shell shown or hidden, the shell's tab, the page you were on, the window.
 
 ## Tabs, pins, settings
 - Tabs on top: 1…9 (when not typing) or ⌘1…9; ⌘W or ⇧Esc closes one and shows the tab before it. NEXUS, STORE, MODULES and settings open without a tab (Esc closes them). With nothing to close, Esc opens the **◆ ICEBREAKER** menu.
@@ -217,7 +218,10 @@ were on come back as you left them next time.
 - **The setup** (THE MENU → *setup*): the chapters on top, your answers written on
   the left (click one to change it). A number or a click chooses (a theme, and
   the effects of EYE CANDY, show at once on the whole deck), enter or a second
-  click keeps it; tab skips, ctrl+enter finishes. After it, a **guided tour**:
+  click keeps it; tab skips (in the vault's folder question it completes the folder
+  name, like a terminal), esc goes back, ctrl+enter finishes. **Stealth** applies as soon
+  as you pick it: nothing online is offered after it (no AI question, no location, no
+  Google). Encrypting the vault, a wrong password just asks again. After it, a **guided tour**:
   UPLINK (the same face as its HOME widget) shows each part of the screen in turn (→ next, ← back, esc skips — it
   asks first). \`tour\` plays it again.
 - **⌘Z undoes the last thing you did** (ctrl+Z on Windows / Linux), wherever you are: a
@@ -763,7 +767,7 @@ export function activate(ib) {
 |---|---|
 | \`commands\` · \`apps\` · \`widgets\` · \`palette\` | add things to the deck (\`palette\` = THE MENU; \`key: "g"\` gives it a menu key if free) |
 | \`vault\` | read / write notes (permissions); \`readBytes\` / \`writeBytes\` for binary files (a song, a sample, an export: 256 MB at most) |
-| \`apps\` + \`rawKeys: true\` | a page that plays the keyboard (a piano, a game): every key with its place (\`code\`), never as text |
+| \`apps\` + \`rawKeys: true\` | a page that plays the keyboard (a piano, a game): every key with its place (\`code\`), never as text; ⌘S / ⌘Z, Tab / ⇧Tab, F1–F8 and ⌘ ← → too (esc gives the keys back) |
 | \`audio\` | sound of your own (permission "audio"): \`sample(id, data, { loopStart, loopLength })\`, then \`schedule([{ at, voice, play, rate, volume, pan, interp }])\` on the clock of \`now()\`; \`decode(bytes)\` reads wav, mp3, m4a…; \`encode(pcm, { format, rate, channels })\` makes an mp3, m4a, ogg or opus file (once the user ran \`encoders install\`) |
 | \`stats\` | numbers over time, shown by STATS |
 | \`modules\` | call other modules (\`todo.add\`, \`journal.append\`…), expose yours |

@@ -120,6 +120,13 @@ demand (`gh workflow run build.yml`), not on every push.
 - **macOS**: the app isn't notarized yet. The first time, right-click it → *Open*
   (or run `xattr -dr com.apple.quarantine ICEBREAKER.app`).
 - **Windows**: SmartScreen may warn about an unknown publisher → *More info* → *Run anyway*.
+- **Linux**: the `.deb` for Debian / Ubuntu / Mint (`sudo apt install ./ICEBREAKER_*.deb`), the
+  `.AppImage` for the rest (`chmod +x ICEBREAKER_*.AppImage`, then run it; it needs FUSE 2 —
+  `libfuse2` / `fuse2` — or run it with `--appimage-extract-and-run`). It uses your system's
+  GLib and WebKitGTK plays sound through **GStreamer**: no sound? install its plugins —
+  Arch `sudo pacman -S gst-plugins-base gst-plugins-good`, Fedora
+  `sudo dnf install gstreamer1-plugins-base gstreamer1-plugins-good`, Debian / Ubuntu
+  `sudo apt install gstreamer1.0-plugins-base gstreamer1.0-plugins-good`.
 
 Then follow the first-run setup — every question can be skipped. New to the deck?
 Read **[Getting started](docs/GETTING_STARTED.md)**.

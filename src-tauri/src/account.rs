@@ -265,6 +265,20 @@ pub fn account_create(app: AppHandle, state: State<AccountState>, vault: State<V
     Ok(AccountInfo { id, user: user.trim().to_string() })
 }
 
+/// Name + password of an account of this deck, checked — and nothing else: no account is
+/// unlocked, no vault opened. The login screen checks who approves a new account as soon
+/// as it's typed (not only when the new one is made); the setup checks the password before
+/// it encrypts the vault. Throttled like a login.
+#[tauri::command(async)]
+pub fn account_check(app: AppHandle, state: State<AccountState>, user: String, password: String) -> Result<bool, String> {
+    let password = Zeroizing::new(password);
+    throttle(&state);
+    let all = load(&app)?;
+    let ok = find(&all, &user, &password).is_some();
+    record(&state, ok);
+    Ok(ok)
+}
+
 /// Name + password: right → that account is unlocked (its settings are the ones used).
 #[tauri::command(async)]
 pub fn account_verify(app: AppHandle, state: State<AccountState>, vault: State<VaultState>, user: String, password: String) -> Result<bool, String> {

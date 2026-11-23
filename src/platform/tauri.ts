@@ -31,6 +31,7 @@ export function createTauriPlatform(): Platform {
       writeBytes: (path, data) => invoke<void>("vault_write_bytes", data instanceof Uint8Array ? data : new Uint8Array(data), { headers: { path: encodeURIComponent(path) } }),
       move: (dest) => invoke<string>("vault_move", { dest }),
       moveCleanup: () => invoke<void>("vault_move_cleanup"),
+      discardSeed: () => invoke<boolean>("vault_discard_seed"),
       crypt: {
         status: () => invoke<VaultCryptStatus>("vault_crypt_status"),
         encrypt: (password, stamp) => invoke<VaultCryptReport>("vault_encrypt", { password, stamp }),
@@ -84,6 +85,7 @@ export function createTauriPlatform(): Platform {
       count: () => invoke<number>("account_count"),
       create: (user, password, approver, approverPassword) => invoke<{ id: string; user: string }>("account_create", { user, password, approver: approver ?? null, approverPassword: approverPassword ?? null }),
       verify: (user, password) => invoke<boolean>("account_verify", { user, password }),
+      check: (user, password) => invoke<boolean>("account_check", { user, password }),
       lock: () => invoke<void>("account_lock"),
       change: (password, newUser, newPassword) => invoke<void>("account_change", { password, newUser, newPassword }),
       remove: (password) => invoke<void>("account_remove", { password }),
@@ -193,6 +195,12 @@ export function createTauriPlatform(): Platform {
       isFullscreen: () => invoke<boolean>("screen_is_fullscreen"),
       notch: () => invoke<number>("screen_notch").catch(() => 0),
       quit: () => invoke<void>("app_quit"),
+      // the close button, the Dock, logging out (quit.rs) — and ⌘Q, the menu bar's Quit item
+      onQuitRequested: (cb) => {
+        void listen("quit-requested", () => cb());
+        void listen<string>("menu", (e) => e.payload === "quit" && cb());
+      },
+      quitCancelled: () => invoke<void>("app_quit_cancelled").catch(() => {}),
     },
   };
 }

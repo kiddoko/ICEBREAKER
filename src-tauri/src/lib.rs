@@ -17,6 +17,7 @@ mod dev; // developer tools: refuse unless built with --features dev-tools
 mod google;
 mod media;
 mod net;
+mod quit;
 mod recovery;
 mod screen;
 mod store;
@@ -41,10 +42,24 @@ pub fn run() {
     });
 
     builder
+        // closing the window quits: the page saves the layout first (quit.rs)
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if !quit::ask_page(tauri::Manager::app_handle(window)) {
+                    api.prevent_close();
+                }
+            }
+        })
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        // the window's size and place (not full screen: the deck's own setting decides that)
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(tauri_plugin_window_state::StateFlags::SIZE | tauri_plugin_window_state::StateFlags::POSITION | tauri_plugin_window_state::StateFlags::MAXIMIZED)
+                .build(),
+        )
         .manage(appupdate::UpdateState::default())
         .manage(vault::VaultState::default())
         .manage(system::SystemState::default())
@@ -99,10 +114,12 @@ pub fn run() {
             vault::vault_adopt,
             vault::vault_move,
             vault::vault_move_cleanup,
+            vault::vault_discard_seed,
             config::config_read,
             config::config_write,
             config::env_api_key,
             config::app_quit,
+            quit::app_quit_cancelled,
             system::system_stats,
             system::power_on_battery,
             claude_code::claude_code_detect,
@@ -143,6 +160,7 @@ pub fn run() {
             account::account_lock,
             account::account_create,
             account::account_verify,
+            account::account_check,
             account::account_change,
             account::account_remove,
             screen::screen_fullscreen,
@@ -156,8 +174,16 @@ pub fn run() {
         .expect("error while running ICEBREAKER")
         .run(|app, ev| {
             // quitting: an encrypted vault's key is wiped from memory first
-            if let tauri::RunEvent::Exit = ev {
-                vault::lock(&tauri::Manager::state::<vault::VaultState>(app));
+            match ev {
+                // ⌘Q, the Dock's Quit, logging out of the system: the page saves first (quit.rs);
+                // app_quit's own exit (a code) goes through
+                tauri::RunEvent::ExitRequested { code: None, api, .. } => {
+                    if !quit::ask_page(app) {
+                        api.prevent_exit();
+                    }
+                }
+                tauri::RunEvent::Exit => vault::lock(&tauri::Manager::state::<vault::VaultState>(app)),
+                _ => {}
             }
         });
 }
@@ -191,7 +217,8 @@ fn mac_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<tauri
             &PredefinedMenuItem::show_all(app, None)?,
             &sep()?,
             &item("logout", "Log Out", Some("CmdOrCtrl+Shift+L"))?,
-            &PredefinedMenuItem::quit(app, None)?,
+            // ours, not the system's: the page saves the layout before it quits (quit.rs)
+            &item("quit", "Quit ICEBREAKER", Some("CmdOrCtrl+Q"))?,
         ],
     )?;
     let file_menu = Submenu::with_items(
@@ -201,6 +228,11 @@ fn mac_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<tauri
         &[
             &item("note.new", "New Note", Some("CmdOrCtrl+N"))?,
             &item("folder.new", "New Folder", Some("CmdOrCtrl+Shift+N"))?,
+            &sep()?,
+            // ⌘S / ⌘⇧S: the note's or the page's own save (a module's, BreakerMED's): the key
+            // goes to the page; when AppKit keeps it for the menu, the item sends it there
+            &item("save", "Save", Some("CmdOrCtrl+S"))?,
+            &item("saveas", "Save As…", Some("CmdOrCtrl+Shift+S"))?,
             &item("terminal", "New Terminal Tab", None)?,
             &sep()?,
             &item("journal", "Today's Journal", Some("CmdOrCtrl+J"))?,

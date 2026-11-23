@@ -82,7 +82,8 @@ import { LockScreen } from "./workspace/lock";
 import type { PromptOptions } from "./workspace/overlays";
 import { migrateWheel, QuickMenu } from "./workspace/quickmenu";
 import { SettingsRegistry } from "./core/prefs";
-import { lookKey, readDevice, writeDevice } from "./core/device";
+import { beginStart, endStart, lookKey, readDevice, writeDevice } from "./core/device";
+import { FX_PRESETS } from "./workspace/fxpanel";
 import { Catalog } from "./core/catalog";
 import { blocksSpec } from "./apps/blocks";
 import { registerCoreActions } from "./deck-actions";
@@ -340,6 +341,15 @@ export class Deck implements InputSink {
     const t0 = performance.now();
     installStealth(this); // before anything goes online
     setLang(s.user.language);
+    // this account's last start never reached its desktop (a crash): this one starts safe,
+    // effects off (the curved glass is WebGL) — or a crash would come back at every login
+    const who = await this.platform.account.session().catch(() => null);
+    this.safeStart = !!who && (await beginStart(this.platform, who.id).catch(() => false));
+    // in memory only (applyFx): your effects stay saved, they're back as soon as you touch ✦ fx
+    this.fxSafe = this.safeStart;
+    this.settings.onChange((path) => {
+      if (path === "fx" || path.startsWith("fx.")) this.fxSafe = false;
+    });
     // look and feel first, so the boot screen is already in your theme and font
     this.refreshTheme(true);
     this.applyFx();
@@ -347,6 +357,8 @@ export class Deck implements InputSink {
     // (browsers only allow fullscreen after a click, so this is desktop-only)
     if (s.appearance.startFullscreen && this.platform.kind === "desktop") void this.platform.window.setFullscreen(true).catch(() => {});
 
+    // ⌘Q, the close button, the Dock: the layout and settings are saved first (src-tauri/src/quit.rs)
+    this.platform.window.onQuitRequested?.(() => void this.quit());
     // nobody logged in: only the login screen — no vault, no modules, no settings of anyone
     const session = await this.platform.account.session().catch(() => null);
     if (!session) return this.startLogin();
@@ -654,8 +666,10 @@ export class Deck implements InputSink {
   /** Lock (log out): the settings are saved, the account is locked, the login screen comes back. */
   lockNow(): void {
     void (async () => {
+      if (this.started) this.workspace.saveSession();
       await this.settings.flush();
       await this.rememberLook();
+      if (this.started) await endStart(this.platform).catch(() => {});
       await this.platform.account.lock().catch(() => {});
       location.reload();
     })();
@@ -1015,9 +1029,11 @@ export class Deck implements InputSink {
 
   /** Push theme + fx settings to the CSS post-effect layers. */
   applyFx(): void {
-    // whatever changed is now this theme's own setting
-    this.rememberFx();
-    const fx = this.settings.data.fx;
+    // whatever changed is now this theme's own setting (not a safe start's flat look: it isn't yours)
+    if (!this.fxSafe) this.rememberFx();
+    const saved = this.settings.data.fx;
+    // a safe start (device.ts beginStart): flat, no WebGL, nothing written
+    const fx = this.fxSafe ? { ...saved, bloom: false, scanlines: false, vignette: false, ambient: false, flicker: false, glitch: false, levels: { ...saved.levels, ...FX_PRESETS.none.levels } } : saved;
     const t = this.theme;
     const root = document.documentElement.style;
     root.setProperty("--deck-bg", css(t.c.bg));
@@ -1206,6 +1222,7 @@ export class Deck implements InputSink {
     }
     if (r !== "taken") return false;
     this.settings.freeze();
+    await endStart(this.platform).catch(() => {}); // a reload of ours, not a crash
     location.reload();
     return true;
   }
@@ -1228,6 +1245,7 @@ export class Deck implements InputSink {
     if (!this.vaultSettingsWait) return;
     if ((await this.answerVaultSettings()) !== "taken") return;
     this.settings.freeze();
+    await endStart(this.platform).catch(() => {});
     location.reload();
   }
 
@@ -1328,6 +1346,9 @@ export class Deck implements InputSink {
     if (!this.started || this.voice.open) return;
     this.voice.open = true;
     this.greet();
+    // the desktop is up: a while later, this start counts as one that went fine
+    setTimeout(() => void endStart(this.platform).catch(() => {}), 15_000);
+    if (this.safeStart) this.notify(t("the last start didn't finish: effects off this time (safe start) — ✦ fx turns them back on"), "warning");
     // a module that's off for a reason you can act on: said here, where you can read it
     for (const m of this.modulesOff.splice(0, 3)) this.notify(t("{m} is off: {why} — switch it on again in the STORE (or: plugin enable {id})", { m: m.name, why: t(m.why), id: m.id }), "warning");
     // updated since this device last saw it: WHAT'S NEW, once (never during the setup)
@@ -1400,10 +1421,28 @@ export class Deck implements InputSink {
     this.requestFrame();
   }
 
+  private quitting = false;
+  /** this start is a safe one: the last one never reached the desktop (device.ts beginStart) */
+  private safeStart = false;
+  /** the effects are off for this run only (a safe start), until you change one */
+  private fxSafe = false;
   async quit(): Promise<void> {
-    // a page can keep the deck open ("save?" → cancel): then nothing quits
-    for (const t of [...this.workspace.tabs]) if ((await Promise.resolve(t.close?.()).catch(() => true)) === false) return;
-    await this.updater.onQuit();
+    if (this.quitting) return; // alt+F4 is a key AND the window closing: once
+    this.quitting = true;
+    try {
+      // what the desktop looks like, written now (not 300 ms later: the app would be gone)
+      if (this.started) this.workspace.saveSession();
+      await this.settings.flush();
+      if (this.started) await endStart(this.platform).catch(() => {});
+      // a page can keep the deck open ("save?" → cancel): then nothing quits
+      for (const t of [...this.workspace.tabs])
+        if ((await Promise.resolve(t.close?.()).catch(() => true)) === false) return void (await this.platform.window.quitCancelled?.());
+      await this.updater.onQuit();
+      // the window's size is saved as you quit (window-state): not the full screen's
+      if (await this.platform.window.isFullscreen().catch(() => false)) await this.platform.window.setFullscreen(false).catch(() => {});
+    } finally {
+      this.quitting = false;
+    }
     await this.platform.window.quit();
   }
 

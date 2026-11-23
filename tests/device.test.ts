@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lookKey, readDevice, writeDevice } from "../src/core/device";
+import { beginStart, endStart, lookKey, readDevice, writeDevice } from "../src/core/device";
 import type { Platform } from "../src/platform/types";
 
 const fake = () => {
@@ -22,5 +22,17 @@ describe("what the deck remembers outside every account", () => {
     const { platform } = fake();
     await writeDevice(platform, (d) => void (d.look[lookKey(" Neo ")] = { theme: "e-ink" }));
     expect((await readDevice(platform)).look[lookKey("NEO")]?.theme).toBe("e-ink");
+  });
+  it("a start that never reached the desktop makes the next one a safe one, for that account only", async () => {
+    const { platform } = fake();
+    expect(await beginStart(platform, "neo")).toBe(false);
+    // crashed: no endStart
+    expect(await beginStart(platform, "neo")).toBe(true);
+    await endStart(platform);
+    expect(await beginStart(platform, "neo")).toBe(false);
+    // another account after a crash of neo's: its start is a normal one
+    expect(await beginStart(platform, "trinity")).toBe(false);
+    await endStart(platform);
+    expect((await readDevice(platform)).starting).toBeUndefined();
   });
 });

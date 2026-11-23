@@ -80,7 +80,8 @@ modules marked ⚠ *not verified* weren't reviewed by the project — read [DISC
 
 ## 5. Staying offline: stealth mode
 
-Nothing needs the internet. Pick **Stealth** at the start of the setup, or type
+Nothing needs the internet. Pick **Stealth** at the start of the setup (it applies at
+once: the setup then skips the AI, location and Google questions), or type
 `stealth on` any time: the deck then never goes online — no cloud AI (a local
 model through Ollama still works, on this machine or a computer on your
 network), no weather, news, Google or installs. The status bar shows `◉ stealth`.

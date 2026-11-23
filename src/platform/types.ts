@@ -46,6 +46,8 @@ export interface VaultBackend {
   move?(dest: string): Promise<string>;
   /** After move: remove the old folder (only the one the vault came from). */
   moveCleanup?(): Promise<void>;
+  /** The vault open before the last mount of another folder is removed if it holds only what the deck wrote in it (true: removed). */
+  discardSeed?(): Promise<boolean>;
 }
 
 export interface VaultCryptStatus {
@@ -172,6 +174,8 @@ export interface Platform {
     create(user: string, password: string, approver?: string, approverPassword?: string): Promise<{ id: string; user: string }>;
     /** Right name + password → that account is unlocked (its settings are the ones read and written). */
     verify(user: string, password: string): Promise<boolean>;
+    /** Right name + password of an account of this deck? Checked only: nothing is unlocked. */
+    check(user: string, password: string): Promise<boolean>;
     /** No account unlocked any more. */
     lock(): Promise<void>;
     change(password: string, newUser: string, newPassword: string): Promise<void>;
@@ -289,6 +293,12 @@ export interface Platform {
     /** how tall the screen's camera notch is, in CSS pixels (0 without one; desktop macOS only) */
     notch?(): Promise<number>;
     quit(): Promise<void>;
+    /**
+     * Quitting was asked from outside the page (⌘Q, the close button, the Dock): `cb` saves
+     * what must be saved, then calls quit() — or quitCancelled() when a page kept it open.
+     */
+    onQuitRequested?(cb: () => void): void;
+    quitCancelled?(): Promise<void>;
   };
 }
 

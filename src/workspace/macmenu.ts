@@ -16,6 +16,9 @@ export function macMenuActions(deck: Deck): Record<string, () => void> {
     logout: act("logout"),
     "note.new": () => void deck.newNote(),
     "folder.new": () => void deck.newFolder(),
+    // the keys themselves, to whoever has the focus (a note saves; a page that plays the keyboard gets them)
+    save: () => deck.key(ctrlKey("s")),
+    saveas: () => deck.key(ctrlKey("s", true)),
     terminal: act("term open"),
     journal: () => void deck.openJournal(new Date()),
     find: () => deck.actions.get("notes.find")?.run(),
