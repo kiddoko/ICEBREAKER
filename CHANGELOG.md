@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.7.2 — not released yet
+
+What 0.7.1 left: a deck that rests, the last English, one name per thing, and the docs and the
+catalog level with the code.
+
+**An idle deck sleeps (I1)**
+- A deck left alone on HOME drew 20 frames a second (the animated background, the clock), 13–20 %
+  of a core on the Windows bench. Now 20 s without a key or the mouse slows every animation to 12
+  frames a second, a minute to 2 (the clock still ticks); the first key or mouse move wakes it at
+  once. Measured in the web build on HOME (default theme and effects): 2.0 frames a second asleep.
+  Settings → APPEARANCE → « save energy » off keeps the full pace.
+- `ui.stayAwake()` for what you watch without touching: the MUSIC pop-up while it plays.
+
+**Words**
+- The LOG shows its messages in the deck's language as they're drawn: a module left off at the
+  first login (« breakerMED: its code changed… ») was logged in English before the account's
+  language loaded.
+- `help` is short: the commands to start with, then `help all` (every command, lowercase headers,
+  « module: todo » instead of « PLUGIN: TODO »), `help <module>`, `help <command>`. `view` is a hidden
+  old name of `frame` (E1).
+- « blocks » is « catalog » everywhere: the page, its tab, `launch`, the docs (E2). `launch` lists
+  pages by their tab's name.
+- todo's repeats in French (« ↻ une semaine sur deux : lun jeu · encore 3 »).
+- One way to write a day (E4): `dayShort` (« mon 23 nov »), `dayLong` (« monday 23 november »),
+  `weekdayShort` in `core/dates.ts` (`ib.lib.dates`), lowercase, in the deck's language — the top
+  bar, reminders, todo, the calendar, the journal, the moon, the screensaver, the setup.
+
+**A real shell (B4)**
+- Impossible dates and times are refused, never moved: `todo --due 31/02`, `cal add "x" 99:99`,
+  `remind "x" 31/02 9h` say « no such date or time » (31/02 became 3 March; 99:99 an all-day event
+  named « x 99:99 »). `readWhen` gives the word (`invalid`).
+- A reminder in the past asks first (it rang at once, « late »); in a pipe it's refused.
+- A note's file name is cut at 80 characters, at a word (a 250-character title was a raw « os error
+  123 » on Windows); the whole title stays in the note.
+
+**The catalog and the docs (J4)**
+- The frame's services: `frames.fold · unfold · solo · move · folded · isSolo`, `statusbar.items ·
+  move · hide · show · reset`, `log.tail`, `trash.list · restore`, `deck.stealth`, and the modules'
+  `calendar.import`, `stats.value` — the same rules as the commands they run.
+- An « api » kind of block: every `ib.ui` member and `ib.lib` export in one line
+  (`src/plugins/apidocs.ts`; a test fails when one is missing).
+- The F1 manual (EN/FR), START HERE, PLUGINS.md, UI_KIT.md say all this.
+- The tree's Refresh and a macro's Run go through their commands (`vault rescan`, `macro run`).
+
 ## 0.7.1 — 2026-11-23
 
 First steps, one name per thing, safety nets — from Fable's exploration of 0.7.0 (web and the
