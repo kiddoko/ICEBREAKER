@@ -248,7 +248,7 @@ export class FileBrowser implements Overlay {
         const wanted = !e.isDir && (this.o.exts ?? []).some((x) => e.name.toLowerCase().endsWith(x));
         ui.text(row.x + 1, row.y, e.isDir ? "▸" : e.name.endsWith(".md") ? "≡" : fileIcon(e.name), { fg: e.isDir ? c.warning : c.accentAlt, ...st });
         ui.text(row.x + 3, row.y, e.isDir ? `${e.name}/` : this.vault ? e.name.replace(/\.md$/, "") : e.name, { fg: sel || wanted ? c.fg : c.muted, attrs: e.isDir || wanted ? BOLD : 0, ...st }, row.w - 12);
-        if (!e.isDir && !this.vault) ui.textRight(row.x + row.w - 1, row.y, e.size < 1024 ? `${e.size} B` : `${Math.round(e.size / 1024)} KB`, { fg: c.faint, ...st });
+        if (!e.isDir && !this.vault) ui.textRight(row.x + row.w - 1, row.y, e.size < 1024 ? `${e.size} B` : `${Math.round(e.size / 1024)} KB`, { fg: c.subtle, ...st });
       });
 
     // what you can do here
@@ -265,7 +265,7 @@ export class FileBrowser implements Overlay {
       const drives = drivesFolder();
       if (drives) btn("⏏", () => this.goTo(drives), t("the drives (a USB key…)"));
       if (this.o.pickDir) btn(t("choose this folder"), () => this.chooseHere(), "ctrl+enter", c.success);
-      else ui.text(fx + 1, fy, t("enter on a file chooses it"), { fg: c.faint, bg: c.panel }, inner.x + inner.w - fx - 1);
+      else ui.text(fx + 1, fy, t("enter on a file chooses it"), { fg: c.subtle, bg: c.panel }, inner.x + inner.w - fx - 1);
     }
   }
 }

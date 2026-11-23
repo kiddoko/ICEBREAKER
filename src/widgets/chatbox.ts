@@ -115,7 +115,7 @@ export const chatWidget: WidgetSpec = {
     const room = r.h - 1;
     // the field on top (it's in view as soon as the widget's top is: HOME and the panel scroll a
     // chosen widget's top into view), the conversation under it, its newest lines
-    if (!all.length && room > 0) ui.text(r.x + INSET, r.y + 1, t("say something — just type"), { fg: c.faint }, w);
+    if (!all.length && room > 0) ui.text(r.x + INSET, r.y + 1, t("say something — just type"), { fg: c.subtle }, w);
     all.slice(-room).forEach((l, i) => ui.text(r.x + INSET, r.y + 1 + i, l.text, { fg: l.fg, attrs: l.bold ? BOLD : 0 }, w));
     const row = { x: r.x, y: r.y, w: r.w, h: 1 };
     if (select) showers.set(key ?? "chat", select);

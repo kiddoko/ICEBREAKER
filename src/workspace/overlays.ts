@@ -364,7 +364,7 @@ export class ChooseDialog implements Overlay {
       const room = row.x + row.w - 2 - end - 3;
       if (x.o.hint && room > 4) {
         const h = truncate(x.o.hint, room);
-        ui.textRight(row.x + row.w - 2, row.y, h, { fg: c.faint });
+        ui.textRight(row.x + row.w - 2, row.y, h, { fg: c.subtle });
       }
     });
     if (!this.list.items.length) ui.textCenter(listRect, listRect.y, "no match", { fg: c.subtle });

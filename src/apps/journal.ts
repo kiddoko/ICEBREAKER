@@ -222,7 +222,7 @@ export class JournalApp implements App {
       x += ui.button(x, by, "today", () => {}, { cmd: "journal today", tip: "ctrl+j from anywhere" }) + 1;
       ui.button(x, by, "ask ◆", () => this.deck.openApp("link", { prompt: `Read my journal entries from the last 7 days and give me a short recap: themes, mood, open tasks.` }), { tip: "LINK recaps your last 7 days\nin the shell: journal ls -n 7 | ask \"recap\"" });
     }
-    if (focused) ui.text(r.x + 2, r.y + r.h - 1, "←↑↓→ day · [ ] month · enter", { fg: c.faint });
+    if (focused) ui.text(r.x + 2, r.y + r.h - 1, "←↑↓→ day · [ ] month · enter", { fg: c.subtle });
   }
 }
 

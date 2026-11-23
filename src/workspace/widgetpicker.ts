@@ -127,7 +127,7 @@ export class WidgetPicker implements Overlay {
         const open = this.openGroups.has(line.group);
         let gx = ui.text(row.x + 1, row.y, open ? "▾" : "▸", { fg: c.accent });
         gx = ui.text(gx + 1, row.y, line.label.toLowerCase(), { fg: selected ? c.fg : c.title, attrs: BOLD });
-        ui.text(gx + 1, row.y, `${line.count}`, { fg: c.faint });
+        ui.text(gx + 1, row.y, `${line.count}`, { fg: c.subtle });
         ui.hit(row, { onClick: () => this.toggle(line.group), tip: t("click: open / fold · → ←") });
         return;
       }

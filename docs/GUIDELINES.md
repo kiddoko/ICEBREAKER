@@ -171,7 +171,8 @@ A theme is one TOML file ([THEMES.md](THEMES.md)). A good theme:
 
 - **Is readable first.** `fg` on `bg` and on `panel` must be easy to read for a
   whole evening; `muted` is still readable, `subtle` is for hints and `faint`
-  only for lines and grids. Check a long note, the settings and the shell.
+  only for lines and grids — never text. The deck keeps `muted` at 4.5:1 and
+  `subtle` at 3.5:1 on its own (THEMES.md), but pick them so it doesn't have to. Check a long note, the settings and the shell.
 - **Has one accent.** `accent` says "this is the thing you're on / can act
   on". `accentAlt` is for the occasional second level. `success` / `warning` /
   `error` keep their meaning, whatever the palette.

@@ -145,7 +145,7 @@ class BlocksApp implements App {
     dy += 1;
     ui.text(dx, dy, b.name, { fg: c.title, attrs: BOLD }, dw);
     dy += 1;
-    if (b.id !== b.name) ui.text(dx, dy++, b.id, { fg: c.faint }, dw);
+    if (b.id !== b.name) ui.text(dx, dy++, b.id, { fg: c.subtle }, dw);
     dy += 1;
     // the doc, wrapped
     for (const l of wrapWords(b.doc || "—", dw).slice(0, 6)) ui.text(dx, dy++, l, { fg: c.fg }, dw);

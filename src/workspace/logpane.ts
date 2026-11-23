@@ -128,13 +128,13 @@ export class LogPane {
     const cr = { x: xr - strWidth(clear), y: r.y, w: strWidth(clear), h: 1 };
     ui.text(cr.x, r.y, clear, { fg: ui.hovered(cr) ? c.panel : c.subtle, bg: ui.hovered(cr) ? c.error : undefined });
     ui.hit(cr, { onClick: () => (log.clear(this.show.size ? [...this.show] : undefined), (this.deck.errors.unseen = 0)), tip: t("empty what is shown · log clear") });
-    ui.textRight(cr.x - 1, r.y, `${list.length}`, { fg: c.faint });
+    ui.textRight(cr.x - 1, r.y, `${list.length}`, { fg: c.subtle });
 
     // ── the lines, newest at the bottom ──
     const body = { x: r.x, y: r.y + 1, w: r.w, h: r.h - 1 };
     ui.hit(body, { onWheel: (d) => this.glide.push(-d) });
     if (!list.length) {
-      ui.text(body.x + 1, body.y, log.list.length ? t("nothing of that kind yet · 0 shows everything") : t("what you type, what clicks run, errors, messages and debug lines appear here"), { fg: c.faint }, body.w - 2);
+      ui.text(body.x + 1, body.y, log.list.length ? t("nothing of that kind yet · 0 shows everything") : t("what you type, what clicks run, errors, messages and debug lines appear here"), { fg: c.subtle }, body.w - 2);
       return;
     }
     const tx = body.x + (compact ? 9 : 12); // after "hh:mm ❯ " / "hh:mm:ss ❯ "
@@ -144,7 +144,7 @@ export class LogPane {
     lines.slice(start, start + body.h).forEach((l, i) => {
       const y = body.y + i;
       if (l.time) {
-        ui.text(body.x + 1, y, l.time, { fg: c.faint });
+        ui.text(body.x + 1, y, l.time, { fg: c.subtle });
         ui.text(tx - 2, y, l.glyph ?? "", { fg: l.gfg ?? c.fg, attrs: BOLD });
       }
       ui.text(tx, y, l.text, { fg: l.fg, attrs: l.attrs }, body.w - (tx - body.x) - 1);

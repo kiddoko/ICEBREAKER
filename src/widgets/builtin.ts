@@ -216,7 +216,7 @@ const weatherWidget: WidgetSpec = {
     if (sl.error && !sl.w) ui.animate(60_000); // (the retry needs a frame)
     if (!sl.w) {
       ui.text(r.x + 1, r.y + 1, sl.error ? `⚠ ${sl.error}` : `${ui.spinner()} contacting the sky…`, { fg: sl.error ? c.error : c.muted }, r.w - 2);
-      if (sl.error) ui.text(r.x + 1, r.y + 2, "enter: retry", { fg: c.faint });
+      if (sl.error) ui.text(r.x + 1, r.y + 2, "enter: retry", { fg: c.subtle });
       return;
     }
     const w = sl.w;
@@ -262,8 +262,8 @@ const weatherWidget: WidgetSpec = {
         .text(`${t("feels")} ${Math.round(w.feels)}°`, { fg: c.subtle }, { priority: 6 })
         .text(`${arrow} ${Math.round(w.wind)} km/h`, { fg: c.subtle, raw: true }, { priority: 5 })
         .text(`☂ ${Math.round(w.rainChance)}%`, { fg: mix(0x7fb4ea, c.bg, 0.2) }, { priority: 7 })
-        .text(`${Math.round(w.humidity)}%rh`, { fg: c.faint }, { priority: 2 })
-        .text(`↑${w.sunrise} ↓${w.sunset}`, { fg: c.faint }, { side: "right", priority: 1 })
+        .text(`${Math.round(w.humidity)}%rh`, { fg: c.subtle }, { priority: 2 })
+        .text(`↑${w.sunrise} ↓${w.sunset}`, { fg: c.subtle }, { side: "right", priority: 1 })
         .draw();
     }
     if (hoursR && w.hourly.length && hoursR.w >= 12) {
@@ -273,7 +273,7 @@ const weatherWidget: WidgetSpec = {
       const vals = Array.from({ length: cw * 2 }, (_, i) => ((w.hourly[Math.floor((i / (cw * 2)) * w.hourly.length)] - lo) / Math.max(1, hi - lo)) * 0.85 + 0.1);
       ui.chart({ x: hoursR.x + INSET, y: hoursR.y, w: cw, h: 2 }, vals, mix(c.accent, c.bg, 0.15));
       ui.text(hoursR.x + INSET + cw + 1, hoursR.y, lab, { fg: c.subtle });
-      ui.text(hoursR.x + INSET + cw + 1, hoursR.y + 1, `${Math.round(lo)}°`, { fg: c.faint });
+      ui.text(hoursR.x + INSET + cw + 1, hoursR.y + 1, `${Math.round(lo)}°`, { fg: c.subtle });
     }
     if (weekR) {
       // the next days as cards: the day, a little sky, max and min
@@ -291,7 +291,7 @@ const weatherWidget: WidgetSpec = {
         ui.text(cr.x, cr.y + 2, i2, { fg: tint }, cr.w);
         new Bar(ui, cr.x, cr.y + 3, cr.x + cr.w, 1)
           .text(`${Math.round(d.max)}°`, { fg: c.fg }, { priority: 9 })
-          .text(`${Math.round(d.min)}°`, { fg: c.faint }, { priority: 5 })
+          .text(`${Math.round(d.min)}°`, { fg: c.subtle }, { priority: 5 })
           .draw();
       });
     }
@@ -404,7 +404,7 @@ const system: WidgetSpec = {
     if (r.h >= 3) {
       ui.chart({ x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 2 }, cpuHistory, mix(c.accent, c.bg, 0.25));
       const up = stats.uptime;
-      ui.text(r.x + 1, r.y + r.h - 1, `up ${Math.floor(up / 86400)}d ${Math.floor((up % 86400) / 3600)}h · ${stats.processes} procs · ${stats.cores.length} cores`, { fg: c.faint }, r.w - 2);
+      ui.text(r.x + 1, r.y + r.h - 1, `up ${Math.floor(up / 86400)}d ${Math.floor((up % 86400) / 3600)}h · ${stats.processes} procs · ${stats.cores.length} cores`, { fg: c.subtle }, r.w - 2);
     }
   },
   activate: ({ deck }) => void deck.openApp("sysmon"),
@@ -431,7 +431,7 @@ const recent: WidgetSpec = {
       ui.text(r.x + 1, row.y, hot ? "▸" : i === 0 ? "◆" : "·", { fg: i === 0 || hot ? c.accent : c.faint, bg });
       ui.text(r.x + 3, row.y, basename(e.path, ".md"), { fg: hot ? c.accent : c.fg, bg, attrs: i === 0 ? BOLD : 0 }, r.w - 10 - folderW);
       if (folderW) ui.text(r.x + r.w - 8 - folderW, row.y, dirname(e.path) || "/", { fg: c.subtle, bg }, folderW);
-      ui.textRight(r.x + r.w - 1, row.y, ago(e.modified), { fg: c.faint, bg });
+      ui.textRight(r.x + r.w - 1, row.y, ago(e.modified), { fg: c.subtle, bg });
       ui.hit(row, { cmd: `open ${q(e.path)}` });
     });
   },

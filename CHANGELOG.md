@@ -67,6 +67,18 @@ The UX pass: everything discoverable, nothing stretched, the deck explains itsel
 - **neofetch, as a HUD**: the system, the cpu and the memory with their gauges, the graphics
   card, the vault (encrypted or plain), the uplink, the modules, the theme and its palette — and
   the right version (it said 0.1.0).
+- **French, everywhere**: tips and pages' status lines written without a translation are
+  translated where they're drawn (whole, by line, or by " · " part — a path or a command keeps its
+  case), 90 more strings; **every date is written in the deck's date format** (Settings → you →
+  date format) — empty, it never mixes languages (a French deck on an English Mac wrote its months
+  in English); `ib.lib.dateLocale()` for modules.
+- **Menus say what they do**: *move to the trash* (not "delete"), *remove* for a macro (it said
+  it went to the trash: it never did), *empty the trash…* asks first; HOME's page squares and the
+  log out row no longer cut or shout (⏻ came out halved: "to the login page").
+- **Readable in every theme** (WCAG 2.1 contrast): secondary text at 4.5:1 at least, hints at
+  3.5:1, on the background, the panels and the pop-ups — five of the eleven themes had hints
+  around 2:1. 82 texts written in `faint` (meant for lines) now use `subtle`: the weather's hours,
+  the log's times, empty pages' help, the setup's hints…
 - **Ctrl + wheel changes the interface scale on every system**, one step a notch (Linux and
   Windows mice send lines: it took ~14 notches). **⇧ + wheel goes to what's under the
   pointer**, like the wheel — it walks the tree only over the tree (Settings scrolled the tree).

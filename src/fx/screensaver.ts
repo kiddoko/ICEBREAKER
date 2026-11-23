@@ -85,7 +85,7 @@ function drawTerminal(ui: UI, r: Rect): void {
     const bottom = bigTime(ui, box, box.x + box.w / 2, box.y + box.h / 2 - 1, () => c.accent, box.w - 4);
     ui.textCenter(box, Math.min(box.y + box.h - 2, bottom + 1), new Date().toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric", month: "short" }).toUpperCase(), { fg: c.subtle });
   }
-  ui.textRight(r.x + r.w - 2, r.y + r.h - 1, "READY. ANY KEY", { fg: c.faint });
+  ui.textRight(r.x + r.w - 2, r.y + r.h - 1, "READY. ANY KEY", { fg: c.subtle });
   ui.animate(60);
 }
 
@@ -222,7 +222,7 @@ function drawPaper(ui: UI, r: Rect): void {
   } else ui.textCenter(r, ty++, time, { fg: c.fg, attrs: BOLD });
   ui.textCenter(r, ty, now.toLocaleDateString(dateLocale(), { weekday: "long", day: "numeric", month: "long" }), { fg: c.muted });
   ui.textCenter(r, ty + 2, `— ${PAPER_LINES[seed % PAPER_LINES.length]} —`, { fg: c.subtle });
-  ui.textCenter(r, f.y + f.h - 2, "ICEBREAKER · asleep · any key", { fg: c.faint });
+  ui.textCenter(r, f.y + f.h - 2, "ICEBREAKER · asleep · any key", { fg: c.subtle });
   // next change: the next minute
   ui.animate(60_000 - (now.getSeconds() * 1000 + now.getMilliseconds()) + 30);
 }
@@ -300,6 +300,6 @@ function drawCity(ui: UI, r: Rect): void {
   const line = (msg.slice(off) + msg).slice(0, r.w);
   ui.fill({ x: r.x, y: r.y + r.h - 1, w: r.w, h: 1 }, { bg: c.panelAlt });
   ui.text(r.x, r.y + r.h - 1, line, { fg: c.accent, bg: c.panelAlt });
-  ui.text(r.x + r.w - 22, r.y + r.h - 2, " any key to jack in ", { fg: c.faint });
+  ui.text(r.x + r.w - 22, r.y + r.h - 2, " any key to jack in ", { fg: c.subtle });
   ui.animate(80);
 }

@@ -148,7 +148,7 @@ export class TrashApp implements App {
     y++;
     ui.hline(x, y, w, { fg: mix(c.accent, c.bg, 0.6) }, "━");
     y++;
-    ui.text(x, y, t("put back with enter · delete for good with del (asks first, can't be undone)"), { fg: c.faint }, w);
+    ui.text(x, y, t("put back with enter · delete for good with del (asks first, can't be undone)"), { fg: c.subtle }, w);
     y += 2;
 
     const panelH = 4;
@@ -156,7 +156,7 @@ export class TrashApp implements App {
     if (!items.length) {
       if (this.loaded) {
         ui.textCenter(listR, listR.y + Math.floor(listR.h / 3), t("nothing in the trash"), { fg: c.muted, attrs: BOLD });
-        ui.textCenter(listR, listR.y + Math.floor(listR.h / 3) + 1, t("rm, Delete in the tree or right-click → trash put things here"), { fg: c.faint });
+        ui.textCenter(listR, listR.y + Math.floor(listR.h / 3) + 1, t("rm, Delete in the tree or right-click → trash put things here"), { fg: c.subtle });
       }
     } else {
       this.list.render(ui, listR, focused, (it, row, sel, i) => {
@@ -202,7 +202,7 @@ export class TrashApp implements App {
       btn(rest[0], () => void this.restoreTo(cur), `${t("restore to…")} · r · trash restore <n> <path>`);
       if (!cur.isDir) btn(rest[1], () => this.open(cur), "o · read it");
       btn(rest[rest.length - 1], () => void this.purge([cur]), `${t("delete permanently")} · del · trash purge · ${t("can't be undone")}`, c.error);
-    } else ui.text(x, py + 1, t("esc closes · trash in the shell lists it too"), { fg: c.faint, bg: c.panelAlt }, w);
+    } else ui.text(x, py + 1, t("esc closes · trash in the shell lists it too"), { fg: c.subtle, bg: c.panelAlt }, w);
   }
 
   /** A little bin in characters; the more inside, the fuller it looks. */

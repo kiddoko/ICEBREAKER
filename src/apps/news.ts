@@ -213,11 +213,11 @@ class NewsApp implements App {
       const metaW = r.w >= 40 ? strWidth(meta) : 0;
       ui.text(r.x, row.y, on ? "▌" : ui.theme.glyphs.bullet, { fg: c.accent, bg });
       ui.text(r.x + GAP, row.y, h.title, { fg: on ? c.fg : hot ? c.accent : c.muted, bg, attrs: on ? BOLD : 0 }, r.w - GAP - (metaW ? metaW + GAP : 0));
-      if (metaW) ui.textRight(r.x + r.w, row.y, meta, { fg: c.faint, bg });
+      if (metaW) ui.textRight(r.x + r.w, row.y, meta, { fg: c.subtle, bg });
       ui.hit(row, { onClick: () => ((this.sel = i), this.deck.requestFrame()), onDouble: () => this.open(i), onWheel: (d) => ((this.scroll = Math.max(0, this.scroll + Math.sign(d))), this.deck.requestFrame()) });
     }
     ui.marqueeZone = zone;
-    if (note) ui.text(r.x, r.y + r.h - 1, note, { fg: c.faint }, r.w);
+    if (note) ui.text(r.x, r.y + r.h - 1, note, { fg: c.subtle }, r.w);
   }
 
   /** The headline picked: its title, where and when, its summary, a way out to the browser. */

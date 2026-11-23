@@ -1,5 +1,5 @@
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
-import { hex, type RGB } from "./color";
+import { hex, type RGB, readable } from "./color";
 
 /**
  * Themes are TOML files (see /themes/nightshade.toml for the annotated reference).
@@ -166,6 +166,11 @@ export function parseTheme(source: string, base: Theme | null, origin: Theme["so
 
   const c = {} as UiColors;
   for (const [field, key] of Object.entries(UI_KEYS) as [keyof UiColors, string][]) c[field] = color("ui", key, base?.c[field]);
+  // readable in every theme (WCAG 2.1): secondary text 4.5:1, hints 3.5:1 on the background,
+  // the panels and the pop-ups — a theme that goes paler gets just enough of its own text colour
+  const grounds = [c.bg, c.panel, c.panelAlt];
+  c.muted = readable(c.muted, grounds, 4.5, c.fg);
+  c.subtle = readable(c.subtle, grounds, 3.5, c.fg);
   const syntax = {} as SyntaxColors;
   for (const [field, key] of Object.entries(SYNTAX_KEYS) as [keyof SyntaxColors, string][]) syntax[field] = color("syntax", key, base?.syntax[field]);
   const ansi = ANSI_NAMES.map((n, i) => color("ansi", n, base?.ansi[i]));

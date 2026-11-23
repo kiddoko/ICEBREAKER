@@ -1992,4 +1992,6 @@ export const FR: Record<string, string> = {
   "⌘Z or the trash (the tree's last line) brings it back": "⌘Z ou la corbeille (dernière ligne de l'arbre) le ramène",
   "Open the trash": "Ouvrir la corbeille",
   "asks first: it can't be undone": "demande d'abord : impossible à annuler",
+
+  "to the login page": "vers la page de connexion",
 };

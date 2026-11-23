@@ -368,7 +368,7 @@ export class SettingsApp implements App {
       const labelRoom = Math.max(6, vx - vw - (rx + 2) - 2);
       const label = row.keys?.remove ? row.label : t(row.label); // yours: the command as you wrote it
       const lend = ui.text(rx + 2, y, label, { fg: disabled ? c.faint : selected ? c.fg : kind === "keys" && !row.keys?.editCombo ? c.subtle : c.muted, attrs: selected ? BOLD : 0, ...st }, labelRoom);
-      if (this.query) ui.text(lend + 2, y, t(from).toLowerCase(), { fg: c.faint, ...st }, Math.max(0, vx - vw - lend - 4));
+      if (this.query) ui.text(lend + 2, y, t(from).toLowerCase(), { fg: c.subtle, ...st }, Math.max(0, vx - vw - lend - 4));
 
       const pick = () => ((this.sel = i), (this.pane = "rows"));
       // greyed (it depends on another setting): chosen, never changed

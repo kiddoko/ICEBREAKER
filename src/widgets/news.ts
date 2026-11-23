@@ -325,7 +325,7 @@ export const newsWidget: WidgetSpec = {
       if (tagW) ui.text(r.x + 3, y, `[${h.tag}]`, { fg: c.subtle });
       const shown = ui.reveal(h.title, p);
       ui.text(r.x + 3 + tagW, y, shown, { fg: hot ? c.accent : i === 0 ? c.fg : c.muted }, room - tagW);
-      if (src2) ui.textRight(r.x + r.w - 1, y, src2, { fg: c.faint, attrs: DIM });
+      if (src2) ui.textRight(r.x + r.w - 1, y, src2, { fg: c.subtle, attrs: DIM });
       ui.hit(row, { onClick: () => open(i), tip: t("summary, then open it in your browser") });
     });
     ui.marqueeZone = zone;
@@ -398,7 +398,7 @@ class NewsCard implements Overlay {
     ui.text(inner.x + 1, y++, `${h.source}${h.at ? ` · ${when(this.deck, h.at)}` : ""}`, { fg: c.subtle }, tw);
     y++;
     if (summary.length) for (const l of summary) { if (y >= inner.y + inner.h - 2) break; ui.text(inner.x + 1, y++, l, { fg: c.muted }, tw); }
-    else ui.text(inner.x + 1, y++, "no summary in the feed — open the article to read it", { fg: c.faint }, tw);
+    else ui.text(inner.x + 1, y++, "no summary in the feed — open the article to read it", { fg: c.subtle }, tw);
     const by = inner.y + inner.h - 1;
     let bx = inner.x + 1;
     if (h.link && this.deck.platform.openUrl) bx += ui.button(bx, by, "open in browser ↗  (enter)", () => this.open()) + 2;

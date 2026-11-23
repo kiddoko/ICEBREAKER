@@ -115,7 +115,7 @@ class ClocksApp implements App {
     if (!list.length) return void ui.text(inner.x + INSET, inner.y, t("none — a sets one"), { fg: c.muted }, inner.w - INSET * 2);
     const next = clock.soonest()?.alarm;
     const room = list.length > inner.h ? Math.max(1, inner.h - 1) : inner.h;
-    if (list.length > room && inner.h > 1) ui.text(inner.x + INSET, inner.y + room, `+${list.length - room} · clock alarm`, { fg: c.faint }, inner.w - INSET * 2);
+    if (list.length > room && inner.h > 1) ui.text(inner.x + INSET, inner.y + room, `+${list.length - room} · clock alarm`, { fg: c.subtle }, inner.w - INSET * 2);
     list.forEach((al, i) => {
       const y = inner.y + i;
       if (i >= room) return;
@@ -271,7 +271,7 @@ class ClocksApp implements App {
     // more cities than rows: the last row says how many are left (the pop-up and `worldclock` list them all)
     // (one row only: the first city, with "+N" on its line)
     const room = zones.length > inner.h ? Math.max(1, inner.h - 1) : inner.h;
-    if (zones.length > room && inner.h > 1) ui.text(inner.x + INSET, inner.y + room, `+${zones.length - room} · worldclock`, { fg: c.faint }, inner.w - INSET * 2);
+    if (zones.length > room && inner.h > 1) ui.text(inner.x + INSET, inner.y + room, `+${zones.length - room} · worldclock`, { fg: c.subtle }, inner.w - INSET * 2);
     // the names in a column of one width (the longest, a third of the card at most): every
     // day strip then starts at the same place
     const cityOf = (tz: string) => tz.split("/").pop()!.replace(/_/g, " ");
@@ -305,8 +305,8 @@ class ClocksApp implements App {
           ui.text(x + k, y, k === pos ? "▮" : lit ? "▬" : "▭", { fg: k === pos ? c.accent : lit ? mix(c.warning, c.bg, 0.55) : mix(0x7fb4ea, c.bg, 0.6) });
         }
       }, { priority: 2 });
-      bar.text(rel, { fg: c.faint }, { side: "right", priority: 3 });
-      if (inner.h === 1 && zones.length > 1) bar.text(`+${zones.length - 1}`, { fg: c.faint }, { side: "right", priority: 7 });
+      bar.text(rel, { fg: c.subtle }, { side: "right", priority: 3 });
+      if (inner.h === 1 && zones.length > 1) bar.text(`+${zones.length - 1}`, { fg: c.subtle }, { side: "right", priority: 7 });
       bar.text(time, { fg: c.accent, attrs: BOLD }, { side: "right", priority: 10 });
       bar.draw();
       ui.hit({ x: inner.x, y, w: inner.w, h: 1 }, { tip: `${tz}\nworldclock rm ${tz}` });

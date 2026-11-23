@@ -185,7 +185,7 @@ const recentPopup: WidgetPopupSpec = {
       ui.textRight(r.x + r.w - 2, y, n.path.split("/").slice(0, -1).join("/") || "/", { fg: c.faint, ...st });
       ui.hit(row, { cmd: `open ${q(n.path)}`, tip: n.path });
     });
-    if (!list.length) ui.text(r.x + 2, r.y + 2, t("no match"), { fg: c.faint });
+    if (!list.length) ui.text(r.x + 2, r.y + 2, t("no match"), { fg: c.subtle });
   },
   onText: (t) => (recentField.onText(t), (recentSel = 0), true),
   onKey: (k, ctx) => {
@@ -274,8 +274,8 @@ const weatherPopup: WidgetPopupSpec = {
         .text(`${t("feels")} ${Math.round(w.feels)}°`, { fg: c.subtle }, { priority: 7 })
         .text(`${t("wind")} ${Math.round(w.wind)} km/h`, { fg: c.subtle }, { priority: 5 })
         .text(`☂ ${w.rainChance}%`, { fg: mix(0x7fb4ea, c.bg, 0.2) }, { priority: 8 })
-        .text(`${w.humidity}%rh`, { fg: c.faint }, { priority: 3 })
-        .text(`↑${w.sunrise} ↓${w.sunset}`, { fg: c.faint }, { side: "right", priority: 4 })
+        .text(`${w.humidity}%rh`, { fg: c.subtle }, { priority: 3 })
+        .text(`↑${w.sunrise} ↓${w.sunset}`, { fg: c.subtle }, { side: "right", priority: 4 })
         .draw();
     }
     if (!weekR) return;

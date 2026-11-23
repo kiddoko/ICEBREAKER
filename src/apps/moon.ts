@@ -171,7 +171,7 @@ class MoonApp implements App {
     ui.text(r.x, r.y, shown.toLocaleDateString(locale, { month: "long", year: "numeric" }).toLowerCase(), { fg: c.title, attrs: BOLD }, r.w);
     for (let d = 0; d < 7; d++) {
       const name = new Date(2024, 0, 1 + d).toLocaleDateString(locale, { weekday: "short" }).slice(0, cellW - 1);
-      ui.text(r.x + d * cellW, r.y + 1, name, { fg: c.faint });
+      ui.text(r.x + d * cellW, r.y + 1, name, { fg: c.subtle });
     }
     // the day each full and new moon really falls on this month (● ○ only there)
     const exact = new Map<number, string>();

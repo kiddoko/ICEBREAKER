@@ -572,7 +572,7 @@ export class HomeApp implements App {
         // too small to draw anything: show its name, so it never just vanishes
         if (inner.w > 0 && inner.h > 0 && blank(ui, inner)) {
           ui.textCenter(inner, inner.y + Math.floor((inner.h - 1) / 2), spec.title, { fg: c.subtle });
-          if (inner.h > 2) ui.textCenter(inner, inner.y + Math.floor((inner.h - 1) / 2) + 1, t("bigger: e, shift+arrows"), { fg: c.faint });
+          if (inner.h > 2) ui.textCenter(inner, inner.y + Math.floor((inner.h - 1) / 2) + 1, t("bigger: e, shift+arrows"), { fg: c.subtle });
         }
       });
       if (this.editing) {

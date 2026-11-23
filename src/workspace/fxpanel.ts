@@ -138,10 +138,10 @@ export class FxPanel implements Overlay {
       }
       // the hint goes right of the name, never over it: cut with … when the row is short
       const room = rr.x + rr.w - INSET * 2 - (end + GAP);
-      if (room >= 4) ui.textRight(rr.x + rr.w - INSET * 2, rr.y, truncate(row.hint, room), { fg: c.faint });
+      if (room >= 4) ui.textRight(rr.x + rr.w - INSET * 2, rr.y, truncate(row.hint, room), { fg: c.subtle });
       ui.hit(rr, { cmd: row.key ? `fx ${row.key} ${this.deck.settings.data.fx[row.key] ? "off" : "on"}` : `fx ${row.preset}` });
     });
-    ui.text(inner.x + 1, inner.y + inner.h - 1, "esc close · `fx` in the shell", { fg: c.faint });
+    ui.text(inner.x + 1, inner.y + inner.h - 1, "esc close · `fx` in the shell", { fg: c.subtle });
   }
 }
 

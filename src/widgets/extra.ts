@@ -170,7 +170,7 @@ const worldWidget: WidgetSpec = {
           time = new Intl.DateTimeFormat("en-GB", { timeZone: tz, weekday: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date());
         } catch {}
         ui.text(r.x + 1, y, tz.split("/").pop()!.replace(/_/g, " "), { fg: sel ? c.fg : c.muted, ...(sel ? { bg: c.highlight } : {}) });
-        ui.text(r.x + 18, y, tz, { fg: c.faint, ...(sel ? { bg: c.highlight } : {}) }, r.w - 36);
+        ui.text(r.x + 18, y, tz, { fg: c.subtle, ...(sel ? { bg: c.highlight } : {}) }, r.w - 36);
         ui.textRight(r.x + r.w - 5, y, time.toLowerCase(), { fg: c.accent, ...(sel ? { bg: c.highlight } : {}) });
         ui.text(r.x + r.w - 3, y, "✕", { fg: ui.hovered({ x: r.x + r.w - 3, y, w: 1, h: 1 }) ? c.error : c.faint, ...(sel ? { bg: c.highlight } : {}) });
         ui.hit({ x: r.x + r.w - 3, y, w: 1, h: 1 }, { cmd: `worldclock rm ${tz}`, tip: "x · remove" });
@@ -401,7 +401,7 @@ const aiWidget: WidgetSpec = {
     const quip = hover && look0.quips ? `“${hover.quip}”` : "";
     const state = quip && hover ? [...quip].slice(0, typed(ui, `uplink-quip:${hover.since}`, quip)).join("") : !ok ? "○ offline" : thinking ? "◌ processing" : speaking ? "◖ speaking" : "● uplink up";
     if (y + 1 < r.y + r.h) ui.textCenter(r, y + 1, state, { fg: !ok ? c.error : thinking ? c.accentAlt : speaking ? c.info : c.success });
-    if (!ok && y + 2 < r.y + r.h) ui.textCenter(r, y + 2, deck.settings.data.privacy.stealth ? "stealth: local model only" : "enter: settings", { fg: c.faint });
+    if (!ok && y + 2 < r.y + r.h) ui.textCenter(r, y + 2, deck.settings.data.privacy.stealth ? "stealth: local model only" : "enter: settings", { fg: c.subtle });
     ui.animate(ok ? (thinking || speaking ? 33 : 50) : 1000);
   },
   activate: ({ deck }) => void deck.openApp(deck.ai.ready ? "link" : "settings"),

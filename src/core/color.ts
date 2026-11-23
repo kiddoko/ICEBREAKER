@@ -44,6 +44,33 @@ export function mix(a: RGB, b: RGB, t: number): RGB {
   return rgb(ar + (br - ar) * t, ag + (bg - ag) * t, ab + (bb - ab) * t);
 }
 
+/** relative luminance (WCAG 2.1) */
+function luminance(c: RGB): number {
+  const lin = (v: number) => ((v /= 255) <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+  const [r, g, b] = channels(c);
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+
+/** The contrast ratio of two colours, 1 to 21 (WCAG: text ≥ 4.5, large text and graphics ≥ 3). */
+export function contrast(a: RGB, b: RGB): number {
+  const x = luminance(a), y = luminance(b);
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+
+/**
+ * `c` as it is when it reads at `ratio` on every one of `bgs`; else moved towards `towards`
+ * (the theme's text colour) just enough that it does — its hue kept as far as it can be.
+ */
+export function readable(c: RGB, bgs: RGB[], ratio: number, towards: RGB): RGB {
+  const ok = (x: RGB) => bgs.every((b) => contrast(x, b) >= ratio);
+  if (ok(c)) return c;
+  for (let t = 0.05; t < 1; t += 0.05) {
+    const m = mix(c, towards, t);
+    if (ok(m)) return m;
+  }
+  return towards;
+}
+
 /** Sample a multi-stop gradient at t ∈ [0, 1]. */
 export function gradient(stops: RGB[], t: number): RGB {
   if (stops.length === 0) return 0xffffff;

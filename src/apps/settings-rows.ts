@@ -219,7 +219,8 @@ export function coreSettingRows(deck: Deck): Row[] {
     // your account: who you are, log out (new accounts are made on the login page)
     head("Account"),
     { label: "Account", kind: "action", value: () => d.account ?? "—", cmd: () => "account passwd", change: () => void d.shell.runLine("account passwd").then(() => d.workspace.focusShell()) },
-    { label: "Log out", kind: "action", value: () => "⏻", cmd: () => "logout", change: () => d.lockNow() },
+    // (its value was ⏻, a glyph most fonts don't have: it came out cut in half)
+    { label: "Log out", kind: "action", value: () => t("to the login page"), cmd: () => "logout", change: () => d.lockNow() },
     { section: "APPEARANCE", label: "", value: () => "" },
     head("Screen"),
     cycle("appearance.theme", "Theme", d.themes.list().map((t) => t.name)),

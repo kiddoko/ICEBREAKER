@@ -215,7 +215,7 @@ export class QuickMenu implements Overlay {
         const gx = ui.text(row.x + 1, row.y, a.group ? `${a.group} ` : "", { fg: selected ? c.accentAlt : a.id.startsWith("menu.") ? c.accent : c.subtle, attrs: a.id.startsWith("menu.") ? BOLD : 0 });
         const hintW = a.hint ? Math.min(strWidth(a.hint), Math.floor(row.w / 3)) : 0;
         const tx = ui.text(gx, row.y, a.title, { fg: selected ? c.fg : c.muted, attrs: selected ? BOLD : 0 }, row.w - (gx - row.x) - hintW - 3);
-        if (a.hint && row.x + row.w - 2 - hintW > tx) ui.textRight(row.x + row.w - 2, row.y, truncate(a.hint, hintW), { fg: c.faint });
+        if (a.hint && row.x + row.w - 2 - hintW > tx) ui.textRight(row.x + row.w - 2, row.y, truncate(a.hint, hintW), { fg: c.subtle });
       });
       if (!this.list.items.length) ui.textCenter(body, body.y + 1, t("nothing matches"), { fg: c.subtle });
       return;
@@ -235,7 +235,7 @@ export class QuickMenu implements Overlay {
       ui.text(cell.x + 3, cell.y, label, { fg: it.from === "yours" ? c.title : on ? c.fg : c.muted, bg }, CELL - 5);
       ui.hit(cell, { onClick: () => this.runItem(it), tip: it.tip });
     });
-    ui.text(body.x + 1, body.y + body.h - 1, t("a key + enter runs it · type to search · ⌘K or shift twice, from anywhere"), { fg: c.faint, bg: c.panelAlt }, body.w - 2);
+    ui.text(body.x + 1, body.y + body.h - 1, t("a key + enter runs it · type to search · ⌘K or shift twice, from anywhere"), { fg: c.subtle, bg: c.panelAlt }, body.w - 2);
   }
 }
 

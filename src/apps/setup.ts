@@ -740,13 +740,13 @@ export class SetupApp implements App {
       if (iy >= footY - (this.error ? 1 : 0)) {
         // no room for the hint under the field
       } else if (this.busy) ui.text(inner.x + 2, iy, `${ui.spinner()} ${t("locating…")}`, { fg: c.muted, bg: c.panel });
-      else ui.text(inner.x + 2, iy, st.id === "vault-path" ? t("a full path (~/notes works) · tab completes the folder's name · or browse…") : t("enter: keep the grey suggestion · type to replace it"), { fg: c.faint, bg: c.panel }, inner.w - 4);
+      else ui.text(inner.x + 2, iy, st.id === "vault-path" ? t("a full path (~/notes works) · tab completes the folder's name · or browse…") : t("enter: keep the grey suggestion · type to replace it"), { fg: c.subtle, bg: c.panel }, inner.w - 4);
     } else if (st.slider) {
       // a real slider: drag, hold, ←→ one at a time (faster when held) — you hear the level as it moves
       const v = Number(this.a[st.id] ?? st.slider.start);
       slider(ui, { x: inner.x + 2, y: iy, w: inner.w - 4, h: 1 }, v, st.slider.min, st.slider.max, (nv) => this.setSound(nv), { zeroIsOff: true });
       iy += 2;
-      if (iy < inner.y + inner.h - 1) ui.text(inner.x + 2, iy, t("enter: keep it"), { fg: c.faint, bg: c.panel }, inner.w - 4);
+      if (iy < inner.y + inner.h - 1) ui.text(inner.x + 2, iy, t("enter: keep it"), { fg: c.subtle, bg: c.panel }, inner.w - 4);
     } else {
       // more options than rows (the themes in a small window): the ones around the cursor, ▲ ▼ for the rest
       const all = this.options();

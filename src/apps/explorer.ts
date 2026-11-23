@@ -275,7 +275,7 @@ export class ExplorerApp implements App {
     if (!items.length) {
       const on = this.filter.active;
       ui.textCenter(r, horizon + 2, on ? tr("nothing matches") : "empty sector", { fg: c.muted, attrs: BOLD });
-      ui.textCenter(r, horizon + 3, on ? tr("esc clears the search · × shows everything") : "⌫ to back up", { fg: c.faint });
+      ui.textCenter(r, horizon + 3, on ? tr("esc clears the search · × shows everything") : "⌫ to back up", { fg: c.subtle });
       return;
     }
 
@@ -466,7 +466,7 @@ export class ExplorerApp implements App {
       const heading = /^#+\s/.test(l);
       ui.text(inner.x + 1, inner.y + i, heading ? l.replace(/^#+\s*/, "") : l, { fg: heading ? c.accent : c.muted, attrs: heading ? BOLD : 0 }, inner.w - 2);
     });
-    if (!lines.length) ui.text(inner.x + 1, inner.y, text ? "(empty)" : `${ui.spinner()} decrypting…`, { fg: c.faint });
+    if (!lines.length) ui.text(inner.x + 1, inner.y, text ? "(empty)" : `${ui.spinner()} decrypting…`, { fg: c.subtle });
   }
 }
 
