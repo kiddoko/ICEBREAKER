@@ -1,4 +1,4 @@
-import { t } from "../../core/i18n";
+import { t, dateLocale } from "../../core/i18n";
 import { describePerm, sayPerms } from "../../plugins/permissions";
 import { contextCommand } from "../../ai/context";
 import { BOX_OFF, BOX_ON } from "../../ui/controls";
@@ -83,7 +83,7 @@ Custom template: create .icebreaker/templates/journal.md ({{date}} {{title}} {{w
     if (what.kind === "open") return void (await ctx.deck.openJournal(what.day));
     if (what.kind === "ls") {
       const dates = [...ctx.deck.vault.journalDates()].sort().reverse().slice(0, what.n);
-      for (const d of dates) ctx.out(`${ctx.isTTY ? fmt.magenta(d) : d}  ${new Date(d + "T12:00").toLocaleDateString(locale || undefined, { weekday: "long" })}\n`);
+      for (const d of dates) ctx.out(`${ctx.isTTY ? fmt.magenta(d) : d}  ${new Date(d + "T12:00").toLocaleDateString(locale || dateLocale(), { weekday: "long" })}\n`);
       return;
     }
     const path = await appendLog(ctx.deck.vault, new Date(), what.text, locale);
@@ -784,7 +784,7 @@ const plugin: Command = {
     if (sub === "perms" || sub === "permissions") {
       const list = id ? host.list().filter((p) => p.manifest.id === id) : host.list().filter((p) => p.active || p.source === "vault");
       if (id && !list.length) return ctx.err(`plugin perms: no module "${id}" (plugin ls)\n`), 1;
-      const ago = (at?: number) => (at ? `${fmt.dim("last used")} ${new Date(at).toLocaleString(ctx.deck.settings.data.user.locale || undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : fmt.dim("never used"));
+      const ago = (at?: number) => (at ? `${fmt.dim("last used")} ${new Date(at).toLocaleString(dateLocale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : fmt.dim("never used"));
       for (const p of list) {
         const perms = host.permissionsOf(p.manifest.id);
         ctx.out(`${fmt.bold(p.manifest.name)} ${fmt.dim(`(${p.manifest.id}) · ${p.source === "builtin" ? "ships with the deck" : "from the STORE or the vault"}${p.active ? "" : " · off"}`)}\n`);
@@ -797,7 +797,7 @@ const plugin: Command = {
         if (id) {
           const used = ctx.deck.access.of(p.manifest.id, 12);
           if (used.length) ctx.out(fmt.dim("  the last uses (the LOG's access filter has them all):\n"));
-          for (const a of used) ctx.out(fmt.dim(`    ${new Date(a.at).toLocaleString(ctx.deck.settings.data.user.locale || undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}  ${a.perm}${a.what ? ` · ${a.what}` : ""}\n`));
+          for (const a of used) ctx.out(fmt.dim(`    ${new Date(a.at).toLocaleString(dateLocale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}  ${a.perm}${a.what ? ` · ${a.what}` : ""}\n`));
         }
       }
       if (!id) ctx.out(fmt.dim("plugin perms <id> · plugin revoke <id> <permission> · plugin grant <id> <permission> · Settings → PERMISSIONS\n"));

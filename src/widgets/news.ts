@@ -1,4 +1,4 @@
-import { t } from "../core/i18n";
+import { t, dateLocale } from "../core/i18n";
 import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
 import { BOLD, DIM, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
@@ -247,8 +247,8 @@ export function openArticle(deck: Deck, h: Headline | undefined): void {
   if (h?.link && deck.platform.openUrl) void deck.platform.openUrl(h.link);
 }
 
-function when(deck: Deck, at: number): string {
-  return at ? new Date(at).toLocaleString(deck.settings.data.user.locale || undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+function when(_deck: Deck, at: number): string {
+  return at ? new Date(at).toLocaleString(dateLocale(), { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
 }
 
 const seenAt = new Map<string, number>();

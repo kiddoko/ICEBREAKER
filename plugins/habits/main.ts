@@ -276,7 +276,7 @@ export function activate(ib: IcebreakerAPI): void {
     let sx = right - 4 - stripW - 2;
     for (let i = stripW - 1; i >= 0; i--) {
       const d = back(i);
-      const letter = d.toLocaleDateString(undefined, { weekday: "narrow" }).toLowerCase();
+      const letter = d.toLocaleDateString(ib.lib.dateLocale(), { weekday: "narrow" }).toLowerCase();
       ui.text(sx++, y, letter, { fg: i === 0 ? c.accent : d.getDay() === 0 || d.getDay() === 6 ? c.faint : c.subtle, attrs: i === 0 ? BOLD : 0 });
     }
   };
@@ -300,10 +300,10 @@ export function activate(ib: IcebreakerAPI): void {
       const dueHere = habits.filter((h) => dueOn(h, d));
       const share = dueHere.length ? dueHere.filter((h) => doneOn(h, d)).length / dueHere.length : 0;
       const isToday = ymd(d) === ymd(now);
-      ui.text(cx, y, d.toLocaleDateString(undefined, { weekday: "narrow" }).toLowerCase(), { fg: isToday ? c.accent : c.subtle, attrs: isToday ? BOLD : 0 });
+      ui.text(cx, y, d.toLocaleDateString(ib.lib.dateLocale(), { weekday: "narrow" }).toLowerCase(), { fg: isToday ? c.accent : c.subtle, attrs: isToday ? BOLD : 0 });
       const bar = future || !dueHere.length ? "·" : " ▁▂▃▄▅▆▇█"[Math.max(1, Math.round(share * 8))];
       ui.text(cx, y + 1, bar, { fg: share >= 1 ? c.success : c.accent });
-      ui.hit({ x: cx, y, w: 1, h: 2 }, { tip: future ? d.toLocaleDateString() : `${d.toLocaleDateString()} · ${Math.round(share * 100)} %` });
+      ui.hit({ x: cx, y, w: 1, h: 2 }, { tip: future ? d.toLocaleDateString(ib.lib.dateLocale()) : `${d.toLocaleDateString(ib.lib.dateLocale())} · ${Math.round(share * 100)} %` });
       cx += 3;
     }
     const best = habits.map((h) => ({ h, s: streak(h) })).sort((a, b) => b.s - a.s)[0];

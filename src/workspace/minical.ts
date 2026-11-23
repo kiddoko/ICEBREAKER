@@ -1,6 +1,6 @@
 import { ymd } from "../core/dates";
 import { BOLD, type Rect } from "../core/grid";
-import { t } from "../core/i18n";
+import { dateLocale, t } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import { drawMonth, weekStartOf } from "../ui/calendar";
@@ -33,8 +33,7 @@ export class MiniCalendar implements Overlay {
   }
 
   private get locale(): string {
-    const u = this.deck.settings.data.user;
-    return u.locale || (u.language === "fr" ? "fr-FR" : navigator.language || "en-GB");
+    return dateLocale();
   }
 
   /** the days of this month that have events (CALENDAR's `events`), read once a month shown */

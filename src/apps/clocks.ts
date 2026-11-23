@@ -7,7 +7,7 @@
  */
 import { mix } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
-import { t } from "../core/i18n";
+import { t, dateLocale } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import { q, type UI } from "../ui/ui";
@@ -281,7 +281,7 @@ class ClocksApp implements App {
       if (i >= room) return;
       let time = "--:--", hour = 12, min = 0, off = 0;
       try {
-        time = now.toLocaleTimeString(undefined, { timeZone: tz, hour: "2-digit", minute: "2-digit" });
+        time = now.toLocaleTimeString(dateLocale(), { timeZone: tz, hour: "2-digit", minute: "2-digit" });
         const parts = now.toLocaleString("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false }).split(":").map(Number);
         hour = parts[0] % 24;
         min = parts[1] ?? 0;

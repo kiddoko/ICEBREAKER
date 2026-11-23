@@ -33,6 +33,23 @@ export function lang(): Lang {
 }
 
 /**
+ * How dates are written (Settings → you → date format, user.locale): "fr-FR", "en-GB"… Empty =
+ * the system's — unless the system speaks another language than the deck, then the deck's
+ * language (a French deck on an English Mac wrote its months in English, mixed with French).
+ * Every date the deck writes goes through it; modules get ib.lib.dateLocale().
+ */
+let dateLoc = "";
+export function setDateLocale(l: string): void {
+  dateLoc = l;
+}
+export function dateLocale(): string {
+  if (dateLoc) return dateLoc;
+  const nav = typeof navigator !== "undefined" ? navigator.language || "" : "";
+  if (nav && nav.split("-")[0].toLowerCase() === current) return nav;
+  return current === "fr" ? "fr-FR" : nav.startsWith("en") ? nav : "en-GB";
+}
+
+/**
  * THE INTERFACE IS LOWERCASE (docs/GUIDELINES.md "Case"): what t() gives is lowered here, once
  * (cached), before `{vars}` are filled in — so a note's name, a city, what you typed keep their
  * case. Kept: ICEBREAKER (the logo), acronyms (AI, API, CPU…), proper names (Claude, Google…),
@@ -58,6 +75,23 @@ export function t(text: string, vars?: Record<string, string | number>): string 
   if (s === undefined) cache.set(raw, (s = uiCase(raw)));
   if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v));
   return osKeys(s);
+}
+
+/**
+ * A text written without t() (a tip, a page's status line), translated when there's a translation
+ * for it — the whole text, else each line, else each " · " part — and left exactly as it is
+ * otherwise (no lowering: it may hold a path, a note's name, a command).
+ */
+export function tLoose(text: string): string {
+  if (current === "en" || !text) return text;
+  const table = tables[current];
+  const one = (s: string) => (table[s] !== undefined ? uiCase(table[s]) : undefined);
+  const whole = one(text);
+  if (whole !== undefined) return whole;
+  return text
+    .split("\n")
+    .map((line) => one(line) ?? line.split(" · ").map((part) => one(part) ?? part).join(" · "))
+    .join("\n");
 }
 
 /** Modules add their own strings: addTranslations("fr", { "Add": "Ajouter" }). */

@@ -1,5 +1,5 @@
 import { widgetConfig } from "./instances";
-import { t } from "../core/i18n";
+import { t, dateLocale } from "../core/i18n";
 import { focus } from "./focusstate";
 import { ago, isoDay, streakOf } from "../core/time";
 import { q } from "../ui/ui";
@@ -277,7 +277,7 @@ const weatherWidget: WidgetSpec = {
     }
     if (weekR) {
       // the next days as cards: the day, a little sky, max and min
-      const locale = deck.settings.data.user.locale || undefined;
+      const locale = dateLocale();
       const inner = { x: weekR.x + INSET, y: weekR.y, w: weekR.w - INSET * 2, h: weekR.h };
       const { rects, perRow } = cards(inner, w.days.length, { minW: 7, maxW: 12, h: 4, gap: 1, gapY: 0 });
       w.days.slice(0, perRow).forEach((d, i) => {
@@ -318,7 +318,7 @@ const calendar: WidgetSpec = {
     if (month) return month.render(ui, r, ctx);
     const { deck } = ctx;
     const c = ui.c;
-    const locale = deck.settings.data.user.locale || undefined;
+    const locale = dateLocale();
     const now = new Date();
     const first = new Date(now.getFullYear(), now.getMonth(), 1);
     const offset = (first.getDay() + 6) % 7;
@@ -465,7 +465,7 @@ async function refreshPulse(deck: Deck): Promise<void> {
   pulseAt = Date.now();
   const lines: PulseLine[] = [];
   const has = (m: string, fn: string) => deck.services.has(m, fn);
-  const time = (d: Date) => d.toLocaleTimeString(deck.settings.data.user.locale || undefined, { hour: "2-digit", minute: "2-digit" });
+  const time = (d: Date) => d.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" });
   const tryLine = async (f: () => Promise<PulseLine | null>) => {
     try {
       const l = await f();

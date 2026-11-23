@@ -11,6 +11,7 @@
  *
  * Ids are "<module>.<name>": "budget.left", "deck.commands", "stats.weight".
  */
+import { dateLocale } from "./i18n";
 import type { Vault } from "../vault/vault";
 
 export type StatKind = "value" | "counter";
@@ -52,7 +53,7 @@ export const dayKey = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth()
 
 export function formatStat(s: Pick<Stat, "value" | "unit" | "kind" | "decimals">, value = s.value): string {
   const dec = s.decimals ?? (s.kind === "counter" ? 0 : Number.isInteger(value) ? 0 : 2);
-  const n = value.toLocaleString(undefined, { maximumFractionDigits: dec, minimumFractionDigits: s.decimals ?? 0 });
+  const n = value.toLocaleString(dateLocale(), { maximumFractionDigits: dec, minimumFractionDigits: s.decimals ?? 0 });
   return s.unit ? `${n} ${s.unit}` : n;
 }
 

@@ -5,7 +5,7 @@
  * they read the workspace, they don't own any state.
  */
 import { mix } from "../core/color";
-import { t } from "../core/i18n";
+import { t, tLoose, dateLocale } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC } from "../core/input";
 import { osKeys } from "../core/keyhints";
@@ -194,7 +194,8 @@ export function renderTip(ws: Workspace, ui: UI, _screen: Rect): void {
   }
   if (!h || ws.tipHidden) return;
   // the deck shows it above the grid (ui/tipview.ts): to the pixel, crisp, gone when the pointer moves
-  ws.tipWant = { key, content: { text: h.tip ? osKeys(h.tip) : undefined, cmd: h.cmd } };
+  // a tip written without t() is translated here when it can be (core/i18n.ts tLoose)
+  ws.tipWant = { key, content: { text: h.tip ? osKeys(tLoose(h.tip)) : undefined, cmd: h.cmd } };
 }
 
 /**
@@ -252,8 +253,8 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
   ui.hit(logoRect, { onClick: () => ws.openDeckMenu(), tip: t("the deck's menu: modules, store, NEXUS, settings, manual, updates, log out · click") });
 
   const now = new Date();
-  const time = now.toLocaleTimeString(d.settings.data.user.locale || undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  const date = now.toLocaleDateString(d.settings.data.user.locale || undefined, { weekday: "short", day: "numeric", month: "short" });
+  const time = now.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const date = now.toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric", month: "short" });
   ui.animate(1000 - now.getMilliseconds());
   // UPLINK ■: green when the AI is there and answering, amber while it thinks, red when it's off
   // (the provider and the model are in its tip); narrow: the ■ alone, the time without seconds
@@ -343,10 +344,10 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
   // a frame showing a tab moved there speaks for that page
   const page = ws.focus === "main" ? ws.activeApp : ws.focusedPage;
   const pane = page ? page.kind : ws.focus === "main" ? "deck" : ws.focus === "sidebar" ? "vault" : ws.focus === "panel" ? "panel" : "shell";
-  const status = page && ws.focus !== "main" ? osKeys(page.status?.() ?? "")
+  const status = page && ws.focus !== "main" ? osKeys(tLoose(page.status?.() ?? ""))
     : ws.focus === "shell" && ws.shellTab === "term" && ws.termAvailable
     ? `${ws.sysTerm?.shellName ?? "terminal"} · ${terminalKeysHint()} · ⇧⇧ menu · F12 tabs`
-    : ws.focus === "shell" ? d.shell.status() : ws.focus === "sidebar" ? "enter open · n new note · r rescan" : ws.focus === "panel" ? t("e edit · a add a widget · right-click: move, remove · ⌘⇧P hide") : osKeys(ws.activeApp?.status?.() ?? "");
+    : ws.focus === "shell" ? d.shell.status() : ws.focus === "sidebar" ? "enter open · n new note · r rescan" : ws.focus === "panel" ? t("e edit · a add a widget · right-click: move, remove · ⌘⇧P hide") : osKeys(tLoose(ws.activeApp?.status?.() ?? ""));
 
   // right side: your items in your order (workspace/statusbar.ts: drag one sideways, right-click
   // to move or hide it, `statusbar`), each with its priority — when the bar is too narrow, the

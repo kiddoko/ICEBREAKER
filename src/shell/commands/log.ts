@@ -1,3 +1,4 @@
+import { dateLocale } from "../../core/i18n";
 import { FX_LEVELS, getFx } from "../../core/fxlevels";
 import { isLogKind, LOG_KINDS } from "../../core/eventlog";
 import type { Command } from "../types";
@@ -49,7 +50,7 @@ export const logCommand: Command = {
       const n = Math.max(1, Number(rest[0]) || 20);
       for (const e of d.log.list.slice(-n)) {
         const glyph = LOG_KINDS.find((k) => k.kind === e.kind)?.glyph ?? "·";
-        const time = new Date(e.at).toLocaleTimeString(undefined, { hour12: false });
+        const time = new Date(e.at).toLocaleTimeString(dateLocale(), { hour12: false });
         ctx.out(`${fmt.dim(time)} ${glyph} ${e.kind === "error" ? fmt.red(e.text) : e.text}${e.source && e.kind === "debug" ? fmt.dim(` [${e.source}]`) : ""}\n`);
         if (e.detail) ctx.out(fmt.dim(`         ${e.detail.trim().split("\n").join("\n         ")}\n`));
       }

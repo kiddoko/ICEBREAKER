@@ -31,7 +31,7 @@ export { gradient, hex, mix } from "../core/color";
 export { BOLD, DIM, ITALIC, UNDERLINE, STRIKE } from "../core/grid";
 export { strWidth, truncate, padEnd } from "../core/unicode";
 export { fuzzyFilter } from "../core/fuzzy";
-export { t, lang, addTranslations } from "../core/i18n";
+export { t, lang, addTranslations, dateLocale } from "../core/i18n";
 export { sparkline, formatStat, dayKey } from "../core/stats";
 /** the one way to read a day ("tomorrow", "fri", "24/12"…) and a time ("18:00", "9h"): parseDay, parseTime, ymd, addDays, startOfDay, WEEKDAYS */
 export * as dates from "../core/dates";

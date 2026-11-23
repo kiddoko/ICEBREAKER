@@ -183,7 +183,7 @@ export function activate(ib: IcebreakerAPI): void {
     await ib.vault.mkdir(DIR).catch(() => {});
     for (const ym of months) {
       const path = `${DIR}/${ym}.md`;
-      const head = extra.get(path) ?? [`# ${dayOf(`${ym}-01`).toLocaleDateString(undefined, { month: "long", year: "numeric" })}`, "", "<!-- ICEBREAKER calendar: one event per line. `cal -h` for the syntax. -->"];
+      const head = extra.get(path) ?? [`# ${dayOf(`${ym}-01`).toLocaleDateString(ib.lib.dateLocale(), { month: "long", year: "numeric" })}`, "", "<!-- ICEBREAKER calendar: one event per line. `cal -h` for the syntax. -->"];
       const lines = local
         .filter((e) => ymd(dayOf(e.start)).slice(0, 7) === ym)
         .sort((a, b) => dayOf(a.start).getTime() - dayOf(b.start).getTime())
@@ -355,7 +355,7 @@ export function activate(ib: IcebreakerAPI): void {
   const when = (e: Ev) => (e.allDay ? t("all day") : `${hm(dayOf(e.start))}–${hm(dayOf(e.end))}`);
   const dayTitle = (d: Date) => {
     const n = Math.round((startOfDay(d).getTime() - startOfDay(new Date()).getTime()) / DAY);
-    const label = d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+    const label = d.toLocaleDateString(ib.lib.dateLocale(), { weekday: "long", day: "numeric", month: "long" });
     return n === 0 ? `${t("today")} · ${label}` : n === 1 ? `${t("tomorrow")} · ${label}` : label;
   };
   const printDays = (ctx: ShellContext, from: Date, days: number, emptyToo: boolean) => {
@@ -371,7 +371,7 @@ export function activate(ib: IcebreakerAPI): void {
     }
     if (!any) ctx.out(fmt.dim("nothing planned\n"));
   };
-  const status = () => (mode === "local" && !connected ? t("calendar in your vault ({dir}/)", { dir: DIR }) : connected ? (syncing ? t("google: syncing…") : syncError ? `google: ${syncError}` : google.at ? t("google: synced {time}", { time: new Date(google.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) }) : t("google: connected")) : t("google: not connected (cal google connect)"));
+  const status = () => (mode === "local" && !connected ? t("calendar in your vault ({dir}/)", { dir: DIR }) : connected ? (syncing ? t("google: syncing…") : syncError ? `google: ${syncError}` : google.at ? t("google: synced {time}", { time: new Date(google.at).toLocaleTimeString(ib.lib.dateLocale(), { hour: "2-digit", minute: "2-digit" }) }) : t("google: connected")) : t("google: not connected (cal google connect)"));
 
   // ── add / remove ─────────────────────────────────────────────────────────
   async function addEvent(cal: Cal, title: string, start: Date, allDay: boolean, minutes: number, where?: string): Promise<Ev> {
@@ -453,7 +453,7 @@ export function activate(ib: IcebreakerAPI): void {
             },
             help: "Connect: your browser opens Google's consent page, you allow, done (Mac, Windows, Linux alike). On Windows, if the firewall asks about ICEBREAKER, allow it: Google sends you back to the app on 127.0.0.1. A build without ICEBREAKER's Google client needs your own: see the next rows and docs/GOOGLE.md.",
           },
-          { key: "sync", label: "sync with Google now", type: "action" as const, value: () => (syncing ? t("syncing…") : google.at ? new Date(google.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "—"), cmd: "cal sync", help: "Fetch your Google calendars now (it also syncs by itself every few minutes while connected)." },
+          { key: "sync", label: "sync with Google now", type: "action" as const, value: () => (syncing ? t("syncing…") : google.at ? new Date(google.at).toLocaleTimeString(ib.lib.dateLocale(), { hour: "2-digit", minute: "2-digit" }) : "—"), cmd: "cal sync", help: "Fetch your Google calendars now (it also syncs by itself every few minutes while connected)." },
           { key: "googleClient", label: "your own Google client (advanced)", type: "action" as const, cmd: "cal google setup", help: "Use your own OAuth client from console.cloud.google.com (Desktop app type) instead of ICEBREAKER's: needed on builds without one. `cal google setup --default` goes back." },
         ]
       : []),
@@ -544,7 +544,7 @@ export function activate(ib: IcebreakerAPI): void {
             if (!evs.length) return ctx.out(fmt.dim("nothing coming up\n")), 0;
             for (const e of evs) {
               const s = dayOf(e.start);
-              ctx.out(`${ansiColor(e.cal, "●")} ${fmt.dim(s.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }).padEnd(14))} ${fmt.dim(e.allDay ? "all day" : hm(s))}  ${e.title} ${fmt.dim(`· ${until(s)} [${ref(e)}]`)}\n`);
+              ctx.out(`${ansiColor(e.cal, "●")} ${fmt.dim(s.toLocaleDateString(ib.lib.dateLocale(), { weekday: "short", day: "numeric", month: "short" }).padEnd(14))} ${fmt.dim(e.allDay ? "all day" : hm(s))}  ${e.title} ${fmt.dim(`· ${until(s)} [${ref(e)}]`)}\n`);
             }
             return 0;
           }
@@ -552,7 +552,7 @@ export function activate(ib: IcebreakerAPI): void {
             const d = rest[0] ? parseDay(rest[0]) : today;
             if (!d) return ctx.err(`cal: can't read the day "${rest[0]}"\n`), 1;
             const first = new Date(d.getFullYear(), d.getMonth(), 1);
-            ctx.out(`${fmt.bold(first.toLocaleDateString(undefined, { month: "long", year: "numeric" }))}\n`);
+            ctx.out(`${fmt.bold(first.toLocaleDateString(ib.lib.dateLocale(), { month: "long", year: "numeric" }))}\n`);
             ctx.out(fmt.dim(ws() ? " mo  tu  we  th  fr  sa  su\n" : " su  mo  tu  we  th  fr  sa\n"));
             let line = "    ".repeat(dow(first));
             for (let day = first; day.getMonth() === first.getMonth(); day = addDays(day, 1)) {
@@ -801,7 +801,7 @@ export function activate(ib: IcebreakerAPI): void {
     const evs = parseEventsFile(picked.text, picked.name);
     if (!evs.length) return ctx.err(t("cal import: no events found in {name} (a CSV needs a title column and a date column)", { name: picked.name }) + "\n"), 1;
     const first = evs[0];
-    const ok = await ib.ui.confirm(t("Import {n} events into the local calendar?", { n: evs.length }), `${first.title} · ${first.start.toLocaleDateString()}${evs.length > 1 ? ` … ${evs[evs.length - 1].title}` : ""}`);
+    const ok = await ib.ui.confirm(t("Import {n} events into the local calendar?", { n: evs.length }), `${first.title} · ${first.start.toLocaleDateString(ib.lib.dateLocale())}${evs.length > 1 ? ` … ${evs[evs.length - 1].title}` : ""}`);
     if (!ok) return 0;
     const added: Ev[] = [];
     for (const e of evs) {
@@ -955,7 +955,7 @@ export function activate(ib: IcebreakerAPI): void {
 
       // weekday names, cyber caps
       for (let i = 0; i < 7; i++) {
-        const n = colDay(i).toLocaleDateString(undefined, { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "").toLowerCase();
+        const n = colDay(i).toLocaleDateString(ib.lib.dateLocale(), { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "").toLowerCase();
         ui.text(X(i) + 1, gy, n.slice(0, cw), { fg: wkd(i) ? c.accentAlt : c.subtle, attrs: BOLD });
       }
       // the grid lines
@@ -1108,7 +1108,7 @@ export function activate(ib: IcebreakerAPI): void {
       };
       if (this.view === "month") {
         btn(" ‹ ", () => this.onText("["), "previous month · [");
-        const month = new Date(this.day.getFullYear(), this.day.getMonth(), 1).toLocaleDateString(undefined, { month: "long", year: "numeric" }).toLowerCase();
+        const month = new Date(this.day.getFullYear(), this.day.getMonth(), 1).toLocaleDateString(ib.lib.dateLocale(), { month: "long", year: "numeric" }).toLowerCase();
         hx = ui.gradientText(hx + 1, r.y, month, ui.theme.gradient) + 2;
         btn(" › ", () => this.onText("]"), "next month · ]");
         btn(t(" today "), () => this.goto(new Date()), "t");
@@ -1198,8 +1198,8 @@ export function activate(ib: IcebreakerAPI): void {
       const first = new Date(popDay.getFullYear(), popDay.getMonth(), 1);
       const offset = dow(first);
       const today = ymd(new Date());
-      ui.text(r.x + 2, r.y, first.toLocaleDateString(undefined, { month: "long", year: "numeric" }).toLowerCase(), { fg: c.accent, attrs: BOLD });
-      for (let i = 0; i < 7; i++) ui.text(r.x + 2 + i * 4, r.y + 2, colDay(i).toLocaleDateString(undefined, { weekday: "narrow" }).toLowerCase(), { fg: wkd(i) ? c.accentAlt : c.subtle });
+      ui.text(r.x + 2, r.y, first.toLocaleDateString(ib.lib.dateLocale(), { month: "long", year: "numeric" }).toLowerCase(), { fg: c.accent, attrs: BOLD });
+      for (let i = 0; i < 7; i++) ui.text(r.x + 2 + i * 4, r.y + 2, colDay(i).toLocaleDateString(ib.lib.dateLocale(), { weekday: "narrow" }).toLowerCase(), { fg: wkd(i) ? c.accentAlt : c.subtle });
       for (let k = 0; k < 42; k++) {
         const d = addDays(first, k - offset);
         if (d.getMonth() !== first.getMonth()) continue;
@@ -1266,10 +1266,10 @@ export function activate(ib: IcebreakerAPI): void {
       const gx = r.x + Math.floor((r.w - cw * 7) / 2);
       const gy = r.y + 2 + Math.max(0, Math.floor((r.h - 2 - weeks * ch) / 2));
       const colX = (i: number) => gx + i * cw;
-      ui.textCenter(r, r.y, first.toLocaleDateString(undefined, { month: "long", year: "numeric" }).toLowerCase(), { fg: c.fg, attrs: BOLD });
+      ui.textCenter(r, r.y, first.toLocaleDateString(ib.lib.dateLocale(), { month: "long", year: "numeric" }).toLowerCase(), { fg: c.fg, attrs: BOLD });
       if (r.h < 3) return;
       for (let i = 0; i < 7; i++) {
-        const n = colDay(i).toLocaleDateString(undefined, { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "").slice(0, cw - 1);
+        const n = colDay(i).toLocaleDateString(ib.lib.dateLocale(), { weekday: cw >= 6 ? "short" : "narrow" }).replace(".", "").slice(0, cw - 1);
         ui.text(colX(i) + cw - 1 - strWidth(n), r.y + 1, n, { fg: wkd(i) ? c.accentAlt : c.subtle });
       }
       for (let d = 1; d <= days; d++) {
@@ -1309,7 +1309,7 @@ export function activate(ib: IcebreakerAPI): void {
         const d = addDays(monday, i);
         const x = r.x + i * cw;
         const isToday = ymd(d) === ymd(today);
-        const head = `${d.toLocaleDateString(undefined, { weekday: "short" }).replace(".", "")} ${d.getDate()}`;
+        const head = `${d.toLocaleDateString(ib.lib.dateLocale(), { weekday: "short" }).replace(".", "")} ${d.getDate()}`;
         ui.text(x + 1, r.y, head.slice(0, cw - 1), isToday ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: wkd(i) ? c.accentAlt : c.subtle, attrs: BOLD });
         if (i > 0) ui.vline(x, r.y, r.h, { fg: c.faint });
         between(d, addDays(d, 1)).slice(0, r.h - 1).forEach((e, k) => {
@@ -1363,7 +1363,7 @@ export function activate(ib: IcebreakerAPI): void {
         if (key !== lastDay) {
           lastDay = key;
           const n = Math.round((startOfDay(s).getTime() - startOfDay(new Date()).getTime()) / DAY);
-          const label = n <= 0 ? "today" : n === 1 ? "tomorrow" : s.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" }).toLowerCase();
+          const label = n <= 0 ? "today" : n === 1 ? "tomorrow" : s.toLocaleDateString(ib.lib.dateLocale(), { weekday: "long", day: "numeric", month: "short" }).toLowerCase();
           ui.text(r.x + 1, y++, label, { fg: n <= 0 ? c.accent : c.subtle, attrs: BOLD }, r.w - 2);
         }
         const row = { x: r.x, y, w: r.w, h: 1 };

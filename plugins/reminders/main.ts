@@ -96,7 +96,7 @@ export function activate(ib: IcebreakerAPI): void {
   const when = (r: Reminder) => {
     const d = new Date(r.due);
     const today = new Date().toDateString() === d.toDateString();
-    return `${today ? t("today") : d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return `${today ? t("today") : d.toLocaleDateString(ib.lib.dateLocale(), { weekday: "short", day: "numeric", month: "short" })} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
   const left = (r: Reminder) => {
     const min = Math.round((new Date(r.due).getTime() - Date.now()) / 60000);

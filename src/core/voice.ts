@@ -1,4 +1,4 @@
-import { t } from "./i18n";
+import { t, dateLocale } from "./i18n";
 import type { Deck } from "../deck";
 
 /**
@@ -285,7 +285,7 @@ export class DeckVoice {
       const slot = `${now.getHours()}:${m < 30 ? "00" : "30"}`;
       if ((m === 0 || m === 30) && slot !== lastSlot) {
         lastSlot = slot;
-        this.deck.speak("time", t("it's {time}", { time: now.toLocaleTimeString(this.deck.settings.data.user.locale || undefined, { hour: "2-digit", minute: "2-digit" }) }));
+        this.deck.speak("time", t("it's {time}", { time: now.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit" }) }));
       }
       if (v.speak?.system === false || !this.deck.platform.system) return;
       void this.deck.platform.system.stats().then((st) => {

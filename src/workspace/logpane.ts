@@ -3,7 +3,7 @@ import { mix } from "../core/color";
 import { describe, ERRORS_DOC } from "../core/errors";
 import { LOG_KINDS, type LogEntry, type LogKind } from "../core/eventlog";
 import { BOLD, type Rect } from "../core/grid";
-import { t } from "../core/i18n";
+import { t, dateLocale } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
 import { strWidth, wrapWords } from "../core/unicode";
 import type { Deck } from "../deck";
@@ -85,7 +85,7 @@ export class LogPane {
     const colour: Record<LogKind, number> = { cmd: c.accent, action: c.accentAlt, error: c.error, notify: c.warning, debug: c.subtle, access: c.success };
     const out: Line[] = [];
     for (const e of list) {
-      const time = new Date(e.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", ...(short ? {} : { second: "2-digit" }), hour12: false });
+      const time = new Date(e.at).toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit", ...(short ? {} : { second: "2-digit" }), hour12: false });
       const glyph = LOG_KINDS.find((k) => k.kind === e.kind)?.glyph ?? "·";
       const head = (e.kind === "debug" || e.kind === "access") && e.source && e.source !== "deck" ? `[${e.source}] ${e.text}` : e.text;
       out.push({ time, glyph, gfg: colour[e.kind], text: head, fg: e.kind === "error" || e.failed ? c.error : e.kind === "debug" || e.kind === "access" ? c.muted : c.fg, attrs: e.kind === "error" ? BOLD : 0, cmd: e.code ? `errors ${e.code}` : undefined });

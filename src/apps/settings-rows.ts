@@ -12,7 +12,7 @@ import { followedCats, followedWords, newsPage, setPageSource } from "../widgets
 import { AvatarPicker } from "../workspace/avatarpicker";
 import { SOUND_PACKS } from "../core/sound";
 import { describePerm } from "../plugins/permissions";
-import { t } from "../core/i18n";
+import { t, dateLocale } from "../core/i18n";
 import { displayKeys, keysOf, menuKeyOf, SHORTCUT_CATEGORIES, SHORTCUTS } from "../core/shortcuts";
 import { rebind, rebindMenuKey } from "./shortcuts";
 import { KeyCapture } from "../workspace/keycapture";
@@ -74,7 +74,7 @@ function runAsking(deck: Deck, line: string): void {
  */
 function permissionRows(d: Deck, head: (label: string) => Row): Row[] {
   const out: Row[] = [];
-  const when = (at?: number) => (at ? new Date(at).toLocaleString(d.settings.data.user.locale || undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
+  const when = (at?: number) => (at ? new Date(at).toLocaleString(dateLocale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
   // the modules from the STORE or the vault first (the ones you approved), then the deck's own
   const mods = d.plugins.list().filter((p) => p.active || p.source === "vault").sort((a, b) => Number(a.source === "builtin") - Number(b.source === "builtin") || a.manifest.name.localeCompare(b.manifest.name));
   for (const p of mods) {

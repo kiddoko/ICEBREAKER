@@ -7,7 +7,7 @@
  */
 import { mix } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
-import { t } from "../core/i18n";
+import { t, dateLocale } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
 import { strWidth } from "../core/unicode";
 import type { Deck } from "../deck";
@@ -69,7 +69,7 @@ class MoonApp implements App {
     if (ui.now - this.seenAt > 3000) this.offset = 0;
     this.seenAt = ui.now;
     const when = this.when;
-    const locale = this.deck.settings.data.user.locale || undefined;
+    const locale = dateLocale();
     const body = { x: r.x + INSET, y: r.y, w: r.w - INSET * 2, h: r.h };
 
     // the day shown, and the way back to today
@@ -120,7 +120,7 @@ class MoonApp implements App {
   /** the phase in words, how much is lit, the next four phases; returns the row after */
   private drawWords(ui: UI, r: Rect, when: number): number {
     const c = ui.c;
-    const locale = this.deck.settings.data.user.locale || undefined;
+    const locale = dateLocale();
     let y = r.y;
     ui.text(r.x, y++, t(phaseName(when)).toLowerCase(), { fg: moonTone(ui), attrs: BOLD }, r.w);
     const lit = Math.round(moonLit(when) * 100);
@@ -153,7 +153,7 @@ class MoonApp implements App {
   /** the month of the day shown, a moon for each day (small moons when there's room, else glyphs) */
   private drawCalendar(ui: UI, r: Rect, when: number): void {
     const c = ui.c;
-    const locale = this.deck.settings.data.user.locale || undefined;
+    const locale = dateLocale();
     const shown = new Date(when);
     const today = new Date();
     const first = new Date(shown.getFullYear(), shown.getMonth(), 1);

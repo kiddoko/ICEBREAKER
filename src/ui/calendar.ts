@@ -2,7 +2,7 @@ import { mix } from "../core/color";
 import { parseDay, parseTime, ymd } from "../core/dates";
 import { BOLD, UNDERLINE } from "../core/grid";
 import { INSET } from "./layout";
-import { t } from "../core/i18n";
+import { t, dateLocale } from "../core/i18n";
 import { pad2 } from "../core/time";
 import { strWidth } from "../core/unicode";
 import type { UI } from "./ui";
@@ -83,7 +83,7 @@ export function readInitial(raw: string | undefined): { date?: Date; time?: numb
 /** the names of the weekdays in the deck's language ("lu ma me…" / "mo tu we…"), from weekStart */
 export function weekdayNames(locale: string, weekStart: 0 | 1): string[] {
   // 2026-11-02 is a monday
-  return Array.from({ length: 7 }, (_, i) => new Date(2026, 10, 1 + weekStart + i).toLocaleDateString(locale || undefined, { weekday: "short" }).replace(".", "").slice(0, 2).toLowerCase());
+  return Array.from({ length: 7 }, (_, i) => new Date(2026, 10, 1 + weekStart + i).toLocaleDateString(locale || dateLocale(), { weekday: "short" }).replace(".", "").slice(0, 2).toLowerCase());
 }
 
 /**
@@ -109,7 +109,7 @@ export function drawMonth(
   const c = ui.c;
   const W = 21;
   const today = ymd(new Date());
-  const title = o.month.toLocaleDateString(o.locale || undefined, { month: "long", year: "numeric" }).toLowerCase();
+  const title = o.month.toLocaleDateString(o.locale || dateLocale(), { month: "long", year: "numeric" }).toLowerCase();
   // the header: ‹ month year ›
   const prev = { x, y, w: 3, h: 1 }, next = { x: x + W - 3, y, w: 3, h: 1 };
   ui.text(prev.x, y, " ‹ ", { fg: ui.hovered(prev) ? c.bg : c.accent, bg: ui.hovered(prev) ? c.accent : undefined, attrs: BOLD });

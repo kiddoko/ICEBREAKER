@@ -78,7 +78,7 @@ import { storeCommand, storeSpec } from "./apps/store";
 import { updateCommand } from "./shell/commands/update";
 import { detachCorePackages } from "./plugins/core-packages";
 import { installStealth } from "./core/stealth";
-import { setLang, t } from "./core/i18n";
+import { setLang, setDateLocale, dateLocale, t } from "./core/i18n";
 import type { ChoiceOption } from "./plugins/api";
 import { LockScreen } from "./workspace/lock";
 import type { PromptOptions } from "./workspace/overlays";
@@ -349,6 +349,7 @@ export class Deck implements InputSink {
     const t0 = performance.now();
     installStealth(this); // before anything goes online
     setLang(s.user.language);
+    setDateLocale(s.user.locale);
     // this account's last start never reached its desktop (a crash): this one starts safe,
     // effects off (the curved glass is WebGL) — or a crash would come back at every login
     const who = await this.platform.account.session().catch(() => null);
@@ -884,8 +885,7 @@ export class Deck implements InputSink {
    * `pickedText(r)` (ui/calendar.ts) writes it the way the commands read it.
    */
   pickWhen(title: string, opts: WhenOptions = {}): Promise<WhenResult | null> {
-    const u = this.settings.data.user;
-    const p = this.workspace.pickWhen(t(title), opts, u.locale || (u.language === "fr" ? "fr-FR" : navigator.language || "en-GB"));
+    const p = this.workspace.pickWhen(t(title), opts, dateLocale());
     this.requestFrame();
     return p;
   }
@@ -1189,6 +1189,7 @@ export class Deck implements InputSink {
   applySettings(key: string): void {
     const s = this.settings.data;
     if (key === "user.language") setLang(s.user.language);
+    if (key === "user.language" || key === "user.locale") setDateLocale(s.user.locale);
     if (key === "appearance.theme") this.setTheme(s.appearance.theme);
     else if (key === "appearance.tweaks") this.refreshTheme();
     else if (key === "appearance.fontWeight" || key === "appearance.fontSize" || key === "appearance.scale") void this.applyFont();

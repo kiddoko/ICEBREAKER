@@ -7,6 +7,7 @@
  *   binary    BCD columns ●○ — hours, minutes, (seconds)
  *   minimal   just the time, big and quiet
  */
+import { dateLocale } from "../core/i18n";
 import { strWidth } from "../core/unicode";
 import { bigText } from "../ui/bigtext";
 import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
@@ -52,7 +53,7 @@ export function drawClock(ui: UI, r: Rect, deck: Deck, now = new Date(), key?: s
   const want = widgetConfig(deck, key, "style", h.clockStyle);
   const style = (CLOCK_STYLES as readonly string[]).includes(want) ? (want as ClockStyle) : "dots";
   const secs = !!widgetConfig(deck, key, "seconds", h.clockSeconds);
-  const locale = deck.settings.data.user.locale || undefined;
+  const locale = dateLocale();
   const date = now.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
   const grad = ui.theme.gradient.length ? ui.theme.gradient : [c.accent, c.accentAlt];
   const hh = pad(now.getHours()), mm = pad(now.getMinutes()), ss = pad(now.getSeconds());
