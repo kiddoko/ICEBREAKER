@@ -1014,12 +1014,13 @@ export function activate(ib: IcebreakerAPI): void {
         // due + remove on the right
         const right = x0 + w - 1;
         let rx = right;
-        if (hot || sel) {
+        // a narrow page: × and the date only where they leave the task's text some room (× sat on « !!! »)
+        if ((hot || sel) && right - 1 >= tx + 4) {
           ui.text(right - 1, ry, "×", { fg: c.error, bg: rbg, attrs: BOLD });
           ui.hit({ x: right - 1, y: ry, w: 1, h: 1 }, { cmd: `todo rm ${t.id}`, tip: "x · todo restore brings it back" });
           rx = right - 3;
         }
-        if (t.due) {
+        if (t.due && rx - ib.lib.strWidth(dueLabel(t.due)) >= tx + 4) {
           const n = daysUntil(t.due);
           const label = dueLabel(t.due);
           const fg = t.done ? c.faint : n < 0 ? c.error : n === 0 ? c.warning : n === 1 ? c.accent : c.subtle;

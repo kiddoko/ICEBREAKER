@@ -491,7 +491,9 @@ news
 
 ## Bigger
 □ (top right of the shell) turns it into a big tab after the others (the page you
-were on stays a tab); \`term dock\` puts a terminal back in the panel.
+were on stays a tab); \`term dock\` puts a terminal back in the panel. A page a command
+typed there opens (\`todo open\`, a module's \`new\`) comes in as a tab behind it: the
+keys stay in the shell (ctrl+tab goes to it).
 
 ## Copy what's on screen
 Drag over the output of ibsh (or of your real terminal) to select it; a double-click
