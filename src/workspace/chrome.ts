@@ -388,7 +388,7 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
   add({ id: "mute", text: muted ? `⊘ ${t("muted")}` : "♪", fg: muted ? c.error : c.muted, cmd: "mute", tip: muted ? t("muted: click to hear things again") : t("mute everything (sounds, voice, alerts)"), priority: muted ? 7 : 3 });
   add({ id: "screensaver", text: "☾", fg: c.muted, cmd: "screensaver", tip: t("screensaver now (any key brings you back)"), priority: 1 });
   if (d.settings.data.appearance.showFps) add({ id: "fps", text: `${d.loop.fps}fps ${d.loop.frameMs.toFixed(1)}ms`, fg: c.subtle, tip: t("frames drawn per second, and the last one's cost"), priority: 2 });
-  add({ id: "menu", text: `${IS_MAC ? "⌘K" : "^K"} ${t("menu")}`, fg: c.muted, cmd: "menu", tip: t("THE MENU: search everything, run anything · ⌘K"), priority: 9 });
+  add({ id: "menu", text: `${IS_MAC ? "⌘K" : "ctrl+k"} ${t("menu")}`, fg: c.muted, cmd: "menu", tip: t("THE MENU: search everything, run anything · ⌘K"), priority: 9 });
   add({ id: "help", text: `F1 ${t("help")}`, fg: c.muted, cmd: "manual", tip: t("the manual · F1"), priority: 5 });
 
   // the things touch: each right part carries its own "│ " and spaces

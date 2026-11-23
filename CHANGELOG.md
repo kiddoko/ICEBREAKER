@@ -22,6 +22,13 @@
 - **Pick up a gamepad** and the shortcuts it also has turn into **its buttons** (Xbox, PlayStation
   or Nintendo): enter → A / ✕, esc → B / ○, ⌘K → Y / △, the arrows → the cross, ctrl+tab → RB,
   page down → RT, F10 → start. A keyboard key brings the keys back.
+- One shortcut is one key: « alt ↑↓ », « alt ←→ », « alt 0-9 », « ctrl+1-9 » (a module's status
+  bar showed « alt » as a word and the arrows as a key of their own); « 0-9 » and « 1-9 » alone too.
+- The keys in hover tips are a little taller than their text, so their edge and lip show at every
+  scale (at 125 % on Windows the letters filled them). The status bar's « ^K menu » is « ctrl+k menu »,
+  on a key.
+- `open <name>` opens the page of that name — `open breakermed`, `open todo` — and a note only when no
+  page has it (it made an empty note named breakermed); a path (`open notes/x`, `open x.md`) is a note.
 
 ## 0.7.2 — 2026-11-23
 

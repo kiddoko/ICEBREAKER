@@ -49,3 +49,14 @@ describe("a key's name in a sentence is a word, not a key (bench 0.7.1)", () => 
     expect(keysIn("Delete: to the trash")).toEqual(["Delete"]);
   });
 });
+
+describe("one shortcut, one key (bench 0.8: BreakerMED's status bar)", () => {
+  it("a modifier, a space, then arrows or a range of digits", () => {
+    expect(keysIn("alt ↑↓ octave · alt ←→ instrument · alt 0-9 step")).toEqual(["alt ↑↓", "alt ←→", "alt 0-9"]);
+    expect(keysIn("ctrl+1-9 tabs")).toEqual(["ctrl+1-9"]);
+  });
+  it("0-9 / 1-9 alone are a key; other ranges and a modifier before a word are words", () => {
+    expect(keysIn("1-9 tab · 3-5 items")).toEqual(["1-9"]);
+    expect(keysIn("alt text")).toEqual([]);
+  });
+});

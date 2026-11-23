@@ -15,6 +15,11 @@ const NAMED = "(?:esc|escape|enter|return|tab|space|backspace|delete|del|up|down
 const KEY = `(?:${NAMED}|[a-z0-9]|[\\[\\]/\\\\\`,.;'=\\-]|[←→↑↓⏎⌫⌦⇥]|…)`;
 
 const PATTERNS: RegExp[] = [
+  // a modifier then, after a space, arrows or a range of digits: one key — "alt ↑↓ octave",
+  // "alt ←→ instrument", "alt 0-9 step", "ctrl+1-9" (they were "alt" in words and two keys)
+  new RegExp(`(?<![\\w+])${MOD}(?:\\+${MOD})*[ +](?:[←→↑↓]{1,4}|[0-9]-[0-9])(?![\\w+\\-])`, "gi"),
+  // a range of digits, as a key: "0-9 step", "1-9 tab" (only 0-9 / 1-9: "3-5 items" is words)
+  /(?<![\w.+\-])[01]-9(?![\w.%\-])/g,
   // ctrl+shift+k · cmd+/ · alt+← · ctrl+1…9
   new RegExp(`(?<![\\w+])${MOD}(?:\\+${MOD})*\\+${KEY}(?:…[0-9])?(?![\\w+])`, "gi"),
   // ⌘⇧P · ⌘/ · ⌥⌘← · ⇧F10 · ⌘1…9 · ⇧⇧ (shift twice)
@@ -41,7 +46,7 @@ export function keySpans(s: string): [number, number][] {
   if (hit) return hit;
   const spans: [number, number][] = [];
   // quick no: nothing that can start a key — or one arrow drawn on its own (a data icon: ↑ 13°)
-  if (s.length < 1 || /^\s*[←↑↓→]\s*$/.test(s) || !/[⌘⇧⌥⌃⏎⌫⌦⇥←↑↓→+·]|F[1-9]|esc|Esc|enter|Enter|Entrée|entrée|Échap|échap|del|Del|Suppr|suppr|space|Space|Tab|ackspace|pg[UD]|Pg[UD]/.test(s)) {
+  if (s.length < 1 || /^\s*[←↑↓→]\s*$/.test(s) || !/[⌘⇧⌥⌃⏎⌫⌦⇥←↑↓→+·]|[01]-9|F[1-9]|esc|Esc|enter|Enter|Entrée|entrée|Échap|échap|del|Del|Suppr|suppr|space|Space|Tab|ackspace|pg[UD]|Pg[UD]/.test(s)) {
     remember(s, spans);
     return spans;
   }

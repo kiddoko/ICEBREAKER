@@ -190,11 +190,16 @@ function withKeys(text: string, pad: PadKind | null, colors: TipColors, font: { 
   return out;
 }
 
+/** a tip's key: its height and its text's size, in em of the tip's font */
+const KEY_H = 1.55, KEY_TEXT = 0.84;
+
 /** one shortcut, drawn like the renderer draws it, at the tip's font size and the screen's pixels */
 function keyCanvas(written: string, pad: { text: string; color: number | null } | null, colors: TipColors, font: { family: string; px: number }): HTMLCanvasElement {
   const dpr = window.devicePixelRatio || 1;
-  // a monospace cell: 0.6 em wide, as tall as the tip's line, in whole device pixels
-  const cw = Math.round(font.px * 0.6 * dpr), ch = Math.round(font.px * 1.35 * dpr);
+  // a monospace cell: 0.6 em wide and a little taller than the tip's line, in whole device pixels —
+  // the key's text a size smaller, so its outline and lip show around it at every scale (at 125 %
+  // the letters filled the key: it looked flat, bench 0.8)
+  const cw = Math.round(font.px * 0.6 * dpr), ch = Math.round(font.px * KEY_H * dpr);
   const cells = [...(pad ? pad.text : written)];
   const n = cells.reduce((s, c) => s + (charWidth(c.codePointAt(0)!) || 1), 0);
   // a key reaches a little past its text on each side, as in the grid (keycap.ts pad)
@@ -202,7 +207,9 @@ function keyCanvas(written: string, pad: { text: string; color: number | null } 
   const cv = document.createElement("canvas");
   cv.width = n * cw + 2 * ox;
   cv.height = ch;
-  Object.assign(cv.style, { width: `${cv.width / dpr}px`, height: `${ch / dpr}px`, verticalAlign: "middle" });
+  // taller than the line by (KEY_H - 1.35) em: given back above and below, the lines don't spread
+  const spare = (KEY_H - 1.35) / 2;
+  Object.assign(cv.style, { width: `${cv.width / dpr}px`, height: `${ch / dpr}px`, verticalAlign: "middle", margin: `-${spare}em 0` });
   cv.title = written;
   cv.setAttribute("aria-label", written);
   const ctx = cv.getContext("2d");
@@ -220,7 +227,7 @@ function keyCanvas(written: string, pad: { text: string; color: number | null } 
   for (let k = 0; k < n; k++) drawCapSlice(ctx, ox + k * cw, 0, cw, ch, face, 0, colors.keyLook);
   drawCapSlice(ctx, ox + n * cw, 0, cw, ch, face, CAP_PAD_R, colors.keyLook);
   ctx.fillStyle = colors.fg;
-  ctx.font = `${colors.keyLook.bold ? 600 : 400} ${Math.round(font.px * dpr)}px ${font.family}`;
+  ctx.font = `${colors.keyLook.bold ? 600 : 400} ${Math.round(font.px * KEY_TEXT * dpr)}px ${font.family}`;
   ctx.textBaseline = "middle";
   ctx.textAlign = "center";
   // each character centred in its cell, like the grid; the bevelled key's face sits a little higher
