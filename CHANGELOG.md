@@ -47,6 +47,26 @@ The UX pass: everything discoverable, nothing stretched, the deck explains itsel
   showing today's date written that way; in a small window the choices and the buttons come
   first — the question is cut with … and long lists scroll (they ran over the buttons), and the
   chapters at the top shrink to the one you're in.
+- **SYSMON shows the graphics card**: its name everywhere (WebGL), and its use, video memory and
+  temperature where the system tells them without special rights (Linux's sysfs for AMD / Intel,
+  `nvidia-smi` for NVIDIA) — a third tile on a wide page. The processes say how they're sorted
+  ("sorted by cpu ▾", a click or s for memory) instead of a cryptic "· s".
+- **NEXUS tells folders from files**: each node says what it is (folder, note, or its file kind:
+  pdf, png…) in its colour, folders wear a tab, and resting the pointer on a node unfolds a small
+  window above it — what a folder holds (how many folders, notes, other files, the first names),
+  a note's first lines.
+- **HABITS, easier to read**: the columns are named (today, the last days' initials, ▲ the
+  streak), each habit says when it's due (2× a day · mon wed fri), and under the list this week
+  day by day and the best streak.
+- **CALENDAR imports events** from a CSV (Google's or Outlook's export, any sheet with a title
+  and a date, commas or semicolons, english or french headers) or an .ics: *⇣ import*, or
+  `cal import [file]`. Modules get `ib.ui.pickFileText`: the file the user chooses, read for them.
+- **UPLINK's personality** (its pop-up's last line, `uplink eye|quips|blinks`): its eye looks at
+  the pointer when hovered, follows it across the whole screen, or stays closed; it talks and
+  blinks now and then, if you like.
+- **neofetch, as a HUD**: the system, the cpu and the memory with their gauges, the graphics
+  card, the vault (encrypted or plain), the uplink, the modules, the theme and its palette — and
+  the right version (it said 0.1.0).
 - **Ctrl + wheel changes the interface scale on every system**, one step a notch (Linux and
   Windows mice send lines: it took ~14 notches). **⇧ + wheel goes to what's under the
   pointer**, like the wheel — it walks the tree only over the tree (Settings scrolled the tree).
