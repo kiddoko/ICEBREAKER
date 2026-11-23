@@ -46,7 +46,7 @@ the keyboard, the mouse or a gamepad.
 ## The 30-second tour
 
 \`\`\`
-┌─ tabs ─────────────────────────────────────── nexus · store · modules · ⚙ ─┐
+┌ ◆ ICEBREAKER ▾ modules · store · nexus · settings · help ─── uplink · time ┐
 │ ┌ VAULT ┐ ┌ HOME ───────────────────────────────────────────────────────┐ │
 │ │ ★ pins │ │  widgets: clock · weather · todo · habits · stats · chat… │ │
 │ │ tree   │ │  e = edit the layout · a = add a widget · enter = open it  │ │
@@ -54,7 +54,7 @@ the keyboard, the mouse or a gamepad.
 │ ┌ shell: zsh · ibsh · log ────────────────────────────────── ≡ ─ □ ───┐ │
 │ │ ◆ ~/notes ❯ _                                                         │ │
 │ └───────────────────────────────────────────────────────────────────────┘ │
-└ status bar: what keys do here · ▾ shell · ✦ fx · ⌘K menu · F1 help ────┘
+└ status bar: what keys do here · ◧ ▾ ◨ ▣ · ✦ fx · ⌘K menu · F1 help ────┘
 \`\`\`
 
 | You want to… | Do this |
@@ -65,7 +65,8 @@ the keyboard, the mouse or a gamepad.
 | the journal (today) | **⌘J / Ctrl+J**, or \`journal\` · \`journal "a line"\` adds a line without opening it |
 | change the look | settings (◆ ICEBREAKER ▾ top left, or **⌘, / Ctrl+,**) → APPEARANCE, or \`theme\` |
 | switch a feature off | **MODULES** (⌘⇧M) → space |
-| learn the shell | click anything: the command it runs shows in the shell's **log** tab |
+| learn the shell | click anything: the command it runs shows in the shell's **log** (on its right) |
+| know what something does | rest the pointer on it: a tip says what it does and the command it runs |
 | see everything the deck can do | **BLOCKS** (\`blocks\`): every command, setting, shortcut, function… and how to call it |
 | someone else on this deck (or a work deck) | the login page → **+ new account**: its own settings, theme and vault |
 
@@ -157,12 +158,14 @@ its line is chosen — everywhere in the deck.
 ## The tree (left)
 \`\`\`
 VAULT              8
- + note   + dir    ⌫   ← ⌫: the trash (see it, put things back)
+ + note   + dir
  ■■■■■■■■            ← colour tags: click one to see only that colour
  ★ ✎ ideas          ← pinned (p pins the selected thing)
  ▾ journal/      2
  ├─ 2026-11-17
  └─ 2026-11-18
+ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+ 🗑 trash       3   ← the last line: the trash (see it, put things back)
  ▸ϟ projects/  ■ 3   ← a custom icon, tagged cyan (the square, on the right)
 \`\`\`
 
@@ -245,8 +248,16 @@ the tree and the shell shown or hidden, the shell's tab, the page you were on, t
   hues × 10 shades at the saturation you choose, greys, the theme's own colours;
   arrows or the mouse, tab for the saturation and the #hex field, enter keeps it.
   A changed knob shows **•** and, on its line, **↺**: back to the theme's value.
-- Status bar, right: **♪** mutes everything · **☾** the screensaver (each theme
-  has its own: a neon city, an 80s mainframe, sonar, warp, an e-reader).
+- Status bar, right: **◧ ▾ ◨ ▣** — the tree, the shell, the panel, and **the page
+  alone** (everything else folded away; again: it all comes back, \`frame solo\`) ·
+  **♪** mutes everything · **☾** the screensaver (each theme has its own: a neon city,
+  an 80s mainframe, sonar, warp, an e-reader). **The bar is yours to arrange**: drag an
+  item sideways, right-click it to move or hide it (\`statusbar\`, \`statusbar reset\`).
+- **Hover tips**: rest the pointer on anything — a tip says what it does and the command
+  it runs; it goes as soon as you move. In Settings, what a setting does sits to the
+  right of its line.
+- **Ctrl + wheel** changes the interface scale (every system), like ctrl+= / ctrl+-.
+  **⇧ + wheel** goes to what's under the pointer; over the tree it walks the selection.
 - **◨ side panel** (status bar, ⌘⇧P, or \`panel\`): a column on the right whose
   widgets stay in view on every page. Click it: **a** adds a widget; the **✎ edit** button (bottom right) or **⌘E / ctrl+E** edits.
   **Edit mode is shared** by HOME and the panel (e on either, esc ends it), and
@@ -283,8 +294,10 @@ the tree and the shell shown or hidden, the shell's tab, the page you were on, t
   one, nothing else); **a** on the CLOCKS page. A full
   screen rings (s snooze 5 min, enter stop; the gamepad's B / A), with the sound and a
   notification — while ICEBREAKER is running. \`clock alarm test\` tries it.
-- **◆ ICEBREAKER ▾** (top left): the deck's menu — MODULES, STORE, NEXUS, settings,
-  the manual, what's new, updates, and **⏻ log out** (back to the login page, ⌘⇧L / Ctrl+Shift+L).
+- **◆ ICEBREAKER ▾** (top left, the tinted button): the deck's menu — MODULES, STORE,
+  NEXUS, settings, the manual, what's new, updates, and **⏻ log out** (back to the login
+  page, ⌘⇧L / Ctrl+Shift+L). Beside it, a menu bar: modules · store · nexus · settings ·
+  help, one click each.
 - **What's new**: after each update, a short page opens once — the version big,
   what's new, what's fixed. To see it again: \`changelog\`, Settings → UPDATES →
   *What's new*, or THE MENU; ← → for the versions before.
@@ -406,7 +419,7 @@ it, ⌘\` brings it back):
 |---|---|
 | **zsh** (bash, powershell…) | your real shell, named after itself, **plus** every ICEBREAKER command. + opens another, right-click renames it |
 | **ibsh** | ICEBREAKER's own shell: it only sees the vault, \`rm\` goes to .trash |
-| **log** | what you typed and clicked (with the output), errors (a code — E102… — and what to do: \`errors E102\`), messages; chips on top filter them (\`log show errors\`) |
+| **log** | on the shell's right when it's wide (a tab when it's narrow, or with \`log side off\`): what you typed and clicked (with the output), errors (a code — E102… — and what to do: \`errors E102\`), messages; chips on top filter them (\`log show errors\`) |
 
 \`\`\`
 ◆ ~/notes ❯ todo add "ship it" --urgent --due fri

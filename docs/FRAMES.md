@@ -69,6 +69,12 @@ stacked, moved, split, folded. This page is how it works and where it stands.
   the rest in "+N".
 - The terminals stay together in the shell's frame: `term new` opens beside them
   (`term max` still turns the shell into a big tab of the page's frame, `term dock` puts it back).
+- **0.7: proportions and switches.** A dragged border is kept as `{ frac }`, a share of the
+  screen along its split (columns, or the body's rows), resolved to cells each frame: a theme
+  whose font gives more or fewer cells keeps the frames' proportions (older saved `cells` still
+  work). The status bar's **◧ ▾ ◨ ▣** are the tree, the shell, the panel and **the page alone**
+  (`frame solo`: the three others folded away, again: back as they were); its items are yours
+  to arrange (`workspace/statusbar.ts`, `statusbar …`).
 - **Step 3 is done (0.6.0).** Next: step 4, each tab's history (back / forward); step 5,
   the INFO panel; the battery in the top bar (it needs a native call).
 
@@ -87,7 +93,9 @@ type Size = { cells: number } | { fill: number };
 - A **frame** is a box with a stable `id` (`vault`, `main`, `panel`, `shell`) and the
   `items` it holds, by key (`tool:vault`, `main`, `tool:panel`, `tool:shell`; step 3 puts
   tabs there).
-- A child's **size**: exactly `cells`, or a `fill` share of what's left.
+- A child's **size**: exactly `cells`, or a `fill` share of what's left. (A saved
+  arrangement also has `auto` — today's rules — and `frac`, a share of the screen: both become
+  `cells` before the solver sees them.)
 
 Today's screen (`todayLayout`):
 

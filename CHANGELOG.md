@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.7.0 — not released yet
+
+The UX pass: everything discoverable, nothing stretched, the deck explains itself.
+
+- **Hover tips, redone.** They are drawn above the grid now, not in its cells: crisp (the CRT
+  bend, bloom and scanlines don't blur them), placed to the pixel next to the pointer instead of
+  jumping cell by cell, fading in after a short rest — and gone the moment the pointer moves, a
+  key is pressed or the wheel turns (`ui/tipview.ts`).
+- **Settings explain the row you're on, beside it**: on a wide enough page the whole text sits
+  to the right of the hovered (or chosen) row, joined to it by a thin line, with its command and
+  its default — not cut at the bottom any more. A narrow page keeps it under the list.
+- **The ◆ ICEBREAKER menu looks like a menu**: a tinted button with its ▾, and a menu bar after
+  it — modules · store · nexus · settings · help — like a desktop app's (a tester didn't know
+  the menu was there).
+- **The trash is the tree's last line**, with a bin of its own (drawn, it fits a cell) and how
+  many things it holds; right-click empties it. The ⌫ above the tree is gone.
+- **Terminal tabs are named after their shell** — zsh, bash, powershell, then "zsh 2" — instead
+  of "icbrkr_trm" (yours once renamed).
+- **The log sits on the shell's right** when the shell is wide: always in view, its filters as
+  glyphs, long lines wrapped. A narrow shell keeps it as a tab; Settings → shell or
+  `log side off` puts it back in a tab.
+- **Proportions hold, whatever the theme.** A dragged border is kept as a share of the screen,
+  not a number of cells: a theme whose font is wider or narrower no longer stretches the frames.
+  HOME's rows follow its columns' width, so widgets keep their shape (they stretched to fill the
+  page); what doesn't fit scrolls.
+- **A widget with no room goes below the others** on the same HOME page, which scrolls to it —
+  not to a new page nobody looks at.
+- **Widget pop-ups take about two thirds of the screen**, and the moon behind one stays a moon,
+  dimmed (it went flat grey).
+- **The frames' switches side by side in the status bar**: ◧ tree · ▾ shell · ◨ panel ·
+  ▣ the page alone (everything else folded away, again: back as it was — `frame solo`).
+- **The status bar is yours to arrange**: drag an item sideways, right-click to move or hide
+  it, `statusbar move help 1`, `statusbar hide screensaver`, `statusbar reset`.
+- **Ctrl + wheel changes the interface scale on every system**, one step a notch (Linux and
+  Windows mice send lines: it took ~14 notches). **⇧ + wheel goes to what's under the
+  pointer**, like the wheel — it walks the tree only over the tree (Settings scrolled the tree).
+
 ## 0.6.3 — 2026-11-23
 
 The serious bugs: a layout that comes back, a setup that holds, Linux.
