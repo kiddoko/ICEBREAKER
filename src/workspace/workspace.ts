@@ -321,7 +321,7 @@ export class Workspace {
     ];
     const at = x ?? this.rects.shell?.x ?? 0;
     const top = y ?? (this.rects.shell ? this.rects.shell.y + 1 : 0);
-    this.openMenu(items, at, top, t("new tab"));
+    this.openMenu(items, at, top);
   }
 
   /** Close terminal i (default: the one shown); its shell is killed. */

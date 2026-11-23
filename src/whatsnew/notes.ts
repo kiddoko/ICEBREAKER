@@ -35,6 +35,7 @@ export const NOTES: VersionNotes[] = [
     version: "0.7.2",
     en: {
       added: [
+        "+ on the shell: ibsh or any of your shells; several ibsh tabs",
         "help is short: the commands to start with; help all for every one",
         "The catalog lists the module API too (catalog api)",
         "Days written one way everywhere: « mon 23 nov », « monday 23 november »",
@@ -49,6 +50,7 @@ export const NOTES: VersionNotes[] = [
     },
     fr: {
       added: [
+        "+ sur le shell : ibsh ou n'importe lequel de tes shells ; plusieurs ibsh",
         "help est court : les commandes pour commencer ; help all pour toutes",
         "Le catalogue liste aussi l'API des modules (catalog api)",
         "Les jours s'écrivent pareil partout : « lun 23 nov », « lundi 23 novembre »",

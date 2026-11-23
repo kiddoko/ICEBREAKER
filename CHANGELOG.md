@@ -13,6 +13,19 @@ catalog level with the code.
   Settings → APPEARANCE → « save energy » off keeps the full pace.
 - `ui.stayAwake()` for what you watch without touching: the MUSIC pop-up while it plays.
 
+**One « new shell tab » (your answer to the Review 0.7 proposal)**
+- **+** on the shell panel (and **ctrl+shift+\`**) opens a little menu: **ibsh** first (enter), then
+  each shell of this computer, then « rename… ». The list: the login shell and /etc/shells on macOS
+  and Linux; PowerShell 7, Windows PowerShell, cmd and WSL on Windows (`src-tauri/src/shells.rs`,
+  tested for both). A terminal only ever starts a shell from that list.
+- **ibsh is a tab like the others**: open several, each with its own folder and its own ↑ history
+  (one history file, like bash); the fixed ibsh tab is gone — any tab closes (×) and renames
+  (right-click, `term rename <n> <name>`); the last ibsh only hides (clicks still run in it).
+- `term new [ibsh|zsh|bash|pwsh…]`, `term shells`, `term menu`; `term <n>` / `close <n>` count the
+  panel's tabs. Settings → SHELL → « New tab »: what + opens with enter (ibsh by default).
+- Tab names are the shell's, numbered per shell (zsh, zsh 2, bash). After a relaunch the panel's
+  tabs come back in order: each terminal with its shell, each ibsh in its folder, the names you gave.
+
 **Words**
 - The LOG shows its messages in the deck's language as they're drawn: a module left off at the
   first login (« breakerMED: its code changed… ») was logged in English before the account's
