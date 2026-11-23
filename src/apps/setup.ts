@@ -90,7 +90,9 @@ export class SetupApp implements App {
     this.firstRun = !s.setup.done;
     // a new account: what the deck calls you starts as its name
     const handle = s.user.handle === "netrunner" && deck.account ? deck.account : s.user.handle;
-    this.a = { handle, locale: s.user.locale, precision: s.user.location.precision };
+    // the deck's language is the first answer already (run again on a French deck, "English" was
+    // chosen and enter switched the deck to English)
+    this.a = { handle, language: s.user.language, locale: s.user.locale, precision: s.user.location.precision };
     // stealth already on (a setup run again, or a half-finished one): the questions start from it
     if (s.privacy.stealth) this.a.mode = "stealth";
     this.steps = [
@@ -235,6 +237,7 @@ export class SetupApp implements App {
       },
       { id: "done", title: "READY", question: "Deck configured. Everything is in Settings if you change your mind.", options: () => [{ value: "go", label: "Jack in" }] },
     ];
+    this.sel = Math.max(0, LANGS.findIndex((l) => l.id === s.user.language));
   }
 
   title(): string {

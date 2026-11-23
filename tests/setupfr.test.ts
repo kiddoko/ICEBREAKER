@@ -17,3 +17,28 @@ describe("the setup speaks French", () => {
     expect(missing).toEqual([]);
   });
 });
+
+import { SetupApp } from "../src/apps/setup";
+import { DEFAULT_SETTINGS } from "../src/core/settings";
+import { LANGS } from "../src/core/i18n";
+import type { Deck } from "../src/deck";
+
+/** a deck just good enough to build the setup (anything else it asks for: an empty answer) */
+function fakeDeck(language: "en" | "fr"): Deck {
+  const data = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  data.user.language = language;
+  const empty: ProxyHandler<object> = { get: (_t, k) => (k === Symbol.toPrimitive ? () => "" : new Proxy(() => undefined, empty)), apply: () => undefined };
+  const base = { settings: { data, set: () => {} }, account: "test2", vault: { root: "/v" }, platform: {}, themes: { list: () => [], get: () => undefined }, commands: { get: () => undefined } };
+  return new Proxy(base, { get: (t, k) => (k in t ? (t as Record<string | symbol, unknown>)[k] : new Proxy(() => undefined, empty)) }) as unknown as Deck;
+}
+
+describe("the setup, run again on a French deck", () => {
+  it("the first question has Français chosen, not English (enter switched the deck to English)", () => {
+    const app = new SetupApp(fakeDeck("fr")) as unknown as { sel: number };
+    expect(app.sel).toBe(LANGS.findIndex((l) => l.id === "fr"));
+  });
+  it("an English deck: English", () => {
+    const app = new SetupApp(fakeDeck("en")) as unknown as { sel: number };
+    expect(app.sel).toBe(LANGS.findIndex((l) => l.id === "en"));
+  });
+});

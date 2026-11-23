@@ -22,3 +22,34 @@ describe("a yes / no question right after another step (a file chosen with enter
     expect(answer).toBe(true);
   });
 });
+
+describe("a yes / no question that pops up while you type", () => {
+  const real = ConfirmDialog.clock;
+  afterEach(() => (ConfirmDialog.clock = real));
+  it("keys typed less than 250 ms apart never answer; one after a pause does", () => {
+    let now = 1000;
+    ConfirmDialog.clock = () => now;
+    let answer: boolean | null = null;
+    const d = new ConfirmDialog("Remove it?", "", (ok) => (answer = ok));
+    for (const dt of [100, 200, 200]) {
+      now += dt;
+      d.onText("o");
+    }
+    expect(answer).toBe(null);
+    now += 300;
+    d.onText("o");
+    expect(answer).toBe(true);
+  });
+  it("a click right after it appears doesn't answer (it was meant for the page behind)", () => {
+    let now = 1000;
+    ConfirmDialog.clock = () => now;
+    let answer: boolean | null = null;
+    const d = new ConfirmDialog("Remove it?", "", (ok) => (answer = ok));
+    now += 100;
+    d.click(true);
+    expect(answer).toBe(null);
+    now += 300;
+    d.click(true);
+    expect(answer).toBe(true);
+  });
+});

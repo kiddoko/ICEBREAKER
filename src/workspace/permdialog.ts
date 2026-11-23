@@ -91,7 +91,8 @@ export class PermissionDialog implements Overlay {
     private readonly now: () => number = () => performance.now(),
   ) {
     this.sel = Math.max(0, Math.min(spec.buttons.length - 1, spec.selected));
-    this.armedAt = now() + SETTLE_MS;
+    this.openedAt = now();
+    this.armedAt = this.openedAt + SETTLE_MS;
   }
 
   /** a key may answer now; one that came too soon is swallowed and makes the wait start again */
@@ -102,8 +103,11 @@ export class PermissionDialog implements Overlay {
     return false;
   }
 
-  /** a button clicked: answers at once */
+  /** when it appeared: a click in its first moment was meant for the page behind (fixed: keys don't move it) */
+  private readonly openedAt: number;
+  /** a button clicked: answers — after its first moment */
   choose(i: number): void {
+    if (this.now() < this.openedAt + SETTLE_MS) return;
     this.finish(i);
   }
 

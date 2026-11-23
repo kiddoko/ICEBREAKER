@@ -27,10 +27,27 @@ describe("a permission question that pops up while you type", () => {
     d.onText("n");
     expect(answer).toBe("no");
   });
-  it("a click answers at once (the mouse never types by accident)", () => {
+  it("a click answers without waiting for the keys to settle (typing doesn't push it back)", () => {
+    let now = 1000;
     let answer = "";
-    const d = new PermissionDialog(spec, (v) => (answer = v), () => 1000);
+    const d = new PermissionDialog(spec, (v) => (answer = v), () => now);
+    now += SETTLE_MS + 10;
+    d.onText("x"); // a key: the keys' wait starts again, the click's doesn't
     d.choose(0);
     expect(answer).toBe("no");
+  });
+});
+
+describe("a permission question and the mouse", () => {
+  it("a click in the first moment is the page's, not an answer", () => {
+    let now = 1000;
+    let answer = "";
+    const d = new PermissionDialog(spec, (v) => (answer = v), () => now);
+    now += 100;
+    d.choose(1);
+    expect(answer).toBe("");
+    now += SETTLE_MS;
+    d.choose(1);
+    expect(answer).toBe("once");
   });
 });

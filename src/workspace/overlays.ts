@@ -62,10 +62,22 @@ export class ConfirmDialog implements Overlay {
   modal = true;
   done = false;
   private choice = true;
-  private readonly readyAt = ConfirmDialog.clock() + ConfirmDialog.SETTLE_MS;
-  /** a key may answer now */
+  /** when it appeared (a click waits SETTLE_MS from then) */
+  private readonly openedAt = ConfirmDialog.clock();
+  /** when keys start to count — pushed back by each key typed before, like a permission question */
+  private readyAt = this.openedAt + ConfirmDialog.SETTLE_MS;
+  /** a key may answer now; one too soon is swallowed and makes the wait start again */
   private settled(k?: KeyInput): boolean {
-    return !k?.repeat && ConfirmDialog.clock() >= this.readyAt;
+    const now = ConfirmDialog.clock();
+    if (k?.repeat) return false;
+    if (now >= this.readyAt) return true;
+    this.readyAt = now + ConfirmDialog.SETTLE_MS;
+    return false;
+  }
+  /** a click on a button: answers, unless it came in its first moment (meant for the page behind) */
+  click(ok: boolean): void {
+    if (ConfirmDialog.clock() < this.openedAt + ConfirmDialog.SETTLE_MS) return;
+    this.finish(ok);
   }
   /** its text's name for the typewriter */
   private readonly tw = `confirm:${++typewriterIds}`;
@@ -151,10 +163,10 @@ export class ConfirmDialog implements Overlay {
       if (inner.y + 2 + i < inner.y + inner.h - 2) ui.text(inner.x + 1, inner.y + 2 + i, part, { fg: c.muted }, inner.w - 2);
     });
     // bottom right, the way out on the left, Yes always in the same place (ui/dialog.ts)
-    if (this.message) return void dialogButtons(ui, inner, [{ label: OK(), run: () => this.finish(true), selected: true, accent: tone }]);
+    if (this.message) return void dialogButtons(ui, inner, [{ label: OK(), run: () => this.click(true), selected: true, accent: tone }]);
     dialogButtons(ui, inner, [
-      { label: NO(), run: () => this.finish(false), selected: !this.choice, accent: c.error },
-      { label: YES(), run: () => this.finish(true), selected: this.choice },
+      { label: NO(), run: () => this.click(false), selected: !this.choice, accent: c.error },
+      { label: YES(), run: () => this.click(true), selected: this.choice },
     ]);
   }
 }
