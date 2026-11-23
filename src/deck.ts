@@ -347,6 +347,8 @@ export class Deck implements InputSink {
     // (browsers only allow fullscreen after a click, so this is desktop-only)
     if (s.appearance.startFullscreen && this.platform.kind === "desktop") void this.platform.window.setFullscreen(true).catch(() => {});
 
+    // ⌘Q, the close button, the Dock: the layout and settings are saved first (src-tauri/src/quit.rs)
+    this.platform.window.onQuitRequested?.(() => void this.quit());
     // nobody logged in: only the login screen — no vault, no modules, no settings of anyone
     const session = await this.platform.account.session().catch(() => null);
     if (!session) return this.startLogin();
@@ -1400,10 +1402,21 @@ export class Deck implements InputSink {
     this.requestFrame();
   }
 
+  private quitting = false;
   async quit(): Promise<void> {
-    // a page can keep the deck open ("save?" → cancel): then nothing quits
-    for (const t of [...this.workspace.tabs]) if ((await Promise.resolve(t.close?.()).catch(() => true)) === false) return;
-    await this.updater.onQuit();
+    if (this.quitting) return; // alt+F4 is a key AND the window closing: once
+    this.quitting = true;
+    try {
+      // what the desktop looks like, written now (not 300 ms later: the app would be gone)
+      if (this.started) this.workspace.saveSession();
+      await this.settings.flush();
+      // a page can keep the deck open ("save?" → cancel): then nothing quits
+      for (const t of [...this.workspace.tabs])
+        if ((await Promise.resolve(t.close?.()).catch(() => true)) === false) return void (await this.platform.window.quitCancelled?.());
+      await this.updater.onQuit();
+    } finally {
+      this.quitting = false;
+    }
     await this.platform.window.quit();
   }
 

@@ -17,6 +17,7 @@ mod dev; // developer tools: refuse unless built with --features dev-tools
 mod google;
 mod media;
 mod net;
+mod quit;
 mod recovery;
 mod screen;
 mod store;
@@ -41,10 +42,24 @@ pub fn run() {
     });
 
     builder
+        // closing the window quits: the page saves the layout first (quit.rs)
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if !quit::ask_page(tauri::Manager::app_handle(window)) {
+                    api.prevent_close();
+                }
+            }
+        })
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        // the window's size and place (not full screen: the deck's own setting decides that)
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(tauri_plugin_window_state::StateFlags::SIZE | tauri_plugin_window_state::StateFlags::POSITION | tauri_plugin_window_state::StateFlags::MAXIMIZED)
+                .build(),
+        )
         .manage(appupdate::UpdateState::default())
         .manage(vault::VaultState::default())
         .manage(system::SystemState::default())
@@ -103,6 +118,7 @@ pub fn run() {
             config::config_write,
             config::env_api_key,
             config::app_quit,
+            quit::app_quit_cancelled,
             system::system_stats,
             system::power_on_battery,
             claude_code::claude_code_detect,
@@ -156,8 +172,16 @@ pub fn run() {
         .expect("error while running ICEBREAKER")
         .run(|app, ev| {
             // quitting: an encrypted vault's key is wiped from memory first
-            if let tauri::RunEvent::Exit = ev {
-                vault::lock(&tauri::Manager::state::<vault::VaultState>(app));
+            match ev {
+                // ⌘Q, the Dock's Quit, logging out of the system: the page saves first (quit.rs);
+                // app_quit's own exit (a code) goes through
+                tauri::RunEvent::ExitRequested { code: None, api, .. } => {
+                    if !quit::ask_page(app) {
+                        api.prevent_exit();
+                    }
+                }
+                tauri::RunEvent::Exit => vault::lock(&tauri::Manager::state::<vault::VaultState>(app)),
+                _ => {}
             }
         });
 }
@@ -191,7 +215,8 @@ fn mac_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<tauri
             &PredefinedMenuItem::show_all(app, None)?,
             &sep()?,
             &item("logout", "Log Out", Some("CmdOrCtrl+Shift+L"))?,
-            &PredefinedMenuItem::quit(app, None)?,
+            // ours, not the system's: the page saves the layout before it quits (quit.rs)
+            &item("quit", "Quit ICEBREAKER", Some("CmdOrCtrl+Q"))?,
         ],
     )?;
     let file_menu = Submenu::with_items(

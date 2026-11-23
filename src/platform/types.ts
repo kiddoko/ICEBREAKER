@@ -289,6 +289,12 @@ export interface Platform {
     /** how tall the screen's camera notch is, in CSS pixels (0 without one; desktop macOS only) */
     notch?(): Promise<number>;
     quit(): Promise<void>;
+    /**
+     * Quitting was asked from outside the page (⌘Q, the close button, the Dock): `cb` saves
+     * what must be saved, then calls quit() — or quitCancelled() when a page kept it open.
+     */
+    onQuitRequested?(cb: () => void): void;
+    quitCancelled?(): Promise<void>;
   };
 }
 

@@ -126,7 +126,7 @@ export interface Settings {
   fxByTheme?: Record<string, Record<string, unknown>>;
   /** what was open when you quit, to come back to it: the tree's open folders, the tabs */
   /** places / shows: tabs moved to another frame, and the one each of those frames shows (workspace/tabplaces.ts) */
-  session?: { tree?: string[]; tabs?: string[]; active?: number; groups?: unknown[]; places?: Record<string, string>; shows?: Record<string, string> };
+  session?: { tree?: string[]; tabs?: string[]; active?: number; groups?: unknown[]; places?: Record<string, string>; shows?: Record<string, string>; view?: unknown };
   /** where the frames sit (workspace/layout/arrange.ts, docs/FRAMES.md): {} = today's arrangement; `layout preset`, `frame move` */
   layout: { version?: number; preset?: string; root?: unknown };
   /** pinned notes, folders, modules (`pin`): top of the tree and the pinned widget */

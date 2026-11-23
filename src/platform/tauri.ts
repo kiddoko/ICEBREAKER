@@ -193,6 +193,12 @@ export function createTauriPlatform(): Platform {
       isFullscreen: () => invoke<boolean>("screen_is_fullscreen"),
       notch: () => invoke<number>("screen_notch").catch(() => 0),
       quit: () => invoke<void>("app_quit"),
+      // the close button, the Dock, logging out (quit.rs) — and ⌘Q, the menu bar's Quit item
+      onQuitRequested: (cb) => {
+        void listen("quit-requested", () => cb());
+        void listen<string>("menu", (e) => e.payload === "quit" && cb());
+      },
+      quitCancelled: () => invoke<void>("app_quit_cancelled").catch(() => {}),
     },
   };
 }
