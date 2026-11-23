@@ -364,10 +364,12 @@ const aiWidget: WidgetSpec = {
   description: "your AI uplink: its state, a quick question",
   size: { w: 3, h: 6 },
   min: { w: 2, h: 2 },
-  render(ui, r, { deck }) {
+  render(ui, r, { deck, key }) {
     const c = ui.c;
     const ok = deck.ai.ready;
     const label = deck.ai.provider.label;
+    // its personality (its pop-up, `uplink eye|quips|blinks`): the eye on hover / always / never
+    const look0 = uplinkLook(deck, key);
     // four moods: idle (a slow orbit) · thinking (fast, two signals) · speaking (a voice wave) · offline
     const thinking = deck.ai.busy > 0;
     const speaking = deck.voice.speaking;
@@ -378,29 +380,38 @@ const aiWidget: WidgetSpec = {
     const cols = Math.min(r.w, cellsFor(ui, rows));
     const box = { x: r.x + Math.floor((r.w - cols) / 2), y: top, w: cols, h: rows };
     // the pointer over the widget: the core becomes an eye that looks at it
-    const over = ui.hovered(r);
+    const over = ui.hovered(r) && look0.eye !== "off";
     if (over && !hover) hover = { since: ui.now, quip: QUIPS[Math.floor(Math.random() * QUIPS.length)].replace("{name}", deck.settings.data.user.handle) };
     if (!over) hover = null;
     let look: { x: number; y: number } | null = null;
-    if (hover) {
+    // "always": it watches the pointer wherever it is on the screen
+    if (hover || (look0.eye === "always" && ui.mouse.x >= 0)) {
       const ox = (cols * ui.cellAspect) / 2, oy = rows / 2;
       const mx = (ui.mouse.x - box.x + 0.5) * ui.cellAspect - ox, my = ui.mouse.y - box.y + 0.5 - oy;
       const len = Math.hypot(mx, my) || 1;
       look = { x: mx / len, y: my / len };
     }
     // the face itself is shared with the guided tour (ui/uplinkcore.ts)
-    drawUplinkCore(ui, box, { mood: !ok ? "offline" : thinking ? "thinking" : speaking ? "speaking" : "idle", look, blink: !!hover && ui.now - hover.since < 140 });
+    // a blink when you arrive, and now and then by itself (every 4–7 s)
+    const idleBlink = look0.blinks && look !== null && ui.now % 5300 < 130;
+    drawUplinkCore(ui, box, { mood: !ok ? "offline" : thinking ? "thinking" : speaking ? "speaking" : "idle", look, blink: (!!hover && ui.now - hover.since < 140) || idleBlink });
     const y = top + rows + 1;
     if (y < r.y + r.h) ui.textCenter(r, y, label, { fg: c.fg, attrs: BOLD });
     // its little line types itself out, with blips (ui/typewriter.ts)
-    const quip = hover ? `“${hover.quip}”` : "";
-    const state = hover ? [...quip].slice(0, typed(ui, `uplink-quip:${hover.since}`, quip)).join("") : !ok ? "○ offline" : thinking ? "◌ processing" : speaking ? "◖ speaking" : "● uplink up";
+    const quip = hover && look0.quips ? `“${hover.quip}”` : "";
+    const state = quip && hover ? [...quip].slice(0, typed(ui, `uplink-quip:${hover.since}`, quip)).join("") : !ok ? "○ offline" : thinking ? "◌ processing" : speaking ? "◖ speaking" : "● uplink up";
     if (y + 1 < r.y + r.h) ui.textCenter(r, y + 1, state, { fg: !ok ? c.error : thinking ? c.accentAlt : speaking ? c.info : c.success });
     if (!ok && y + 2 < r.y + r.h) ui.textCenter(r, y + 2, deck.settings.data.privacy.stealth ? "stealth: local model only" : "enter: settings", { fg: c.faint });
     ui.animate(ok ? (thinking || speaking ? 33 : 50) : 1000);
   },
   activate: ({ deck }) => void deck.openApp(deck.ai.ready ? "link" : "settings"),
 };
+
+/** the UPLINK widget's personality, per copy: where its eye looks, whether it talks and blinks */
+export function uplinkLook(deck: Parameters<typeof widgetConfig>[0], key?: string): { eye: "hover" | "always" | "off"; quips: boolean; blinks: boolean } {
+  const k = key ?? "ai";
+  return { eye: widgetConfig(deck, k, "eye", "hover"), quips: widgetConfig(deck, k, "quips", true), blinks: widgetConfig(deck, k, "blinks", true) };
+}
 
 export { aiWidget };
 export const EXTRA_WIDGETS: WidgetSpec[] = [aiWidget, chatWidget, newsWidget, focusWidget, moonWidget, matrixWidget, worldWidget, quoteWidget, streakWidget];

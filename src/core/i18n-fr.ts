@@ -1892,4 +1892,11 @@ export const FR: Record<string, string> = {
   "that file is too big to import (2 MB at most)": "ce fichier est trop gros pour être importé (2 Mo au plus)",
   "When?": "Quand ?",
   "or type it: 14:30 · 9:30-10:15 · fri 18h": "ou tape-le : 14:30 · 9:30-10:15 · ven 18h",
+
+  "eye": "œil",
+  "when hovered": "au survol",
+  "follows the pointer": "suit le pointeur",
+  "closed": "fermé",
+  "talks": "parle",
+  "blinks": "cligne",
 };

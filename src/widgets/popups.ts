@@ -1,4 +1,5 @@
 import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
+import { Row } from "../ui/layout";
 import { checkbox, choice } from "../ui/controls";
 import { parseTimer, clockState, dur, soonestTimer, swNow, type ClockTimer } from "./clockstate";
 import { followedCats, followedWords, hasArea, NEWS_CATEGORIES, sourceLabel, widgetSource, type NewsSource } from "./news";
@@ -23,7 +24,7 @@ import { q } from "../ui/ui";
 import { basename } from "../vault/paths";
 import { currentWeather, sky } from "./builtin";
 import { isoDay, mmss, streakOf } from "../core/time";
-import { focus, MATRIX_SETS, matrixLook, tickFocus } from "./extra";
+import { focus, MATRIX_SETS, matrixLook, tickFocus, uplinkLook } from "./extra";
 import type { PopupContext, WidgetPopupSpec, WidgetSpec } from "./types";
 import { Field } from "../ui/field";
 import { drawMoon } from "./moondraw";
@@ -646,6 +647,14 @@ const aiPopup: WidgetPopupSpec = {
     const lines = wrapWords(body, r.w - 6);
     lines.slice(-(r.h - 6)).forEach((l, i) => ui.text(r.x + 3, r.y + 4 + i, l, { fg: asked.error ? c.error : asked.a ? c.fg : c.faint }));
     if (asked.a) ui.button(r.x + 2, r.y + r.h - 1, t("◖ say it"), () => {}, { cmd: `voice say ${q(asked.a.slice(0, 1500))}`, tip: "ctrl+s" });
+    // its personality, on the last line: where the eye looks, the little lines, the blinks
+    const look = uplinkLook(deck, widgetTarget("ai") ?? undefined);
+    const row = new Row(ui, r.x + (asked.a ? 16 : 2), r.y + r.h - 1, r.x + r.w - 2);
+    row.label(t("eye"));
+    for (const [v, label] of [["hover", t("when hovered")], ["always", t("follows the pointer")], ["off", t("closed")]] as const)
+      row.button(label, () => void deck.act(`uplink eye ${v}`), { selected: look.eye === v, quiet: look.eye !== v, tip: `uplink eye ${v}` });
+    row.checkbox(look.quips, { label: t("talks"), onClick: () => void deck.act(`uplink quips ${look.quips ? "off" : "on"}`), tip: "uplink quips on|off" });
+    row.checkbox(look.blinks, { label: t("blinks"), onClick: () => void deck.act(`uplink blinks ${look.blinks ? "off" : "on"}`), tip: "uplink blinks on|off" });
   },
   onText: (t) => (askField.onText(t), true),
   onKey: (k, { deck }) => {
@@ -712,4 +721,29 @@ export function withPopups(specs: WidgetSpec[]): WidgetSpec[] {
   return specs.map((s) => (POPUPS[s.id] ? { ...s, ...POPUPS[s.id] } : s));
 }
 
-export const popupCommands: Command[] = [focusCommand, moonCommand, timerCommand, stopwatchCommand, matrixCommand, clockCommand];
+/** The UPLINK widget's personality (its pop-up's last line). */
+export const uplinkCommand: Command = {
+  name: "uplink",
+  summary: "the UPLINK widget's personality: where its eye looks, whether it talks and blinks",
+  usage: "uplink                      how it is now\nuplink eye hover|always|off  looks at the pointer when hovered, all the time, or never\nuplink quips on|off          a little line when the pointer arrives\nuplink blinks on|off         a blink now and then",
+  examples: [["uplink eye always", "its eye follows the pointer across the screen"]],
+  complete: () => ["eye", "quips", "blinks", "hover", "always", "off", "on"],
+  run(ctx) {
+    const [a, b] = ctx.args;
+    const key = widgetTarget("ai") ?? "ai";
+    const all = { ...(ctx.deck.settings.data.home.widgetConfig ?? {}) };
+    const set = (name: string, v: unknown) => {
+      all[key] = { ...(all[key] ?? {}), [name]: v };
+      ctx.deck.settings.set("home.widgetConfig", all);
+    };
+    if (a === "eye" && (b === "hover" || b === "always" || b === "off")) set("eye", b);
+    else if ((a === "quips" || a === "blinks") && (b === "on" || b === "off")) set(a, b === "on");
+    else if (a) return ctx.err("usage: uplink eye hover|always|off · uplink quips on|off · uplink blinks on|off\n"), 1;
+    const look = uplinkLook(ctx.deck, key);
+    ctx.out(`uplink: eye ${look.eye} · quips ${look.quips ? "on" : "off"} · blinks ${look.blinks ? "on" : "off"}\n`);
+    ctx.deck.requestFrame();
+    return 0;
+  },
+};
+
+export const popupCommands: Command[] = [focusCommand, moonCommand, timerCommand, stopwatchCommand, matrixCommand, clockCommand, uplinkCommand];
