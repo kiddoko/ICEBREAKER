@@ -1404,9 +1404,11 @@ export class Workspace {
     this.statusY = N + H - 1;
     // a: what the top row keeps (the deck's menu, uplink, the clock), measured before the frames
     // leave room for it; the frames' header row starts clear (no background glyph between frames)
-    const wide = W >= 120;
+    // (a shares one row between the menu, the tabs and the clock: it folds them sooner)
+    const wide = style === "a" ? W >= 170 : W >= 120;
+    const narrowClock = style === "a" ? W < 150 : W < 100;
     this.logoW = logoWidth(ui, !wide);
-    this.clockW = clockWidth(W < 100);
+    this.clockW = clockWidth(narrowClock);
     if (style !== "now") ui.fill({ x: 0, y: body.y, w: W, h: 1 }, { bg: ui.c.bg });
     const max = this.shellVisible && this.shellMax;
     const today: Today = (this.today = { sidebar: this.sidebarVisible, shell: this.shellVisible, shellMax: this.shellMax, panel: !!d.settings.data.panel?.shown, shellRatio: this.shellRatio, cols: W, bodyH: body.h });
@@ -1493,14 +1495,14 @@ export class Workspace {
     // b — the menu bar, on the frames' grid
     if (style === "a") {
       logoChip(this, ui, 0, body.y, !wide, ui.c.bg);
-      uplinkClock(this, ui, W, body.y, W < 100, ui.c.bg);
+      uplinkClock(this, ui, W, body.y, narrowClock, ui.c.bg);
     } else if (style === "b") {
       ui.fill({ x: 0, y: N, w: W, h: 1 }, { bg: ui.c.bg });
       const lx = (this.rects.sidebar ? this.rects.sidebar.x : body.x) + INSET;
       const lw = logoChip(this, ui, lx, N, !wide, ui.c.bg);
       // the menu starts over the page's first tab (or after the logo when the page is first)
       const mx = Math.max(lx + lw + GAP, mainR.x + INSET);
-      const end = uplinkClock(this, ui, W - 1 - INSET, N, W < 100, ui.c.bg);
+      const end = uplinkClock(this, ui, W - 1 - INSET, N, narrowClock, ui.c.bg);
       renderMenuBar(this, ui, mx, N, end - GAP, ui.c.bg);
     }
     // a folded frame can't keep the focus (keys would go somewhere you can't see)
