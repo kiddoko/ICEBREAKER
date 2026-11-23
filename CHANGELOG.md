@@ -19,7 +19,30 @@
   a login's password waiting for its vault is wiped after two minutes even if nothing asks for it.
 - **`factory-reset` and `dev_restart` are not in a release build at all** (not compiled, not registered).
 
-## 0.8.1 — not released yet (branch module-host)
+## 0.8.1 — not released yet (branch module-host, then layout-polish)
+
+**Nothing cut, nothing on top of something else** (`debug layout pages`: none left, in English and
+French, with the tree and the shell open or closed)
+- CALENDAR: its buttons make room on a narrow page (import first, then sync, then today — never
+  « ⚙ settings » cut in half); the chosen day's frame no longer writes over the grid's lines.
+- TODO: the filters and counters on one row that never runs out (the counters go first).
+- HOME: a widget running off a narrow page lays out in the part you see (« uplink », « offline »
+  were cut at the edge); a widget too small for its content says its name lowercase, in your
+  language (« WEATHE… »).
+- SETTINGS on a narrow page: one column — the categories while you choose one, then the settings
+  (they ran into each other: « English » over « Langu… »); « ↺ all back to default » shortens to ↺.
+- MUSIC, WEATHER, HABITS, REMINDERS, CATALOG and the LOG's chips: their buttons and messages stay
+  inside a small page.
+
+**Small things the Windows bench saw on 0.7.2**
+- The boot log (the BIOS screen before the logo) speaks French on a French deck.
+- The setup's recap: an answer cut after 3 lines ends with « … ».
+- A long nickname: the tour says it as you wrote it (it was lowercased), and it and the shell's
+  prompt shorten it with « … » instead of running off.
+- Key hints never end mid-word (« entrée … », « échap r… »): the setup's row writes a shorter form,
+  the status bar leaves out its last hints.
+- **The shell maximized keeps the keyboard**: a page a command opens there (`med new`, `todo open`)
+  comes in as a tab behind it, with a message — it took the screen and the keys while you typed.
 
 **What modules asked the deck for** (BreakerMED first)
 - **A module opens its kinds of files**: `"opens": ["bmed", "mod", "med"]` in its plugin.json, and a

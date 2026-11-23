@@ -2,7 +2,7 @@ import { allWidgetKeys, focusWidget, forgetWidget, keyOf, newWidgetKey, widgetId
 import { Glide } from "../ui/glide";
 import { t } from "../core/i18n";
 import { mix } from "../core/color";
-import { strWidth } from "../core/unicode";
+import { strWidth, truncate } from "../core/unicode";
 import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC, undoKey, type Action, type KeyInput } from "../core/input";
 import type { Deck } from "../deck";
@@ -12,7 +12,7 @@ import { DEFAULT_LAYOUT } from "../widgets/builtin";
 import type { WidgetPlacement } from "../widgets/types";
 import type { App, AppSpec } from "./types";
 import { WidgetPicker } from "../workspace/widgetpicker";
-import { INSET } from "../ui/layout";
+import { GAP, INSET } from "../ui/layout";
 
 /** Grid geometry: 12 columns, one row unit = 2 text rows. */
 const COLS = 12;
@@ -487,7 +487,7 @@ export class HomeApp implements App {
 
     if (this.editing) {
       // grid dots so you can see where things snap
-      for (let gy = 0; this.origin.y + Math.round(gy * this.rowH) < r.y + r.h; gy++)
+      for (let gy = 0; this.origin.y + Math.round(gy * this.rowH) < area.y + area.h; gy++) // not on the pages' line
         for (let gx = 0; gx <= COLS; gx++) ui.text(colX(gx) - (gx ? 1 : 0), this.origin.y + Math.round(gy * this.rowH), "·", { fg: c.faint });
     }
 
@@ -510,7 +510,8 @@ export class HomeApp implements App {
       const inner = flat
         ? (!spec.frameless || this.editing ? ui.fill(rect, { bg: sel ? mix(c.panel, c.accent, 0.3) : this.editing ? c.highlight : mix(c.panel, c.fg, 0.06) }) : undefined, rect)
         : ui.box(rect, {
-            title: t(spec.title).toLowerCase(),
+            // a widget running off a narrow page: its title fits the part you see (« …» never cut off)
+            title: truncate(t(spec.title).toLowerCase(), Math.max(0, Math.min(rect.w, area.x + area.w - rect.x) - GAP * 3)),
             info: this.editing && sel ? `${p.w}×${p.h}` : undefined,
             focused: sel,
             border: this.editing && sel ? "heavy" : ui.theme.widgetFrame,
@@ -596,11 +597,14 @@ export class HomeApp implements App {
         // ✥ on its bottom edge, left (◢ resizes on the right): you can pick it up — a tester didn't
         // see the widgets could be dragged
         const over = ui.hovered(rect) || this.drag?.index === i;
-        if (rect.w >= 8 && rect.h >= 2) ui.text(rect.x + INSET, rect.y + rect.h - 1, over ? ` ✥ ${t("drag")} ` : " ✥ ", { fg: over || sel ? c.bg : c.accent, bg: over || sel ? c.accent : undefined, attrs: BOLD });
+        // (on the part of the frame you see: a widget can run off a narrow page)
+        const seen = Math.min(rect.w, area.x + area.w - rect.x);
+        const grip = [over ? ` ✥ ${t("drag")} ` : " ✥ ", " ✥ "].find((g) => strWidth(g) + INSET * 2 <= seen);
+        if (grip && rect.w >= 8 && rect.h >= 2) ui.art(() => ui.text(rect.x + INSET, rect.y + rect.h - 1, grip, { fg: over || sel ? c.bg : c.accent, bg: over || sel ? c.accent : undefined, attrs: BOLD })); // on the frame's edge, on purpose
         // the bottom-right corner: drag it to resize (like shift+arrows)
         const corner = { x: rect.x + rect.w - 2, y: rect.y + rect.h - 1, w: 2, h: 1 };
         const hot = ui.hovered(corner) || this.sizing === i;
-        ui.text(corner.x + 1, corner.y, "◢", { fg: hot ? c.accent : c.subtle, attrs: BOLD });
+        ui.art(() => ui.text(corner.x + 1, corner.y, "◢", { fg: hot ? c.accent : c.subtle, attrs: BOLD })); // over the frame's corner, on purpose
         ui.hit(corner, {
           onClick: () => ((this.selected = i), (this.sizing = i)),
           onDrag: (m) => {
@@ -654,6 +658,7 @@ export class HomeApp implements App {
       for (let n = 0; n <= pages; n++) {
         const label = n === pages ? " + " : ` ${n + 1} `;
         const on = n === this.page;
+        if (px + label.length > r.x + r.w - INSET) break; // a narrow page: the numbers that fit
         const rect = { x: px, y: py, w: label.length, h: 1 };
         this.pageRects.push({ n, rect });
         // a widget dragged over a page number: that page lights up (let go: it goes there)

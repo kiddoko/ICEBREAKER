@@ -385,7 +385,7 @@ The full surface is typed and commented in
 | `fmt` | ANSI colours for a command's output |
 | `gradient`, `hex`, `mix` | colours |
 | `BOLD`, `DIM`, `ITALIC`, `UNDERLINE`, `STRIKE` | text attributes |
-| `strWidth`, `truncate`, `padEnd` | widths on the grid (wide characters count 2) |
+| `strWidth`, `truncate`, `padEnd`, `fitHints` | widths on the grid (wide characters count 2); `fitHints(line, w)`: a line of « a add · esc back » hints that fit whole, the last ones left out |
 | `fuzzyFilter` | search a list like THE MENU |
 | `t`, `lang`, `addTranslations`, `dateLocale` | the user's language and date format |
 | `sparkline`, `formatStat`, `dayKey` | STATS' little charts and values |
