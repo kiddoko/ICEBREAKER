@@ -287,7 +287,7 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
     if (room >= 12) ui.textRight(rx - GAP, r.y, strWidth(label) > room ? `${label.slice(0, Math.max(0, room - 1))}…` : label, { fg: c.warning, bg: c.panelAlt, attrs: BOLD });
   }
   const who = `${d.ai.provider.label}`;
-  ui.hit({ x: rx, y: r.y, w: strWidth(ai) + 2, h: 1 }, d.ai.ready ? { cmd: "link", tip: `UPLINK: ${who}${d.ai.busy > 0 ? ` · ${t("thinking…")}` : ""}\nctrl+space · or \`chat\` right here in the shell` } : { cmd: "settings", tip: `UPLINK ${t("off")}: ${d.ai.problem ?? ""}` });
+  ui.hit({ x: rx, y: r.y, w: strWidth(ai) + 2, h: 1 }, d.ai.ready ? { cmd: "link", tip: `UPLINK: ${who}${d.ai.busy > 0 ? ` · ${t("thinking…")}` : ""}\n${t("ctrl+space · or `chat` right here in the shell")}` } : { cmd: "settings", tip: `UPLINK ${t("off")}: ${d.ai.problem ?? ""}` });
 }
 
 /** What the voice says, in a small sci-fi box bottom-right (voice.subtitles). */
@@ -344,7 +344,7 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
   // a frame showing a tab moved there speaks for that page
   const page = ws.focus === "main" ? ws.activeApp : ws.focusedPage;
   // the page's name as its tab writes it ("nexus", not its kind "explorer")
-  const pane = page ? page.title?.() ?? page.kind : ws.focus === "main" ? "deck" : ws.focus === "sidebar" ? "vault" : ws.focus === "panel" ? "panel" : "shell";
+  const pane = page ? page.title?.() ?? page.kind : ws.focus === "main" ? "deck" : ws.focus === "sidebar" ? "tree" : ws.focus === "panel" ? "panel" : "shell";
   const status = page && ws.focus !== "main" ? osKeys(tLoose(page.status?.() ?? ""))
     : ws.focus === "shell" && ws.shellTab === "term" && ws.termAvailable
     ? `${ws.sysTerm?.shellName ?? "terminal"} · ${terminalKeysHint()} · ⇧⇧ menu · F12 tabs`
@@ -373,7 +373,8 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
   // the things touch: each right part carries its own "│ " and spaces
   const bar = new Bar(ui, r.x, r.y, r.x + r.w, 0);
   // the page's own name, as its tab writes it (one name: "setup" on the tab, not "configuration" here)
-  const label = ` ${pane.toLowerCase()} `;
+  // in the deck's language, as the tab writes it ("settings" under a tab "réglages")
+  const label = ` ${tLoose(pane).toLowerCase()} `;
   bar.item(strWidth(label) + 1, (x) => {
     const e = ui.text(x, r.y, label, { fg: c.panel, bg: c.accent, attrs: BOLD });
     ui.text(e, r.y, "", { fg: c.accent, bg: c.statusBg });

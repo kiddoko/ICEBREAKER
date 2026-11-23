@@ -77,7 +77,7 @@ import { CellFx, Transitions } from "./fx/transition";
 import { DeckVoice, phrase, spokenAlert } from "./core/voice";
 import { storeCommand, storeSpec } from "./apps/store";
 import { updateCommand } from "./shell/commands/update";
-import { detachCorePackages } from "./plugins/core-packages";
+import { CORE_PACKAGES, detachCorePackages } from "./plugins/core-packages";
 import { installStealth } from "./core/stealth";
 import { setLang, setDateLocale, dateLocale, t } from "./core/i18n";
 import type { ChoiceOption } from "./plugins/api";
@@ -1494,17 +1494,27 @@ export class Deck implements InputSink {
 
   /** Everything THE MENU can search. */
   paletteEntries(): PaletteAction[] {
-    const out: PaletteAction[] = [...this.actions.list()];
+    // one line per thing: an action that only opens a page listed below goes (setup, modules,
+    // UPLINK and the shortcuts were each there twice)
+    const OPENS_A_PAGE = new Set(["setup.run", "modules.open", "link.open", "shortcuts.open"]);
+    const out: PaletteAction[] = this.actions.list().filter((a) => !OPENS_A_PAGE.has(a.id));
     for (const spec of this.apps.list()) {
       if (spec.kind === "note") continue;
       out.push({ id: `app.${spec.kind}`, title: spec.title, group: "open", hint: spec.description, run: () => void this.openApp(spec.kind) });
     }
     for (const t of this.themes.list()) out.push({ id: `theme.${t.name}`, title: t.name, group: "theme", hint: t.description, run: () => void this.setTheme(t.name) });
     // the ready-made layouts (the user's: THE MENU runs them as you, like ibsh)
-    for (const [name, p] of Object.entries(PRESETS)) out.push({ id: `layout.${name}`, title: `layout preset ${name}`, group: "layout", hint: p.doc, run: () => void this.act(`layout preset ${name}`) });
-    out.push({ id: "layout.reset", title: "layout reset", group: "layout", hint: "the classic layout back", run: () => void this.act("layout reset") });
+    for (const [name, p] of Object.entries(PRESETS)) out.push({ id: `layout.${name}`, title: `preset ${name}`, group: "layout", hint: p.doc, run: () => void this.act(`layout preset ${name}`) });
+    out.push({ id: "layout.reset", title: "reset", group: "layout", hint: "the classic layout back", run: () => void this.act("layout reset") });
     for (const e of this.vault.markdown().slice(0, 3000)) out.push({ id: `file.${e.path}`, title: e.path, group: "file", run: () => void this.openFile(e.path) });
-    for (const c of this.commands.all()) out.push({ id: `cmd.${c.name}`, title: c.name, group: "$", hint: c.summary, run: () => void this.shell.runLine(c.name).then(() => this.workspace.focusShell()) });
+    // a command that opens a page already listed ("$ store" beside "open store") isn't listed
+    // again; the developers' commands only with debug on
+    const pages = new Set(this.apps.list().flatMap((a) => [a.kind, a.title.toLowerCase()]));
+    const opensPage = (name: string) => pages.has(name) || CORE_PACKAGES.some((p) => p.commands?.[0] === name && p.apps?.some((k) => this.apps.get(k)));
+    for (const c of this.commands.all()) {
+      if (opensPage(c.name) || (c.summary.startsWith("[dev]") && !this.log.debugOn)) continue;
+      out.push({ id: `cmd.${c.name}`, title: c.name, group: "$", hint: c.summary, run: () => void this.shell.runLine(c.name).then(() => this.workspace.focusShell()) });
+    }
     return out;
   }
 }

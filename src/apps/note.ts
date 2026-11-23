@@ -119,8 +119,8 @@ export class NoteApp implements App {
 
   status(): string {
     const { line, col } = this.editor.cursor;
-    const state = this.error ? `✖ ${this.error}` : this.conflict ? "⚠ changed on disk" : this.saving ? "saving…" : this.dirty() ? "● modified" : "✓ saved";
-    return `${this.path} · ln ${line + 1}, col ${col + 1} · ${this.editor.wordCount()} words · ${state}`;
+    const state = this.error ? `✖ ${this.error}` : t(this.conflict ? "⚠ changed on disk" : this.saving ? "saving…" : this.dirty() ? "● modified" : "✓ saved");
+    return `${this.path} · ${t("ln {l}, col {c} · {n} words", { l: line + 1, c: col + 1, n: this.editor.wordCount() })} · ${state}`;
   }
 
   private scheduleSave(): void {

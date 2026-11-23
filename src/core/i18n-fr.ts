@@ -2222,4 +2222,18 @@ export const FR: Record<string, string> = {
   "‹ back to the login": "‹ retour à la connexion",
   "esc": "échap",
   "or open a vault you already have": "ou ouvre un vault que tu as déjà",
+  // ── 0.7.1: status bars
+  "1-9 or click to answer · esc or {key} stop": "1-9 ou clic pour répondre · échap ou {key} arrête",
+  "type your answer · enter next · esc or {key} stop": "tape ta réponse · entrée suivant · échap ou {key} arrête",
+  "running… {key} to interrupt": "en cours… {key} pour interrompre",
+  "tab complete · ↑ history": "tab complète · ↑ historique",
+  "ln {l}, col {c} · {n} words": "l. {l}, col. {c} · {n} mots",
+  "⚠ changed on disk": "⚠ changée sur le disque",
+  "saving…": "enregistrement…",
+  "● modified": "● modifiée",
+  "✓ saved": "✓ enregistrée",
+  "double-click / enter → its pop-up": "double-clic / entrée → sa pop-up",
+  "deck": "deck",
+  // ── 0.7.1: tips
+  "ctrl+space · or `chat` right here in the shell": "ctrl+space · ou `chat` ici même dans le shell",
 };

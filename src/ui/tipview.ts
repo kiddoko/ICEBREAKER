@@ -77,7 +77,10 @@ export class TipView {
     window.addEventListener("blur", hush);
     // the window resized: the tip was left where the pointer used to be
     window.addEventListener("resize", () => this.hide());
-    document.documentElement.addEventListener("mouseleave", () => this.hide());
+    // the pointer left the window, or a drag ended (a tab dropped): quiet until it moves again —
+    // hide() alone let the next frame show it again, and it stayed over the desktop
+    document.documentElement.addEventListener("mouseleave", hush);
+    window.addEventListener("pointerup", hush, { capture: true, passive: true });
   }
 
   private moved(x: number, y: number): void {

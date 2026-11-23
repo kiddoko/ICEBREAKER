@@ -556,7 +556,7 @@ export class HomeApp implements App {
         menu: () => this.widgetMenu(i),
         // edit mode: the hand says it can be picked up (and the ✥ on its frame)
         ...(this.editing ? { cursor: "grab" as const } : {}),
-        tip: this.editing ? "drag to move · shift+arrows resize · x remove" : spec.popup || spec.activate || spec.open ? `${spec.description ?? spec.title}\ndouble-click / enter → widget ${keyOf(p)}` : spec.description,
+        tip: this.editing ? "drag to move · shift+arrows resize · x remove" : spec.popup || spec.activate || spec.open ? `${t(spec.description ?? spec.title)}\n${t("double-click / enter → its pop-up")} · widget ${keyOf(p)}` : spec.description,
       };
       // normally the widget's own buttons sit on top of its frame; while editing,
       // the frame covers everything, so a click only selects (and drags)
