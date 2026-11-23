@@ -2324,6 +2324,7 @@ export const FR: Record<string, string> = {
   "last login: {when} on deck as ": "dernière connexion : {when} sur le deck en tant que ",
   "open-source cyberdeck environment": "environnement cyberdeck open source",
   "press any key to jack in": "appuie sur une touche pour te brancher",
+  "the log beside the shell again · log side on": "le log à côté du shell à nouveau · log side on",
   // the shell panel's tabs (0.7.2)
   "ICEBREAKER's own shell, on the vault": "le shell d'ICEBREAKER, sur le vault",
   "ICEBREAKER's own shell": "le shell d'ICEBREAKER",

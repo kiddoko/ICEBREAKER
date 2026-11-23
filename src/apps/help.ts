@@ -108,7 +108,7 @@ ${cmds}
 - **Menu bar** (top): modules · store · nexus · settings · help. The date on the right opens a **mini calendar** (\`clock calendar\`).
 - **Frames**: the tree, the page, the side panel, the shell. **▣** in the status bar (\`frame solo\`): the page alone, the others folded away; again: they come back.
 - **Status bar** (bottom): arrange it — drag an item sideways, right-click it (move, hide, **join the one on its left** / on its own: groups like tabs), \`statusbar move | hide | show | join | alone | reset\`. ◧ ▾ ◨ ▣ (the tree, the shell, the panel, the page alone) are four items that each move.
-- **Log** beside a wide shell: what you type, what clicks run, errors, messages. **›** on its line folds it into a tab (\`log side off\`), the line drags its width (\`log width 40\`); in its tab, **‹ beside the shell** puts it back.
+- **Log** beside a wide shell: what you type, what clicks run, errors, messages. **›** on its line folds it into a tab (\`log side off\`), the line drags its width (\`log width 40\`); **‹ log** on the shell's right edge (or **‹ beside the shell** in its tab) puts it back.
 - **HOME**: widgets on pages; ✎ edit shows near the top right (or \`Ctrl+E\`); a widget's pop-up has **⚙ settings** for its module. \`neofetch\` sums up the machine.
 - **NEXUS**: the vault as a place — folders are boxes, files are sheets with a little drawing of their kind.
 

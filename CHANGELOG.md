@@ -26,6 +26,9 @@ catalog level with the code.
 - Tab names are the shell's, numbered per shell (zsh, zsh 2, bash). After a relaunch the panel's
   tabs come back in order: each terminal with its shell, each ibsh in its folder, the names you gave.
 
+- The log folded away (›) leaves a thin **‹ log** on the shell's right edge: a click puts it back
+  beside the shell (`log side on`) — the link inside the log tab was the only way, and nobody found it.
+
 **Words**
 - The LOG shows its messages in the deck's language as they're drawn: a module left off at the
   first login (« breakerMED: its code changed… ») was logged in English before the account's

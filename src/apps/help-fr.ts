@@ -87,7 +87,7 @@ ${cmds}
 - **Barre de menus** (en haut) : modules · store · nexus · réglages · aide. La date à droite ouvre un **mini-calendrier** (\`clock calendar\`).
 - **Cadres** : l'arbre, la page, le panneau latéral, le shell. **▣** dans la barre d'état (\`frame solo\`) : la page seule, les autres repliés ; encore une fois : ils reviennent.
 - **Barre d'état** (en bas) : arrange-la — glisse un élément de côté, clic droit dessus (déplacer, cacher, **avec celui de gauche** / seul : des groupes comme pour les onglets), \`statusbar move | hide | show | join | alone | reset\`. ◧ ▾ ◨ ▣ (l'arbre, le shell, le panneau, la page seule) sont quatre éléments qui bougent chacun.
-- **Log** à côté d'un shell large : ce que tu tapes, ce que lancent les clics, les erreurs, les messages. **›** sur sa ligne le replie en onglet (\`log side off\`), la ligne se tire pour sa largeur (\`log width 40\`) ; dans son onglet, **‹ à côté du shell** le remet.
+- **Log** à côté d'un shell large : ce que tu tapes, ce que lancent les clics, les erreurs, les messages. **›** sur sa ligne le replie en onglet (\`log side off\`), la ligne se tire pour sa largeur (\`log width 40\`) ; **‹ log** sur le bord droit du shell (ou **‹ à côté du shell** dans son onglet) le remet.
 - **HOME** : des widgets sur des pages ; ✎ modifier apparaît près du coin en haut à droite (ou \`Ctrl+E\`) ; la pop-up d'un widget a **⚙ réglages** pour son module. \`neofetch\` résume la machine.
 - **NEXUS** : le vault comme un lieu — les dossiers sont des boîtes, les fichiers des feuilles avec un petit dessin de leur type.
 
