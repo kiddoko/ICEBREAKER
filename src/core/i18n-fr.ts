@@ -1867,4 +1867,12 @@ export const FR: Record<string, string> = {
   "keep the default and go on (tab)": "garder la valeur par défaut et continuer (tab)",
 
   "a full path (~/notes works) · tab completes the folder's name · or browse…": "un chemin complet (~/notes marche) · tab complète le nom du dossier · ou parcourir…",
+
+  "sorted by memory ▾": "trié par mémoire ▾",
+  "sorted by cpu ▾": "trié par cpu ▾",
+  "sorted by cpu (% of one core) or by memory · click or s: the other one": "trié par cpu (% d'un cœur) ou par mémoire · clic ou s : l'autre",
+  "sort by cpu": "trier par cpu",
+  "sort by memory": "trier par mémoire",
+  "graphics card": "carte graphique",
+  "this system doesn't tell its use to an app (no special rights asked)": "ce système ne donne pas son utilisation à une app (sans droits spéciaux)",
 };

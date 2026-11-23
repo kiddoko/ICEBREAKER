@@ -95,6 +95,16 @@ export interface VaultCrypt {
   adopt(): Promise<VaultCryptReport>;
 }
 
+/** a graphics card (src-tauri/src/gpu.rs): its name, and what the system tells of it */
+export interface GpuStats {
+  name: string;
+  /** 0..100 */
+  busy?: number | null;
+  memUsed?: number | null;
+  memTotal?: number | null;
+  temp?: number | null;
+}
+
 export interface SystemStats {
   cpu: number; // 0..100
   cores: number[];
@@ -131,6 +141,8 @@ export interface Platform {
   };
   system: {
     stats(): Promise<SystemStats>;
+    /** the graphics cards, as far as the system says without privileges (none: [] — the page uses WebGL's name) */
+    gpu?(): Promise<GpuStats[]>;
     /** on battery (true), on the mains (false), can't tell (null): the smoothness setting */
     onBattery?(): Promise<boolean | null>;
   };

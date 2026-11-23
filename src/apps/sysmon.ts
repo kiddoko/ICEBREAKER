@@ -13,13 +13,13 @@ import { mix, type RGB } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
 import { t } from "../core/i18n";
 import type { Deck } from "../deck";
-import type { SystemStats } from "../platform/types";
+import type { GpuStats, SystemStats } from "../platform/types";
 import { formatUptime } from "../shell/commands/system";
 import type { UI } from "../ui/ui";
 import type { App, AppSpec } from "./types";
 import { Bar, GAP, INSET, Row, SECTION, stack } from "../ui/layout";
 import { fitMatrix, matrixSize, matrixText } from "../ui/dots";
-import { strWidth, truncate } from "../core/unicode";
+import { strWidth, truncate, wrapWords } from "../core/unicode";
 
 /** "9.1 G", "420 M", "12 k" (bytes) */
 export function bytes(n: number): string {
@@ -36,6 +36,27 @@ export function rate(bps: number): string {
   return `${Math.round(bps)} B/s`;
 }
 
+/**
+ * The graphics card's name as the webview's WebGL says it ("Apple M2", "NVIDIA GeForce RTX
+ * 3060"…) — every system, no privileges; "" when WebGL won't say. Read once.
+ */
+let webglName: string | null = null;
+export function gpuNameFromWebGL(): string {
+  if (webglName !== null) return webglName;
+  webglName = "";
+  try {
+    const gl = document.createElement("canvas").getContext("webgl");
+    const ext = gl?.getExtension("WEBGL_debug_renderer_info");
+    const name = gl && ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) ?? "") : "";
+    // "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0…)" → the card's name
+    webglName = name.replace(/^ANGLE \((?:[^,]+, )?([^,(]+?)(?: Direct3D.*| OpenGL.*|,.*)?\)$/, "$1").trim();
+    gl?.getExtension("WEBGL_lose_context")?.loseContext();
+  } catch {
+    webglName = "";
+  }
+  return webglName;
+}
+
 /** SYSMON — live CPU / memory with braille graphs. Polls once per second while open. */
 export class SysmonApp implements App {
   readonly kind = "sysmon";
@@ -43,6 +64,10 @@ export class SysmonApp implements App {
   private stats: SystemStats | null = null;
   private cpuHist: number[] = [];
   private memHist: number[] = [];
+  private gpuHist: number[] = [];
+  /** the graphics card: what the system says (src-tauri/src/gpu.rs), its name from WebGL otherwise */
+  private gpu: GpuStats | null = null;
+  private gpuTile = false;
   private rxHist: number[] = [];
   private txHist: number[] = [];
   /** the last byte counters and when, for the network's rate */
@@ -74,6 +99,11 @@ export class SysmonApp implements App {
       const keep = (h: number[], v: number) => (h.push(v), h.length > 400 && h.shift());
       keep(this.cpuHist, s.cpu / 100);
       keep(this.memHist, s.memUsed / Math.max(1, s.memTotal));
+      const gpus = (await this.deck.platform.system.gpu?.().catch(() => [])) ?? [];
+      const g = gpus[0];
+      const name = g?.name || gpuNameFromWebGL();
+      this.gpu = g || name ? { ...(g ?? {}), name } : null;
+      if (typeof this.gpu?.busy === "number") keep(this.gpuHist, this.gpu.busy / 100);
       if (s.netRx !== undefined && s.netTx !== undefined) {
         const now = performance.now();
         if (this.lastNet) {
@@ -97,7 +127,7 @@ export class SysmonApp implements App {
   }
 
   status(): string {
-    return this.stats ? `${this.stats.host} · ${this.stats.processes} ${t("procs")} · up ${formatUptime(this.stats.uptime)} · s ${t("sort")}` : t("sampling…");
+    return this.stats ? `${this.stats.host} · ${this.stats.processes} ${t("procs")} · up ${formatUptime(this.stats.uptime)} · s ${this.byMem ? t("sort by cpu") : t("sort by memory")}` : t("sampling…");
   }
 
   onText(s: string): boolean {
@@ -141,11 +171,17 @@ export class SysmonApp implements App {
     // CPU and MEMORY: the big number, the last minutes as a graph (side by side, or stacked)
     if (tiles) {
       const memRatio = s.memUsed / Math.max(1, s.memTotal);
-      const two = tiles.w >= 60;
-      const w1 = two ? Math.floor((tiles.w - GAP) / 2) : tiles.w;
-      const h1 = two ? tiles.h : Math.floor(tiles.h / 2);
-      const cpuR = { x: tiles.x, y: tiles.y, w: w1, h: h1 };
-      const memR = two ? { x: tiles.x + w1 + GAP, y: tiles.y, w: tiles.w - w1 - GAP, h: tiles.h } : { x: tiles.x, y: tiles.y + h1, w: tiles.w, h: tiles.h - h1 };
+      // the graphics card as a third tile on a wide page (else a line in the footer)
+      const three = !!this.gpu && tiles.w >= 96;
+      const gw = three ? Math.floor((tiles.w - GAP * 2) / 3) : 0;
+      const rest = three ? { ...tiles, w: tiles.w - gw - GAP } : tiles;
+      const two = rest.w >= 60;
+      const w1 = two ? Math.floor((rest.w - GAP) / 2) : rest.w;
+      const h1 = two ? rest.h : Math.floor(rest.h / 2);
+      const cpuR = { x: rest.x, y: rest.y, w: w1, h: h1 };
+      const memR = two ? { x: rest.x + w1 + GAP, y: rest.y, w: rest.w - w1 - GAP, h: rest.h } : { x: rest.x, y: rest.y + h1, w: rest.w, h: rest.h - h1 };
+      this.gpuTile = three;
+      if (three) this.drawGpu(ui, { x: tiles.x + tiles.w - gw, y: tiles.y, w: gw, h: tiles.h });
       this.tile(ui, cpuR, "CPU", `${Math.round(s.cpu)}`, `${s.cores.length} ${t("cores")}`, this.cpuHist, heat(ui, s.cpu / 100), focused);
       const swap = s.swapTotal ? ` · swap ${bytes(s.swapUsed)}` : "";
       this.tile(ui, memR, t("MEMORY"), `${Math.round(memRatio * 100)}`, `${bytes(s.memUsed)} / ${bytes(s.memTotal)}${swap}`, this.memHist, mix(c.accentAlt, c.warning, Math.max(0, memRatio - 0.7) / 0.3), false);
@@ -180,6 +216,7 @@ export class SysmonApp implements App {
       const parts: [string, string][] = [
         ...(s.load && s.load[0] > 0 ? ([[t("load"), s.load.map((l) => l.toFixed(2)).join(" ")]] as [string, string][]) : []),
         [t("procs"), String(s.processes)],
+        ...(this.gpu && !this.gpuTile ? ([["GPU", this.gpu.name || "?"]] as [string, string][]) : []),
         ["host", s.host],
         ["vault", `${this.deck.vault.markdown().length} notes`],
         ["fps", `${this.deck.loop.fps} · ${this.deck.loop.frameMs.toFixed(1)}ms`],
@@ -221,6 +258,23 @@ export class SysmonApp implements App {
     }
   }
 
+  /**
+   * The graphics card: its use and video memory when the system says them (Linux, NVIDIA), else
+   * its name and why there's no number (a Mac doesn't tell an app without privileges).
+   */
+  private drawGpu(ui: UI, r: Rect): void {
+    const c = ui.c;
+    const g = this.gpu!;
+    const mem = g.memTotal ? `${bytes(g.memUsed ?? 0)} / ${bytes(g.memTotal)}` : "";
+    const temp = typeof g.temp === "number" ? `${Math.round(g.temp)}°C` : "";
+    const title = g.name ? `GPU · ${truncate(g.name, Math.max(6, r.w - strWidth(mem) - 14))}` : "GPU";
+    if (typeof g.busy === "number") return this.tile(ui, r, title, `${Math.round(g.busy)}`, [mem, temp].filter(Boolean).join(" · "), this.gpuHist, heat(ui, g.busy / 100), false);
+    const inner = ui.box(r, { title: "GPU" });
+    const lines = [g.name || t("graphics card"), "", t("this system doesn't tell its use to an app (no special rights asked)")];
+    let y = inner.y;
+    for (const l of lines) for (const w of l ? wrapWords(l, inner.w) : [""]) if (y < inner.y + inner.h) ui.text(inner.x, y++, w, { fg: l === lines[0] ? c.fg : c.subtle, attrs: l === lines[0] ? BOLD : 0 }, inner.w);
+  }
+
   /** the busiest processes, the disks, the network: three boxes that share the width */
   private drawMore(ui: UI, r: Rect, s: SystemStats): void {
     const boxes: ((b: Rect) => void)[] = [];
@@ -243,8 +297,10 @@ export class SysmonApp implements App {
 
   private drawProcs(ui: UI, r: Rect, s: SystemStats): void {
     const c = ui.c;
-    const inner = ui.box(r, { title: t("PROCESSES"), info: this.byMem ? t("by memory · s") : t("by cpu · s") });
-    ui.hit(inner, { onClick: () => ((this.byMem = !this.byMem), this.deck.requestFrame()), tip: t("click / s: sort by cpu or by memory") });
+    const inner = ui.box(r, { title: t("PROCESSES"), info: this.byMem ? t("sorted by memory ▾") : t("sorted by cpu ▾") });
+    // the order, said in words, is a button: a click (or s) sorts the other way
+    ui.hit({ x: r.x, y: r.y, w: r.w, h: 1 }, { onClick: () => ((this.byMem = !this.byMem), this.deck.requestFrame()), tip: t("sorted by cpu (% of one core) or by memory · click or s: the other one") });
+    ui.hit(inner, { onClick: () => ((this.byMem = !this.byMem), this.deck.requestFrame()), tip: t("sorted by cpu (% of one core) or by memory · click or s: the other one") });
     const list = [...(s.top ?? [])].sort((a, b) => (this.byMem ? b.mem - a.mem : b.cpu - a.cpu || b.mem - a.mem));
     // cpu in % of one core: the bar's full length is one core, or the busiest if it's more;
     // memory: the biggest of the list (a share of all the memory left every bar a sliver)

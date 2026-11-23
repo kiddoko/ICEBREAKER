@@ -129,6 +129,8 @@ export function createWebPlatform(): Platform {
       },
     },
     system: {
+      // made up, so the page can be worked on in a browser
+      gpu: async () => [{ name: "", busy: Math.max(0, Math.min(100, 30 + (Math.random() - 0.5) * 30)), memUsed: 2.1e9, memTotal: 8e9, temp: 52 }],
       stats: async (): Promise<SystemStats> => {
         cpu = Math.max(2, Math.min(95, cpu + (Math.random() - 0.5) * 14));
         const cores = Array.from({ length: navigator.hardwareConcurrency || 4 }, () => Math.max(0, Math.min(100, cpu + (Math.random() - 0.5) * 30)));
