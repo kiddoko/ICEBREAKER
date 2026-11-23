@@ -31,6 +31,7 @@ export function createTauriPlatform(): Platform {
       writeBytes: (path, data) => invoke<void>("vault_write_bytes", data instanceof Uint8Array ? data : new Uint8Array(data), { headers: { path: encodeURIComponent(path) } }),
       move: (dest) => invoke<string>("vault_move", { dest }),
       moveCleanup: () => invoke<void>("vault_move_cleanup"),
+      discardSeed: () => invoke<boolean>("vault_discard_seed"),
       crypt: {
         status: () => invoke<VaultCryptStatus>("vault_crypt_status"),
         encrypt: (password, stamp) => invoke<VaultCryptReport>("vault_encrypt", { password, stamp }),

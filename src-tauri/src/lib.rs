@@ -114,6 +114,7 @@ pub fn run() {
             vault::vault_adopt,
             vault::vault_move,
             vault::vault_move_cleanup,
+            vault::vault_discard_seed,
             config::config_read,
             config::config_write,
             config::env_api_key,

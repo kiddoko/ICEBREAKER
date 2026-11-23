@@ -21,7 +21,9 @@ The serious bugs: a layout that comes back, a setup that holds, Linux.
   and Google are skipped; skipping the question leaves stealth as it was (it switched it off).
 - **The vault goes where you said.** Tab on the folder question skipped it and dropped what was
   typed (a Linux reflex): tab now completes the folder name; a relative path is refused at once;
-  a folder that can't be used is said instead of silently keeping the default one.
+  a folder that can't be used is said instead of silently keeping the default one. The default
+  folder a new account was given first (Icebreaker-<name>) goes once the vault is elsewhere — only
+  if it holds nothing but the deck's own notes (`vault_discard_seed`).
 - **The setup speaks your system**: Windows paths and PowerShell on Windows (a Mac path was the
   example everywhere); a long list (the themes) scrolls with the cursor instead of running out
   of its box.

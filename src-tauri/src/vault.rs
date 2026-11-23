@@ -39,6 +39,9 @@ pub struct VaultState {
     busy: AtomicBool,
     /// `vault move`: the folder the vault came from (the only one `vault_move_cleanup` may empty)
     moved_from: Mutex<Option<PathBuf>>,
+    /// the vault that was open before the last `vault_mount` of another folder (the only one
+    /// `vault_discard_seed` may remove)
+    previous: Mutex<Option<PathBuf>>,
     /// the password of a login that happened before the vault was mounted (wiped once used, or after 2 min)
     pending: Mutex<Option<(Zeroizing<String>, Instant)>>,
     fails: AtomicU32,
@@ -420,6 +423,7 @@ pub fn vault_mount(app: AppHandle, state: State<VaultState>, path: String) -> Cm
     if !same {
         // another vault: the one that was open is locked first
         *state.store.lock().map_err(|e| e.to_string())? = None;
+        *state.previous.lock().map_err(|e| e.to_string())? = state.root.lock().map_err(|e| e.to_string())?.clone();
     }
     *state.root.lock().map_err(|e| e.to_string())? = Some(dir.clone());
     store::finish_interrupted(&dir);
@@ -989,6 +993,45 @@ pub fn vault_move_cleanup(state: State<VaultState>) -> CmdResult<()> {
     fs::remove_dir_all(&old).map_err(|e| format!("{}: {e} (remove it yourself)", old.display()))
 }
 
+/// The setup moved a new account's vault to the folder you chose: the default one it had at
+/// first (Documents/Icebreaker-<account>) goes — but only if it holds nothing except what the
+/// deck wrote there itself (Welcome.md, START HERE/, FOR DEVELOPERS/, .icebreaker/, the
+/// system's .DS_Store / desktop.ini). Anything else in it: it stays (false).
+#[tauri::command(async)]
+pub fn vault_discard_seed(state: State<VaultState>) -> CmdResult<bool> {
+    let Some(old) = state.previous.lock().map_err(|e| e.to_string())?.take() else { return Ok(false) };
+    let now = root(&state)?;
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from);
+    if old == now || old.parent().is_none() || home.as_deref() == Some(old.as_path()) || now.starts_with(&old) || old.starts_with(&now) {
+        return Ok(false);
+    }
+    if !only_seed(&old) {
+        return Ok(false);
+    }
+    fs::remove_dir_all(&old).map_err(|e| format!("{}: {e}", old.display()))?;
+    Ok(true)
+}
+
+/// Does this folder hold only what a new vault starts with (the deck's own files)?
+fn only_seed(dir: &Path) -> bool {
+    const SEED_DIRS: [&str; 3] = ["START HERE", "FOR DEVELOPERS", ".icebreaker"];
+    const SEED_FILES: [&str; 4] = ["Welcome.md", ".DS_Store", "desktop.ini", "Thumbs.db"];
+    let Ok(entries) = fs::read_dir(dir) else { return false };
+    for e in entries.flatten() {
+        let name = e.file_name().to_string_lossy().into_owned();
+        let Ok(t) = e.file_type() else { return false };
+        // a link could point anywhere: never followed, never "seed"
+        if t.is_symlink() {
+            return false;
+        }
+        let ok = if t.is_dir() { SEED_DIRS.contains(&name.as_str()) } else { SEED_FILES.contains(&name.as_str()) };
+        if !ok {
+            return false;
+        }
+    }
+    true
+}
+
 /// `vault adopt`: plain files next to the encrypted vault go inside it.
 #[tauri::command(async)]
 pub fn vault_adopt(state: State<VaultState>) -> CmdResult<store::Report> {
@@ -1131,6 +1174,25 @@ mod tests {
         assert!(guard("notes/account.json", false).is_ok());
         assert!(guard(".icebreaker/plugins/todo/settings.json", false).is_ok());
         assert!(guard("notes/a.md", true).is_ok());
+    }
+
+    #[test]
+    fn only_a_vault_holding_nothing_but_its_seed_is_discarded() {
+        let dir = std::env::temp_dir().join(format!("ib-seed-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("START HERE")).unwrap();
+        fs::create_dir_all(dir.join(".icebreaker")).unwrap();
+        fs::write(dir.join("Welcome.md"), "hi").unwrap();
+        fs::write(dir.join("START HERE/README.md"), "x").unwrap();
+        assert!(only_seed(&dir));
+        // a note of yours: it stays
+        fs::write(dir.join("ideas.md"), "mine").unwrap();
+        assert!(!only_seed(&dir));
+        fs::remove_file(dir.join("ideas.md")).unwrap();
+        fs::create_dir_all(dir.join("projects")).unwrap();
+        assert!(!only_seed(&dir));
+        let _ = fs::remove_dir_all(&dir);
+        assert!(!only_seed(&dir)); // gone / unreadable: never "seed"
     }
 
     #[test]

@@ -85,6 +85,7 @@ export class SetupApp implements App {
 
   constructor(private readonly deck: Deck) {
     const s = deck.settings.data;
+    this.firstRun = !s.setup.done;
     // a new account: what the deck calls you starts as its name
     const handle = s.user.handle === "netrunner" && deck.account ? deck.account : s.user.handle;
     this.a = { handle, locale: s.user.locale, precision: s.user.location.precision };
@@ -232,6 +233,9 @@ export class SetupApp implements App {
   private get stealth(): boolean {
     return this.a.mode === "stealth";
   }
+
+  /** the account's first setup (not one run again from THE MENU, over a vault in use) */
+  private readonly firstRun: boolean;
 
   /** the setup is over (finish ran): a second finish (a double click, ctrl+enter twice) does nothing */
   private finished = false;
@@ -475,6 +479,9 @@ export class SetupApp implements App {
   private async mountChosen(path: string | undefined): Promise<void> {
     if (!path) return;
     const code = await this.deck.act(`vault mount ${q(path)}`).catch(() => 1);
+    // a new account's first setup: the default folder it was given at first (Icebreaker-<name>)
+    // goes, if nothing but the deck's own notes is in it (vault.rs vault_discard_seed)
+    if (code === 0 && this.firstRun) await this.deck.platform.vault.discardSeed?.().catch(() => false);
     if (code !== 0)
       this.deck.notify(t("the vault couldn't go to {path} — it stays in {root} (vault move: Settings → VAULT)", { path, root: this.deck.vault.root }), "error");
   }

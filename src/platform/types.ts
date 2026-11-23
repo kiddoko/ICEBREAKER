@@ -46,6 +46,8 @@ export interface VaultBackend {
   move?(dest: string): Promise<string>;
   /** After move: remove the old folder (only the one the vault came from). */
   moveCleanup?(): Promise<void>;
+  /** The vault open before the last mount of another folder is removed if it holds only what the deck wrote in it (true: removed). */
+  discardSeed?(): Promise<boolean>;
 }
 
 export interface VaultCryptStatus {
