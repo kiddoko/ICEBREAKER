@@ -287,11 +287,16 @@ pub fn pty_spawn(
     on_data: Channel<String>,
     modules: Option<Vec<String>>,
     prompt: Option<String>,
+    shell: Option<String>,
 ) -> Result<String, String> {
+    // a shell asked for by name or path: only one of this computer's shells (shells.rs), else refused
+    let shell = match shell.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(want) => crate::shells::resolve(want, &crate::shells::shells()).ok_or_else(|| format!("{want}: not a shell of this computer (term shells lists them)"))?,
+        None => default_shell(),
+    };
     let pair = native_pty_system()
         .openpty(PtySize { rows: rows.max(2), cols: cols.max(10), pixel_width: 0, pixel_height: 0 })
         .map_err(|e| e.to_string())?;
-    let shell = default_shell();
     let mut cmd = CommandBuilder::new(&shell);
     if let Ok(root) = vault_root(&vault) {
         cmd.cwd(root);

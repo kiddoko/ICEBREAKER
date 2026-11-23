@@ -22,6 +22,7 @@ mod recovery;
 mod screen;
 mod store;
 mod term;
+mod shells;
 mod system;
 mod gpu;
 mod vault;
@@ -143,6 +144,7 @@ pub fn run() {
             net::net_get,
             media::media_status,
             term::pty_spawn,
+            shells::pty_shells,
             term::pty_write,
             term::pty_resize,
             term::pty_kill,
