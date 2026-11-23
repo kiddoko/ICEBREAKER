@@ -1008,8 +1008,18 @@ pub fn vault_discard_seed(state: State<VaultState>) -> CmdResult<bool> {
     if !only_seed(&old) {
         return Ok(false);
     }
-    fs::remove_dir_all(&old).map_err(|e| format!("{}: {e}", old.display()))?;
-    Ok(true)
+    // Windows may still hold the folder itself a moment (the watcher just moved off it, Explorer):
+    // its contents go at once, the empty folder on a later try
+    let mut last = None;
+    for _ in 0..10 {
+        match fs::remove_dir_all(&old) {
+            Ok(()) => return Ok(true),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(true),
+            Err(e) => last = Some(e),
+        }
+        std::thread::sleep(std::time::Duration::from_millis(300));
+    }
+    Err(format!("{}: {} (an empty folder: remove it yourself)", old.display(), last.map(|e| e.to_string()).unwrap_or_default()))
 }
 
 /// Does this folder hold only what a new vault starts with (the deck's own files)?
