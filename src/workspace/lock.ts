@@ -150,6 +150,11 @@ export class LockScreen {
   onText(t: string): void {
     if (this.browser) return void this.browser.onText(t);
     if (this.busy || this.granted) return;
+    // a link has the focus: typing goes back to the field it left (a space or enter follows the link)
+    if (this.linkAt >= 0) {
+      if (t === " " || t === "\n") return void this.onKey({ key: "enter", code: "", ctrl: false, alt: false, shift: false, meta: false, combo: "enter" });
+      this.linkAt = -1;
+    }
     if (this.field === "remember") {
       if (t === " ") this.toggleRemember();
       return;
