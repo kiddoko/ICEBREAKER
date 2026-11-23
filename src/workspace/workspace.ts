@@ -1,5 +1,6 @@
 import { RecoveryDialog } from "./recoverydialog";
 import { DECK_MENU_TITLE, deckMenu, frameMenu, editMenu, shellMenu } from "./menus";
+import type { TipContent } from "../ui/tipview";
 import { editBand, renderNotchBand, renderShellPanel, renderStatusBar, renderSubtitles, renderTip, renderTopBar } from "./chrome";
 import { shortcutFor, type Shortcut } from "../core/shortcuts";
 import { SidePanel } from "./sidepanel";
@@ -169,6 +170,8 @@ export class Workspace {
   /** Hover tooltip: what's under the mouse and since when. */
   tip = { key: "", since: 0 };
   tipHidden = false;
+  /** this frame's tip (renderTip): what the deck shows above the grid (ui/tipview.ts) */
+  tipWant: { key: string; content: TipContent } | null = null;
   /** where the text cursor was last frame (the menu key opens the menu there) */
   private lastCaret: { x: number; y: number } | null = null;
   /** The shell panel's tabs: your system terminal, ibsh, what clicks ran. */

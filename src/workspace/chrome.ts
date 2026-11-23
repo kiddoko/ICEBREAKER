@@ -156,7 +156,8 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
 }
 
 /** After ~0.6 s on something clickable: its shell command and a tip. */
-export function renderTip(ws: Workspace, ui: UI, screen: Rect): void {
+export function renderTip(ws: Workspace, ui: UI, _screen: Rect): void {
+  ws.tipWant = null;
   // (a tab dragged over the panel showed a widget's tip over the drop box)
   if (ws.isDragging) return;
   const { x, y } = ui.mouse;
@@ -173,20 +174,8 @@ export function renderTip(ws: Workspace, ui: UI, screen: Rect): void {
     ws.tipHidden = false;
   }
   if (!h || ws.tipHidden) return;
-  const wait = 650 - (ui.now - ws.tip.since);
-  if (wait > 0) return ui.animate(wait);
-  const c = ui.c;
-  const lines: { t: string; fg: number; attrs?: number }[] = [];
-  if (h.cmd) lines.push({ t: `❯ ${h.cmd}`, fg: c.accent, attrs: BOLD });
-  if (h.tip) for (const l of osKeys(h.tip).split("\n")) lines.push({ t: l, fg: c.muted });
-  const w = Math.min(screen.w - 2, Math.max(...lines.map((l) => strWidth(l.t))) + 4);
-  const hgt = lines.length + 2;
-  let bx = Math.min(x + 2, screen.w - w - 1);
-  let by = y + 1;
-  if (by + hgt > screen.h - 1) by = Math.max(0, y - hgt);
-  if (bx < 0) bx = 0;
-  ui.box({ x: bx, y: by, w, h: hgt }, { bg: c.panelAlt, border: "single" });
-  lines.forEach((l, i) => ui.text(bx + 2, by + 1 + i, l.t, { fg: l.fg, bg: c.panelAlt, attrs: l.attrs }, w - 4));
+  // the deck shows it above the grid (ui/tipview.ts): to the pixel, crisp, gone when the pointer moves
+  ws.tipWant = { key, content: { text: h.tip ? osKeys(h.tip) : undefined, cmd: h.cmd } };
 }
 
 /**

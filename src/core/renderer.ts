@@ -198,6 +198,10 @@ export class Renderer {
   get fontSize(): number {
     return this.fontPx;
   }
+  /** the deck's font stack (the hover tip, a page element, writes in it too) */
+  get fontFamily(): string {
+    return this.stack;
+  }
 
   private font(attrs: number): string {
     const style = attrs & ITALIC ? "italic " : "";
