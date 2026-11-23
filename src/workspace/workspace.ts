@@ -13,7 +13,8 @@ import { KeyCapture } from "./keycapture";
 import { QuickMenu } from "./quickmenu";
 import { drawScreensaver } from "../fx/screensaver";
 import { IbshApp, TerminalApp } from "../apps/terminal";
-import { t } from "../core/i18n";
+import { t, tLoose } from "../core/i18n";
+import { opensBehind } from "./openbehind";
 import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC, rawPageKey, type Action, type ActionSource, type KeyInput, type MouseInput } from "../core/input";
 import type { App } from "../apps/types";
@@ -518,9 +519,26 @@ export class Workspace {
     this.previewTab = app;
   }
 
+  /** until when a page opened goes behind the maximized shell (workspace/openbehind.ts) */
+  keepKeysUntil = 0;
+
+  /** Would a page opened now go behind the maximized shell, which keeps the keys? */
+  opensBehind(kind: string): boolean {
+    return opensBehind({ now: performance.now(), keepUntil: this.keepKeysUntil, focus: this.focus, activeKind: this.activeApp?.kind, newKind: kind });
+  }
+
   open(app: App): App {
     if (this.deck.log.debugOn) this.deck.debug(`opened ${app.kind}`);
     const existing = this.tabs.findIndex((t) => t.key === app.key);
+    // typed in the maximized shell: the page comes in as a tab behind it, the keys stay there
+    if (this.opensBehind(app.kind) && this.tabs[existing] !== this.activeApp) {
+      let tab = this.tabs[existing];
+      if (existing >= 0) void app.close?.();
+      else this.tabs.splice(this.active + 1, 0, (tab = app));
+      const name = tab.title?.() ?? tab.kind;
+      this.deck.notify(t("{name} opened in a tab, behind the shell · ctrl+tab", { name: tLoose(name).toLowerCase() }));
+      return tab;
+    }
     // already open in another frame: shown there
     if (existing >= 0 && this.reachOf(existing) !== "main") {
       void app.close?.();

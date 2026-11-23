@@ -9,7 +9,7 @@ import type { Deck } from "../deck";
 import { decrypt } from "../fx/glitch";
 import { typed } from "../ui/typewriter";
 import { q, type UI } from "../ui/ui";
-import { easeOut, strWidth, truncate, wrapWords } from "../core/unicode";
+import { easeOut, strWidth, truncate, wrapLines, wrapWords } from "../core/unicode";
 import { applyFxPreset, FX_PRESET_NAMES, FX_PRESETS } from "../workspace/fxpanel";
 import type { App, AppSpec } from "./types";
 import { GAP, INSET } from "../ui/layout";
@@ -787,7 +787,7 @@ export class SetupApp implements App {
         const name = t(s2.title).toLowerCase();
         const val = this.answerOf(s2);
         const inline = strWidth(name) + 4 + strWidth(val) <= logW;
-        const under = inline ? [] : wrapWords(val, logW - 4).slice(0, 3);
+        const under = inline ? [] : wrapLines(val, logW - 4, 3);
         return { i, name, val, inline, under, h: 1 + under.length };
       });
       // the latest ones that fit above the line being written
@@ -942,7 +942,8 @@ export class SetupApp implements App {
     if (this.error) ui.text(inner.x + 2, inner.y + inner.h - 2, `⚠ ${this.error}`, { fg: c.error, bg: c.panel }, inner.w - 4);
     // the way back and the way past, always in the same place, as buttons (esc going back
     // was said nowhere a tester looked), then the keys
-    const keys = st.id === "vault-path" ? t("tab completes the folder · enter next") : st.text ? t("enter next") : st.slider ? t("←→ · enter next") : t("↑↓ or a number · enter keeps");
+    // the keys, longest first: the first that fits whole is written (it ended « entrée … »)
+    const keys = st.id === "vault-path" ? [t("tab completes the folder · enter next"), t("enter next")] : st.text ? [t("enter next")] : st.slider ? [t("←→ · enter next"), t("enter next")] : [t("↑↓ or a number · enter keeps"), `↑↓ · ${t("enter keeps")}`, t("enter keeps")];
     // the button on the right first; back / skip on the left only where they fit before it (they
     // ran into it: "‹ retour esc ir passer tab eurs par défaut ^⏎"), short when the room is short;
     // then the keys, if there's still room
@@ -966,7 +967,8 @@ export class SetupApp implements App {
     if (pair && back) fx += ui.button(fx, fy, pair[0], () => this.go(-1), { quiet: true, tip: t("the question before (esc)") }) + GAP;
     if (pair && skip) fx += ui.button(fx, fy, pair[1], () => this.go(1), { quiet: true, tip: t("keep the default and go on (tab)") }) + GAP;
     const left = right - fx;
-    if (left > 6) ui.text(fx, fy, keys, { fg: c.subtle, bg: c.panel }, left);
+    const fit = keys.find((k) => strWidth(k) <= left);
+    if (fit) ui.text(fx, fy, fit, { fg: c.subtle, bg: c.panel });
   }
 }
 

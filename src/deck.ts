@@ -423,21 +423,21 @@ export class Deck implements InputSink {
     this.starting = !boot;
     this.loop.request();
     const step = async <T>(run: () => Promise<T> | T, line: (v: T) => BootLine | null): Promise<T> => {
-      const t = performance.now();
+      const t1 = performance.now();
       try {
         const v = await run();
         const l = line(v);
-        if (l) boot?.log({ ms: performance.now() - t, ...l });
+        if (l) boot?.log({ ms: performance.now() - t1, ...l });
         return v;
       } catch (e) {
-        boot?.log({ text: `startup step failed: ${e instanceof Error ? e.message : e}`, status: "FAIL", ms: performance.now() - t });
+        boot?.log({ text: t("startup step failed: {why}", { why: e instanceof Error ? e.message : String(e) }), status: "FAIL", ms: performance.now() - t1 });
         throw e;
       }
     };
 
     const stats = await step(
       () => this.platform.system.stats().catch(() => null),
-      (st) => st ? { text: `CPU0  ${st.cpuBrand || "unknown cpu"} · ${st.cores.length} cores · ${st.host} · ${st.os}`, status: "INFO" } : { text: "CPU0  no system probe on this platform", status: "INFO" },
+      (st) => st ? { text: `CPU0  ${st.cpuBrand || t("unknown cpu")} · ${t("{n} cores", { n: st.cores.length })} · ${st.host} · ${st.os}`, status: "INFO" } : { text: `CPU0  ${t("no system probe on this platform")}`, status: "INFO" },
     );
     if (boot) boot.memMB = stats ? Math.round(stats.memTotal / 1024 ** 2) : 0;
     this.vault.journalFolder = s.journal.folder;
@@ -447,20 +447,20 @@ export class Deck implements InputSink {
     await step(() => this.vault.mount(vaultPath), () => null);
     // the vault carries its account's settings: newer ones (changed on another computer) → start again with them
     if (await this.syncVaultAccount()) return;
-    await step(() => this.recordVaultStats(), () => ({ text: `Mounted vault at ${this.vault.root} (${this.vault.markdown().length} notes, ${this.vault.journalDates().size} journal entries)${this.vault.docsYours.length ? ` · START HERE: ${this.vault.docsYours.length} notes you edited kept (starthere --force updates them)` : ""}`, status: "OK" }));
+    await step(() => this.recordVaultStats(), () => ({ text: `${t("Mounted vault at {root} ({notes} notes, {days} journal entries)", { root: this.vault.root, notes: this.vault.markdown().length, days: this.vault.journalDates().size })}${this.vault.docsYours.length ? ` · ${t("{folder}: {n} notes you edited kept (starthere --force updates them)", { folder: "START HERE", n: this.vault.docsYours.length })}` : ""}`, status: "OK" }));
     if (!s.vault.path) this.settings.set("vault.path", this.vault.root);
     const fontOf = () => `${this.theme.font.family}|${this.theme.font.scale}|${this.theme.font.weights}`;
     const font = fontOf();
-    await step(() => this.reloadUserThemes(), () => ({ text: `Loaded theme ${this.theme.name} (${this.themes.list().length} available${this.themes.errors.length ? `, ${this.themes.errors.length} broken` : ""})`, status: this.themes.errors.length ? "WARN" : "OK" }));
+    await step(() => this.reloadUserThemes(), () => ({ text: t("Loaded theme {name} ({n} available{broken})", { name: this.theme.name, n: this.themes.list().length, broken: this.themes.errors.length ? `, ${t("{n} broken", { n: this.themes.errors.length })}` : "" }), status: this.themes.errors.length ? "WARN" : "OK" }));
     this.refreshTheme(true);
     if (fontOf() !== font) await this.applyFont(); // your theme lives in the vault and has its own font
 
-    boot?.log({ text: `Account ${session.user}: its settings, its vault`, status: "OK" });
+    boot?.log({ text: t("Account {user}: its settings, its vault", { user: session.user }), status: "OK" });
     void this.rememberLook();
     this.sound.enabled = s.sound.enabled && !s.sound.muted;
     this.sound.volume = s.sound.volume / 100;
     this.applyMix();
-    await step(() => this.reloadSounds().catch(() => 0), (n) => ({ text: `Sound ${s.sound.enabled ? "on" : "muted"} · pack ${this.soundPack()}${n ? ` · ${n} custom sounds` : ""}`, status: "OK" }));
+    await step(() => this.reloadSounds().catch(() => 0), (n) => ({ text: `${t(s.sound.enabled ? "Sound on" : "Sound muted")} · ${t("pack {name}", { name: this.soundPack() })}${n ? ` · ${t("{n} custom sounds", { n })}` : ""}`, status: "OK" }));
 
     await step(async () => {
       this.ai.envKey = await this.platform.envApiKey().catch(() => null);
@@ -468,11 +468,11 @@ export class Deck implements InputSink {
       this.ai.claudeCodePath = (await this.platform.claudeCode?.detect().catch(() => null)) ?? null;
     }, () => {
       const p = this.ai.problem;
-      return p ? { text: `Uplink offline: ${p}`, status: "WARN" } : { text: `Uplink: ${this.ai.provider.label}${this.ai.claudeCodePath ? ` (${this.ai.claudeCodePath})` : ""}`, status: "OK" };
+      return p ? { text: t("Uplink offline: {why}", { why: p }), status: "WARN" } : { text: t("Uplink: {name}", { name: `${this.ai.provider.label}${this.ai.claudeCodePath ? ` (${this.ai.claudeCodePath})` : ""}` }), status: "OK" };
     });
 
     this.voice.watch(); // the time, CPU / memory overload (core/voice.ts)
-    await step(() => this.registerCore(), () => ({ text: `Shell ibsh: ${this.commands.names().length} commands · ${this.apps.list().length} apps · ${this.widgets.list().length} widgets`, status: "OK" }));
+    await step(() => this.registerCore(), () => ({ text: t("Shell ibsh: {c} commands · {a} pages · {w} widgets", { c: this.commands.names().length, a: this.apps.list().length, w: this.widgets.list().length }), status: "OK" }));
     detachCorePackages(this); // core features become modules (plugins/core-packages.ts)
     // no AI at all while the UPLINK module is off (modules can't reach it either)
     this.ai.gate = () => (this.plugins.list().some((p) => p.manifest.id === "uplink" && p.active) ? null : "the UPLINK module is off (MODULES → UPLINK)");
@@ -485,11 +485,11 @@ export class Deck implements InputSink {
       const on = this.plugins.active().length;
       const bad = this.plugins.list().filter((p) => p.error);
       for (const p of bad) this.log.add("notify", `${p.manifest.name ?? p.manifest.id}: ${p.error}`, { source: "warning" });
-      if (!bad.length) return { text: `Plugins: ${on} on`, status: "OK" };
+      if (!bad.length) return { text: t("Modules: {n} on", { n: on }), status: "OK" };
       // each one by name with why, in a few words, and what to do; said again once the desktop
       // is there (the boot text goes by fast) — the whole reason is in the LOG
       this.modulesOff = bad.map((p) => ({ id: p.manifest.id, name: p.manifest.name ?? p.manifest.id, why: PluginHost.shortReason(p.error ?? "") }));
-      return { text: `Plugins: ${on} on · off: ${this.modulesOff.map((m) => `${m.id} (${m.why})`).join(", ")} — plugin enable <id>`, status: "WARN" };
+      return { text: t("Modules: {n} on · off: {list} — plugin enable <id>", { n: on, list: this.modulesOff.map((m) => `${m.id} (${m.why})`).join(", ") }), status: "WARN" };
     });
     this.platform.bridge?.onRun((req) => void this.runBridged(req));
     this.watchPower();
@@ -500,11 +500,11 @@ export class Deck implements InputSink {
       this.platform.onMenu((id) => !this.locked && actions[id]?.());
     }
     // files changed in the terminal, Obsidian, Finder…: refresh the tree, search, widgets
-    await step(() => this.platform.onVaultChange?.(() => void this.vault.rescan().then(() => this.requestFrame())), () => this.platform.onVaultChange ? { text: "Watching the vault for outside changes", status: "OK" } : null);
-    if (s.privacy.stealth) boot?.log({ text: "Stealth mode: no internet — this machine and the local network only", status: "OK" });
-    if (s.voice.enabled && this.voice.available) boot?.log({ text: `Voice module online (${s.voice.engine})`, status: "OK" });
+    await step(() => this.platform.onVaultChange?.(() => void this.vault.rescan().then(() => this.requestFrame())), () => this.platform.onVaultChange ? { text: t("Watching the vault for outside changes"), status: "OK" } : null);
+    if (s.privacy.stealth) boot?.log({ text: t("Stealth mode: no internet — this machine and the local network only"), status: "OK" });
+    if (s.voice.enabled && this.voice.available) boot?.log({ text: t("Voice module online ({engine})", { engine: s.voice.engine }), status: "OK" });
     const pads = (navigator.getGamepads?.() ?? []).filter(Boolean).length;
-    boot?.log({ text: `Input: keyboard · mouse${pads ? ` · ${pads} gamepad${pads > 1 ? "s" : ""}` : " · gamepad (none plugged in)"}`, status: "OK" });
+    boot?.log({ text: `${t("Input: keyboard · mouse")} · ${pads ? t(pads > 1 ? "{n} gamepads" : "1 gamepad", { n: pads }) : t("gamepad (none plugged in)")}`, status: "OK" });
 
     this.shell.motd();
     this.shellsGreeted = true;
@@ -512,8 +512,8 @@ export class Deck implements InputSink {
     if (!s.setup.done) this.openApp("setup");
     void this.askVaultSettings();
     // the tabs you had open last time
-    await step(() => this.workspace.restoreSession(!s.setup.done).catch(() => {}), () => (s.setup.done && s.session?.tabs?.length ? { text: `Session restored: ${s.session.tabs.length} tab(s)`, status: "OK" } : null));
-    boot?.log({ text: `Reached target: Cyberspace. (startup took ${Math.round(performance.now() - t0)} ms)`, status: "OK" });
+    await step(() => this.workspace.restoreSession(!s.setup.done).catch(() => {}), () => (s.setup.done && s.session?.tabs?.length ? { text: t("Session restored: {n} tab(s)", { n: s.session.tabs.length }), status: "OK" } : null));
+    boot?.log({ text: t("Reached target: Cyberspace. (startup took {ms} ms)", { ms: Math.round(performance.now() - t0) }), status: "OK" });
     boot?.finish();
     this.lastBoot = boot;
     this.starting = false;
@@ -986,7 +986,8 @@ export class Deck implements InputSink {
       return null;
     }
     try {
-      if (this.workspace.activeApp?.key !== kind) {
+      // behind the maximized shell: no page turn on a screen that doesn't change
+      if (this.workspace.activeApp?.key !== kind && !this.workspace.opensBehind(kind)) {
         this.sound.play("open");
         this.pageTurn();
       }
@@ -1549,7 +1550,7 @@ export class Deck implements InputSink {
   }
 
   reboot(): void {
-    this.boot = this.lastBoot?.replay() ?? new BootScreen("full", [{ text: `Vault ${basename(this.vault.root)} remounted`, status: "OK" }, { text: "Reached target: Cyberspace.", status: "OK" }]);
+    this.boot = this.lastBoot?.replay() ?? new BootScreen("full", [{ text: t("Vault {name} remounted", { name: basename(this.vault.root) }), status: "OK" }, { text: t("Reached target: Cyberspace."), status: "OK" }]);
     // the start-up sound, like a real start
     this.sound.play("boot");
     this.requestFrame();

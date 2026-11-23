@@ -561,18 +561,21 @@ export class HomeApp implements App {
       // normally the widget's own buttons sit on top of its frame; while editing,
       // the frame covers everything, so a click only selects (and drags)
       if (!this.editing) ui.hit(rect, frameHit);
-      ui.clip(inner, () => {
+      // a page too narrow for HOME's columns (they keep 4 cells at least): the widget draws in
+      // the part you see, so its texts are laid out for it instead of running off the edge
+      const vis = { ...inner, w: Math.max(0, Math.min(inner.w, area.x + area.w - inner.x)) };
+      ui.clip(vis, () => {
         try {
           // the copy you're on is the one its commands change (clock style next…)
           if (sel && focused) focusWidget(keyOf(p));
           // the chosen widget's long texts scroll by themselves, as under the mouse
           const zone = ui.marqueeZone;
-          if (sel && focused) ui.marqueeZone = inner;
-          spec.render(ui, inner, { deck: this.deck, focused: sel, key: keyOf(p), typing: sel && focused, select: () => this.choose(i) });
+          if (sel && focused) ui.marqueeZone = vis;
+          spec.render(ui, vis, { deck: this.deck, focused: sel, key: keyOf(p), typing: sel && focused, select: () => this.choose(i) });
           ui.marqueeZone = zone;
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
-          ui.text(inner.x, inner.y, `⚠ ${msg}`, { fg: c.error }, inner.w);
+          ui.text(vis.x, vis.y, `⚠ ${msg}`, { fg: c.error }, vis.w);
           // once per widget and message, in the error log (E502)
           const key = `${p.id}:${msg}`;
           if (!loggedWidgetErrors.has(key)) {
@@ -582,9 +585,10 @@ export class HomeApp implements App {
           }
         }
         // too small to draw anything: show its name, so it never just vanishes
-        if (inner.w > 0 && inner.h > 0 && blank(ui, inner)) {
-          ui.textCenter(inner, inner.y + Math.floor((inner.h - 1) / 2), spec.title, { fg: c.subtle });
-          if (inner.h > 2) ui.textCenter(inner, inner.y + Math.floor((inner.h - 1) / 2) + 1, t("bigger: e, shift+arrows"), { fg: c.subtle });
+        if (vis.w > 0 && vis.h > 0 && blank(ui, vis)) {
+          // its name as the frame says it (lowercase, in your language — it was « WEATHE… »)
+          ui.textCenter(vis, vis.y + Math.floor((vis.h - 1) / 2), t(spec.title).toLowerCase(), { fg: c.subtle });
+          if (vis.h > 2) ui.textCenter(vis, vis.y + Math.floor((vis.h - 1) / 2) + 1, t("bigger: e, shift+arrows"), { fg: c.subtle });
         }
       });
       if (this.editing) {

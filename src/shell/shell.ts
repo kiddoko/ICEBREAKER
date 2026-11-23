@@ -3,7 +3,7 @@ import { Glide } from "../ui/glide";
 import { mix } from "../core/color";
 import { BOLD, DIM, type Rect } from "../core/grid";
 import { IS_MAC, type Action, type KeyInput } from "../core/input";
-import { strWidth } from "../core/unicode";
+import { strWidth, truncate } from "../core/unicode";
 import type { App } from "../apps/types";
 import type { Deck } from "../deck";
 import { basename, dirname, display, resolvePath } from "../vault/paths";
@@ -619,7 +619,8 @@ export class ShellApp implements App {
 
   private drawPrompt(ui: UI, x0: number, y: number, w: number, focused: boolean): void {
     const c = ui.c;
-    const handle = this.deck.settings.data.user.handle;
+    // a long nickname keeps its case and ends with … (it pushed the line you type off a narrow shell)
+    const handle = truncate(this.deck.settings.data.user.handle, Math.max(4, Math.min(24, Math.floor(w / 4))));
     const seg1 = ` ${handle} `;
     const seg2 = ` ${display(this.exec.cwd)} `;
     const accent = focused ? c.accent : c.subtle;

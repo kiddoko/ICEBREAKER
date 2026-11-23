@@ -127,10 +127,12 @@ class BlocksApp implements App {
       const bg = selected ? mix(c.accent, c.bg, 0.82) : undefined;
       if (bg !== undefined) ui.fill(row, { bg });
       const st = bg !== undefined ? { bg } : {};
-      ui.text(row.x + 1, row.y, b.kind, { fg: c.subtle, ...st }, kindW - 1);
-      const fromW = Math.min(12, strWidth(b.from));
-      ui.text(row.x + kindW, row.y, b.name, { fg: selected ? c.fg : c.muted, attrs: selected ? BOLD : 0, ...st }, row.w - kindW - fromW - 3);
-      ui.textRight(row.x + row.w - 1, row.y, truncate(b.from, fromW), { fg: b.from === "core" ? c.faint : c.accent, ...st });
+      // a narrow list keeps the name: the kind goes first, then where it comes from (they ran into it)
+      const kw = row.w >= 30 ? kindW : 0;
+      const fromW = row.w >= 24 ? Math.min(12, strWidth(b.from)) : 0;
+      if (kw) ui.text(row.x + 1, row.y, b.kind, { fg: c.subtle, ...st }, kw - 1);
+      ui.text(row.x + (kw || 1), row.y, b.name, { fg: selected ? c.fg : c.muted, attrs: selected ? BOLD : 0, ...st }, Math.max(0, row.w - (kw || 1) - (fromW ? fromW + 3 : 1)));
+      if (fromW) ui.textRight(row.x + row.w - 1, row.y, truncate(b.from, fromW), { fg: b.from === "core" ? c.faint : c.accent, ...st });
     });
     if (!this.list.items.length) ui.text(x + 1, y, t("nothing matches — esc clears the search"), { fg: c.muted });
     if (!twoCols) return;

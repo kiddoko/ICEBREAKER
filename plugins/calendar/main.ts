@@ -1044,6 +1044,8 @@ export function activate(ib: IcebreakerAPI): void {
         const s0 = selCell as Rect;
         // the frame shares the cell's tint, so frame and fill read as one block
         const hl = { fg: focused ? c.accent : c.subtle, bg: mix(c.accent, c.bg, focused ? 0.82 : 0.9), attrs: BOLD };
+        // it replaces the grid's own lines there: clear them first (a fill, then the frame)
+        for (const edge of [{ x: s0.x - 1, y: s0.y - 1, w: s0.w + 2, h: 1 }, { x: s0.x - 1, y: s0.y + s0.h, w: s0.w + 2, h: 1 }, { x: s0.x - 1, y: s0.y, w: 1, h: s0.h }, { x: s0.x + s0.w, y: s0.y, w: 1, h: s0.h }]) ui.fill(edge, { bg: hl.bg });
         ui.text(s0.x - 1, s0.y - 1, "┏", hl);
         ui.hline(s0.x, s0.y - 1, s0.w, hl, "━");
         ui.text(s0.x + s0.w, s0.y - 1, "┓", hl);
@@ -1109,26 +1111,28 @@ export function activate(ib: IcebreakerAPI): void {
 
     private header(ui: UI, r: Rect): void {
       const c = ui.c;
-      let hx = r.x + 1;
-      const btn = (label: string, cmd: () => void, tip: string, on = false) => {
-        const rect = { x: hx, y: r.y, w: strWidth(label), h: 1 };
-        const hot = ui.hovered(rect);
-        ui.text(hx, r.y, label, hot || on ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: c.fg, bg: c.highlight });
-        ui.hit(rect, { onClick: cmd, tip });
-        hx += rect.w + 1;
-      };
+      // a Bar: when the page is narrow the least useful buttons go first (import, sync, today), never cut
+      const bar = new ib.lib.Bar(ui, r.x + ib.lib.INSET, r.y, r.x + r.w - ib.lib.INSET, 1);
+      const btn = (label: string, cmd: () => void, tip: string, priority: number, on = false) =>
+        bar.item(strWidth(label), (x) => {
+          const rect = { x, y: r.y, w: strWidth(label), h: 1 };
+          const hot = ui.hovered(rect);
+          ui.text(x, r.y, label, hot || on ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: c.fg, bg: c.highlight });
+          ui.hit(rect, { onClick: cmd, tip });
+        }, { priority });
       if (this.view === "month") {
-        btn(" ‹ ", () => this.onText("["), "previous month · [");
+        btn(" ‹ ", () => this.onText("["), "previous month · [", 10);
         const month = new Date(this.day.getFullYear(), this.day.getMonth(), 1).toLocaleDateString(ib.lib.dateLocale(), { month: "long", year: "numeric" }).toLowerCase();
-        hx = ui.gradientText(hx + 1, r.y, month, ui.theme.gradient) + 2;
-        btn(" › ", () => this.onText("]"), "next month · ]");
-        btn(t(" today "), () => this.goto(new Date()), "t");
-        btn(t(" + add "), () => void addFlow(this.day), "a · or: cal add \"title\" <day> <time>");
-        btn(t(" ⇣ import "), () => run("cal import"), t("events from a file: a CSV (Google, Outlook, a sheet) or an .ics · cal import"));
-        if (connected) btn(syncing ? ` ${ui.spinner()} sync ` : t(" ⟳ sync "), () => run("cal sync"), "s · cal sync");
-      } else btn(t(" ‹ back "), () => (this.view = "month"), "esc");
-      btn(t(" ⚙ settings "), () => (this.view = this.view === "settings" ? "month" : "settings"), "c · calendars, Google, local files", this.view === "settings");
-      if (syncError && r.x + r.w - 1 - strWidth(syncError) > hx + 1) ui.textRight(r.x + r.w - 1, r.y, syncError, { fg: c.error });
+        bar.item(strWidth(month) + 2, (x) => void ui.gradientText(x + 1, r.y, month, ui.theme.gradient), { priority: 10 });
+        btn(" › ", () => this.onText("]"), "next month · ]", 10);
+        btn(t(" today "), () => this.goto(new Date()), "t", 5);
+        btn(t(" + add "), () => void addFlow(this.day), "a · or: cal add \"title\" <day> <time>", 7);
+        btn(t(" ⇣ import "), () => run("cal import"), t("events from a file: a CSV (Google, Outlook, a sheet) or an .ics · cal import"), 2);
+        if (connected) btn(syncing ? ` ${ui.spinner()} sync ` : t(" ⟳ sync "), () => run("cal sync"), "s · cal sync", 4);
+      } else btn(t(" ‹ back "), () => (this.view = "month"), "esc", 10);
+      btn(t(" ⚙ settings "), () => (this.view = this.view === "settings" ? "month" : "settings"), "c · calendars, Google, local files", 6, this.view === "settings");
+      if (syncError) bar.text(syncError, { fg: c.error }, { side: "right", priority: 1, fit: 6 });
+      bar.draw();
     }
 
     /** The settings page: which calendars show, the default one, Google, the local files. */
