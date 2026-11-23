@@ -107,6 +107,7 @@ export class HomeApp implements App {
     if (this.overlaps(layout, i, next)) return;
     layout[i] = next;
     this.want = { i, w: next.w, h: next.h }; // a deliberate resize sets the size to come back to
+    this.reveal = true; // grown past the bottom: HOME follows it (shift+↓ left it out of view)
     this.save(layout);
   }
 

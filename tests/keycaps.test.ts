@@ -29,3 +29,11 @@ describe("keycaps: shortcuts found in interface text", () => {
     expect(keysIn("up 0d 0h · 1 procs")).toEqual([]);
   });
 });
+
+describe("the article a is not a key", () => {
+  it("'a full path…' has no key; 'a add' and 'a ajouter' do", () => {
+    expect(keysIn("a full path (~/notes works) · tab completes the folder's name")).toEqual(["tab"]);
+    expect(keysIn("e edit · a add a widget · x remove")).toEqual(["e", "a", "x"]);
+    expect(keysIn("e éditer · a ajouter un widget")).toEqual(["e", "a"]);
+  });
+});

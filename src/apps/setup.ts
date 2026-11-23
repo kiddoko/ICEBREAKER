@@ -841,13 +841,14 @@ export class SetupApp implements App {
       }
     }
     let fx = inner.x + GAP;
-    const put = (versions: string[], run: () => void, tip: string) => {
-      const label = versions.find((v) => fx + strWidth(v) + 2 <= right);
-      if (label) fx += ui.button(fx, fy, label, run, { quiet: true, tip }) + GAP;
-    };
+    // back and skip chosen together, long or short, so both fit (skip went first when room was short)
     const firstShown = this.steps.findIndex((s2) => !s2.skip?.());
-    if (this.step > firstShown) put([`‹ ${t("back")}  esc`, "‹ esc"], () => this.go(-1), t("the question before (esc)"));
-    if (st.id !== "done" && st.id !== "warning" && st.id !== "vault-path") put([`${t("skip")}  tab`, "tab ›"], () => this.go(1), t("keep the default and go on (tab)"));
+    const back = this.step > firstShown, skip = st.id !== "done" && st.id !== "warning" && st.id !== "vault-path";
+    const pairs: [string, string][] = [[`‹ ${t("back")}  esc`, `${t("skip")}  tab`], ["‹ esc", `${t("skip")} ⇥`], ["‹", "⇥"]];
+    const width = (p: [string, string]) => (back ? strWidth(p[0]) + 2 + GAP : 0) + (skip ? strWidth(p[1]) + 2 + GAP : 0);
+    const pair = pairs.find((p) => fx + width(p) <= right);
+    if (pair && back) fx += ui.button(fx, fy, pair[0], () => this.go(-1), { quiet: true, tip: t("the question before (esc)") }) + GAP;
+    if (pair && skip) fx += ui.button(fx, fy, pair[1], () => this.go(1), { quiet: true, tip: t("keep the default and go on (tab)") }) + GAP;
     const left = right - fx;
     if (left > 6) ui.text(fx, fy, keys, { fg: c.subtle, bg: c.panel }, left);
   }
