@@ -89,6 +89,8 @@ export interface Settings {
     macrosShown: boolean;
     /** a wide shell shows the log on its right (false: the log stays a tab) */
     logSide?: boolean;
+    /** the log column's width beside the shell, in columns (dragged; 0 = 30 % of the shell) */
+    logWidth?: number;
   };
   /** UI sounds (core/sound.ts). Volume 0–100. */
   /** muted: everything silent (ui sounds, voice, alerts) — the ♪ button, `mute` */
@@ -132,7 +134,7 @@ export interface Settings {
   /** where the frames sit (workspace/layout/arrange.ts, docs/FRAMES.md): {} = today's arrangement; `layout preset`, `frame move` */
   layout: { version?: number; preset?: string; root?: unknown };
   /** the status bar's right side: its items in this order (empty: the default), those hidden (workspace/statusbar.ts) */
-  statusBar: { order: string[]; hidden: string[] };
+  statusBar: { order: string[]; hidden: string[]; joined?: string[]; alone?: string[] };
   /** pinned notes, folders, modules (`pin`): top of the tree and the pinned widget */
   /** pins (workspace/favorites.ts): notes, folders, modules, pages, macros, commands — also HOME's squares */
   favorites: { kind: "note" | "folder" | "module" | "page" | "macro" | "command"; target: string; label: string; id?: string; icon?: string; cmd?: string }[];

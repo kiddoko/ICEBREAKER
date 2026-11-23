@@ -128,7 +128,16 @@ export class LogPane {
     const cr = { x: xr - strWidth(clear), y: r.y, w: strWidth(clear), h: 1 };
     ui.text(cr.x, r.y, clear, { fg: ui.hovered(cr) ? c.panel : c.subtle, bg: ui.hovered(cr) ? c.error : undefined });
     ui.hit(cr, { onClick: () => (log.clear(this.show.size ? [...this.show] : undefined), (this.deck.errors.unseen = 0)), tip: t("empty what is shown · log clear") });
-    ui.textRight(cr.x - 1, r.y, `${list.length}`, { fg: c.subtle });
+    const countX = ui.textRight(cr.x - 1, r.y, `${list.length}`, { fg: c.subtle });
+    // a tab of the shell: "‹ beside" puts it back on the shell's right (the › on its line folds it)
+    if (!compact && this.deck.settings.data.shell.logSide === false) {
+      const side = ` ‹ ${t("beside the shell")} `;
+      const sr = { x: countX - strWidth(side) - 1, y: r.y, w: strWidth(side), h: 1 };
+      if (sr.x > x) {
+        ui.text(sr.x, r.y, side, { fg: ui.hovered(sr) ? c.panel : c.accent, bg: ui.hovered(sr) ? c.accent : undefined });
+        ui.hit(sr, { cmd: "log side on", tip: t("the log on the shell's right when the shell is wide · log side on") });
+      }
+    }
 
     // ── the lines, newest at the bottom ──
     const body = { x: r.x, y: r.y + 1, w: r.w, h: r.h - 1 };

@@ -23,3 +23,25 @@ describe("the status bar's order", () => {
     expect(moveStatusItem(o, "x", 0)).toEqual(o);
   });
 });
+
+import { joinedLeft, setJoined } from "../src/workspace/statusbar";
+describe("the status bar's groups (Review 0.7: groups like tabs, the frame buttons movable)", () => {
+  it("the four frame switches are items of their own, in one group by default", () => {
+    const o = statusOrder(undefined);
+    expect(o.slice(o.indexOf("tree"), o.indexOf("tree") + 4)).toEqual(["tree", "shell", "panel", "solo"]);
+    expect(joinedLeft(undefined, "tree")).toBe(false);
+    expect(joinedLeft(undefined, "shell")).toBe(true);
+  });
+  it("a 0.7.0 bar that named \"frames\" gets the four at its place", () => {
+    const o = statusOrder({ order: ["help", "frames", "fx"], hidden: [] });
+    expect(o.slice(o.indexOf("help"), o.indexOf("help") + 6)).toEqual(["help", "tree", "shell", "panel", "solo", "fx"]);
+    expect(statusOrder({ order: [], hidden: ["frames"] })).not.toContain("panel");
+  });
+  it("joining and setting apart", () => {
+    const g = setJoined(undefined, "fx", true);
+    expect(joinedLeft(g, "fx")).toBe(true);
+    const h = setJoined(g, "panel", false);
+    expect(joinedLeft(h, "panel")).toBe(false);
+    expect(joinedLeft(setJoined(h, "panel", true), "panel")).toBe(true);
+  });
+});

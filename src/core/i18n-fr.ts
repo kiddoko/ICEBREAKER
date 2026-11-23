@@ -2261,4 +2261,10 @@ export const FR: Record<string, string> = {
   "enter ▸ dive in": "entrée ▸ plonger",
   "SECTOR": "SECTEUR",
   "DATA": "DONNÉES",
+  // ── 0.7.1: log
+  "drag: the log's width · double-click: back to its size": "glisser : la largeur du log · double-clic : sa taille d'origine",
+  "fold the log into a tab · log side on brings it back": "replier le log en onglet · log side on le ramène",
+  // ── 0.7.1: log2
+  "beside the shell": "à côté du shell",
+  "the log on the shell's right when the shell is wide · log side on": "le log à droite du shell quand il est large · log side on",
 };
