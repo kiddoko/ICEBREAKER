@@ -33,6 +33,7 @@ export interface VersionNotes {
 export const NOTES: VersionNotes[] = [
   {
     version: "0.7.2",
+    date: "2026-11-23",
     en: {
       added: [
         "+ on the shell: ibsh or any of your shells; several ibsh tabs",

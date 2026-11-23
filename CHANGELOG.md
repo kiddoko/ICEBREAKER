@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.7.2 — not released yet
+## 0.7.2 — 2026-11-23
 
 What 0.7.1 left: a deck that rests, the last English, one name per thing, and the docs and the
 catalog level with the code.
