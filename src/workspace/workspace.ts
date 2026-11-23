@@ -1363,10 +1363,16 @@ export class Workspace {
   /** rows hidden by the camera notch in full screen (deck.measureNotch): a band, the deck starts under it */
   notchRows = 0;
 
+  /** the page a screen reader was last told about (H4) */
+  private saidPage = "";
+
   render(ui: UI): void {
     const d = this.deck;
     this.tidyPlaces();
     this.noteVisit();
+    // a screen reader hears the page that comes in front (the canvas says nothing)
+    const page = this.activeApp?.title() ?? "";
+    if (page !== this.saidPage) (this.saidPage = page), page && d.announce(t(page));
     this.saveSession();
     // a page that asked for the whole window gives the frames back when it leaves the front
     if (this.pageAlone.tick(this.activeApp, this.solo) === "restore") this.toggleSolo();

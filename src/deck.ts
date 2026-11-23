@@ -844,7 +844,20 @@ export class Deck implements InputSink {
     return this.shell.runAction(line);
   }
 
+  /**
+   * For screen readers (H4): everything is drawn in a canvas, so what the deck tells you is also
+   * written in a hidden live region (index.html #announce). Cleared first: the same text twice
+   * is read twice.
+   */
+  announce(text: string): void {
+    const el = document.getElementById("announce");
+    if (!el) return;
+    el.textContent = "";
+    setTimeout(() => (el.textContent = text.replace(/\x1b\[[0-9;]*m/g, "")), 50);
+  }
+
   notify(text: string, kind: ToastKind = "info"): void {
+    this.announce(text);
     this.sound.play(kind === "error" ? "error" : kind === "success" ? "success" : "notify");
     if (kind === "error") this.errors.add(text);
     else this.log.add("notify", text, { source: kind });

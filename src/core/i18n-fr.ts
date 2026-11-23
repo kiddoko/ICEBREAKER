@@ -2302,6 +2302,10 @@ export const FR: Record<string, string> = {
   "── in your notes ({n}) · todo done <note:line> ticks one": "── dans tes notes ({n}) · todo done <note:ligne> en coche une",
   "todo: \"{x}\"? try {y} (todo add \"{z}\" to add it)": "todo : « {x} » ? essaie {y} (todo add \"{z}\" pour l'ajouter)",
   "{n}d late": "{n} j de retard",
+  "{n} process": "{n} processus",
+  "{n} processes": "{n} processus",
+  "{n} core": "{n} cœur",
+  "{n} cores": "{n} cœurs",
   // help (shell/help.ts helpList)
   "to start": "pour commencer",
   "help all       every command": "help all       toutes les commandes",

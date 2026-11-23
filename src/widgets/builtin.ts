@@ -406,7 +406,11 @@ const system: WidgetSpec = {
     if (r.h >= 3) {
       ui.chart({ x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 2 }, cpuHistory, mix(c.accent, c.bg, 0.25));
       const up = stats.uptime;
-      ui.text(r.x + 1, r.y + r.h - 1, `up ${Math.floor(up / 86400)}d ${Math.floor((up % 86400) / 3600)}h · ${stats.processes} procs · ${stats.cores.length} cores`, { fg: c.subtle }, r.w - 2);
+      // the longest that fits whole (it was cut mid-word: « up 0d 0h · 1 procs · 18 … »), plurals right
+      const upTxt = up >= 86400 ? `${Math.floor(up / 86400)}d ${Math.floor((up % 86400) / 3600)}h` : `${Math.floor(up / 3600)}h ${Math.floor((up % 3600) / 60)}m`;
+      const n = (k: number, one: string, many: string) => t(k === 1 ? one : many, { n: k });
+      const procs = n(stats.processes, "{n} process", "{n} processes"), cores = n(stats.cores.length, "{n} core", "{n} cores");
+      ui.textFit(r.x + 1, r.y + r.h - 1, [`${t("up")} ${upTxt} · ${procs} · ${cores}`, `${t("up")} ${upTxt} · ${cores}`, `${t("up")} ${upTxt}`], { fg: c.subtle }, r.w - 2);
     }
   },
   activate: ({ deck }) => void deck.openApp("sysmon"),

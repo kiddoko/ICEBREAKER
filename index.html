@@ -20,6 +20,8 @@
       <div id="curve"></div>
       <!-- Invisible textarea: receives keyboard, IME (日本語), dead keys (é, ê) and paste. -->
       <textarea id="keyboard-sink" autocapitalize="off" autocomplete="off" spellcheck="false" aria-label="ICEBREAKER input"></textarea>
+      <!-- Screen readers: the deck draws in a canvas; what it says (notifications) is written here too. -->
+      <div id="announce" role="status" aria-live="polite" aria-atomic="true"></div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
