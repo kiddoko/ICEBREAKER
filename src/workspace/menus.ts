@@ -18,7 +18,7 @@ export function macroMenu(ws: Workspace, i: number): MenuEntry[] {
   const m = ws.deck.settings.data.shell.macros[i];
   if (!m) return [];
   return [
-    { label: t("Run"), run: () => void ws.runMacro(m), hint: m.cmd },
+    { label: t("Run"), cmd: `macro run ${q(m.label)}`, hint: m.cmd },
     { label: t("Set shortcut…"), tip: t("a key that runs it"), run: () => ws.push(new KeyCapture(ws.deck, t("A key for the macro “{name}”", { name: m.label }), [`macro run ${q(m.label)}`])) },
     { label: t("Add to THE MENU…"), tip: t("give it a key on THE MENU (⌘K)"), run: () => addToMenu(ws.deck, m.label, `macro run ${q(m.label)}`) },
     { label: t("Edit…"), run: () => void editMacro(ws, i), hint: "shift+click" },

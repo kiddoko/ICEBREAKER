@@ -322,7 +322,7 @@ export class Sidebar {
     return [
       { label: t("New note"), tip: t("a new note in this folder"), run: () => this.deck.newNote("notes"), hint: "n" },
       { label: t("New folder"), tip: t("a new folder inside this one"), run: () => this.deck.newFolder("") },
-      { label: t("Refresh"), tip: t("read the vault folder again (files changed outside the deck)"), run: () => this.deck.vault.rescan(), hint: "r" },
+      { label: t("Refresh"), tip: t("read the vault folder again (files changed outside the deck)"), cmd: "vault rescan", hint: "r" },
       { label: t("Open the trash"), tip: t("what's in the trash, and put things back"), cmd: "trash open" },
     ];
   }
