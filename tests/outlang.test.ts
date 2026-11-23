@@ -51,3 +51,16 @@ describe("the LOG in the deck's language, whatever language it was written in (0
     expect(tOutput("clock: asks for more than you approved (network → api.x.com): plugin enable clock")).toBe("clock : il demande plus que ce que tu as approuvé (network → api.x.com) : plugin enable clock");
   });
 });
+
+describe("a module's output: its own French first (0.7.2: BreakerMED's « tracks » got the music player's « morceaux »)", () => {
+  afterEach(() => setLang("en"));
+  it("the module's table wins for its own commands, the deck's for the rest", async () => {
+    const { addModuleTranslations } = await import("../src/core/i18n");
+    addTranslations("fr", { "{n} tracks": "{n} morceaux" });
+    addModuleTranslations("breakermed", "fr", { "{n} tracks": "{n} pistes" });
+    setLang("fr");
+    expect(tOutput("4 tracks", "breakermed")).toBe("4 pistes");
+    expect(tOutput("4 tracks", "music")).toBe("4 morceaux");
+    expect(tOutput("4 tracks")).toBe("4 morceaux");
+  });
+});

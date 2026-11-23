@@ -30,6 +30,11 @@ catalog level with the code.
   beside the shell (`log side on`) — the link inside the log tab was the only way, and nobody found it.
 
 **Words**
+- **A sandboxed module speaks the deck's language**: its `ib.lib.t` was always English (its worker
+  has its own copy of the translations and was never told the language). The language and the date
+  format go with "load" and again when they change; its `addTranslations` reach the deck, and what
+  its commands print is translated with **its own table first** (BreakerMED's « tracks » were the
+  music player's « morceaux »).
 - The LOG shows its messages in the deck's language as they're drawn: a module left off at the
   first login (« breakerMED: its code changed… ») was logged in English before the account's
   language loaded.

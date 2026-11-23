@@ -247,13 +247,14 @@ export class ShellExecutor {
       out: (t) => {
         if (signal.aborted) return; // stopped (^C): like a killed program, it says nothing more
         // on screen, in the deck's language (a note's text, a pipe, a file never are)
-        if (isTTY) self.print(RAW_OUTPUT.has(cmd.name) ? t : tOutput(t), false);
+        // (a module's command: its own French first — plugins/sandbox sends its addTranslations)
+        if (isTTY) self.print(RAW_OUTPUT.has(cmd.name) ? t : tOutput(t, cmd.source), false);
         else stdout += t;
         self.deck.requestFrame();
       },
       err: (t) => {
         if (signal.aborted) return;
-        self.print(tOutput(t), true);
+        self.print(tOutput(t, cmd.source), true);
         self.deck.requestFrame();
       },
       resolve: (p) => resolvePath(self.cwd, p),
