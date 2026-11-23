@@ -74,6 +74,10 @@ export interface InputSink {
   /** the page in front wants every key as a key (its place on the keyboard), not as text */
   rawKeys?(): boolean;
   text(t: string): void;
+  /** the page in front takes ⌘C ⌘X ⌘V ⌘A as keys (a module's page: App.clipboardKeys) */
+  clipboardKeys?(): boolean;
+  /** a key let go, for a page that plays the keyboard (App.rawKeys: a tracker's note off) */
+  keyUp?(k: KeyInput): void;
   mouse(m: MouseInput): void;
   action(a: Action, source: ActionSource): void;
 }
@@ -158,6 +162,8 @@ export class InputManager {
   mouseCell = { x: -1, y: -1 };
   /** the AltGr key is down (seen going down: typesText) */
   private altGrHeld = false;
+  /** keys down on a page that plays the keyboard, by their place: their key-up goes to it (sink.keyUp) */
+  private held = new Map<string, KeyInput>();
   /** ⌘ (Mac) / ctrl held right now, alone: the tabs show their numbers (⌘1…9) while it's down */
   modHeld = false;
   private setMod(on: boolean): void {
@@ -243,7 +249,9 @@ export class InputManager {
       // a page that plays the keyboard (a piano, a game) gets those keys as keys: their place, never text
       if ((printable || e.key === "Dead") && !e.ctrlKey && !e.metaKey && this.sink.rawKeys?.()) {
         e.preventDefault();
-        this.sink.key(rawKeyInput(e));
+        const k = rawKeyInput(e);
+        if (!e.repeat && e.code) this.held.set(e.code, { ...k, repeat: false });
+        this.sink.key(k);
         return;
       }
       // a plain space: given to the deck here, never left to the webview (which may scroll the page with it)
@@ -253,7 +261,8 @@ export class InputManager {
       if (IS_MAC && e.metaKey && (["q", "h", "m"].includes(e.key.toLowerCase()) || (e.ctrlKey && e.code === "KeyF"))) return;
       const k = toKeyInput(e);
       // Let paste reach the textarea so we get the `paste` event with the clipboard text.
-      if (k.combo === "ctrl+v" || k.combo === "meta+v" || k.combo === "shift+insert") return;
+      // (a module's page hears ⌘V as a key first — its own paste — then the text: App.clipboardKeys)
+      if (k.combo === "ctrl+v" || k.combo === "meta+v" || k.combo === "shift+insert") return void (k.combo === "ctrl+v" && this.sink.clipboardKeys?.() && this.sink.key(k));
       e.preventDefault();
       if (["Control", "Shift", "Alt", "Meta", "AltGraph", "CapsLock"].includes(e.key)) return;
       this.sink.key(k);
@@ -297,10 +306,16 @@ export class InputManager {
     ta.addEventListener("keyup", (e) => {
       if (e.key === "AltGraph") this.altGrHeld = false;
       if (e.key === (IS_MAC ? "Meta" : "Control") || !(IS_MAC ? e.metaKey : e.ctrlKey)) this.setMod(false);
+      // a page that plays the keyboard hears the key let go (a note off); what went down, comes up
+      const held = this.held.get(e.code);
+      if (held) (this.held.delete(e.code), this.sink.keyUp?.(held));
     });
     ta.addEventListener("blur", () => {
       this.altGrHeld = false;
       this.setMod(false);
+      // the window lost the keyboard: every key still held is let go (no note left ringing)
+      for (const k of this.held.values()) this.sink.keyUp?.(k);
+      this.held.clear();
       setTimeout(() => this.focus(), 0);
     });
   }

@@ -19,6 +19,10 @@ export interface App {
   title(): string;
   render(ui: UI, rect: Rect, focused: boolean): void;
   onKey?(k: KeyInput): boolean;
+  /** ⌘C ⌘X ⌘V ⌘A (ctrl elsewhere) come to onKey as keys — ⌘V first as a key, then its text to onText. */
+  clipboardKeys?: boolean;
+  /** A key let go (only for a page that plays the keyboard, rawKeys: a tracker's note off). */
+  onKeyUp?(k: KeyInput): void;
   onText?(text: string): boolean;
   onAction?(a: Action): boolean;
   /**

@@ -1118,6 +1118,13 @@ export class Workspace {
     return !this.topModal && !!this.focusedPage?.rawKeys;
   }
 
+  /** a key let go: only a page that plays the keyboard hears it (App.onKeyUp — even if it's no longer in front: no note left on) */
+  handleKeyUp(k: KeyInput): void {
+    const page = this.focusedPage ?? this.activeApp;
+    if (page?.rawKeys) page.onKeyUp?.(k);
+    else for (const t of this.tabs) if (t.rawKeys) t.onKeyUp?.(k);
+  }
+
   handleKey(k: KeyInput): void {
     this.tipHidden = true;
     const modal = this.topModal;
@@ -1203,7 +1210,11 @@ export class Workspace {
     else if (/^[1-9]$/.test(t) && Number(t) <= this.tabCount) this.switchTab(Number(t) - 1);
   }
 
+  /** where the last action came from (the keyboard, the pad…): a module's page answers esc later (back) */
+  actionSource: ActionSource = "keyboard";
+
   handleAction(a: Action, source: ActionSource): void {
+    this.actionSource = source;
     const snd = this.deck.sound;
     if (a === "up" || a === "down" || a === "left" || a === "right" || a === "tab-next" || a === "tab-prev") snd.play("move");
     else if (a === "confirm") snd.play("confirm");
@@ -1227,19 +1238,43 @@ export class Workspace {
       case "menu": this.deck.openApp("home"); break;
       // esc: back to the page from the tree / shell; a button-page (NEXUS, STORE…) closes.
       // Tabs close with shift+esc (or ctrl+W), so a stray esc never loses one. The gamepad's B still closes.
-      case "back":
-        // a reminder on screen: esc puts it away first
-        if (source === "keyboard" && this.toasts.dismissSticky()) break;
-        // leaving a page that plays the keyboard (App.rawKeys): esc gives the keys back to the deck
-        if (this.focus === "main" && this.activeApp?.rawKeys && source !== "gamepad") this.focus = this.sidebarVisible ? "sidebar" : this.shellVisible ? "shell" : "main";
-        else if (this.focus !== "main") this.focus = "main";
-        else if (source === "gamepad") void this.closeAndGoBack();
-        // nothing left to close or leave, on HOME: esc opens the ◆ ICEBREAKER menu (esc again
-        // closes it). Anywhere else esc does nothing: in a note (a vim reflex, a tip to close) the
-        // menu came over the text and the next letters went to it
-        else if (source === "keyboard" && this.activeApp?.kind === "home") this.openDeckMenu();
-        break;
+      case "back": this.back(source); break;
     }
+  }
+
+  /**
+   * esc / the pad's B that nothing on the page took. `left`: the page in front is a module's page
+   * that had nothing of its own to close (sandbox/bridge.ts: its onAction("back") said no) — esc
+   * then leaves it, like a page that plays the keyboard: to the tree or the shell, or (both folded
+   * away: its page alone) the tab you were on before.
+   */
+  back(source: ActionSource, left = false): void {
+    // a reminder on screen: esc puts it away first
+    if (source === "keyboard" && this.toasts.dismissSticky()) return;
+    // leaving a page that plays the keyboard (App.rawKeys), or a module's page: esc gives the keys back to the deck
+    if (this.focus === "main" && (this.activeApp?.rawKeys || left) && source !== "gamepad") {
+      const to = this.sidebarVisible ? "sidebar" : this.shellVisible ? "shell" : null;
+      if (to) this.focus = to;
+      else this.previousTab();
+    } else if (this.focus !== "main") this.focus = "main";
+    else if (source === "gamepad") void this.closeAndGoBack();
+    // nothing left to close or leave, on HOME: esc opens the ◆ ICEBREAKER menu (esc again
+    // closes it). Anywhere else esc does nothing: in a note (a vim reflex, a tip to close) the
+    // menu came over the text and the next letters went to it
+    else if (source === "keyboard" && this.activeApp?.kind === "home") this.openDeckMenu();
+    this.deck.requestFrame();
+  }
+
+  /** the tab looked at before this one (still open), or HOME: esc's way back from a page alone */
+  previousTab(): void {
+    const here = this.activeApp?.key;
+    for (let i = this.visited.length - 1; i >= 0; i--) {
+      const k = this.visited[i];
+      const at = this.tabs.findIndex((t) => t.key === k);
+      if (k !== here && at >= 0) return this.switchTab(at);
+    }
+    const home = this.tabs.findIndex((t) => t.kind === "home");
+    if (home >= 0 && this.tabs[home].key !== here) this.switchTab(home);
   }
 
   /**

@@ -805,6 +805,17 @@ export class Deck implements InputSink {
     this.requestFrame();
   }
 
+  /** the page in front takes ⌘C ⌘X ⌘V ⌘A as keys (App.clipboardKeys: a module's page) */
+  clipboardKeys(): boolean {
+    return !this.boot && !this.lock && !this.workspace.topModal && this.workspace.focus === "main" && !!this.workspace.focusedPage?.clipboardKeys;
+  }
+
+  /** a key let go (core/input.ts): the page that plays the keyboard hears it (a note off) */
+  keyUp(k: KeyInput): void {
+    if (this.boot || this.lock) return;
+    this.workspace.handleKeyUp(k);
+  }
+
   /** the page in front plays the keyboard (App.rawKeys): its keys come as keys, not text */
   rawKeys(): boolean {
     return !this.boot && !this.lock && this.workspace.rawKeys();

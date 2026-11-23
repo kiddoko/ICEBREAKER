@@ -2834,6 +2834,6 @@ export const FR: Record<string, string> = {
   "{m} has no page to open {file}": "{m} n'a pas de page pour ouvrir {file}",
   "no such file: {file}": "fichier introuvable : {file}",
   "open {file} in {m}?": "ouvrir {file} dans {m} ?",
-  "{m} may read this file and save it — only this one, until the deck closes. its permissions don't reach it otherwise.": "{m} pourra lire ce fichier et l'enregistrer — celui-là seulement, jusqu'à la fermeture du deck. ses permissions n'y donnent pas accès autrement.",
-  "{m} may read this file — only this one, until the deck closes. its permissions don't reach it otherwise.": "{m} pourra lire ce fichier — celui-là seulement, jusqu'à la fermeture du deck. ses permissions n'y donnent pas accès autrement.",
+  "{m} may read and save this file — only this one, until the deck closes.": "{m} pourra lire et enregistrer ce fichier — celui-là seulement, jusqu'à la fermeture du deck.",
+  "{m} may read this file — only this one, until the deck closes.": "{m} pourra lire ce fichier — celui-là seulement, jusqu'à la fermeture du deck.",
 };

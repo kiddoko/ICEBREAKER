@@ -195,6 +195,7 @@ function makeIb(manifest: unknown, version: string): unknown {
       pickFileText: rpc("ui", "pickFileText"),
       pickFileBytes: rpc("ui", "pickFileBytes"),
       fullWindow: rpc("ui", "fullWindow"),
+      copy: rpc("ui", "copy"),
       theme: () => theme,
       redraw: () => post({ t: "redraw" }),
     },
@@ -458,8 +459,22 @@ scope.onmessage = async (ev: MessageEvent<ToModule>) => {
         else if (x.popup) x.w?.popup?.onText?.(m.text, x.ctx);
         return post({ t: "redraw" });
       }
+      case "keyup": {
+        apps.get(m.inst)?.onKeyUp?.(m.k);
+        return post({ t: "redraw" });
+      }
       case "action": {
         const x = target(m);
+        // esc on its page: it says whether it had something of its own to close (else the deck's way back)
+        if ("app" in x && m.rid !== undefined) {
+          let used = false;
+          try {
+            used = x.app?.onAction?.(m.a) === true;
+          } finally {
+            post({ t: "back", rid: m.rid, used });
+          }
+          return post({ t: "redraw" });
+        }
         if ("app" in x) x.app?.onAction?.(m.a);
         else if (x.popup) x.w?.popup?.onAction?.(m.a, x.ctx);
         return post({ t: "redraw" });

@@ -24,6 +24,7 @@ import { spokenAlert } from "../core/voice";
 import type { IcebreakerAPI, PluginManifest, PluginModule } from "./api";
 import * as lib from "./lib";
 import type { App } from "../apps/types";
+import { writeClipboard } from "../core/clipboard";
 import { chooseHandler, extOf, handlersFor, readOpens, type Handler } from "./fileassoc";
 
 import pkg from "../../package.json";
@@ -151,6 +152,18 @@ export class PluginHost {
     return off.length ? base.filter((x) => !off.includes(x)) : base;
   }
 
+  // ── the clipboard (ib.ui.copy): only right after the user's ⌘C / ⌘X on the module's page ──
+  private copyUntil = new Map<string, number>();
+
+  /** the user pressed ⌘C / ⌘X on this module's page (sandbox/bridge.ts): it may copy for 2 s */
+  copyGesture(id: string): void {
+    this.copyUntil.set(id, Date.now() + 2000);
+  }
+
+  private mayCopy(id: string): boolean {
+    return (this.copyUntil.get(id) ?? 0) > Date.now();
+  }
+
   // ── files it opens (plugin.json `opens`, plugins/fileassoc.ts) ──────────
 
   /**
@@ -221,7 +234,7 @@ export class PluginHost {
     const save = granted.has("vault:write");
     const ok = await this.deck.confirm(
       t("open {file} in {m}?", { file: path, m }),
-      save ? t("{m} may read this file and save it — only this one, until the deck closes. its permissions don't reach it otherwise.", { m }) : t("{m} may read this file — only this one, until the deck closes. its permissions don't reach it otherwise.", { m }),
+      save ? t("{m} may read and save this file — only this one, until the deck closes.", { m }) : t("{m} may read this file — only this one, until the deck closes.", { m }),
     );
     if (!ok) return false;
     const set = this.handed.get(id) ?? new Set<string>();
@@ -1046,6 +1059,13 @@ export class PluginHost {
         pickFile: (title, exts, start) => pickFile(deck, from(title), exts, start),
         pickFileText: (title, exts) => pickFileText(deck, from(title), exts),
         pickFileBytes: (title, exts) => pickFileBytes(deck, from(title), exts),
+        // the clipboard: right after the user's ⌘C / ⌘X on its page (a STORE / vault module) — never by itself
+        copy: async (text) => {
+          const s = String(text ?? "");
+          if (s.length > 1_000_000) throw new Error(`${m.id}: ui.copy takes 1 MB at most`);
+          if (thirdParty && !this.mayCopy(m.id)) throw new Error(`${m.id}: ui.copy works right after ⌘C / ⌘X on its page (ctrl+c / ctrl+x), not by itself`);
+          return writeClipboard(s);
+        },
         // only the module's own page, only while it's the one in front — and only while the page
         // has the keyboard: folding the shell away would hand it the keys typed there (a password)
         fullWindow: (on = true) => {

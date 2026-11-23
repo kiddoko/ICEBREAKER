@@ -428,6 +428,13 @@ export interface IcebreakerAPI {
      * can't fold them again until it has left the front once. The user's ▣ and `frame solo` do the same.
      */
     fullWindow(on?: boolean): boolean | Promise<boolean>;
+    /**
+     * Put text on the computer's clipboard — your page's ⌘C / ⌘X (ctrl on Windows / Linux): call
+     * it from your `onKey` for ctrl+c / ctrl+x (a sandboxed module: within 2 seconds of the key —
+     * never by itself, so nothing lands there behind the user's back). 1 MB at most. The other
+     * way, ⌘V comes to `onKey` as ctrl+v, then the clipboard's text to `onText`.
+     */
+    copy(text: string): Promise<boolean>;
     theme(): Theme;
     /** Ask for a redraw (after changing state outside an input handler). */
     redraw(): void;

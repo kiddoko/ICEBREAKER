@@ -43,7 +43,7 @@ const CALLS = new Set([
   "vault.read", "vault.exists", "vault.write", "vault.append", "vault.mkdir", "vault.modified", "vault.readBytes", "vault.writeBytes", "vault.list",
   "shell.run",
   "net.get",
-  "ui.notify", "ui.alert", "ui.say", "ui.confirm", "ui.prompt", "ui.choose", "ui.pickFolder", "ui.pickFile", "ui.pickWhen", "ui.pickFileText", "ui.pickFileBytes", "ui.fullWindow",
+  "ui.notify", "ui.alert", "ui.say", "ui.confirm", "ui.prompt", "ui.choose", "ui.pickFolder", "ui.pickFile", "ui.pickWhen", "ui.pickFileText", "ui.pickFileBytes", "ui.fullWindow", "ui.copy",
   "storage.get", "storage.set",
   "settings.set",
   "stats.define", "stats.set", "stats.add", "stats.get", "stats.series", "stats.list", "stats.remove",
@@ -82,12 +82,23 @@ function deckKey(k: KeyInput): boolean {
 }
 
 /**
+ * ⌘C ⌘X ⌘V ⌘A (ctrl on Windows / Linux), ⇧ too: copy, cut, paste, select all — a module's page
+ * gets them (its own selection: a tracker's block); the deck has nothing of its own there.
+ * By the letter, or its place when the letter isn't a latin one (a Cyrillic keyboard).
+ */
+export function clipboardKey(k: KeyInput): boolean {
+  if (!k.ctrl || k.alt || k.meta) return false;
+  const letter = /^[a-z]$/.test(k.key) ? k.key : (k.code ?? "").replace(/^Key/, "").toLowerCase();
+  return ["c", "x", "v", "a"].includes(letter);
+}
+
+/**
  * Does a key go to a module's page? Not the deck's own (deckKey), except — for a page that plays
  * the keyboard (App.rawKeys) — the ones it keeps (core/input.ts rawPageKey: F1–F8, ⌘ / ctrl ← →,
  * Tab / ⇧Tab, ⌘Z, ⌘S). tests/sandboxkeys.test.ts.
  */
 export function moduleTakesKey(k: KeyInput, rawKeys: boolean): boolean {
-  return !deckKey(k) || (rawKeys && rawPageKey(k));
+  return !deckKey(k) || clipboardKey(k) || (rawKeys && rawPageKey(k));
 }
 
 const plainMouse = (m: MouseInput | undefined, r: Rect) => (m ? { ...m, x: m.x - r.x, y: m.y - r.y, fx: m.fx !== undefined ? m.fx - r.x : undefined } : undefined);
@@ -197,6 +208,12 @@ class Sandbox {
         return;
       }
       case "closing": this.closeWaits.get(m.id)?.(m.ok !== false); return;
+      case "back": {
+        const done = this.backWaits.get(m.rid);
+        this.backWaits.delete(m.rid);
+        if (!m.used) done?.();
+        return;
+      }
       case "failed": this.ready?.no(new Error(m.error)); this.ready = null; return;
       case "log":
         // a module can't flood the log (and the memory with it)
@@ -396,6 +413,36 @@ class Sandbox {
     return this.titles.get(inst) ?? {};
   }
 
+  private backWaits = new Map<number, () => void>();
+  private backRid = 0;
+
+  deckOf(): Deck {
+    return this.deck;
+  }
+
+  /** the module's id */
+  get id(): string {
+    return this.manifest.id;
+  }
+
+  /** esc on one of its pages: `left` runs when the page had nothing of its own to close (or doesn't answer in a second) */
+  askBack(inst: string, left: () => void): void {
+    const rid = ++this.backRid;
+    let done = false;
+    const once = () => {
+      if (done) return;
+      done = true;
+      this.backWaits.delete(rid);
+      left();
+    };
+    this.backWaits.set(rid, once);
+    // a page busy or stuck doesn't keep esc from working
+    setTimeout(() => {
+      if (this.backWaits.has(rid)) once();
+    }, 1000);
+    this.send2({ t: "action", inst, target: { kind: "app" }, a: "back", rid });
+  }
+
   send2(m: ToModule): void {
     this.send(m);
   }
@@ -462,6 +509,8 @@ class Sandbox {
 /** One of the module's pages, as the deck sees it: its frames, its keys sent over. */
 class ModuleApp implements App {
   readonly key: string;
+  /** ⌘C ⌘X ⌘V ⌘A are its own (its selection: a tracker's block) */
+  readonly clipboardKeys = true;
   private readonly inst: string;
 
   constructor(
@@ -489,6 +538,8 @@ class ModuleApp implements App {
     // a page that plays the keyboard (App.rawKeys) keeps some of the deck's keys (core/input.ts
     // rawPageKey: ⌘Z, ⌘S, Tab / ⇧Tab, F1–F8, ⌘ ← → — BreakerMED's undo, save, tracks, octave, positions)
     if (!moduleTakesKey(k, this.rawKeys)) return false;
+    // ⌘C / ⌘X: its ib.ui.copy may answer in the next moments (never by itself)
+    if (clipboardKey(k) && /^[cx]$/.test(/^[a-z]$/.test(k.key) ? k.key : (k.code ?? "").slice(3).toLowerCase())) this.box.deckOf().plugins.copyGesture(this.box.id);
     this.box.send2({ t: "key", inst: this.inst, target: { kind: "app" }, k: plainKey(k) });
     return true;
   }
@@ -496,8 +547,20 @@ class ModuleApp implements App {
     this.box.send2({ t: "text", inst: this.inst, target: { kind: "app" }, text });
     return true;
   }
+  onKeyUp(k: KeyInput): void {
+    this.box.send2({ t: "keyup", inst: this.inst, k: plainKey(k) });
+  }
   onAction(a: Action): boolean {
-    if (a === "back") return false;
+    // esc / B: the page first (its own menu, its own dialog); nothing of its own to close, the
+    // deck's way back (workspace.back: to the tree or the shell, or the tab before)
+    if (a === "back") {
+      const ws = this.box.deckOf().workspace;
+      const source = ws.actionSource;
+      this.box.askBack(this.inst, () => {
+        if (ws.focusedPage === this || ws.activeApp === this) ws.back(source, true);
+      });
+      return true;
+    }
     this.box.send2({ t: "action", inst: this.inst, target: { kind: "app" }, a });
     return true;
   }

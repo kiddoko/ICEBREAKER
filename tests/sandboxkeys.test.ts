@@ -60,3 +60,18 @@ describe("an autosave never asks — the edges", () => {
     expect(quietWrite("songs/.recovery", "vault:write:songs/")).toBe(true);
   });
 });
+
+import { clipboardKey } from "../src/plugins/sandbox/bridge";
+describe("a module's page and the clipboard keys", () => {
+  it("⌘C ⌘X ⌘V ⌘A (⇧ too) reach any module page; the deck's other shortcuts don't", () => {
+    for (const c of ["ctrl+c", "ctrl+x", "ctrl+v", "ctrl+a", "ctrl+shift+v"]) {
+      expect(clipboardKey(key(c)), c).toBe(true);
+      expect(moduleTakesKey(key(c), false), c).toBe(true);
+    }
+    for (const c of ["ctrl+k", "ctrl+w", "alt+c", "c"]) expect(clipboardKey(key(c)), c).toBe(false);
+  });
+  it("by its place when the letter isn't latin (a Cyrillic keyboard: с is KeyC)", () => {
+    expect(clipboardKey({ ...key("ctrl+с"), code: "KeyC" })).toBe(true);
+    expect(clipboardKey({ ...key("ctrl+q"), code: "KeyA" })).toBe(false); // AZERTY: the letter wins
+  });
+});
