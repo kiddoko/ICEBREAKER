@@ -2379,6 +2379,7 @@ export const FR: Record<string, string> = {
   "{n} cores": "{n} cœurs",
   // help (shell/help.ts helpList)
   "to start": "pour commencer",
+  "<command> -h for its help and examples (todo -h) · Ctrl+K / shift twice: THE MENU · F1 manual": "<commande> -h pour son aide et des exemples (todo -h) · Ctrl+K / maj deux fois : LE MENU · F1 manuel",
   "help all       every command": "help all       toutes les commandes",
   "help <module>  a module's commands (help todo)": "help <module>  les commandes d'un module (help todo)",
   "<command> -h   its help and examples · ⌘K / shift twice: THE MENU · F1 manual": "<commande> -h  son aide et des exemples · ⌘K / maj deux fois : LE MENU · F1 manuel",

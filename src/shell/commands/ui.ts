@@ -219,7 +219,7 @@ const launch: Command = {
     // each page by the name on its tab ("nexus", "catalog", "manual"), not its inner id (E2)
     const tabName = (a: { title: string }) => a.title.toLowerCase().replace(/\s*\(.*\)$/, "");
     if (!kind) {
-      for (const a of d.apps.list()) if (a.kind !== "note") ctx.out(`${(a.icon ?? "·").padEnd(2)} ${padEnd(tabName(a), 13)} ${fmt.dim(a.description ?? "")}\n`);
+      for (const a of d.apps.list()) if (a.kind !== "note") ctx.out(`${padEnd(a.icon ?? "·", 2)} ${padEnd(tabName(a), 13)} ${fmt.dim(a.description ?? "")}\n`);
       return 0;
     }
     // a module's name works too: `launch nexus` is its page, explorer (it said "no app")

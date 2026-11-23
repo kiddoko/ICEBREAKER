@@ -69,6 +69,34 @@ pub fn windows_shells(find: impl Fn(&str) -> Option<PathBuf>) -> Vec<ShellInfo> 
         .collect()
 }
 
+/// `wsl -l -q` → at least one Linux installed? (it writes UTF-16; with none, nothing or a sentence
+/// on stderr and a non-zero exit). WSL without a distro only says how to install one: not a shell.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn wsl_has_distro(stdout: &[u8], ok: bool) -> bool {
+    if !ok {
+        return false;
+    }
+    let text = if stdout.len() >= 2 && stdout.iter().skip(1).step_by(2).take(8).all(|b| *b == 0) {
+        let units: Vec<u16> = stdout.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+        String::from_utf16_lossy(&units)
+    } else {
+        String::from_utf8_lossy(stdout).into_owned()
+    };
+    text.lines().any(|l| !l.trim_matches(|c: char| c.is_whitespace() || c == '\u{feff}' || c == '\0').is_empty())
+}
+
+#[cfg(windows)]
+fn wsl_ready(path: &std::path::Path) -> bool {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    std::process::Command::new(path)
+        .args(["-l", "-q"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map(|o| wsl_has_distro(&o.stdout, o.status.success()))
+        .unwrap_or(false)
+}
+
 #[cfg(windows)]
 fn find_windows(exe: &str) -> Option<PathBuf> {
     let in_path = std::env::var_os("PATH").and_then(|p| std::env::split_paths(&p).map(|d| d.join(exe)).find(|f| f.is_file()));
@@ -85,7 +113,8 @@ pub fn shells() -> Vec<ShellInfo> {
         .get_or_init(|| {
             #[cfg(windows)]
             {
-                windows_shells(find_windows)
+                // WSL only with a Linux installed (it was offered with none: Windows bench)
+                windows_shells(|exe| find_windows(exe).filter(|p| exe != "wsl.exe" || wsl_ready(p)))
             }
             #[cfg(not(windows))]
             {
@@ -147,6 +176,16 @@ mod tests {
         let names: Vec<&str> = list.iter().map(|s| s.name.as_str()).collect();
         assert_eq!(names, vec!["pwsh", "powershell", "cmd"]);
         assert!(list[2].path.ends_with("cmd.exe"));
+    }
+
+    #[test]
+    fn wsl_counts_only_with_a_distro() {
+        let utf16 = |s: &str| s.encode_utf16().flat_map(|u| u.to_le_bytes()).collect::<Vec<u8>>();
+        assert!(wsl_has_distro(&utf16("Ubuntu\r\n"), true));
+        assert!(!wsl_has_distro(&utf16("\r\n"), true));
+        assert!(!wsl_has_distro(b"", true));
+        assert!(!wsl_has_distro(&utf16("Ubuntu\r\n"), false));
+        assert!(wsl_has_distro(b"Debian\n", true));
     }
 
     #[test]

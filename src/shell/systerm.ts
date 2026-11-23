@@ -102,8 +102,12 @@ export class SystemTerminal {
   private readonly number: number;
   /** the numbers in use: a new terminal takes the smallest free one (closing zsh then opening one gave "zsh 2" alone) */
   private static usedBy = new Map<string, Set<number>>();
+  /** the shell's name its number counts in, fixed at its start (the login shell's name can change once it answers) */
+  private family = "";
   private get used(): Set<number> {
-    const k = this.shell ?? "";
+    // by the shell's name: the login shell (no `shell`) and the same one chosen in « + » are one
+    // family — a 2nd powershell was « powershell », not « powershell 2 » (Windows bench)
+    const k = (this.family ||= (this.shell ?? SystemTerminal.lastShell()).split(/[\\/]/).pop()!.replace(/\.exe$/i, "").toLowerCase());
     let set = SystemTerminal.usedBy.get(k);
     if (!set) SystemTerminal.usedBy.set(k, (set = new Set()));
     return set;

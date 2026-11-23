@@ -76,6 +76,6 @@ export function helpList(commands: Command[], args: string[], tty: boolean): str
     out.push("", h(k));
     for (const c of groups.get(k)!.sort((a, b) => a.name.localeCompare(b.name))) out.push(line(c));
   }
-  out.push("", d(osKeys("<command> -h for its help and examples (todo -h) · ⌘K / shift twice: THE MENU · F1 manual")));
+  out.push("", d(t(osKeys("<command> -h for its help and examples (todo -h) · ⌘K / shift twice: THE MENU · F1 manual"))));
   return `${out.join("\n")}\n`;
 }

@@ -11,6 +11,10 @@ catalog level with the code.
   frames a second, a minute to 2 (the clock still ticks); the first key or mouse move wakes it at
   once. Measured in the web build on HOME (default theme and effects): 2.0 frames a second asleep.
   Settings → APPEARANCE → « save energy » off keeps the full pace.
+- **A note open at rest** cost 22 % of a core on Windows while the deck drew 2 frames a second:
+  the text cursor's « breathing » was a never-ending CSS animation, and the webview redrew the
+  whole stack for it 60 times a second. It now breathes five times after a key or a move, then
+  stays solid (HOME, SYSMON and the catalog were already low).
 - `ui.stayAwake()` for what you watch without touching: the MUSIC pop-up while it plays.
 
 **One « new shell tab » (your answer to the Review 0.7 proposal)**
@@ -23,7 +27,8 @@ catalog level with the code.
   (right-click, `term rename <n> <name>`); the last ibsh only hides (clicks still run in it).
 - `term new [ibsh|zsh|bash|pwsh…]`, `term shells`, `term menu`; `term <n>` / `close <n>` count the
   panel's tabs. Settings → SHELL → « New tab »: what + opens with enter (ibsh by default).
-- Tab names are the shell's, numbered per shell (zsh, zsh 2, bash). After a relaunch the panel's
+- Tab names are the shell's, numbered per shell (zsh, zsh 2, bash; a 2nd powershell is « powershell 2 »
+  whether it's the login shell or chosen in +); WSL is offered only with a Linux installed. After a relaunch the panel's
   tabs come back in order: each terminal with its shell, each ibsh in its folder, the names you gave.
 
 - The log folded away (›) leaves a thin **‹ log** on the shell's right edge: a click puts it back
