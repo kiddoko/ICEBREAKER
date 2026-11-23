@@ -1994,4 +1994,9 @@ export const FR: Record<string, string> = {
   "asks first: it can't be undone": "demande d'abord : impossible à annuler",
 
   "to the login page": "vers la page de connexion",
+
+  "Give the deck a voice? Made on this computer, through a robot filter: clearly a machine, still smooth. Its language, its engine and what it says: Settings → VOICE.": "Donner une voix au deck ? Fabriquée sur cet ordinateur, à travers un filtre robot : clairement une machine, mais douce. Sa langue, son moteur et ce qu'elle dit : Réglages → VOICE.",
+  "Yes, a voice": "Oui, une voix",
+  "A theme to start with: one click shows it on the whole deck, a second click (or enter) keeps it.": "Un thème pour commencer : un clic le montre sur tout le deck, un second clic (ou entrée) le garde.",
+  "How loud are the interface's sounds? (blips and clicks of an old OS doing its best — 0 is off)": "Quel volume pour les sons de l'interface ? (bips et clics d'un vieil OS qui fait de son mieux — 0 les coupe)",
 };
