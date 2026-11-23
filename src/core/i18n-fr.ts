@@ -1774,6 +1774,10 @@ export const FR: Record<string, string> = {
   "{m} is off: {why} — switch it on again in the STORE (or: plugin enable {id})": "{m} est éteint : {why} — rallume-le dans le STORE (ou : plugin enable {id})",
   "its code changed since you approved it": "son code a changé depuis que tu l'as approuvé",
   "asks for more than you approved": "il demande plus que ce que tu as approuvé",
+  // the LOG's lines for a module left off at the start (plugins/host.ts), translated as they're shown
+  "{m}: its code changed since you approved it — the copy in the vault isn't the one you approved (an update, a sync, a file put there by hand). Read it and switch it on again: plugin enable {id} (or the STORE)": "{m} : son code a changé depuis que tu l'as approuvé — la copie du vault n'est pas celle que tu as approuvée (une mise à jour, une synchro, un fichier posé à la main). Lis-le et rallume-le : plugin enable {id} (ou le STORE)",
+  "{m}: not approved on this deck yet: plugin enable {id}": "{m} : pas encore approuvé sur ce deck : plugin enable {id}",
+  "{m}: asks for more than you approved ({p}): plugin enable {id}": "{m} : il demande plus que ce que tu as approuvé ({p}) : plugin enable {id}",
   "not approved here yet": "pas encore approuvé ici",
   "the left": "la gauche",
   "the right": "la droite",

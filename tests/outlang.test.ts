@@ -40,3 +40,14 @@ describe("relative times in French", () => {
     expect(ago(three)).toBe("3j");
   });
 });
+
+describe("the LOG in the deck's language, whatever language it was written in (0.7.2)", () => {
+  afterEach(() => setLang("en"));
+  it("a module switched off at the start: its reason in French", () => {
+    setLang("fr");
+    const line = "breakerMED: its code changed since you approved it — the copy in the vault isn't the one you approved (an update, a sync, a file put there by hand). Read it and switch it on again: plugin enable breakermed (or the STORE)";
+    expect(tOutput(line)).toBe("breakerMED : son code a changé depuis que tu l'as approuvé — la copie du vault n'est pas celle que tu as approuvée (une mise à jour, une synchro, un fichier posé à la main). lis-le et rallume-le : plugin enable breakermed (ou le store)");
+    expect(tOutput("clock: not approved on this deck yet: plugin enable clock")).toBe("clock : pas encore approuvé sur ce deck : plugin enable clock");
+    expect(tOutput("clock: asks for more than you approved (network → api.x.com): plugin enable clock")).toBe("clock : il demande plus que ce que tu as approuvé (network → api.x.com) : plugin enable clock");
+  });
+});
