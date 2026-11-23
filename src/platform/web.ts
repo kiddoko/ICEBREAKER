@@ -248,6 +248,7 @@ function webAccount(): Platform["account"] {
       if (a) sessionStorage.setItem(SESSION, a.id);
       return !!a;
     },
+    check: async (user, pw) => !!(await find(user, pw)),
     lock: async () => sessionStorage.removeItem(SESSION),
     change: async (pw, user, npw) => {
       const me = current();

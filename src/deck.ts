@@ -82,7 +82,8 @@ import { LockScreen } from "./workspace/lock";
 import type { PromptOptions } from "./workspace/overlays";
 import { migrateWheel, QuickMenu } from "./workspace/quickmenu";
 import { SettingsRegistry } from "./core/prefs";
-import { lookKey, readDevice, writeDevice } from "./core/device";
+import { beginStart, endStart, lookKey, readDevice, writeDevice } from "./core/device";
+import { applyFxPreset } from "./workspace/fxpanel";
 import { Catalog } from "./core/catalog";
 import { blocksSpec } from "./apps/blocks";
 import { registerCoreActions } from "./deck-actions";
@@ -340,6 +341,11 @@ export class Deck implements InputSink {
     const t0 = performance.now();
     installStealth(this); // before anything goes online
     setLang(s.user.language);
+    // this account's last start never reached its desktop (a crash): this one starts safe,
+    // effects off (the curved glass is WebGL) — or a crash would come back at every login
+    const who = await this.platform.account.session().catch(() => null);
+    this.safeStart = !!who && (await beginStart(this.platform, who.id).catch(() => false));
+    if (this.safeStart) applyFxPreset(this, "none");
     // look and feel first, so the boot screen is already in your theme and font
     this.refreshTheme(true);
     this.applyFx();
@@ -656,8 +662,10 @@ export class Deck implements InputSink {
   /** Lock (log out): the settings are saved, the account is locked, the login screen comes back. */
   lockNow(): void {
     void (async () => {
+      if (this.started) this.workspace.saveSession();
       await this.settings.flush();
       await this.rememberLook();
+      if (this.started) await endStart(this.platform).catch(() => {});
       await this.platform.account.lock().catch(() => {});
       location.reload();
     })();
@@ -1330,6 +1338,9 @@ export class Deck implements InputSink {
     if (!this.started || this.voice.open) return;
     this.voice.open = true;
     this.greet();
+    // the desktop is up: a while later, this start counts as one that went fine
+    setTimeout(() => void endStart(this.platform).catch(() => {}), 15_000);
+    if (this.safeStart) this.notify(t("the last start didn't finish: effects off this time (safe start) — ✦ fx turns them back on"), "warning");
     // a module that's off for a reason you can act on: said here, where you can read it
     for (const m of this.modulesOff.splice(0, 3)) this.notify(t("{m} is off: {why} — switch it on again in the STORE (or: plugin enable {id})", { m: m.name, why: t(m.why), id: m.id }), "warning");
     // updated since this device last saw it: WHAT'S NEW, once (never during the setup)
@@ -1403,6 +1414,8 @@ export class Deck implements InputSink {
   }
 
   private quitting = false;
+  /** this start is a safe one: the last one never reached the desktop (device.ts beginStart) */
+  private safeStart = false;
   async quit(): Promise<void> {
     if (this.quitting) return; // alt+F4 is a key AND the window closing: once
     this.quitting = true;
@@ -1410,6 +1423,7 @@ export class Deck implements InputSink {
       // what the desktop looks like, written now (not 300 ms later: the app would be gone)
       if (this.started) this.workspace.saveSession();
       await this.settings.flush();
+      if (this.started) await endStart(this.platform).catch(() => {});
       // a page can keep the deck open ("save?" → cancel): then nothing quits
       for (const t of [...this.workspace.tabs])
         if ((await Promise.resolve(t.close?.()).catch(() => true)) === false) return void (await this.platform.window.quitCancelled?.());

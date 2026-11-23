@@ -172,6 +172,8 @@ export interface Platform {
     create(user: string, password: string, approver?: string, approverPassword?: string): Promise<{ id: string; user: string }>;
     /** Right name + password → that account is unlocked (its settings are the ones read and written). */
     verify(user: string, password: string): Promise<boolean>;
+    /** Right name + password of an account of this deck? Checked only: nothing is unlocked. */
+    check(user: string, password: string): Promise<boolean>;
     /** No account unlocked any more. */
     lock(): Promise<void>;
     change(password: string, newUser: string, newPassword: string): Promise<void>;

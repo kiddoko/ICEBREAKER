@@ -84,6 +84,7 @@ export function createTauriPlatform(): Platform {
       count: () => invoke<number>("account_count"),
       create: (user, password, approver, approverPassword) => invoke<{ id: string; user: string }>("account_create", { user, password, approver: approver ?? null, approverPassword: approverPassword ?? null }),
       verify: (user, password) => invoke<boolean>("account_verify", { user, password }),
+      check: (user, password) => invoke<boolean>("account_check", { user, password }),
       lock: () => invoke<void>("account_lock"),
       change: (password, newUser, newPassword) => invoke<void>("account_change", { password, newUser, newPassword }),
       remove: (password) => invoke<void>("account_remove", { password }),

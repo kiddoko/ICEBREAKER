@@ -478,10 +478,14 @@ export class Renderer {
     this.glassScan = scan;
     const want = curve > 0 && this.canvasBlur;
     if (want && !this.glass) {
-      this.glass = CrtGlass.create(this.canvas, () => this.setCurve(0, bloom, scan));
+      // the one put away last time, if its context still lives: one WebGL context for the whole run
+      if (this.spareGlass && !this.spareGlass.isLost) (this.glass = this.spareGlass), this.glass.unpark();
+      else this.glass = CrtGlass.create(this.canvas, () => this.setCurve(0, bloom, scan));
+      this.spareGlass = null;
       this.glass?.fit(this.canvas);
     } else if (!want && this.glass) {
-      this.glass.destroy();
+      this.glass.park();
+      this.spareGlass = this.glass.isLost ? null : this.glass;
       this.glass = null;
     }
     this.canvas.parentElement?.classList.toggle("glass", !!this.glass);
@@ -497,6 +501,8 @@ export class Renderer {
     return !!this.glass;
   }
   private glass: CrtGlass | null = null;
+  /** the glass put away (curvature 0), kept for when it comes back (crt.ts park) */
+  private spareGlass: CrtGlass | null = null;
   private glassBloom = 0;
   private glassScan = 0;
   private chromaAmt = 0;

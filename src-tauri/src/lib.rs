@@ -159,6 +159,7 @@ pub fn run() {
             account::account_lock,
             account::account_create,
             account::account_verify,
+            account::account_check,
             account::account_change,
             account::account_remove,
             screen::screen_fullscreen,

@@ -213,6 +213,22 @@ export class LockScreen {
     if (!user.trim()) return void (this.field = "user");
     if (this.mode === "recover" && !words.trim()) return void (this.field = "words");
     if (!pass) return void (this.field = "pass");
+    if (this.mode === "approve") {
+      // who approves it is checked now, not once everything else is typed — checked only:
+      // nothing is unlocked
+      this.busy = true;
+      this.deck.requestFrame();
+      const right = await this.deck.platform.account.check(user, pass).catch(() => false);
+      this.busy = false;
+      if (!right) {
+        this.error = "wrong name or password — an account of this deck must approve";
+        this.put("pass", "");
+        this.field = "pass";
+        this.deck.sound.play("error");
+        this.deck.requestFrame();
+        return;
+      }
+    }
     if (this.mode === "approve" && this.pending) {
       // a vault from elsewhere, approved: back to it, and on
       this.approver = { user, pass };
@@ -224,7 +240,7 @@ export class LockScreen {
       return void this.submit();
     }
     if (this.mode === "approve") {
-      // step 1 of a new account: remember who approves it (checked when it's made)
+      // step 1 of a new account: who approves it (right, checked above), kept until it's made
       this.approver = { user, pass };
       this.mode = "new";
       this.load({});

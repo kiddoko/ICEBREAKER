@@ -228,11 +228,11 @@ export class CrtGlass {
    */
   touch(layer: Layer, input: () => GlassInput): void {
     this.dirty.add(layer);
-    if (this.queued || this.lost) return;
+    if (this.queued || this.lost || this.parked) return;
     this.queued = true;
     const run = () => {
       this.queued = false;
-      if (this.lost) return;
+      if (this.lost || this.parked) return;
       this.composedAt = performance.now();
       this.compose(input());
     };
@@ -265,6 +265,27 @@ export class CrtGlass {
     gl.uniform1f(this.u.uGlowBright, f.glowBright);
     gl.uniform3f(this.u.uScan, f.scan, f.dpr, f.top);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  /** its WebGL context is gone (the system took it back): a new glass is needed */
+  get isLost(): boolean {
+    return this.lost;
+  }
+  private parked = false;
+
+  /**
+   * Curvature to 0: the glass is put away, its WebGL context kept for the next time.
+   * Making and dropping a context at every preset (the setup's EYE CANDY, the FX panel)
+   * crashed WebKitGTK's web process on Linux.
+   */
+  park(): void {
+    this.parked = true;
+    this.el.style.display = "none";
+  }
+  unpark(): void {
+    this.parked = false;
+    this.el.style.display = "";
+    for (const l of ["screen", "bloom", "chroma", "glow"] as Layer[]) this.dirty.add(l);
   }
 
   destroy(): void {
