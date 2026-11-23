@@ -157,14 +157,15 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
   // the log folded away (›) on a shell wide enough to hold it: a thin « ‹ log » on the shell's right
   // edge, where it was — the way back (only the link inside the log tab said it, nobody found it)
   else if (!moved && si.w >= LOG_SIDE_MIN && d.settings.data.shell.logSide === false && si.h >= 3) {
-    main = { ...si, w: si.w - 2 };
+    // the handle: a line and a column of letters, GAP wide, on the right edge
+    main = { ...si, w: si.w - GAP };
     const word = [..."‹", ...t("log")];
-    const hx = si.x + si.w - 1;
+    const hx = si.x + si.w - INSET;
     const hy = si.y + Math.max(0, Math.floor((si.h - word.length) / 2));
-    const handle = { x: hx - 1, y: si.y, w: 2, h: si.h };
+    const handle = { x: si.x + si.w - GAP, y: si.y, w: GAP, h: si.h };
     const hot = ui.hovered(handle);
     const alarm = d.log.unseenErrors > 0;
-    ui.vline(hx - 1, si.y, si.h, { fg: hot ? c.accent : c.faint });
+    ui.vline(handle.x, si.y, si.h, { fg: hot ? c.accent : c.faint });
     word.slice(0, si.h).forEach((ch, k) => ui.text(hx, hy + k, ch, { fg: hot ? c.panel : alarm ? c.error : c.accent, bg: hot ? c.accent : undefined, attrs: BOLD }));
     ui.hit(handle, { cmd: "log side on", tip: t("the log beside the shell again · log side on") });
   }
