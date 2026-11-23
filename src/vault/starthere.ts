@@ -260,6 +260,13 @@ the tree and the shell shown or hidden, the shell's tab, the page you were on, t
   alarm, a habit's days), a little calendar and clock — arrows, a click, today / tomorrow —
   or type it as always ("demain 9h", "+3d"). A click on the **date and time** at the top
   right opens a **mini calendar** (the days with events have a dot).
+- **SYSMON** shows the graphics card too (its use and memory where the system tells them);
+  **NEXUS** writes on each node what it is (folder, note, pdf…) and, when the pointer rests on
+  one, unfolds a small window of what's inside; **CALENDAR → ⇣ import** reads a CSV or an
+  .ics (\`cal import\`); **UPLINK**'s pop-up sets its eye (when hovered, everywhere, closed),
+  whether it talks and blinks; \`neofetch\` draws the machine as a HUD.
+- **Readable in every theme**: secondary text and hints keep enough contrast whatever the
+  theme's colours (THEMES.md).
 - **Ctrl + wheel** changes the interface scale (every system), like ctrl+= / ctrl+-.
   **⇧ + wheel** goes to what's under the pointer; over the tree it walks the selection.
 - **◨ side panel** (status bar, ⌘⇧P, or \`panel\`): a column on the right whose
