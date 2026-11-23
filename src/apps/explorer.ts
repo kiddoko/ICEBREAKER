@@ -8,6 +8,7 @@ import { perspectiveFloor } from "../ui/floor";
 import { ring, WheelSpin } from "../ui/wheelspin";
 import { FilterBar } from "../ui/filterbar";
 import { pageBar } from "../ui/pagebar";
+import { GAP, INSET } from "../ui/layout";
 import { tagRGB, type TagColor } from "../vault/marks";
 import type { VaultEntry } from "../platform/types";
 import { q, type UI } from "../ui/ui";
@@ -363,13 +364,13 @@ export class ExplorerApp implements App {
     const name = e.isDir ? `${e.name}/` : basename(e.name, ".md");
     // a folder has a tab on its top edge, like a folder (files have none)
     if (e.isDir && inner.h >= 1) ui.text(x + 1, baseY - 1, `▁${"▁".repeat(Math.min(6, Math.max(2, Math.floor(w / 3))))}▁`, { fg: edge });
-    if (h >= 4) ui.textRight(face.x + face.w - 2, baseY, ` ${tr(kind.word)} `, { fg: front ? c.bg : fade(kind.color(c)), bg: front ? kind.color(c) : undefined, attrs: BOLD });
+    if (h >= 4) ui.textRight(face.x + face.w - GAP, baseY, ` ${tr(kind.word)} `, { fg: front ? c.bg : fade(kind.color(c)), bg: front ? kind.color(c) : undefined, attrs: BOLD });
     if (ui.hovered(face)) this.hoverAt(e, face, ui.now);
     const p = Math.min(1, (ui.now - this.shownAt - (v.i - this.sel + 4) * 40) / 400);
     if (p < 1) ui.animate(30);
     const label = ui.reveal(name, p);
     if (inner.h >= 1) {
-      const ix = ui.text(inner.x + 1, inner.y + (h >= 5 ? 1 : 0), `${icon} `, { fg: fade(kind.color(c)), attrs: BOLD });
+      const ix = ui.text(inner.x + INSET, inner.y + (h >= 5 ? 1 : 0), `${icon} `, { fg: fade(kind.color(c)), attrs: BOLD });
       ui.text(ix, inner.y + (h >= 5 ? 1 : 0), label, { fg: front ? c.fg : fade(c.muted), attrs: front || e.isDir ? BOLD : 0 }, inner.w - (ix - inner.x) - 1);
     }
     if (h >= 5) {
@@ -423,7 +424,7 @@ export class ExplorerApp implements App {
         for (const l of (text ?? "").split("\n").filter((l) => l.trim() && !/^---\s*$/.test(l)).slice(0, 5)) lines.push({ s: l.replace(/^#+\s*/, ""), fg: /^#/.test(l) ? c.accent : c.muted });
       }
     }
-    const W = Math.min(40, r.w - 4), H = Math.min(lines.length + 2, 10);
+    const W = Math.min(40, r.w - GAP * 2), H = Math.min(lines.length + 2, 10);
     // unfolds from the node's top-right corner
     const p = Math.min(1, (ui.now - h.since - 350) / 150);
     if (p < 1) ui.animate(16);
@@ -434,7 +435,7 @@ export class ExplorerApp implements App {
     if (y < r.y + 1) y = Math.min(h.face.y + h.face.h + 1, r.y + r.h - H);
     const box = { x, y, w, h: hh };
     const inner = ui.box(box, { title: p >= 1 ? (e.isDir ? `${e.name}/` : basename(e.name, ".md")) : "", bg: c.panelAlt, focused: true });
-    if (p >= 1) lines.slice(0, inner.h).forEach((l, i) => ui.text(inner.x + 1, inner.y + i, l.s, { fg: l.fg, attrs: l.attrs ?? 0 }, inner.w - 2));
+    if (p >= 1) lines.slice(0, inner.h).forEach((l, i) => ui.text(inner.x + INSET, inner.y + i, l.s, { fg: l.fg, attrs: l.attrs ?? 0 }, inner.w - INSET * 2));
   }
 
   private drawData(ui: UI, r: Rect, e: VaultEntry | undefined): void {
