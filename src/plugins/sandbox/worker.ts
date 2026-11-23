@@ -135,7 +135,8 @@ function makeIb(manifest: unknown, version: string): unknown {
         commands.set(String(cmd.name), cmd as { run(ctx: unknown): unknown });
         const spec = plain(cmd, ["name", "aliases", "summary", "usage", "man", "examples", "interactive"]);
         // a completion list is sent as it is now
-        if (typeof cmd.complete === "function") spec.complete = (cmd.complete as () => string[])();
+        // (a function is read once, for the first word; a record gives the next words: shell/complete.ts)
+        if (typeof cmd.complete === "function") spec.complete = (cmd.complete as (a: string[]) => string[])([]);
         else if (cmd.complete) spec.complete = cmd.complete;
         post({ t: "register", what: "command", spec });
       },

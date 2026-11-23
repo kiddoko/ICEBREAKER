@@ -67,8 +67,13 @@ export interface Command {
   interactive?: boolean;
   /** Still works, but `help` doesn't list it (an old name kept for habits: `view` → `frame`). */
   hidden?: boolean;
-  /** What Tab completes for arguments. */
-  complete?: "path" | "command" | "none" | (() => string[]);
+  /**
+   * What Tab completes for arguments: paths, command names, nothing — or its own words: a
+   * function without arguments gives the first word's (its sub-commands), one that takes the
+   * words typed so far (`(args) => …`) any word's, a record `{ "": ["export"], "export": ["wav"] }`
+   * the word after those (shell/complete.ts subCompletions). Nothing matching: paths.
+   */
+  complete?: "path" | "command" | "none" | (() => string[]) | ((args: string[]) => string[]) | string[] | Record<string, string[]>;
   /** Who registered it: "core" or a plugin id. */
   source?: string;
   run(ctx: ShellContext): Promise<number | void> | number | void;

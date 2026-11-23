@@ -64,6 +64,18 @@ function toData(v: unknown): unknown {
   return JSON.parse(JSON.stringify(v) ?? "null");
 }
 
+/**
+ * A module's `complete` as it crossed: "path" / "command" / "none", a list (its sub-commands) or a
+ * record (`{ "": ["export"], "export": ["wav", "mod"] }`: the next word's after those) — words only.
+ */
+export function completeSpec(c: unknown): Command["complete"] {
+  const words = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, 500) : []);
+  if (c === "path" || c === "command" || c === "none") return c;
+  if (Array.isArray(c)) return words(c);
+  if (c && typeof c === "object") return Object.fromEntries(Object.entries(c as Record<string, unknown>).slice(0, 200).map(([k, v]) => [k, words(v)]));
+  return undefined;
+}
+
 /** keys a page of the module never takes: the deck's own (shortcuts, esc, tab, F-keys) */
 function deckKey(k: KeyInput): boolean {
   return k.ctrl || k.meta || k.key === "esc" || k.key === "tab" || /^f\d+$/.test(k.key);
@@ -285,7 +297,7 @@ class Sandbox {
         const cmd: Command = {
           ...(s as unknown as Command),
           name,
-          complete: Array.isArray(s.complete) ? () => s.complete as string[] : (s.complete as Command["complete"]),
+          complete: completeSpec(s.complete),
           run: (ctx) => this.run(name, ctx),
         };
         this.ib.commands.register(cmd);
