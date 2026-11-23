@@ -114,8 +114,10 @@ export class BootScreen {
     const tag = "open-source cyberdeck environment";
     ui.textCenter(screen, ly + logo.length + 1, decrypt(tag, p, ui.now), { fg: c.muted, attrs: BOLD });
     if (t > this.logoEnd) {
-      const blink = Math.floor(ui.now / 450) % 2 === 0;
-      ui.textCenter(screen, ly + logo.length + 3, blink ? "[ press any key to jack in ]" : "", { fg: c.accent, attrs: BOLD });
+      // it breathes (accent ↔ muted) instead of blinking out half the time: always readable, and
+      // nothing flashes (WCAG 2.3)
+      const k = 0.5 + 0.5 * Math.sin(ui.now / 500);
+      ui.textCenter(screen, ly + logo.length + 3, "[ press any key to jack in ]", { fg: mix(c.muted, c.accent, k), attrs: BOLD });
     }
   }
 

@@ -204,7 +204,8 @@ export class Tour implements Overlay {
       }
     } else ui.tint(screen, dim, c.bg);
     // nothing under the tour gets the mouse
-    ui.hit(screen, { onClick: () => this.next(), onWheel: () => {}, block: true });
+    // a click beside the bubble does nothing (it went to the next step, unread): → · enter · the button
+    ui.hit(screen, { onClick: () => {}, onWheel: () => {}, block: true });
 
     // UPLINK, big — the same face as its HOME widget (ui/uplinkcore.ts) — and its speech bubble
     const face = screen.w >= 84 && screen.h >= 20;
