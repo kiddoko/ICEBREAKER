@@ -348,7 +348,7 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
   const status = page && ws.focus !== "main" ? osKeys(tLoose(page.status?.() ?? ""))
     : ws.focus === "shell" && ws.shellTab === "term" && ws.termAvailable
     ? `${ws.sysTerm?.shellName ?? "terminal"} · ${terminalKeysHint()} · ⇧⇧ menu · F12 tabs`
-    : ws.focus === "shell" ? d.shell.status() : ws.focus === "sidebar" ? "enter open · n new note · r rescan" : ws.focus === "panel" ? t("e edit · a add a widget · right-click: move, remove · ⌘⇧P hide") : osKeys(tLoose(ws.activeApp?.status?.() ?? ""));
+    : ws.focus === "shell" ? d.shell.status() : ws.focus === "sidebar" ? t("enter open · n new note · r rescan") : ws.focus === "panel" ? t("e edit · a add a widget · right-click: move, remove · ⌘⇧P hide") : osKeys(tLoose(ws.activeApp?.status?.() ?? ""));
 
   // right side: your items in your order (workspace/statusbar.ts: drag one sideways, right-click
   // to move or hide it, `statusbar`), each with its priority — when the bar is too narrow, the

@@ -68,7 +68,7 @@ export const NOTES: VersionNotes[] = [
         "Les thèmes n'étirent plus les cadres ni les widgets",
         "Le setup : boutons retour / passer, parcourir…, plus rien de coupé",
         "Indications lisibles dans chaque thème ; chaque date dans ton format",
-        "La corbeille en bas de l'arbre ; le journal à côté du shell",
+        "La corbeille en bas de l'arbre ; le log à côté du shell",
       ],
     },
   },

@@ -293,7 +293,8 @@ export function activate(ib: IcebreakerAPI): void {
     ui.text(x + 1, y, t("this week"), { fg: c.subtle, attrs: BOLD });
     const now = new Date();
     const monday = back((now.getDay() + 6) % 7);
-    let cx = x + 14;
+    // the days start after the label, whatever its length ("cette semaine" touched the first day)
+    let cx = x + 1 + Math.max(13, ib.lib.strWidth(t("this week")) + 2);
     for (let i = 0; i < 7; i++) {
       const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
       const future = d.getTime() > now.getTime();

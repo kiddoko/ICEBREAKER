@@ -14,7 +14,7 @@ export const FR: Record<string, string> = {
   "open": "ouvrir",
   "close  esc": "fermer  esc",
   "history": "historique",
-  "log": "journal",
+  "log": "log",
   "commands": "commandes",
   "clicks": "clics",
   "messages": "messages",
@@ -1314,7 +1314,7 @@ export const FR: Record<string, string> = {
   "Your notes, files and folders. One click selects, a double-click opens. ⌘N a new note, F2 renames, Delete (⌘⌫ on a Mac) sends to the trash — the tree's last line — nothing is lost, ⌘Z brings it back. ⌘⇧T shows or hides the tree.": "Tes notes, fichiers et dossiers. Un clic choisit, un double-clic ouvre. ⌘N une nouvelle note, F2 renomme, Suppr (⌘⌫ sur Mac) envoie à la corbeille — la dernière ligne de l'arbre — rien n'est perdu, ⌘Z le ramène. ⌘⇧T affiche ou cache l'arbre.",
   "Your widgets. Double-click one (or enter) for its pop-up and its settings. ✎ edit (top right) or ⌘E to edit: drag them anywhere, pull the corner ◢ to resize, a to add one — the same widget as many times as you like.": "Tes widgets. Double-clique dessus (ou entrée) pour sa pop-up et ses réglages. ✎ edit (en haut à droite) ou ⌘E pour éditer : glisse-les où tu veux, tire le coin ◢ pour redimensionner, a pour en ajouter — le même widget autant de fois que tu veux.",
   "Widgets that stay in view whatever page you're on. ◨ in the status bar or ⌘⇧P shows or hides it; e edits it together with HOME.": "Des widgets qui restent sous les yeux, quelle que soit la page. ◨ dans la barre du bas ou ⌘⇧P le montre ou le cache ; e l'édite en même temps que le HOME.",
-  "ibsh is the deck's own shell: help lists the commands, man <command> explains one. + opens your computer's real terminal. The log, on the shell's right (a tab when it's narrow), keeps what happened: the commands your clicks ran, errors, messages — tick a filter to see only those.": "ibsh est le shell du deck : help liste les commandes, man <commande> en explique une. + ouvre le vrai terminal de ton ordinateur. Le journal, à droite du shell (un onglet quand il est étroit), garde ce qui s'est passé : les commandes lancées par tes clics, les erreurs, les messages — coche un filtre pour ne voir que ceux-là.",
+  "ibsh is the deck's own shell: help lists the commands, man <command> explains one. + opens your computer's real terminal. The log, on the shell's right (a tab when it's narrow), keeps what happened: the commands your clicks ran, errors, messages — tick a filter to see only those.": "ibsh est le shell du deck : help liste les commandes, man <commande> en explique une. + ouvre le vrai terminal de ton ordinateur. Le log, à droite du shell (un onglet quand il est étroit), garde ce qui s'est passé : les commandes lancées par tes clics, les erreurs, les messages — coche un filtre pour ne voir que ceux-là.",
   "On the left, what the keys do where you are. On the right: ▾ the shell, ⌨ the on-screen keyboard, ✦ the effects, ♪ sound on / off, ☾ the screensaver, ⌘K the menu, F1 the manual, ◧ the tree, ◨ the panel.": "À gauche, ce que font les touches là où tu es. À droite : ▾ le shell, ⌨ le clavier à l'écran, ✦ les effets, ♪ le son, ☾ l'économiseur d'écran, ⌘K le menu, F1 le manuel, ◧ l'arbre, ◨ le panneau.",
   "⌘K, or shift twice: THE MENU. Type to search everything — pages, settings, commands, notes. The letter next to a line + enter goes straight there.": "⌘K, ou shift deux fois : LE MENU. Tape pour tout chercher — pages, réglages, commandes, notes. La lettre à côté d'une ligne + entrée y va direct.",
   "Ask me about your notes in UPLINK (⌘⇧U): what you wrote last week, a summary, a to-do list — several conversations at once, in tabs. That's it, have fun. `tour` plays this again.": "Pose-moi des questions sur tes notes dans UPLINK (⌘⇧U) : ce que tu as écrit la semaine dernière, un résumé, une liste de tâches — plusieurs conversations à la fois, en onglets. C'est tout, amuse-toi. `tour` rejoue cette visite.",
@@ -1804,7 +1804,7 @@ export const FR: Record<string, string> = {
   "the trash is empty · what you delete waits here": "la corbeille est vide · ce que tu supprimes attend ici",
   "Empty the trash": "Vider la corbeille",
 
-  "Log beside the shell": "Journal à côté du shell",
+  "Log beside the shell": "Log à côté du shell",
 
   "the deck's menu: modules, store, NEXUS, settings, manual, updates, log out · click": "le menu du deck : modules, store, NEXUS, réglages, manuel, mises à jour, déconnexion · clic",
   "every app and module: open, switch on or off · ⌘⇧M": "toutes les apps et tous les modules : ouvrir, allumer, éteindre · ⌘⇧M",
@@ -2111,4 +2111,14 @@ export const FR: Record<string, string> = {
 
   "empty sector": "secteur vide",
   "⌫ to back up": "⌫ pour remonter",
+
+  "stealth: no weather": "furtif : pas de météo",
+  "contacting the sky…": "contact avec le ciel…",
+  "enter: retry": "entrée : réessayer",
+  "uplink up": "uplink en ligne",
+  "stealth: local model only": "furtif : modèle local seulement",
+  "enter open · n new note · r rescan": "entrée ouvrir · n nouvelle note · r relire",
+  "news needs the desktop app": "les actus ont besoin de l'app de bureau",
+  "CONFIRM": "question",
+  "W": "S",
 };

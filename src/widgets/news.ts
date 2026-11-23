@@ -193,7 +193,7 @@ async function loadSource(deck: Deck, s: NewsSource, f: SourceFeed): Promise<voi
   f.loading = true;
   try {
     const rss = deck.platform.newsRss;
-    if (!rss) throw new Error("news needs the desktop app");
+    if (!rss) throw new Error(t("news needs the desktop app"));
     const fresh = (l: Headline[]) => l.filter((h) => !h.at || Date.now() - h.at < 21 * 86400_000);
     const add = (base: Headline[], more: Headline[]) => [...base, ...more.filter((m) => !base.some((b) => b.title === m.title))].slice(0, 30);
     const get = (q: string, p: "bing" | "google") => rss(q, langOf(deck), countryOf(deck), p).then(parse).catch(() => [] as Headline[]);
@@ -274,7 +274,7 @@ export const newsWidget: WidgetSpec = {
     if (key) ui.hit(head, { cmd: `widget ${key}`, tip: t("what this widget shows: click to change it") });
     if (!items.length) {
       ui.text(r.x + 1, r.y, header, { fg: c.accentAlt, attrs: BOLD }, r.w - 2);
-      if (r.h > 1) ui.textFit(r.x + 1, r.y + 1, f.error ? [`⚠ ${f.error}`, `⚠ ${/desktop app/.test(f.error) ? t("desktop app only") : t("no feed")}`, `⚠ ${/desktop app/.test(f.error) ? t("desktop only") : t("no feed")}`] : [`${ui.spinner()} ${t("pulling the feed…")}`], { fg: f.error ? c.error : c.muted }, r.w - 2);
+      if (r.h > 1) ui.textFit(r.x + 1, r.y + 1, f.error ? [`⚠ ${f.error}`, `⚠ ${/desktop app|app de bureau/.test(f.error) ? t("desktop app only") : t("no feed")}`, `⚠ ${/desktop app|app de bureau/.test(f.error) ? t("desktop only") : t("no feed")}`] : [`${ui.spinner()} ${t("pulling the feed…")}`], { fg: f.error ? c.error : c.muted }, r.w - 2);
       return;
     }
     const open = (i: number) => showCard(deck, items, i + 1);

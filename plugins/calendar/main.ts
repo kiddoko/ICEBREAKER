@@ -975,7 +975,7 @@ export function activate(ib: IcebreakerAPI): void {
       let selCell: Rect | null = null;
       for (let w = 0; w < weeks; w++) {
         const monday = addDays(first, w * 7 - offset);
-        if (gutter) ui.text(r.x + 1, Y(w) + 1, `W${String(isoWeek(addDays(monday, 1 - ws()))).padStart(2, "0")}`, { fg: c.subtle });
+        if (gutter) ui.text(r.x + 1, Y(w) + 1, `${t("W")}${String(isoWeek(addDays(monday, 1 - ws()))).padStart(2, "0")}`, { fg: c.subtle });
         for (let i = 0; i < 7; i++) {
           const d = addDays(monday, i);
           const other = d.getMonth() !== first.getMonth();

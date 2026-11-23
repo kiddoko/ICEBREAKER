@@ -215,8 +215,10 @@ const weatherWidget: WidgetSpec = {
     if (stale && !sl.loading && (!sl.error || retry)) void loadWeather(key, deck, city).then(() => deck.requestFrame());
     if (sl.error && !sl.w) ui.animate(60_000); // (the retry needs a frame)
     if (!sl.w) {
-      ui.text(r.x + 1, r.y + 1, sl.error ? `⚠ ${sl.error}` : `${ui.spinner()} contacting the sky…`, { fg: sl.error ? c.error : c.muted }, r.w - 2);
-      if (sl.error) ui.text(r.x + 1, r.y + 2, "enter: retry", { fg: c.subtle });
+      // stealth: no weather, said plainly (it showed a cut "stealth mode: geocoding-api.o…" and a useless retry)
+      if (deck.settings.data.privacy.stealth) return void ui.textFit(r.x + INSET, r.y + 1, [t("stealth mode is on: no weather"), t("stealth: no weather")], { fg: c.muted }, r.w - INSET * 2);
+      ui.text(r.x + 1, r.y + 1, sl.error ? `⚠ ${sl.error}` : `${ui.spinner()} ${t("contacting the sky…")}`, { fg: sl.error ? c.error : c.muted }, r.w - 2);
+      if (sl.error) ui.text(r.x + 1, r.y + 2, t("enter: retry"), { fg: c.subtle });
       return;
     }
     const w = sl.w;

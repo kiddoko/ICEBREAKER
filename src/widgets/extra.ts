@@ -407,9 +407,9 @@ const aiWidget: WidgetSpec = {
     if (y < r.y + r.h) ui.textCenter(r, y, label, { fg: c.fg, attrs: BOLD });
     // its little line types itself out, with blips (ui/typewriter.ts)
     const quip = hover && look0.quips ? `“${hover.quip}”` : "";
-    const state = quip && hover ? [...quip].slice(0, typed(ui, `uplink-quip:${hover.since}`, quip)).join("") : !ok ? "○ offline" : thinking ? "◌ processing" : speaking ? "◖ speaking" : "● uplink up";
+    const state = quip && hover ? [...quip].slice(0, typed(ui, `uplink-quip:${hover.since}`, quip)).join("") : !ok ? `○ ${t("offline")}` : thinking ? `◌ ${t("processing")}` : speaking ? `◖ ${t("speaking")}` : `● ${t("uplink up")}`;
     if (y + 1 < r.y + r.h) ui.textCenter(r, y + 1, state, { fg: !ok ? c.error : thinking ? c.accentAlt : speaking ? c.info : c.success });
-    if (!ok && y + 2 < r.y + r.h) ui.textCenter(r, y + 2, deck.settings.data.privacy.stealth ? "stealth: local model only" : "enter: settings", { fg: c.subtle });
+    if (!ok && y + 2 < r.y + r.h) ui.textCenter(r, y + 2, deck.settings.data.privacy.stealth ? t("stealth: local model only") : t("enter: settings"), { fg: c.subtle });
     ui.animate(ok ? (thinking || speaking ? 33 : 50) : 1000);
   },
   activate: ({ deck }) => void deck.openApp(deck.ai.ready ? "link" : "settings"),

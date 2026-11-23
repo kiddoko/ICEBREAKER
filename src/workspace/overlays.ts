@@ -147,7 +147,7 @@ export class ConfirmDialog implements Overlay {
     const lines = raw.flatMap((l) => (l ? wrapWords(l, Math.max(10, w - 4)) : [""]));
     const box = centered(screen, w, lines.length + 6);
     const tone = this.message?.tone === "error" ? c.error : this.message?.tone === "success" ? c.success : undefined;
-    const inner = ui.box(box, { title: this.message ? t(this.message.frame ?? "MESSAGE") : "CONFIRM", focused: true, bg: c.panelAlt });
+    const inner = ui.box(box, { title: this.message ? t(this.message.frame ?? "MESSAGE") : t("CONFIRM"), focused: true, bg: c.panelAlt });
     // the question types itself out (ui/typewriter.ts), then the details
     const all = [this.title, ...lines].join("\n");
     let left = typed(ui, this.tw, all);
