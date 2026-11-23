@@ -4,7 +4,7 @@ import { t } from "../core/i18n";
 import { mix } from "../core/color";
 import { strWidth } from "../core/unicode";
 import { BOLD, type Rect } from "../core/grid";
-import { IS_MAC, type Action, type KeyInput } from "../core/input";
+import { IS_MAC, undoKey, type Action, type KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import { drawBackground } from "../fx/backgrounds";
 import { inside, type MenuEntry, type UI } from "../ui/ui";
@@ -401,6 +401,9 @@ export class HomeApp implements App {
       if (k.combo === "m") return void this.deck.openApp("modules"), true;
       return false;
     }
+    // ⌘Z in edit mode: the layout steps made since it opened, never what's out of sight (it
+    // went on to undo a reminder, a task's priority…)
+    if (undoKey(k) === "undo" && this.deck.history.depth <= this.deck.workspace.editUndoDepth) return this.deck.notify(t("nothing else to undo here")), true;
     const i = this.selected;
     switch (k.combo) {
       case "left": this.move(i, -1, 0); return true;
@@ -553,7 +556,7 @@ export class HomeApp implements App {
         menu: () => this.widgetMenu(i),
         // edit mode: the hand says it can be picked up (and the ✥ on its frame)
         ...(this.editing ? { cursor: "grab" as const } : {}),
-        tip: this.editing ? "drag to move · shift+arrows resize · x remove" : spec.popup || spec.activate || spec.open ? `${spec.description ?? spec.title}\ndouble-click / enter → widget ${keyOf(p)}` : spec.description,
+        tip: this.editing ? "drag to move · shift+arrows resize · x remove" : spec.popup || spec.activate || spec.open ? `${t(spec.description ?? spec.title)}\n${t("double-click / enter → its pop-up")} · widget ${keyOf(p)}` : spec.description,
       };
       // normally the widget's own buttons sit on top of its frame; while editing,
       // the frame covers everything, so a click only selects (and drags)
@@ -631,9 +634,11 @@ export class HomeApp implements App {
 
     // edit / done: a button on HOME's top row, right — the widgets start under it (the
     // right-click menu and ⌘E do the same); left of the ↑ shown when scrolled
+    // shown while editing, or when the pointer is near it (top right): HOME is calmer without it
     const edit = this.editing ? `✓ ${t("done")}` : `✎ ${t("edit")}`;
     const up = this.scroll > 0 ? strWidth(` ↑ ${this.scroll} `) : 0;
-    ui.button(r.x + r.w - INSET - (strWidth(edit) + INSET * 2) - up, r.y, edit, () => this.setEditing(!this.editing), { selected: this.editing, tip: this.editing ? t("done editing (esc)") : t("move, resize, add widgets (⌘E)") });
+    const near = ui.hovered({ x: r.x + Math.floor(r.w / 2), y: r.y, w: Math.ceil(r.w / 2), h: Math.min(4, r.h) });
+    if (this.editing || near) ui.button(r.x + r.w - INSET - (strWidth(edit) + INSET * 2) - up, r.y, edit, () => this.setEditing(!this.editing), { selected: this.editing, tip: this.editing ? t("done editing (esc)") : t("move, resize, add widgets (⌘E)") });
 
     // pages: ‹ 1 2 3 + › at the bottom left (always while editing)
     const pages = this.pageCount();

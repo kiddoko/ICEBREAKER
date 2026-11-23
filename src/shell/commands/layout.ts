@@ -2,7 +2,7 @@ import { fmt } from "../../core/ansi";
 import { osKeys } from "../../core/keyhints";
 import type { Command } from "../types";
 import { SHELL_RATIO } from "../../workspace/workspace";
-import { moveStatusItem, STATUS_IDS, STATUS_ITEMS, statusOrder } from "../../workspace/statusbar";
+import { moveStatusItem, setJoined, STATUS_IDS, STATUS_ITEMS, statusOrder, type StatusGroups } from "../../workspace/statusbar";
 import { CLASSIC, describe, moveFrame, parseArrangement, PRESETS, type FrameId, type Side } from "../../workspace/layout/arrange";
 
 /** what you call a frame → its id ("tree" is the vault frame) */
@@ -108,16 +108,18 @@ export const statusbarCommand: Command = {
     "statusbar hide <item>           take it off the bar\n" +
     "statusbar show <item>           put it back\n" +
     "statusbar order <items…>        this order (the ones not named keep their default places)\n" +
+    "statusbar join <item>           in one group with the item on its left (no │ between them)\n" +
+    "statusbar alone <item>          its own group again\n" +
     "statusbar reset                 back to the default",
   examples: [["statusbar move help 1", "the manual first"], ["statusbar hide screensaver", "no ☾ on the bar"]],
-  complete: () => ["move", "hide", "show", "order", "reset", ...STATUS_IDS],
+  complete: () => ["move", "hide", "show", "order", "join", "alone", "reset", ...STATUS_IDS],
   run(ctx) {
     const d = ctx.deck;
     const [a, id, where] = ctx.args;
     const cfg = d.settings.data.statusBar ?? { order: [], hidden: [] };
     const hidden = new Set(cfg.hidden ?? []);
-    const save = (order: string[], h = hidden) => {
-      d.settings.set("statusBar", { order, hidden: [...h] });
+    const save = (order: string[], h = hidden, groups: StatusGroups = cfg) => {
+      d.settings.set("statusBar", { order, hidden: [...h], joined: groups.joined ?? [], alone: groups.alone ?? [] });
       d.requestFrame();
     };
     const known = (x: string | undefined): x is string => !!x && STATUS_IDS.includes(x);
@@ -126,13 +128,15 @@ export const statusbarCommand: Command = {
       if (hidden.size) ctx.out(fmt.dim(`hidden: ${[...hidden].join(" ")} (statusbar show <item>)\n`));
       return 0;
     }
-    if (a === "reset") return save([], new Set()), ctx.out(fmt.dim("the status bar is back to its default\n")), 0;
+    if (a === "reset") return save([], new Set(), {}), ctx.out(fmt.dim("the status bar is back to its default\n")), 0;
     if (a === "order") {
       const ids = ctx.args.slice(1).filter(known);
       if (!ids.length) return ctx.err(`statusbar order: name some items (${STATUS_IDS.join(" ")})\n`), 1;
       return save(statusOrder({ order: ids, hidden: [] })), 0;
     }
     if (!known(id)) return ctx.err(`statusbar: no item "${id ?? ""}" (${STATUS_IDS.join(" ")})\n`), 1;
+    // groups, like tabs: an item joins the one on its left (no │ between), or stands alone
+    if (a === "join" || a === "alone") return save(cfg.order ?? [], hidden, setJoined(cfg, id, a === "join")), 0;
     if (a === "hide" || a === "show") {
       if (a === "hide") hidden.add(id);
       else hidden.delete(id);

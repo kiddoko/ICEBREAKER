@@ -8,7 +8,7 @@ import { addToMenu } from "./quickmenu";
 import { t } from "../core/i18n";
 import { IS_MAC } from "../core/input";
 import { q, type MenuEntry, type MenuItem } from "../ui/ui";
-import { copyToClipboard, readClipboard } from "../core/clipboard";
+import { readClipboard } from "../core/clipboard";
 import type { Workspace } from "./workspace";
 import { CANCEL_KEY } from "../shell/shell";
 import { APP_VERSION } from "../plugins/host";
@@ -114,28 +114,20 @@ export function shellMenu(ws: Workspace): MenuEntry[] {
 export const DECK_MENU_TITLE = () => `ICEBREAKER ${APP_VERSION}`;
 
 /**
- * "◆ ICEBREAKER ▾", top left: the deck's own menu, like the apple on a Mac — the pages
- * without a tab (MODULES, STORE, NEXUS, settings), the manual, what's new, updates,
- * log out. Their keys and commands stay the same.
+ * "◆ ICEBREAKER ▾", top left: the deck's own menu, like the apple on a Mac — what the menu bar
+ * beside it doesn't have (MODULES, STORE, NEXUS, settings and the manual are there, one click
+ * each): what's new, updates, the setup, the tour, log out, quit.
  */
-export function deckMenu(ws: Workspace): MenuEntry[] {
-  const d = ws.deck;
-  // the page you're on shows ✓ in place of its mark: no tick column, every label flush left
-  const mark = (kind: string, icon: string) => (ws.activeApp?.kind === kind ? "✓" : icon);
-  const page = (kind: string, icon: string, label: string, cmd: string, hint: string, tip: string): MenuEntry[] =>
-    d.apps.get(kind) ? [{ label: `${mark(kind, icon)} ${label}`, cmd, hint, tip }] : []; // its module is off or removed
+export function deckMenu(_ws: Workspace): MenuEntry[] {
   return [
-    // every line with its mark, so they all start at the same place; the deck's real keys
-    ...page("modules", "▦", t("Modules"), "launch modules", IS_MAC ? "⌘⇧M" : "ctrl+shift+M", t("all apps and modules")),
-    ...page("store", "⇣", t("Store"), "store", "", t("modules and themes from GitHub")),
-    ...page("explorer", "⬡", "NEXUS", "launch explorer", IS_MAC ? "⌘⇧E" : "ctrl+shift+E", t("the vault in 3D")),
-    { label: `${mark("settings", "⚙")} ${t("Settings")}`, cmd: "settings", hint: IS_MAC ? "⌘," : "ctrl+," },
-    "-",
-    { label: `? ${t("Manual")}`, cmd: "manual", hint: "F1" },
     { label: `✦ ${t("What's new")}`, cmd: "changelog" },
     { label: `⇡ ${t("Check for updates")}`, cmd: "update" },
     "-",
+    { label: `⚙ ${t("Setup again")}`, cmd: "setup", tip: t("the first-run questions, to change your answers") },
+    { label: `◉ ${t("Guided tour")}`, cmd: "tour" },
+    "-",
     { label: `⏻ ${t("Log out")}`, cmd: "logout", hint: IS_MAC ? "⌘⇧L" : "ctrl+shift+L", danger: true },
+    { label: `✕ ${t("Quit ICEBREAKER")}`, cmd: "quit", hint: IS_MAC ? "⌘Q" : "alt+F4" },
   ];
 }
 
@@ -147,8 +139,8 @@ export function tabMenu(ws: Workspace, i: number): MenuEntry[] {
     // HOME is pinned: it can't be closed
     { label: t("Close"), cmd: `tab close ${i + 1}`, hint: IS_MAC ? "⌘W" : "ctrl+W", disabled: app?.kind === "home", tip: app?.kind === "home" ? t("HOME is pinned: always the first tab") : undefined },
     // (within the tab's own frame: the other frames' tabs aren't "others" here)
-    { label: t("Close others"), run: () => closeMany(ws, (j) => j !== i && ws.placeOf(j) === ws.placeOf(i)), disabled: ws.tabs.length < 2 },
-    { label: t("Close tabs to the right"), run: () => closeMany(ws, (j) => j > i && ws.placeOf(j) === ws.placeOf(i)), disabled: i >= ws.tabs.length - 1 },
+    { label: t("Close others"), cmd: `tab close others ${i + 1}`, disabled: ws.tabs.length < 2 },
+    { label: t("Close tabs to the right"), cmd: `tab close right ${i + 1}`, disabled: i >= ws.tabs.length - 1 },
   ];
   // into another frame (Refonte UI 3b): the tree's, the panel's, the shell's, or back to the page's
   if (i < ws.tabCount) {
@@ -161,10 +153,10 @@ export function tabMenu(ws: Workspace, i: number): MenuEntry[] {
     const doc = app as { save?: () => Promise<void>; dirty?: () => boolean };
     items.push(
       "-",
-      { label: t("Save"), run: () => void doc.save?.().then(() => ws.deck.notify(`saved ${note}`, "success")), hint: IS_MAC ? "⌘S" : "ctrl+S", disabled: !doc.dirty?.() },
-      { label: t("Reveal in tree"), run: () => { if (!ws.sidebarVisible) ws.toggleSidebar(); ws.sidebar.reveal(note); ws.focus = "sidebar"; } },
+      { label: t("Save"), cmd: `save ${q("/" + note)}`, hint: IS_MAC ? "⌘S" : "ctrl+S", disabled: !doc.dirty?.() },
+      { label: t("Reveal in tree"), cmd: `tree reveal ${q("/" + note)}` },
       { label: pinned ? t("Unpin") : t("Pin"), cmd: `${pinned ? "unpin" : "pin"} ${q("/" + note)}` },
-      { label: t("Copy path"), run: () => (copyToClipboard(note), ws.notify(t("path copied"))) },
+      { label: t("Copy path"), cmd: `copy path ${q("/" + note)}` },
     );
   }
   return items;

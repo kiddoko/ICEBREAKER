@@ -120,3 +120,11 @@ export function corePackageEntries(deck: Deck, version: string): { manifest: Plu
     }),
   }));
 }
+
+/** The modules that ship as plugins (plugins/*), by the commands they add. */
+const PLUGIN_COMMANDS: Record<string, string> = { todo: "todo", habit: "habits", remind: "reminders", cal: "calendar", music: "music", stats: "stats" };
+
+/** The module a command belongs to (`todo` → todo, `explore` → nexus), when it is one of the deck's. */
+export function moduleOfCommand(name: string): string | undefined {
+  return PLUGIN_COMMANDS[name] ?? CORE_PACKAGES.find((p) => p.commands?.includes(name))?.id;
+}

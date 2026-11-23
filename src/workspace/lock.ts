@@ -9,6 +9,7 @@ import { avatarOf, avatarRGB, drawAvatar } from "../core/avatar";
 import { lookKey, writeDevice, type DeviceInfo } from "../core/device";
 import type { UI } from "../ui/ui";
 import { FileBrowser } from "./filebrowser";
+import { t } from "../core/i18n";
 
 /**
  * THE LOGIN PAGE — the only way into the deck, and the only place accounts are
@@ -33,6 +34,13 @@ import { FileBrowser } from "./filebrowser";
 type Mode = "login" | "approve" | "new" | "recover" | "open";
 type FieldName = "path" | "user" | "words" | "pass" | "pass2" | "remember";
 type TextField = Exclude<FieldName, "remember">;
+/** a way in or back, under the card (they are in the tab order too: keyboard only works) */
+interface Link {
+  label: string;
+  tip: string;
+  go: () => void;
+  faint?: boolean;
+}
 
 export class LockScreen {
   private mode: Mode;
@@ -68,6 +76,8 @@ export class LockScreen {
   /** open a vault / recover one: what was typed, kept while an account of this deck approves it */
   private pending: { mode: Mode; v: Record<TextField, string>; withPath: boolean } | null = null;
   private field: FieldName;
+  /** tab went past the fields: the link under the card that has the focus (-1: none) */
+  private linkAt = -1;
   private remember: boolean;
   /** who approves the new account (kept until it's made, then wiped) */
   private approver = { user: "", pass: "" };
@@ -113,6 +123,7 @@ export class LockScreen {
     if (m !== "recover") this.withPath = false;
     if (m === "login") this.pending = null;
     this.field = this.firstEmpty() ?? "user";
+    this.linkAt = -1;
     this.error = "";
     this.shownAt = 0;
     this.deck.sound.play("move");
@@ -139,6 +150,11 @@ export class LockScreen {
   onText(t: string): void {
     if (this.browser) return void this.browser.onText(t);
     if (this.busy || this.granted) return;
+    // a link has the focus: typing goes back to the field it left (a space or enter follows the link)
+    if (this.linkAt >= 0) {
+      if (t === " " || t === "\n") return void this.onKey({ key: "enter", code: "", ctrl: false, alt: false, shift: false, meta: false, combo: "enter" });
+      this.linkAt = -1;
+    }
     if (this.field === "remember") {
       if (t === " ") this.toggleRemember();
       return;
@@ -162,6 +178,14 @@ export class LockScreen {
     const order = this.order;
     switch (k.combo) {
       case "enter": {
+        // a link with the focus: follow it
+        if (this.linkAt >= 0) {
+          const l = this.links()[this.linkAt];
+          this.linkAt = -1;
+          return void l?.go();
+        }
+        // nothing typed for the account: say what's missing (enter did nothing)
+        if (this.field === "user" && !this.val("user").trim()) return void (this.error = "type your account name");
         // enter moves to the next empty field, then submits
         const next = this.firstEmpty();
         if (next && next !== this.field) this.field = next;
@@ -172,12 +196,19 @@ export class LockScreen {
       case "down":
       case "shift+tab":
       case "up": {
-        const dir = k.combo === "tab" || k.combo === "down" ? 1 : order.length - 1;
-        this.field = order[(Math.max(0, order.indexOf(this.field)) + dir) % order.length];
+        // the fields, then the links under the card (new account, open a vault, forgot password…),
+        // then the fields again — the links were reached by the mouse only
+        const links = this.links().length;
+        const stops = order.length + links;
+        const at = this.linkAt >= 0 ? order.length + this.linkAt : Math.max(0, order.indexOf(this.field));
+        const next = (at + (k.combo === "tab" || k.combo === "down" ? 1 : stops - 1)) % stops;
+        if (next >= order.length) this.linkAt = next - order.length;
+        else (this.linkAt = -1), (this.field = order[next]);
         this.deck.sound.play("move");
         return;
       }
       case "esc":
+        if (this.linkAt >= 0) return void (this.linkAt = -1);
         // back to logging in (making an account is cancelled); in a field: clear it
         if (this.first && (this.mode === "open" || this.mode === "recover")) this.setMode("new");
         else if (this.mode !== "login" && !this.first) this.setMode("login");
@@ -185,6 +216,7 @@ export class LockScreen {
         return;
     }
     // the rest: the field's own keys (⌫, ←→, ⌘V, ctrl+U…)
+    if (this.linkAt >= 0) return;
     if (this.field !== "remember") this.fields[this.field].onKey(k);
   }
 
@@ -312,7 +344,7 @@ export class LockScreen {
       this.fails++;
       this.shakeAt = performance.now();
       this.deck.sound.play("denied");
-      if (!this.error) this.error = `access denied${this.fails > 1 ? ` ×${this.fails}` : ""}`;
+      if (!this.error) this.error = "access denied";
     } else {
       this.shakeAt = performance.now();
       this.deck.sound.play("error");
@@ -345,7 +377,7 @@ export class LockScreen {
           : this.mode === "approve"
             ? "an account of this deck approves the new one"
             : "the new account: its own settings and vault";
-    const whyLines = why ? wrapWords(why, w - 4) : [];
+    const whyLines = why ? wrapWords(t(why), w - 4) : [];
     const cardH = 5 + fields.length * 3 + (this.mode === "login" ? 2 : 1) + (iconRoom ? 4 : 0) + (whyLines.length ? whyLines.length + 1 : 0);
     const x = Math.floor((W - w) / 2) + shake;
     let y = Math.max(1, Math.floor((H - cardH - 6) / 2));
@@ -369,10 +401,11 @@ export class LockScreen {
               : this.mode === "approve"
             ? "new account · step 1 of 2"
             : "new account · step 2 of 2";
-    ui.textCenter({ x: 0, y, w: W, h: 1 }, y, p < 1 ? decrypt(title, p, ui.now) : title, { fg: c.muted });
+    const shownTitle = t(title);
+    ui.textCenter({ x: 0, y, w: W, h: 1 }, y, p < 1 ? decrypt(shownTitle, p, ui.now) : shownTitle, { fg: c.muted });
     y += 2;
     const boxTitle = this.mode === "open" ? "open a vault" : this.mode === "recover" ? "recovery" : this.first ? "first account" : this.mode === "login" ? "access" : "new account";
-    const card = ui.box({ x, y, w, h: cardH }, { title: boxTitle, focused: true, bg: c.panel });
+    const card = ui.box({ x, y, w, h: cardH }, { title: t(boxTitle), focused: true, bg: c.panel });
     const ix = card.x + 2, iw = card.w - 4;
     let cy = card.y;
     if (iconRoom) {
@@ -397,25 +430,60 @@ export class LockScreen {
       // the recovery key shows as you type it from the paper (its end, when it's longer than the box)
       // the vault's folder: typed, or chosen in the file browser (the button, ctrl+O, enter when empty)
       const browse = f === "path" && !!this.deck.platform.files;
-      this.input(ui, { x: ix, y: cy, w: browse ? iw - 10 : iw, h: 2 }, labels[f], this.fields[f as TextField], this.field === f, () => (this.field = f));
-      if (browse) ui.button(ix + iw - 9, cy + 1, "browse", () => this.browse(), { tip: "choose the folder · ctrl+O" });
+      this.input(ui, { x: ix, y: cy, w: browse ? iw - 10 : iw, h: 2 }, t(labels[f]), this.fields[f as TextField], this.field === f && this.linkAt < 0, () => ((this.field = f), (this.linkAt = -1)));
+      if (browse) ui.button(ix + iw - 9, cy + 1, t("browse"), () => this.browse(), { tip: t("choose the folder · ctrl+O") });
       cy += 3;
     }
     if (this.mode === "login") {
-      const on = this.field === "remember";
-      const end = checkbox(ui, ix, cy, this.remember, { label: "remember me", hot: on, bg: c.panel, onClick: () => ((this.field = "remember"), this.toggleRemember()), tip: "fill in the account name next time" });
+      const on = this.field === "remember" && this.linkAt < 0;
+      const end = checkbox(ui, ix, cy, this.remember, { label: t("remember me"), hot: on, bg: c.panel, onClick: () => ((this.field = "remember"), this.toggleRemember()), tip: t("fill in the account name next time") });
       if (on) ui.text(end + 2, cy, "space", { fg: c.subtle, bg: c.panel });
       cy += 2;
     }
-    if (this.granted) ui.textCenter(card, cy, `access granted · welcome, ${this.granted.user}`, { fg: c.success, bg: c.panel, attrs: BOLD });
-    else if (this.busy) ui.textCenter(card, cy, `${ui.spinner()} ${this.mode === "new" ? "making the account…" : this.mode === "recover" ? "opening the vault…" : "verifying…"}`, { fg: c.accent, bg: c.panel });
+    if (this.granted) ui.textCenter(card, cy, t("access granted · welcome, {user}", { user: this.granted.user }), { fg: c.success, bg: c.panel, attrs: BOLD });
+    else if (this.busy) ui.textCenter(card, cy, `${ui.spinner()} ${t(this.mode === "new" ? "making the account…" : this.mode === "recover" ? "opening the vault…" : "verifying…")}`, { fg: c.accent, bg: c.panel });
     else {
-      const label = this.mode === "login" || this.mode === "open" ? "jack in ⏎" : this.mode === "approve" ? "continue ⏎" : this.mode === "recover" ? "new password ⏎" : "create ⏎";
+      const label = t(this.mode === "login" || this.mode === "open" ? "jack in" : this.mode === "approve" ? "continue" : this.mode === "recover" ? "new password" : "create") + " ⏎";
       ui.button(card.x + Math.floor((card.w - strWidth(label) - 2) / 2), cy, label, () => void this.submit());
     }
-    // under the card: the other ways in / go back
+    // under the card: an error first (in sight even in a small window), then the other ways in / go back
+    const links = this.links();
+    let ly = card.y + card.h + 1;
+    if (this.error) {
+      const err = this.error === "access denied" && this.fails > 1 ? `${t("access denied")} ×${this.fails}` : t(this.error);
+      for (const line of wrapWords(`⚠ ${err}`, W - 4).slice(0, 2)) ui.textCenter({ x: 0, y: ly, w: W, h: 1 }, ly++, line, { fg: c.error, attrs: BOLD });
+      if (this.fails >= 5 && this.mode === "login") ui.textCenter({ x: 0, y: ly, w: W, h: 1 }, ly++, t("forgot it? “forgot password?” below uses your recovery key"), { fg: c.subtle });
+    }
+    ly++;
+    links.forEach((l, i) => {
+      const focus = this.linkAt === i;
+      // the link with the keyboard's focus: lit, between › ‹ (enter follows it)
+      const label = focus ? `› ${t(l.label)} ‹` : t(l.label);
+      const lx = Math.floor((W - strWidth(label)) / 2);
+      const hot = focus || ui.hovered({ x: lx, y: ly, w: strWidth(label), h: 1 });
+      ui.text(lx, ly, label, { fg: hot ? c.accent : l.faint ? c.faint : c.subtle, attrs: hot ? BOLD : 0 });
+      ui.hit({ x: lx, y: ly, w: strWidth(label), h: 1 }, { onClick: l.go, tip: t(l.tip) });
+      ly++;
+    });
+    const keys = this.mode === "login" ? `${t("tab next field · enter unlock")} · ${IS_MAC ? "⌘Q" : "alt+F4"} ${t("quit")}` : this.first ? t("tab next field · enter create") : t("tab next field · enter next · esc back");
+    // the bottom lines only where they don't cover the card or its links (a small window)
+    if (H - 2 > ly) ui.textCenter({ x: 0, y: H - 2, w: W, h: 1 }, H - 2, this.field === "path" ? `${keys} · ${t("ctrl+O browse")}` : keys, { fg: c.subtle });
+    // always in sight: in the language of the last account (both, before any account)
+    const warn = "⚠ test software, never audited · store nothing sensitive · back up your vault";
+    if (H - 3 > ly) ui.textCenter({ x: 0, y: H - 3, w: W, h: 1 }, H - 3, this.first ? warn : t(warn), { fg: c.warning });
+    // no account yet, no language known: both
+    if (this.first && H - 4 > ly) ui.textCenter({ x: 0, y: H - 4, w: W, h: 1 }, H - 4, "logiciel de test, jamais audité · n'y mets rien de sensible · sauvegarde ton vault", { fg: c.warning });
+    // the file browser, over the login page
+    if (this.browser) {
+      this.browser.render(ui, { x: 0, y: 0, w: W, h: H });
+      if (this.browser.done) this.browser = null;
+    }
+  }
+
+  /** The links under the card for this mode: the other ways in, or back. */
+  private links(): Link[] {
     const back = () => this.setMode(this.first ? "new" : "login");
-    const links: { label: string; tip: string; go: () => void; faint?: boolean }[] = [];
+    const links: Link[] = [];
     if (this.mode === "login") {
       links.push({ label: "+ new account", tip: "an account of its own: settings, theme, vault", go: () => this.setMode("approve") });
       if (this.canOpen) links.push({ label: "open a vault", tip: "from a USB key or another computer, plain or encrypted: its name and password", go: () => this.setMode("open") });
@@ -429,28 +497,7 @@ export class LockScreen {
     } else if (this.first && this.mode === "new") {
       if (this.canOpen) links.push({ label: "or open a vault you already have", tip: "from a USB key or another computer: its name and password", go: () => this.setMode("open") });
     } else links.push({ label: this.first ? "‹ make a new account instead" : "‹ back to the login", tip: "esc", go: back });
-    let ly = card.y + card.h + 1;
-    for (const l of links) {
-      const lx = Math.floor((W - strWidth(l.label)) / 2);
-      const hot = ui.hovered({ x: lx, y: ly, w: strWidth(l.label), h: 1 });
-      ui.text(lx, ly, l.label, { fg: hot ? c.accent : l.faint ? c.faint : c.subtle, attrs: hot ? BOLD : 0 });
-      ui.hit({ x: lx, y: ly, w: strWidth(l.label), h: 1 }, { onClick: l.go, tip: l.tip });
-      ly++;
-    }
-    y = ly + 1;
-    if (this.error) ui.textCenter({ x: 0, y, w: W, h: 1 }, y, `⚠ ${this.error}`, { fg: c.error });
-    if (this.fails >= 5 && this.mode === "login")
-      ui.textCenter({ x: 0, y: y + 1, w: W, h: 1 }, y + 1, "forgot it? forgot password? (an encrypted vault's recovery key) — or remove that account from accounts.json (see README)", { fg: c.subtle });
-    const keys = this.mode === "login" ? `tab next field · enter unlock · ${IS_MAC ? "⌘Q" : "alt+F4"} quit` : this.first ? "tab next field · enter create" : "tab next field · enter next · esc back";
-    ui.textCenter({ x: 0, y: H - 2, w: W, h: 1 }, H - 2, this.field === "path" ? `${keys} · ctrl+O browse` : keys, { fg: c.subtle });
-    // always in sight, in both languages (nobody is logged in yet: no language to pick)
-    ui.textCenter({ x: 0, y: H - 4, w: W, h: 1 }, H - 4, "⚠ test software, never audited · store nothing sensitive · back up your vault", { fg: c.warning });
-    ui.textCenter({ x: 0, y: H - 3, w: W, h: 1 }, H - 3, "logiciel de test, jamais audité · n'y mets rien de sensible · sauvegarde ton vault", { fg: c.warning });
-    // the file browser, over the login page
-    if (this.browser) {
-      this.browser.render(ui, { x: 0, y: 0, w: W, h: H });
-      if (this.browser.done) this.browser = null;
-    }
+    return links;
   }
 
   /** A field: its label on one line, the box on the next (the box: ui/field.ts). */

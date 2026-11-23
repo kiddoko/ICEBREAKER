@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { completeFolder, osOf, pathExamples, vaultPathProblem } from "../src/apps/setuppath";
+import { checkVaultFolder, completeFolder, icebreakerInside, osOf, pathExamples, vaultPathProblem } from "../src/apps/setuppath";
 
 const fs: Record<string, { name: string; isDir: boolean }[]> = {
   "/home/neo": [
@@ -59,5 +59,42 @@ describe("the setup's examples follow the system", () => {
     expect(w.shells).toMatch(/PowerShell/);
     expect(vaultPathProblem(w.placeholder)).toBeNull();
     expect(vaultPathProblem(pathExamples("linux").placeholder)).toBeNull();
+  });
+});
+
+describe("the vault's folder, looked at on the disk (Fable A4)", () => {
+  // a little disk: C:\ with Users\you\Documents (full), an empty folder, a vault
+  const disk: Record<string, { name: string; isDir: boolean }[]> = {
+    "C:\\": [{ name: "Users", isDir: true }],
+    "C:\\Users\\you": [{ name: "Documents", isDir: true }, { name: "notes.txt", isDir: false }],
+    "C:\\Users\\you\\Documents": [{ name: "tax.pdf", isDir: false }, { name: "photos", isDir: true }],
+    "C:\\Users\\you\\empty": [],
+    "C:\\Users\\you\\obsidian": [{ name: "a.md", isDir: false }, { name: ".obsidian", isDir: true }],
+    "C:\\Users\\you\\old": [{ name: ".icebreaker", isDir: true }, { name: "pics", isDir: true }],
+  };
+  const list = async (d: string) => {
+    const e = disk[d];
+    if (!e) throw new Error("no such folder");
+    return e;
+  };
+  const home = "C:\\Users\\you";
+  it("a drive that isn't there", async () => {
+    expect(await checkVaultFolder("Q:\\nowhere\\vault", home, list)).toEqual({ kind: "missing", root: "Q:\\" });
+  });
+  it("a new folder on a disk that is there is fine", async () => {
+    expect(await checkVaultFolder("C:\\Users\\you\\new\\vault", home, list)).toEqual({ kind: "ok" });
+  });
+  it("all of Documents, or the home folder: full", async () => {
+    expect(await checkVaultFolder("C:\\Users\\you\\Documents\\", home, list)).toEqual({ kind: "full", count: 2 });
+    expect(await checkVaultFolder("~", home, list)).toEqual({ kind: "full", count: 2 });
+  });
+  it("an empty folder, notes only, or a vault already: fine", async () => {
+    expect(await checkVaultFolder("C:\\Users\\you\\empty", home, list)).toEqual({ kind: "ok" });
+    expect(await checkVaultFolder("C:\\Users\\you\\obsidian", home, list)).toEqual({ kind: "ok" });
+    expect(await checkVaultFolder("C:\\Users\\you\\old", home, list)).toEqual({ kind: "ok" });
+  });
+  it("the Icebreaker folder inside, with the path's own separator", () => {
+    expect(icebreakerInside("C:\\Users\\you\\Documents\\")).toBe("C:\\Users\\you\\Documents\\Icebreaker");
+    expect(icebreakerInside("~/Documents")).toBe("~/Documents/Icebreaker");
   });
 });

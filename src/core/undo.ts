@@ -128,6 +128,11 @@ export class UndoHistory {
     }
   }
 
+  /** how many steps can be undone (HOME's edit mode undoes only its own) */
+  get depth(): number {
+    return this.done.length;
+  }
+
   get canUndo(): boolean {
     return this.done.length > 0;
   }

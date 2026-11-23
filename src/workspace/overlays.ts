@@ -404,19 +404,29 @@ export type ToastKind = "info" | "success" | "warning" | "error";
 
 export class Toasts implements Overlay {
   modal = false;
-  private items: { text: string; kind: ToastKind; until: number; id: string }[] = [];
+  private items: { text: string; kind: ToastKind; until: number; id: string; sticky?: boolean }[] = [];
+
+  /** Esc: the messages that stay (a reminder) go. True if there was one. */
+  dismissSticky(): boolean {
+    const had = this.items.some((t) => t.sticky);
+    this.items = this.items.filter((t) => !t.sticky);
+    return had;
+  }
 
   /** how many are shown */
   get count(): number {
     return this.items.length;
   }
 
-  push(text: string, kind: ToastKind = "info"): void {
+  /** `sticky`: it stays until clicked or esc (a reminder), not a few seconds */
+  push(text: string, kind: ToastKind = "info", sticky = false): void {
+    const until = sticky ? Infinity : performance.now() + 3500 + text.length * 25;
     // the same message still on screen: it stays longer, not twice (a double click gave two)
     const same = this.items.find((t) => t.text === text && t.kind === kind && t.until > performance.now());
-    if (same) return void (same.until = performance.now() + 3500 + text.length * 25);
-    this.items.push({ text, kind, until: performance.now() + 3500 + text.length * 25, id: `toast:${++typewriterIds}` });
-    if (this.items.length > 4) this.items.shift();
+    if (same) return void (same.until = Math.max(same.until, until));
+    this.items.push({ text, kind, until, id: `toast:${++typewriterIds}`, sticky });
+    // too many: the oldest that isn't sticky goes first
+    if (this.items.length > 4) this.items.splice(Math.max(0, this.items.findIndex((t) => !t.sticky)), 1);
   }
 
   render(ui: UI, screen: Rect): void {
@@ -426,14 +436,15 @@ export class Toasts implements Overlay {
     for (const t of this.items) {
       const color = { info: ui.c.info, success: ui.c.success, warning: ui.c.warning, error: ui.c.error }[t.kind];
       const icon = { info: "ℹ", success: "✓", warning: "▲", error: "✖" }[t.kind];
-      const w = Math.min(screen.w - 4, strWidth(t.text) + 6);
+      const w = Math.min(screen.w - 4, strWidth(t.text) + (t.sticky ? 8 : 6));
       const r = { x: screen.x + screen.w - w - 2, y, w, h: 3 };
       const inner = ui.box(r, { bg: ui.c.panelAlt, border: "round" });
       ui.vline(r.x, r.y, 3, { fg: color }, "▌");
       // it types itself out, with its blips (ui/typewriter.ts)
       const n = typed(ui, t.id, t.text);
-      ui.text(inner.x + 1, inner.y, `${icon} ${[...t.text].slice(0, n).join("")}`, { fg: color }, inner.w - 1);
-      ui.hit(r, { onClick: () => (t.until = 0) });
+      ui.text(inner.x + 1, inner.y, `${icon} ${[...t.text].slice(0, n).join("")}`, { fg: color }, inner.w - (t.sticky ? 3 : 1));
+      if (t.sticky) ui.text(inner.x + inner.w - 1, inner.y, "×", { fg: ui.c.subtle });
+      ui.hit(r, { onClick: () => (t.until = 0), tip: t.sticky ? "click · esc" : undefined });
       y += 3;
     }
     if (this.items.length) ui.animate(250);

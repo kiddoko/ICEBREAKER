@@ -144,7 +144,7 @@ export function activate(ib: IcebreakerAPI): void {
       label = `habit ${ctx.args.join(" ")}`.slice(0, 60); // what ⌘Z says it took back
       const { flags, rest } = parseFlags(ctx.args, ["times", "days"]);
       const [sub, ...words] = rest;
-      if (!sub || sub === "ls" || sub === "today") {
+      if (!sub || sub === "ls" || sub === "list" || sub === "today") {
         if (!habits.length) return ctx.out(fmt.dim('no habits yet — habit add "read 20 pages"\n')), 0;
         for (const h of habits) {
           const due = dueOn(h, new Date());

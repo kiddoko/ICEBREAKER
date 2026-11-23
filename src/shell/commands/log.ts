@@ -17,9 +17,10 @@ export const logCommand: Command = {
     "log show all            show everything again\n" +
     "log tail [n]            print the last n lines here (default 20)\n" +
     "log clear [kinds…]      empty it (or only those kinds)\n" +
-    "log side on|off         a wide shell shows the log on its right (on) or as a tab (off)",
+    "log side on|off         a wide shell shows the log on its right (on) or as a tab (off)\n" +
+    "log width <n> | reset   the log column's width beside the shell (or drag the line between)",
   examples: [["log show error debug", "only errors and debug lines"], ["log tail 50", "the last 50 things that happened"]],
-  complete: () => ["show", "tail", "clear", "side", "all", ...LOG_KINDS.map((k) => k.kind)],
+  complete: () => ["show", "tail", "clear", "side", "width", "all", ...LOG_KINDS.map((k) => k.kind)],
   run(ctx) {
     const d = ctx.deck;
     const [a, ...rest] = ctx.args;
@@ -34,6 +35,12 @@ export const logCommand: Command = {
       }
       d.workspace.showShellTab("log");
       return 0;
+    }
+    if (a === "width") {
+      const n = Number(rest[0]);
+      if (rest[0] === "reset" || n === 0) return d.settings.set("shell.logWidth", 0), 0;
+      if (!Number.isFinite(n) || n < 24) return ctx.err("usage: log width <24…> | reset\n"), 1;
+      return d.settings.set("shell.logWidth", Math.round(n)), 0;
     }
     if (a === "side") {
       const on = rest[0] === "on" ? true : rest[0] === "off" ? false : d.settings.data.shell.logSide === false;

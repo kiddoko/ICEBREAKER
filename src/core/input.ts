@@ -435,3 +435,12 @@ export class InputManager {
     });
   }
 }
+
+/** ⌘Z → undo, ⌘⇧Z / ctrl+Y → redo (any layout: the letter typed, or the physical key). */
+export function undoKey(k: KeyInput): "undo" | "redo" | null {
+  if (!k.ctrl || k.alt) return null;
+  const letter = k.key.length === 1 ? k.key.toLowerCase() : "";
+  if (letter === "z" || (!letter && k.code === "KeyZ")) return k.shift ? "redo" : "undo";
+  if ((letter === "y" || (!letter && k.code === "KeyY")) && !k.shift) return "redo";
+  return null;
+}

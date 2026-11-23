@@ -5,6 +5,7 @@ import { highlightLine, initialMdState } from "./markdown";
 import { typed } from "./typewriter";
 import { mix } from "../core/color";
 import { strWidth } from "../core/unicode";
+import { t } from "../core/i18n";
 import type { UI } from "./ui";
 import { INSET } from "./layout";
 
@@ -160,7 +161,7 @@ export class ChatView {
     } else {
       // the keys, as many as fit (the longest first goes)
       const room = r.w - INSET * 4;
-      const hint = [" enter send · shift+enter newline · pgup/pgdn scroll ", " enter send · shift+enter newline ", " enter send "].find((h) => strWidth(h) <= room);
+      const hint = [t("enter send · shift+enter newline · pgup/pgdn scroll"), t("enter send · shift+enter newline"), t("enter send")].map((h) => ` ${h} `).find((h) => strWidth(h) <= room);
       if (hint) ui.textRight(r.x + r.w - 2, sepY, hint, { fg: ui.c.subtle });
     }
 

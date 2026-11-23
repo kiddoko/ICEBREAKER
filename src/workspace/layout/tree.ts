@@ -92,7 +92,9 @@ export function todaySizes(s: Today): { sideW: number; panelW: number; shellH: n
   return {
     sideW: Math.max(20, Math.min(34, Math.round(s.cols * 0.18))),
     panelW: Math.max(24, Math.min(36, Math.round(s.cols * 0.2))),
-    shellH: Math.max(5, Math.min(s.bodyH - 8, Math.round(s.bodyH * s.shellRatio))),
+    // the default height gives the shell at least ~10 lines of text (5 at 1618×1047 / 125 %);
+    // a height you dragged is yours
+    shellH: Math.max(s.shellRatio === 0.3 ? Math.min(14, s.bodyH - 12) : 5, 5, Math.min(s.bodyH - 8, Math.round(s.bodyH * s.shellRatio))),
     stripH: Math.max(6, Math.round(s.bodyH * 0.3)),
   };
 }

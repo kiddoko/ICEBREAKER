@@ -175,13 +175,16 @@ export class WhatsNew implements Overlay {
     // footer: every version as a chip on the left ("all versions"), close on the right
     const fy = inner.y + inner.h - 1;
     const bx = dialogButtons(ui, inner, [{ label: CLOSE(), run: () => (this.done = true), selected: true }], fy);
+    // oldest on the left, newest on the right (→ goes right). What fits is chosen from the newest
+    // and always holds the one you read (it stopped at 0.6.2: 0.6.3 and 0.7.0 had no chip)
+    const order = NOTES.map((_, i) => NOTES.length - 1 - i);
+    const label = (i: number) => (i === this.index ? `◆ ${NOTES[i].version}` : NOTES[i].version);
+    const { from, to } = chipWindow(order.map((i) => strWidth(label(i)) + 3), order.indexOf(this.index), bx - GAP - x - 2);
     let cx = x;
-    for (let i = NOTES.length - 1; i >= 0; i--) {
-      // oldest on the left, newest on the right: → goes right
+    if (from > 0) cx = ui.text(cx, fy, "‹ ", { fg: c.subtle });
+    for (const i of order.slice(from, to + 1)) {
       const v = NOTES[i].version;
-      const label = i === this.index ? `◆ ${v}` : v;
-      if (cx + strWidth(label) + 2 > bx - GAP) break;
-      cx += ui.button(cx, fy, label, () => ((this.index = i), (this.scroll = 0)), { selected: i === this.index, quiet: i !== this.index, tip: `changelog ${v}` }) + 1;
+      cx += ui.button(cx, fy, label(i), () => ((this.index = i), (this.scroll = 0)), { selected: i === this.index, quiet: i !== this.index, tip: `changelog ${v}` }) + 1;
     }
     if (release && !still) ui.animate(50);
   }
@@ -249,4 +252,23 @@ export async function whatsNewOnce(deck: Deck): Promise<void> {
   const { show, remember } = whatsNewAtStart(device.whatsNew, current, !!deck.settings.data.setup.done, !!notesFor(current));
   if (remember) await writeDevice(deck.platform, (d) => void (d.whatsNew = current));
   if (show) deck.workspace.whatsNew();
+}
+
+/**
+ * Which chips fit in `room` (their widths, oldest first): as many of the newest as fit, always
+ * with the one at `keep` (the version being read).
+ */
+export function chipWindow(widths: number[], keep: number, room: number): { from: number; to: number } {
+  let to = widths.length - 1;
+  let from = to + 1;
+  let used = 0;
+  while (from > 0 && used + widths[from - 1] <= room) used += widths[--from];
+  if (keep >= 0 && keep < from) {
+    // the one read is older: the window starts there and runs right as far as it fits
+    from = keep;
+    used = 0;
+    to = keep - 1;
+    while (to + 1 < widths.length && used + widths[to + 1] <= room) used += widths[++to];
+  }
+  return { from: Math.min(from, to), to };
 }

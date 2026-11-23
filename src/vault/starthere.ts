@@ -188,7 +188,12 @@ left it** — the tree's open folders, your tabs and their groups, the frames an
 the tree and the shell shown or hidden, the shell's tab, the page you were on, the window.
 
 ## Tabs, pins, settings
-- Tabs on top: 1…9 (when not typing) or ⌘1…9; ⌘W or ⇧Esc closes one and shows the tab before it. NEXUS, STORE, MODULES and settings open without a tab (Esc closes them). With nothing to close, Esc opens the **◆ ICEBREAKER** menu.
+- Tabs on top: 1…9 (when not typing) or ⌘1…9; ⌘W, ⇧Esc or a middle click closes one and shows the tab before it. NEXUS, STORE, MODULES, settings and the trash open as tabs like the others. On HOME with nothing to close, Esc opens the **◆ ICEBREAKER** menu (F10 anywhere).
+- **The status bar** (bottom) is yours: drag an item sideways, right-click it to move, hide or
+  group it with the one on its left (\`statusbar join | alone <item>\`). ◧ ▾ ◨ ▣ show and hide the
+  tree, the shell, the panel — ▣ leaves the page alone.
+- **The log** beside a wide shell: **›** on its line folds it into a tab, drag the line to make it
+  wider (\`log width 40\`), *‹ beside the shell* in its tab puts it back.
 - **Pins**: one list for everything you keep one click away — notes, folders,
   modules, pages, macros, commands. They show at the top of the tree and in the
   *pinned* widget, and *Add to HOME* also puts one on HOME as a square. Unpin it:
@@ -445,9 +450,11 @@ it, ⌘\` brings it back):
   \`cd STA\` + Tab → \`cd "START HERE/"\`.
 - An ICEBREAKER command run in your real terminal says what went wrong (in red) and
   gives its exit code back: \`$?\` and the prompt's ✕ show it failed.
-- **\`exit\`** (or \`quit\`) in ibsh quits ICEBREAKER, like ⌘Q / Alt+F4: pages save, the
-  vault locks, an update waiting installs. In a script it only ends the script; in your
-  real terminal \`exit\` is that shell's own (it ends that terminal). ctrl+\` hides the shell.
+- **\`exit\`** in ibsh hides the shell, like ctrl+\`. **\`quit\`** quits ICEBREAKER, like ⌘Q / Alt+F4:
+  pages save, the vault locks, an update waiting installs. In a script \`exit\` only ends the
+  script; in your real terminal \`exit\` is that shell's own (it ends that terminal).
+- Every click has its command: \`save\`, \`save as <path>\`, \`copy path\` / \`copy link\`, \`tree reveal\`,
+  \`tab close others | right | all\`, \`modules on | off <id>\`, \`settings <category>\`, \`setup\`.
 
 ## Handy commands
 | | |
@@ -516,7 +523,7 @@ On a Mac, ⌘ plays the role of Ctrl.
 | ⌘, | settings |
 | ⌘⇧H · ⌘⇧M · ⌘⇧E | HOME · MODULES · NEXUS (explore) |
 | ⌘⇧U | UPLINK, the AI chat |
-| ⌘⇧T · ⌘⇧P · ⌘⇧S | the tree · the side panel · the shell |
+| ⌘⇧T · ⌘⇧P · ⌃\` | the tree · the side panel · the shell |
 | ⌘K · ⇧⇧ | **THE MENU**: type to search everything, or a key + enter (m ⏎ = MODULES). Shift twice works anywhere, even while typing |
 | ⌘⇧K · ⌘⇧F | macros · effects |
 | ⌘N · ⌘⇧N | new note · new folder |
@@ -525,9 +532,9 @@ On a Mac, ⌘ plays the role of Ctrl.
 | ⌘Z · ⌘⇧Z | undo · redo — the last thing done (settings, widgets, trash, renames, new notes, tasks, reminders…) |
 | ⌘⇧⌫ | the trash |
 | ⇧Esc · ⌘W | close the tab |
-| ⇧⌫ (⌥⌫) | delete the whole previous word — notes and every text field |
+| ⌥⌫ (ctrl+⌫ on Windows / Linux) | delete the whole previous word — notes and every text field |
 | 1…9 | go to that tab (when not typing) |
-| Tab · ⇧Tab | next thing · next part of the screen |
+| Tab · F6 · ⇧F6 | next thing · next / previous part of the screen |
 
 Every setting can go back to its default: a changed one has a **▎** on its left,
 **del** (or ↺ on its row) puts it back, and the button at the bottom right of each
@@ -796,7 +803,8 @@ export function activate(ib) {
 | \`stats\` | numbers over time, shown by STATS |
 | \`modules\` | call other modules (\`todo.add\`, \`journal.append\`…), expose yours |
 | \`settings\` | your settings, shown in ⚙ under your name |
-| \`ui\` | notify, alert, confirm, prompt (with \`suggestions\`: ▾ and Tab), choose |
+| \`ui\` | ask the user (no permission: they answer): \`notify\`, \`alert\` (stays until clicked), \`confirm\`, \`prompt\` (with \`suggestions\`: ▾ and Tab), \`choose\`, \`pickWhen\` (the WHEN? calendar and clock), \`pickFolder\`, \`pickFile\`, \`pickFileText\` / \`pickFileBytes\` (a file read for you), \`fullWindow\` (your page alone) |
+| \`lib\` | the deck's own pieces (fields, lists, layout, colours, \`t\` and \`dateLocale\` for the user's language and dates, \`dates\` to read "demain 9h") — every export in docs/PLUGINS.md |
 | \`catalog\` | everything the deck can do, as plain data: \`ib.catalog.list("function", "todo")\` |
 | \`ai\` · \`media\` · \`google\` · \`storage\` | the rest |
 
@@ -824,6 +832,8 @@ Settings rows: \`ib.settings.register([{ key, label, type: "toggle" | "choice" |
 Widgets: \`size\`, \`min\`, \`max\` (a shortcut square: \`max: { w: 1, h: 2 }\`), \`popup\` or
 \`activate\` for Enter, \`clickActivates\` for one-click widgets.
 Errors you report with \`ib.ui.notify(text, "error")\` land in the error log with a code (docs/ERRORS.md).
+Your commands' output is shown in the user's language when you give its French: \`ib.lib.addTranslations("fr", { "{n} done": "{n} faits" })\`
+(\`{parts}\` for what changes; a pipe always gets the English).
 
 Everything is typed and commented in \`src/plugins/api.ts\`; a walkthrough in
 \`docs/PLUGINS.md\`; the house rules in [[guidelines]]. Before someone switches

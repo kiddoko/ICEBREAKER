@@ -1,5 +1,10 @@
 import { fmt, stripAnsi } from "../core/ansi";
-import { levenshtein } from "../core/fuzzy";
+import { didYouMean } from "../core/fuzzy";
+import { t, tOutput } from "../core/i18n";
+
+/** commands whose output is your data (a note's text, file names, what you typed): never translated */
+const RAW_OUTPUT = new Set(["cat", "head", "tail", "grep", "find", "ls", "tree", "echo", "sort", "uniq", "wc", "env", "history", "which", "export", "checkboxes", "help", "man"]);
+import { moduleOfCommand } from "../plugins/core-packages";
 import type { Deck } from "../deck";
 import { basename, dirname, globToRegex, resolvePath } from "../vault/paths";
 import { AI_COMMANDS, allows, guardedDeck, guardedVault, trusted, type Origin } from "./origin";
@@ -164,12 +169,15 @@ export class ShellExecutor {
     const [name, ...args] = argv;
     const cmd = this.deck.commands.get(name);
     if (!cmd) {
-      const guess = this.deck.commands
-        .names()
-        .map((n) => ({ n, d: levenshtein(name, n) }))
-        .sort((a, b) => a.d - b.d)[0];
-      const hint = guess && guess.d <= 2 ? ` — did you mean ${fmt.bold(guess.n)}?` : "";
-      this.print(`ibsh: command not found: ${name}${hint}\n`, true);
+      // a module that is off: say so, and how to switch it on (it said "did you mean code?")
+      const off = moduleOfCommand(name);
+      if (off && !this.deck.commands.names().includes(name)) {
+        this.print(`ibsh: ${t("{cmd} is off — {how}", { cmd: name, how: `modules on ${off}` })}\n`, true);
+        return { status: 127, stdout: "" };
+      }
+      const guess = didYouMean(name, this.deck.commands.names());
+      const hint = guess ? ` — ${t("did you mean")} ${fmt.bold(guess)}?` : "";
+      this.print(`ibsh: ${t("command not found")}: ${name}${hint}\n`, true);
       return { status: 127, stdout: "" };
     }
 
@@ -238,13 +246,14 @@ export class ShellExecutor {
       signal,
       out: (t) => {
         if (signal.aborted) return; // stopped (^C): like a killed program, it says nothing more
-        if (isTTY) self.print(t, false);
+        // on screen, in the deck's language (a note's text, a pipe, a file never are)
+        if (isTTY) self.print(RAW_OUTPUT.has(cmd.name) ? t : tOutput(t), false);
         else stdout += t;
         self.deck.requestFrame();
       },
       err: (t) => {
         if (signal.aborted) return;
-        self.print(t, true);
+        self.print(tOutput(t), true);
         self.deck.requestFrame();
       },
       resolve: (p) => resolvePath(self.cwd, p),

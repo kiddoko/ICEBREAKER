@@ -119,19 +119,31 @@ export class NoteApp implements App {
 
   status(): string {
     const { line, col } = this.editor.cursor;
-    const state = this.error ? `✖ ${this.error}` : this.conflict ? "⚠ changed on disk" : this.saving ? "saving…" : this.dirty() ? "● modified" : "✓ saved";
-    return `${this.path} · ln ${line + 1}, col ${col + 1} · ${this.editor.wordCount()} words · ${state}`;
+    const state = this.error ? `✖ ${this.error}` : t(this.conflict ? "⚠ changed on disk" : this.saving ? "saving…" : this.dirty() ? "● modified" : "✓ saved");
+    return `${this.path} · ${t("ln {l}, col {c} · {n} words", { l: line + 1, c: col + 1, n: this.editor.wordCount() })} · ${state}`;
   }
 
   private scheduleSave(): void {
     if (!this.deck.settings.data.editor.autosave) return;
     clearTimeout(this.saveTimer);
-    this.saveTimer = setTimeout(() => void this.save(), 800);
+    this.saveTimer = setTimeout(() => void this.save({ auto: true }), 800);
   }
 
-  async save(): Promise<void> {
+  /**
+   * Saves the note. `auto` (the timer while typing): a note that was emptied (select all, delete)
+   * is not written — it was saved empty in under a second and the text was lost. It is written
+   * by ⌘S, by closing the tab, or 30 s later, and the text it had goes to the trash first.
+   */
+  async save(opts: { auto?: boolean } = {}): Promise<void> {
     if (!this.dirty() || this.conflict) return;
     clearTimeout(this.saveTimer);
+    if (emptiedNote(this.editor.text, this.saved)) {
+      if (opts.auto) {
+        this.saveTimer = setTimeout(() => void this.save(), NoteApp.EMPTY_SAVE_MS);
+        return;
+      }
+      await this.keepBeforeEmptying();
+    }
     // never write over a change made outside the deck since we read the file
     if ((await this.diskChange()) !== null) return void this.checkDisk();
     this.saving = true;
@@ -146,6 +158,22 @@ export class NoteApp implements App {
     } finally {
       this.saving = false;
       this.deck.requestFrame();
+    }
+  }
+
+  /** how long an emptied note waits before it is written empty */
+  static EMPTY_SAVE_MS = 30_000;
+
+  /** The text an emptied note had, into the trash (TRASH or ⌘Z bring it back). */
+  private async keepBeforeEmptying(): Promise<void> {
+    const dir = dirname(this.path);
+    const copy = join(dir === "." ? "" : dir, `${basename(this.path, ".md")} (before emptying).md`);
+    try {
+      await this.deck.vault.write(copy, this.saved);
+      await this.deck.vault.trash(copy);
+      this.deck.notify(t("the text it had is in the trash"), "info");
+    } catch {
+      /* the copy is a safety net: the save goes on */
     }
   }
 
@@ -200,11 +228,11 @@ export class NoteApp implements App {
       { label: t("Redo"), run: () => ed.redo(), hint: "⇧⌘Z" },
       ...(link ? ["-" as const, { label: /^https?:/.test(link) ? t("Copy link") : t("Follow link"), run: () => (/^https?:/.test(link) ? copyToClipboard(link) : void this.followLink()), hint: "⌘⏎" }] : []),
       "-",
-      { label: t("Save"), run: () => this.save().then(() => d.notify(`saved ${this.path}`, "success")), hint: "⌘S", disabled: !this.dirty() },
+      { label: t("Save"), cmd: "save", hint: "⌘S", disabled: !this.dirty() },
       { label: pinned ? t("Unpin") : t("Pin"), cmd: `${pinned ? "unpin" : "pin"} ${q(this.path)}` },
-      { label: t("Reveal in tree"), run: () => { d.workspace.sidebar.reveal(this.path); } },
-      { label: t("Copy path"), run: () => (copyToClipboard(this.path), d.notify(t("path copied"))) },
-      ...(this.path.endsWith(".md") ? [{ label: t("Copy link"), tip: t("a [[link]] to paste in a note"), run: () => (copyToClipboard(`[[${basename(this.path, ".md")}]]`), d.notify(t("link copied"))) }] : []),
+      { label: t("Reveal in tree"), cmd: `tree reveal ${q(this.path)}` },
+      { label: t("Copy path"), cmd: `copy path ${q(this.path)}` },
+      ...(this.path.endsWith(".md") ? [{ label: t("Copy link"), tip: t("a [[link]] to paste in a note"), cmd: `copy link ${q(this.path)}` }] : []),
     ];
   }
 
@@ -232,14 +260,20 @@ export class NoteApp implements App {
   }
 
   /** Save under another name: the copy opens, this note stays as it was saved. */
-  private async saveAs(): Promise<void> {
-    const to = await this.deck.prompt(t("Save as"), { initial: this.path, placeholder: "notes/new name.md", suggestions: folders(this.deck).map((f) => `${f}/${basename(this.path)}`) });
-    if (!to?.trim() || to.trim() === this.path) return;
+  async saveAs(given?: string): Promise<string | null> {
+    const to = given ?? (await this.deck.prompt(t("Save as"), { initial: this.path, placeholder: "notes/new name.md", suggestions: folders(this.deck).map((f) => `${f}/${basename(this.path)}`) }));
+    if (!to?.trim() || to.trim() === this.path) return null;
     const path = to.trim().endsWith(".md") || /\.[a-z0-9]+$/i.test(to.trim()) ? to.trim() : `${to.trim()}.md`;
-    if (await this.deck.vault.exists(path)) return void this.deck.notify(t("{path} already exists", { path }), "error");
+    if (await this.deck.vault.exists(path)) return void this.deck.notify(t("{path} already exists", { path }), "error"), null;
     await this.deck.vault.write(path, this.editor.text);
     this.deck.vault.recordCreated(path);
     await this.deck.openFile(path);
+    return path;
+  }
+
+  /** the note's file (the `save`, `copy path` commands) */
+  get file(): string {
+    return this.path;
   }
 
   /** The note before / after this one in its folder (by name). */
@@ -306,7 +340,8 @@ export class NoteApp implements App {
         this.editor.anchor ??= { ...this.editor.cursor };
         this.editor.cursor = this.editor.posAt(m.x, m.y);
       },
-      onWheel: (d) => this.editor.scroll(d),
+      // shift + wheel: one line at a time (to read closely)
+      onWheel: (d, m) => this.editor.scroll(m.shift ? Math.sign(d) : d),
       // right-click: the cursor goes there (unless it's inside the selection), then the menu
       menu: (m) => {
         if (m && !this.editor.selection()) {
@@ -324,3 +359,8 @@ export const noteSpec: AppSpec = {
   title: "Note",
   create: (deck, args) => new NoteApp(deck, String(args)),
 };
+
+/** A note that had text and now has none (written only on purpose, never by the autosave). */
+export function emptiedNote(text: string, saved: string): boolean {
+  return text.trim() === "" && saved.trim() !== "";
+}

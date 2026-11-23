@@ -9,6 +9,7 @@ import type { Overlay } from "./overlays";
 import { focusWidget } from "../widgets/instances";
 import { CLOSE, dialogButtons } from "../ui/dialog";
 import { GAP, INSET } from "../ui/layout";
+import { CORE_PACKAGES } from "../plugins/core-packages";
 
 /**
  * A widget's pop-up (enter or double-click on HOME, or `widget <id>`): more
@@ -83,8 +84,11 @@ export class WidgetPopup implements Overlay {
     ui.hline(inner.x, fy - 1, inner.w, { fg: c.border });
     // bottom right: close (the way out) on the left, open (the way forward) on the right (ui/dialog.ts)
     const words = this.spec.open?.split(" ") ?? [];
+    // its settings, one click away (they were somewhere in the settings, a module's section)
+    const owner = widgetSettings(this.deck, this.spec);
     const x = dialogButtons(ui, inner, [
       { label: CLOSE(), run: () => (this.done = true), accent: c.subtle },
+      ...(owner ? [{ label: `⚙ ${t("settings")}`, run: () => ((this.done = true), void this.deck.act(`settings ${owner}`)), tip: `settings ${owner}` }] : []),
       ...(this.spec.open ? [{ label: `${t("open")} ${words[0] === "launch" ? words[1] : words[0]}  ⏎`, run: () => this.open(), tip: this.spec.open }] : []),
     ], fy);
     if (p.hint) {
@@ -114,3 +118,12 @@ export function fitPieces(hint: string, room: number): string {
 /** a widget's pop-up takes this share of the screen (each way), up to POPUP_MAX_W columns */
 export const POPUP_SHARE = 2 / 3;
 const POPUP_MAX_W = 150;
+
+/** The settings category of a widget's module ("weather"), or "" when it has none. */
+export function widgetSettings(deck: Deck, spec: WidgetSpec): string {
+  const source = deck.widgets.list().find((w) => w.id === spec.id)?.source ?? "core";
+  const id = source !== "core" ? source : CORE_PACKAGES.find((p) => p.widgets?.includes(spec.id))?.id ?? "";
+  if (!id) return "";
+  const name = deck.plugins.list().find((p) => p.manifest.id === id)?.manifest.name.toLowerCase() ?? id;
+  return deck.prefs.sections().some((s) => s.name.replace(/^◇\s*/, "").toLowerCase() === name) ? name : "";
+}

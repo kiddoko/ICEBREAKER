@@ -36,6 +36,25 @@ export class SettingsApp implements App {
     return "settings";
   }
 
+  /**
+   * Open at a category: its name or a module's ("weather", "◇ todo", "privacy"). False: none
+   * matches (the first category stays).
+   */
+  goTo(name: string): boolean {
+    this.secs = this.deck.prefs.sections();
+    const want = name.trim().toLowerCase();
+    const plain = (s: string) => s.replace(/^◇\s*/, "").toLowerCase();
+    let i = this.secs.findIndex((s) => plain(s.name) === want);
+    if (i < 0) i = this.secs.findIndex((s) => plain(s.name).startsWith(want));
+    if (i < 0) return false;
+    this.cat = i;
+    this.sel = 0;
+    this.pane = "rows";
+    this.search.clear();
+    this.deck.requestFrame();
+    return true;
+  }
+
   status(): string {
     return t("type to search · ↑↓ ←→ enter · del: back to default");
   }

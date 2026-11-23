@@ -45,6 +45,11 @@ label's first word; never `.toUpperCase()` a title. The rule: [GUIDELINES.md](GU
 | fine drawing: braille dots and rings | `Braille` · `ring(b, cx, cy, r, lit)` (`src/ui/braille.ts`) | — | CLOCKS' timer rings and stopwatch dial: 2×4 dots a cell, layers in two colours |
 | a frame's tabs on its border (the deck's own frames) | `tabbedBox` · `soloTab` · `chipStyle` · `drawChip` (`src/workspace/tabstrip.ts`) | — | the tabs' names above the frame's line, a half-block bar under each; lit when the frame has the focus |
 
+**A text that may not fit is never cut in the middle of a word**: give `ui.textFit` its shorter
+versions, or fold it on two lines (`ib.lib` has `strWidth` and `truncate` for the rest). **A date
+or a day** shown to the user: `toLocaleDateString(ib.lib.dateLocale(), …)` — the user's format,
+never `"en"`.
+
 ## How to use a field
 
 ```js

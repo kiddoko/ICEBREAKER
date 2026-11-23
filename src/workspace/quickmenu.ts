@@ -3,7 +3,7 @@ import { Field } from "../ui/field";
 import { mix } from "../core/color";
 import { fuzzyFilter } from "../core/fuzzy";
 import { BOLD, type Rect } from "../core/grid";
-import { t, tLoose } from "../core/i18n";
+import { t, tLoose, uiCase } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
 import { DECK_KEYS, menuKeyOf, MENU, shortcutFor } from "../core/shortcuts";
 import { strWidth, truncate } from "../core/unicode";
@@ -214,9 +214,11 @@ export class QuickMenu implements Overlay {
     if (this.query) {
       this.list.render(ui, body, true, (a, row, selected) => {
         const gx = ui.text(row.x + 1, row.y, a.group ? `${a.group} ` : "", { fg: selected ? c.accentAlt : a.id.startsWith("menu.") ? c.accent : c.subtle, attrs: a.id.startsWith("menu.") ? BOLD : 0 });
-        const hint = a.hint ? tLoose(a.hint) : "";
+        // lowercase like the rest of the interface (a dozen titles were in capitals: "Toggle
+        // fullscreen"); a file's path keeps its own
+        const hint = a.hint ? uiCase(tLoose(a.hint)) : "";
         const hintW = hint ? Math.min(strWidth(hint), Math.floor(row.w / 3)) : 0;
-        const tx = ui.text(gx, row.y, tLoose(a.title), { fg: selected ? c.fg : c.muted, attrs: selected ? BOLD : 0 }, row.w - (gx - row.x) - hintW - 3);
+        const tx = ui.text(gx, row.y, a.group === "file" || a.group === "theme" ? a.title : uiCase(tLoose(a.title)), { fg: selected ? c.fg : c.muted, attrs: selected ? BOLD : 0 }, row.w - (gx - row.x) - hintW - 3);
         if (hint && row.x + row.w - 2 - hintW > tx) ui.textRight(row.x + row.w - 2, row.y, truncate(hint, hintW), { fg: c.subtle });
       });
       if (!this.list.items.length) ui.textCenter(body, body.y + 1, t("nothing matches"), { fg: c.subtle });

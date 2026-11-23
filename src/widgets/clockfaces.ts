@@ -51,7 +51,7 @@ export function drawClock(ui: UI, r: Rect, deck: Deck, now = new Date(), key?: s
   const c = ui.c;
   const h = deck.settings.data.home;
   const want = widgetConfig(deck, key, "style", h.clockStyle);
-  const style = (CLOCK_STYLES as readonly string[]).includes(want) ? (want as ClockStyle) : "dots";
+  const style = (CLOCK_STYLES as readonly string[]).includes(want) ? (want as ClockStyle) : "segment";
   const secs = !!widgetConfig(deck, key, "seconds", h.clockSeconds);
   const locale = dateLocale();
   const date = now.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
@@ -211,7 +211,7 @@ export function drawClock(ui: UI, r: Rect, deck: Deck, now = new Date(), key?: s
 export const clockCommand: Command = {
   name: "clock",
   summary: "the clock widget's face (dots, segment, analog, binary, minimal), and wake-up alarms",
-  usage: "clock                       what it shows now\nclock style <name>          dots · segment · analog · binary · minimal\nclock style next | prev     the next / the one before\nclock seconds on|off        show the seconds\nclock calendar              the mini calendar (a click on the top bar's date)\n" + ALARM_USAGE,
+  usage: "clock                       what it shows now\nclock style <name>          dots · segment · analog · binary · minimal\nclock style next | prev     the next / the one before\nclock seconds on|off        show the seconds\nclock calendar              the mini calendar (a click on the top bar's date)\nclock open                  the CLOCKS page\n" + ALARM_USAGE,
   examples: [
     ["clock style analog", "a round dial"],
     ["clock seconds on", "with the seconds"],
@@ -226,6 +226,8 @@ export const clockCommand: Command = {
     const [sub, v] = ctx.args;
     if (sub === "alarm" || sub === "alarms") return alarmCommand(ctx, ctx.args.slice(1));
     if (sub === "calendar") return ctx.deck.workspace.openMiniCalendar(), 0;
+    // `<cmd> open` is the page, everywhere (docs/GUIDELINES.md "Sub-commands")
+    if (sub === "open") return void ctx.deck.openApp("clocks"), 0;
     // the copy whose pop-up is open (or that's selected) changes; else every clock without its own face
     const key = widgetTarget("clock") ?? undefined;
     const style = widgetConfig(d, key, "style", h.clockStyle);

@@ -56,6 +56,7 @@ import { Updater } from "./core/updater";
 import { deckCommands } from "./shell/commands/deck";
 import { devCommands } from "./shell/commands/dev";
 import { fileCommands } from "./shell/commands/files";
+import { docCommands } from "./shell/commands/doc";
 import { iconCommand, tagCommand } from "./shell/commands/marks";
 import { trashCommand } from "./shell/commands/trash";
 import { Marks } from "./vault/marks";
@@ -76,7 +77,7 @@ import { CellFx, Transitions } from "./fx/transition";
 import { DeckVoice, phrase, spokenAlert } from "./core/voice";
 import { storeCommand, storeSpec } from "./apps/store";
 import { updateCommand } from "./shell/commands/update";
-import { detachCorePackages } from "./plugins/core-packages";
+import { CORE_PACKAGES, detachCorePackages } from "./plugins/core-packages";
 import { installStealth } from "./core/stealth";
 import { setLang, setDateLocale, dateLocale, t } from "./core/i18n";
 import type { ChoiceOption } from "./plugins/api";
@@ -299,8 +300,6 @@ export class Deck implements InputSink {
         // like a browser: the mouse's back / forward buttons (a two-finger swipe on a Mac) walk
         // the pages this tab showed; with shift, the tabs
         if (shift) ws.stepTab(g === "forward" ? 1 : -1, true);
-        // "back" on the note opened from NEXUS: NEXUS again
-        else if (g === "back" && ws.backToParked()) return void this.requestFrame();
         else void this.tabHistoryStep(g === "forward" ? 1 : -1);
       } else this.zoom(g === "zoom-in" ? 1 : -1);
       this.requestFrame();
@@ -543,6 +542,7 @@ export class Deck implements InputSink {
     this.loop.background = !document.hasFocus() && this.settings.data.appearance.backgroundSlow !== false;
     // some webviews don't report a minimized window as hidden: ask the window itself
     void this.platform.onMinimized?.((min) => {
+      this.minimized = min;
       this.loop.setPaused(min || document.hidden);
       if (min) this.releaseTimer = setTimeout(() => this.renderer.release(), 60_000);
     });
@@ -551,7 +551,7 @@ export class Deck implements InputSink {
   private registerCore(): void {
     // the settings rows: the deck's own (apps/settings-rows.ts, modules' rows included)
     this.prefs.register("core", () => coreSettingRows(this));
-    for (const c of [...fileCommands, ...systemCommands, ...deckCommands, storeCommand, updateCommand, ...shortcutCommands, scriptCommand, pinCommand, unpinCommand, tagCommand, iconCommand, trashCommand, weatherCommand, startHereCommand]) this.commands.register({ ...c, source: "core" });
+    for (const c of [...fileCommands, ...docCommands, ...systemCommands, ...deckCommands, storeCommand, updateCommand, ...shortcutCommands, scriptCommand, pinCommand, unpinCommand, tagCommand, iconCommand, trashCommand, weatherCommand, startHereCommand]) this.commands.register({ ...c, source: "core" });
     // developer tools (factory-reset): only in a build that has them (npm run app:mac, the
     // web preview while developing). A release never registers them: not in help, man, Tab,
     // THE MENU or BLOCKS — they don't exist there.
@@ -667,6 +667,8 @@ export class Deck implements InputSink {
     const device = await readDevice(this.platform);
     const look = device.look[lookKey(device.last)];
     if (look?.theme && this.themes.get(look.theme)) this.settings.data.appearance.theme = look.theme;
+    // the login page in the last account's language (it was always in English)
+    setLang(device.lang ?? "en");
     this.refreshTheme(true);
     this.sound.enabled = true;
     const count = await this.platform.account.count().catch(() => 0);
@@ -685,6 +687,7 @@ export class Deck implements InputSink {
     if (!this.account) return;
     await writeDevice(this.platform, (d) => {
       d.look[lookKey(this.account!)] = { theme: s.appearance.theme, avatar: s.user.avatar };
+      d.lang = s.user.language;
       if (d.remember) d.last = this.account!;
     });
   }
@@ -692,6 +695,7 @@ export class Deck implements InputSink {
   /** Lock (log out): the settings are saved, the account is locked, the login screen comes back. */
   lockNow(): void {
     void (async () => {
+      if (this.started && this.workspace.solo) this.workspace.toggleSolo();
       if (this.started) this.workspace.saveSession();
       await this.settings.flush();
       await this.rememberLook();
@@ -921,6 +925,8 @@ export class Deck implements InputSink {
   }
 
   async openFile(path: string): Promise<void> {
+    // a picture, a sound, a PDF… isn't text: the editor said "stream did not contain valid UTF-8"
+    if (isBinaryName(path)) return void this.notify(t("{file} isn't text: the deck can't show it here yet — open it from the vault's folder with your system", { file: path }), "info");
     this.openApp("note", path);
   }
 
@@ -947,7 +953,7 @@ export class Deck implements InputSink {
 
   /** The mouse's back (-1) / forward (1) button: the note this tab showed before / after. */
   async tabHistoryStep(dir: 1 | -1): Promise<void> {
-    const cur = this.workspace.page ? undefined : this.workspace.activeApp;
+    const cur = this.workspace.activeApp;
     const h = cur && this.tabHistory.get(cur);
     if (!cur || !h || cur.kind !== "note") return;
     const from = dir < 0 ? h.back : h.forward;
@@ -1349,9 +1355,15 @@ export class Deck implements InputSink {
   alert(title: string, body = "", topic: VoiceTopic = "reminders", spoken?: string): void {
     // one box each in Settings → NOTIFICATIONS
     const n = this.settings.data.notifications;
+    const text = body ? `${title} — ${body}` : title;
     if (n.sound) this.sound.play("alert");
-    if (n.screen) this.workspace.notify(body ? `${title} — ${body}` : title, "warning");
-    if (n.system && (!n.systemOnlyAway || document.hidden || !document.hasFocus())) void this.platform.notify?.(title, body).catch((e) => console.warn("[notify]", e));
+    // always in the log (a reminder seen by nobody can be found there), and on screen until it's
+    // clicked or esc'd — it went at the next key, a second later, while you typed
+    this.log.add("notify", text, { source: "warning" });
+    if (n.screen) this.workspace.toasts.push(text, "warning", true);
+    // the window is away (minimized: some webviews never say "hidden"): the system's notification
+    const away = this.minimized || document.hidden || !document.hasFocus();
+    if (n.system && (!n.systemOnlyAway || away)) void this.platform.notify?.(title, body).catch((e) => console.warn("[notify]", e));
     if (n.voice) this.speak(topic, spoken ?? spokenAlert(title, body));
   }
 
@@ -1368,6 +1380,9 @@ export class Deck implements InputSink {
   }
 
 
+
+  /** the window is minimized (platform.onMinimized) */
+  private minimized = false;
 
   /** start() went all the way (the vault, the modules, the tabs) */
   private started = false;
@@ -1467,6 +1482,9 @@ export class Deck implements InputSink {
     if (this.quitting) return; // alt+F4 is a key AND the window closing: once
     this.quitting = true;
     try {
+      // "the page alone" is a moment, not a layout: the frames come back before it's saved (it
+      // came back alone, ▣ lit, at the next start)
+      if (this.started && this.workspace.solo) this.workspace.toggleSolo();
       // what the desktop looks like, written now (not 300 ms later: the app would be gone)
       if (this.started) this.workspace.saveSession();
       await this.settings.flush();
@@ -1492,17 +1510,33 @@ export class Deck implements InputSink {
 
   /** Everything THE MENU can search. */
   paletteEntries(): PaletteAction[] {
-    const out: PaletteAction[] = [...this.actions.list()];
+    // one line per thing: an action that only opens a page listed below goes (setup, modules,
+    // UPLINK and the shortcuts were each there twice)
+    const OPENS_A_PAGE = new Set(["setup.run", "modules.open", "link.open", "shortcuts.open"]);
+    const out: PaletteAction[] = this.actions.list().filter((a) => !OPENS_A_PAGE.has(a.id));
     for (const spec of this.apps.list()) {
       if (spec.kind === "note") continue;
       out.push({ id: `app.${spec.kind}`, title: spec.title, group: "open", hint: spec.description, run: () => void this.openApp(spec.kind) });
     }
     for (const t of this.themes.list()) out.push({ id: `theme.${t.name}`, title: t.name, group: "theme", hint: t.description, run: () => void this.setTheme(t.name) });
     // the ready-made layouts (the user's: THE MENU runs them as you, like ibsh)
-    for (const [name, p] of Object.entries(PRESETS)) out.push({ id: `layout.${name}`, title: `layout preset ${name}`, group: "layout", hint: p.doc, run: () => void this.act(`layout preset ${name}`) });
-    out.push({ id: "layout.reset", title: "layout reset", group: "layout", hint: "the classic layout back", run: () => void this.act("layout reset") });
+    for (const [name, p] of Object.entries(PRESETS)) out.push({ id: `layout.${name}`, title: `preset ${name}`, group: "layout", hint: p.doc, run: () => void this.act(`layout preset ${name}`) });
+    out.push({ id: "layout.reset", title: "reset", group: "layout", hint: "the classic layout back", run: () => void this.act("layout reset") });
     for (const e of this.vault.markdown().slice(0, 3000)) out.push({ id: `file.${e.path}`, title: e.path, group: "file", run: () => void this.openFile(e.path) });
-    for (const c of this.commands.all()) out.push({ id: `cmd.${c.name}`, title: c.name, group: "$", hint: c.summary, run: () => void this.shell.runLine(c.name).then(() => this.workspace.focusShell()) });
+    // a command that opens a page already listed ("$ store" beside "open store") isn't listed
+    // again; the developers' commands only with debug on
+    const pages = new Set(this.apps.list().flatMap((a) => [a.kind, a.title.toLowerCase()]));
+    const opensPage = (name: string) => pages.has(name) || CORE_PACKAGES.some((p) => p.commands?.[0] === name && p.apps?.some((k) => this.apps.get(k)));
+    for (const c of this.commands.all()) {
+      if (opensPage(c.name) || (c.summary.startsWith("[dev]") && !this.log.debugOn)) continue;
+      out.push({ id: `cmd.${c.name}`, title: c.name, group: "$", hint: c.summary, run: () => void this.shell.runLine(c.name).then(() => this.workspace.focusShell()) });
+    }
     return out;
   }
+}
+
+/** Files the editor can't show (pictures, sounds, video, archives, documents of other apps). */
+const BINARY = /\.(png|jpe?g|gif|webp|bmp|ico|heic|tiff?|psd|mp3|wav|flac|ogg|m4a|aac|mp4|mov|mkv|avi|webm|pdf|zip|7z|rar|gz|tar|dmg|exe|msi|app|docx?|xlsx?|pptx?|odt|ods|key|pages|numbers|ttf|otf|woff2?|bin|sqlite|db)$/i;
+export function isBinaryName(path: string): boolean {
+  return BINARY.test(path);
 }

@@ -18,7 +18,7 @@ import { NONE } from "../core/color";
 import { SystemTerminal, terminalKeysHint } from "../shell/systerm";
 import type { ShellTab, Workspace } from "./workspace";
 import { chipStyle, drawChip, placeChips, tabbedBox } from "./tabstrip";
-import { moveStatusItem, statusOrder } from "./statusbar";
+import { FRAME_IDS, joinedLeft, moveStatusItem, statusOrder } from "./statusbar";
 import { DECK_MENU_TITLE, editMacro, macroMenu, shellMenu, termTabMenu } from "./menus";
 
 /**
@@ -129,10 +129,25 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
   // the log's column on the right, a thin line between
   let main = si;
   if (logSide) {
-    const lw = Math.min(60, Math.max(36, Math.floor(si.w * 0.3)));
+    // its width: dragged on the line between (`log width <n>`), else 30 % of the shell
+    const want = d.settings.data.shell.logWidth || Math.min(60, Math.max(36, Math.floor(si.w * 0.3)));
+    const lw = Math.max(LOG_MIN_W, Math.min(si.w - 40, want));
     main = { ...si, w: si.w - lw - 1 };
     const lr = { x: si.x + si.w - lw, y: si.y, w: lw, h: si.h };
-    ui.vline(lr.x - 1, si.y, si.h, { fg: c.faint });
+    const line = { x: lr.x - 1, y: si.y, w: 1, h: si.h };
+    const hot = ui.hovered(line);
+    ui.vline(line.x, si.y, si.h, { fg: hot ? c.accent : c.faint });
+    ui.hit(line, {
+      onClick: () => {},
+      onDrag: (m) => void d.settings.set("shell.logWidth", Math.max(LOG_MIN_W, Math.min(si.w - 40, si.x + si.w - m.x))),
+      tip: t("drag: the log's width · double-click: back to its size"),
+      onDouble: () => void d.settings.set("shell.logWidth", 0),
+      cursor: "col-resize",
+    });
+    // fold it away, in sight: the log becomes a tab of the shell again (log side on brings it back)
+    const fold = { x: line.x, y: si.y + Math.floor(si.h / 2), w: 1, h: 1 };
+    ui.text(fold.x, fold.y, "›", { fg: ui.hovered(fold) ? c.panel : c.accent, bg: ui.hovered(fold) ? c.accent : undefined, attrs: BOLD });
+    ui.hit(fold, { cmd: "log side off", tip: t("fold the log into a tab · log side on brings it back") });
     ui.clip(lr, () => ws.logPane.render(ui, lr, true));
   }
   // macro bar above the system terminal (one free row under the tabs)
@@ -170,6 +185,9 @@ export function renderShellPanel(ws: Workspace, ui: UI, r: Rect, body: Rect, fix
     else d.shell.render(ui, main, shellFocused);
   });
 }
+
+/** the log column is never narrower than this */
+const LOG_MIN_W = 24;
 
 /** a shell at least this wide shows the log on its right instead of in a tab */
 export const LOG_SIDE_MIN = 110;
@@ -250,7 +268,7 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
   ui.fill(logoRect, { bg: chipBg });
   ui.gradientText(r.x + INSET, r.y, logo.trim().slice(0, -2), ui.theme.gradient, BOLD, (ui.now / 8000) % 1);
   ui.text(r.x + logoRect.w - GAP, r.y, "▾", { fg: c.accent, bg: chipBg, attrs: BOLD });
-  ui.hit(logoRect, { onClick: () => ws.openDeckMenu(), tip: t("the deck's menu: modules, store, NEXUS, settings, manual, updates, log out · click") });
+  ui.hit(logoRect, { onClick: () => ws.openDeckMenu(), tip: t("the deck's menu: what's new, updates, setup, tour, log out, quit · click · F10") });
 
   const now = new Date();
   const time = now.toLocaleTimeString(dateLocale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -287,7 +305,7 @@ export function renderTopBar(ws: Workspace, ui: UI, r: Rect): void {
     if (room >= 12) ui.textRight(rx - GAP, r.y, strWidth(label) > room ? `${label.slice(0, Math.max(0, room - 1))}…` : label, { fg: c.warning, bg: c.panelAlt, attrs: BOLD });
   }
   const who = `${d.ai.provider.label}`;
-  ui.hit({ x: rx, y: r.y, w: strWidth(ai) + 2, h: 1 }, d.ai.ready ? { cmd: "link", tip: `UPLINK: ${who}${d.ai.busy > 0 ? ` · ${t("thinking…")}` : ""}\nctrl+space · or \`chat\` right here in the shell` } : { cmd: "settings", tip: `UPLINK ${t("off")}: ${d.ai.problem ?? ""}` });
+  ui.hit({ x: rx, y: r.y, w: strWidth(ai) + 2, h: 1 }, d.ai.ready ? { cmd: "link", tip: `UPLINK: ${who}${d.ai.busy > 0 ? ` · ${t("thinking…")}` : ""}\n${t("ctrl+space · or `chat` right here in the shell")}` } : { cmd: "settings", tip: `UPLINK ${t("off")}: ${d.ai.problem ?? ""}` });
 }
 
 /** What the voice says, in a small sci-fi box bottom-right (voice.subtitles). */
@@ -344,7 +362,7 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
   // a frame showing a tab moved there speaks for that page
   const page = ws.focus === "main" ? ws.activeApp : ws.focusedPage;
   // the page's name as its tab writes it ("nexus", not its kind "explorer")
-  const pane = page ? page.title?.() ?? page.kind : ws.focus === "main" ? "deck" : ws.focus === "sidebar" ? "vault" : ws.focus === "panel" ? "panel" : "shell";
+  const pane = page ? page.title?.() ?? page.kind : ws.focus === "main" ? "deck" : ws.focus === "sidebar" ? "tree" : ws.focus === "panel" ? "panel" : "shell";
   const status = page && ws.focus !== "main" ? osKeys(tLoose(page.status?.() ?? ""))
     : ws.focus === "shell" && ws.shellTab === "term" && ws.termAvailable
     ? `${ws.sysTerm?.shellName ?? "terminal"} · ${terminalKeysHint()} · ⇧⇧ menu · F12 tabs`
@@ -373,7 +391,8 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
   // the things touch: each right part carries its own "│ " and spaces
   const bar = new Bar(ui, r.x, r.y, r.x + r.w, 0);
   // the page's own name, as its tab writes it (one name: "setup" on the tab, not "configuration" here)
-  const label = ` ${pane.toLowerCase()} `;
+  // in the deck's language, as the tab writes it ("settings" under a tab "réglages")
+  const label = ` ${tLoose(pane).toLowerCase()} `;
   bar.item(strWidth(label) + 1, (x) => {
     const e = ui.text(x, r.y, label, { fg: c.panel, bg: c.accent, attrs: BOLD });
     ui.text(e, r.y, "", { fg: c.accent, bg: c.statusBg });
@@ -382,26 +401,31 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
   const order = statusOrder(d.settings.data.statusBar);
   ws.statusSlots = [];
   const drag = ws.statusDrag;
+  const groups = d.settings.data.statusBar;
   for (const id of order) {
-    if (id === "frames") {
-      bar.item(FRAMES_W + 2, (rx) => {
-        statusGrip(ws, ui, rx, r.y, id, order);
-        drawFrameSwitches(ws, ui, rx + 2, r.y);
-        ws.statusSlots.push({ id, x: rx, w: FRAMES_W + 2 });
+    // joined to the item on its left: the same group, no │ between them (statusbar.ts)
+    const joined = joinedLeft(groups, id);
+    if (FRAME_IDS.includes(id)) {
+      const sep = joined ? 0 : 2;
+      bar.item(3 + sep, (rx) => {
+        if (sep) statusGrip(ws, ui, rx, r.y, id, order);
+        drawFrameSwitch(ws, ui, rx + sep, r.y, id, order);
+        ws.statusSlots.push({ id, x: rx, w: 3 + sep });
       }, { side: "right", priority: 8 });
       continue;
     }
     for (const p of byId.get(id) ?? []) {
       const w = strWidth(p.text);
-      bar.item(w + 3, (rx) => {
+      const sep = joined ? 0 : 2;
+      bar.item(w + 1 + sep, (rx) => {
         // the whole cell is the button (the separator and the spaces around the text too):
         // a one-character button like ☾ is hard to hit otherwise
-        const cell = { x: rx, y: r.y, w: w + 3, h: 1 };
+        const cell = { x: rx, y: r.y, w: w + 1 + sep, h: 1 };
         const hot = !!p.cmd && ui.hovered(cell) && !drag;
-        ui.text(rx, r.y, "│ ", { fg: drag?.id === id ? c.accent : c.faint, bg: c.statusBg });
-        if (hot) ui.fill({ x: rx + 1, y: r.y, w: w + 2, h: 1 }, { bg: c.highlight });
-        ui.text(rx + 2, r.y, p.text, { fg: drag?.id === id ? c.accent : hot ? c.accent : p.fg, bg: hot ? c.highlight : c.statusBg });
-        ws.statusSlots.push({ id, x: rx, w: w + 3 });
+        if (sep) ui.text(rx, r.y, "│ ", { fg: drag?.id === id ? c.accent : c.faint, bg: c.statusBg });
+        if (hot) ui.fill({ x: rx + Math.max(0, sep - 1), y: r.y, w: w + (sep ? 2 : 1), h: 1 }, { bg: c.highlight });
+        ui.text(rx + sep, r.y, p.text, { fg: drag?.id === id ? c.accent : hot ? c.accent : p.fg, bg: hot ? c.highlight : c.statusBg });
+        ws.statusSlots.push({ id, x: rx, w: w + 1 + sep });
         statusHit(ws, ui, cell, id, order, p.cmd, p.tip);
       }, { side: "right", priority: p.priority });
     }
@@ -415,25 +439,25 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
   }
 }
 
-/** the frames' switches: ` ◧  ▾  ◨  ▣ ` — the tree, the shell, the panel, the page alone */
-const FRAMES_W = 12;
-function drawFrameSwitches(ws: Workspace, ui: UI, x: number, y: number): void {
+/** One of the frames' switches (◧ ▾ ◨ ▣: the tree, the shell, the panel, the page alone), an item of its own. */
+function drawFrameSwitch(ws: Workspace, ui: UI, x: number, y: number, id: string, order: string[]): void {
   const c = ui.c;
   const d = ws.deck;
   const mod = IS_MAC ? "⌘" : "ctrl+";
-  const items: [string, boolean, string, string][] = [
-    ["◧", ws.sidebarVisible, "view sidebar", `${t("the file tree")} · ${mod}B`],
-    [ws.shellVisible ? "▾" : "▴", ws.terminalOn && ws.shellVisible, ws.shellVisible ? "term hide" : "term show", `${t("the shell")} · ctrl+\``],
-    ["◨", !!d.settings.data.panel?.shown, "panel", `${t("the side panel: widgets always in view")} · ${IS_MAC ? "⌘⇧P" : "ctrl+shift+P"}`],
-    ["▣", ws.solo, "frame solo", t("the page alone: the tree, the shell and the panel folded away — again: they come back")],
-  ];
-  items.forEach(([icon, on, cmd, tip], k) => {
-    const rect = { x: x + k * 3, y, w: 3, h: 1 };
-    const hot = ui.hovered(rect) && !ws.statusDrag;
-    ui.text(rect.x, y, ` ${icon} `, { fg: hot ? c.bg : on ? c.accent : c.subtle, bg: hot ? c.accent : on ? mix(c.statusBg, c.accent, 0.18) : c.statusBg, attrs: on ? BOLD : 0 });
-    const state = k === 3 ? "" : `\n${on ? t("shown · click to hide") : t("hidden · click to show")}`;
-    ui.hit(rect, { cmd, tip: `${osKeys(tip)}${state}`, menu: () => statusItemMenu(ws, "frames") });
-  });
+  const items: Record<string, [string, boolean, string, string]> = {
+    tree: ["◧", ws.sidebarVisible, "view sidebar", `${t("the file tree")} · ${mod}B`],
+    shell: [ws.shellVisible ? "▾" : "▴", ws.terminalOn && ws.shellVisible, ws.shellVisible ? "term hide" : "term show", `${t("the shell")} · ctrl+\``],
+    panel: ["◨", !!d.settings.data.panel?.shown, "panel", `${t("the side panel: widgets always in view")} · ${IS_MAC ? "⌘⇧P" : "ctrl+shift+P"}`],
+    solo: ["▣", ws.solo, "frame solo", t("the page alone: the tree, the shell and the panel folded away — again: they come back")],
+  };
+  const [icon, on, cmd, tip] = items[id];
+  const rect = { x, y, w: 3, h: 1 };
+  const hot = ui.hovered(rect) && !ws.statusDrag;
+  const dragged = ws.statusDrag?.id === id;
+  ui.text(rect.x, y, ` ${icon} `, { fg: hot ? c.bg : on || dragged ? c.accent : c.subtle, bg: hot ? c.accent : on ? mix(c.statusBg, c.accent, 0.18) : c.statusBg, attrs: on ? BOLD : 0 });
+  const state = id === "solo" ? "" : `\n${on ? t("shown · click to hide") : t("hidden · click to show")}`;
+  // a click runs it, a drag sideways moves it (each switch moves on its own)
+  statusHit(ws, ui, rect, id, order, cmd, `${tip}${state}`);
 }
 
 /** the "│ " before an item, its grip: drag it sideways to move the item */
@@ -491,6 +515,10 @@ function statusItemMenu(ws: Workspace, id: string): MenuEntry[] {
   return [
     { label: t("Move left"), cmd: `statusbar move ${id} left`, disabled: i <= 0 },
     { label: t("Move right"), cmd: `statusbar move ${id} right`, disabled: i < 0 || i >= order.length - 1 },
+    // groups, like tabs: with the one on its left (no │ between them), or on its own
+    joinedLeft(d.settings.data.statusBar, id)
+      ? { label: t("On its own"), cmd: `statusbar alone ${id}`, tip: t("its own group: a │ before it") }
+      : { label: t("Join the one on its left"), cmd: `statusbar join ${id}`, disabled: i <= 0, tip: t("one group with it: no │ between them") },
     { label: t("Hide"), cmd: `statusbar hide ${id}`, tip: t("statusbar show brings it back") },
     ...(hidden.length ? [{ label: t("Show again"), sub: hidden.map((h) => ({ label: h, cmd: `statusbar show ${h}` })) }] : []),
     "-",

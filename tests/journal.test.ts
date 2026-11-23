@@ -30,3 +30,11 @@ describe("one journal command", () => {
     expect(journalArgs(["ls"], "", now)).toEqual({ kind: "ls", n: 15 });
   });
 });
+
+describe("journal open (every <cmd> open is the page)", () => {
+  it("opens, never logs the word", async () => {
+    const { journalArgs } = await import("../src/vault/journal");
+    expect(journalArgs(["open"]).kind).toBe("open");
+    expect(journalArgs(["open", "yesterday"]).kind).toBe("open");
+  });
+});

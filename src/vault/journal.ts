@@ -106,6 +106,8 @@ export function journalArgs(args: string[], stdin = "", now = new Date()): { kin
     return { kind: "ls", n: Number(flags.n ?? 15) || 15 };
   }
   if (!args.length) return line(stdin) ? { kind: "log", text: line(stdin) } : { kind: "open", day: now };
+  // `journal open [day]`: the page, like every `<cmd> open` (it logged the word "open")
+  if (args[0] === "open" && args.length <= 2) return { kind: "open", day: (args[1] && parseDay(args[1], now)) || now };
   const day = args.length === 1 && !/\s/.test(args[0].trim()) ? parseDay(args[0], now) : null;
   if (day) return { kind: "open", day };
   const text = line(args.join(" "));

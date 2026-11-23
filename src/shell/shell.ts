@@ -1,4 +1,4 @@
-import { dateLocale } from "../core/i18n";
+import { dateLocale, t } from "../core/i18n";
 import { Glide } from "../ui/glide";
 import { mix } from "../core/color";
 import { BOLD, DIM, type Rect } from "../core/grid";
@@ -148,8 +148,8 @@ export class ShellApp implements App {
   }
 
   status(): string {
-    if (this.reading) return this.reading.opts.choices?.length ? `1-9 or click to answer · esc or ${CANCEL_KEY} stop` : `type your answer · enter next · esc or ${CANCEL_KEY} stop`;
-    return this.exec.running ? `running… ${CANCEL_KEY} to interrupt` : `${display(this.exec.cwd)} · tab complete · ↑ history`;
+    if (this.reading) return t(this.reading.opts.choices?.length ? "1-9 or click to answer · esc or {key} stop" : "type your answer · enter next · esc or {key} stop", { key: CANCEL_KEY });
+    return this.exec.running ? t("running… {key} to interrupt", { key: CANCEL_KEY }) : `${display(this.exec.cwd)} · ${t("tab complete · ↑ history")}`;
   }
 
   /** ^C: stop the question asked and the command asking it, or the command running, or drop the line typed. */
@@ -400,7 +400,6 @@ export class ShellApp implements App {
         return true;
       case "ctrl+w":
       case "ctrl+backspace":
-      case "shift+backspace":
       case "alt+backspace": {
         const before = this.input.slice(0, this.cursor).replace(/\S+\s*$/, "");
         this.input = before + this.input.slice(this.cursor);

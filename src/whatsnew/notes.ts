@@ -32,6 +32,49 @@ export interface VersionNotes {
 
 export const NOTES: VersionNotes[] = [
   {
+    version: "0.7.1",
+    en: {
+      added: [
+        "Settings, NEXUS, STORE, MODULES and the trash are real tabs",
+        "Every command answers in French, and the F1 manual too",
+        "save, copy path, tree reveal, tab close others… every click has a command",
+        "The status bar in groups; ◧ ▾ ◨ ▣ each move on their own",
+        "The log folds away (›) and gets wider with a drag",
+        "A widget's pop-up opens its settings; NEXUS draws each file's kind",
+        "Shift + wheel reads a note line by line",
+      ],
+      fixed: [
+        "A note emptied by mistake is never saved empty in a second",
+        "Ten enters in a row no longer race through the setup",
+        "The guide's note new \"ideas\" makes notes/ideas.md",
+        "exit hides the shell (quit quits); esc opens ◆ only on HOME",
+        "The login page in your language, its links reachable by keyboard",
+        "A reminder stays on screen until you've seen it",
+        "⌘Z never undoes something out of sight",
+      ],
+    },
+    fr: {
+      added: [
+        "Réglages, NEXUS, STORE, MODULES et la corbeille sont de vrais onglets",
+        "Chaque commande répond en français, et le manuel F1 aussi",
+        "save, copy path, tree reveal, tab close others… chaque clic a sa commande",
+        "La barre du bas en groupes ; ◧ ▾ ◨ ▣ bougent chacun",
+        "Le log se replie (›) et s'élargit d'un glisser",
+        "La pop-up d'un widget ouvre ses réglages ; NEXUS dessine chaque fichier",
+        "Maj + molette lit une note ligne par ligne",
+      ],
+      fixed: [
+        "Une note vidée par erreur n'est plus enregistrée vide en une seconde",
+        "Dix « entrée » d'affilée ne traversent plus le setup",
+        "Le note new \"ideas\" du guide crée bien notes/ideas.md",
+        "exit cache le shell (quit quitte) ; échap n'ouvre ◆ que sur HOME",
+        "La page de connexion dans ta langue, ses liens au clavier",
+        "Un rappel reste à l'écran jusqu'à ce que tu l'aies vu",
+        "⌘Z n'annule jamais ce qu'on ne voit pas",
+      ],
+    },
+  },
+  {
     version: "0.7.0",
     date: "2026-11-23",
     en: {

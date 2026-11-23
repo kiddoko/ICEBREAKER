@@ -1,7 +1,6 @@
 import { fileIcon } from "../ui/fileicon";
 import { q, type MenuEntry } from "../ui/ui";
 import { strWidth } from "../core/unicode";
-import { copyToClipboard } from "../core/clipboard";
 import { t } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
 import { mix } from "../core/color";
@@ -173,7 +172,7 @@ export class Sidebar {
       return;
     }
     const ws = this.deck.workspace;
-    const cur = ws.page ? undefined : ws.activeApp;
+    const cur = ws.activeApp;
     const path = row.entry.path;
     const already = ws.tabs.some((a) => a.kind === "note" && a.key === `note:${path}`);
     if (newTab || already || !cur || cur.kind !== "note" || cur.dirty?.()) return void this.deck.act(`open ${q(path)}`);
@@ -281,8 +280,8 @@ export class Sidebar {
       { label: t("Add to THE MENU…"), tip: t("give it a key on THE MENU (⌘K)"), run: () => addToMenu(d, e.isDir ? e.name : e.name.replace(/\.md$/i, ""), e.isDir ? `explore ${q(p)}` : `open ${q(p)}`) },
       { label: t("Colour"), tip: t("a colour tag, like Ableton"), sub: () => this.colourMenu(p) },
       { label: t("Icon"), sub: () => this.iconMenu(p) },
-      { label: t("Copy path"), run: () => (copyToClipboard(p), d.notify(t("path copied"))) },
-      ...(md ? [{ label: t("Copy link"), tip: t("a [[link]] to paste in a note"), run: () => (copyToClipboard(`[[${e.name.replace(/\.md$/, "")}]]`), d.notify(t("link copied"))) }] : []),
+      { label: t("Copy path"), cmd: `copy path ${abs}` },
+      ...(md ? [{ label: t("Copy link"), tip: t("a [[link]] to paste in a note"), cmd: `copy link ${abs}` }] : []),
       "-",
       { label: t("Move to the trash"), tip: t("⌘Z or the trash (the tree's last line) brings it back"), cmd: `rm ${e.isDir ? "-r " : ""}${abs}`, danger: true, hint: "del" },
     ];
@@ -492,7 +491,7 @@ export class Sidebar {
           tip: `${favCommand(this.deck, f)}\nunpin ${f.target}`,
           menu: () => [
             { label: t("Open"), cmd: favCommand(this.deck, f) },
-            ...(f.kind !== "module" ? [{ label: t("Reveal in tree"), run: () => this.reveal(f.target) }] : []),
+            ...(f.kind !== "module" ? [{ label: t("Reveal in tree"), cmd: `tree reveal ${q("/" + f.target.replace(/^\//, ""))}` }] : []),
             { label: t("Unpin"), cmd: `unpin ${q(f.target)}` },
           ],
         });

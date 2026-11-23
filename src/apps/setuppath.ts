@@ -16,6 +16,73 @@ export function vaultPathProblem(path: string): string | null {
   return "a full path, from the top: /home/you/notes, ~/notes or C:\\notes";
 }
 
+/** What the folder typed for the vault is, on this disk. */
+export type FolderCheck =
+  /** fine: new, empty, notes only, or already a vault */
+  | { kind: "ok" }
+  /** not even its disk / top folder exists (Q:\ on a PC without a Q drive) */
+  | { kind: "missing"; root: string }
+  /** a folder already full of other things (Documents, the home folder, a disk): `count` things in it */
+  | { kind: "full"; count: number };
+
+type Listing = (dir: string) => Promise<{ name: string; isDir: boolean }[]>;
+
+/** the folder that holds `p` ("" at the top of a disk) */
+function parentOf(p: string): string {
+  const cut = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
+  if (cut < 0) return "";
+  const up = p.slice(0, cut);
+  // C:\x → C:\ ; /x → /
+  if (/^[a-zA-Z]:$/.test(up)) return up + p[cut];
+  return up || p[cut];
+}
+
+/**
+ * Look at the folder typed for the vault before using it (setup, `vault mount`): a drive that
+ * isn't there was accepted without a word, and so was all of Documents (encrypting it then would
+ * have wrapped every file in it). `home` replaces a leading ~.
+ */
+export async function checkVaultFolder(typed: string, home: string, list: Listing): Promise<FolderCheck> {
+  let p = typed.trim().replace(/[\\/]+$/, "") || typed.trim();
+  if (/^[a-zA-Z]:$/.test(p)) p += "\\"; // the top of a disk keeps its separator (C: alone is "where you are on C")
+  if (p.startsWith("~") && home) p = home.replace(/[\\/]+$/, "") + p.slice(1);
+  const tryList = async (d: string) => {
+    try {
+      return await list(d);
+    } catch {
+      return null;
+    }
+  };
+  const here = await tryList(p);
+  if (!here) {
+    // a new folder: its nearest existing parent must exist (else the disk itself is missing)
+    let up = parentOf(p);
+    while (up) {
+      if (await tryList(up)) return { kind: "ok" };
+      const next = parentOf(up);
+      if (next === up) break;
+      up = next;
+    }
+    const root = /^[a-zA-Z]:/.test(p) ? p.slice(0, 3) : p.startsWith("\\\\") ? p.split(/[\\]/).slice(0, 4).join("\\") : "/";
+    return { kind: "missing", root };
+  }
+  if (here.some((e) => e.name === ".icebreaker" || e.name === ".icebreaker-vault")) return { kind: "ok" };
+  const shown = here.filter((e) => !e.name.startsWith("."));
+  const norm = (x: string) => x.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+  const h = norm(home);
+  const special = norm(p) === h || /^[a-z]:\/?$/.test(norm(p)) || norm(p) === "" || (!!h && ["documents", "desktop", "downloads", "bureau", "téléchargements"].some((n) => norm(p) === `${h}/${n}`));
+  const others = shown.filter((e) => e.isDir || !/\.md$/i.test(e.name));
+  if (special || others.length) return shown.length ? { kind: "full", count: shown.length } : { kind: "ok" };
+  return { kind: "ok" };
+}
+
+/** Where the vault goes when a full folder gets its own "Icebreaker" folder. */
+export function icebreakerInside(typed: string): string {
+  const t = typed.trim().replace(/[\\/]+$/, "");
+  const sep = t.includes("\\") && !t.includes("/") ? "\\" : "/";
+  return `${t}${sep}Icebreaker`;
+}
+
 export interface Completed {
   /** the text with the folder name completed (as far as it's sure) */
   text: string;

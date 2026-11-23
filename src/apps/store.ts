@@ -457,15 +457,25 @@ export const storeCommand: Command = {
         // nothing named: what could be updated · a name or --all: do it
         ctx.out(fmt.dim("reading where each module came from…\n"));
         const { updates, errors } = await checkModuleUpdates(d);
+        // (asked by a click — --window: the answer shows where you clicked too, not only in the LOG)
+        const say = (text: string, kind: "info" | "success" | "error") => void (window && d.notify(text, kind));
         for (const e of errors) ctx.err(`  ${e}\n`);
         const todo = all ? updates : arg ? updates.filter((u) => u.id === arg) : [];
+        // the STORE page offers what its index says is newer: the same comparison here (the page
+        // said "update 0.1.0 → 0.12.1" and this answered "up to date": it read another source)
+        if (arg && !todo.length) {
+          if (!cache.entries.length) await refresh(d).catch(() => {});
+          const e = cache.entries.find((x) => x.id === arg && x.kind === "plugin");
+          const p = installedPlugin(d, arg);
+          if (e?.version && p && e.repo && e.repo !== "built-in" && compareVersions(e.version, p.manifest.version) > 0) todo.push({ id: arg, name: e.name, have: p.manifest.version, latest: e.version, source: e.repo });
+          const failed = errors.find((x) => x.startsWith(`${arg}:`));
+          if (!todo.length && failed) return say(failed, "error"), ctx.err(`${failed}\n`), 1;
+        }
         if (!arg && !all) {
           if (!updates.length) return ctx.out(`${fmt.green("✓")} every module is up to date\n`), 0;
           for (const u of updates) ctx.out(`${fmt.magenta(u.id.padEnd(18))} ${u.have} → ${fmt.green(u.latest)}\n`);
           return ctx.out(fmt.dim(`store update <id> · store update --all\n`)), 0;
         }
-        // (asked by a click — --window: the answer shows where you clicked too, not only in the LOG)
-        const say = (text: string, kind: "info" | "success" | "error") => void (window && d.notify(text, kind));
         if (arg && !todo.length) {
           const p = installedPlugin(d, arg);
           const byHand = p?.source === "vault" && !(p.manifest as { source?: string }).source;

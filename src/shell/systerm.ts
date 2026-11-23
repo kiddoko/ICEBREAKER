@@ -5,6 +5,7 @@ import { IS_MAC, type Action, type KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import type { UI } from "../ui/ui";
 import { copyToClipboard } from "../core/clipboard";
+import { t as tr } from "../core/i18n";
 import { selectionHit, TextSelection, type SelectionSource, type TextPos } from "../ui/textselect";
 
 const EXIT_MARK = "\x1b]ib-exit\x07";
@@ -58,7 +59,29 @@ export function freeNumber(used: ReadonlySet<number>): number {
 export class SystemTerminal {
   readonly term: Terminal;
   readonly id = `pty${Math.random().toString(36).slice(2, 8)}`;
-  shellName = "terminal";
+  /**
+   * The shell this terminal runs, as the native side named it when it started. Until it
+   * answers (Windows' ConPTY can take a moment, and a restart asks again), the last shell any
+   * terminal started — so the tab doesn't flip "terminal" ↔ "powershell".
+   */
+  shellName = SystemTerminal.lastShell();
+  private static known = "";
+  private static lastShell(): string {
+    if (SystemTerminal.known) return SystemTerminal.known;
+    try {
+      return localStorage.getItem("icebreaker.lastShell") || "terminal";
+    } catch {
+      return "terminal";
+    }
+  }
+  private static remember(name: string): void {
+    SystemTerminal.known = name;
+    try {
+      localStorage.setItem("icebreaker.lastShell", name);
+    } catch {
+      /* the name is a nicety */
+    }
+  }
   /**
    * The tab's name: the shell it runs — zsh, bash, powershell — then "zsh 2"… the way a
    * terminal app names its tabs; yours once renamed (term rename, right-click).
@@ -112,7 +135,7 @@ export class SystemTerminal {
   constructor(private readonly deck: Deck) {
     this.number = freeNumber(SystemTerminal.used);
     SystemTerminal.used.add(this.number);
-    this.term = new Terminal({ cols: 80, rows: 24, scrollback: 5000, allowProposedApi: true });
+    this.term = new Terminal({ cols: 80, rows: 24, scrollback: 10000, allowProposedApi: true });
     // The terminal's own answers (cursor position, device attributes…) go back to
     // the shell. Windows' ConPTY asks where the cursor is at start-up and shows
     // nothing until it hears back: without this, PowerShell stayed blank.
@@ -152,7 +175,11 @@ export class SystemTerminal {
         this.term.write(data, () => this.deck.requestFrame());
       }, this.moduleCommands(), this.deck.settings.data.shell.prompt ?? "icebreaker")
       .then((name) => {
-        this.shellName = name;
+        // an empty answer keeps the name it had (it went back to "terminal")
+        if (name?.trim()) {
+          this.shellName = name.trim();
+          SystemTerminal.remember(this.shellName);
+        }
         this.ready();
       })
       .catch((e) => {
@@ -215,8 +242,16 @@ export class SystemTerminal {
   onText(t: string): boolean {
     if (this.exited) return true;
     if (t.length > 1 && (t.includes("\n") || t.length > 32) && this.term.modes.bracketedPasteMode) this.write(`\x1b[200~${t.replace(/\n/g, "\r")}\x1b[201~`);
+    // several lines pasted where the shell would run each at once (no bracketed paste): ask, like
+    // Windows Terminal — the first lines ran before you saw what you pasted
+    else if (t.length > 1 && /\n./.test(t.replace(/\n+$/, "") + "")) void this.pasteLines(t);
     else this.write(t.replace(/\n/g, "\r"));
     return true;
+  }
+
+  private async pasteLines(t: string): Promise<void> {
+    const n = t.replace(/\n+$/, "").split("\n").length;
+    if (await this.deck.confirm(tr("paste {n} lines?", { n }), tr("each line runs as you paste it"))) this.write(t.replace(/\n/g, "\r"));
   }
 
   /** Which keys belong to the terminal (the rest stay app shortcuts). */
@@ -275,6 +310,10 @@ export class SystemTerminal {
       if (k.key === "enter") this.restart();
       return true;
     }
+    // shift+PgUp / PgDn: through what scrolled away, like every terminal (any key went back down)
+    if (k.shift && (k.key === "pageup" || k.key === "pagedown")) return this.term.scrollPages(k.key === "pageup" ? -1 : 1), true;
+    // ctrl+← → (Windows, Linux): a word at a time, as the shell reads it (it moved one character)
+    if (k.rawCtrl && !k.alt && (k.key === "left" || k.key === "right")) return this.write(k.key === "left" ? "\x1b[1;5D" : "\x1b[1;5C"), true;
     const app = this.term.modes.applicationCursorKeysMode;
     const cur = (c: string) => (app ? `\x1bO${c}` : `\x1b[${c}`);
     const map: Record<string, string> = {

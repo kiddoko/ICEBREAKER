@@ -15,6 +15,7 @@ import { q, type UI } from "../ui/ui";
 import { basename, dirname } from "../vault/paths";
 import { ago } from "../core/time";
 import type { App, AppSpec } from "./types";
+import { fileIcon } from "../ui/fileicon";
 
 /**
  * NEXUS — the vault as a place. The current folder's files ride a carousel in
@@ -33,7 +34,25 @@ export function kindOf(e: { isDir: boolean; name: string }): { icon: string; wor
   if (e.isDir) return { icon: "▸", word: "folder", color: (c) => c.accentAlt };
   if (/\.md$/i.test(e.name)) return { icon: "≡", word: "note", color: (c) => c.accent };
   const ext = /\.([a-z0-9]{1,5})$/i.exec(e.name)?.[1]?.toLowerCase() ?? "file";
-  return { icon: "◇", word: ext, color: (c) => c.warning };
+  return { icon: fileIcon(e.name), word: ext, color: (c) => c.warning };
+}
+
+/**
+ * A file's little drawing on its NEXUS sheet, by what it holds (ASCII, two or three lines): a
+ * note's lines of text, a picture's mountain and sun, a sound's wave, code's brackets…
+ */
+export function fileArt(name: string): string[] {
+  const n = name.toLowerCase();
+  if (/\.md$/.test(n)) return ["━━━ ━━ ━━━━", "━━ ━━━━ ━", "━━━━ ━━━"];
+  if (/\.(png|jpe?g|gif|webp|heic|bmp|svg)$/.test(n)) return ["   ◠  ▲  ", "  ▲ ▲▲▲▲ ", " ▲▲▲▲▲▲▲▲"];
+  if (/\.(mp3|wav|flac|m4a|ogg|aiff?|bmed|mid)$/.test(n)) return ["♪   ♫", "▁▃▅▇▅▃▁▃▅", ""];
+  if (/\.(mp4|mov|mkv|webm)$/.test(n)) return ["┌─────┐", "│  ▶  │", "└─────┘"];
+  if (/\.(js|mjs|cjs|ts|tsx|jsx|py|rs|go|c|cpp|h|java|kt|swift|rb|lua|sh|zsh|bash|ps1|ibsh|html?|css)$/.test(n)) return ["{ </> }", "  ;;  "];
+  if (/\.(csv|tsv|xlsx?|json|toml|ya?ml|ics)$/.test(n)) return ["┼─┼─┼─┼", "┼─┼─┼─┼"];
+  if (/\.pdf$/.test(n)) return ["▤ PDF", "━━━━━"];
+  if (/\.(zip|tar|gz|7z|rar)$/.test(n)) return ["▦▦▦", "▦▦▦"];
+  if (/\.(txt|log)$/.test(n)) return ["─── ── ───", "── ─── ─"];
+  return ["◇"];
 }
 
 /** below this many lines the 3D scene has no room: the folder is a list */
@@ -99,14 +118,14 @@ export class ExplorerApp implements App {
     return this.dir ? `${this.dir}/${name}` : name;
   }
   private async newNote(): Promise<void> {
-    const name = await this.deck.prompt("New note here", { placeholder: "night city ideas" });
+    const name = await this.deck.prompt(tr("New note here"), { placeholder: "night city ideas" });
     if (!name?.trim()) return;
     const path = this.here(name.trim().endsWith(".md") ? name.trim() : `${name.trim()}.md`);
     await this.deck.act(`touch ${q(path)}`);
     await this.deck.act(`open ${q(path)}`);
   }
   private async newFolder(): Promise<void> {
-    const name = await this.deck.prompt("New folder here", { placeholder: "projects" });
+    const name = await this.deck.prompt(tr("New folder here"), { placeholder: "projects" });
     if (!name?.trim()) return;
     await this.deck.act(`mkdir ${q(this.here(name.trim()))}`);
     this.go(this.dir, this.here(name.trim()));
@@ -145,16 +164,16 @@ export class ExplorerApp implements App {
   private async actionMenu(): Promise<void> {
     const e = this.current;
     const actions: [string, string, () => unknown][] = [
-      ["New note here", "+", () => this.newNote()],
-      ["New folder here", "", () => this.newFolder()],
-      ["Search the vault", "/", () => this.search()],
+      [tr("New note here"), "+", () => this.newNote()],
+      [tr("New folder here"), "", () => this.newFolder()],
+      [tr("Search the vault"), "/", () => this.search()],
       [`Sort by… (now ${this.sortBy})`, "", () => this.cycleSort()],
       ...(e
         ? ([
             [`Open ${e.name}`, "enter", () => this.open(e)],
             [`Rename ${e.name}`, "F2", () => this.rename()],
             [`Move ${e.name} to the trash`, "delete", () => this.trash()],
-            ["Copy its path", "", () => navigator.clipboard?.writeText(e.path).then(() => this.deck.notify(`copied ${e.path}`))],
+            [tr("Copy its path"), "", () => navigator.clipboard?.writeText(e.path).then(() => this.deck.notify(`copied ${e.path}`))],
           ] as [string, string, () => unknown][])
         : []),
     ];
@@ -260,16 +279,16 @@ export class ExplorerApp implements App {
     const counts: Partial<Record<TagColor, number>> = {};
     for (const tc of Object.values(this.deck.marks.tags)) counts[tc] = (counts[tc] ?? 0) + 1;
     pageBar(ui, r, {
-      crumbs: [{ label: "◈ vault", go: () => this.go(""), tip: "back to the root" }, ...parts.map((p, i) => ({ label: p, go: () => this.go(parts.slice(0, i + 1).join("/")) }))],
-      info: `${items.length} node${items.length === 1 ? "" : "s"}`,
+      crumbs: [{ label: "◈ vault", go: () => this.go(""), tip: tr("back to the root") }, ...parts.map((p, i) => ({ label: p, go: () => this.go(parts.slice(0, i + 1).join("/")) }))],
+      info: tr(items.length === 1 ? "{n} node" : "{n} nodes", { n: items.length }),
       tools: [
-        { label: "+ note", run: () => this.newNote(), tip: "new note here · +" },
-        { label: "+ folder", run: () => this.newFolder(), tip: "new folder here" },
-        { label: "⌕", run: () => this.search(), tip: "search the vault · /" },
-        { label: "✎", run: () => this.rename(), tip: "rename · F2" },
-        { label: "✕", run: () => this.trash(), tip: "to the trash · delete" },
-        { label: `⇅ ${this.sortBy}`, run: () => this.cycleSort(), tip: "sort: name · modified · size" },
-        { label: ":", run: () => this.actionMenu(), tip: "every action · : · pad menu" },
+        { label: tr("+ note"), run: () => this.newNote(), tip: tr("new note here · +") },
+        { label: tr("+ folder"), run: () => this.newFolder(), tip: tr("new folder here") },
+        { label: "⌕", run: () => this.search(), tip: tr("search the vault · /") },
+        { label: "✎", run: () => this.rename(), tip: tr("rename · F2") },
+        { label: "✕", run: () => this.trash(), tip: tr("to the trash · delete") },
+        { label: `⇅ ${tr(this.sortBy)}`, run: () => this.cycleSort(), tip: tr("sort: name · modified · size") },
+        { label: ":", run: () => this.actionMenu(), tip: tr("every action · : · pad menu") },
       ],
       filter: this.filter,
       counts,
@@ -352,19 +371,23 @@ export class ExplorerApp implements App {
     const edge = tag ? (front ? tagRGB(tag) : fade(mix(tagRGB(tag), c.border, 0.35))) : front ? (focused ? c.accent : c.accentAlt) : fade(c.border);
     if (x + w < r.x || x >= r.x + r.w) return;
 
-    // the cube: a back edge offset up-right, then the front face over it
+    // a folder is a box (a cube: a back edge offset up-right, then the front face over it); a
+    // file is a sheet with a folded corner and a little drawing of what it holds
     const d = big ? 2 : 1;
-    const back = { x: x + d * 2, y: baseY - d, w, h };
-    ui.box(back, { border: "single", bg: mix(c.bg, c.panel, near * 0.6), fill: true });
-    ui.tint(back, fade(mix(edge, c.bg, 0.4)));
-    for (let k = 1; k <= d; k++) {
-      ui.text(x + k * 2 - 1, baseY - k, "╱", { fg: edge });
-      ui.text(x + w + k * 2 - 1, baseY - k, "╱", { fg: edge });
-      ui.text(x + w + k * 2 - 1, baseY + h - 1 - k, "╱", { fg: edge });
+    if (v.e.isDir) {
+      const back = { x: x + d * 2, y: baseY - d, w, h };
+      ui.box(back, { border: "single", bg: mix(c.bg, c.panel, near * 0.6), fill: true });
+      ui.tint(back, fade(mix(edge, c.bg, 0.4)));
+      for (let k = 1; k <= d; k++) {
+        ui.text(x + k * 2 - 1, baseY - k, "╱", { fg: edge });
+        ui.text(x + w + k * 2 - 1, baseY - k, "╱", { fg: edge });
+        ui.text(x + w + k * 2 - 1, baseY + h - 1 - k, "╱", { fg: edge });
+      }
     }
     const face = { x, y: baseY, w, h };
     const inner = ui.box(face, { border: front ? "heavy" : "single", bg: front ? mix(c.panel, c.accent, 0.08) : mix(c.bg, c.panel, near), focused: front });
     ui.tint(face, edge);
+    if (!v.e.isDir) ui.text(x + w - 1, baseY, "╲", { fg: edge, bg: c.bg });
 
     // what's written on it: what it is first (a folder, a note, a file and its kind), then its name
     const e = v.e;
@@ -382,13 +405,19 @@ export class ExplorerApp implements App {
       const ix = ui.text(inner.x + INSET, inner.y + (h >= 5 ? 1 : 0), `${icon} `, { fg: fade(kind.color(c)), attrs: BOLD });
       ui.text(ix, inner.y + (h >= 5 ? 1 : 0), label, { fg: front ? c.fg : fade(c.muted), attrs: front || e.isDir ? BOLD : 0 }, inner.w - (ix - inner.x) - 1);
     }
-    if (h >= 5) {
+    // a file's drawing (its kind), under its name, when the sheet is tall enough
+    if (!e.isDir && h >= 5) {
+      const art = fileArt(e.name);
+      const rows = Math.min(art.length, inner.h - (h >= 7 ? 3 : 2));
+      for (let i = 0; i < rows; i++) ui.textCenter({ x: inner.x, y: 0, w: inner.w, h: 1 }, inner.y + 2 + i, art[i], { fg: fade(kind.color(c)) });
+      if (h >= 7) ui.text(inner.x + 1, inner.y + inner.h - 1, tr("enter ▸ open"), { fg: c.accent }, inner.w - 2);
+    } else if (h >= 5) {
       const kids = e.isDir ? this.deck.vault.entries.filter((x) => dirname(x.path) === e.path).length : 0;
       const meta = e.isDir ? tr(kids === 1 ? "{n} thing inside" : "{n} things inside", { n: kids }) : `${(e.size / 1024).toFixed(e.size < 10240 ? 1 : 0)} kB`;
       ui.text(inner.x + 1, inner.y + 2, meta, { fg: fade(c.subtle) }, inner.w - 2);
       if (h >= 7) {
         ui.text(inner.x + 1, inner.y + 3, `mod ${ago(e.modified)}`, { fg: fade(c.subtle) }, inner.w - 2);
-        ui.text(inner.x + 1, inner.y + 4, e.isDir ? "enter ▸ dive in" : "enter ▸ open", { fg: c.accent }, inner.w - 2);
+        ui.text(inner.x + 1, inner.y + 4, tr(e.isDir ? "enter ▸ dive in" : "enter ▸ open"), { fg: c.accent }, inner.w - 2);
       }
     }
     // shadow on the floor
@@ -469,11 +498,11 @@ export class ExplorerApp implements App {
   private drawData(ui: UI, r: Rect, e: VaultEntry | undefined): void {
     const c = ui.c;
     if (!e) return;
-    const inner = ui.box(r, { title: e.isDir ? "SECTOR" : "DATA", info: e.path, bg: c.panel });
+    const inner = ui.box(r, { title: tr(e.isDir ? "SECTOR" : "DATA"), info: e.path, bg: c.panel });
     if (e.isDir) {
       const kids = this.deck.vault.entries.filter((x) => dirname(x.path) === e.path);
       const line = kids.slice(0, 40).map((k) => (k.isDir ? `▣ ${k.name}` : `≡ ${basename(k.name, ".md")}`)).join("   ");
-      ui.text(inner.x + 1, inner.y, line || "empty", { fg: c.muted }, inner.w - 2);
+      ui.text(inner.x + 1, inner.y, line || tr("empty"), { fg: c.muted }, inner.w - 2);
       return;
     }
     let text = this.preview.get(e.path);

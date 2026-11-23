@@ -1,4 +1,5 @@
 import { t, dateLocale } from "../../core/i18n";
+import { checkVaultFolder, icebreakerInside } from "../../apps/setuppath";
 import { describePerm, sayPerms } from "../../plugins/permissions";
 import { contextCommand } from "../../ai/context";
 import { BOX_OFF, BOX_ON } from "../../ui/controls";
@@ -91,6 +92,15 @@ Custom template: create .icebreaker/templates/journal.md ({{date}} {{title}} {{w
   },
 };
 
+/**
+ * The title `note` was given. `note new "ideas"` is read as `note "ideas"` (people type the
+ * sub-command they expect; it made notes/new-ideas.md). `note new` alone → null: an untitled note.
+ */
+export function noteTitle(args: string[]): string | null {
+  if (args[0] === "new") return args.length === 1 ? null : args.slice(1).join(" ").trim();
+  return args.join(" ").trim();
+}
+
 const note: Command = {
   name: "note",
   examples: [
@@ -98,9 +108,11 @@ const note: Command = {
     ["echo \"- pain\" | note courses", "a note from piped text"],
   ],
   summary: "create a note from a title and open it",
-  usage: "note <title…>   (creates notes/<slug>.md)",
+  usage: "note <title…>   (creates notes/<slug>.md; note new [title] works too)",
   async run(ctx) {
-    const title = ctx.args.join(" ").trim();
+    const title = noteTitle(ctx.args);
+    // `note new` alone: an untitled note, like ⌘N
+    if (title === null) return void (await ctx.deck.newNote());
     if (!title) {
       ctx.err("usage: note <title>\n");
       return 1;
@@ -358,12 +370,14 @@ const fx: Command = {
     ["fx party", "everything at the max"],
   ],
   summary: "toggle visual effects (bloom, scanlines, ambient…)",
-  usage: "fx                      show current state\nfx <effect> on|off      bloom scanlines vignette ambient flicker glitch\nfx none | light | medium | heavy | party   how much CRT, from nothing to everything (light: the default)\nfx panel                open the FX panel (also: ✦ fx in the status bar)\nfx <effect> <0-200>     strength, 0 = off: bloom scanlines vignette chroma (RGB split) glow\nfx sharpness <0-100>    100 = razor sharp, lower = a CRT's soft focus\nfx curve <0-100>        the curved glass of a CRT (0 = flat, the default)\nfx flicker <10-300>     CRT flicker on, at this speed (100 = the default pace)\nfx fps                  measure the frames a second the screen really gives",
+  usage: "fx                      show current state\nfx <effect> on|off      bloom scanlines vignette ambient flicker glitch\nfx none (off) | light | medium | heavy | party   how much CRT, from nothing to everything (light: the default)\nfx panel                open the FX panel (also: ✦ fx in the status bar)\nfx <effect> <0-200>     strength, 0 = off: bloom scanlines vignette chroma (RGB split) glow\nfx sharpness <0-100>    100 = razor sharp, lower = a CRT's soft focus\nfx curve <0-100>        the curved glass of a CRT (0 = flat, the default)\nfx flicker <10-300>     CRT flicker on, at this speed (100 = the default pace)\nfx fps                  measure the frames a second the screen really gives",
   man: "bloom: a blurred copy of the screen laid over it — bright things bleed a soft halo of light onto what's around them; the number sets how far and how strong.\nchroma (RGB split): red and blue fringes on the text, the frames and the glyphs (never on the backgrounds).\ncurve: the picture bulges like the curved glass of a tube — lines bend towards the edges, rounded corners, a darker rim, a soft reflection (the mouse follows the bend).\nflicker: a faint, irregular brightness flicker and a slow rolling band; fx flicker 200 makes it twice as fast.",
   async run(ctx) {
     const d = ctx.deck;
     const effects = ["bloom", "scanlines", "vignette", "ambient", "flicker", "glitch"] as const;
-    const [what, state] = ctx.args;
+    const [said, state] = ctx.args;
+    // `fx off` = `fx none` (people type off, the preset is called none)
+    const what = said === "off" && state === undefined ? "none" : said;
     if (!what) {
       for (const e of effects) ctx.out(`${padEnd(e, 10)} ${d.settings.data.fx[e] ? fmt.green("on") : fmt.gray("off")}\n`);
       ctx.out(`${padEnd("chroma", 10)} ${d.settings.data.fx.levels.chroma ?? 0}%\n${padEnd("sharpness", 10)} ${d.settings.data.fx.levels.sharpness ?? 100}%\n${padEnd("curve", 10)} ${d.settings.data.fx.levels.curve ?? 0}%\n${padEnd("flicker ⏵", 10)} ${d.settings.data.fx.flickerSpeed ?? 100}% speed\n`);
@@ -736,10 +750,21 @@ const vaultCmd: Command = {
       return;
     }
     if (sub === "mount" || sub === "open") {
-      const path = rest.join(" ");
+      const here = rest.includes("--here");
+      let path = rest.filter((w) => w !== "--here").join(" ");
       if (!path) {
-        ctx.err("usage: vault mount <absolute path>\n");
+        ctx.err("usage: vault mount <absolute path> [--here]   (--here: a full folder as it is, without asking)\n");
         return 1;
+      }
+      // the same look as the setup's: a drive that isn't there, a folder full of other things
+      const files = ctx.deck.platform.files;
+      if (files && !here) {
+        const found = await checkVaultFolder(path, await files.home().catch(() => ""), (d) => files.list(d));
+        if (found.kind === "missing") return ctx.err(`vault: ${t("this disk or folder doesn't exist: {root}", { root: found.root })}\n`), 1;
+        if (found.kind === "full") {
+          const inside = icebreakerInside(path);
+          if (await ctx.deck.confirm(t("this folder already holds {n} things", { n: found.count }), t("make a folder “Icebreaker” in it for the vault?\n{path}\n\nno: use the folder as it is", { path: inside }))) path = inside;
+        }
       }
       await ctx.deck.mountVault(path);
       ctx.out(`mounted ${v.root}\n`);

@@ -69,8 +69,28 @@ const COLS: Record<string, RegExp> = {
   where: /^(location|where|place|lieu|endroit)$/i,
 };
 
+/**
+ * A CSV's records: lines, except that a line break inside quotes stays in its cell (Outlook
+ * writes a description on several lines: each piece was read as an event).
+ */
+export function csvRecords(text: string): string[] {
+  const out: string[] = [];
+  let cur = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '"') q = !q;
+    if (!q && (ch === "\n" || ch === "\r")) {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      if (cur.trim()) out.push(cur);
+      cur = "";
+    } else cur += ch;
+  }
+  if (cur.trim()) out.push(cur);
+  return out;
+}
+
 export function parseCsv(text: string): ImportedEvent[] {
-  const lines = text.replace(/^﻿/, "").split(/\r?\n/).filter((l) => l.trim());
+  const lines = csvRecords(text.replace(/^﻿/, ""));
   if (lines.length < 2) return [];
   const sep = (lines[0].match(/;/g)?.length ?? 0) > (lines[0].match(/,/g)?.length ?? 0) ? ";" : ",";
   const head = csvCells(lines[0], sep).map((h) => h.replace(/^"|"$/g, "").trim());

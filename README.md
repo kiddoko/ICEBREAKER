@@ -214,7 +214,10 @@ every frame and in any frame, tab groups, the deck menu, and WEATHER, CLOCKS, ST
 MOON and SYSMON redrawn ([docs/FRAMES.md](docs/FRAMES.md)). Done in 0.7.0, the UX pass:
 crisp hover tips, a menu bar and an arrangeable status bar, proportions that hold whatever the
 theme, a calendar and clock wherever a day or a time is chosen, a clearer setup, CSV / .ics import,
-the graphics card in SYSMON, French everywhere and readable hints in every theme. Next, in this order:
+the graphics card in SYSMON, French everywhere and readable hints in every theme. Done in 0.7.1,
+first steps and one name per thing: the pages of the ◆ menu are tabs, every command answers in
+French and the manual too, a note emptied by mistake is never lost, `exit` hides the shell, the
+login page in your language and reachable by keyboard, the status bar in groups. Next, in this order:
 
 1. **UI overhaul, the rest** — each tab's history, an Ableton-style info panel instead of
    hover tips, perfect scaling on every resolution and screen ratio, the other modules

@@ -89,6 +89,8 @@ export interface Settings {
     macrosShown: boolean;
     /** a wide shell shows the log on its right (false: the log stays a tab) */
     logSide?: boolean;
+    /** the log column's width beside the shell, in columns (dragged; 0 = 30 % of the shell) */
+    logWidth?: number;
   };
   /** UI sounds (core/sound.ts). Volume 0–100. */
   /** muted: everything silent (ui sounds, voice, alerts) — the ♪ button, `mute` */
@@ -132,7 +134,7 @@ export interface Settings {
   /** where the frames sit (workspace/layout/arrange.ts, docs/FRAMES.md): {} = today's arrangement; `layout preset`, `frame move` */
   layout: { version?: number; preset?: string; root?: unknown };
   /** the status bar's right side: its items in this order (empty: the default), those hidden (workspace/statusbar.ts) */
-  statusBar: { order: string[]; hidden: string[] };
+  statusBar: { order: string[]; hidden: string[]; joined?: string[]; alone?: string[] };
   /** pinned notes, folders, modules (`pin`): top of the tree and the pinned widget */
   /** pins (workspace/favorites.ts): notes, folders, modules, pages, macros, commands — also HOME's squares */
   favorites: { kind: "note" | "folder" | "module" | "page" | "macro" | "command"; target: string; label: string; id?: string; icon?: string; cmd?: string }[];
@@ -227,11 +229,20 @@ export interface Secrets {
   anthropicApiKey: string;
 }
 
+/** The system asks for less motion (WCAG 2.3.3): a new account starts with reduce motion on. */
+function systemReducesMotion(): boolean {
+  try {
+    return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch {
+    return false;
+  }
+}
+
 export const DEFAULT_SETTINGS: Settings = {
   user: { handle: "netrunner", locale: "", language: "en", gender: "", genderOther: "", pronouns: "", avatar: { id: "visor", color: "accent" }, location: { precision: "none", name: "", country: "", lat: null, lon: null } },
   setup: { done: false },
   vault: { path: "" },
-  appearance: { theme: "nightshade", tweaks: {}, fontSize: 13, scale: 100, startFullscreen: false, fontWeight: "thin", maxFps: 60, vsync: true, smooth: "auto", brightness: 100, reduceMotion: false, showFps: true, lineNumbers: true, backgroundSlow: true, textSpeed: 50, fadeIn: true },
+  appearance: { theme: "nightshade", tweaks: {}, fontSize: 13, scale: 100, startFullscreen: false, fontWeight: "thin", maxFps: 60, vsync: true, smooth: "auto", brightness: 100, reduceMotion: systemReducesMotion(), showFps: false, lineNumbers: true, backgroundSlow: true, textSpeed: 50, fadeIn: true },
   // Minimal by default: the animated background and short glitch transitions.
   // The heavy CRT stuff (bloom, scanlines, vignette, flicker) is one click away in the FX panel.
   fx: { bloom: false, scanlines: false, vignette: false, ambient: true, flicker: false, glitch: true, screensaverMinutes: 0, levels: { bloom: 100, scanlines: 100, vignette: 100, chroma: 0, sharpness: 80, glow: 0, curve: 0 }, flickerSpeed: 100 },
@@ -256,6 +267,7 @@ export const DEFAULT_SETTINGS: Settings = {
     bridge: "more",
     macrosShown: true,
     logSide: true,
+    logWidth: 0,
     macros: [
       { label: "ls", cmd: "ls -la" },
       { label: "cd ..", cmd: "cd .." },
@@ -286,7 +298,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // the community index: a JSON list of plugins/themes (see docs/COMMUNITY.md)
   plugins: { enabled: [], disabled: [], removed: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json", sources: [], granted: {}, pinned: {}, revoked: {}, always: {}, model: 2 },
   // empty = the default layout (widgets/builtin.ts)
-  home: { widgets: [], links: [], weatherCity: "Paris", worldClocks: ["America/New_York", "Europe/London", "Asia/Tokyo"], newsTopic: "", newsInterests: [], newsPage: {}, weatherPlaces: [], clockStyle: "dots", clockSeconds: false, widgetConfig: {} },
+  home: { widgets: [], links: [], weatherCity: "Paris", worldClocks: ["America/New_York", "Europe/London", "Asia/Tokyo"], newsTopic: "", newsInterests: [], newsPage: {}, weatherPlaces: [], clockStyle: "segment", clockSeconds: false, widgetConfig: {} },
 };
 
 type Listener = (path: string) => void;

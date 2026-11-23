@@ -1,7 +1,7 @@
 import { heldStep, slider } from "../ui/slider";
 import { Field } from "../ui/field";
 import { mix } from "../core/color";
-import { LANGS, setLang, t } from "../core/i18n";
+import { LANGS, setLang, t, tLoose } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import { geocode, type Place } from "../core/location";
@@ -13,7 +13,7 @@ import { easeOut, strWidth, truncate, wrapWords } from "../core/unicode";
 import { applyFxPreset, FX_PRESET_NAMES, FX_PRESETS } from "../workspace/fxpanel";
 import type { App, AppSpec } from "./types";
 import { GAP, INSET } from "../ui/layout";
-import { completeFolder, osOf, pathExamples, vaultPathProblem } from "./setuppath";
+import { checkVaultFolder, icebreakerInside, completeFolder, osOf, pathExamples, vaultPathProblem } from "./setuppath";
 import { IS_MAC } from "../core/input";
 import { pickFolder } from "../workspace/filebrowser";
 
@@ -57,6 +57,21 @@ const chapterOf = (id: string) => Math.max(0, CHAPTERS.findIndex((c) => c.steps.
  * It runs the first time an account logs in (each account has its own
  * settings and vault), and again from ⌘K → "Setup".
  */
+/** How long a question shows before it takes an answer. */
+export const STEP_SETTLE_MS = 250;
+/** A question shown at `stepAt` may be answered at `now`. */
+export function stepSettled(stepAt: number, now: number): boolean {
+  return now - stepAt >= STEP_SETTLE_MS;
+}
+
+/**
+ * A press answers when the question has shown for a moment AND no press came in the moment
+ * before it: a burst of enters (a held key, a bouncing one, ten in a row) answers one question.
+ */
+export function pressCounts(stepAt: number, earlyAt: number, now: number): boolean {
+  return stepSettled(stepAt, now) && now - earlyAt >= STEP_SETTLE_MS;
+}
+
 export class SetupApp implements App {
   readonly kind = "setup";
   readonly key = "setup";
@@ -74,6 +89,10 @@ export class SetupApp implements App {
     return this.field.text;
   }
   private stepAt = 0;
+  /** the last press that came too soon (it pushes the wait back) */
+  private earlyAt = -1e9;
+  /** the clock (tests set their own) */
+  static clock: () => number = () => performance.now();
   private busy = false;
   private error = "";
   private places: Place[] = [];
@@ -95,6 +114,7 @@ export class SetupApp implements App {
     this.a = { handle, language: s.user.language, locale: s.user.locale, precision: s.user.location.precision };
     // stealth already on (a setup run again, or a half-finished one): the questions start from it
     if (s.privacy.stealth) this.a.mode = "stealth";
+    this.before = { stealth: s.privacy.stealth, language: s.user.language };
     this.steps = [
       {
         id: "language", title: "LANGUAGE · LANGUE",
@@ -216,7 +236,7 @@ export class SetupApp implements App {
         id: "theme", title: "LOOK",
         question: "A theme to start with: one click shows it on the whole deck, a second click (or enter) keeps it.",
         options: () =>
-          deck.themes.list().map((th) => ({ value: th.name, label: th.name, hint: `${th.font.family} · ${th.description}` })),
+          deck.themes.list().map((th) => ({ value: th.name, label: th.name, hint: `${th.font.family} · ${tLoose(th.description)}` })),
       },
       {
         id: "fx", title: "EYE CANDY", question: "How much CRT? Each one shows on the whole deck as you move to it; enter (or a second click) keeps it. The ✦ fx button changes it any time.",
@@ -235,7 +255,7 @@ export class SetupApp implements App {
           { value: "none", label: "Nothing at all" },
         ],
       },
-      { id: "done", title: "READY", question: "Deck configured. Everything is in Settings if you change your mind.", options: () => [{ value: "go", label: "Jack in" }] },
+      { id: "done", title: "READY", question: "Deck configured. Everything is in Settings if you change your mind.", options: () => [{ value: "go", label: this.firstRun ? "Jack in" : "Apply" }] },
     ];
     this.sel = Math.max(0, LANGS.findIndex((l) => l.id === s.user.language));
   }
@@ -254,6 +274,29 @@ export class SetupApp implements App {
 
   /** the setup is over (finish ran): a second finish (a double click, ctrl+enter twice) does nothing */
   private finished = false;
+  /** what the questions change at once (stealth, the language): put back if the setup is left unfinished */
+  private before: { stealth: boolean; language: string };
+
+  /**
+   * The tab closed before "ready": stealth and the language, applied the moment they were
+   * chosen, go back to what they were (stealth stayed on for good while the folder typed was
+   * dropped) — and it says so.
+   */
+  close(): boolean {
+    if (this.finished) return true;
+    clearTimeout(this.previewTimer);
+    this.fxBack();
+    const s = this.deck.settings;
+    let changed = false;
+    if (s.data.privacy.stealth !== this.before.stealth) s.set("privacy.stealth", this.before.stealth), (changed = true);
+    if (s.data.user.language !== this.before.language) {
+      s.set("user.language", this.before.language);
+      setLang(this.before.language);
+      changed = true;
+    }
+    this.deck.notify(t(changed ? "setup left: what it had changed is back as it was" : "setup left: nothing changed"));
+    return true;
+  }
 
   status(): string {
     // the vault's folder: tab completes the path there, ⌘O browses (it said "tab skip")
@@ -320,12 +363,26 @@ export class SetupApp implements App {
     this.go(-1);
   }
 
+  /** no question before this one */
+  private atStart(): boolean {
+    for (let i = this.step - 1; i >= 0; i--) if (!this.steps[i]?.skip?.()) return false;
+    return true;
+  }
+
+  /** esc on the first question of a setup run again: leave it, after asking. */
+  private async quitEarly(): Promise<void> {
+    if (!(await this.deck.confirm(t("quit the setup?"), t("nothing changes")))) return;
+    const ws = this.deck.workspace;
+    const i = ws.tabs.indexOf(this);
+    if (i >= 0) await ws.closeTab(i);
+  }
+
   private go(dir: 1 | -1): void {
     let i = this.step + dir;
     while (this.steps[i]?.skip?.()) i += dir;
     if (i < 0 || i >= this.steps.length) return;
     this.step = i;
-    this.stepAt = performance.now();
+    this.stepAt = SetupApp.clock();
     this.error = "";
     this.places = [];
     const st = this.cur;
@@ -340,6 +397,12 @@ export class SetupApp implements App {
   private async next(): Promise<void> {
     const st = this.cur;
     if (this.busy) return;
+    // ten enters in a row (a bouncing key, a key held down) answered ten questions: a question
+    // takes an answer only once it has been on screen for a moment
+    // a press too soon also pushes the wait back: a burst of enters answers one question, never
+    // three (they went 250 ms apart: ten enters in 0.6 s moved three questions)
+    const now = SetupApp.clock();
+    if (!pressCounts(this.stepAt, this.earlyAt, now)) return void (this.earlyAt = now);
     if (st.id === "place") return this.submitPlace();
     if (st.text) {
       // the vault's folder: one that can really be used, checked now — not at the end, where a
@@ -387,7 +450,26 @@ export class SetupApp implements App {
     }
     const why = vaultPathProblem(typed);
     if (why) return void (this.error = t(why));
-    this.a["vault-path"] = typed;
+    // on this disk: a drive that isn't there, or a folder already full of other things (all of
+    // Documents: encrypting it later would wrap every file in it)
+    const files = this.deck.platform.files;
+    let path = typed;
+    if (files) {
+      this.busy = true;
+      try {
+        const home = await files.home().catch(() => "");
+        const found = await checkVaultFolder(typed, home, (d) => files.list(d));
+        if (found.kind === "missing") return void (this.error = t("this disk or folder doesn't exist: {root}", { root: found.root }));
+        if (found.kind === "full") {
+          const inside = icebreakerInside(typed);
+          const ok = await this.deck.confirm(t("this folder already holds {n} things", { n: found.count }), t("make a folder “Icebreaker” in it for the vault?\n{path}\n\nno: use the folder as it is", { path: inside }));
+          if (ok) path = inside;
+        }
+      } finally {
+        this.busy = false;
+      }
+    }
+    this.a["vault-path"] = path;
     this.go(1);
   }
 
@@ -576,6 +658,8 @@ export class SetupApp implements App {
   }
 
   onKey(k: KeyInput): boolean {
+    // enter held down never answers (the system repeats it: one question after another went by)
+    if (k.repeat && k.key === "enter") return true;
     // fast: tab skips the question (its default stays), ctrl+enter finishes with the defaults
     if (k.combo === "tab" && this.cur.id === "warning") return true; // read it, then enter
     // the vault's folder: tab completes the folder name, like a terminal (it skipped the
@@ -628,6 +712,8 @@ export class SetupApp implements App {
       case "confirm": void this.next(); return true;
       case "back":
         if (this.places.length) this.places = [];
+        // the first question of a setup run again: esc leaves it (only closing the tab did)
+        else if (this.atStart() && !this.firstRun) void this.quitEarly();
         else this.go(-1);
         return true;
       default: return false;

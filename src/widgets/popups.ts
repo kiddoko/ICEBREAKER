@@ -403,7 +403,7 @@ const clockPopup: WidgetPopupSpec = {
     const style = widgetConfig(deck, key, "style", h.clockStyle), seconds = widgetConfig(deck, key, "seconds", h.clockSeconds);
     x = ui.text(x, r.y + 11, `${t("FACE")} `, { fg: c.subtle, attrs: BOLD }) + 1;
     // ‹ face › (ui/controls.ts): the left half goes back, the right half forward
-    x = choice(ui, x + 2, r.y + 11, t(style || "dots"), { arrows: true, onStep: (dir) => void deck.act(`clock style ${dir < 0 ? "prev" : "next"}`), tip: t("the next face · f") }) + 2;
+    x = choice(ui, x + 2, r.y + 11, t(style || "segment"), { arrows: true, onStep: (dir) => void deck.act(`clock style ${dir < 0 ? "prev" : "next"}`), tip: t("the next face · f") }) + 2;
     checkbox(ui, x, r.y + 11, !!seconds, { label: t("seconds"), onClick: () => void deck.act("clock seconds"), tip: "s" });
   },
   onText: (t, { deck }) => {
