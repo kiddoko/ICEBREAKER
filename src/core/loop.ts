@@ -6,6 +6,25 @@
  * frame (a blinking cursor: in 500ms; a streaming AI reply: now; an ambient
  * effect: in 80ms). Laptop batteries say thanks.
  */
+export type RestLevel = "awake" | "idle" | "asleep";
+
+/** How rested the deck is, from the time since the last key, click or mouse move (ms). */
+export function restLevel(sinceInput: number): RestLevel {
+  return sinceInput > FrameLoop.ASLEEP_AFTER ? "asleep" : sinceInput > FrameLoop.IDLE_AFTER ? "idle" : "awake";
+}
+
+/**
+ * The wait an animation gets, after the caps: reduce motion (30 fps), the
+ * background or idle (12 fps), asleep (2 fps). Input (0–1 ms) is never held back.
+ */
+export function paceDelay(delayMs: number, o: { slow: boolean; background: boolean; idle: boolean; asleep: boolean }): number {
+  if (delayMs <= 1) return delayMs;
+  if (o.slow) delayMs = Math.max(delayMs, 1000 / 30);
+  if (o.background || o.idle || o.asleep) delayMs = Math.max(delayMs, 1000 / FrameLoop.BACKGROUND_FPS);
+  if (o.asleep) delayMs = Math.max(delayMs, 1000 / FrameLoop.ASLEEP_FPS);
+  return delayMs;
+}
+
 export class FrameLoop {
   /** Frames actually rendered during the last second. */
   fps = 0;
@@ -44,10 +63,32 @@ export class FrameLoop {
   private paused = false;
   /** Visible but not the window you're using: a low frame cap (animations crawl, input still instant). */
   background = false;
-  /** Nobody touched anything for a while: same low cap as the background. */
+  /** Nobody touched anything for a while (IDLE_AFTER): same low cap as the background. */
   idle = false;
+  /** Nobody touched anything for longer (ASLEEP_AFTER): animations crawl at ASLEEP_FPS (the clock still ticks). */
+  asleep = false;
   /** fps cap while in the background */
   static readonly BACKGROUND_FPS = 12;
+  /** fps cap once asleep: a still deck costs next to nothing (I1: it drew 20 a second at rest) */
+  static readonly ASLEEP_FPS = 2;
+  /** ms without input before idle, then asleep */
+  static readonly IDLE_AFTER = 20_000;
+  static readonly ASLEEP_AFTER = 60_000;
+
+  /** Set from the time since the last input; true when it just woke up (the caller redraws). */
+  rest(level: RestLevel): void {
+    const idle = level !== "awake", asleep = level === "asleep";
+    if (idle === this.idle && asleep === this.asleep) return;
+    const woke = (this.idle && !idle) || (this.asleep && !asleep);
+    this.idle = idle;
+    this.asleep = asleep;
+    // an animation planned at the sleepy pace comes back at its own pace right away
+    if (woke) {
+      clearTimeout(this.timer);
+      this.timerAt = Infinity;
+      this.request(0);
+    }
+  }
   /** vsync off: frames paced by timers at maxFps, not by the screen */
   timed = false;
   /** fps set to 0: no animations at all, frames only for input */
@@ -100,9 +141,8 @@ export class FrameLoop {
     if (this.paused) return;
     // fps 0: animations ask for frames with a delay; they're dropped (input asks with 0)
     if (delayMs > 1 && this.still) return;
-    if (this.slow && delayMs > 1) delayMs = Math.max(delayMs, 1000 / 30);
-    // in the background, animations slow down to the background cap
-    if ((this.background || this.idle) && delayMs > 1) delayMs = Math.max(delayMs, 1000 / FrameLoop.BACKGROUND_FPS);
+    // reduce motion, the background, idle, asleep: animations slow down (input never does)
+    delayMs = paceDelay(delayMs, this);
     // "16 ms" means "the next frame": at 120 Hz (or your cap) that's sooner — so
     // every animation runs as smoothly as the screen / the cap allows, not at 60
     if (delayMs > 1 && delayMs <= 17) delayMs = 0;

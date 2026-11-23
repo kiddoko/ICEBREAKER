@@ -146,6 +146,7 @@ export class UI {
     this.hits = [];
     this.caret = null;
     this.wake = Infinity;
+    this.awake = false;
     this.marqueeZone = null;
     // a text that wasn't drawn scrolling last frame starts from its beginning next time
     for (const k of this.marquees.keys()) if (!this.marqueesSeen.has(k)) this.marquees.delete(k);
@@ -181,6 +182,17 @@ export class UI {
   animate(ms = 0): void {
     if (ms < this.wake) this.wake = ms;
   }
+
+  /**
+   * Keep the deck at full pace while this frame's thing runs (music playing, a game):
+   * without it, animations slow down to 12 frames a second after 20 s without input,
+   * and to 2 after a minute (core/loop.ts restLevel).
+   */
+  stayAwake(): void {
+    this.awake = true;
+  }
+  /** something asked for stayAwake() during this frame */
+  awake = false;
 
   /** Smallest wake-up delay requested during this frame. */
   get wakeIn(): number {

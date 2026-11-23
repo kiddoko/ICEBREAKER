@@ -216,7 +216,10 @@ Inside the deck's own code it's the same: `deck.use("todo").add("…")` (with ev
 
 The user adds it from HOME: **✎ edit** (or `⌘E` / `ctrl+E`) then `a`. Widgets render every
 frame they're visible: keep `render` cheap, cache anything slow (network, AI)
-in a variable, and call `ui.animate(ms)` only if something moves.
+in a variable, and call `ui.animate(ms)` only if something moves. A deck left
+alone rests: after 20 s without input animations drop to 12 frames a second,
+after a minute to 2. Something the user watches without touching (music playing,
+a game) calls `ui.stayAwake()` in the frames it runs.
 
 The full surface is typed and commented in
 [`src/plugins/api.ts`](../src/plugins/api.ts). Highlights:

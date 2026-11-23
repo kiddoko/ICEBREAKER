@@ -36,7 +36,7 @@ import { css, mix } from "./core/color";
 import { GamepadInput } from "./core/gamepad";
 import { Grid } from "./core/grid";
 import { InputManager, IS_MAC, type Action, type ActionSource, type InputSink, type KeyInput, type MouseInput } from "./core/input";
-import { FrameLoop } from "./core/loop";
+import { FrameLoop, restLevel } from "./core/loop";
 import { fontStack, loadFont, WEIGHTS } from "./core/fonts";
 import { Renderer } from "./core/renderer";
 import { macMenuActions } from "./workspace/macmenu";
@@ -239,6 +239,8 @@ export class Deck implements InputSink {
   private readonly transitions = new Transitions();
   private readonly cellFx = new CellFx();
   private lastActivity = performance.now();
+  /** the last frame something asked to stay awake (ui.stayAwake: music playing…) */
+  private awakeAt = 0;
 
   /** Undo / redo for everything (⌘Z, ⌘⇧Z): core/undo.ts */
   readonly history = new UndoHistory();
@@ -306,12 +308,12 @@ export class Deck implements InputSink {
     };
     this.input.onActivity = () => {
       this.lastActivity = performance.now();
-      this.loop.idle = false;
+      this.loop.rest("awake");
       this.loop.request();
     };
     this.gamepad = new GamepadInput((a) => {
       this.lastActivity = performance.now();
-      this.loop.idle = false;
+      this.loop.rest("awake");
       this.action(a, "gamepad");
     });
     // hold RB: THE MENU (the stick chooses, letting go runs it)
@@ -472,7 +474,7 @@ export class Deck implements InputSink {
     this.lastBoot = boot;
     this.starting = false;
     this.sound.play("boot");
-    setInterval(() => this.checkIdle(), 15_000);
+    setInterval(() => this.checkIdle(), 5_000);
     this.watchVisibility();
     // what starting changed (migrations, the vault path, restored tabs) isn't something to ⌘Z
     this.history.clear();
@@ -653,6 +655,7 @@ export class Deck implements InputSink {
     if (ui.caret) this.input.placeCaret(ui.caret.x, ui.caret.y);
     this.renderer.setCaret(ui.softCaret ? ui.caret : null, css(ui.c.cursor), ui.caretTyped, !!this.settings.data.appearance.reduceMotion);
     this.hits = ui.hits;
+    if (ui.awake) this.awakeAt = performance.now(), this.loop.rest("awake");
     return ui.wakeIn;
   };
 
@@ -1502,8 +1505,11 @@ export class Deck implements InputSink {
   }
 
   private checkIdle(): void {
-    // 90 s without a key or the mouse: ambient animations slow down (energy)
-    if (performance.now() - this.lastActivity > 90_000) this.loop.idle = true;
+    // 20 s without a key or the mouse: ambient animations slow down to 12 frames a second, after
+    // 60 s to 2 (energy: a deck left alone on HOME used 13–20 % of a core); "save energy" off keeps
+    // them at full pace
+    const rested = this.settings.data.appearance.backgroundSlow !== false && !this.boot;
+    this.loop.rest(rested ? restLevel(performance.now() - Math.max(this.lastActivity, this.awakeAt)) : "awake");
     const min = this.settings.data.fx.screensaverMinutes;
     if (min > 0 && performance.now() - this.lastActivity > min * 60_000 && !this.boot && !this.workspace.overlays.length) this.screensaver();
   }
