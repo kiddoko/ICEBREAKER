@@ -2121,4 +2121,6 @@ export const FR: Record<string, string> = {
   "news needs the desktop app": "les actus ont besoin de l'app de bureau",
   "CONFIRM": "question",
   "W": "S",
+  // ── 0.7.1: note
+  "the text it had is in the trash": "le texte qu'elle avait est dans la corbeille",
 };

@@ -57,6 +57,13 @@ const chapterOf = (id: string) => Math.max(0, CHAPTERS.findIndex((c) => c.steps.
  * It runs the first time an account logs in (each account has its own
  * settings and vault), and again from ⌘K → "Setup".
  */
+/** How long a question shows before it takes an answer. */
+export const STEP_SETTLE_MS = 250;
+/** A question shown at `stepAt` may be answered at `now`. */
+export function stepSettled(stepAt: number, now: number): boolean {
+  return now - stepAt >= STEP_SETTLE_MS;
+}
+
 export class SetupApp implements App {
   readonly kind = "setup";
   readonly key = "setup";
@@ -74,6 +81,8 @@ export class SetupApp implements App {
     return this.field.text;
   }
   private stepAt = 0;
+  /** the clock (tests set their own) */
+  static clock: () => number = () => performance.now();
   private busy = false;
   private error = "";
   private places: Place[] = [];
@@ -325,7 +334,7 @@ export class SetupApp implements App {
     while (this.steps[i]?.skip?.()) i += dir;
     if (i < 0 || i >= this.steps.length) return;
     this.step = i;
-    this.stepAt = performance.now();
+    this.stepAt = SetupApp.clock();
     this.error = "";
     this.places = [];
     const st = this.cur;
@@ -340,6 +349,9 @@ export class SetupApp implements App {
   private async next(): Promise<void> {
     const st = this.cur;
     if (this.busy) return;
+    // ten enters in a row (a bouncing key, a key held down) answered ten questions: a question
+    // takes an answer only once it has been on screen for a moment
+    if (!stepSettled(this.stepAt, SetupApp.clock())) return;
     if (st.id === "place") return this.submitPlace();
     if (st.text) {
       // the vault's folder: one that can really be used, checked now — not at the end, where a
@@ -576,6 +588,8 @@ export class SetupApp implements App {
   }
 
   onKey(k: KeyInput): boolean {
+    // enter held down never answers (the system repeats it: one question after another went by)
+    if (k.repeat && k.key === "enter") return true;
     // fast: tab skips the question (its default stays), ctrl+enter finishes with the defaults
     if (k.combo === "tab" && this.cur.id === "warning") return true; // read it, then enter
     // the vault's folder: tab completes the folder name, like a terminal (it skipped the

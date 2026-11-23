@@ -91,6 +91,15 @@ Custom template: create .icebreaker/templates/journal.md ({{date}} {{title}} {{w
   },
 };
 
+/**
+ * The title `note` was given. `note new "ideas"` is read as `note "ideas"` (people type the
+ * sub-command they expect; it made notes/new-ideas.md). `note new` alone → null: an untitled note.
+ */
+export function noteTitle(args: string[]): string | null {
+  if (args[0] === "new") return args.length === 1 ? null : args.slice(1).join(" ").trim();
+  return args.join(" ").trim();
+}
+
 const note: Command = {
   name: "note",
   examples: [
@@ -98,9 +107,11 @@ const note: Command = {
     ["echo \"- pain\" | note courses", "a note from piped text"],
   ],
   summary: "create a note from a title and open it",
-  usage: "note <title…>   (creates notes/<slug>.md)",
+  usage: "note <title…>   (creates notes/<slug>.md; note new [title] works too)",
   async run(ctx) {
-    const title = ctx.args.join(" ").trim();
+    const title = noteTitle(ctx.args);
+    // `note new` alone: an untitled note, like ⌘N
+    if (title === null) return void (await ctx.deck.newNote());
     if (!title) {
       ctx.err("usage: note <title>\n");
       return 1;

@@ -126,12 +126,24 @@ export class NoteApp implements App {
   private scheduleSave(): void {
     if (!this.deck.settings.data.editor.autosave) return;
     clearTimeout(this.saveTimer);
-    this.saveTimer = setTimeout(() => void this.save(), 800);
+    this.saveTimer = setTimeout(() => void this.save({ auto: true }), 800);
   }
 
-  async save(): Promise<void> {
+  /**
+   * Saves the note. `auto` (the timer while typing): a note that was emptied (select all, delete)
+   * is not written — it was saved empty in under a second and the text was lost. It is written
+   * by ⌘S, by closing the tab, or 30 s later, and the text it had goes to the trash first.
+   */
+  async save(opts: { auto?: boolean } = {}): Promise<void> {
     if (!this.dirty() || this.conflict) return;
     clearTimeout(this.saveTimer);
+    if (emptiedNote(this.editor.text, this.saved)) {
+      if (opts.auto) {
+        this.saveTimer = setTimeout(() => void this.save(), NoteApp.EMPTY_SAVE_MS);
+        return;
+      }
+      await this.keepBeforeEmptying();
+    }
     // never write over a change made outside the deck since we read the file
     if ((await this.diskChange()) !== null) return void this.checkDisk();
     this.saving = true;
@@ -146,6 +158,22 @@ export class NoteApp implements App {
     } finally {
       this.saving = false;
       this.deck.requestFrame();
+    }
+  }
+
+  /** how long an emptied note waits before it is written empty */
+  static EMPTY_SAVE_MS = 30_000;
+
+  /** The text an emptied note had, into the trash (TRASH or ⌘Z bring it back). */
+  private async keepBeforeEmptying(): Promise<void> {
+    const dir = dirname(this.path);
+    const copy = join(dir === "." ? "" : dir, `${basename(this.path, ".md")} (before emptying).md`);
+    try {
+      await this.deck.vault.write(copy, this.saved);
+      await this.deck.vault.trash(copy);
+      this.deck.notify(t("the text it had is in the trash"), "info");
+    } catch {
+      /* the copy is a safety net: the save goes on */
     }
   }
 
@@ -324,3 +352,8 @@ export const noteSpec: AppSpec = {
   title: "Note",
   create: (deck, args) => new NoteApp(deck, String(args)),
 };
+
+/** A note that had text and now has none (written only on purpose, never by the autosave). */
+export function emptiedNote(text: string, saved: string): boolean {
+  return text.trim() === "" && saved.trim() !== "";
+}

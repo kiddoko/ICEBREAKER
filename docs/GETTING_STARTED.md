@@ -60,7 +60,7 @@ the deck at an existing Obsidian vault with `vault mount /path` or in Settings.
 
 ```bash
 journal "first night on the deck"         # a line in today's journal
-note new "ideas"                          # a note
+note "ideas"                              # a note (notes/ideas.md)
 todo add "walk the dog" --due tomorrow    # a task
 cal add "dentist" fri 14:30               # an event (in calendar/ in your vault)
 music folder ~/Music                      # your music, played by the deck
