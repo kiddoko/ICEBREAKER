@@ -4,8 +4,13 @@
 name = "phosphor"
 author = "icebreaker"
 description = "Green P1 phosphor, pixel font, a terminal from 1983."
-border = "single"
-widget_frame = "single"
+schema = 2                # themes v2 (docs/THEMES.md): frames in [frame] / [widget_frame]
+
+[frame]
+style = "single"
+
+[widget_frame]
+style = "single"
 
 [palette]
 black  = "#020a04"

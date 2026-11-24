@@ -12,8 +12,13 @@
 name = "nightshade"
 author = "icebreaker"
 description = "Deep void, violet ICE. Catppuccin-flavoured."
-border = "round"          # round | single | heavy | double
-widget_frame = "round"    # HOME widgets: round · single · heavy · double · dashed · corners · line
+schema = 2                # themes v2 (docs/THEMES.md): frames in [frame] / [widget_frame]
+
+[frame]                    # the frame round panels and pages
+style = "round"          # round | single | heavy | double
+
+[widget_frame]             # the frame round HOME widgets
+style = "round"    # HOME widgets: round · single · heavy · double · dashed · corners · line
 
 # Raw colors. Names are yours to choose; [ui] / [syntax] / [ansi] refer to them.
 [palette]

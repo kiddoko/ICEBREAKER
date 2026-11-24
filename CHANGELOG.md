@@ -21,6 +21,8 @@
   in memory, the file is never touched. Tests check the 11 built-in themes load the same both ways.
 - **`theme check [name]`**: what the deck made of a theme — its schema, what its file got wrong,
   readable text and keys.
+- The 11 built-in theme files are schema 2 now — a test checks each resolves to exactly the values
+  it had before (tests/themes-golden.json, written from 0.8.1).
 - **`theme upgrade <name>`**: one of your theme files as schema 2 — a preview first, `--write` to
   write it (the old file is kept as `<name>.toml.v1`).
 - The components' reference table in `docs/THEMES.md` and `themes/schema-2.json` (a JSON Schema

@@ -4,8 +4,13 @@
 name = "graphite"
 author = "icebreaker"
 description = "Monochrome greys, Fira Code. Pure focus."
-border = "single"
-widget_frame = "single"
+schema = 2                # themes v2 (docs/THEMES.md): frames in [frame] / [widget_frame]
+
+[frame]
+style = "single"
+
+[widget_frame]
+style = "single"
 
 [palette]
 k0 = "#0a0a0a"

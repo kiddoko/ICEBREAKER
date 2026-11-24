@@ -32,7 +32,10 @@ title_focus = "#39ff14"
 
 | section    | what                                                                  |
 |------------|-----------------------------------------------------------------------|
-| `[meta]`   | `name`, `author`, `description`, `border` (round / single / heavy / double), `widget_frame` for HOME widgets (those + dashed / corners / line), `extends` |
+| `[meta]`   | `name`, `author`, `description`, `schema` (2), `extends` — and in schema 1, `border` / `widget_frame` |
+| `[frame]`  | `style`: the frame round panels and pages (round / single / heavy / double) |
+| `[widget_frame]` | `style`: HOME widgets' frame (those + dashed / corners / line) |
+| `[logo]`   | `text`: a replacement for the boot logo (schema 1: `[ascii] logo`) |
 | `[palette]`| named colors, referenced by the sections below                         |
 | `[ui]`     | backgrounds, text, accent, borders, cursor, status colors…            |
 | `[syntax]` | Markdown highlighting in the editor and chat                          |

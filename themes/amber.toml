@@ -5,8 +5,13 @@
 name = "amber"
 author = "icebreaker"
 description = "Monochrome amber phosphor. For long nights."
-border = "single"
-widget_frame = "corners"
+schema = 2                # themes v2 (docs/THEMES.md): frames in [frame] / [widget_frame]
+
+[frame]
+style = "single"
+
+[widget_frame]
+style = "corners"
 
 [palette]
 black  = "#0d0800"

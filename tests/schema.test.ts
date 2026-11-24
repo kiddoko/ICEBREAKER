@@ -22,22 +22,25 @@ describe("theme schema 2 (themes v2, milestone 2)", () => {
     expect(v1).toEqual(copy);
   });
 
-  it("golden: every built-in theme loads the same from its v1 file and from its v2 conversion", () => {
-    const base1 = parseTheme(nightshade.src, null, "builtin");
-    const toV2 = (src: string) => stringify(upgrade1to2(parse(src) as Record<string, unknown>));
-    const base2 = parseTheme(toV2(nightshade.src), null, "builtin");
-    expect(builtins).toHaveLength(11);
+  it("the built-in files are schema 2, and resolve to what their schema-1 files did (tests/themes-golden.json, from master)", () => {
+    for (const th of new ThemeManager().list()) expect(th.schema, th.name).toBe(2);
     for (const b of builtins) {
-      const v1 = b === nightshade ? base1 : parseTheme(b.src, base1, "builtin");
-      const v2 = b === nightshade ? base2 : parseTheme(toV2(b.src), base2, "builtin");
-      expect(v2.schema, b.name).toBe(2);
-      const { schema: _, ...rest } = v2;
-      expect(rest, b.name).toEqual(v1);
+      const doc = parse(b.src) as Record<string, Record<string, unknown>>;
+      expect([doc.meta.border, doc.meta.widget_frame, doc.ascii], b.name).toEqual([undefined, undefined, undefined]);
     }
   });
 
-  it("the built-in files are still schema 1 (converted in memory; the files move in a later PR)", () => {
-    for (const th of new ThemeManager().list()) expect(th.schema, th.name).toBeUndefined();
+  it("a schema-1 copy of a built-in (its v2 keys put back in [meta]) loads the same as the file", () => {
+    for (const b of builtins.filter((x) => x !== nightshade)) {
+      const doc = parse(b.src) as Record<string, Record<string, unknown>>;
+      const v1 = { ...doc, meta: { ...doc.meta, border: doc.frame?.style, widget_frame: doc.widget_frame?.style } } as Record<string, unknown>;
+      delete (v1.meta as Record<string, unknown>).schema;
+      delete v1.frame;
+      delete v1.widget_frame;
+      const base = parseTheme(nightshade.src, null, "builtin");
+      const { schema: _, ...fromV2 } = parseTheme(b.src, base, "builtin");
+      expect(parseTheme(stringify(v1), base, "builtin"), b.name).toEqual(fromV2);
+    }
   });
 
   it("a file made for a newer deck loads what it understands, with a notice", () => {
@@ -60,7 +63,7 @@ describe("theme check", () => {
     for (const th of new ThemeManager().list()) {
       const r = checkTheme(th);
       expect(r.ok, `${th.name}: ${r.lines.join(" / ")}`).toBe(true);
-      expect(r.lines[0]).toContain("schema 1");
+      expect(r.lines[0]).toContain("schema 2");
     }
   });
   it("says what a theme file got wrong", async () => {

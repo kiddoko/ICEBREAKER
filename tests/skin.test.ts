@@ -8,7 +8,7 @@ import type { Field } from "../src/core/skin/fields";
 import { applyFloor, defaults, readTable, resolve } from "../src/core/skin/registry";
 import { parseTheme, ThemeManager } from "../src/core/theme";
 import { knob, knobNames, knobSuggestions, parseKnobValue, SKIN_KNOBS } from "../src/core/tweaks";
-import { goldenScreens } from "./skin-golden";
+import { goldenScreens, goldenThemes } from "./skin-golden";
 
 /** the clamps as they were written by hand before the registry (0.8, core/keycap.ts and core/padglyphs.ts) */
 const LEGACY_BEVELLED = { radius: 0.17, border: 1, lip: 0.12, shine: 1, reach: 0.42, top: 0.1, bottom: 0.06, face: null, bold: true };
@@ -45,6 +45,10 @@ describe("skin registry: nothing changes on screen (themes v2, milestone 1)", ()
     const golden = JSON.parse(readFileSync("tests/skin-golden.json", "utf8"));
     expect(Object.keys(golden)).toHaveLength(11);
     expect(goldenScreens()).toEqual(golden);
+  });
+
+  it("every built-in theme resolves to exactly the values it had on master (tests/themes-golden.json)", () => {
+    expect(goldenThemes()).toEqual(JSON.parse(readFileSync("tests/themes-golden.json", "utf8")));
   });
 
   it("no built-in theme sets a component yet, nor has a skin problem", () => {

@@ -5,8 +5,13 @@
 name = "abyss"
 author = "icebreaker"
 description = "Bioluminescence in the deep: teal glow, sonar rings, slow pings."
-border = "round"
-widget_frame = "dashed"   # dashed outlines, like a depth gauge
+schema = 2                # themes v2 (docs/THEMES.md): frames in [frame] / [widget_frame]
+
+[frame]
+style = "round"
+
+[widget_frame]
+style = "dashed"   # dashed outlines, like a depth gauge
 
 [palette]
 water    = "#01070d"

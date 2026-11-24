@@ -32,3 +32,14 @@ export function goldenScreens(): Record<string, { grid: string; caps: string; ge
   }
   return out;
 }
+
+/** every built-in theme as the loader resolves it (all its values), hashed — without `schema`, which v2 files add */
+export function goldenThemes(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const th of new ThemeManager().list()) {
+    const { schema: _, ...rest } = th as typeof th & { schema?: number };
+    const json = JSON.stringify(rest);
+    out[th.name] = hash([[...json].map((c) => c.codePointAt(0)!)]);
+  }
+  return out;
+}

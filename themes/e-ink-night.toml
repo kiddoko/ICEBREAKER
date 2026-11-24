@@ -6,8 +6,13 @@
 name = "e-ink-night"
 author = "icebreaker"
 description = "e-ink for the night: cream ink on charcoal paper, soft contrast, no glow."
-border = "single"
-widget_frame = "line"     # widgets get a rule on top, no box
+schema = 2                # themes v2 (docs/THEMES.md): frames in [frame] / [widget_frame]
+
+[frame]
+style = "single"
+
+[widget_frame]
+style = "line"     # widgets get a rule on top, no box
 
 [palette]
 # charcoal paper (warm, never black) and cream ink (never white); the greys are

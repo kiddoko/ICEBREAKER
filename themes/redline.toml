@@ -4,8 +4,13 @@
 name = "redline"
 author = "icebreaker"
 description = "Black glass, warning red, Share Tech Mono."
-border = "heavy"
-widget_frame = "heavy"
+schema = 2                # themes v2 (docs/THEMES.md): frames in [frame] / [widget_frame]
+
+[frame]
+style = "heavy"
+
+[widget_frame]
+style = "heavy"
 
 [palette]
 black = "#080506"
