@@ -2,6 +2,14 @@
 
 ## 0.8.1 — not released yet
 
+**The tabs: pages, then documents**
+- The deck's **pages** (home, nexus, sysmon, habits, settings, a module's page) are as short as
+  their name, like ⌂ home; their × shows only while you hover them.
+- The **documents** you work on (notes, the journal, a module's file such as a song) come after
+  them, wider, with ● when unsaved and × always there. A light line separates the two families.
+- A narrow window keeps as many tabs as really fit (a page is short) before the ▾ +N list, the one
+  shown always among them. A page with no icon no longer shows a stray « · ».
+
 **Nothing cut, nothing on top of something else** (`debug layout pages`: none left, in English and
 French, with the tree and the shell open or closed)
 - CALENDAR: its buttons make room on a narrow page (import first, then sync, then today — never

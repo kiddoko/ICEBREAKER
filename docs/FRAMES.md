@@ -94,6 +94,10 @@ stacked, moved, split, folded. This page is how it works and where it stands.
   as stray dots). VAULT and PANEL are **frame labels**, not tabs (they can't be moved or
   grouped): bold, lit in the accent only while that frame has the focus. Every movable tab has
   one style, **as wide as its name** (10–24 cells) while they all fit, then sharing the room.
+  Since 0.8.1 the page strip has two families (`tabstrip.ts` `isDocument`): **pages** first, as
+  short as their name, × on hover only; then, after a light line, **documents** (notes, the
+  journal, a module's file), at least 16 cells, ● when unsaved, × always. The order is drawn by
+  family; `tab move` and ⌘1…9 still count the tabs as they are kept.
 - **Step 3 is done (0.6.0).** Next: step 4, each tab's history (back / forward); step 5,
   the INFO panel; the battery in the top bar (it needs a native call).
 
