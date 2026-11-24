@@ -129,13 +129,43 @@ const moduleTables = new Map<string, { tables: Partial<Record<Lang, Record<strin
 export function addModuleTranslations(source: string, l: string, strings: Record<string, string>): void {
   const lg: Lang = l === "fr" ? "fr" : "en";
   const m = moduleTables.get(source) ?? { tables: {}, patterns: {} };
-  m.tables[lg] = { ...(m.tables[lg] ?? {}), ...strings };
+  // a module's table is its own words, of a sane size: what's too big is left out
+  const own = Object.entries(strings ?? {}).filter(([k, v]) => typeof k === "string" && typeof v === "string" && k.length <= MAX_MODULE_KEY && v.length <= 4 * MAX_MODULE_KEY);
+  m.tables[lg] = Object.fromEntries([...Object.entries(m.tables[lg] ?? {}), ...own].slice(-MAX_MODULE_KEYS));
   delete m.patterns[lg];
   moduleTables.set(source, m);
 }
 
-type Pattern = { re: RegExp; names: string[]; to: string };
-function compile(table: Record<string, string>): Pattern[] {
+const MAX_MODULE_KEY = 400;
+const MAX_MODULE_KEYS = 3000;
+
+/**
+ * `parts`: the key cut at its {names} (literal, name, literal, … literal) — a module's keys are
+ * matched with these, in one pass (indexOf), never with a regular expression: a key of ~160
+ * `{x}` made one whose backtracking froze the deck at start (Fable pass 24/11).
+ */
+type Pattern = { re: RegExp; names: string[]; to: string; parts?: string[] };
+
+/** `core` read with `parts` (literal, name, literal…, literal), each value at least one character; null: not this key */
+function matchParts(core: string, parts: string[]): string[] | null {
+  const first = parts[0], last = parts[parts.length - 1];
+  if (!core.startsWith(first) || !core.endsWith(last) || core.length < first.length + last.length + (parts.length - 1) / 2) return null;
+  const end = core.length - last.length;
+  const values: string[] = [];
+  let at = first.length;
+  for (let i = 2; i < parts.length - 1; i += 2) {
+    // the shortest value (like "(.+?)"): the next place its literal follows
+    const next = parts[i] ? core.indexOf(parts[i], at + 1) : at + 1;
+    if (next < 0 || next >= end) return null;
+    values.push(core.slice(at, next));
+    at = next + parts[i].length;
+  }
+  if (end - at < 1) return null;
+  values.push(core.slice(at, end));
+  return [core, ...values];
+}
+
+function compile(table: Record<string, string>, untrusted = false): Pattern[] {
   const out: Pattern[] = [];
   for (const [key, to] of Object.entries(table)) {
     if (!key.includes("{")) continue;
@@ -148,10 +178,15 @@ function compile(table: Record<string, string>): Pattern[] {
       names.push(m[1]);
       return "(.+?)";
     });
+    if (untrusted) {
+      out.push({ re: /(?!)/, names, to, parts: key.split(/\{(\w+)\}/) });
+      continue;
+    }
     out.push({ re: new RegExp(`^${src.join("")}$`), names, to });
   }
   // the longest keys first: the most precise wins
-  out.sort((a, b) => b.re.source.length - a.re.source.length);
+  const size = (p: Pattern) => (p.parts ? p.parts.join("").length + p.parts.length : p.re.source.length);
+  out.sort((a, b) => size(b) - size(a));
   return out;
 }
 
@@ -163,7 +198,7 @@ function outPiece(core: string, source?: string): string | undefined {
   const mod = source ? moduleTables.get(source) : undefined;
   const mt = mod?.tables[current];
   if (mod && mt) {
-    const own = lookup(core, mt, (mod.patterns[current] ??= compile(mt)));
+    const own = lookup(core, mt, (mod.patterns[current] ??= compile(mt, true)));
     if (own !== undefined) return own;
   }
   return lookup(core, tables[current], patternsOf(current));
@@ -173,7 +208,7 @@ function lookup(core: string, table: Record<string, string>, pats: Pattern[]): s
   // a single word is left alone: it may be a note's name, a value, a command ("open", "done")
   if (core.includes(" ") && table[core] !== undefined) return uiCase(table[core]);
   for (const p of pats) {
-    const m = p.re.exec(core);
+    const m = p.parts ? matchParts(core, p.parts) : p.re.exec(core);
     // a value never spans pieces ("from /{x}" took "notes/a.md · 1 h ago" whole)
     if (!m || m.slice(1).some((v) => v.includes(" · "))) continue;
     const vars: Record<string, string> = {};
