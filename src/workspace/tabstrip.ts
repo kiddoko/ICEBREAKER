@@ -245,7 +245,7 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
     if (e.kind === "group") {
       const i = e.indexes.find((j) => ws.tabs[j]?.key === e.group.active) ?? e.indexes[0];
       const name = e.group.name ? `${e.group.name} · ${tabTitle(ws.tabs[i])}` : tabTitle(ws.tabs[i]);
-      return Math.min(MAXW, strWidth(name) + strWidth(` ${e.indexes.length}`) + 5);
+      return Math.min(MAXW, strWidth(name) + strWidth(` ${e.indexes.length}`) + 5 + (ws.deck.input.modHeld && i < 9 ? 2 : 0));
     }
     if (isPinned(ws, e.index)) return pinW(ws, e.index);
     const app = ws.tabs[e.index];
@@ -253,7 +253,9 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
     // its icon, ● when unsaved, ♪ when its page plays sound (as drawn below)
     const owner = app ? ws.deck.apps.sourceOf(app.kind) : "";
     const sound = !!owner && owner !== "core" && (ws.deck.mixer.isMuted(owner) || ws.deck.mixer.playing().includes(owner));
-    const extra = icon + (sound ? 2 : 0);
+    // ⌘ / ctrl held: its number goes before it ("3 ") — the tab grows rather than cutting its name
+    const num = ws.deck.input.modHeld && e.index < 9 ? 2 : 0;
+    const extra = icon + (sound ? 2 : 0) + num;
     // a page: as short as its name; a document: wider, room for ● and ×
     if (!isDocument(app)) return Math.min(MAXW, strWidth(tabTitle(app)) + extra + PAGE_PAD);
     return Math.max(DOC_MIN, Math.min(MAXW, strWidth(tabTitle(app)) + extra + 2 + 4));

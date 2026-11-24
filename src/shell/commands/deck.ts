@@ -49,14 +49,14 @@ const open: Command = {
       ctx.err("usage: open <page name or note path>\n");
       return 1;
     }
-    // a page's name (open breakermed, open todo): its page — a note only when no page has it;
-    // a path (a "/" or an extension) is always a note
-    const typed = ctx.args.join(" ");
-    const page = /[/\\]|\.\w+$/.test(typed) ? undefined : pageNamed(ctx.deck, typed);
-    if (page) return void ctx.deck.openApp(page);
     // a name with spaces typed without quotes (open START HERE/README): the whole of it is the path
+    const typed = ctx.args.join(" ");
     let p = ctx.resolve(typed);
     if (!/\.\w+$/.test(p)) p += ".md";
+    // a note you have comes first (open todo → todo.md); then a page of that name (open breakermed);
+    // a new note only when neither exists — a path (a "/" or an extension) is always a note
+    const page = /[/\\]|\.\w+$/.test(typed) || ctx.deck.vault.find(p) ? undefined : pageNamed(ctx.deck, typed);
+    if (page) return void ctx.deck.openApp(page);
     if (ctx.deck.vault.isDir(p)) {
       ctx.err(`open: ${ctx.args[0]} is a directory\n`);
       return 1;

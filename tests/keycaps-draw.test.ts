@@ -120,3 +120,31 @@ describe("the pad's buttons in place of the keys, when a pad is used", () => {
     expect(padCells("e", "xbox")).toBeNull();
   });
 });
+
+describe("two keys one space apart keep both their ends (bench 0.8: « ↑↓ ←→ enter » in settings)", () => {
+  it("the space between them is the end of the first key and the start of the second", async () => {
+    const { UI } = await import("../src/ui/ui");
+    const { ThemeManager } = await import("../src/core/theme");
+    const { CAP_PAD_L, CAP_PAD_R } = await import("../src/core/grid");
+    const ui = new UI();
+    const g = new Grid(30, 1);
+    ui.begin(g, new ThemeManager().current, 0, { x: -1, y: -1 });
+    ui.text(0, 0, "↑↓ ←→ enter", {});
+    // cell 2 (between ↑↓ and ←→) and cell 5 (between ←→ and enter)
+    for (const k of [2, 5]) expect(g.capEdge[k] & (CAP_PAD_L | CAP_PAD_R)).toBe(CAP_PAD_L | CAP_PAD_R);
+  });
+  it("such a cell draws both halves (the first key's end, then the second's start)", async () => {
+    const { drawCapSlice } = await import("../src/core/keycap");
+    const { CAP_PAD_L, CAP_PAD_R } = await import("../src/core/grid");
+    const fills: number[] = [];
+    const ctx = new Proxy({} as Record<string, unknown>, {
+      get: (o, k) => (k in o ? o[k as string] : k === "fill" ? () => fills.push(1) : () => undefined),
+      set: (o, k, v) => ((o[k as string] = v), true),
+    }) as unknown as CanvasRenderingContext2D;
+    drawCapSlice(ctx, 0, 0, 20, 40, 0x334455, CAP_PAD_R);
+    const one = fills.length;
+    drawCapSlice(ctx, 0, 0, 20, 40, 0x334455, CAP_PAD_L | CAP_PAD_R);
+    expect(one).toBeGreaterThan(0);
+    expect(fills.length - one).toBe(one * 2);
+  });
+});

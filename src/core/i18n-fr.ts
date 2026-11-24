@@ -2889,4 +2889,12 @@ export const FR: Record<string, string> = {
   "any key to skip": "une touche pour passer",
   "enter keeps": "entrée garde",
   "{name} opened in a tab, behind the shell · ctrl+tab": "{name} ouvert dans un onglet, derrière le shell · ctrl+tab",
+  // ── 0.8: the top row (the keys moved beside the menu's lines; the tour names the ◆ menu)
+  "Every page you open is a tab on top of its frame: click one, or ⌘1…9. ⌘W closes it, ctrl+tab goes to the next one; HOME is pinned, always first. Drag a tab onto another frame to keep it there, or onto another tab: a group. Top left, ◆ icebreaker is the deck's menu: modules, the store, nexus, settings, help, log out.": "Chaque page ouverte est un onglet, en haut de son cadre : clique dessus, ou ⌘1…9. ⌘W le ferme, ctrl+tab passe au suivant ; HOME est épinglé, toujours le premier. Glisse un onglet sur un autre cadre pour l'y garder, ou sur un autre onglet : un groupe. En haut à gauche, ◆ icebreaker est le menu du deck : modules, store, nexus, réglages, aide, déconnexion.",
+  "the deck's menu: modules, store, nexus, settings, help, updates, log out · click · F10": "le menu du deck : modules, store, nexus, réglages, aide, mises à jour, déconnexion · clic · F10",
+  "every app and module: open, switch on or off": "toutes les apps et tous les modules : ouvrir, allumer, éteindre",
+  "NEXUS: your vault as a 3D map": "NEXUS : ton vault en carte 3D",
+  "theme, effects, keys, AI, privacy…": "thème, effets, touches, IA, vie privée…",
+  "the manual, the shortcuts, the tour": "le manuel, les raccourcis, la visite",
+  "top story": "à la une",
 };

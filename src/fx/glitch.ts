@@ -23,11 +23,16 @@ export function glitch(g: Grid, intensity: number, seed: number): void {
     const ch = g.ch.slice(base, base + g.cols);
     const fg = g.fg.slice(base, base + g.cols);
     const bg = g.bg.slice(base, base + g.cols);
+    // the keys tear with their row (core/keycap.ts: they stayed put under shifted text)
+    const cap = g.cap.slice(base, base + g.cols);
+    const edge = g.capEdge.slice(base, base + g.cols);
     for (let x = 0; x < g.cols; x++) {
       const src = (x - shift + g.cols) % g.cols;
       g.ch[base + x] = ch[src] === 0 ? 32 : ch[src];
       g.fg[base + x] = fg[src];
       g.bg[base + x] = bg[src];
+      g.cap[base + x] = cap[src];
+      g.capEdge[base + x] = edge[src];
     }
   }
 

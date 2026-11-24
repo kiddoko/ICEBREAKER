@@ -285,7 +285,7 @@ export const newsWidget: WidgetSpec = {
       const h = items[i];
       const tw = r.w - 2;
       // "à la une" first, then this article's own category or, without one, what the widget shows
-      ui.text(r.x + 1, r.y, `◉ ${t("à la une")} · ${h.tag ? (NEWS_CATEGORIES[h.tag]?.label ?? h.tag) : sourceLabel(deck, src)}`, { fg: c.accentAlt, attrs: BOLD }, tw);
+      ui.text(r.x + 1, r.y, `◉ ${t("top story")} · ${h.tag ? (NEWS_CATEGORIES[h.tag]?.label ?? h.tag) : sourceLabel(deck, src)}`, { fg: c.accentAlt, attrs: BOLD }, tw);
       let y = r.y + 2;
       for (const l of wrapWords(h.title, tw).slice(0, Math.max(1, Math.floor((r.h - 3) / 2)))) ui.text(r.x + 1, y++, l, { fg: c.accent, attrs: BOLD }, tw);
       if (y < r.y + r.h) ui.text(r.x + 1, y++, `${h.source}${h.at ? ` · ${when(deck, h.at)}` : ""}`, { fg: c.subtle }, tw);

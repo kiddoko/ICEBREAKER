@@ -36,10 +36,15 @@ export class Transitions {
         const fill = p < 0.12 ? ink : bg;
         g.ch.fill(32);
         g.bg.fill(fill);
+        // the keys go with the page (they stayed on a blank screen)
+        g.cap.fill(NONE);
         return true;
       }
       const k = 1 - (p - 0.24) / 0.76;
-      for (let i = 0; i < n; i++) g.fg[i] = mix(g.fg[i] === NONE ? ink : g.fg[i], bg, k * 0.55);
+      for (let i = 0; i < n; i++) {
+        g.fg[i] = mix(g.fg[i] === NONE ? ink : g.fg[i], bg, k * 0.55);
+        if (g.cap[i] !== NONE) g.cap[i] = mix(g.cap[i], bg, k * 0.55);
+      }
       return true;
     }
     if (this.kind === "wipe") {
@@ -61,6 +66,7 @@ export class Transitions {
       for (let i = 0; i < n; i++) {
         g.fg[i] = mix(g.fg[i] === NONE ? ink : g.fg[i], bg, k);
         if (g.bg[i] !== NONE) g.bg[i] = mix(g.bg[i], bg, k);
+        if (g.cap[i] !== NONE) g.cap[i] = mix(g.cap[i], bg, k);
       }
       return true;
     }
