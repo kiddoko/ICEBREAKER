@@ -180,7 +180,7 @@ class NewsApp implements App {
     if (heroLines.length) {
       const hr = { x: r.x, y, w: r.w, h: heroLines.length + 2 };
       const on = this.sel === 0;
-      ui.text(r.x, y++, `◉ ${t("à la une")}${hero.tag ? ` · ${hero.tag}` : ""}`, { fg: c.accentAlt, attrs: BOLD }, r.w);
+      ui.text(r.x, y++, `◉ ${t("top story")}${hero.tag ? ` · ${hero.tag}` : ""}`, { fg: c.accentAlt, attrs: BOLD }, r.w);
       for (const l of heroLines) {
         ui.text(r.x, y, on ? "▌" : " ", { fg: c.accent });
         ui.text(r.x + GAP, y++, l, { fg: on ? c.accent : c.fg, attrs: BOLD }, r.w - GAP);

@@ -287,7 +287,13 @@ export class UI {
     }
     for (; i < chars.length; i++) put(chars[i], fg, bg, attrs);
     for (let k = 0; k < slack; k++) put(" ", fg, bg, attrs);
-    for (const px of padR) this.grid.setCap(px, y, face, CAP_PAD_R);
+    // a space between two keys keeps both: the end of the one before, the start of the next (it
+    // lost the start: « ↑↓ ←→ enter » in settings)
+    for (const px of padR) {
+      const at = y * this.grid.cols + px;
+      const both = px >= 0 && px < this.grid.cols && this.grid.cap[at] !== NONE && this.grid.capEdge[at] & CAP_PAD_L;
+      this.grid.setCap(px, y, face, both ? CAP_PAD_L | CAP_PAD_R : CAP_PAD_R);
+    }
     return x;
   }
 

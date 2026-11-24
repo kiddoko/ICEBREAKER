@@ -103,6 +103,12 @@ function roundRect(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: nu
  * into (CAP_PAD_L / CAP_PAD_R). The text on it is drawn afterwards, by the caller.
  */
 export function drawCapSlice(ctx: CanvasRenderingContext2D, x: number, y: number, cw: number, ch: number, face: RGB, edge: number, look: KeycapLook = BEVELLED): void {
+  // one space between two keys: the end of the one before and the start of the one after share it
+  if (edge & CAP_PAD_L && edge & CAP_PAD_R) {
+    drawCapSlice(ctx, x, y, cw, ch, face, CAP_PAD_R, look);
+    drawCapSlice(ctx, x, y, cw, ch, face, CAP_PAD_L, look);
+    return;
+  }
   const g = capGeometry(cw, ch, look);
   const col = capColors(face);
   // the key's whole shape: past the cell where the key goes on, clipped to the cell

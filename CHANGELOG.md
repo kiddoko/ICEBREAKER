@@ -2,6 +2,28 @@
 
 ## 0.8.1 — not released yet
 
+**The tabs: pages, then documents**
+- The deck's **pages** (home, nexus, sysmon, habits, settings, a module's page) are as short as
+  their name, like ⌂ home; their × shows only while you hover them.
+- The **documents** you work on (notes, the journal, a module's file such as a song) come after
+  them, wider, with ● when unsaved and × always there. A light line separates the two families.
+- A narrow window keeps as many tabs as really fit (a page is short) before the ▾ +N list, the one
+  shown always among them. A page with no icon no longer shows a stray « · ».
+- The tabs are kept in that order: ⌘1…9, `tab move` and the numbers shown while ⌘ is held count
+  them as you see them. A tab moves within its own family.
+
+**Fixes from the night pass on 0.8**
+- Back in French: the ◆ button's tip, the ◆ menu's tips (modules, nexus, settings, help) and the
+  tour's TABS bubble (their English had changed, their French hadn't). A test now fails when a
+  `t("…")` text in `src` has no French.
+- Two keys one space apart keep both their ends (« ↑↓ ←→ enter » in settings: the second lost its
+  left end).
+- `open <name>` opens your note first when you have one (`open todo` → todo.md), then a page of that
+  name, then makes a new note.
+- With ⌘ / ctrl held, a tab grows to fit its number instead of cutting its name.
+- The keys tear with their row in the glitch and fade with the page in the e-ink and fade
+  transitions. In English, the news' « à la une » reads « top story ».
+
 **Nothing cut, nothing on top of something else** (`debug layout pages`: none left, in English and
 French, with the tree and the shell open or closed)
 - CALENDAR: its buttons make room on a narrow page (import first, then sync, then today — never

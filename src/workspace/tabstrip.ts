@@ -26,7 +26,7 @@ import { frameOfPane, PANE_OF, type PlaceFrame } from "./tabplaces";
 import type { Pane } from "./workspace";
 import type { Overlay } from "./overlays";
 import { ContextMenu } from "./contextmenu";
-import { groupOf } from "./tabgroups";
+import { groupOf, type StripEntry } from "./tabgroups";
 import type { Workspace } from "./workspace";
 import { tabMenu } from "./menus";
 
@@ -36,6 +36,8 @@ const PLUS_W = 3;
 const MORE_W = 7;
 /** one cell between two tabs */
 const SEP = 1;
+/** the light line between the pages and the documents, and the cell after it */
+const FAMILY_W = 2;
 
 /** what a tab shows before its title ("" when the title already starts with it: "♬ ♬ untitled") */
 function iconOf(ws: Workspace, i: number): string {
@@ -45,13 +47,28 @@ function iconOf(ws: Workspace, i: number): string {
 
 function baseIcon(ws: Workspace, i: number): string {
   const app = ws.tabs[i];
-  if (!app) return "·";
+  if (!app) return "";
   if (app.kind === "note") return "✎";
   // the shell as a tab (term max): its own marks, as on the shell's tabs
   if (app.kind === "ibsh") return ws.deck.theme.glyphs.mark;
   if (app.kind === "terminal") return "❯";
-  return ws.deck.apps.get(app.kind)?.icon?.trim()?.slice(0, 2) || "·";
+  return ws.deck.apps.get(app.kind)?.icon?.trim()?.slice(0, 2) || "";
 }
+
+/**
+ * TWO FAMILIES OF TABS (0.8): the deck's PAGES (home, nexus, sysmon, settings, a module's page)
+ * are short — their name, like ⌂ home, × only while hovered; the DOCUMENTS you work on (a note,
+ * the journal, a module's file: a song) come after them, wider, ● when unsaved and × always.
+ * A light line between the two families.
+ */
+export function isDocument(app: App | undefined): boolean {
+  if (!app) return false;
+  return app.kind === "note" || app.kind === "journal" || !!app.dirty || /\.\w{1,8}$/.test(app.key);
+}
+/** a page's tab: " icon name " — its × takes the last cell while hovered */
+const PAGE_PAD = 2;
+/** a document's tab: at least this wide, " icon ● name × " */
+const DOC_MIN = 16;
 
 // ── a frame's header: its tabs on its border ─────────────────────────────────
 
@@ -183,7 +200,8 @@ export function placeChips(ws: Workspace, ui: UI, x: number, y: number, maxX: nu
     ui.hit(rect, { cmd: `tab ${i + 1}`, tip: `${app.title()}\n${t("drag it onto another frame to move it · right-click: move, close")}`, menu: () => tabMenu(ws, i), onDrag: (m) => void drag.onDrag(m), onUp: () => void drag.onUp() });
     if (!pin) {
       const xr = { x: x + w - GAP - INSET, y, w: GAP + INSET, h: 1 };
-      ui.text(x + w - GAP, y, on || hot ? "×" : " ", { fg: ui.hovered(xr) ? c.error : st.fg, bg: st.bg, attrs: BOLD });
+      // as in the page strip: × always on a document, only while hovered on a page
+      ui.text(x + w - GAP, y, isDocument(app) || hot ? "×" : " ", { fg: ui.hovered(xr) ? c.error : st.fg, bg: st.bg, attrs: BOLD });
       ui.hit(xr, { cmd: `tab close ${i + 1}`, tip: t("close · ctrl+w · shift+esc") });
     }
     x += w + SEP;
@@ -207,7 +225,12 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
   const c = ui.c;
   const focused = ws.focus === "main" && !ws.topModal;
   let x = r.x;
-  const entries = ws.stripEntries();
+  // the pages first, then the documents (each family in its own order)
+  const docOf = (e: StripEntry) => e.kind === "tab" && isDocument(ws.tabs[e.index]);
+  const all = ws.stripEntries();
+  const entries = [...all.filter((e) => !docOf(e)), ...all.filter(docOf)];
+  /** where the documents start (a light line before them), or -1 */
+  const firstDoc = entries.findIndex(docOf) > 0 ? entries.findIndex(docOf) : -1;
   const n = entries.length;
   // the pinned tab (HOME) keeps its own small width; the others share the rest
   const pinned = entries.filter((e) => e.kind === "tab" && isPinned(ws, e.index)).map((e) => (e.kind === "tab" ? pinW(ws, e.index) + SEP : 0));
@@ -222,25 +245,44 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
     if (e.kind === "group") {
       const i = e.indexes.find((j) => ws.tabs[j]?.key === e.group.active) ?? e.indexes[0];
       const name = e.group.name ? `${e.group.name} · ${tabTitle(ws.tabs[i])}` : tabTitle(ws.tabs[i]);
-      return Math.min(MAXW, strWidth(name) + strWidth(` ${e.indexes.length}`) + 5);
+      return Math.min(MAXW, strWidth(name) + strWidth(` ${e.indexes.length}`) + 5 + (ws.deck.input.modHeld && i < 9 ? 2 : 0));
     }
     if (isPinned(ws, e.index)) return pinW(ws, e.index);
     const app = ws.tabs[e.index];
+    const icon = iconOf(ws, e.index) ? strWidth(iconOf(ws, e.index)) + 1 : 0;
     // its icon, ● when unsaved, ♪ when its page plays sound (as drawn below)
     const owner = app ? ws.deck.apps.sourceOf(app.kind) : "";
     const sound = !!owner && owner !== "core" && (ws.deck.mixer.isMuted(owner) || ws.deck.mixer.playing().includes(owner));
-    const extra = (iconOf(ws, e.index) ? strWidth(iconOf(ws, e.index)) + 1 : 0) + (app?.dirty?.() ? 2 : 0) + (sound ? 2 : 0);
-    return Math.max(10, Math.min(MAXW, strWidth(tabTitle(app)) + extra + 5));
+    // ⌘ / ctrl held: its number goes before it ("3 ") — the tab grows rather than cutting its name
+    const num = ws.deck.input.modHeld && e.index < 9 ? 2 : 0;
+    const extra = icon + (sound ? 2 : 0) + num;
+    // a page: as short as its name; a document: wider, room for ● and ×
+    if (!isDocument(app)) return Math.min(MAXW, strWidth(tabTitle(app)) + extra + PAGE_PAD);
+    return Math.max(DOC_MIN, Math.min(MAXW, strWidth(tabTitle(app)) + extra + 2 + 4));
   };
-  const fitted = entries.reduce((sum, _, ei) => sum + natural(ei) + SEP, 0) <= r.x + r.w - x - PLUS_W;
+  const fitted = entries.reduce((sum, _, ei) => sum + natural(ei) + SEP, 0) + (firstDoc > 0 ? FAMILY_W : 0) <= r.x + r.w - x - PLUS_W;
   let shown = Array.from({ length: n }, (_, i) => i);
   // they don't all fit as wide as their names: they share the room (15–24 cells), the rest in a list
   if (!fitted && others * (tabW + 1) > avail) {
     tabW = MINW;
-    // so narrow that not even one tab fits beside the list: only the list
-    const fit = Math.floor((avail - MORE_W) / (tabW + 1)) + pinned.length;
-    shown = shown.slice(0, Math.max(0, fit));
-    if (fit > 0 && activeEntry >= fit) shown[fit - 1] = activeEntry;
+    // each as wide as it will be drawn (a page short, a document MINW), as many as fit before the
+    // list — the one shown always among them (in place of the last that fits)
+    const widthOf = (ei: number) => {
+      const e = entries[ei];
+      if (e.kind === "tab" && isPinned(ws, e.index)) return pinW(ws, e.index);
+      return docOf(e) ? tabW : Math.min(tabW, natural(ei));
+    };
+    const room = r.x + r.w - x - PLUS_W - MORE_W - (firstDoc > 0 ? FAMILY_W : 0);
+    const take: number[] = [];
+    let used = activeEntry >= 0 ? widthOf(activeEntry) + SEP : 0;
+    for (let ei = 0; ei < n; ei++) {
+      if (ei === activeEntry) continue;
+      if (used + widthOf(ei) + SEP > room) break;
+      used += widthOf(ei) + SEP;
+      take.push(ei);
+    }
+    if (activeEntry >= 0) take.push(activeEntry);
+    shown = take.sort((p, q) => p - q);
   }
   const hidden = Array.from({ length: n }, (_, i) => i).filter((i) => !shown.includes(i));
   const numbers = ws.deck.input.modHeld;
@@ -251,10 +293,19 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
     return e ? (e.kind === "tab" ? e.index : e.indexes[0]) : -1;
   };
   chipsNow = [];
+  let lineDrawn = false;
   shown.forEach((ei, k) => {
     const e = entries[ei];
     const pin = e.kind === "tab" && isPinned(ws, e.index);
-    const w = pin && e.kind === "tab" ? pinW(ws, e.index) : fitted ? natural(ei) : tabW;
+    // the light line between the pages and the documents
+    if (docOf(e) && !lineDrawn && k > 0) {
+      lineDrawn = true;
+      ui.text(x, r.y, "│", { fg: c.faint });
+      x += FAMILY_W;
+    }
+    const doc = e.kind === "tab" && isDocument(ws.tabs[e.index]);
+    // a page stays as short as its name even when the tabs share the room
+    const w = pin && e.kind === "tab" ? pinW(ws, e.index) : fitted ? natural(ei) : doc ? tabW : Math.min(tabW, natural(ei));
     const rect = { x, y: r.y, w, h: 2 };
     rects.push(rect);
     chipsNow.push({ rect, first: e.kind === "tab" ? e.index : e.indexes[0], group: e.kind === "group" ? e.group.id : undefined });
@@ -264,7 +315,8 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
     const target = !!dragging && dragging.onto && dragging.to === firstOf(k) && dragging.from !== i;
     const { fg, bg } = chipStyle(ui, on, focused, hot || target);
     drawChip(ui, x, r.y, w, bg, target ? c.accent : bg);
-    const closeX = x + w - 2;
+    // a page's × sits in its last cell (blank until hovered); a document's one cell in
+    const closeX = doc ? x + w - 2 : x + w - 1;
     let tx = x + 1;
     if (pin) {
       // ⌂ home: no ×, can't be dragged away from the first place
@@ -304,11 +356,13 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
         const muted = mx.isMuted(sound);
         tx = ui.text(tx, r.y, muted ? "⊘ " : "♪ ", { fg: ui.hovered(speaker) ? c.warning : muted ? c.error : on ? c.panel : c.accent, bg, attrs: BOLD });
       }
-      if ((fitted || room - 2 >= 6) && iconOf(ws, i)) tx = ui.text(tx, r.y, `${iconOf(ws, i)} `, { fg: on ? c.panel : c.subtle, bg });
+      if ((fitted || !doc || room - 2 >= 6) && iconOf(ws, i)) tx = ui.text(tx, r.y, `${iconOf(ws, i)} `, { fg: on ? c.panel : c.subtle, bg });
       if (unsaved) tx = ui.text(tx, r.y, "● ", { fg: c.error, bg, attrs: BOLD });
-      ui.text(tx, r.y, tabTitle(ws.tabs[i]), { fg, bg, attrs: on ? BOLD : 0 }, Math.max(0, closeX - tx - 1));
+      ui.text(tx, r.y, tabTitle(ws.tabs[i]), { fg, bg, attrs: on ? BOLD : 0 }, Math.max(0, closeX - tx - (doc ? 1 : 0)));
       const closeHot = ui.hovered({ x: closeX - 1, y: r.y, w: 3, h: 1 });
-      ui.text(closeX, r.y, on || hot ? "×" : " ", { fg: closeHot ? c.error : on ? c.panel : c.subtle, bg, attrs: closeHot ? BOLD : 0 });
+      // × : always on a document, only while hovered on a page
+      const closeShown = doc ? true : hot;
+      ui.text(closeX, r.y, closeShown ? "×" : " ", { fg: closeHot ? c.error : on ? c.panel : c.subtle, bg, attrs: closeHot ? BOLD : 0 });
       const toFrame = dragToFrame(ws, i, "main");
       ui.hit(rect, {
         cmd: `tab ${i + 1}`,

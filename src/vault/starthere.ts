@@ -188,7 +188,7 @@ left it** — the tree's open folders, your tabs and their groups, the frames an
 the tree and the shell shown or hidden, the shell's tab, the page you were on, the window.
 
 ## Tabs, pins, settings
-- Tabs on top: 1…9 (when not typing) or ⌘1…9; ⌘W, ⇧Esc or a middle click closes one and shows the tab before it. NEXUS, STORE, MODULES, settings and the trash open as tabs like the others. On HOME with nothing to close, Esc opens the **◆ ICEBREAKER** menu (F10 anywhere).
+- Tabs on top: 1…9 (when not typing) or ⌘1…9; ⌘W, ⇧Esc or a middle click closes one and shows the tab before it. NEXUS, STORE, MODULES, settings and the trash open as tabs like the others. The pages come first, short, × when you hover them; your documents (notes, the journal, a song) after a light line, with ● when unsaved. On HOME with nothing to close, Esc opens the **◆ ICEBREAKER** menu (F10 anywhere).
 - **The status bar** (bottom) is yours: drag an item sideways, right-click it to move, hide or
   group it with the one on its left (\`statusbar join | alone <item>\`). ◧ ▾ ◨ ▣ show and hide the
   tree, the shell, the panel — ▣ leaves the page alone.
