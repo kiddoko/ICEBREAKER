@@ -35,7 +35,7 @@ import { frames, todayLayout, type Node as LayoutNode, type Today } from "./layo
 import { CLASSIC, effectiveLayout, isFolded, parseArrangement, resizeBetween, setFolded, type ANode, type FrameId } from "./layout/arrange";
 import { bordersOf, solveLayout, type Border } from "./layout/solve";
 import { paneToward } from "./layout/focus";
-import { drawDropFrame, frameLabel, placeChips, renderTabStrip, tabbedBox } from "./tabstrip";
+import { drawDropFrame, frameLabel, isDocument, placeChips, renderTabStrip, tabbedBox } from "./tabstrip";
 import { headerSpan, stripClear, type TopCorners } from "./layout/toprow";
 import { frameOfPane, PANE_OF, parsePlaces, parseShows, prunePlaces, type PlaceFrame, type Places, type Shows } from "./tabplaces";
 import { groupOf, joinGroup, parseGroups, pick, prune, renameGroup, stripEntries, takeOut, type StripEntry, type TabGroup } from "./tabgroups";
@@ -475,6 +475,20 @@ export class Workspace {
     return this.tabs.length;
   }
 
+  /**
+   * The tabs in the strip's order: the pages first, then the documents (tabstrip.ts isDocument),
+   * each family in its own order — so ⌘1…9, `tab move` and the numbers shown with ⌘ held count
+   * what you see. The tab shown stays shown. Kept after every open and move (and checked each frame).
+   */
+  orderFamilies(): void {
+    const docs = this.tabs.map((a) => isDocument(a));
+    // already in order: nothing to do (the common case, every frame)
+    if (docs.every((d, i) => i === 0 || !docs[i - 1] || d)) return;
+    const shown = this.tabs[this.active];
+    this.tabs = [...this.tabs.filter((_, i) => !docs[i]), ...this.tabs.filter((_, i) => docs[i])];
+    this.active = Math.max(0, this.tabs.indexOf(shown));
+  }
+
   /** Show an app; if one with the same key is open, switch to it instead. */
   /** the side panel on the right (◨): widgets always in view — see sidepanel.ts */
   readonly sidePanel: SidePanel;
@@ -517,6 +531,7 @@ export class Workspace {
       this.active = Math.min(this.tabs.length - 1, this.active + 1);
     }
     this.previewTab = app;
+    this.orderFamilies();
   }
 
   /** until when a page opened goes behind the maximized shell (workspace/openbehind.ts) */
@@ -534,7 +549,10 @@ export class Workspace {
     if (this.opensBehind(app.kind) && this.tabs[existing] !== this.activeApp) {
       let tab = this.tabs[existing];
       if (existing >= 0) void app.close?.();
-      else this.tabs.splice(this.active + 1, 0, (tab = app));
+      else {
+        this.tabs.splice(this.active + 1, 0, (tab = app));
+        this.orderFamilies();
+      }
       const name = tab.title?.() ?? tab.kind;
       this.deck.notify(t("{name} opened in a tab, behind the shell · ctrl+tab", { name: tLoose(name).toLowerCase() }));
       return tab;
@@ -553,6 +571,7 @@ export class Workspace {
       this.tabs.splice(this.active + 1, 0, app);
       this.active = Math.min(this.tabs.length - 1, this.active + 1);
       if (this.tabs.length === 1) this.active = 0;
+      this.orderFamilies();
     }
     this.focus = "main";
     const opened = this.tabs[this.active];
@@ -590,9 +609,15 @@ export class Workspace {
     const home = this.tabs.findIndex((a) => a.kind === "home");
     if (home >= 0 && (from === home || to <= home)) return false;
     const shown = this.tabs[this.active];
+    // a tab moves within its own family (a page among the pages, a document among the documents)
+    const doc = isDocument(this.tabs[from]);
+    const firstDoc = this.tabs.findIndex((a) => isDocument(a));
+    if (firstDoc >= 0) to = doc ? Math.max(to, firstDoc - (from < firstDoc ? 1 : 0)) : Math.min(to, firstDoc - 1);
+    if (to === from) return true;
     const [tab] = this.tabs.splice(from, 1);
     this.tabs.splice(to, 0, tab);
     this.active = Math.max(0, this.tabs.indexOf(shown));
+    this.orderFamilies();
     this.deck.requestFrame();
     return true;
   }
@@ -637,6 +662,8 @@ export class Workspace {
 
   /** The strip's chips this frame: lone tabs and groups (closed tabs leave their groups). */
   stripEntries(): StripEntry[] {
+    // (a tab restored or made elsewhere: in the strip's order before it's drawn)
+    this.orderFamilies();
     // the page frame's tabs only (the others are drawn by their frames); indexes stay the tabs'
     const keys = this.tabKeys().map((k, i) => (this.reachOf(i) === "main" ? k : ""));
     this.groups = prune(this.groups, keys);

@@ -96,8 +96,9 @@ stacked, moved, split, folded. This page is how it works and where it stands.
   one style, **as wide as its name** (10–24 cells) while they all fit, then sharing the room.
   Since 0.8.1 the page strip has two families (`tabstrip.ts` `isDocument`): **pages** first, as
   short as their name, × on hover only; then, after a light line, **documents** (notes, the
-  journal, a module's file), at least 16 cells, ● when unsaved, × always. The order is drawn by
-  family; `tab move` and ⌘1…9 still count the tabs as they are kept.
+  journal, a module's file), at least 16 cells, ● when unsaved, × always. The tabs are kept in
+  that order (`Workspace.orderFamilies`), so ⌘1…9, `tab move` and the numbers shown with ⌘ held
+  count what you see; a tab moves within its family.
 - **Step 3 is done (0.6.0).** Next: step 4, each tab's history (back / forward); step 5,
   the INFO panel; the battery in the top bar (it needs a native call).
 

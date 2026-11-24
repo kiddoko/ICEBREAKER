@@ -9,6 +9,8 @@
   them, wider, with ● when unsaved and × always there. A light line separates the two families.
 - A narrow window keeps as many tabs as really fit (a page is short) before the ▾ +N list, the one
   shown always among them. A page with no icon no longer shows a stray « · ».
+- The tabs are kept in that order: ⌘1…9, `tab move` and the numbers shown while ⌘ is held count
+  them as you see them. A tab moves within its own family.
 
 **Fixes from the night pass on 0.8**
 - Back in French: the ◆ button's tip, the ◆ menu's tips (modules, nexus, settings, help) and the
