@@ -30,6 +30,36 @@
 
 ## 0.8.1 — not released yet
 
+**Data: nothing lost without asking** (the Fable pass on the Windows bench, 24/11 — all in 0.7.2)
+- A note written on Windows (CRLF line ends) said « changed on disk » at the first key and
+  stopped saving. It is compared as the editor holds it now, and saved with its own line ends.
+- A tab whose note couldn't be saved (changed on disk, a failed write) asks before it closes; it
+  used to close and take your edits with it. « keep mine » / « take the disk's » come first in the
+  note's bar, where no message covers them.
+- `rm ta/same.md tb/same.md`: the trash kept one file (the second replaced the first), and
+  restoring put tb's text at ta's path. Each keeps its own place in the trash now (`same (2).md`).
+- A note renamed or moved while open: its tab follows it (path, title, next save); it used to
+  write the old file back as you typed.
+- `cal google disconnect` no longer brings your local events back twice at the next start; an
+  event over more than a night, or of 24 h and more, keeps its end (`2026-11-19 22:00..2026-11-21 02:00`).
+- The journal writes a day only once you write in it: clicking through the calendar made one
+  file per day.
+- `echo x > note.md` over a note: ⌘Z brings its text back (`>>` too).
+- A `settings.json` that can't be read is kept as `settings.json.broken` before the defaults
+  replace it; `mv Note.md note.md` (case only) is a rename, not « already exists »; `mv ta ta/sub`
+  says « can't move a folder into itself ».
+
+**Terminals and ibsh**
+- From a PowerShell tab, deck commands ran in the vault's root (`cd journal; ls` listed the
+  root): Windows paths (`\`, any case) are understood now. The deck's macros (`ls -la`,
+  `mkdir -p`…) are said in PowerShell's and cmd's own words; a cmd tab says where the deck's
+  commands are (PowerShell, ibsh).
+- `grep '(a+)+$'` froze the deck for seconds and ctrl+C couldn't stop it: the search runs apart
+  now, stops at ctrl+C or after 5 s, and the deck keeps drawing.
+- `export X=1; echo $X` prints 1 (each piece of a line is read when it runs; `$?` too), and in
+  `a && b || c`, c runs when a fails.
+- A click in a note while it reloads no longer throws E901.
+
 **The tabs: pages, then documents**
 - The deck's **pages** (home, nexus, sysmon, habits, settings, a module's page) are as short as
   their name, like ⌂ home; their × shows only while you hover them.

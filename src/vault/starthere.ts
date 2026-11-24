@@ -441,7 +441,7 @@ it, ⌘\` brings it back):
 
 | Tab | What |
 |---|---|
-| **zsh** (bash, powershell…) | your real shell, named after itself, **plus** every ICEBREAKER command |
+| **zsh** (bash, fish, powershell…) | your real shell, named after itself, **plus** every ICEBREAKER command, in the folder you're in (**cmd** has none of them: use PowerShell or ibsh). The macros above it are said that shell's way (\`ls -la\` is \`Get-ChildItem -Force\` in PowerShell) |
 | **ibsh** | ICEBREAKER's own shell: it only sees the vault, \`rm\` goes to .trash. Open several: each has its own folder and ↑ history |
 | **+** (ctrl+shift+\`) | a new tab: **ibsh** (enter), or any shell of this computer — zsh, bash, fish; PowerShell, cmd, WSL on Windows (\`term new bash\`, \`term shells\`). Right-click a tab: rename, close. The tabs come back as you left them |
 | **log** | on the shell's right when it's wide (a tab when it's narrow, or with \`log side off\`): what you typed and clicked (with the output), errors (a code — E102… — and what to do: \`errors E102\`), messages; chips on top filter them (\`log show errors\`) |
