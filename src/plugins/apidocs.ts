@@ -69,6 +69,7 @@ export const API_DOCS: [name: string, doc: string][] = [
   ["ib.lib.STRIKE", "a text attribute: struck through"],
   ["ib.lib.strWidth", "strWidth(text) → its width in cells (emoji and CJK are 2)"],
   ["ib.lib.truncate", "truncate(text, w) → cut to w cells with …"],
+  ["ib.lib.fitHints", "fitHints(\"a add · x remove · esc back\", w) → the hints that fit whole, the last ones left out (never one cut mid-word)"],
   ["ib.lib.padEnd", "padEnd(text, w) → padded to w cells"],
   ["ib.lib.fuzzyFilter", "fuzzyFilter(items, query, nameOf) → the items that match, best first"],
   ["ib.lib.t", "t(text, vars?) → the text in the deck's language (addTranslations for yours)"],

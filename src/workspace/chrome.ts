@@ -9,7 +9,7 @@ import { t, tLoose, dateLocale } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
 import { IS_MAC } from "../core/input";
 import { osKeys } from "../core/keyhints";
-import { strWidth, truncate } from "../core/unicode";
+import { fitHints, strWidth, truncate } from "../core/unicode";
 import { inside, q, type Hit, type MenuEntry, type UI } from "../ui/ui";
 import { Bar, GAP, INSET } from "../ui/layout";
 import { Osk } from "./overlays";
@@ -400,7 +400,8 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
     const e = ui.text(x, r.y, label, { fg: c.panel, bg: c.accent, attrs: BOLD });
     ui.text(e, r.y, "", { fg: c.accent, bg: c.statusBg });
   }, { priority: 10 });
-  if (status) bar.text(` ${status} `, { fg: c.statusFg, bg: c.statusBg }, { priority: 1, fit: 12 });
+  // too long: its last hints are left out, never one cut in the middle (« échap r… »)
+  if (status) bar.item(strWidth(status) + 2, (x, w) => ui.text(x, r.y, ` ${fitHints(status, w - 2)} `, { fg: c.statusFg, bg: c.statusBg }, w), { priority: 1, fit: 12 });
   const order = statusOrder(d.settings.data.statusBar);
   ws.statusSlots = [];
   const drag = ws.statusDrag;

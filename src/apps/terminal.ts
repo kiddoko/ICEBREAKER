@@ -5,6 +5,7 @@ import type { Deck } from "../deck";
 import { SystemTerminal, terminalKeysHint } from "../shell/systerm";
 import type { UI } from "../ui/ui";
 import type { App, AppSpec } from "./types";
+import { KEEP_KEYS_MS } from "../workspace/openbehind";
 
 let opened = 0;
 
@@ -74,6 +75,8 @@ export class IbshApp implements App {
     return `${this.sh.status()} · term dock: back to the panel`;
   }
   onKey(k: KeyInput): boolean {
+    // a page this line opens comes in behind this tab: the keys stay here (workspace/openbehind.ts)
+    if (k.combo === "enter") this.deck.workspace.keepKeysUntil = performance.now() + KEEP_KEYS_MS;
     return this.sh.onKey(k);
   }
   onText(t: string): boolean {

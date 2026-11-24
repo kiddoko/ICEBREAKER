@@ -69,6 +69,9 @@ stacked, moved, split, folded. This page is how it works and where it stands.
   the rest in "+N".
 - The terminals stay together in the shell's frame: `term new` opens beside them
   (`term max` still turns the shell into a big tab of the page's frame, `term dock` puts it back).
+  While that big ibsh tab is in front, a page that a line typed there opens (up to 4 s after enter:
+  a sandboxed page comes a moment later) goes in as a tab behind it, with a message — the keys
+  stay in the shell (`workspace/openbehind.ts`).
 - **0.7: proportions and switches.** A dragged border is kept as `{ frac }`, a share of the
   screen along its split (columns, or the body's rows), resolved to cells each frame: a theme
   whose font gives more or fewer cells keeps the frames' proportions (older saved `cells` still

@@ -916,21 +916,23 @@ export function activate(ib: IcebreakerAPI): void {
       if (this.hint) ui.text(x0 + 1, y, `⚠ ${this.hint}`, { fg: c.error }, w - 2);
       y += 2;
 
-      // ── filters + counters ──
-      let fx = x0;
-      for (const f of FILTERS) {
+      // ── filters + counters: a Bar, so a narrow page drops the counters first, then "done", never cuts ──
+      const bar = new ib.lib.Bar(ui, x0, y, x0 + w, 1);
+      FILTERS.forEach((f, k) => {
         const label = ` ${ib.lib.t(f === "open" ? "to do" : f)} ${pick(f).length + (f === "open" || f === "all" ? notes.list().length : 0)} `;
         const on = f === this.filter;
-        const rect = { x: fx, y, w: strWidth(label), h: 1 };
-        ui.text(fx, y, label, on ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: ui.hovered(rect) ? c.accent : c.muted, bg: c.highlight });
-        ui.hit(rect, { onClick: () => ((this.filter = f), (this.sel = 0)), tip: ib.lib.t("tab cycles the filters") });
-        fx += rect.w + 1;
-      }
+        bar.item(strWidth(label), (fx) => {
+          const rect = { x: fx, y, w: strWidth(label), h: 1 };
+          ui.text(fx, y, label, on ? { fg: c.panel, bg: c.accent, attrs: BOLD } : { fg: ui.hovered(rect) ? c.accent : c.muted, bg: c.highlight });
+          ui.hit(rect, { onClick: () => ((this.filter = f), (this.sel = 0)), tip: ib.lib.t("tab cycles the filters") });
+        }, { priority: on ? 10 : 8 - k });
+      });
       const open = tasks.filter((t) => !t.done);
       const late = open.filter((t) => t.due && daysUntil(t.due) < 0).length;
       const urgent = open.filter((t) => t.prio === "urgent").length;
       const sum = [urgent ? ib.lib.t("{n} urgent", { n: urgent }) : "", late ? ib.lib.t("{n} late", { n: late }) : ""].filter(Boolean).join(" · ");
-      if (sum) ui.textRight(x0 + w, y, sum, { fg: late ? c.error : c.warning });
+      if (sum) bar.text(sum, { fg: late ? c.error : c.warning }, { side: "right", priority: 1, fit: 6 });
+      bar.draw();
       y += 2;
 
       // ── list, grouped by priority ──
@@ -1012,12 +1014,13 @@ export function activate(ib: IcebreakerAPI): void {
         // due + remove on the right
         const right = x0 + w - 1;
         let rx = right;
-        if (hot || sel) {
+        // a narrow page: × and the date only where they leave the task's text some room (× sat on « !!! »)
+        if ((hot || sel) && right - 1 >= tx + 4) {
           ui.text(right - 1, ry, "×", { fg: c.error, bg: rbg, attrs: BOLD });
           ui.hit({ x: right - 1, y: ry, w: 1, h: 1 }, { cmd: `todo rm ${t.id}`, tip: "x · todo restore brings it back" });
           rx = right - 3;
         }
-        if (t.due) {
+        if (t.due && rx - ib.lib.strWidth(dueLabel(t.due)) >= tx + 4) {
           const n = daysUntil(t.due);
           const label = dueLabel(t.due);
           const fg = t.done ? c.faint : n < 0 ? c.error : n === 0 ? c.warning : n === 1 ? c.accent : c.subtle;

@@ -29,7 +29,7 @@ export { parseFlags } from "../shell/parser";
 export { fmt } from "../core/ansi";
 export { gradient, hex, mix } from "../core/color";
 export { BOLD, DIM, ITALIC, UNDERLINE, STRIKE } from "../core/grid";
-export { strWidth, truncate, padEnd } from "../core/unicode";
+export { strWidth, truncate, padEnd, fitHints } from "../core/unicode";
 export { fuzzyFilter } from "../core/fuzzy";
 export { t, lang, addTranslations, dateLocale } from "../core/i18n";
 export { sparkline, formatStat, dayKey } from "../core/stats";

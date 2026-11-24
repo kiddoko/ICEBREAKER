@@ -534,14 +534,20 @@ export function activate(ib: IcebreakerAPI): void {
     render(ui: UI, r: Rect, focused: boolean): void {
       const c = ui.c;
       if (!lib.length) {
-        const y = r.y + Math.floor(r.h / 2) - 2;
+        // the buttons' row must stay inside a short page: the block moves up when it would run off
+        const y = Math.max(r.y, Math.min(r.y + Math.floor(r.h / 2) - 2, r.y + r.h - 4));
         ui.textCenter(r, y, scanning ? `${ui.spinner()} ${ib.lib.t("reading {d}…", { d: folder })}` : ib.lib.t("no music yet"), { fg: c.muted, attrs: BOLD });
         if (!scanning) {
           ui.textCenter(r, y + 1, `${ib.lib.t("folder:")} ${folder}`, { fg: c.subtle });
           const scan = ib.lib.t("scan"), choose = ib.lib.t("choose folder");
-          const bx = r.x + Math.floor((r.w - strWidth(scan) - strWidth(choose) - 7) / 2);
-          const after = ui.button(bx, y + 3, scan, () => run("music scan"), { cmd: "music scan" });
-          ui.button(bx + after + 3, y + 3, choose, () => void this.pickFolder(), { tip: ib.lib.t("f · music folder <path>") });
+          // both buttons centred; too narrow for both: scan alone (f still chooses the folder)
+          const both = strWidth(scan) + strWidth(choose) + 4 + ib.lib.GAP;
+          const by = Math.min(y + 3, r.y + r.h - 1);
+          if (both <= r.w - ib.lib.INSET * 2) {
+            const bx = r.x + Math.floor((r.w - both) / 2);
+            const after = ui.button(bx, by, scan, () => run("music scan"), { cmd: "music scan" });
+            ui.button(bx + after + ib.lib.GAP, by, choose, () => void this.pickFolder(), { tip: ib.lib.t("f · music folder <path>") });
+          } else if (strWidth(scan) + 2 <= r.w) ui.button(r.x + Math.floor((r.w - strWidth(scan) - 2) / 2), by, scan, () => run("music scan"), { cmd: "music scan" });
         } else ui.animate(100);
         return;
       }

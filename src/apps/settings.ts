@@ -283,16 +283,20 @@ export class SettingsApp implements App {
 
     // left: the categories
     const top = sy + 2;
-    const catW = Math.min(24, Math.floor(r.w * 0.28));
+    // a narrow page (a big interface scale, a thin frame) has room for one column: the
+    // categories while you choose one (←), else the settings — side by side they ran into each other
+    const narrow = r.w < 44;
+    const catsOnly = narrow && this.pane === "cats" && !this.query;
+    const catW = catsOnly ? r.w - GAP * 2 : narrow ? 0 : Math.min(24, Math.floor(r.w * 0.28));
     let extra = 0;
     secs.forEach((sec, i) => {
       if (i === 0 || sec.group !== secs[i - 1].group) {
         const hy = top + i + extra + (i ? 1 : 0);
-        if (hy < r.y + r.h - 2) ui.text(sx, hy, t(sec.group), { fg: c.subtle, attrs: BOLD });
+        if (hy < r.y + r.h - 2 && catW) ui.text(sx, hy, t(sec.group), { fg: c.subtle, attrs: BOLD }, catW);
         extra += i ? 2 : 1;
       }
       const y = top + i + extra;
-      if (y >= r.y + r.h - 2) return;
+      if (y >= r.y + r.h - 2 || !catW) return;
       const line = { x: sx, y, w: catW, h: 1 };
       const on = i === this.cat && !this.query;
       const bg = on ? (focused && this.pane === "cats" ? c.accent : mix(c.accent, c.bg, 0.75)) : ui.hovered(line) ? c.highlight : undefined;
@@ -301,11 +305,12 @@ export class SettingsApp implements App {
       ui.text(sx + 1, y, `${on ? "▸" : " "} ${name}`, { fg: on && focused && this.pane === "cats" ? c.panel : on ? c.fg : c.muted, attrs: on ? BOLD : 0, ...(bg !== undefined ? { bg } : {}) }, catW - 1);
       ui.hit(line, { onClick: () => ((this.cat = i), this.search.clear(), (this.sel = 0), (this.pane = "rows")), tip: `${sec.rows.length} settings` });
     });
-    ui.hit({ x: sx, y: top, w: catW, h: Math.max(1, r.y + r.h - 2 - top) }, { onWheel: (d) => this.wheel(d, true) });
-    ui.vline(sx + catW + 1, top, r.y + r.h - top - 2, { fg: c.faint });
+    if (catW) ui.hit({ x: sx, y: top, w: catW, h: Math.max(1, r.y + r.h - 2 - top) }, { onWheel: (d) => this.wheel(d, true) });
+    if (catsOnly) return;
+    if (catW) ui.vline(sx + catW + 1, top, r.y + r.h - top - 2, { fg: c.faint });
 
     // right: the settings of that category (or the search results)
-    const rx = sx + catW + 3;
+    const rx = catW ? sx + catW + 3 : sx;
     // what a setting does goes to the right of its row when the frame is wide enough (the whole
     // text, next to what you're looking at); a narrower frame keeps it under the list
     const avail = r.w - (rx - r.x) - 2;
@@ -359,7 +364,7 @@ export class SettingsApp implements App {
         if (!row.label) return; // the empty line above a heading
         // a heading inside the category (KEYS: with the names of the two columns)
         const name = t(row.label).toLowerCase();
-        const hx = ui.text(rx + 2, y, name, { fg: c.title, attrs: BOLD });
+        const hx = ui.text(rx + 2, y, name, { fg: c.title, attrs: BOLD }, Math.max(0, re - rx - 2));
         ui.hline(hx + 1, y, Math.max(0, re - hx - 1), { fg: mix(c.subtle, c.bg, 0.5) }, "─");
         if (from === "KEYS") {
           ui.textRight(vx - 4, y, ` ${t("keys")} `, { fg: c.subtle });
@@ -384,9 +389,10 @@ export class SettingsApp implements App {
 
       // the value first (so the label knows how much room is left)
       const raw = row.value();
-      const v = kind === "keys" || kind === "slider" || kind === "toggle" ? "" : truncate(t(raw), Math.max(6, Math.floor(rw * 0.42)));
+      const v = kind === "keys" || kind === "slider" || kind === "toggle" ? "" : truncate(t(raw), Math.max(4, Math.floor(rw * 0.42)));
       const vw = kind === "slider" ? sliderW : kind === "toggle" ? 3 : kind === "keys" ? Math.min(22, Math.floor(rw * 0.4)) : strWidth(v) + 2;
-      const labelRoom = Math.max(6, vx - vw - (rx + 2) - 2);
+      // what's left of the value: a very narrow page cuts the label short (…), never under the value
+      const labelRoom = Math.max(0, vx - vw - (rx + 2) - 2);
       const label = row.keys?.remove ? row.label : t(row.label); // yours: the command as you wrote it
       const lend = ui.text(rx + 2, y, label, { fg: disabled ? c.faint : selected ? c.fg : kind === "keys" && !row.keys?.editCombo ? c.subtle : c.muted, attrs: selected ? BOLD : 0, ...st }, labelRoom);
       if (this.query) ui.text(lend + 2, y, t(from).toLowerCase(), { fg: c.subtle, ...st }, Math.max(0, vx - vw - lend - 4));
@@ -443,7 +449,8 @@ export class SettingsApp implements App {
     if (!this.query && sec && sec.rows.some((x) => this.resettable(x))) {
       const nChanged = sec.rows.filter((x) => this.resettable(x) && !this.rowDefault(x)).length;
       if (nChanged) {
-        const label = `↺ ${t("all back to default")}`;
+        // shorter when the page is narrow: the whole sentence, then the arrow alone
+        const label = [`↺ ${t("all back to default")}`, "↺"].find((l) => re - strWidth(l) - 1 >= rx) ?? "↺";
         const bx = re - strWidth(label) - 1;
         ui.button(bx, by, label, () => void this.resetSection(sec.name, sec.rows), { tip: `${t("everything in {cat} back to default", { cat: t(sec.name) })} (${nChanged}) · shift+del`, accent: c.warning });
       }

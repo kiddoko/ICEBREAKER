@@ -118,6 +118,46 @@ export function wrapWords(s: string, w: number): string[] {
   return out;
 }
 
+/**
+ * wrapWords, at most `n` lines: when the text needs more, the last line kept ends
+ * with « … » (a cut answer must say it's cut).
+ */
+export function wrapLines(s: string, w: number, n: number): string[] {
+  const lines = wrapWords(s, w);
+  if (lines.length <= n) return lines;
+  const kept = lines.slice(0, Math.max(1, n));
+  kept[kept.length - 1] = truncate(`${kept[kept.length - 1]}…`, Math.max(1, w));
+  return kept;
+}
+
+/**
+ * `{key}` in a template replaced by `value`, the whole at most `w` wide: the value
+ * (a nickname, a name) is what gets shortened with « … », never the words around it.
+ * The value keeps its case.
+ */
+export function fillName(template: string, key: string, value: string, w: number): string {
+  const tag = `{${key}}`;
+  if (!template.includes(tag)) return truncate(template, w);
+  const around = strWidth(template) - strWidth(tag);
+  return truncate(template.split(tag).join(truncate(value, Math.max(2, w - around))), w);
+}
+
+/**
+ * A line of hints ("enter open · n new note · esc back") in `w` cells: whole when it
+ * fits, else its last hints are left out (they're written most useful first), so no
+ * hint is ever cut in the middle (« échap r… »). One hint alone too long: cut with ….
+ */
+export function fitHints(s: string, w: number): string {
+  if (strWidth(s) <= w) return s;
+  const parts = s.split(" · ");
+  while (parts.length > 1) {
+    parts.pop();
+    const line = parts.join(" · ");
+    if (strWidth(line) <= w) return line;
+  }
+  return truncate(parts[0] ?? "", w);
+}
+
 /** The deck's one easing: fast, then settling (0 → 1). */
 export function easeOut(k: number): number {
   return 1 - Math.pow(1 - Math.min(1, Math.max(0, k)), 3);

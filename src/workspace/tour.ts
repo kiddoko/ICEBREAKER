@@ -2,7 +2,8 @@ import { BOLD, type Rect } from "../core/grid";
 import { mix, NONE } from "../core/color";
 import { t } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
-import { easeOut, strWidth, wrapWords } from "../core/unicode";
+import { GAP } from "../ui/layout";
+import { easeOut, fillName, strWidth, wrapWords } from "../core/unicode";
 import type { Deck } from "../deck";
 import type { UI } from "../ui/ui";
 import type { Overlay } from "./overlays";
@@ -248,8 +249,9 @@ export class Tour implements Overlay {
     ui.box(bb, { title: `uplink · ${this.i + 1}/${STEPS.length}`, focused: true });
     if (face) ui.text(bb.x, bb.y + Math.min(3, bb.h - 2), "◀", { fg: c.borderFocus, attrs: BOLD }); // the speech tail
     if (k < 1) return;
-    const title = t(st.title).replace("{handle}", this.deck.settings.data.user.handle || "netrunner");
-    ui.gradientText(b.x + 2, b.y + 1, title.toLowerCase(), ui.theme.gradient, BOLD, (ui.now / 2000) % 1);
+    // your nickname as you wrote it (t() already lowered the rest); too long for the bubble: cut with …
+    const title = fillName(t(st.title), "handle", this.deck.settings.data.user.handle || "netrunner", b.w - GAP * 2);
+    ui.gradientText(b.x + 2, b.y + 1, title, ui.theme.gradient, BOLD, (ui.now / 2000) % 1);
     // typed out (with its blips), a cursor at the end while it talks
     // typed out (with its blips): whole letters, then the one coming in fades up
     let left = shown;
