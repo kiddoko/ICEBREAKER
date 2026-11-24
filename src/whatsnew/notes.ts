@@ -32,6 +32,46 @@ export interface VersionNotes {
 
 export const NOTES: VersionNotes[] = [
   {
+    version: "0.8.0",
+    date: "2026-11-24",
+    en: {
+      headline: "A new top, real keys, and nothing lost",
+      added: [
+        "No menu bar: the tabs on top, ◆ and the time in the corners",
+        "Every shortcut on a key; a gamepad turns them into its buttons",
+        "Tabs: pages short, then your documents; ⌘1–9 in the order you see",
+        "theme set keys.radius 0: tweak any part of a theme; theme check",
+        "Modules open their own files (.bmed…) from the tree, NEXUS and open",
+      ],
+      fixed: [
+        "Two module sandbox holes closed (a voice name, a ../ path)",
+        "Windows notes (CRLF) save again; closing unsaved asks first",
+        "Two same-name files in the trash both come back",
+        "A renamed open note follows its new name",
+        "A module's new version asks again for what it needs",
+        "grep can't freeze the deck; export X=1; echo $X works",
+      ],
+    },
+    fr: {
+      headline: "Un nouveau haut, de vraies touches, et rien de perdu",
+      added: [
+        "Plus de barre de menus : les onglets en haut, ◆ et l'heure aux coins",
+        "Chaque raccourci sur une touche ; une manette les change en ses boutons",
+        "Onglets : les pages courtes, puis tes notes ; ⌘1–9 dans l'ordre vu",
+        "theme set keys.radius 0 : régler chaque partie d'un thème ; theme check",
+        "Les modules ouvrent leurs fichiers (.bmed…) depuis l'arbre, NEXUS et open",
+      ],
+      fixed: [
+        "Deux failles du bac à sable des modules fermées (nom de voix, chemin ../)",
+        "Les notes Windows (CRLF) s'enregistrent ; fermer sans enregistrer demande",
+        "Deux fichiers du même nom dans la corbeille reviennent tous les deux",
+        "Une note ouverte renommée suit son nouveau nom",
+        "La nouvelle version d'un module redemande ce dont elle a besoin",
+        "grep ne peut plus figer le deck ; export X=1; echo $X marche",
+      ],
+    },
+  },
+  {
     version: "0.7.2",
     date: "2026-11-23",
     en: {

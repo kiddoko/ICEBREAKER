@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.9.0 — not released yet
+## 0.8.0 — 2026-11-24
+
+The new top of the window, keys and the pad, the tab bar, themes v2 (steps 1–2), what modules
+asked for, and the fixes of the Fable pass on the Windows bench — two sandbox escapes and four
+ways to lose data, all present in 0.7.2.
 
 **Themes v2, step 1: the skin registry** (docs/THEMES_V2_PLAN.md — nothing changes on screen)
 - The keys every shortcut sits on and the gamepad's buttons are **components**, declared once
@@ -27,8 +31,6 @@
   write it (the old file is kept as `<name>.toml.v1`).
 - The components' reference table in `docs/THEMES.md` and `themes/schema-2.json` (a JSON Schema
   for editors) are generated from the registry; a test fails when they're out of date.
-
-## 0.8.1 — not released yet
 
 **Security: the Fable pass on the Windows bench (24/11) — two sandbox escapes in 0.7.2** (docs/SECURITY_AUDIT.md #79–87)
 - A **voice name** could run PowerShell code on Windows (a module, or a synced vault's settings,
@@ -189,8 +191,6 @@ French, with the tree and the shell open or closed)
   code waited for your yes, and didn't come back. Switched on again, its pages come up **on the new
   code** — and a tab still showing the old one is made again.
 - Documented: `ib.ui.pickFileBytes`, `fullWindow` and `ui.art` in the sandbox (they were there since 0.7).
-
-## 0.8 — unreleased (branch ui-0.8)
 
 **The top of the window**
 - **No menu bar any more**: the window's first row is the frames' tabs, with **◆ icebreaker ▾**

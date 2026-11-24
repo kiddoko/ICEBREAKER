@@ -1,7 +1,7 @@
 {
   "name": "icebreaker",
   "private": true,
-  "version": "0.7.2",
+  "version": "0.8.0",
   "description": "ICEBREAKER — an open-source, terminal-styled cyberdeck for notes, journaling and AI-powered plugins.",
   "license": "MIT",
   "type": "module",
