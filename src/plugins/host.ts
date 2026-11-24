@@ -623,14 +623,7 @@ export class PluginHost {
   async scaffold(id: string): Promise<string> {
     const dir = `${VAULT_PLUGIN_DIR}/${id}`;
     if (await this.deck.vault.exists(dir)) throw new Error(`${dir} already exists`);
-    const manifest: PluginManifest = {
-      id,
-      name: id,
-      version: "0.1.0",
-      description: "My first ICEBREAKER plugin",
-      author: this.deck.settings.data.user.handle,
-      permissions: ["vault:read"],
-    };
+    const manifest = starterManifest(id, this.deck.settings.data.user.handle);
     await this.deck.vault.write(`${dir}/plugin.json`, JSON.stringify(manifest, null, 2) + "\n");
     await this.deck.vault.write(`${dir}/main.js`, PLUGIN_TEMPLATE.replaceAll("__ID__", id));
     this.plugins.push(this.vaultPlugin(manifest, dir));
@@ -1123,6 +1116,16 @@ export class PluginHost {
     // one module can't rewire the API another one gets (ib.ui.notify = …)
     return freezeApi(api);
   }
+}
+
+/**
+ * A new module's plugin.json (`plugin new`): today's permissions ("api": 2), so it may do only
+ * what it lists. Without "api" a module is read as one from before 0.6, which had notify and the
+ * deck's commands implied (Fable pass 24/11: a fresh `plugin new` ran `config set`, `mute`,
+ * `term new` with no question).
+ */
+export function starterManifest(id: string, author: string): PluginManifest {
+  return { id, name: id, version: "0.1.0", api: 2, description: "My first ICEBREAKER plugin", author, permissions: ["vault:read"] };
 }
 
 const PLUGIN_TEMPLATE = `// ICEBREAKER plugin: __ID__
