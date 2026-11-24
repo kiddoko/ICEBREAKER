@@ -40,6 +40,7 @@ import { headerSpan, stripClear, type TopCorners } from "./layout/toprow";
 import { frameOfPane, PANE_OF, parsePlaces, parseShows, prunePlaces, type PlaceFrame, type Places, type Shows } from "./tabplaces";
 import { groupOf, joinGroup, parseGroups, pick, prune, renameGroup, stripEntries, takeOut, type StripEntry, type TabGroup } from "./tabgroups";
 import { GAP, INSET } from "../ui/layout";
+import { macroForShell, quoteForShell } from "../shell/bridgeshell";
 import { isTerminalKey, parseView, type ShellTabSave, renameKeys, type SessionView } from "./sessionview";
 import { strWidth, truncate } from "../core/unicode";
 
@@ -364,11 +365,14 @@ export class Workspace {
 
   /** Type a macro into the system terminal (asking for its {blanks} first). */
   async runMacro(m: { label: string; cmd: string }): Promise<void> {
-    let cmd = m.cmd;
+    // `ls -la` in PowerShell is an error: the deck's macros are said that shell's way (and quotes its answers that shell's way)
+    const shell = this.terminal.shellName;
+    let cmd = macroForShell(m.cmd, shell);
+    const quote = quoteForShell(shell) ?? q;
     for (const hole of [...new Set(cmd.match(/\{[^}]+\}/g) ?? [])]) {
       const v = await this.deck.prompt(`${m.label}: ${hole.slice(1, -1)}`, { placeholder: hole.slice(1, -1) });
       if (v === null) return;
-      cmd = cmd.split(hole).join(q(v.trim() || "."));
+      cmd = cmd.split(hole).join(quote(v.trim() || "."));
     }
     this.showShellTab("term");
     if (!this.terminal.alive) return this.deck.notify("the terminal isn't running", "error");
