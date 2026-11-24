@@ -70,3 +70,27 @@ export function quoteForShell(shell: string): ((v: string) => string) | null {
   if (fam === "powershell") return (v) => (/^[\w./~@:+-]+$/.test(v) ? v : `'${v.replace(/['‘’‚‛]/g, "''")}'`);
   return null;
 }
+
+/** Text cut into lines of at most `cols`, between words (a word longer than a line is cut). */
+export function wrapWords(text: string, cols: number): string[] {
+  const width = Math.max(10, cols);
+  const lines: string[] = [];
+  let line = "";
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    for (let w = word; w; ) {
+      const room = line ? width - line.length - 1 : width;
+      if (w.length <= room) {
+        line = line ? `${line} ${w}` : w;
+        w = "";
+      } else if (line) {
+        lines.push(line);
+        line = "";
+      } else {
+        lines.push(w.slice(0, width));
+        w = w.slice(width);
+      }
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
