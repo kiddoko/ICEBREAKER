@@ -4,6 +4,7 @@ import { basename, display, dirname, globToRegex, join } from "../../vault/paths
 import { parseFlags } from "../parser";
 import { columns } from "../shell";
 import type { Command, ShellContext } from "../types";
+import { grepLines, type LineHit } from "../regexrun";
 
 /**
  * File commands, working on the vault. They behave like their GNU
@@ -229,8 +230,6 @@ const grep: Command = {
       ctx.err(`grep: invalid pattern: ${(e instanceof Error ? e.message : String(e))}\n`);
       return 2;
     }
-    const hl = (line: string) =>
-      ctx.isTTY ? line.replace(new RegExp(re.source, re.flags + "g"), (m) => fmt.bold(fmt.red(m))) : line;
 
     let files: { name: string; text: string }[];
     const fromStdin = targets.length === 0 && ctx.stdin !== "";
@@ -247,23 +246,37 @@ const grep: Command = {
       files = list.map((p, i) => ({ name: p, text: contents[i] ?? "" }));
     }
 
-    let found = 0;
-    const showName = !fromStdin && (files.length > 1 || targets.length === 0 || !!flags.r);
-    for (const f of files) {
-      let count = 0;
-      f.text.split("\n").forEach((line, i) => {
-        if (re.test(line) === !!flags.v) return;
-        count++;
-        found++;
-        if (flags.l || flags.c) return;
-        const name = showName ? (ctx.isTTY ? fmt.magenta(f.name) : f.name) + ":" : "";
-        const num = flags.n ? (ctx.isTTY ? fmt.green(String(i + 1)) : String(i + 1)) + ":" : "";
-        ctx.out(`${name}${num}${hl(line)}\n`);
-      });
-      if (flags.l && count) ctx.out((ctx.isTTY ? fmt.magenta(f.name) : f.name) + "\n");
-      if (flags.c) ctx.out(`${showName ? f.name + ":" : ""}${count}\n`);
+    // matched in a worker: a pattern that backtracks for ever ((a+)+$) can't freeze the deck,
+    // and ctrl+C stops it (shell/regexrun.ts)
+    const res = await grepLines(files.map((f) => f.text), re, { invert: !!flags.v, spans: ctx.isTTY && !flags.l && !flags.c, signal: ctx.signal });
+    if ("stopped" in res) {
+      if (res.stopped === "timeout") ctx.err("grep: this pattern takes too long (it backtracks: (a+)+ and the like) — stopped after 5 s\n");
+      return res.stopped === "timeout" ? 2 : 130;
     }
-    return found ? 0 : 1;
+    const byFile = new Map<number, LineHit[]>();
+    for (const h of res.hits) byFile.set(h.f, [...(byFile.get(h.f) ?? []), h]);
+    const showName = !fromStdin && (files.length > 1 || targets.length === 0 || !!flags.r);
+    const hl = (line: string, spans: [number, number][]) => {
+      if (!ctx.isTTY || !spans.length) return line;
+      let out = "";
+      let at = 0;
+      for (const [a, b] of spans) (out += line.slice(at, a) + fmt.bold(fmt.red(line.slice(a, b)))), (at = b);
+      return out + line.slice(at);
+    };
+    files.forEach((f, fi) => {
+      const hits = byFile.get(fi) ?? [];
+      if (!flags.l && !flags.c) {
+        const lines = hits.length ? f.text.split("\n") : [];
+        for (const h of hits) {
+          const name = showName ? (ctx.isTTY ? fmt.magenta(f.name) : f.name) + ":" : "";
+          const num = flags.n ? (ctx.isTTY ? fmt.green(String(h.i + 1)) : String(h.i + 1)) + ":" : "";
+          ctx.out(`${name}${num}${hl(lines[h.i], h.spans)}\n`);
+        }
+      }
+      if (flags.l && hits.length) ctx.out((ctx.isTTY ? fmt.magenta(f.name) : f.name) + "\n");
+      if (flags.c) ctx.out(`${showName ? f.name + ":" : ""}${hits.length}\n`);
+    });
+    return res.hits.length ? 0 : 1;
   },
 };
 

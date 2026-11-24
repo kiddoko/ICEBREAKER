@@ -1,3 +1,4 @@
+import { CMD_HINT, shellFamily } from "./bridgeshell";
 import { Terminal, type IBufferCell } from "@xterm/headless";
 import { mix, NONE, type RGB } from "../core/color";
 import { BOLD, ITALIC, UNDERLINE, type Rect } from "../core/grid";
@@ -199,6 +200,8 @@ export class SystemTerminal {
           this.shellName = name.trim();
           // the login shell's name, for the next terminal's tab until its shell answers
           if (!this.shell) SystemTerminal.remember(this.shellName);
+          // cmd has no "command not found" hook: say once where the deck's commands are
+          if (shellFamily(this.shellName) === "cmd") this.term.write(`\x1b[2m${tr(CMD_HINT)}\x1b[0m\r\n`, () => this.deck.requestFrame());
         }
         this.ready();
       })

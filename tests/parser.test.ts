@@ -29,3 +29,16 @@ describe("the shell parser", () => {
     expect(parseFlags(["--json", "todo", "--every", "mon"], ["every"])).toEqual({ flags: { json: true, every: "mon" }, rest: ["todo"] });
   });
 });
+
+describe("a line's pieces are read when they run", () => {
+  it("cuts at ; && || outside quotes, escapes, ${} and comments", async () => {
+    const { segments } = await import("../src/shell/parser");
+    expect(segments("export X=1; echo $X")).toEqual([{ text: "export X=1", next: ";" }, { text: "echo $X", next: null }]);
+    expect(segments("a && b || c")).toEqual([{ text: "a", next: "&&" }, { text: "b", next: "||" }, { text: "c", next: null }]);
+    const raw = String.raw`echo 'a;b' "c && d" e\;f | wc`;
+    expect(segments(raw)).toEqual([{ text: raw, next: null }]);
+    expect(segments("echo a # b; c")).toEqual([{ text: "echo a # b; c", next: null }]);
+    expect(segments("a;; b;")).toEqual([{ text: "a", next: ";" }, { text: "b", next: null }]);
+    expect(segments("echo #tag; b")).toEqual([{ text: "echo #tag", next: ";" }, { text: "b", next: null }]);
+  });
+});

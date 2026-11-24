@@ -42,14 +42,18 @@ async function template(vault: Vault): Promise<string> {
 export async function ensureEntry(vault: Vault, date: Date, locale: string): Promise<string> {
   const path = vault.journalPath(date);
   if (await vault.exists(path)) return path;
+  await vault.write(path, await entryText(vault, date, locale));
+  return path;
+}
+
+/** A new entry's text (the template, filled in for that day) — nothing written. */
+export async function entryText(vault: Vault, date: Date, locale: string): Promise<string> {
   const tpl = await template(vault);
-  const content = tpl
+  return tpl
     .replaceAll("{{date}}", isoDate(date))
     .replaceAll("{{title}}", titleFor(date, locale))
     .replaceAll("{{weekday}}", date.toLocaleDateString(locale || dateLocale(), { weekday: "long" }))
     .replaceAll("{{time}}", new Date().toLocaleTimeString(locale || dateLocale(), { hour: "2-digit", minute: "2-digit" }));
-  await vault.write(path, content);
-  return path;
 }
 
 /**

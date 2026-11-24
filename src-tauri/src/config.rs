@@ -11,7 +11,9 @@ use tauri::{AppHandle, Manager, State};
 /// settings.json and secrets.json belong to the account unlocked (users/<id>/); so does
 /// access.json (the journal of who used which permission: it stays on this computer, it
 /// never goes into the vault).
-const ALLOWED: &[&str] = &["settings.json", "secrets.json", "device.json", "access.json"];
+/// (settings.json.broken: a settings file that couldn't be read, kept as it was before the
+/// defaults are written over it — core/settings.ts)
+const ALLOWED: &[&str] = &["settings.json", "secrets.json", "device.json", "access.json", "settings.json.broken"];
 
 /// Stealth mode (`privacy.stealth`), read here from the unlocked account's own settings:
 /// the native side checks it by itself before anything goes online, whatever the page says.

@@ -651,17 +651,32 @@ pub fn vault_trash(state: State<VaultState>, path: String) -> CmdResult<String> 
         Mode::Enc(mut g) => return g.as_mut().unwrap().trash(&store::norm(&path)?),
         Mode::Plain(r) => r,
     };
-    let abs = plain(&root, &path)?;
-    if abs == root || is_deck_dir(&root, &abs) {
+    trash_plain(&root, &path)
+}
+
+/// A plain vault's trash: `<root>/.trash/<seconds>-<name>`, never over something already
+/// there — `rm ta/same.md tb/same.md` in the same second gave one file (the rename
+/// replaced the first), and restoring it put tb's text at ta's path. The second one is
+/// `<seconds>-same (2).md`, like the encrypted vault (store.rs free_name).
+fn trash_plain(root: &Path, path: &str) -> CmdResult<String> {
+    let abs = plain(root, path)?;
+    if abs == root || is_deck_dir(root, &abs) {
         return Err("refusing to trash the vault root or ICEBREAKER's own folder".into());
     }
     let name = abs.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     let trash = root.join(".trash");
     fs::create_dir_all(&trash).map_err(|e| e.to_string())?;
-    let dest = trash.join(format!("{stamp}-{name}"));
+    let is_dir = abs.is_dir();
+    let (stem, ext) = match name.rfind('.') {
+        Some(i) if i > 0 && !is_dir => (&name[..i], &name[i..]),
+        _ => (name.as_str(), ""),
+    };
+    let taken = |p: &Path| fs::symlink_metadata(p).is_ok();
+    let first = trash.join(format!("{stamp}-{name}"));
+    let dest = if !taken(&first) { first } else { (2..).map(|n| trash.join(format!("{stamp}-{stem} ({n}){ext}"))).find(|p| !taken(p)).unwrap() };
     fs::rename(&abs, &dest).map_err(|e| format!("{path}: {e}"))?;
-    Ok(to_rel(&root, &dest))
+    Ok(to_rel(root, &dest))
 }
 
 /// Is this vault path inside `.trash` (and not `.trash` itself)?
@@ -711,18 +726,46 @@ pub fn vault_rename(state: State<VaultState>, from: String, to: String) -> CmdRe
         Mode::Enc(mut g) => return g.as_mut().unwrap().rename(&store::norm(&from)?, &store::norm(&to)?),
         Mode::Plain(r) => r,
     };
-    let dest = plain_path(&root, &to)?;
-    if dest.exists() {
+    rename_plain(&root, &from, &to)
+}
+
+/// Moves `from` to `to` in a plain vault, never over another file. A change of case only
+/// (`mv Note.md note.md`) is the same file on a Mac or Windows disk: it goes through a
+/// temporary name instead of being refused as « already exists ».
+fn rename_plain(root: &Path, from: &str, to: &str) -> CmdResult<()> {
+    let dest = plain_path(root, to)?;
+    let src = plain(root, from)?;
+    if is_deck_dir(root, &src) {
+        return Err("ICEBREAKER's own folder can't be moved, replaced or trashed".into());
+    }
+    let (nf, nt) = (store::norm(from)?, store::norm(to)?);
+    if nt == nf {
+        return Ok(());
+    }
+    if nt.starts_with(&format!("{nf}/")) {
+        return Err(format!("{from}: can't move a folder into itself"));
+    }
+    let case_only = nf.to_lowercase() == nt.to_lowercase();
+    if dest.exists() && !(case_only && same_file(&src, &dest)) {
         return Err(format!("{to}: already exists"));
     }
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    let src = plain(&root, &from)?;
-    if is_deck_dir(&root, &src) {
-        return Err("ICEBREAKER's own folder can't be moved, replaced or trashed".into());
+    if case_only {
+        let tmp = src.with_file_name(format!(".ib-rename-{}", store::now_ms()));
+        fs::rename(&src, &tmp).map_err(|e| format!("{from}: {e}"))?;
+        return fs::rename(&tmp, &dest).or_else(|e| fs::rename(&tmp, &src).and(Err(e))).map_err(|e| format!("{from}: {e}"));
     }
     fs::rename(src, dest).map_err(|e| format!("{from}: {e}"))
+}
+
+/// Do two paths name the same file (a case-insensitive disk: Note.md and note.md)?
+fn same_file(a: &Path, b: &Path) -> bool {
+    match (fs::canonicalize(a), fs::canonicalize(b)) {
+        (Ok(x), Ok(y)) => x == y,
+        _ => false,
+    }
 }
 
 /// Copy a file or a folder from anywhere on the computer into a vault folder
@@ -1218,6 +1261,48 @@ pub fn export(app: &AppHandle, state: &VaultState, dest: &str) -> CmdResult<stor
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn scratch(tag: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("ib-{tag}-{}-{}", std::process::id(), store::now_ms()));
+        let _ = fs::remove_dir_all(&d);
+        fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    #[test]
+    fn two_files_of_the_same_name_trashed_together_both_stay() {
+        let root = scratch("trash");
+        fs::create_dir_all(root.join("ta")).unwrap();
+        fs::create_dir_all(root.join("tb")).unwrap();
+        fs::write(root.join("ta/same.md"), "A").unwrap();
+        fs::write(root.join("tb/same.md"), "B").unwrap();
+        let a = trash_plain(&root, "ta/same.md").unwrap();
+        let b = trash_plain(&root, "tb/same.md").unwrap();
+        assert_ne!(a, b);
+        assert!(b.starts_with(".trash/") && b.ends_with("-same (2).md"), "{b}");
+        assert_eq!(fs::read_to_string(root.join(&a)).unwrap(), "A");
+        assert_eq!(fs::read_to_string(root.join(&b)).unwrap(), "B");
+        // a third: (3)
+        fs::write(root.join("ta/same.md"), "C").unwrap();
+        assert!(trash_plain(&root, "ta/same.md").unwrap().ends_with("-same (3).md"));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_rename_never_overwrites_but_a_change_of_case_goes_through() {
+        let root = scratch("rename");
+        fs::write(root.join("Note.md"), "mine").unwrap();
+        fs::write(root.join("other.md"), "other").unwrap();
+        assert!(rename_plain(&root, "Note.md", "other.md").unwrap_err().contains("already exists"));
+        rename_plain(&root, "Note.md", "note.md").unwrap();
+        let names: Vec<String> = fs::read_dir(&root).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        assert!(names.contains(&"note.md".to_string()) && !names.contains(&"Note.md".to_string()), "{names:?}");
+        assert_eq!(fs::read_to_string(root.join("note.md")).unwrap(), "mine");
+        // a folder into itself: a clear refusal, not the OS's error
+        fs::create_dir_all(root.join("ta")).unwrap();
+        assert!(rename_plain(&root, "ta", "ta/sub").unwrap_err().contains("into itself"));
+        let _ = fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn plain_backups_are_found_and_wiped_nothing_else() {

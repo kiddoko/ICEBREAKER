@@ -121,6 +121,47 @@ export function tokenize(line: string, env: Record<string, string>): Token[] {
   return tokens;
 }
 
+/**
+ * The line cut where `;`, `&&` and `||` are (not inside quotes, after a \, in ${…} or in a
+ * comment), each piece with the operator that follows it. ibsh parses a piece only when it
+ * runs, with the variables of that moment: `export X=1; echo $X` prints 1, as in bash (the
+ * whole line was expanded first, and printed nothing). Empty pieces are left out.
+ */
+export function segments(line: string): { text: string; next: string | null }[] {
+  line = line.replace(/[“”„]/g, '"');
+  const out: { text: string; next: string | null }[] = [];
+  let start = 0;
+  let i = 0;
+  const cut = (end: number, op: string | null, skip: number) => {
+    const text = line.slice(start, end).trim();
+    if (text) out.push({ text, next: op });
+    else if (op && out.length) out[out.length - 1].next = op;
+    i = start = end + skip;
+  };
+  while (i < line.length) {
+    const c = line[i];
+    const atWordStart = i === 0 || /\s/.test(line[i - 1]);
+    if (c === "'") {
+      const end = line.indexOf("'", i + 1);
+      i = end === -1 ? line.length : end + 1;
+    } else if (c === '"') {
+      i++;
+      while (i < line.length && line[i] !== '"') i += line[i] === "\\" ? 2 : 1;
+      i++;
+    } else if (c === "\\") i += 2;
+    else if (c === "$" && line[i + 1] === "{") {
+      const end = line.indexOf("}", i);
+      i = end === -1 ? line.length : end + 1;
+    } else if (c === "#" && atWordStart && (!line.slice(start, i).trim() || /\s/.test(line[i + 1] ?? " "))) break;
+    else if (c === ";") cut(i, ";", 1);
+    else if ((c === "&" && line[i + 1] === "&") || (c === "|" && line[i + 1] === "|")) cut(i, c + c, 2);
+    else i++;
+  }
+  cut(line.length, null, 0);
+  if (out.length) out[out.length - 1].next = out[out.length - 1].next === ";" ? null : out[out.length - 1].next;
+  return out;
+}
+
 export function parse(line: string, env: Record<string, string>): Pipeline[] {
   const tokens = tokenize(line, env);
   const pipelines: Pipeline[] = [];

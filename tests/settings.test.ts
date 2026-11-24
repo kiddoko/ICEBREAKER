@@ -106,3 +106,22 @@ describe("an unknown setting is not a read-only folder", () => {
     expect(codeFor("couldn't write settings.json")).not.toBe("E702");
   });
 });
+
+describe("a settings file that can't be read", () => {
+  it("is kept as settings.json.broken before the defaults go over it", async () => {
+    const written: Record<string, string> = {};
+    const broken = '{"user": {"handle": "neo"'; // cut short
+    const p = { config: { read: async (n: string) => (n === "settings.json" ? broken : null), write: async (n: string, c: string) => void (written[n] = c) } } as unknown as Platform;
+    const s = await SettingsStore.load(p);
+    expect(written["settings.json.broken"]).toBe(broken);
+    expect(s.data.user).toBeTruthy();
+  });
+  it("a good one, or none, leaves no copy", async () => {
+    const written: Record<string, string> = {};
+    for (const raw of ['{"user":{}}', null, "﻿{}"]) {
+      const p = { config: { read: async (n: string) => (n === "settings.json" ? raw : null), write: async (n: string, c: string) => void (written[n] = c) } } as unknown as Platform;
+      await SettingsStore.load(p);
+    }
+    expect(written["settings.json.broken"]).toBeUndefined();
+  });
+});

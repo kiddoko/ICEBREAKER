@@ -65,12 +65,12 @@ import { EventLog } from "./core/eventlog";
 import { systemCommands } from "./shell/commands/system";
 import { ShellApp } from "./shell/shell";
 import { ShellExecutor } from "./shell/exec";
+import { bridgeCwd } from "./shell/bridgeshell";
 import { CommandRegistry } from "./shell/types";
 import { q, type Hit } from "./ui/ui";
 import { keyFace, UI } from "./ui/ui";
 import { keycapLook } from "./core/keycap";
 import { setPadLook } from "./core/padglyphs";
-import { ensureEntry } from "./vault/journal";
 import { basename, join, slugify } from "./vault/paths";
 import { Vault } from "./vault/vault";
 import { BootScreen, type BootLine } from "./workspace/boot";
@@ -876,8 +876,8 @@ export class Deck implements InputSink {
     const ex = new ShellExecutor(this, (text, isError) => b.send(req.id, isError ? `\x1b[31m${text.replace(/\n$/, "")}\x1b[0m${text.endsWith("\n") ? "\n" : ""}` : text, false, true), () => {});
     ex.origin = { source: "terminal", grants: "all" };
     ex.env = this.shell.exec.env;
-    const root = this.vault.root.replace(/\/$/, "");
-    ex.cwd = req.cwd === root ? "" : req.cwd.startsWith(`${root}/`) ? req.cwd.slice(root.length + 1) : "";
+    // (PowerShell's `C:\…\journal`, with `\`: the same folder as `C:/…/journal` — bridgeshell.ts)
+    ex.cwd = bridgeCwd(this.vault.root, req.cwd);
     let status = 1;
     try {
       status = await ex.run(line);
@@ -1052,7 +1052,7 @@ export class Deck implements InputSink {
       existing.goto(date);
       this.workspace.open(existing);
     } else {
-      await ensureEntry(this.vault, date, this.settings.data.user.locale).catch(() => {});
+      // (no file yet: the journal shows the day's template and writes it once you type)
       this.openApp("journal", date);
     }
     this.requestFrame();

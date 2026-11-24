@@ -3,7 +3,7 @@ import { BOLD, DIM, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import type { UI } from "../ui/ui";
-import { ensureEntry, streak, titleFor } from "../vault/journal";
+import { entryText, streak, titleFor } from "../vault/journal";
 import { isoDate } from "../vault/paths";
 import type { TextEditor } from "../ui/editor";
 import { NoteApp } from "./note";
@@ -47,14 +47,19 @@ export class JournalApp implements App {
 
   async openDay(d: Date): Promise<void> {
     const ticket = ++this.opening;
-    await this.note?.save();
-    this.note?.close();
-    this.day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    const isPastEmpty = !this.deck.vault.journalDates().has(isoDate(this.day)) && this.day < startOfToday();
-    // Past days without an entry are shown empty; the file is only created when you type.
-    const path = isPastEmpty ? this.deck.vault.journalPath(this.day) : await ensureEntry(this.deck.vault, this.day, this.deck.settings.data.user.locale);
+    // the day you leave is saved first; if it can't be (changed on disk), you're asked
+    if (this.note && (await this.note.close()) === false) return;
+    this.note = null;
+    const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    this.day = day;
+    const path = this.deck.vault.journalPath(day);
+    // A day without an entry creates no file just by being looked at (clicking through the
+    // calendar made one per day): today and the days ahead show the template, and the file
+    // is written when you type; past days show empty.
+    const has = await this.deck.vault.exists(path);
+    const draft = has || day < startOfToday() ? undefined : await entryText(this.deck.vault, day, this.deck.settings.data.user.locale);
     if (ticket !== this.opening) return;
-    this.note = new NoteApp(this.deck, path, placeCursorInLog);
+    this.note = new NoteApp(this.deck, path, placeCursorInLog, draft);
     this.deck.requestFrame();
   }
 
