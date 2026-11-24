@@ -1,6 +1,8 @@
 import { FONTS } from "./fonts";
 import { SOUND_PACKS } from "./sound";
 import { backgrounds } from "../fx/backgrounds";
+import { COMPONENTS } from "./skin/components";
+import type { Field } from "./skin/fields";
 
 /**
  * The knobs you can turn on any theme without writing a file
@@ -51,8 +53,33 @@ export const KNOBS: Knob[] = [
   { name: "noise", key: "anim.noise", label: "appear-from glyphs", group: "motion", kind: "choice", options: () => ["ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿ0123456789", "01", "0123456789ABCDEF", "·:∙*+", "░▒▓", "╱╲╳"] },
 ];
 
+/**
+ * The knobs of the skin's components (core/skin), generated from their declarations: one per
+ * field, named by its key (`theme set keys.radius 0.3`). Not in the studio yet (milestone 4).
+ */
+export const SKIN_KNOBS: (Knob & { field: Field })[] = COMPONENTS.flatMap((comp) =>
+  (Object.entries(comp.fields) as [string, Field][]).map(([k, f]) => {
+    const key = `${comp.id}.${k}`;
+    const base = { name: key, key, label: `${comp.label}: ${f.doc}`, group: comp.group, field: f };
+    if (f.kind === "number") return { ...base, kind: "number" as const, min: f.min, max: f.max, options: () => f.suggest() };
+    if (f.kind === "color") return { ...base, kind: "color" as const };
+    return { ...base, kind: "choice" as const, options: () => f.suggest() };
+  }),
+);
+
 export function knob(name: string): Knob | undefined {
-  return KNOBS.find((k) => k.name === name || k.key === name);
+  return KNOBS.find((k) => k.name === name || k.key === name) ?? SKIN_KNOBS.find((k) => k.key === name);
+}
+
+/** what `theme set <tab>` offers: the short knobs, then every component field (keys.radius…) */
+export function knobNames(): string[] {
+  return [...KNOBS.map((k) => k.name), ...SKIN_KNOBS.map((k) => k.key)];
+}
+
+/** what `theme set <knob> <tab>` offers: the knob's choices or a few numbers in its bounds */
+export function knobSuggestions(name: string): string[] {
+  const k = knob(name);
+  return k?.options?.().map(String) ?? [];
 }
 
 /** Check and normalize a value for a knob. Returns [value] or an error message. */
@@ -63,6 +90,15 @@ export function parseKnobValue(k: Knob, raw: string): { value: string | number }
     if (/^#[0-9a-f]{3}$/i.test(v)) return { value: `#${[...v.slice(1)].map((c) => c + c).join("")}`.toLowerCase() };
     if (/^[\w-]+$/.test(v)) return { value: v }; // a [palette] name, checked when the theme is rebuilt
     return { error: `${k.name}: expected a color like #ff2e88 (or a palette name)` };
+  }
+  const field = (k as { field?: Field }).field;
+  if (field) {
+    // a component's field: its own reading (bounds, on/off, auto…); a palette name is checked on rebuild
+    if (field.kind === "color" && /^[\w-]+$/.test(v) && v !== "auto") return { value: v };
+    const r = field.read(v, { palette: {} });
+    if ("error" in r) return { error: `${k.name}: ${r.error}` };
+    if (field.kind === "color") return { value: v.toLowerCase() };
+    return { value: typeof r.value === "boolean" ? (r.value ? "on" : "off") : (r.value as string | number) };
   }
   if (k.kind === "number") {
     const n = Number(v.replace("%", ""));

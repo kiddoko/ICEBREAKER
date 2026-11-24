@@ -2,6 +2,8 @@ import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import type { KeycapLook } from "./keycap";
 import type { PadLook } from "./padglyphs";
 import { hex, type RGB, readable } from "./color";
+import { KEYS, PAD } from "./skin/components";
+import { applyFloor, readTable, type SkinProblem } from "./skin/registry";
 
 /**
  * Themes are TOML files (see /themes/nightshade.toml for the annotated reference).
@@ -122,10 +124,13 @@ export interface Theme {
   /**
    * THEME HOOKS for the keys and the pad's buttons (docs/THEMES.md): how they look, any part of
    * it — the rest is the deck's bevelled key (core/keycap.ts BEVELLED) and its pad buttons
-   * (core/padglyphs.ts PAD_LOOK). Not read from theme files yet: the theme overhaul will.
+   * (core/padglyphs.ts PAD_LOOK). Read from the theme's [keys] and [pad] tables, field by field,
+   * through the skin registry (core/skin): bounds, colours, the floor.
    */
   keys?: Partial<KeycapLook>;
   pad?: Partial<PadLook>;
+  /** what the theme file got wrong in its components (the field keeps the deck's or the parent's value) */
+  skinProblems?: SkinProblem[];
   /** The theme it was built on (meta.extends), if any. */
   extends?: string;
   source: "builtin" | "vault";
@@ -191,6 +196,13 @@ export function parseTheme(source: string, base: Theme | null, origin: Theme["so
     ? gradientRaw.map((g) => (String(g).startsWith("#") ? hex(String(g)) : palette[String(g)] ?? c.accent))
     : base?.gradient ?? [c.accent, c.accentAlt];
 
+  // the components (core/skin): each field checked on its own, then the floor (readable keys…)
+  const ctx = { palette };
+  const keysRead = readTable(KEYS, doc.keys, ctx, base?.keys);
+  const padRead = readTable(PAD, doc.pad, ctx, base?.pad);
+  const keysFloor = applyFloor(KEYS, keysRead.look, c);
+  const skinProblems = [...keysRead.problems, ...keysFloor.problems, ...padRead.problems];
+
   const border = String(meta.border ?? base?.border ?? "round") as BorderStyle;
   return {
     name: String(meta.name ?? "unnamed"),
@@ -235,6 +247,9 @@ export function parseTheme(source: string, base: Theme | null, origin: Theme["so
       type: typeof ((doc.anim ?? {}) as Table).type === "string" ? String(((doc.anim ?? {}) as Table).type) : base?.anim.type ?? "none",
       screensaver: typeof ((doc.anim ?? {}) as Table).screensaver === "string" ? String(((doc.anim ?? {}) as Table).screensaver) : base?.anim.screensaver ?? "city",
     },
+    ...(keysFloor.look ? { keys: keysFloor.look } : {}),
+    ...(padRead.look ? { pad: padRead.look } : {}),
+    ...(skinProblems.length ? { skinProblems } : {}),
     extends: typeof meta.extends === "string" ? meta.extends : undefined,
     source: origin,
   };

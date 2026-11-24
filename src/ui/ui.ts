@@ -2,6 +2,7 @@ import { gradient as sampleGradient, mix, NONE, type RGB } from "../core/color";
 import { keySpans } from "./keycaps";
 import { padCells } from "./keyicons";
 import { keycapLook, type KeycapLook } from "../core/keycap";
+import { keyFace } from "../core/skin/components";
 import { CAP_END, CAP_PAD_L, CAP_PAD_R, CAP_START } from "../core/grid";
 import type { PadKind } from "../core/padglyphs";
 import { BOLD, Grid, type Rect, type Style } from "../core/grid";
@@ -614,9 +615,7 @@ export function inset(r: Rect, dx: number, dy = dx): Rect {
 export { charWidth, strWidth, truncate };
 
 /** a key's face on the theme's own backgrounds: a raised tone of the panel, a hint of the accent */
-export function keyFace(c: { accent: RGB; fg: RGB; panel: RGB }): RGB {
-  return mix(mix(c.panel, c.fg, 0.13), c.accent, 0.14);
-}
+export { keyFace } from "../core/skin/components";
 
 /** a theme's key look (Theme.keys over the bevelled key), worked out once per theme */
 const keyLooks = new WeakMap<object, KeycapLook>();

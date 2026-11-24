@@ -1,4 +1,6 @@
 import { css, hex, type RGB } from "./color";
+import { PAD } from "./skin/components";
+import { defaults, resolve } from "./skin/registry";
 
 /**
  * GAMEPAD ICONS — the buttons of the pad you hold, drawn like the rest of the grid: Xbox's
@@ -140,14 +142,13 @@ export interface PadLook {
   /** the icon's size, as a share of the cell's height */
   size: number;
 }
-export const PAD_LOOK: PadLook = { inkDark: 0x101018, inkLight: 0xffffff, psBody: 0x1d1c26, ring: 0.5, weight: 800, size: 0.86 };
+/** the deck's own pad look — the defaults of the skin's `pad` component */
+export const PAD_LOOK: PadLook = defaults(PAD);
 
 let LOOK: PadLook = PAD_LOOK;
-/** A theme's pad look (its own parts over the deck's), for every button drawn from now on. */
+/** A theme's pad look (its own parts over the deck's, kept in bounds), for every button drawn from now on. */
 export function setPadLook(own?: Partial<PadLook>): void {
-  const k = { ...PAD_LOOK, ...(own ?? {}) };
-  const ok = (v: number, lo: number, hi: number, d: number) => (Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);
-  LOOK = { ...k, ring: ok(k.ring, 0, 1, PAD_LOOK.ring), weight: Math.round(ok(k.weight, 100, 900, PAD_LOOK.weight)), size: ok(k.size, 0.5, 1, PAD_LOOK.size) };
+  LOOK = resolve(PAD, own);
 }
 
 /** the deck's font, for the letters on the buttons (the renderer says it: setPadFont) */
