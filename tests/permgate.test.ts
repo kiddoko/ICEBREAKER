@@ -53,4 +53,24 @@ describe("a high-risk permission's question (plugins/host.ts gate)", () => {
     asked[1].answer("once");
     await d;
   });
+
+  it("\"this time\" on a new folder covers its files, not its neighbours (Windows bench 24/11: an export with stems asked 7 times)", async () => {
+    const { host, m, asked } = setup();
+    const dir = host.gate(m, "vault:write", "safe/y stems", undefined, true);
+    await tick();
+    expect(asked.length).toBe(1);
+    expect(asked[0].spec.heading).toContain("safe/y stems");
+    asked[0].answer("once");
+    await dir;
+    for (const f of ["safe/y stems/01 drums.wav", "safe/y stems/02 bass.wav", "safe/Y STEMS/03 lead.wav"]) await host.gate(m, "vault:write", f);
+    expect(asked.length).toBe(1);
+    // its neighbour, a folder of the same start, a way out by "..": asked
+    for (const f of ["safe/y.wav", "safe/y stems2/a.wav", "safe/y stems/../z.wav"]) {
+      const g = host.gate(m, "vault:write", f);
+      await tick();
+      asked[asked.length - 1].answer("once"); // (a "no" would stop the rest of the action without asking)
+      await g;
+    }
+    expect(asked.length).toBe(4);
+  });
 });

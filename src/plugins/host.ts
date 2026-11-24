@@ -293,6 +293,8 @@ export class PluginHost {
   private dialogs: Promise<unknown> = Promise.resolve();
   /** "this time": until when (ms), by module, permission and target — that file, that host only */
   private once = new Map<string, number>();
+  /** "this time" on a folder it makes (mkdir): the files it writes in it, until when (ms) */
+  private onceFolders = new Map<string, { dir: string; until: number }[]>();
   /** "no": until when (ms) — the same action's next steps (the file after its folder) aren't asked again */
   private refused = new Map<string, number>();
 
@@ -301,7 +303,7 @@ export class PluginHost {
    * time, you're asked — this time / always / no. A "total" one (your real terminal) shows
    * every command unless you said always. Throws when you say no.
    */
-  async gate(m: PluginManifest, perm: string, target: string, command?: string): Promise<void> {
+  async gate(m: PluginManifest, perm: string, target: string, command?: string, folder = false): Promise<void> {
     const want = parsePerm(perm) ?? (perm === "net" ? { base: "net" as const } : null);
     if (!want) return;
     // the name you approved that covers this use ("vault:write:songs/" for songs/a.bmed)
@@ -315,8 +317,15 @@ export class PluginHost {
     // "this time" was for what the dialog showed: that file, that host — not the next one
     // (Fable pass 24/11: one "this time" covered other files for 10 s)
     const onceKey = `${key}|${want.base === "vault:write" ? (vaultPath(target) ?? target) : target.toLowerCase()}`;
-    const settled = () => (s.data.plugins.always?.[m.id] ?? []).includes(name) || (level !== "total" && (this.once.get(onceKey) ?? 0) > Date.now());
-    if (level !== "total" && (this.once.get(onceKey) ?? 0) > Date.now()) return;
+    // …or inside a folder it made with your "this time" (an export's stems: one question for the
+    // folder and its files, Windows bench 24/11) — never the folder's neighbours
+    const inFolderOnce = () => {
+      if (want.base !== "vault:write") return false;
+      const path = (vaultPath(target) ?? "").toLowerCase();
+      return (this.onceFolders.get(key) ?? []).some((f) => f.until > Date.now() && path.startsWith(f.dir.toLowerCase() + "/"));
+    };
+    const settled = () => (s.data.plugins.always?.[m.id] ?? []).includes(name) || (level !== "total" && ((this.once.get(onceKey) ?? 0) > Date.now() || inFolderOnce()));
+    if (level !== "total" && ((this.once.get(onceKey) ?? 0) > Date.now() || inFolderOnce())) return;
     const d = describePerm(name, t);
     const no = () => new Error(t("{m}: you said no to “{p}”", { m: m.name.toLowerCase(), p: d.label }));
     // you just said no to this: the rest of the same action (an export's file after its folder) stops
@@ -325,7 +334,7 @@ export class PluginHost {
     // its own autosave (a .recovery/ folder in the folder you granted): never a question mid-work
     if (want.base === "vault:write" && quietWrite(target, name)) return;
     const scope = parsePerm(name)?.scope;
-    const what = want.base === "vault:write" ? t("It wants to write: {x}", { x: target || "?" }) : want.base === "net" ? t("It wants to reach: {x}", { x: target || "?" }) : "";
+    const what = want.base === "vault:write" && folder ? t("It wants to make the folder {x} and write in it", { x: target || "?" }) : want.base === "vault:write" ? t("It wants to write: {x}", { x: target || "?" }) : want.base === "net" ? t("It wants to reach: {x}", { x: target || "?" }) : "";
     const spec: PermDialogSpec = {
       frame: t("{m} (module) asks", { m: m.name.toLowerCase() }),
       heading: level === "total" ? `⚠ ${t("TOTAL: this command has all your rights on this computer")}` : what,
@@ -362,6 +371,11 @@ export class PluginHost {
     if (answer === "once") {
       // "this time" is this action: what it does in the next moments (several files of one export)
       if (level !== "total") this.once.set(onceKey, Date.now() + 10_000);
+      // a folder it makes: "this time" is the folder and what it writes in it, in the next moments
+      if (level !== "total" && folder && want.base === "vault:write" && vaultPath(target)) {
+        const live = (this.onceFolders.get(key) ?? []).filter((f) => f.until > Date.now());
+        this.onceFolders.set(key, [...live, { dir: vaultPath(target)!, until: Date.now() + 10_000 }]);
+      }
       return;
     }
     if (level !== "total") this.refused.set(key, Date.now() + 10_000);
@@ -827,8 +841,8 @@ export class PluginHost {
       throw new Error(`plugin "${m.id}" needs the "${perm}${want?.base === "net" && target ? `:${target}` : ""}" permission in its plugin.json`);
     };
     /** a high-risk permission really used: asked the first time (a STORE / vault module) */
-    const gate = async (perm: string, target: string, command?: string) => {
-      if (thirdParty) await this.gate(m, perm, target, command);
+    const gate = async (perm: string, target: string, command?: string, folder = false) => {
+      if (thirdParty) await this.gate(m, perm, target, command, folder);
     };
     /** the folders a narrowed vault permission is limited to: is this entry in (or on the way to) one? */
     const inScope = (path: string, isDir = false) => {
@@ -985,7 +999,7 @@ export class PluginHost {
         // changing notes is high-risk: the first time it really writes, you're asked
         write: async (raw, c) => { const p = inVault(raw); need("vault:write", p); notDeck(p); await gate("vault:write", p); note("vault:write", p); return deck.vault.write(p, c); },
         append: async (raw, text) => { const p = inVault(raw); need("vault:write", p); notDeck(p); await gate("vault:write", p); note("vault:write", p); return deck.vault.append(p, text); },
-        mkdir: async (raw) => { const p = inVault(raw); need("vault:write", p); notDeck(p); await gate("vault:write", p); note("vault:write", p); return deck.vault.mkdir(p); },
+        mkdir: async (raw) => { const p = inVault(raw); need("vault:write", p); notDeck(p); await gate("vault:write", p, undefined, !(await deck.vault.exists(p))); note("vault:write", p); return deck.vault.mkdir(p); }, // (a NEW folder: "this time" covers what it writes in it)
         readBytes: async (raw) => { const p = inVault(raw); need("vault:read", p); if (thirdParty) notDeck(p); note("vault:read", p); return deck.vault.readBytes(p); },
         // never the deck's own folders' contents (other modules' code, the trash's log…) for a STORE / vault module
         list: async (raw) => {
