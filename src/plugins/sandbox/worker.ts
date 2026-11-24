@@ -10,6 +10,7 @@
  * own; the cells it touched and its click areas go to the deck, which copies
  * them into its place. Clicks, keys and the wheel come back as messages.
  */
+import { useProxy } from "./useproxy";
 import { NONE } from "../../core/color";
 import { Grid, type Rect } from "../../core/grid";
 import type { Theme } from "../../core/theme";
@@ -216,6 +217,8 @@ function makeIb(manifest: unknown, version: string): unknown {
       remove: rpc("stats", "remove"),
       onChange: notYet("ib.stats.onChange"),
     },
+    // `ib.use("terminal").run(…)`: modules.call under another name (useproxy.ts)
+    use: (module: string) => useProxy(module, (m, n, a) => call(["modules", "call"], [m, n, ...a])),
     modules: { call: (m: string, n: string, ...a: unknown[]) => call(["modules", "call"], [m, n, ...a]), expose: notYet("ib.modules.expose"), has: notYet("ib.modules.has"), list: notYet("ib.modules.list"), installed: notYet("ib.modules.installed") },
     catalog: { list: notYet("ib.catalog"), get: notYet("ib.catalog"), kinds: notYet("ib.catalog") },
     ai: { ready: notYet("ib.ai"), problem: notYet("ib.ai"), ask: (prompt: string, o?: object) => call(["ai", "ask"], [prompt, o]), session: notYet("ib.ai.session"), vaultTools: notYet("ib.ai.vaultTools") },

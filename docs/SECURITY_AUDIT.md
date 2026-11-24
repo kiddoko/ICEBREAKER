@@ -6,7 +6,7 @@ Each finding: what, how bad, and where it stands. The first pass (1–13) came w
 big cleanup; the security pass (14–24) fixed most of what was left open; 25–31 came with
 the updates and the check before going public; **32–58 come from a full review of the
 code by another AI (2026-11-20), which found that several of the earlier fixes could be
-walked around** — they're listed with what they walked around. **72–78: the pass on temp files, logs and secrets in memory (2026-11-24)** after a friend's review. **79–87: the Fable pass on the Windows bench (2026-11-24)** — two sandbox escapes in 0.7.2. **Nobody outside the project has audited
+walked around** — they're listed with what they walked around. **72–78: the pass on temp files, logs and secrets in memory (2026-11-24)** after a friend's review. **79–88: the Fable pass on the Windows bench (2026-11-24)** — two sandbox escapes in 0.7.2. **Nobody outside the project has audited
 ICEBREAKER** — read [../DISCLAIMER.md](../DISCLAIMER.md).
 
 Severity: 🔴 critical (your notes, keys or computer) · 🟠 high · 🟡 medium · ⚪ low.
@@ -102,6 +102,7 @@ Severity: 🔴 critical (your notes, keys or computer) · 🟠 high · 🟡 medi
 | 85 | A module's translation key with ~160 `{x}` became a regular expression that backtracked for ever: the deck froze at start | 🟡 | a module's keys are matched in one pass (indexOf), never with a regular expression; its table has a size limit (`i18n.ts`, `tests/outlang.test.ts`) |
 | 86 | Claude Code (UPLINK) started with `Read,Glob,Grep` allowed everywhere: a note that talks the model into it (prompt injection) could read files outside the vault (`~/.ssh`…) | 🟠 | `Read(./**),Glob(./**),Grep(./**)`: checked with claude 2.1 — a path outside is refused, the bare names read it |
 | 87 | The deck's PowerShell tabs started with `-ExecutionPolicy Bypass` (any script run there skipped its check); `seek:inf` aborted the app (was O19) | ⚪ | the hook goes as `-EncodedCommand` (a command, not a script file: the tab keeps your policy); a seek that isn't a finite time is ignored (`audio.rs` `seek_to`) |
+| 88 | **`plugin reload` kept an old copy's grants for new code**: BreakerMED 0.1.0 approved with the whole vault and "always" write, 0.13.1 (asking only for songs/) copied over it and reloaded — it wrote at the vault's root with no question; `plugin enable` said « unchanged » (Windows bench, 2026-11-24) | 🟠 | a vault module never runs with more than its plugin.json asks for now (`withinManifest`, in `effective`); a reload of changed code approves it the way `enable` does — grants cut to the manifest, no "always" (the high-risk questions come again). `tests/pluginreload.test.ts` |
 
 ## Open — for the security pass
 

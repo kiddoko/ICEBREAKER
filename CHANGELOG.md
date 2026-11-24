@@ -44,6 +44,14 @@
   for that file only; two questions at once come one after the other.
 - Your `audio stop` holds: a module that ignores it stays silent until you use it again.
 - A module's translations can't freeze the deck any more.
+- **A changed copy of a module never keeps the old copy's permissions**: after `plugin reload` it
+  may do only what its plugin.json asks for, and the risky questions come again (the Windows
+  bench: BreakerMED 0.13.1 copied over 0.1.0 wrote at the vault's root without asking).
+- `ib.use("terminal").run(…)` works in a module (it was documented, but missing).
+- `voice use <name>` refuses a voice this computer doesn't have; a synced one that's missing is
+  said once (the default voice speaks).
+- An export that makes a folder asks once for the folder and its files (`med export … --stems`
+  asked 7 times).
 - UPLINK through Claude Code reads only the vault; the deck's PowerShell tabs keep your execution
   policy (no Bypass); a seek to « inf » no longer stops the app.
 

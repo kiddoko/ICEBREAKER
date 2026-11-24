@@ -45,7 +45,9 @@ read or write the deck's own folder (`.icebreaker/`).
 | **total** | listed in red | **every command is shown to you first**, unless you answered "always for this module" |
 
 "This time" is for what the question showed: that file (or that site), again in the next ten
-seconds — another file is asked about on its own. Two questions at once come one after the
+seconds — another file is asked about on its own. A **new folder** it makes is asked as « make
+the folder and write in it »: "this time" then covers the files it writes in that folder in the
+next ten seconds (an export's stems: one question), never the folder's neighbours. Two questions at once come one after the
 other, never one over the other. A command for your real terminal is shown whole, its hidden
 characters made visible (`^M`, `⏎`, `<U+202E>`); one too long for the screen says so first.
 
