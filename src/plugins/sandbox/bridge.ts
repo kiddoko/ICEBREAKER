@@ -23,6 +23,9 @@ import { addModuleTranslations, lang } from "../../core/i18n";
  * The Worker is made from a blob, so the page's Content-Security-Policy is its
  * own; and it has no native bridge, no page, no network functions.
  */
+/** what the module hears because YOU did something in it (mixer.unhush after an `audio stop`) */
+const FROM_YOU = new Set<string>(["key", "text", "hit", "run", "action", "menuRun", "paletteRun", "widgetActivate", "file"]);
+
 export function sandboxed(deck: Deck, code: string, manifest: PluginManifest): PluginModule {
   let box: Sandbox | null = null;
   return {
@@ -68,6 +71,16 @@ function toData(v: unknown): unknown {
  * A module's `complete` as it crossed: "path" / "command" / "none", a list (its sub-commands) or a
  * record (`{ "": ["export"], "export": ["wav", "mod"] }`: the next word's after those) — words only.
  */
+/**
+ * What a module's question in the shell reads: ALWAYS signed with who asks. A label of its own
+ * starting with "[" used to go as it was, so `ctx.read("[vault] password:", { mask: true })`
+ * looked like the deck's own password prompt (Fable pass 24/11). One line, no control characters.
+ */
+export function moduleLabel(id: string, label: string): string {
+  const clean = String(label).replace(/[\u0000-\u001f\u007f-\u009f]/g, " ").slice(0, 200);
+  return `[${id} · module] ${clean}`;
+}
+
 export function completeSpec(c: unknown): Command["complete"] {
   const words = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, 500) : []);
   if (c === "path" || c === "command" || c === "none") return c;
@@ -141,6 +154,8 @@ class Sandbox {
       const lg = `${lang()}|${this.deck.settings.data.user.locale ?? ""}`;
       if (lg !== this.sentLang) (this.sentLang = lg), this.worker.postMessage({ t: "lang", lang: lang(), locale: this.deck.settings.data.user.locale ?? "" } satisfies ToModule);
     }
+    // you used it (a key, a click, one of its commands…): the sound you silenced may play again
+    if (FROM_YOU.has(m.t)) this.deck.mixer.unhush(this.manifest.id);
     this.worker.postMessage(m);
   }
 
@@ -278,7 +293,7 @@ class Sandbox {
         const s = this.sessions.get(m.sid);
         // what it asks in the shell says who is asking (it could ask "your password")
         const label = String(m.label ?? "");
-        const value = s ? await s.read(label.startsWith("[") ? label : `[${this.manifest.id}] ${label}`, m.opts) : null;
+        const value = s ? await s.read(moduleLabel(this.manifest.id, label), m.opts) : null;
         this.send({ t: "readReply", sid: m.sid, rid: m.rid, value });
         return;
       }

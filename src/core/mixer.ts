@@ -80,6 +80,12 @@ export class Mixer {
   private muted = new Set<string>();
   /** what each module asked to hear when you silence it (`audio stop`, the ♪ in the status bar) */
   private stopListeners = new Map<string, Set<() => void>>();
+  /**
+   * modules you silenced (`audio stop`, the ♪): their sound is dropped until you use them again
+   * (a key, a click, one of their commands: unhush) — a module that ignores onStop can't play on
+   * (Fable pass 24/11)
+   */
+  private hushed = new Set<string>();
   private gain = 0.5;
   /** the deck redraws the status bar when who's playing changes */
   onActive?: () => void;
@@ -116,7 +122,7 @@ export class Mixer {
     if (on) this.muted.add(owner);
     else this.muted.delete(owner);
     const st = this.streams.get(owner);
-    if (st) st.gain.gain.value = on ? 0 : 1;
+    if (st) st.gain.gain.value = on || this.hushed.has(owner) ? 0 : 1;
     const o = this.owners.get(owner);
     if (on && o?.voices.size && this.ctx) {
       const time = this.ctx.currentTime;
@@ -167,6 +173,7 @@ export class Mixer {
   async schedule(owner: string, events: unknown): Promise<void> {
     if (!Array.isArray(events)) throw new Error("audio.schedule: a list of events");
     if (events.length > MAX_EVENTS_PER_CALL) throw new Error(`audio.schedule: at most ${MAX_EVENTS_PER_CALL} events at a time`);
+    if (this.hushed.has(owner)) return; // you silenced it: nothing it schedules plays until you use it again
     if (!(await this.start()) || !this.ctx) throw new Error("no audio output here");
     const o = this.owner(owner);
     const now = this.ctx.currentTime;
@@ -208,12 +215,14 @@ export class Mixer {
     const node = new AudioWorkletNode(this.ctx, "ib-stream", { numberOfInputs: 0, outputChannelCount: [2] });
     // its own gain: muting its tab (setMuted) turns only it down
     const gain = this.ctx.createGain();
-    gain.gain.value = this.muted.has(owner) ? 0 : 1;
+    gain.gain.value = this.muted.has(owner) || this.hushed.has(owner) ? 0 : 1;
     node.connect(gain).connect(this.out);
     const entry = { node, loud: false, gain };
     node.port.onmessage = (ev: MessageEvent<{ t: string; on?: boolean }>) => {
-      if (ev.data?.t !== "active" || entry.loud === !!ev.data.on) return;
-      entry.loud = !!ev.data.on;
+      // (silenced by you: what it writes isn't heard, and the ♪ doesn't say it plays)
+      const on = !!ev.data?.on && !this.hushed.has(owner);
+      if (ev.data?.t !== "active" || entry.loud === on) return;
+      entry.loud = on;
       this.onActive?.();
     };
     const ch = new MessageChannel();
@@ -249,7 +258,24 @@ export class Mixer {
     for (const v of o?.voices.values() ?? []) changed = this.sounding.delete(v) || changed;
     if (st?.loud) (st.loud = false), (changed = true);
     if (changed) this.onActive?.();
-    if (byUser) for (const fn of this.stopListeners.get(owner) ?? []) try { fn(); } catch { /* the module's own problem */ }
+    if (byUser) {
+      // and it stays quiet, told or not: what it schedules or streams after is dropped until you use it again
+      this.hushed.add(owner);
+      if (st) st.gain.gain.value = 0;
+      for (const fn of this.stopListeners.get(owner) ?? []) try { fn(); } catch { /* the module's own problem */ }
+    }
+  }
+
+  /** You used the module again (a key or click in its page, one of its commands): its sound may play. */
+  unhush(owner: string): void {
+    if (!this.hushed.delete(owner)) return;
+    const st = this.streams.get(owner);
+    if (st && !this.muted.has(owner)) st.gain.gain.value = 1;
+  }
+
+  /** Is the module silenced by you (`audio stop`) and not used since? */
+  isHushed(owner: string): boolean {
+    return this.hushed.has(owner);
   }
 
   /** Be told when the user silences this module. Returns how to stop listening. */
@@ -264,6 +290,7 @@ export class Mixer {
   release(owner: string): void {
     this.closeStream(owner);
     this.muted.delete(owner);
+    this.hushed.delete(owner);
     const o = this.owners.get(owner);
     if (!o) return void this.stopListeners.delete(owner);
     this.stop(owner);
