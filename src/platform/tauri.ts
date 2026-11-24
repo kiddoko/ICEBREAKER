@@ -1,4 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
+import { inOrder } from "./inorder";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -138,7 +139,10 @@ export function createTauriPlatform(): Platform {
     },
     bridge: {
       onRun: (cb) => void listen<{ id: string; line: string; cwd: string }>("bridge-run", (e) => cb(e.payload)),
-      send: (id, chunk, done, found, status) => void invoke("bridge_send", { id, chunk, done, found, status: status ?? null }),
+      // one after the other: a command's chunks and its end, in order (platform/inorder.ts)
+      send: ((send) => (id: string, chunk: string | null, done: boolean, found: boolean, status?: number) => void send(id, chunk, done, found, status))(
+        inOrder((id: string, chunk: string | null, done: boolean, found: boolean, status?: number) => invoke("bridge_send", { id, chunk, done, found, status: status ?? null })),
+      ),
     },
     media: {
       status: () => invoke<MediaStatus | null>("media_status"),

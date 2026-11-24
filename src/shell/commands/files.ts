@@ -49,7 +49,8 @@ const ls: Command = {
   man: "-l  long format (permissions, size, date)\n-a  show hidden files (.icebreaker, .trash…)\n-1  one entry per line",
   complete: "path",
   async run(ctx) {
-    const { flags, rest } = parseFlags(ctx.args);
+    // (-1 is a flag here, not a number: `ls -1`)
+    const { flags, rest } = parseFlags(ctx.args, [], "1");
     const long = !!flags.l || ctx.args.length === 0 && ctx.env.LS_LONG === "1";
     const targets = rest.length ? rest : ["."];
     for (const [i, t] of targets.entries()) {

@@ -216,7 +216,11 @@ export function parse(line: string, env: Record<string, string>): Pipeline[] {
  * Flag parsing for commands: `-la`, `-n 5`, `-n5`, `--all`, `--name=x`, `--`.
  * `withValue` lists flags that take a value.
  */
-export function parseFlags(args: string[], withValue: string[] = []): { flags: Record<string, string | true>; rest: string[] } {
+/**
+ * `digits`: the digit flags this command has (`ls -1`): "-1" is then a flag, not a number.
+ * Without them a "-3" stays an argument (a negative number, `journal -3`).
+ */
+export function parseFlags(args: string[], withValue: string[] = [], digits = ""): { flags: Record<string, string | true>; rest: string[] } {
   const flags: Record<string, string | true> = {};
   const rest: string[] = [];
   for (let i = 0; i < args.length; i++) {
@@ -230,7 +234,7 @@ export function parseFlags(args: string[], withValue: string[] = []): { flags: R
       if (v !== undefined) flags[k] = v;
       else if (withValue.includes(k) && i + 1 < args.length) flags[k] = args[++i];
       else flags[k] = true;
-    } else if (a.startsWith("-") && a.length > 1 && !/^-\d/.test(a)) {
+    } else if (a.startsWith("-") && a.length > 1 && (!/^-\d/.test(a) || (!!digits && /^-\w+$/.test(a) && [...a.slice(1)].every((c) => !/\d/.test(c) || digits.includes(c))))) {
       const letters = a.slice(1);
       for (let j = 0; j < letters.length; j++) {
         const f = letters[j];
