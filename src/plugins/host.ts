@@ -999,7 +999,17 @@ export class PluginHost {
         // changing notes is high-risk: the first time it really writes, you're asked
         write: async (raw, c) => { const p = inVault(raw); need("vault:write", p); notDeck(p); await gate("vault:write", p); note("vault:write", p); return deck.vault.write(p, c); },
         append: async (raw, text) => { const p = inVault(raw); need("vault:write", p); notDeck(p); await gate("vault:write", p); note("vault:write", p); return deck.vault.append(p, text); },
-        mkdir: async (raw) => { const p = inVault(raw); need("vault:write", p); notDeck(p); await gate("vault:write", p, undefined, !(await deck.vault.exists(p))); note("vault:write", p); return deck.vault.mkdir(p); }, // (a NEW folder: "this time" covers what it writes in it)
+        // a folder already there: nothing is written, nothing is asked (an export's « songs » parent
+        // asked on its own, Windows bench 24/11); a NEW one: « make it and write in it », one question
+        mkdir: async (raw) => {
+          const p = inVault(raw);
+          need("vault:write", p);
+          notDeck(p);
+          if (await deck.vault.exists(p)) return;
+          await gate("vault:write", p, undefined, true);
+          note("vault:write", p);
+          return deck.vault.mkdir(p);
+        },
         readBytes: async (raw) => { const p = inVault(raw); need("vault:read", p); if (thirdParty) notDeck(p); note("vault:read", p); return deck.vault.readBytes(p); },
         // never the deck's own folders' contents (other modules' code, the trash's log…) for a STORE / vault module
         list: async (raw) => {

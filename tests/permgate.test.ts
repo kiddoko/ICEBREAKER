@@ -73,4 +73,23 @@ describe("a high-risk permission's question (plugins/host.ts gate)", () => {
     }
     expect(asked.length).toBe(4);
   });
+
+  it("making a folder that's already there asks nothing (Windows bench 24/11: « it wants to write: songs »)", async () => {
+    const { host, m, asked } = setup();
+    const made: string[] = [];
+    const d = (host as unknown as { deck: Record<string, unknown> }).deck;
+    d.vault = { exists: async (p: string) => p === "safe", mkdir: async (p: string) => void made.push(p) };
+    d.access = { note() {} };
+    const ib = (host as unknown as { apiFor(m: PluginManifest): { vault: { mkdir(p: string): Promise<void> } } }).apiFor(m);
+    await ib.vault.mkdir("safe");
+    expect(asked.length).toBe(0);
+    expect(made).toEqual([]);
+    // a new one: asked once, as a folder
+    const n = ib.vault.mkdir("safe/y stems");
+    await tick();
+    expect(asked.length).toBe(1);
+    asked[0].answer("once");
+    await n;
+    expect(made).toEqual(["safe/y stems"]);
+  });
 });
