@@ -74,7 +74,18 @@ export const voiceCommand: Command = {
           if (!list.length) ctx.out(fmt.dim("no voices\n"));
           return 0;
         }
-        case "use": deck.settings.set("voice.name", rest); ctx.out(`voice: ${rest || "default"}\n`); return 0;
+        case "use": {
+          // a name this computer has (voice list), or nothing: an unknown one used to be kept and
+          // the default voice spoke without a word (Windows bench 24/11)
+          if (rest) {
+            const info = await deck.platform.voice!.info();
+            const system = info.system ? await deck.platform.voice!.list("system").catch(() => []) : [];
+            if (!info.piper_voices.includes(rest) && !system.some((x) => x.id === rest)) return ctx.err(`${t("voice: no voice \"{x}\" here — voice list", { x: rest })}\n`), 1;
+          }
+          deck.settings.set("voice.name", rest);
+          ctx.out(`voice: ${rest || "default"}\n`);
+          return 0;
+        }
         case "language": case "lang":
           if (b !== "en" && b !== "fr" && b !== "ja") return ctx.err("usage: voice language en | fr | ja\n"), 1;
           deck.settings.set("voice.language", b);

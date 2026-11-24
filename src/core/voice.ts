@@ -60,6 +60,11 @@ export class DeckVoice {
       // (deck/voice.rs checks again — Fable pass 24/11)
       const chosen = system.find((x) => x.id === v.name);
       if (chosen && (!chosen.lang || speaksLang(chosen.lang, lang))) return { engine: "system", voice: chosen.id };
+      // not one this system has: the default voice speaks — said once, not at every sentence (Windows bench 24/11)
+      if (!chosen && !this.missingSaid.has(v.name)) {
+        this.missingSaid.add(v.name);
+        this.deck.notify(t("no voice \"{x}\" here — the default voice speaks (voice list)", { x: v.name }), "warning");
+      }
     }
     this.systemVoice[lang] ??= pickSystemVoice(system, lang);
     // no Japanese voice installed (common on Windows): say how to get one instead of reading it with an English voice
@@ -74,6 +79,8 @@ export class DeckVoice {
     return { engine: "system", voice: this.systemVoice[lang] };
   }
   private systemVoice: Record<string, string> = {};
+  /** the chosen voices this system doesn't have, already said */
+  private missingSaid = new Set<string>();
 
   /**
    * Say something (queued after what's being said). The accent follows the
