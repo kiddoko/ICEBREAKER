@@ -85,6 +85,13 @@ pub fn config_write(app: AppHandle, state: State<AccountState>, vault: State<cra
     crate::crypto::write_private(&path, content.as_bytes()).map_err(|e| e.to_string())
 }
 
+/// Where one of the unlocked account's config files is, in full (to say it: « the old settings
+/// are kept in … »). None while locked.
+#[tauri::command]
+pub fn config_where(app: AppHandle, state: State<AccountState>, name: String) -> Result<Option<String>, String> {
+    Ok(config_path(&app, &state, &name)?.map(|p| p.to_string_lossy().into_owned()))
+}
+
 /// Lets users keep their key in the environment instead of secrets.json.
 #[tauri::command]
 pub fn env_api_key() -> Option<String> {

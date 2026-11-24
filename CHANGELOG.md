@@ -75,6 +75,11 @@
   says « can't move a folder into itself ».
 
 **After the Windows bench checked those fixes (24/11)**
+- CALENDAR: in a day's list, the title starts after a long time (`22:00–23:00 +1d`) instead of
+  over its +. On a day an event carries over to, the agenda says `…–23:00` and « this week »
+  says `… title`, never the start time of the day before.
+- Unreadable settings: a message you close over the setup (the toast covered its title), with
+  the account's real folder.
 - « changed on disk » no longer comes as a toast over the note you're looking at: its own bar
   says it. A toast still comes when it's a note you're not looking at.
 - When `settings.json` couldn't be read, the setup starts again and now says why, once, with
