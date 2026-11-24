@@ -1703,6 +1703,7 @@ export const FR: Record<string, string> = {
   "It wants to reach: {x}": "Il veut joindre : {x}",
   "{m} (module) asks": "{m} (module) demande",
   "TOTAL: this command has all your rights on this computer": "TOTAL : cette commande a tous tes droits sur cet ordinateur",
+  "stays off: {x}": "reste éteint : {x}",
   "It wants to make the folder {x} and write in it": "Il veut créer le dossier {x} et écrire dedans",
   "no voice \"{x}\" here — the default voice speaks (voice list)": "pas de voix « {x} » ici — la voix par défaut parle (voice list)",
   "voice: no voice \"{x}\" here — voice list": "voice : pas de voix « {x} » ici — voice list",

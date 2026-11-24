@@ -51,7 +51,11 @@
 - `voice use <name>` refuses a voice this computer doesn't have; a synced one that's missing is
   said once (the default voice speaks).
 - An export that makes a folder asks once for the folder and its files (`med export … --stems`
-  asked 7 times).
+  asked 7 times); a folder that's already there (its « songs » parent) asks nothing.
+- A module you switched on that stays off after `plugin reload` (its new copy asks for more) is
+  said in the shell and the LOG, with what to type (`plugin enable <id>`); `plugin perms` says why
+  too. New: **`plugin info <id>`** — what it is, its state and why, what it asks for, what you
+  approved.
 - UPLINK through Claude Code reads only the vault; the deck's PowerShell tabs keep your execution
   policy (no Bypass); a seek to « inf » no longer stops the app.
 

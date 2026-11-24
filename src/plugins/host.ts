@@ -114,6 +114,16 @@ export class PluginHost {
       }
       await this.activate(p);
     }
+    // what you switched on and stays off: said in the LOG, with what to type (it was only in its page)
+    for (const x of this.offReasons()) this.deck.log?.add("error", `[${x.id}] ${t("stays off: {x}", { x: x.error })}`);
+  }
+
+  /** The modules you switched on that are off now, and why (plugin reload says them, `plugin info` too). */
+  offReasons(): { id: string; error: string }[] {
+    const { enabled, disabled } = this.deck.settings.data.plugins;
+    return this.plugins
+      .filter((p) => !p.active && p.error && (p.source === "vault" ? enabled.includes(p.manifest.id) : !disabled.includes(p.manifest.id)))
+      .map((p) => ({ id: p.manifest.id, error: p.error! }));
   }
 
   /**
