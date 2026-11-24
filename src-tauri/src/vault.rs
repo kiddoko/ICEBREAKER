@@ -17,7 +17,7 @@ use crate::store::{self, Store};
 use serde::Serialize;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -44,7 +44,9 @@ pub struct VaultState {
     previous: Mutex<Option<PathBuf>>,
     /// the password of a login that happened before the vault was mounted (wiped once used, or after 2 min)
     pending: Mutex<Option<(Zeroizing<String>, Instant)>>,
-    fails: AtomicU32,
+    /// a recovery key shown but not yet typed back (`vault encrypt / recovery / rekey`): it's
+    /// written into vault.key only by [`confirm_recovery`]; until then the old one still works
+    new_recovery: Mutex<Option<Zeroizing<[u8; 32]>>>,
 }
 
 /// Where a command goes: the plain folder, or the unlocked store.
@@ -178,6 +180,9 @@ pub fn lock(state: &VaultState) {
     }
     if let Ok(mut p) = state.pending.lock() {
         *p = None;
+    }
+    if let Ok(mut r) = state.new_recovery.lock() {
+        *r = None;
     }
 }
 
@@ -894,25 +899,10 @@ pub fn vault_crypt_status(state: State<VaultState>) -> CmdResult<CryptStatus> {
     Ok(CryptStatus { encrypted: is_encrypted(&state), unlocked: g.is_some(), recovery, leftovers, busy: state.busy.load(Ordering::SeqCst), notes: g.as_ref().map(|s| s.notes.clone()).unwrap_or_default() })
 }
 
-/// Wait longer after each wrong password (0.25 s … 8 s), like the login.
-fn throttle(state: &VaultState) {
-    let f = state.fails.load(Ordering::SeqCst);
-    if f > 0 {
-        std::thread::sleep(Duration::from_millis((250u64 << (f - 1).min(5)).min(8000)));
-    }
-}
-
-fn record(state: &VaultState, ok: bool) {
-    if ok {
-        state.fails.store(0, Ordering::SeqCst);
-    } else {
-        state.fails.fetch_add(1, Ordering::SeqCst);
-    }
-}
-
 /// `vault unlock`: open the encrypted vault with the password (if the login didn't).
+/// A wrong one makes the logged-in account wait, like the login (delay.rs).
 #[tauri::command(async)]
-pub fn vault_unlock(state: State<VaultState>, password: String) -> CmdResult<()> {
+pub fn vault_unlock(app: AppHandle, state: State<VaultState>, password: String) -> CmdResult<()> {
     let password = Zeroizing::new(password);
     if !is_encrypted(&state) {
         return Err("this vault isn't encrypted".into());
@@ -923,21 +913,54 @@ pub fn vault_unlock(state: State<VaultState>, password: String) -> CmdResult<()>
     if state.busy.load(Ordering::SeqCst) {
         return Err(BUSY.into());
     }
-    throttle(&state);
+    crate::account::wait_session(&app);
     let ok = try_unlock(&state, &password);
-    record(&state, ok);
+    crate::account::record_session(&app, ok);
     if ok { Ok(()) } else { Err("wrong password".into()) }
 }
 
-/// `vault recovery`: a new recovery key for the mounted encrypted vault (the old
-/// one stops working). `password` = the account's, already checked (account.rs).
-/// Returns the 24 words, shown once.
-pub fn new_recovery(state: &VaultState, password: &str) -> CmdResult<Zeroizing<String>> {
+/// A new recovery key, kept aside: its 24 words, to show once. Nothing is written
+/// until they're typed back ([`confirm_recovery`]): the vault's current recovery key
+/// (if any) keeps working until then — esc, a crash or a kill change nothing.
+fn propose_recovery(state: &VaultState) -> CmdResult<String> {
+    let (secret, words) = crate::recovery::generate()?;
+    *state.new_recovery.lock().map_err(|e| e.to_string())? = Some(secret);
+    Ok(words.to_string())
+}
+
+/// `vault recovery`: a new recovery key for the mounted encrypted vault, proposed
+/// (see [`propose_recovery`]). `password` = the account's, already checked (account.rs).
+pub fn new_recovery(state: &VaultState) -> CmdResult<Zeroizing<String>> {
     let root = root(state)?;
     if !store::is_encrypted(&root) {
         return Err("this vault isn't encrypted: there's nothing to recover".into());
     }
-    store::new_recovery(&root, password)
+    if state.store.lock().map_err(|e| e.to_string())?.is_none() {
+        return Err(LOCKED.into());
+    }
+    propose_recovery(state).map(Zeroizing::new)
+}
+
+/// The words of the proposed recovery key were typed back: it becomes the vault's
+/// (written into vault.key and its copy); the old one stops working now.
+#[tauri::command]
+pub fn vault_recovery_confirm(state: State<VaultState>) -> CmdResult<()> {
+    confirm_recovery(&state)
+}
+
+pub fn confirm_recovery(state: &VaultState) -> CmdResult<()> {
+    let secret = state.new_recovery.lock().map_err(|e| e.to_string())?.take().ok_or("no new recovery key to keep (vault recovery makes one)")?;
+    let g = state.store.lock().map_err(|e| e.to_string())?;
+    g.as_ref().ok_or(LOCKED)?.set_recovery(&secret[..])
+}
+
+/// The words weren't typed back (esc, ctrl+C): the proposed key is forgotten, the
+/// vault's recovery key is what it was.
+#[tauri::command]
+pub fn vault_recovery_drop(state: State<VaultState>) {
+    if let Ok(mut r) = state.new_recovery.lock() {
+        *r = None;
+    }
 }
 
 /// The recovery key opens the vault at `path`; `new_password` opens it from now on.
@@ -950,10 +973,8 @@ pub fn recover(state: &VaultState, path: &Path, words: &str, new_password: &str)
     if state.busy.load(Ordering::SeqCst) {
         return Err(BUSY.into());
     }
-    throttle(state);
-    let r = store::recover(path, words, new_password);
-    record(state, r.is_ok());
-    let s = r?;
+    // the wait after a wrong recovery key: the account's (account.rs, around this call)
+    let s = store::recover(path, words, new_password)?;
     if root(state).ok().as_deref() == Some(path) {
         *state.store.lock().map_err(|e| e.to_string())? = Some(s);
     }
@@ -1138,8 +1159,10 @@ pub fn encrypt(state: &VaultState, password: &str, stamp: &str) -> CmdResult<sto
     let stamp = if stamp.is_empty() { (store::now_ms() / 1000).to_string() } else { stamp };
     let zip = (1..).map(|n| parent.join(if n == 1 { format!("{vname}-backup-{stamp}.zip") } else { format!("{vname}-backup-{stamp}-{n}.zip") })).find(|p| !p.exists()).unwrap();
     exclusive(state, || {
-        let (report, s) = store::encrypt_vault(&root, password, &zip)?;
+        let (mut report, s) = store::encrypt_vault(&root, password, &zip)?;
         *state.store.lock().map_err(|e| e.to_string())? = Some(s);
+        // its recovery key: shown, written once typed back (vault recovery if that never happens)
+        report.recovery = propose_recovery(state).ok();
         Ok(report)
     })
 }
@@ -1196,8 +1219,9 @@ pub fn rekey(state: &VaultState, password: &str) -> CmdResult<store::Report> {
     exclusive(state, || {
         lock(state);
         match store::rekey_vault(&root, password) {
-            Ok((report, s)) => {
+            Ok((mut report, s)) => {
                 *state.store.lock().map_err(|e| e.to_string())? = Some(s);
+                report.recovery = propose_recovery(state).ok();
                 Ok(report)
             }
             Err(e) => {
@@ -1211,18 +1235,19 @@ pub fn rekey(state: &VaultState, password: &str) -> CmdResult<store::Report> {
 /// `vault decrypt`: back to plain files (every one written, read back and compared
 /// before the encrypted folder is removed).
 #[tauri::command(async)]
-pub fn vault_decrypt(state: State<VaultState>, password: String) -> CmdResult<store::Report> {
+pub fn vault_decrypt(app: AppHandle, state: State<VaultState>, password: String) -> CmdResult<store::Report> {
     let password = Zeroizing::new(password);
     let root = root(&state)?;
     if !store::is_encrypted(&root) {
         return Err("this vault isn't encrypted".into());
     }
-    throttle(&state);
+    // a wrong password waits like a login's (the logged-in account's wait, delay.rs)
+    crate::account::wait_session(&app);
     if let Err(e) = Store::unlock(&root, &password) {
-        record(&state, false);
+        crate::account::record_session(&app, false);
         return Err(e);
     }
-    record(&state, true);
+    crate::account::record_session(&app, true);
     exclusive(&state, || {
         lock(&state);
         let r = store::decrypt_vault(&root, &password);
@@ -1276,15 +1301,22 @@ mod tests {
         fs::create_dir_all(root.join("tb")).unwrap();
         fs::write(root.join("ta/same.md"), "A").unwrap();
         fs::write(root.join("tb/same.md"), "B").unwrap();
+        // (the name carries the second: a busy machine can cross one between two calls —
+        // then there's no clash to test, so the same second is waited for)
+        let sec = || SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() % 1000;
+        while sec() > 700 {
+            std::thread::sleep(Duration::from_millis(20));
+        }
         let a = trash_plain(&root, "ta/same.md").unwrap();
         let b = trash_plain(&root, "tb/same.md").unwrap();
+        fs::write(root.join("ta/same.md"), "C").unwrap();
+        let c = trash_plain(&root, "ta/same.md").unwrap();
         assert_ne!(a, b);
         assert!(b.starts_with(".trash/") && b.ends_with("-same (2).md"), "{b}");
         assert_eq!(fs::read_to_string(root.join(&a)).unwrap(), "A");
         assert_eq!(fs::read_to_string(root.join(&b)).unwrap(), "B");
         // a third: (3)
-        fs::write(root.join("ta/same.md"), "C").unwrap();
-        assert!(trash_plain(&root, "ta/same.md").unwrap().ends_with("-same (3).md"));
+        assert!(c.ends_with("-same (3).md"), "{c}");
         let _ = fs::remove_dir_all(&root);
     }
 

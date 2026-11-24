@@ -40,12 +40,18 @@ export function tokenize(line: string, env: Record<string, string>): Token[] {
   let cur = "";
   let inWord = false;
   let glob = false;
+  /** this word is a Windows path (C:\…): its \ stay */
+  let winPath = false;
+  /** a quote was opened in this word ("C:"\x stays an escape) */
+  let quotedWord = false;
 
   const flush = () => {
     if (inWord) tokens.push({ kind: "word", word: { value: cur, glob } });
     cur = "";
     inWord = false;
     glob = false;
+    winPath = false;
+    quotedWord = false;
   };
   const expandVar = (): string => {
     // at line[i] === "$"
@@ -78,9 +84,11 @@ export function tokenize(line: string, env: Record<string, string>): Token[] {
       if (end === -1) throw new ParseError("a ' isn't closed — add the closing ' (or write \\' for an apostrophe)");
       cur += line.slice(i + 1, end);
       inWord = true;
+      quotedWord = true;
       i = end + 1;
     } else if (c === '"') {
       inWord = true;
+      quotedWord = true;
       i++;
       while (i < line.length && line[i] !== '"') {
         if (line[i] === "\\" && i + 1 < line.length && '"\\$`'.includes(line[i + 1])) {
@@ -90,6 +98,12 @@ export function tokenize(line: string, env: Record<string, string>): Token[] {
         else cur += line[i++];
       }
       if (line[i] !== '"') throw new ParseError('a " isn\'t closed — add the closing "');
+      i++;
+    } else if (c === "\\" && (winPath || (/^[A-Za-z]:$/.test(cur) && !quotedWord))) {
+      // a Windows path typed as is (C:\Users\me\Notes): after a drive letter, the word's \
+      // are separators, not escapes — they were eaten ("C:U": Windows bench 24/11)
+      winPath = true;
+      cur += c;
       i++;
     } else if (c === "\\" && i + 1 < line.length) {
       cur += line[i + 1];

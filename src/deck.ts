@@ -1,6 +1,7 @@
 import { AccessLog } from "./core/access";
 import { PermissionDialog, type PermDialogSpec } from "./workspace/permdialog";
 import { startHereCommand } from "./vault/starthere";
+import { recoveredMessage } from "./vault/recovered";
 import { PRESETS } from "./workspace/layout/arrange";
 import type { ModuleSettingSpec } from "./plugins/api";
 import { focusSpec } from "./apps/focus";
@@ -904,6 +905,15 @@ export class Deck implements InputSink {
     };
     record();
     this.vault.events.on("rescanned", record);
+    // files an encrypted vault found and put back in .trash/recovered-…/: said once
+    const told = new Set<string>();
+    const sayRecovered = async () => {
+      const st = await this.platform.vault.crypt?.status().catch(() => null);
+      const m = st?.encrypted && st.unlocked ? recoveredMessage(st.notes, told, t) : null;
+      if (m) this.notify(m, "warning");
+    };
+    void sayRecovered();
+    this.vault.events.on("rescanned", () => void sayRecovered());
   }
 
   /** settings.json couldn't be read (settings.ts brokenKept): say so once, with where the old file is — the real folder. */

@@ -104,7 +104,7 @@ describe("secrets never reach the logs", () => {
 describe("the plain backup vault encrypt leaves (shell/commands/deck.ts)", () => {
   it("is said clearly: still on the disk, readable, copies elsewhere, best-effort wipe", async () => {
     const { plainBackupWarning } = await import("../src/shell/commands/deck");
-    const all = plainBackupWarning("/Users/me/Notes-backup-2026-11-24-0130.zip").join("\n");
+    const all = plainBackupWarning("/Users/me/Notes-backup-2026-11-24-0130.zip", undefined, "mac").join("\n");
     expect(all).toContain("/Users/me/Notes-backup-2026-11-24-0130.zip");
     expect(all).toMatch(/still on the disk/);
     expect(all).toMatch(/unencrypted/);

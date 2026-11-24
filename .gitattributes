@@ -1,0 +1,2 @@
+# the snapshots are written on every OS: keep them LF (Windows autocrlf dirtied them)
+*.snap text eol=lf

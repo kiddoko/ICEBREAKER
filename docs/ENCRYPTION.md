@@ -129,6 +129,17 @@ On disk an encrypted vault is **one folder** and nothing else:
 - `vault decrypt` never overwrites a file; on any problem it removes what it wrote
   and the vault stays encrypted. `vault export <folder>` asks the password again (checked
   by the native side) and wants a new or empty folder outside the vault.
+- **What a plain copy takes** (`vault export`, `store::exported`): every note, folder and
+  file — and from the deck's own `.icebreaker/` only what you made or installed: `themes/`,
+  `templates/`, `plugins/`, `scripts/`, `sounds/`, `icons.json`, `tags.json`, `context.md`.
+  **Never** `account.json` (the account's card: its password's Argon2id hash), `settings.json`,
+  `secrets.json`, `shell_history`, nor the deck's counters and state files (`stats.json`…). It
+  says how many it left out. `vault decrypt` is the vault itself going back to plain: it keeps all.
+- **Wrong passwords wait** (`delay.rs`), **per account**: 0.25 s after the first, then 0.5,
+  1, 2, 4, 8 s at most, counted from the failure (a right password typed 8 s later doesn't
+  wait). Any right password — a login, the recovery key, `vault unlock`, `vault decrypt` —
+  puts that account back to 0; other accounts never wait for it. The login page says
+  « wait N s ». The counts survive a restart (`login-delay` in the app's config folder).
 - The **plain backup zip** `vault encrypt` makes first stays next to the vault until you
   delete it (readable by your user only): it's your notes in plain. At the end of `vault
   encrypt` the deck says so in yellow and **offers to delete it now**; later, `vault status`
@@ -136,9 +147,9 @@ On disk an encrypted vault is **one folder** and nothing else:
   **overwrites the file with zeros, flushes that to the disk, then removes it** (`crypto::wipe_file`)
   — best effort: on an SSD, APFS or any copy-on-write disk the old blocks can survive where the
   system doesn't show them, and copies made before are not touched: **Time Machine** (and any
-  backup software), **iCloud Drive / Dropbox / OneDrive** if the vault's parent folder syncs, and
-  the **Trash** if you moved it there. The disk's own encryption (FileVault, BitLocker, LUKS) is
-  what really covers that. `vault wipe-backup` only removes a file named like a backup of the
+  backup software; on Windows **File History**), **iCloud Drive / Dropbox / OneDrive** if the vault's
+  parent folder syncs, and the **Trash / Recycle Bin** if you moved it there. The disk's own encryption
+  (FileVault, BitLocker, LUKS) is what really covers that. The deck names this computer's own tools. `vault wipe-backup` only removes a file named like a backup of the
   mounted vault, next to it (`<vault>-backup-<date>.zip`): nothing else, never a link.
 - **No plain copy of a note goes to disk on the way**: every save of an encrypted vault is
   encrypted in memory, then written to a temp file in the same folder and renamed (the temp
@@ -164,14 +175,22 @@ On disk an encrypted vault is **one folder** and nothing else:
 - **24 words** from the standard BIP39 English list = 256 random bits + a checksum
   (a typo or a swapped word is caught, and the error names the word). Typing them
   back is forgiving: any case, numbers in front, the first 4 letters of each word.
-- Made by `vault encrypt` (the vault never exists without one) and by `vault
-  recovery` (a new one; the old one stops working). It wraps the same vault key as
-  the password (the key file's `recovery` slot, Argon2id like the password).
-- **Shown once** in the shell (3 rows of 8), then **one word is asked back — no way
-  around it** (esc or a wrong word shows them again), then the screen is cleared: the words are kept nowhere (not in the
-  shell history, not in the scrollback, not on disk).
+- Made by `vault encrypt`, `vault rekey` and `vault recovery` (a new one; the old one
+  stops working). It wraps the same vault key as the password (the key file's `recovery`
+  slot, Argon2id like the password).
+- **Written only once it's typed back** (0.8.1): the new key waits in memory (`vault.rs`);
+  `vault.key` changes only when a word is typed back (`vault_recovery_confirm`). Until then
+  the old recovery key still opens the vault — esc, a crash or a kill change nothing. (0.8.0
+  wrote it first: after a kill at the word, only the never-confirmed words opened the vault.)
+- **Shown once** in the shell (3 rows of 8), then **one word is asked back** (a wrong or
+  empty answer shows them again); **esc or ctrl+C stops**: nothing is written, and the deck
+  says so — after `vault encrypt` or `vault rekey`, the vault then has **no recovery key**
+  until `vault recovery` makes one. The screen is cleared: the words are kept nowhere (not in
+  the shell history, not in the scrollback, not on disk). The recovery window (Settings, the
+  setup) doesn't close without the word.
 - **Password forgotten**: login page → *forgot password?* → the account's name, the 24
-  words, a new password. The vault key is re-wrapped by the new password and the
+  words (all shown, numbered, as you type them; a word that isn't in the list is marked and
+  nothing typed is erased), a new password. The vault key is re-wrapped by the new password and the
   account's password replaced; the recovery key keeps working. (The vault is the one
   the account's settings name.) In the shell, `vault unlock` also takes the 24 words
   (then your account's password opens that vault from now on).
@@ -283,12 +302,12 @@ A new password re-wraps the **same** vault key: someone who kept an old copy of
 `vault.key` and knows the old password could still open today's files. `vault rekey`
 (Settings → PRIVACY → *Vault key*, THE MENU *Vault: a new key*, the account's password
 first) makes a **new** vault key: every file is decrypted and encrypted again into
-`.icebreaker-vault.partial/` with a new key file and a new recovery key, each file is read
+`.icebreaker-vault.partial/` with a new key file, each file is read
 back with the new key and compared, then the folders are swapped (`.icebreaker-vault.old/`
 for an instant, removed after). A crash in the middle leaves either the old vault or the
 new one, whole — never a mix (`store::finish_interrupted`, run when the vault is mounted). The new
-24 words show in the recovery window; the old ones, the old key file and the old password
-open nothing. Tests: `rekey_gives_a_new_key_and_the_old_one_opens_nothing`,
+24 words show in the recovery window and are written once one is typed back; the old ones, the
+old key file and the old password open nothing. Tests: `rekey_gives_a_new_key_and_the_old_one_opens_nothing`,
 `an_interrupted_rekey_leaves_the_vault_as_it_was`.
 
 Also from the security pass: the key files are written `0600` from their creation, and

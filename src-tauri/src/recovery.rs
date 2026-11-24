@@ -44,7 +44,7 @@ pub fn parse(typed: &str) -> Result<Zeroizing<[u8; 32]>, String> {
         words.push(found.ok_or_else(|| format!("word {} (\"{t}\") isn't in the list", i + 1))?);
     }
     let phrase = Zeroizing::new(words.join(" "));
-    let m = Mnemonic::parse_in_normalized(Language::English, &phrase).map_err(|_| "the words don't check out: a typo, or two words swapped?".to_string())?;
+    let m = Mnemonic::parse_in_normalized(Language::English, &phrase).map_err(|_| "the words don't check out: every one is in the list, so one was misread as another word, or two are swapped — check them against your paper".to_string())?;
     let (entropy, len) = m.to_entropy_array();
     let mut out = Zeroizing::new([0u8; 32]);
     if len != 32 {
