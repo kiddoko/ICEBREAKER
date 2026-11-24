@@ -15,7 +15,7 @@ import type { Origin } from "./origin";
 
 const APP_VERSION: string = pkg.version;
 import { ShellExecutor } from "./exec";
-import { quoteWord, wordAtCursor } from "./complete";
+import { commandWords, quoteWord, subCompletions, wordAtCursor } from "./complete";
 import { TerminalBuffer } from "./terminal";
 import type { ReadOptions } from "./types";
 
@@ -497,7 +497,8 @@ export class ShellApp implements App {
   }
 
   /**
-   * Tab completion: commands for the first word, vault paths after. Read like the parser
+   * Tab completion: commands for the first word, then the command's own words (its sub-commands:
+   * Command.complete, shell/complete.ts subCompletions), vault paths otherwise. Read like the parser
    * reads the line (shell/complete.ts): a name with spaces comes back quoted,
    * `cd STA<Tab>` → `cd "START HERE/"`.
    */
@@ -509,9 +510,17 @@ export class ShellApp implements App {
     let names: string[];
     let display_: string[];
 
+    // a command's own words after its name (`med <tab>`: new, open, export…; Command.complete)
+    const prev = w.first ? [] : commandWords(before);
+    const cmd = prev.length ? this.deck.commands.get(prev[0]) : undefined;
+    const own = cmd && !word.includes("/") ? subCompletions(cmd.complete === "command" ? () => this.deck.commands.names() : cmd.complete, prev.slice(1), word) : null;
+
     if (w.first && !word.includes("/")) {
       names = this.deck.commands.names().filter((n) => n.startsWith(word));
       display_ = names;
+    } else if (own) {
+      names = own;
+      display_ = own;
     } else {
       const slash = word.lastIndexOf("/");
       const typedDir = slash >= 0 ? word.slice(0, slash + 1) : "";

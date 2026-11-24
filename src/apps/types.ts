@@ -19,6 +19,10 @@ export interface App {
   title(): string;
   render(ui: UI, rect: Rect, focused: boolean): void;
   onKey?(k: KeyInput): boolean;
+  /** ⌘C ⌘X ⌘V ⌘A (ctrl elsewhere) come to onKey as keys — ⌘V first as a key, then its text to onText. */
+  clipboardKeys?: boolean;
+  /** A key let go (only for a page that plays the keyboard, rawKeys: a tracker's note off). */
+  onKeyUp?(k: KeyInput): void;
   onText?(text: string): boolean;
   onAction?(a: Action): boolean;
   /**
@@ -38,6 +42,11 @@ export interface App {
   menu?(): MenuEntry[];
   /** Called before closing; return false to cancel. */
   close?(): Promise<boolean> | boolean;
+  /**
+   * A file of a kind its module opens (plugin.json `opens`), opened while this page is already
+   * open — from the tree, NEXUS or `open <file>`. A new page gets it in its args instead: `{ file }`.
+   */
+  openFile?(path: string): void;
 }
 
 export interface AppSpec {

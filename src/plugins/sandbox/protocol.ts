@@ -84,7 +84,9 @@ export type FromModule =
   /** ib.audio.stream(): a line for its own sound, please (permission "audio") */
   | { t: "streamReq"; id: number }
   /** the answer to "closing": its page's close() said yes (closed) or no (it stays: unsaved work) */
-  | { t: "closing"; id: number; ok: boolean };
+  | { t: "closing"; id: number; ok: boolean }
+  /** the answer to esc on its page ("action" back with a `rid`): did it have something of its own to close? */
+  | { t: "back"; rid: number; used: boolean };
 
 /** Deck → worker */
 export type ToModule =
@@ -97,6 +99,8 @@ export type ToModule =
   | { t: "settings"; settings: Record<string, unknown> }
   | { t: "create"; inst: string; kind: string; args?: unknown }
   | { t: "close"; inst: string }
+  /** a file of a kind it opens (plugin.json `opens`) for its page already open: the page's openFile(path) */
+  | { t: "file"; inst: string; path: string }
   /** its tab is closing: may it? (its close() can ask "save?" first) — answered with "closing" */
   | { t: "closing"; inst: string; id: number }
   /** `pad`: the pad in use, if any — the module's shortcuts show its buttons (ui/keyicons.ts) */
@@ -104,7 +108,10 @@ export type ToModule =
   | { t: "hit"; inst: string; id: number; kind: "click" | "double" | "drag" | "up" | "wheel" | "right"; m: unknown; delta?: number }
   | { t: "key"; inst: string; target: Target; k: unknown }
   | { t: "text"; inst: string; target: Target; text: string }
-  | { t: "action"; inst: string; target: Target; a: string }
+  /** `rid` (esc on its page): answered with "back" — false lets the deck take esc (its way back) */
+  | { t: "action"; inst: string; target: Target; a: string; rid?: number }
+  /** a key let go on its page (it plays the keyboard: App.rawKeys) */
+  | { t: "keyup"; inst: string; k: unknown }
   | { t: "menuReq"; inst: string; id: number; rid: number }
   | { t: "menuRun"; rid: number; line: number }
   | { t: "paletteRun"; id: string }

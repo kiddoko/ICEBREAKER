@@ -40,14 +40,21 @@ the deck and still run inside it.
   question it asks in the shell starts with `[module]`.
 - **Drawing**: the module draws with a real `UI` and the whole kit (docs/UI_KIT.md)
   into a grid of its own; the cells it touched and its click areas go to the deck,
-  which copies them into its place (one frame later — invisible). Clicks, keys, the
-  wheel and right-click menus come back as messages; a command on one of its click
-  areas runs as the module (untrusted), never as you. The deck keeps its own keys
-  (shortcuts, esc, tab, F-keys).
-- What's there today: `commands` (with `ctx.out / err / read`, `ctx.shell.run`),
-  `apps` (pages), `widgets` (and their pop-ups), `palette`, `vault` (read, exists,
+  which copies them into its place (one frame later — invisible). Clicks, keys (and, for a
+  page that plays the keyboard, keys let go), the wheel and right-click menus come back as
+  messages; a command on one of its click areas runs as the module (untrusted), never as you.
+  The deck keeps its own keys (shortcuts, tab, F-keys) but ⌘C ⌘X ⌘V ⌘A; esc goes to the page
+  first, which answers whether it closed something of its own (no answer within a second: the
+  deck takes it). `ui.copy` writes the clipboard only within 2 seconds of ⌘C / ⌘X on its page —
+  never by itself (nothing planted there for you to paste in a real terminal).
+- **Files it opens** (plugin.json `opens`): a file opened from the tree, NEXUS or `open` reaches its
+  page as a path; outside the folders it was granted, you're asked first, and the yes covers that one
+  file until the deck closes (`plugins/host.ts openWith`).
+- What's there today: `commands` (with `ctx.out / err / read`, `ctx.shell.run`, `complete`),
+  `apps` (pages, `openFile`, `onKeyUp`), `widgets` (and their pop-ups), `palette`, `vault` (read, exists,
   notes, write, append, mkdir — by permission), `shell.run`, `ui` (notify, alert,
-  say, confirm, prompt, choose, pickFolder, pickFile, theme, redraw), `storage`,
+  say, confirm, prompt, choose, pickWhen, pickFolder, pickFile, pickFileText, pickFileBytes,
+  fullWindow, copy, theme, redraw — and `ui.art` in its drawing), `storage`,
   `settings.get / set`, `stats` (not `onChange`), `modules.call`, `ai.ask`, `media`,
   `google`, `vault.readBytes / writeBytes / list`, `audio` (by permission), and all of `lib`.
 - **Sound**: a Worker has none. A module with the `audio` permission loads samples and sends

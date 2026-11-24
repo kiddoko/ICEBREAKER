@@ -212,7 +212,9 @@ export interface Settings {
     /** the high-risk permissions you answered "always" for (asked again at first use otherwise) */
     always: Record<string, string[]>;
     /** 2: `granted` is in the names of 0.6 (plugins/permissions.ts); before, it's translated once at start */
-    model?: number };
+    model?: number;
+    /** the module that opens a kind of file when two of them can ("mod" → "breakermed"; plugins/fileassoc.ts) */
+    openWith: Record<string, string> };
   /** links: the 1×1 shortcut widgets (widgets/links.ts) */
   home: { widgets: WidgetPlacement[]; links: { id: string; label: string; icon: string; cmd: string }[]; weatherCity: string; worldClocks: string[]; newsTopic: string;
     /** news interests: categories (tech, politics…) and free words, mixed with your area's news */
@@ -299,7 +301,7 @@ export const DEFAULT_SETTINGS: Settings = {
   voice: { subtitles: true, enabled: false, engine: "auto", name: "", rate: 1.1, robot: 100, volume: 50, readAI: false, greet: true, language: "en", speak: { errors: true, reminders: true, timers: true, calendar: true, weather: false, time: false, system: true, modules: true } },
   editor: { autosave: true, tabSize: 2, treeWheel: true },
   // the community index: a JSON list of plugins/themes (see docs/COMMUNITY.md)
-  plugins: { enabled: [], disabled: [], removed: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json", sources: [], granted: {}, pinned: {}, revoked: {}, always: {}, model: 2 },
+  plugins: { enabled: [], disabled: [], removed: [], registry: "https://raw.githubusercontent.com/kiddoko/icebreaker-modules/main/index.json", sources: [], granted: {}, pinned: {}, revoked: {}, always: {}, model: 2, openWith: {} },
   // empty = the default layout (widgets/builtin.ts)
   home: { widgets: [], links: [], weatherCity: "Paris", worldClocks: ["America/New_York", "Europe/London", "Asia/Tokyo"], newsTopic: "", newsInterests: [], newsPage: {}, weatherPlaces: [], clockStyle: "segment", clockSeconds: false, widgetConfig: {} },
 };

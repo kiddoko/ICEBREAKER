@@ -72,3 +72,46 @@ describe("key hints on Windows / Linux", () => {
     expect(osKeys("⌘/ / Ctrl+/", false)).toBe("Ctrl+/");
   });
 });
+
+import { commandWords, subCompletions } from "../src/shell/complete";
+describe("Tab completion of a command's sub-commands (med <tab>)", () => {
+  it("the words of the command being typed, before the cursor's word", () => {
+    expect(commandWords("med ")).toEqual(["med"]);
+    expect(commandWords("med exp")).toEqual(["med"]);
+    expect(commandWords("med export w")).toEqual(["med", "export"]);
+    expect(commandWords("ls | med export ")).toEqual(["med", "export"]);
+    expect(commandWords('med "my song" ')).toEqual(["med", "my song"]);
+    expect(commandWords("med")).toEqual([]);
+  });
+  it("a list: the first word after the command; a record: by the words before", () => {
+    const list = () => ["new", "open", "export", "help"];
+    expect(subCompletions(list, [], "e")).toEqual(["export"]);
+    expect(subCompletions(list, [], "")).toEqual(["new", "open", "export", "help"]);
+    expect(subCompletions(list, ["export"], "")).toBeNull(); // deeper: the paths
+    const rec = { "": ["export", "play"], export: ["wav", "mod"] };
+    expect(subCompletions(rec, ["export"], "w")).toEqual(["wav"]);
+    expect(subCompletions(rec, [], "p")).toEqual(["play"]);
+    expect(subCompletions(rec, ["play"], "")).toBeNull();
+    expect(subCompletions("path", [], "x")).toBeNull();
+    expect(subCompletions(undefined, [], "x")).toBeNull();
+  });
+  it("a function sees the words before", () => {
+    const fn = (args: string[]) => (args[0] === "export" ? ["wav"] : ["export"]);
+    expect(subCompletions(fn, ["export"], "")).toEqual(["wav"]);
+    expect(subCompletions(fn, [], "ex")).toEqual(["export"]);
+  });
+  it("nothing matching: null (the paths, then)", () => {
+    expect(subCompletions(() => ["export"], [], "songs/")).toBeNull();
+  });
+});
+
+import { completeSpec } from "../src/plugins/sandbox/bridge";
+describe("a sandboxed module's completion crosses as words only", () => {
+  it("keeps lists, records and the three names; drops anything else", () => {
+    expect(completeSpec(["new", 3, "open"])).toEqual(["new", "open"]);
+    expect(completeSpec({ "": ["export"], export: ["wav", {}] })).toEqual({ "": ["export"], export: ["wav"] });
+    expect(completeSpec("path")).toBe("path");
+    expect(completeSpec("rm -rf")).toBeUndefined();
+    expect(completeSpec(42)).toBeUndefined();
+  });
+});

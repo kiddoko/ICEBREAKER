@@ -71,3 +71,64 @@ export function quoteWord(value: string, open: '"' | "'" | null, done: boolean):
   const body = quote === "'" ? value.replace(/'/g, `'\\''`) : value.replace(/["\\$`]/g, "\\$&");
   return `${quote}${body}${done ? quote : ""}${space}`;
 }
+
+/**
+ * The words of the command being typed, before the word at the cursor (its name first):
+ * `ls | med export w` → ["med", "export"]. A redirection's file isn't one of them.
+ */
+export function commandWords(before: string): string[] {
+  const words: string[] = [];
+  let cur = "";
+  let inWord = false;
+  let open: '"' | "'" | null = null;
+  let redirect = false;
+  const end = () => {
+    if (inWord && !redirect) words.push(cur);
+    else if (inWord) redirect = false;
+    inWord = false;
+    cur = "";
+  };
+  for (let i = 0; i < before.length; i++) {
+    const c = before[i];
+    if (open) {
+      if (c === open) open = null;
+      else if (open === '"' && c === "\\" && i + 1 < before.length && '"\\$`'.includes(before[i + 1])) cur += before[++i];
+      else cur += c;
+      continue;
+    }
+    if (c === " " || c === "\t") {
+      end();
+      continue;
+    }
+    if ("|&;<>".includes(c)) {
+      end();
+      if (c === "<" || c === ">") redirect = true;
+      else words.length = 0;
+      continue;
+    }
+    inWord = true;
+    if (c === '"' || c === "'") open = c;
+    else if (c === "\\" && i + 1 < before.length) cur += before[++i];
+    else cur += c;
+  }
+  // the word at the cursor (still being typed) isn't one of them
+  return words;
+}
+
+/**
+ * What Tab offers after a command's name, from its `complete`: a function without arguments
+ * (or a list a module sent) gives the first word's choices; one that takes the words typed so
+ * far (`(args) => …`) or a record (`{ "": ["export"], "export": ["wav", "mod"] }`) the next
+ * one's. null: nothing of its own here (Tab completes paths).
+ */
+export function subCompletions(spec: unknown, args: string[], prefix: string): string[] | null {
+  let all: unknown;
+  if (typeof spec === "function") {
+    if (spec.length === 0 && args.length) return null;
+    all = (spec as (a: string[]) => unknown)(args);
+  } else if (Array.isArray(spec)) all = args.length ? null : spec;
+  else if (spec && typeof spec === "object") all = (spec as Record<string, unknown>)[args.join(" ")];
+  if (!Array.isArray(all)) return null;
+  const hit = all.filter((x): x is string => typeof x === "string" && x.startsWith(prefix));
+  return hit.length ? hit : null;
+}

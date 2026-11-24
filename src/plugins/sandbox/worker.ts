@@ -102,6 +102,10 @@ interface AppLike {
   onText?(t: string): boolean;
   onAction?(a: string): boolean;
   close?(): unknown;
+  /** a file of a kind the module opens (plugin.json `opens`), for this page already open */
+  openFile?(path: string): void;
+  /** a key let go (BreakerMED's note off) */
+  onKeyUp?(k: unknown): void;
 }
 interface WidgetLike {
   id: string;
@@ -131,7 +135,8 @@ function makeIb(manifest: unknown, version: string): unknown {
         commands.set(String(cmd.name), cmd as { run(ctx: unknown): unknown });
         const spec = plain(cmd, ["name", "aliases", "summary", "usage", "man", "examples", "interactive"]);
         // a completion list is sent as it is now
-        if (typeof cmd.complete === "function") spec.complete = (cmd.complete as () => string[])();
+        // (a function is read once, for the first word; a record gives the next words: shell/complete.ts)
+        if (typeof cmd.complete === "function") spec.complete = (cmd.complete as (a: string[]) => string[])([]);
         else if (cmd.complete) spec.complete = cmd.complete;
         post({ t: "register", what: "command", spec });
       },
@@ -190,6 +195,7 @@ function makeIb(manifest: unknown, version: string): unknown {
       pickFileText: rpc("ui", "pickFileText"),
       pickFileBytes: rpc("ui", "pickFileBytes"),
       fullWindow: rpc("ui", "fullWindow"),
+      copy: rpc("ui", "copy"),
       theme: () => theme,
       redraw: () => post({ t: "redraw" }),
     },
@@ -406,6 +412,10 @@ scope.onmessage = async (ev: MessageEvent<ToModule>) => {
         if (spec) apps.set(m.inst, spec.create(undefined, m.args));
         return;
       }
+      case "file": {
+        apps.get(m.inst)?.openFile?.(m.path);
+        return post({ t: "redraw" });
+      }
       case "close": {
         await apps.get(m.inst)?.close?.();
         apps.delete(m.inst);
@@ -449,8 +459,22 @@ scope.onmessage = async (ev: MessageEvent<ToModule>) => {
         else if (x.popup) x.w?.popup?.onText?.(m.text, x.ctx);
         return post({ t: "redraw" });
       }
+      case "keyup": {
+        apps.get(m.inst)?.onKeyUp?.(m.k);
+        return post({ t: "redraw" });
+      }
       case "action": {
         const x = target(m);
+        // esc on its page: it says whether it had something of its own to close (else the deck's way back)
+        if ("app" in x && m.rid !== undefined) {
+          let used = false;
+          try {
+            used = x.app?.onAction?.(m.a) === true;
+          } finally {
+            post({ t: "back", rid: m.rid, used });
+          }
+          return post({ t: "redraw" });
+        }
         if ("app" in x) x.app?.onAction?.(m.a);
         else if (x.popup) x.w?.popup?.onAction?.(m.a, x.ctx);
         return post({ t: "redraw" });

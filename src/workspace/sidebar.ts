@@ -175,7 +175,8 @@ export class Sidebar {
     const cur = ws.activeApp;
     const path = row.entry.path;
     const already = ws.tabs.some((a) => a.kind === "note" && a.key === `note:${path}`);
-    if (newTab || already || !cur || cur.kind !== "note" || cur.dirty?.()) return void this.deck.act(`open ${q(path)}`);
+    // (a file a module opens — a song — goes to its page: plugin.json `opens`)
+    if (newTab || already || !cur || cur.kind !== "note" || cur.dirty?.() || this.deck.plugins.handlersFor(path).length) return void this.deck.act(`open ${q(path)}`);
     void this.deck.openInPlace(cur, path);
   }
 

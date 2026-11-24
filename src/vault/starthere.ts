@@ -338,8 +338,13 @@ the tree and the shell shown or hidden, the shell's tab, the page you were on, t
   default: silent keys) gives your typing the theme's own key sound — another one when you
   erase — played the moment the key goes down.
 - A page that **plays the keyboard** (a piano, a tracker, a game) keeps every key while
-  it's in front, alt + arrows too: **esc** gives them back to the deck (the tree takes
-  them), a click on the page brings them back.
+  it's in front, alt + arrows too: **esc** first closes what the page has open, then
+  gives the keys back to the deck (the tree or the shell takes them), a click on the
+  page brings them back. In a module's page ⌘C ⌘X ⌘V ⌘A are the page's own.
+- A module can **open a kind of file** (BreakerMED: .bmed .mod .med): double-click it
+  in the tree, or \`open songs/tune.mod\`, and it opens in that module. Outside the
+  folders the module may read, you're asked first (that file only); two modules for
+  one kind: you choose once (\`plugin open-with\` shows and changes it).
 - **Dialogs**: the answers are always **bottom right** — the way out (No, close) on
   the left, the way forward (Yes, open) on the right; ← → choose, y / n answer. A
   question whose safe answer is no (delete for good…) starts on No.
@@ -806,12 +811,15 @@ export function activate(ib) {
 |---|---|
 | \`commands\` · \`apps\` · \`widgets\` · \`palette\` | add things to the deck (\`palette\` = THE MENU; \`key: "g"\` gives it a menu key if free) |
 | \`vault\` | read / write notes (permissions); \`readBytes\` / \`writeBytes\` for binary files (a song, a sample, an export: 256 MB at most) |
-| \`apps\` + \`rawKeys: true\` | a page that plays the keyboard (a piano, a game): every key with its place (\`code\`), never as text; ⌘S / ⌘Z, Tab / ⇧Tab, F1–F8 and ⌘ ← → too (esc gives the keys back) |
+| \`apps\` + \`rawKeys: true\` | a page that plays the keyboard (a piano, a game): every key with its place (\`code\`), never as text; ⌘S / ⌘Z, Tab / ⇧Tab, F1–F8 and ⌘ ← → too; \`onKeyUp(k)\` when a key is let go (a note off) |
+| a page's keys | ⌘C ⌘X ⌘V ⌘A come to \`onKey\` (\`ui.copy(text)\` right after ⌘C / ⌘X fills the clipboard; ⌘V: \`ctrl+v\`, then the text to \`onText\`); esc goes to \`onAction("back")\` first: \`true\` = you closed something of yours, \`false\` = the deck takes it (the tree or the shell gets the keys) |
+| \`"opens": ["bmed"]\` (plugin.json) | your kinds of files: a double-click in the tree, NEXUS or \`open x.bmed\` opens your page with \`{ file }\` (or calls its \`openFile(path)\`); outside your folders the user is asked, for that file only |
+| \`complete\` (a command) | Tab completes your sub-commands: \`["new", "export"]\`, or \`{ "": ["export"], "export": ["wav", "mod"] }\` for the next word |
 | \`audio\` | sound of your own (permission "audio"): \`sample(id, data, { loopStart, loopLength })\`, then \`schedule([{ at, voice, play, rate, volume, pan, interp }])\` on the clock of \`now()\`; \`decode(bytes)\` reads wav, mp3, m4a…; \`encode(pcm, { format, rate, channels })\` makes an mp3, m4a, ogg or opus file (once the user ran \`encoders install\`) |
 | \`stats\` | numbers over time, shown by STATS |
 | \`modules\` | call other modules (\`todo.add\`, \`journal.append\`…), expose yours |
 | \`settings\` | your settings, shown in ⚙ under your name |
-| \`ui\` | ask the user (no permission: they answer): \`notify\`, \`alert\` (stays until clicked), \`confirm\`, \`prompt\` (with \`suggestions\`: ▾ and Tab), \`choose\`, \`pickWhen\` (the WHEN? calendar and clock), \`pickFolder\`, \`pickFile\`, \`pickFileText\` / \`pickFileBytes\` (a file read for you), \`fullWindow\` (your page alone) |
+| \`ui\` | ask the user (no permission: they answer): \`notify\`, \`alert\` (stays until clicked), \`confirm\`, \`prompt\` (with \`suggestions\`: ▾ and Tab), \`choose\`, \`pickWhen\` (the WHEN? calendar and clock), \`pickFolder\`, \`pickFile\`, \`pickFileText\` / \`pickFileBytes\` (a file read for you), \`fullWindow\` (your page alone), \`copy\` (the clipboard, after ⌘C) |
 | \`lib\` | the deck's own pieces (fields, lists, layout, colours, \`t\` and \`dateLocale\` for the user's language and dates, \`dates\` to read "demain 9h" and write a day: \`dayShort\` "mon 23 nov", \`dayLong\` "monday 23 november") — every export in docs/PLUGINS.md and \`catalog api\` |
 | \`catalog\` | everything the deck can do, as plain data: \`ib.catalog.list("function", "todo")\`; the frame too: \`frames.fold\`, \`statusbar.move\`, \`log.tail\`, \`trash.list\`, \`deck.stealth\` (\`ib.use("frames").fold("shell")\`) |
 | \`render(ui…)\` | \`ui.animate(ms)\` only while something moves; a deck left alone rests (12 then 2 frames a second): \`ui.stayAwake()\` while the user watches without touching (music playing) |

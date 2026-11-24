@@ -22,6 +22,7 @@ export const API_DOCS: [name: string, doc: string][] = [
   ["ib.ui.pickFileText", "pickFileText(title, exts?) → { name, text } of a text file the user chose (2 MB at most), or null"],
   ["ib.ui.pickFileBytes", "pickFileBytes(title, exts?) → { name, bytes } of a sound or a picture the user chose, or null"],
   ["ib.ui.fullWindow", "fullWindow(on?) → your page alone in the window (the frames fold away while it's in front)"],
+  ["ib.ui.copy", "copy(text) → the clipboard, right after ⌘C / ⌘X on your page (⌘V: ctrl+v to onKey, then the text to onText)"],
   ["ib.ui.theme", "theme() → the theme in use (its colours: ui.c in a render)"],
   ["ib.ui.redraw", "redraw() → draw again (after a change outside a key or a click)"],
   // ── ib.lib: THE UI KIT (docs/UI_KIT.md)

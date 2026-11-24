@@ -24,6 +24,8 @@ import { spokenAlert } from "../core/voice";
 import type { IcebreakerAPI, PluginManifest, PluginModule } from "./api";
 import * as lib from "./lib";
 import type { App } from "../apps/types";
+import { writeClipboard } from "../core/clipboard";
+import { chooseHandler, extOf, handlersFor, readOpens, type Handler } from "./fileassoc";
 
 import pkg from "../../package.json";
 import { describeNeeds, unmet, wakeOrder, dependents, type Need } from "./deps";
@@ -148,6 +150,98 @@ export class PluginHost {
     const base = p.source === "vault" ? (Array.isArray(s.granted?.[id]) ? s.granted[id] : []) : this.asks(p.manifest);
     const off = s.revoked?.[id] ?? [];
     return off.length ? base.filter((x) => !off.includes(x)) : base;
+  }
+
+  // ── the clipboard (ib.ui.copy): only right after the user's ⌘C / ⌘X on the module's page ──
+  private copyUntil = new Map<string, number>();
+
+  /** the user pressed ⌘C / ⌘X on this module's page (sandbox/bridge.ts): it may copy for 2 s */
+  copyGesture(id: string): void {
+    this.copyUntil.set(id, Date.now() + 2000);
+  }
+
+  private mayCopy(id: string): boolean {
+    return (this.copyUntil.get(id) ?? 0) > Date.now();
+  }
+
+  // ── files it opens (plugin.json `opens`, plugins/fileassoc.ts) ──────────
+
+  /**
+   * Files you opened in a module outside the folders it was granted (you said yes): it may read
+   * them — and save them, if it may write notes at all — until the deck closes. Never kept.
+   */
+  private handed = new Map<string, Set<string>>();
+
+  /** you opened this file in that module: it may read it (and save it, if it writes notes at all) */
+  handedOver(id: string, path: string): boolean {
+    return this.handed.get(id)?.has(path) ?? false;
+  }
+
+  /** every module switched on that opens this kind of file */
+  handlersFor(path: string): Handler[] {
+    return handlersFor(path, this.active().map((p) => ({ id: p.manifest.id, opens: readOpens(p.manifest) })));
+  }
+
+  /** the page of a module that opens its files: the one it names, else the one named like it, else its first */
+  private pageOf(h: Handler): string | null {
+    const mine = this.deck.apps.list().map((a) => a.kind).filter((k) => this.deck.apps.sourceOf(k) === h.module);
+    if (h.page) return mine.includes(h.page) ? h.page : null;
+    return mine.includes(h.module) ? h.module : (mine[0] ?? null);
+  }
+
+  /**
+   * A file opened from the tree, NEXUS or `open <file>`: in the module that opens its kind, if any
+   * (false: none does — the deck opens it). Two modules for one kind: asked once, remembered
+   * (`plugins.openWith`; `with` names one for this time). A file outside the folders the module may
+   * read: asked first.
+   */
+  async openWith(path: string, withId?: string): Promise<boolean> {
+    const ext = extOf(path);
+    const all = this.handlersFor(path);
+    const name = (id: string) => (this.plugins.find((p) => p.manifest.id === id)?.manifest.name ?? id).toLowerCase();
+    let h: Handler | "ask" | null;
+    if (withId) {
+      h = all.find((x) => x.module === withId) ?? null;
+      if (!h) return void this.deck.notify(t("{m} doesn't open .{ext} files", { m: withId, ext }), "error"), true;
+    } else h = chooseHandler(all, this.deck.settings.data.plugins.openWith ?? {}, ext);
+    if (!h) return false;
+    if (!(await this.deck.vault.exists(path))) return void this.deck.notify(t("no such file: {file}", { file: path }), "error"), true;
+    if (h === "ask") {
+      const i = await this.deck.choose(t("open .{ext} files with", { ext }), all.map((x) => ({ label: name(x.module), hint: t("remembered: plugin open-with {ext} <module>", { ext }) })));
+      if (i === null) return true; // cancelled: nothing opens
+      h = all[i];
+      this.deck.settings.set("plugins.openWith", { ...(this.deck.settings.data.plugins.openWith ?? {}), [ext]: h.module });
+    }
+    const kind = this.pageOf(h);
+    if (!kind) return void this.deck.notify(t("{m} has no page to open {file}", { m: name(h.module), file: path }), "error"), true;
+    if (!(await this.mayOpen(h.module, path))) return true;
+    const ws = this.deck.workspace;
+    const open = ws.findTab(kind);
+    if (open) {
+      ws.switchTab(ws.tabs.indexOf(open));
+      open.openFile?.(path);
+      this.deck.requestFrame();
+    } else this.deck.openApp(kind, { file: path });
+    return true;
+  }
+
+  /** may the module read this file? Inside the folders it was granted: yes; elsewhere: you're asked (this file only) */
+  private async mayOpen(id: string, path: string): Promise<boolean> {
+    const granted = new Grants(() => this.effective(id));
+    if (granted.has("vault:read", path) || this.handedOver(id, path)) return true;
+    const p = this.plugins.find((x) => x.manifest.id === id);
+    const m = (p?.manifest.name ?? id).toLowerCase();
+    const save = granted.has("vault:write");
+    const ok = await this.deck.confirm(
+      t("open {file} in {m}?", { file: path, m }),
+      save ? t("{m} may read and save this file — only this one, until the deck closes.", { m }) : t("{m} may read this file — only this one, until the deck closes.", { m }),
+    );
+    if (!ok) return false;
+    const set = this.handed.get(id) ?? new Set<string>();
+    set.add(path);
+    this.handed.set(id, set);
+    this.deck.access.note(id, "vault:read", path);
+    return true;
   }
 
   /** A module's permissions, for the page and `plugin perms`: each with whether it's on and when it was last used. */
@@ -314,11 +408,11 @@ export class PluginHost {
     // the modules' pages open now are made again from the new code: a tab that kept the old
     // page would show the old module (a sandboxed one: its last frame, frozen) until reopened
     const deck = this.deck;
-    const theirs = deck.workspace.tabs.filter((a) => this.isModulePage(a.kind)).map((app) => ({ app, kind: app.kind, args: deck.appArgs.get(app) }));
+    const theirs = deck.workspace.tabs.filter((a) => this.isModulePage(a.kind)).map((app) => ({ app, kind: app.kind, args: deck.appArgs.get(app), from: deck.apps.sourceOf(app.kind) }));
     for (const { app } of theirs) await Promise.resolve(app.close?.()).catch(() => {});
     for (const p of this.active()) await this.deactivate(p);
     await this.init(trustChanges);
-    for (const { app, kind, args } of theirs) {
+    for (const { app, kind, args, from } of theirs) {
       const spec = this.isModulePage(kind) ? deck.apps.get(kind) : undefined;
       let fresh: App | null = null;
       try {
@@ -327,8 +421,36 @@ export class PluginHost {
         deck.log.add("error", `[${kind}] ${e instanceof Error ? e.message : String(e)}`);
       }
       if (fresh) deck.appArgs.set(fresh, args);
+      // its module stays off now (its code changed: an install, waiting for your yes): the page
+      // comes back, on the new code, when you switch it on (enable)
+      else if (from) this.parked.set(from, [...(this.parked.get(from) ?? []), { kind, args }]);
       deck.workspace.replaceTab(app, fresh);
     }
+  }
+
+  /** pages that were open when their module went off on a reload (an install over it): reopened by enable */
+  private parked = new Map<string, { kind: string; args: unknown }[]>();
+
+  /**
+   * A module just switched on: its pages come up on its new code — the ones a reload closed
+   * (parked), and any tab still showing a page made before (the old code: a frozen frame).
+   */
+  private freshPages(id: string): void {
+    const deck = this.deck;
+    const kinds = new Set(deck.apps.list().map((a) => a.kind).filter((k) => deck.apps.sourceOf(k) === id));
+    for (const app of deck.workspace.tabs.filter((a) => kinds.has(a.kind))) {
+      const args = deck.appArgs.get(app);
+      try {
+        const fresh = deck.apps.get(app.kind)!.create(deck, args);
+        deck.appArgs.set(fresh, args);
+        deck.workspace.replaceTab(app, fresh);
+      } catch (e) {
+        deck.log.add("error", `[${app.kind}] ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    const parked = this.parked.get(id) ?? [];
+    this.parked.delete(id);
+    for (const { kind, args } of parked) if (kinds.has(kind) && !deck.workspace.findTab(kind)) deck.openApp(kind, args);
   }
 
   /** a page that a module (not the deck's core) registered */
@@ -459,6 +581,8 @@ export class PluginHost {
       s.set("plugins.disabled", s.data.plugins.disabled.filter((x) => x !== id));
     }
     await this.activate(p);
+    // tabs still on its old code (an install over it) and pages a reload closed: up on this code
+    if (p.active) this.freshPages(id);
     return p.active;
   }
 
@@ -473,6 +597,7 @@ export class PluginHost {
   async disable(id: string): Promise<boolean> {
     const p = this.plugins.find((x) => x.manifest.id === id);
     if (!p) throw new Error(`no plugin "${id}"`);
+    this.parked.delete(id); // switched off on purpose: its pages don't come back by themselves
     const s = this.deck.settings;
     if (p.source === "vault") {
       s.set("plugins.enabled", s.data.plugins.enabled.filter((x) => x !== id));
@@ -671,6 +796,8 @@ export class PluginHost {
     /** `perm` — on `target` (a note's path, a host) when given — or a clear error */
     const need = (perm: string, target?: string) => {
       if (granted.has(perm, target)) return;
+      // a file you opened in it (plugin.json `opens`) outside its folders: that file, read — saved too if it writes notes at all
+      if (target !== undefined && this.handedOver(m.id, target) && (perm === "vault:read" || (perm === "vault:write" && granted.has("vault:write")))) return;
       const label = describePerm(perm).label;
       const want = parsePerm(perm) ?? (perm === "net" ? { base: "net" as const } : null);
       const off = (deck.settings.data.plugins.revoked?.[m.id] ?? []).some((x) => parsePerm(x)?.base === want?.base);
@@ -963,6 +1090,13 @@ export class PluginHost {
         pickFile: (title, exts, start) => pickFile(deck, from(title), exts, start),
         pickFileText: (title, exts) => pickFileText(deck, from(title), exts),
         pickFileBytes: (title, exts) => pickFileBytes(deck, from(title), exts),
+        // the clipboard: right after the user's ⌘C / ⌘X on its page (a STORE / vault module) — never by itself
+        copy: async (text) => {
+          const s = String(text ?? "");
+          if (s.length > 1_000_000) throw new Error(`${m.id}: ui.copy takes 1 MB at most`);
+          if (thirdParty && !this.mayCopy(m.id)) throw new Error(`${m.id}: ui.copy works right after ⌘C / ⌘X on its page (ctrl+c / ctrl+x), not by itself`);
+          return writeClipboard(s);
+        },
         // only the module's own page, only while it's the one in front — and only while the page
         // has the keyboard: folding the shell away would hand it the keys typed there (a password)
         fullWindow: (on = true) => {

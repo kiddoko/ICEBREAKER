@@ -1,6 +1,7 @@
 import { t, dateLocale } from "../../core/i18n";
 import { checkVaultFolder, icebreakerInside } from "../../apps/setuppath";
 import { describePerm, sayPerms } from "../../plugins/permissions";
+import { readOpens } from "../../plugins/fileassoc";
 import { contextCommand } from "../../ai/context";
 import { BOX_OFF, BOX_ON } from "../../ui/controls";
 import { redoCommand, tourCommand, changelogCommand, undoCommand } from "./undo";
@@ -791,7 +792,7 @@ const plugin: Command = {
   name: "plugin",
   aliases: ["plugins"],
   summary: "list, enable, disable, scaffold plugins",
-  usage: "plugin [ls]\nplugin enable <id>   (what it needs and is off comes on first)\nplugin disable <id>  (what needs it goes off too, after asking)\nplugin perms [id]    (what each module may do, and when it last did)\nplugin revoke <id> <permission>   (take one away: it keeps running)\nplugin grant <id> <permission>    (give it back)\nplugin reload\nplugin new <id>     (scaffold a plugin in .icebreaker/plugins/<id>)\nplugin install <user/repo | id>   (download from GitHub / the community index)\nplugin update <id>  (re-download an installed plugin — store update shows what's new)\nplugin search [words]  (= store search)\nplugin audit <id>   (what its code does that a module shouldn't need)\n  --window          (enable, disable) ask in dialogs instead of the shell",
+  usage: "plugin [ls]\nplugin enable <id>   (what it needs and is off comes on first)\nplugin disable <id>  (what needs it goes off too, after asking)\nplugin perms [id]    (what each module may do, and when it last did)\nplugin revoke <id> <permission>   (take one away: it keeps running)\nplugin grant <id> <permission>    (give it back)\nplugin reload\nplugin new <id>     (scaffold a plugin in .icebreaker/plugins/<id>)\nplugin install <user/repo | id>   (download from GitHub / the community index)\nplugin update <id>  (re-download an installed plugin — store update shows what's new)\nplugin search [words]  (= store search)\nplugin audit <id>   (what its code does that a module shouldn't need)\nplugin open-with [ext] [module | -]   (which module opens .mod files when two can; - asks again)\n  --window          (enable, disable) ask in dialogs instead of the shell",
   man: "Plugins live in <vault>/.icebreaker/plugins/<id>/ with a plugin.json and a main.js.\nVault plugins are disabled until you enable them; you'll see the permissions they ask for first.\nSee docs/PLUGINS.md.",
   async run(ctx) {
     const host = ctx.deck.plugins;
@@ -833,6 +834,26 @@ const plugin: Command = {
       }
       if (!id) ctx.out(fmt.dim("plugin perms <id> · plugin revoke <id> <permission> · plugin grant <id> <permission> · Settings → PERMISSIONS\n"));
       return 0;
+    }
+    // ── files it opens (plugin.json `opens`): which module, when two can ──
+    if (sub === "open-with" || sub === "openwith") {
+      const ext = (id ?? "").replace(/^\./, "").toLowerCase();
+      const who = ctx.args.filter((a) => a !== "--window")[2];
+      const chosen = ctx.deck.settings.data.plugins.openWith ?? {};
+      if (!ext) {
+        const kinds = new Map<string, string[]>();
+        for (const p of host.active()) for (const o of readOpens(p.manifest)) for (const x of o.types) kinds.set(x, [...(kinds.get(x) ?? []), p.manifest.id]);
+        if (!kinds.size) return ctx.out(fmt.dim("no module opens files (plugin.json \"opens\")\n")), 0;
+        for (const [x, ids] of [...kinds].sort()) ctx.out(`.${padEnd(x, 8)} ${ids.map((i) => (i === chosen[x] || ids.length === 1 ? fmt.bold(i) : fmt.dim(i))).join("  ")}${ids.length > 1 && !chosen[x] ? fmt.dim("  (asked the first time)") : ""}\n`);
+        return 0;
+      }
+      if (!who) return ctx.out(`.${ext}: ${chosen[ext] ?? fmt.dim("not chosen")}\n`), 0;
+      const rest = { ...chosen };
+      delete rest[ext];
+      if (who === "-" || who === "ask") return ctx.deck.settings.set("plugins.openWith", rest), ctx.out(`.${ext}: asked again next time\n`), 0;
+      if (!host.handlersFor(`x.${ext}`).some((h) => h.module === who)) return ctx.err(`plugin open-with: ${who} doesn't open .${ext} files (plugin open-with)\n`), 1;
+      ctx.deck.settings.set("plugins.openWith", { ...rest, [ext]: who });
+      return ctx.out(`.${ext} → ${who}\n`), 0;
     }
     if (sub === "revoke" || sub === "grant") {
       const perm = ctx.args.filter((a) => a !== "--window")[2];

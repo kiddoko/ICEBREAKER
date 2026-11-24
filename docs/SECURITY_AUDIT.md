@@ -153,7 +153,12 @@ them, run `sbxevil` and `sbxbare` (every line must say "closed", and `sbxbare` m
 with "captured nothing"; "take the vault command" shows its refusal in the LOG tab) and
 `sbxdemo` / `launch sbx`; `tests/sandbox/sbx-audio/` (`sbxaudio`: a little tune twice, smooth then
 stepped, a binary file written and read back, a WAV decoded, the limits refused; afterwards delete the
-`sbx-audio/` folder it writes in the vault, and the `escaped.bin` sbx-evil leaves at the vault's root — the proof that `../` stayed inside). `tests/origin.test.ts` and `tests/privileged.test.ts` check the
+`sbx-audio/` folder it writes in the vault, and the `escaped.bin` sbx-evil leaves at the vault's root — the proof that `../` stayed inside).
+`tests/sandbox/sbx-host/` (0.8.1) checks what a module's page gets from the deck: put a `songs/tune.sbxt`
+and an `other.sbxt` in the vault, `open songs/tune.sbxt` (opens in its page, read), `open other.sbxt`
+(asked first: outside its folder), `sbxhost <tab>` / `sbxhost export <tab>`, and on its page: a letter
+(down, then up), `m` then esc (its menu closes, the focus stays), esc again (the tree takes the keys),
+⌘C (`copy true` in the desktop app), ⌘V, ⌘A. `tests/origin.test.ts` and `tests/privileged.test.ts` check the
 same rules without the app. Run on 2026-11-20 in the macOS app (WKWebView) and in a
 Chromium browser (the web version): every door closed. Also checked that day, for real: a
 hook planted in a vault's `.claude/settings.json` runs with plain `claude -p` and does

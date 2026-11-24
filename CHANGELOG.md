@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.8.1 — not released yet (branch module-host)
+
+**What modules asked the deck for** (BreakerMED first)
+- **A module opens its kinds of files**: `"opens": ["bmed", "mod", "med"]` in its plugin.json, and a
+  song double-clicked in the tree, opened in NEXUS or typed (`open songs/tune.mod`) opens in its page.
+  Outside the folders the module may read you're asked first — the yes covers that file only, until
+  the deck closes. Two modules for one kind: asked once, remembered; `plugin open-with` shows and
+  changes it. Walking past such a file in the tree (⇧ + wheel) doesn't start the module.
+- **Tab completes a module's sub-commands**: `med <tab>` → new, open, export…; `med export <tab>` → the
+  next word (a command's `complete`: a list, or a record for the next words). The deck's own commands
+  that listed theirs (`home`, `tab`, `marks`…) complete them now too — they were never read.
+- **A module's page gets ⌘C ⌘X ⌘V ⌘A** (ctrl on Windows / Linux): its own copy, cut, paste and select
+  all. `ib.ui.copy(text)` fills the clipboard — only right after ⌘C / ⌘X on its page.
+- **Keys let go**: a page that plays the keyboard hears a key going up (`onKeyUp`: a tracker's note
+  off); keys held when the window loses the keyboard are let go then.
+- **esc in a module's page** closes what the page has open first (its menu, its dialog); with nothing
+  of its own, the tree or the shell takes the keys back — the page alone in the window: the tab before.
+- **A module installed over itself** (`plugin install`, the STORE): its open page closed while the new
+  code waited for your yes, and didn't come back. Switched on again, its pages come up **on the new
+  code** — and a tab still showing the old one is made again.
+- Documented: `ib.ui.pickFileBytes`, `fullWindow` and `ui.art` in the sandbox (they were there since 0.7).
+
 ## 0.8 — unreleased (branch ui-0.8)
 
 **The top of the window**

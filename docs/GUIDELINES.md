@@ -64,6 +64,8 @@ stays « log » (the vault has a journal).
 - `<cmd> open`: **the page**, always (`todo open`, `clock open`, `journal open`).
 - `<cmd> ls` **and** `<cmd> list`: the list. `<cmd> rm`: remove (with ⌘Z).
 - What a removal prints: `− <thing> (⌘Z / undo)`.
+- Give your command `complete` (its sub-commands): `med <tab>` shows them, like the deck's own.
+- Your files: `"opens": ["bmed"]` in plugin.json, so a double-click in the tree opens them in your page.
 - Dates in a command's output: `ib.lib.dateLocale()`, the deck's words (`today`, `tomorrow`)
   through `t()`.
 

@@ -1,0 +1,4 @@
+{ "id": "sbx-host", "name": "Sandbox host test", "version": "0.1.0", "api": 2,
+  "description": "checks what the deck gives a module's page: files it opens, Tab, clipboard keys, key-up, esc",
+  "permissions": ["vault:read:songs/", "vault:write:songs/"],
+  "opens": ["sbxt"] }

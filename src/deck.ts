@@ -805,6 +805,17 @@ export class Deck implements InputSink {
     this.requestFrame();
   }
 
+  /** the page in front takes ⌘C ⌘X ⌘V ⌘A as keys (App.clipboardKeys: a module's page) */
+  clipboardKeys(): boolean {
+    return !this.boot && !this.lock && !this.workspace.topModal && this.workspace.focus === "main" && !!this.workspace.focusedPage?.clipboardKeys;
+  }
+
+  /** a key let go (core/input.ts): the page that plays the keyboard hears it (a note off) */
+  keyUp(k: KeyInput): void {
+    if (this.boot || this.lock) return;
+    this.workspace.handleKeyUp(k);
+  }
+
   /** the page in front plays the keyboard (App.rawKeys): its keys come as keys, not text */
   rawKeys(): boolean {
     return !this.boot && !this.lock && this.workspace.rawKeys();
@@ -990,6 +1001,8 @@ export class Deck implements InputSink {
   }
 
   async openFile(path: string): Promise<void> {
+    // a kind of file a module opens (plugin.json `opens`: a song in BreakerMED): its page
+    if (await this.plugins.openWith(path)) return;
     // a picture, a sound, a PDF… isn't text: the editor said "stream did not contain valid UTF-8"
     if (isBinaryName(path)) return void this.notify(t("{file} isn't text: the deck can't show it here yet — open it from the vault's folder with your system", { file: path }), "info");
     this.openApp("note", path);
@@ -1001,7 +1014,7 @@ export class Deck implements InputSink {
    */
   async openInPlace(old: App, path: string, record = true): Promise<void> {
     const spec = this.apps.get("note");
-    if (!spec) return this.openFile(path);
+    if (!spec || this.plugins.handlersFor(path).length) return this.openFile(path);
     const hist = this.tabHistory.get(old) ?? { back: [], forward: [] };
     if (record && old.kind === "note") (hist.back.push(old.key.slice(5)), (hist.forward = []));
     await Promise.resolve(old.close?.()).catch(() => {}); // it saves on the way out
