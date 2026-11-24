@@ -285,9 +285,11 @@ export class PluginHost {
     return true;
   }
 
-  /** the high-risk questions being asked now (two writes at once ask once) */
+  /** the high-risk questions being asked now (two writes of the same file at once ask once) */
   private asking = new Map<string, Promise<string>>();
-  /** "this time": until when (ms), by module and permission */
+  /** one question on screen at a time: the next waits its turn (a module can't stack one over another) */
+  private dialogs: Promise<unknown> = Promise.resolve();
+  /** "this time": until when (ms), by module, permission and target — that file, that host only */
   private once = new Map<string, number>();
   /** "no": until when (ms) — the same action's next steps (the file after its folder) aren't asked again */
   private refused = new Map<string, number>();
@@ -308,7 +310,11 @@ export class PluginHost {
     const s = this.deck.settings;
     if ((s.data.plugins.always?.[m.id] ?? []).includes(name)) return;
     const key = `${m.id}|${name}`;
-    if (level !== "total" && (this.once.get(key) ?? 0) > Date.now()) return;
+    // "this time" was for what the dialog showed: that file, that host — not the next one
+    // (Fable pass 24/11: one "this time" covered other files for 10 s)
+    const onceKey = `${key}|${want.base === "vault:write" ? (vaultPath(target) ?? target) : target.toLowerCase()}`;
+    const settled = () => (s.data.plugins.always?.[m.id] ?? []).includes(name) || (level !== "total" && (this.once.get(onceKey) ?? 0) > Date.now());
+    if (level !== "total" && (this.once.get(onceKey) ?? 0) > Date.now()) return;
     const d = describePerm(name, t);
     const no = () => new Error(t("{m}: you said no to “{p}”", { m: m.name.toLowerCase(), p: d.label }));
     // you just said no to this: the rest of the same action (an export's file after its folder) stops
@@ -331,17 +337,21 @@ export class PluginHost {
       ],
       selected: level === "total" ? 0 : 1,
     };
-    // a command for the terminal is its own question each time; the rest: one question at a time
-    let ask = level === "total" ? undefined : this.asking.get(key);
+    // a command for the terminal is its own question each time; the same file asked twice at once,
+    // one question; any other waits until the one on screen is answered (then asks, unless that
+    // answer already covers it: "always")
+    let ask = level === "total" ? undefined : this.asking.get(onceKey);
     if (!ask) {
-      const asked = this.deck.askPermission(spec);
+      const asked = this.dialogs.then(() => (settled() ? "settled" : level !== "total" && (this.refused.get(key) ?? 0) > Date.now() ? "no" : this.deck.askPermission(spec)));
+      this.dialogs = asked.catch(() => {});
       ask = asked;
       if (level !== "total") {
-        this.asking.set(key, asked);
-        void asked.finally(() => this.asking.delete(key));
+        this.asking.set(onceKey, asked);
+        void asked.finally(() => this.asking.delete(onceKey));
       }
     }
     const answer = await ask;
+    if (answer === "settled") return;
     if (answer === "always") {
       const always = s.data.plugins.always ?? {};
       if (!(always[m.id] ?? []).includes(name)) s.set("plugins.always", { ...always, [m.id]: [...(always[m.id] ?? []), name] });
@@ -349,7 +359,7 @@ export class PluginHost {
     }
     if (answer === "once") {
       // "this time" is this action: what it does in the next moments (several files of one export)
-      if (level !== "total") this.once.set(key, Date.now() + 10_000);
+      if (level !== "total") this.once.set(onceKey, Date.now() + 10_000);
       return;
     }
     if (level !== "total") this.refused.set(key, Date.now() + 10_000);
