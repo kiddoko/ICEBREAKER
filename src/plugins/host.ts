@@ -1,6 +1,6 @@
 import { PRIVILEGED_NAMES } from "../shell/privileged";
 import type { Origin } from "../shell/origin";
-import { describePerm, Grants, levelOf, levelRank, missing, parsePerm, readPerms, sortPerms, quietWrite } from "./permissions";
+import { describePerm, Grants, levelOf, levelRank, missing, parsePerm, readPerms, sortPerms, quietWrite, vaultPath } from "./permissions";
 import type { PermDialogSpec, PermLine } from "../workspace/permdialog";
 import { isOfficialSource } from "./install";
 import { stealth } from "../core/stealth";
@@ -816,6 +816,12 @@ export class PluginHost {
       const p = path.toLowerCase();
       return folders.some((f) => (p + "/").startsWith(f.toLowerCase()) || (isDir && f.toLowerCase().startsWith(p + "/")));
     };
+    /** the path as the disk reads it ("safe/../journal/a" is journal/a): what is checked is what is opened */
+    const inVault = (raw: unknown): string => {
+      const p = vaultPath(String(raw));
+      if (p === null) throw new Error(`${m.name}: ${String(raw)} is outside the vault`);
+      return p;
+    };
     const dataPath = `.icebreaker/plugin-data/${m.id}.json`;
     // vault:write is for notes: the deck's own folder (modules' code, themes, settings) is never a
     // module's to change — its own data goes through ib.storage
@@ -950,29 +956,31 @@ export class PluginHost {
       vault: {
         // a STORE / vault module reads notes — not the deck's own folder (other modules' data
         // and code, the shell's history): its own data is ib.storage
-        read: async (p) => (need("vault:read", String(p)), thirdParty && notDeck(p), note("vault:read", String(p)), deck.vault.read(p)),
-        exists: async (p) => (need("vault:read", String(p)), thirdParty && notDeck(p), deck.vault.exists(p)),
+        read: async (raw) => { const p = inVault(raw); need("vault:read", p); if (thirdParty) notDeck(p); note("vault:read", p); return deck.vault.read(p); },
+        exists: async (raw) => { const p = inVault(raw); need("vault:read", p); if (thirdParty) notDeck(p); return deck.vault.exists(p); },
         // (allowed in some folders only: their notes)
         notes: () => (need("vault:read"), deck.vault.markdown().map((e) => e.path).filter((x) => inScope(x))),
         modified: async () => (need("vault:read"), Object.fromEntries(deck.vault.markdown().filter((e) => inScope(e.path)).map((e) => [e.path, e.modified]))),
         // changing notes is high-risk: the first time it really writes, you're asked
-        write: async (p, c) => (need("vault:write", String(p)), notDeck(p), await gate("vault:write", String(p)), note("vault:write", String(p)), deck.vault.write(p, c)),
-        append: async (p, text) => (need("vault:write", String(p)), notDeck(p), await gate("vault:write", String(p)), note("vault:write", String(p)), deck.vault.append(p, text)),
-        mkdir: async (p) => (need("vault:write", String(p)), notDeck(p), await gate("vault:write", String(p)), note("vault:write", String(p)), deck.vault.mkdir(p)),
-        readBytes: async (p) => (need("vault:read", String(p)), thirdParty && notDeck(p), note("vault:read", String(p)), deck.vault.readBytes(p)),
+        write: async (raw, c) => { const p = inVault(raw); need("vault:write", p); notDeck(p); await gate("vault:write", p); note("vault:write", p); return deck.vault.write(p, c); },
+        append: async (raw, text) => { const p = inVault(raw); need("vault:write", p); notDeck(p); await gate("vault:write", p); note("vault:write", p); return deck.vault.append(p, text); },
+        mkdir: async (raw) => { const p = inVault(raw); need("vault:write", p); notDeck(p); await gate("vault:write", p); note("vault:write", p); return deck.vault.mkdir(p); },
+        readBytes: async (raw) => { const p = inVault(raw); need("vault:read", p); if (thirdParty) notDeck(p); note("vault:read", p); return deck.vault.readBytes(p); },
         // never the deck's own folders' contents (other modules' code, the trash's log…) for a STORE / vault module
-        list: async (dir) => {
+        list: async (raw) => {
           need("vault:read");
+          const dir = inVault(raw ?? "");
           if (thirdParty) notDeck(dir);
-          const all = await deck.vault.list(String(dir ?? ""));
+          const all = await deck.vault.list(dir);
           return all.filter((e) => (!thirdParty || !isDeckPath(e.path)) && inScope(e.path, e.isDir)).map((e) => ({ path: e.path, name: e.name, isDir: e.isDir, size: e.size, modified: e.modified }));
         },
-        writeBytes: async (p, data) => {
-          need("vault:write", String(p));
+        writeBytes: async (raw, data) => {
+          const p = inVault(raw);
+          need("vault:write", p);
           notDeck(p);
           if (!(data instanceof Uint8Array || data instanceof ArrayBuffer)) throw new Error("vault.writeBytes: the data must be a Uint8Array");
-          await gate("vault:write", String(p));
-          note("vault:write", String(p));
+          await gate("vault:write", p);
+          note("vault:write", p);
           return deck.vault.writeBytes(p, data);
         },
       },
