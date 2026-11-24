@@ -1,4 +1,6 @@
 import { Glide } from "./glide";
+import { look } from "../core/skin/components";
+import { LIST } from "../core/skin/parts";
 import { mix } from "../core/color";
 import type { Action, MouseInput } from "../core/input";
 import { BOLD, type Rect } from "../core/grid";
@@ -144,7 +146,9 @@ export class ListView<T> {
     } else this.shownTop = this.scrollTop;
     const top = Math.round(this.shownTop);
     // the selection glides: the new row fades in, the old one fades out
-    const age = performance.now() - this.selAt;
+    // the theme's [list] (core/skin/parts.ts): the glide, and a mark on the selected row
+    const ll = look(ui.theme, LIST);
+    const age = ll.glide ? performance.now() - this.selAt : Infinity;
     if (age < 160) ui.animate(16);
     const selBg = focused ? ui.c.selection : ui.c.highlight;
 
@@ -237,6 +241,7 @@ export class ListView<T> {
       // the selected row's long text scrolls by itself (ui.marqueeZone)
       if (isSel) ui.marqueeZone = row;
       drawRow(item, row, isSel, idx);
+      if (isSel && ll.marker) ui.text(row.x, row.y, ll.marker, { fg: focused ? ui.c.accent : ui.c.subtle, attrs: BOLD });
       if (isSel) ui.marqueeZone = null;
     }
 

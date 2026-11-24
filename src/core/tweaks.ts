@@ -39,7 +39,7 @@ export const KNOBS: Knob[] = [
   { name: "border", key: "ui.border", label: "borders", group: "colors", kind: "color" },
   { name: "font", key: "font.family", label: "font", group: "type", kind: "choice", options: () => FONTS },
   { name: "font-size", key: "font.scale", label: "font size correction", group: "type", kind: "number", options: () => [0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4], min: 0.5, max: 2 },
-  { name: "frame", key: "meta.border", label: "frame style", group: "shape", kind: "choice", options: () => ["round", "single", "heavy", "double"] },
+  { name: "frame", key: "meta.border", label: "frame style", group: "shape", kind: "choice", options: () => ["round", "single", "heavy", "double", "dashed", "ascii"] },
   { name: "mark", key: "glyphs.mark", label: "title mark", group: "shape", kind: "choice", options: () => ["◆", "▸", "►", "■", "▪", "◢", "●", "★", "✦", "»"] },
   { name: "bullet", key: "glyphs.bullet", label: "list bullet", group: "shape", kind: "choice", options: () => ["›", "·", "–", ">", "▸", "•", "→"] },
   { name: "background", key: "background.effect", label: "effect", group: "background", kind: "choice", options: () => backgrounds().map((b) => b.name) },

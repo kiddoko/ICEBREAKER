@@ -19,6 +19,8 @@ import { keySpans } from "./keycaps";
 import { padCells } from "./keyicons";
 import { CAP_PAD_L, CAP_PAD_R } from "../core/grid";
 import { capGeometry, drawCapSlice, type KeycapLook } from "../core/keycap";
+import { TIP, type TipLook } from "../core/skin/parts";
+import { defaults } from "../core/skin/registry";
 
 export interface TipContent {
   /** what it is / does: one or more lines (they wrap) */
@@ -37,7 +39,11 @@ export interface TipColors {
   keyFace: number;
   /** how a key looks (Theme.keys, core/keycap.ts) */
   keyLook: KeycapLook;
+  /** how the tip looks (the theme's [tip], core/skin/parts.ts); the deck's own when left out */
+  look?: TipLook;
 }
+
+const TIP_DEFAULT: TipLook = defaults(TIP);
 
 /** how long the pointer rests before a tip shows (ms) */
 export const TIP_DELAY = 550;
@@ -143,7 +149,9 @@ export class TipView {
     const fontPx = Math.max(11, Math.round(font.px * 0.92));
     this.textEl.replaceChildren(...withKeys(text, pad, colors, { family: font.family, px: fontPx }));
     this.textEl.style.display = content.text ? "" : "none";
-    this.cmdEl.textContent = content.cmd ? `❯ ${content.cmd}` : "";
+    const lk = colors.look ?? TIP_DEFAULT;
+    this.cmdEl.textContent = content.cmd ? `${lk.cmd} ${content.cmd}` : "";
+    this.cmdEl.style.borderTopStyle = lk.dashed ? "" : "solid";
     this.cmdEl.style.display = content.cmd ? "" : "none";
     Object.assign(el.style, {
       fontFamily: font.family,
@@ -151,6 +159,9 @@ export class TipView {
       background: colors.bg,
       color: colors.fg,
       borderColor: colors.border,
+      borderWidth: `${lk.border}px`,
+      borderLeftWidth: `${lk.edge}px`,
+      borderRadius: `${lk.radius}px`,
       boxShadow: `0 0 0 1px ${colors.bg}, 0 6px 22px rgba(0,0,0,.45), 0 0 14px ${colors.border}33`,
     });
     this.cmdEl.style.color = colors.accent;

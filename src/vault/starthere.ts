@@ -791,13 +791,24 @@ screensaver = "city"  # city · paper · terminal · sonar · warp
 [keys]
 radius = 0          # the keys under the shortcuts: square
 lip = 0             # flat
+
+[checkbox]
+style = "ballot"    # brackets [■] · ballot ☑ · dots ●
+
+[caret]
+shape = "block"     # the text cursor: bar · block · underline · hollow
 \`\`\`
+
+The frames, tabs, buttons, checkboxes, choices, sliders, lists, the text cursor, the tree, the
+icons, the status bar and the tips each have a table like these, most with a \`style\` (one of the
+deck's own looks, by name) you can then change field by field. A theme changes how they look,
+never their size: everything stays where you click.
 
 | Command | |
 |---|---|
 | \`theme\` | list them |
 | \`theme set <name>\` | switch |
-| \`theme set accent #ff2e88\` | change one value, live (\`theme tweak\` lists them; \`theme set keys.<tab>\` for the keys) |
+| \`theme set accent #ff2e88\` | change one value, live (\`theme tweak\` lists them; \`theme set keys.<tab>\`, \`checkbox.<tab>\`… for the components) |
 | \`theme new <name>\` | a copy to edit |
 | \`theme check <name>\` | what the deck made of a theme file: what it got wrong, readable or not |
 

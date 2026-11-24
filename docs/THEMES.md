@@ -63,13 +63,40 @@ Bundled fonts (SIL OFL): JetBrains Mono (default), IBM Plex Mono, Fira Code,
 Space Mono, VT323, Share Tech Mono. Any font installed on the system works too.
 A theme without `[font]` uses JetBrains Mono and the user's weight setting.
 
-## Components: `[keys]` and `[pad]`
+## Components: `[keys]`, `[pad]`, `[frame]`, `[tabs]`, `[button]`…
 
 Some parts of the interface are **components** a theme can restyle, field by field. Each is
 declared once in `src/core/skin/components.ts` (its fields, their bounds, defaults and help —
-the skin registry, docs/THEMES_V2_PLAN.md); the loader, `theme set`, its completion and the tests
-all read that declaration. What a theme leaves out is the deck's own look. The built-in themes
-don't set them yet (themes v2, milestone 1: nothing changes on screen).
+the skin registry, docs/THEMES_V2_PLAN.md; the frames, tabs, controls, list, caret, tree, icons,
+status bar and tip are in `src/core/skin/parts.ts`); the loader, `theme set`, its completion, the
+table below and the tests all read that declaration. What a theme leaves out is the deck's own
+look. The built-in themes don't set them yet (their signatures come later, theme by theme).
+
+Most components have a **`style`**: a recipe, one of the deck's own looks by name (the first one
+listed is today's). A theme picks one, then may still change any field over it:
+
+```toml
+[checkbox]
+style = "ballot"    # brackets [■] · ballot ☑ · dots ●
+on = "✔"            # …with its own tick
+
+[frame]
+style = "ascii"     # round · single · heavy · double · dashed · ascii
+case = "upper"      # titles in capitals
+focus = "both"      # a focused frame: its colour and heavier chars
+
+[caret]
+shape = "block"     # bar · block · underline · hollow
+blink = false
+```
+
+The **floor** (what stays true whatever the theme says): a glyph is always exactly as wide as
+the deck's (one cell, or `""` where that's allowed), so nothing moves and every click lands where
+it did; two states can't look the same (a checkbox's on / off / some, a folder's open / closed, a
+choice's two arrows, a slider's handle and track); a part that carries meaning can't be blank (a
+choice's arrows, a slider's handle, a tab's ×). A field that breaks it keeps the deck's own value
+and `theme check` says why; it also lists what a theme restyles. Colours stay the theme's
+`[ui]` tokens: these tables change shapes only.
 
 ```toml
 [keys]          # the key every shortcut sits on
@@ -96,6 +123,80 @@ face = "surface0"   # a [palette] name, a #hex, or auto
 |  | `ring` | how strongly the ring round a PlayStation button shows | 0–1 | 0.5 |
 |  | `weight` | the letters' weight | 100–900, whole | 800 |
 |  | `size` | the icon's size, as a share of the cell's height | 0.5–1 | 0.86 |
+| `[frame]` | `style` | the chars (schema 1: [meta] border) | round · single · heavy · double · dashed · ascii | round |
+|  | `tl` | top-left corner ("": the style's) | 1 cell or "" | "" |
+|  | `tr` | top-right corner ("": the style's) | 1 cell or "" | "" |
+|  | `bl` | bottom-left corner ("": the style's) | 1 cell or "" | "" |
+|  | `br` | bottom-right corner ("": the style's) | 1 cell or "" | "" |
+|  | `h` | top and bottom edge ("": the style's) | 1 cell or "" | "" |
+|  | `v` | left and right edge ("": the style's) | 1 cell or "" | "" |
+|  | `case` | the title's letters | as-is · lower · upper | as-is |
+|  | `align` | where the title sits on the top edge | left · center | left |
+|  | `mark` | the [glyphs] mark before a focused frame's title | true / false | true |
+|  | `info` | the small text on the right of the top edge | true / false | true |
+|  | `focus` | how a focused frame shows it: its colour, or its colour and heavier chars | color · both | color |
+| `[tabs]` | `style` | thick (a half-block bar under each tab) · thin · flat (colours only) | thick · thin · flat | thick |
+|  | `lip` | the bar under a tab, on the frame's line | 1 cell | `▀` |
+|  | `close` | a tab's close mark | 1 cell | `×` |
+|  | `more` | the list of the tabs that don't fit | 1 cell | `▾` |
+|  | `sep` | the line between the pages and the documents | 1 cell | `│` |
+| `[button]` | `style` | pad (a filled pad) · bracket [ save ] · angle ⟨ save ⟩ · bare (no ground until hovered) | pad · bracket · angle · bare | pad |
+|  | `left` | the cell before the label | 1 cell | " " |
+|  | `right` | the cell after the label | 1 cell | " " |
+|  | `fill` | the highlight ground behind an idle button | true / false | true |
+| `[checkbox]` | `style` | brackets [■] · ballot ☑ · dots ● | brackets · ballot · dots | brackets |
+|  | `left` | the cell before the tick | 1 cell | `[` |
+|  | `right` | the cell after the tick | 1 cell | `]` |
+|  | `on` | ticked | 1 cell | `■` |
+|  | `off` | not ticked | 1 cell | " " |
+|  | `some` | partly ticked (some of a group) | 1 cell | `▪` |
+| `[choice]` | `style` | angle ‹ › · triangle ◂ ▸ · ascii < > | angle · triangle · ascii | angle |
+|  | `left` | the back arrow | 1 cell | `‹` |
+|  | `right` | the forward arrow | 1 cell | `›` |
+| `[slider]` | `style` | line ━■─ · blocks ▓█░ · dots •●· | line · blocks · dots | line |
+|  | `track` | the part after the value | 1 cell | `─` |
+|  | `fill` | the part up to the value | 1 cell | `━` |
+|  | `knob` | the handle | 1 cell | `■` |
+| `[list]` | `style` | fill (the row lit) · bar ▌ · caret › | fill · bar · caret | fill |
+|  | `marker` | a mark on the selected row's first cell ("": none) | 1 cell or "" | "" |
+|  | `glide` | the selection fades from row to row | true / false | true |
+| `[caret]` | `shape` | bar · block · underline · hollow | bar · block · underline · hollow | bar |
+|  | `blink` | it breathes a few times after a key, then stays solid | true / false | true |
+|  | `width` | the bar's or the line's thickness, in pixels | 1–4, whole | 2 |
+| `[tree]` | `style` | lines ├─ · round ╰─ · ascii (plain signs) | lines · round · ascii | lines |
+|  | `pipe` | an open branch above | 1 cell | `│` |
+|  | `branch` | an item with more after it | 1 cell | `├` |
+|  | `last` | the last item of its folder | 1 cell | `└` |
+|  | `dash` | the stroke to the item | 1 cell | `─` |
+|  | `open` | an open folder | 1 cell | `▾` |
+|  | `closed` | a closed folder | 1 cell | `▸` |
+| `[icons]` | `style` | deck (the deck's own) · ascii (plain letters and signs) | deck · ascii | deck |
+|  | `file_folder` | icon file.folder | 1 cell | `▸` |
+|  | `file_note` | icon file.note | 1 cell | `≡` |
+|  | `file_python` | icon file.python | 1 cell | `∿` |
+|  | `file_js` | icon file.js | 1 cell | `ʝ` |
+|  | `file_script` | icon file.script | 1 cell | `❯` |
+|  | `file_code` | icon file.code | 1 cell | `λ` |
+|  | `file_config` | icon file.config | 1 cell | `⚙` |
+|  | `file_table` | icon file.table | 1 cell | `▥` |
+|  | `file_web` | icon file.web | 1 cell | `◇` |
+|  | `file_text` | icon file.text | 1 cell | `≡` |
+|  | `file_image` | icon file.image | 1 cell | `▣` |
+|  | `file_pdf` | icon file.pdf | 1 cell | `▤` |
+|  | `file_audio` | icon file.audio | 1 cell | `♪` |
+|  | `file_video` | icon file.video | 1 cell | `▶` |
+|  | `file_archive` | icon file.archive | 1 cell | `▦` |
+|  | `file_canvas` | icon file.canvas | 1 cell | `◫` |
+|  | `file_other` | icon file.other | 1 cell | `◦` |
+| `[statusbar]` | `style` | line │ · dots · · blank | line · dots · blank | line |
+|  | `sep` | between two items (and on the top row, before the clock) | 1 cell | `│` |
+|  | `drop` | where a dragged item would land | 1 cell | `┃` |
+| `[tip]` | `style` | deck (a thicker accent edge) · plain · round | deck · plain · round | deck |
+|  | `cmd` | before the command a tip shows | 1 cell | `❯` |
+|  | `edge` | the left edge's thickness, in pixels | 1–6, whole | 3 |
+|  | `border` | the other edges' thickness, in pixels | 1–3, whole | 1 |
+|  | `radius` | corners, in pixels | 0–12, whole | 2 |
+|  | `dashed` | a dashed line between the text and the command (else solid) | true / false | true |
 <!-- end of generated -->
 
 This table and `themes/schema-2.json` (a JSON Schema for editors) are generated from the

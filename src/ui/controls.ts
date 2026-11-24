@@ -1,5 +1,7 @@
 import type { RGB } from "../core/color";
 import { BOLD } from "../core/grid";
+import { look } from "../core/skin/components";
+import { CHECKBOX, CHOICE } from "../core/skin/parts";
 import { strWidth } from "../core/unicode";
 import type { UI } from "./ui";
 
@@ -14,6 +16,9 @@ import type { UI } from "./ui";
  *
  * (The others: Field — ui/field.ts, slider — ui/slider.ts, ui.button, ListView,
  * FilterBar, the file browser, the dialogs; all listed in ui/kit.ts.)
+ *
+ * Their glyphs are the theme's ([checkbox], [choice] — core/skin/parts.ts), always as wide as
+ * the deck's: a theme changes what they show, never where you click.
  */
 
 /** In plain text (the shell, a menu's label): the same box. */
@@ -35,10 +40,11 @@ export interface CheckboxOptions {
 export function checkbox(ui: UI, x: number, y: number, on: boolean | "some", o: CheckboxOptions = {}): number {
   const c = ui.c;
   const st = o.bg !== undefined ? { bg: o.bg } : {};
+  const k = look(ui.theme, CHECKBOX);
   const edge = o.disabled ? c.faint : o.hot ? c.fg : c.subtle;
-  ui.text(x, y, "[", { fg: edge, ...st });
-  ui.text(x + 1, y, on === true ? "■" : on === "some" ? "▪" : " ", { fg: o.disabled ? c.faint : c.accent, attrs: BOLD, ...st });
-  ui.text(x + 2, y, "]", { fg: edge, ...st });
+  ui.text(x, y, k.left, { fg: edge, ...st });
+  ui.text(x + 1, y, on === true ? k.on : on === "some" ? k.some : k.off, { fg: o.disabled ? c.faint : on === false && k.off.trim() ? edge : c.accent, attrs: BOLD, ...st });
+  ui.text(x + 2, y, k.right, { fg: edge, ...st });
   let end = x + 3;
   if (o.label) {
     end = ui.text(x + 4, y, o.label, { fg: o.disabled ? c.faint : on ? c.fg : c.subtle, attrs: o.hot ? BOLD : 0, ...st });
@@ -74,8 +80,9 @@ export function choice(ui: UI, x: number, y: number, value: string, o: ChoiceOpt
     if (o.arrows) ui.text(ax, y, ch, { fg: ui.hovered(ar) ? c.fg : c.accent, attrs: BOLD, ...st });
     if (o.onStep) ui.hit(ar, { onClick: () => o.onStep!(dir) });
   };
-  arrow(x - 2, "‹", -1);
-  arrow(x + w + 1, "›", 1);
+  const k = look(ui.theme, CHOICE);
+  arrow(x - 2, k.left, -1);
+  arrow(x + w + 1, k.right, 1);
   return x + w + 2;
 }
 

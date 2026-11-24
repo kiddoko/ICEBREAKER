@@ -15,6 +15,9 @@ export interface FloorColors {
   accent: RGB;
 }
 
+/** a recipe: one of the deck's own looks for a component, by name (its `style` field), § 2.3 */
+export type Recipes<V> = Record<string, Partial<V>>;
+
 /**
  * A rule that stays true whatever the theme says (§ 3): checked after the theme's values are
  * read, it puts back the default of the fields that break it, and says why.
@@ -37,6 +40,12 @@ export interface Component<V extends object> {
   doc: string;
   fields: { [K in keyof V]: Field };
   floor: FloorRule<V>[];
+  /**
+   * The component's recipes, when it has a `style` field: each a set of field values over the
+   * defaults (the first is the deck's own, i.e. no change). A theme picks one by name and may
+   * still set any field over it: `[checkbox] style = "ballot"`, `on = "✔"`.
+   */
+  recipes?: Recipes<V>;
 }
 
 export function defineComponent<V extends object>(c: Component<V>): Component<V> {
@@ -57,7 +66,15 @@ export function defaults<V extends object>(comp: Component<V>): V {
 export function resolve<V extends object>(comp: Component<V>, own?: Partial<V>): V {
   const out = {} as Record<string, unknown>;
   const given = (own ?? {}) as Record<string, unknown>;
-  for (const [k, f] of Object.entries(comp.fields) as [string, Field][]) out[k] = k in given && given[k] !== undefined ? f.clamp(given[k]) : f.default;
+  const fields = comp.fields as Record<string, Field>;
+  // the recipe named by `style` (if any) changes the defaults; what the theme sets wins over it
+  const style = comp.recipes && fields.style ? fields.style.clamp(given.style) : undefined;
+  const recipe = (style !== undefined ? comp.recipes?.[String(style)] : undefined) as Record<string, unknown> | undefined;
+  for (const [k, f] of Object.entries(fields)) {
+    if (k in given && given[k] !== undefined) out[k] = f.clamp(given[k]);
+    else if (recipe && k in recipe) out[k] = f.clamp(recipe[k]);
+    else out[k] = f.default;
+  }
   return out as V;
 }
 
@@ -115,6 +132,27 @@ export function contrastRule<V extends object>(fields: (keyof V & string)[], rat
       const [a, b] = pick(look, c);
       const r = contrast(a, b);
       return r >= ratio ? null : `contrast ${r.toFixed(1)}:1 is under ${ratio}:1 — the deck's own is kept`;
+    },
+  };
+}
+
+/** a floor rule: these glyphs must differ from each other (a state you can't tell apart is no state: on / off, open / closed) */
+export function distinctRule<V extends object>(fields: (keyof V & string)[], what: string): FloorRule<V> {
+  return {
+    fields,
+    check(look) {
+      const vals = fields.map((f) => String((look as Record<string, unknown>)[f]).trim());
+      return new Set(vals).size === vals.length ? null : `${what} must look different — the deck's own are kept`;
+    },
+  };
+}
+
+/** a floor rule: these glyphs can't be blank (the part carries meaning: a slider's knob, a choice's arrows) */
+export function visibleRule<V extends object>(fields: (keyof V & string)[], what: string): FloorRule<V> {
+  return {
+    fields,
+    check(look) {
+      return fields.every((f) => String((look as Record<string, unknown>)[f]).trim() !== "") ? null : `${what} can't be blank — the deck's own are kept`;
     },
   };
 }

@@ -14,6 +14,8 @@
  * rest in a "▾ +N" list, the one
  * shown always visible. Drag a tab sideways to put it elsewhere (`tab move <n> <m>`).
  */
+import { look } from "../core/skin/components";
+import { TABS } from "../core/skin/parts";
 import { mix } from "../core/color";
 import { t, tLoose } from "../core/i18n";
 import type { App } from "../apps/types";
@@ -38,6 +40,9 @@ const MORE_W = 7;
 const SEP = 1;
 /** the light line between the pages and the documents, and the cell after it */
 const FAMILY_W = 2;
+
+/** the theme's [tabs] (core/skin/parts.ts): the bar under a tab, its ×, the ▾ list, the family line */
+const tabsLook = (ui: UI) => look(ui.theme, TABS);
 
 /** what a tab shows before its title ("" when the title already starts with it: "♬ ♬ untitled") */
 function iconOf(ws: Workspace, i: number): string {
@@ -92,7 +97,7 @@ export function chipStyle(ui: UI, on: boolean, focused: boolean, hot: boolean): 
 /** One tab's body: its row in `bg`, and the half-block bar under it on the frame's line. */
 export function drawChip(ui: UI, x: number, y: number, w: number, bg: number, bar = bg): void {
   ui.fill({ x, y, w, h: 1 }, { bg });
-  ui.text(x, y + 1, "▀".repeat(w), { fg: bar });
+  ui.text(x, y + 1, tabsLook(ui).lip.repeat(w), { fg: bar });
 }
 
 /**
@@ -108,7 +113,7 @@ export function frameLabel(ui: UI, x: number, y: number, label: string, lit: boo
   const rect = { x, y, w: strWidth(text), h: 2 };
   const hot = ui.hovered(rect);
   ui.text(x, y, text, { fg: lit ? c.accent : hot ? c.fg : c.muted, ...(hot ? { bg: c.highlight } : {}), attrs: BOLD });
-  if (lit) ui.text(x, y + 1, "▀".repeat(rect.w), { fg: c.accent });
+  if (lit) ui.text(x, y + 1, tabsLook(ui).lip.repeat(rect.w), { fg: c.accent });
   ui.hit(rect, hit);
   return rect;
 }
@@ -201,7 +206,7 @@ export function placeChips(ws: Workspace, ui: UI, x: number, y: number, maxX: nu
     if (!pin) {
       const xr = { x: x + w - GAP - INSET, y, w: GAP + INSET, h: 1 };
       // as in the page strip: × always on a document, only while hovered on a page
-      ui.text(x + w - GAP, y, isDocument(app) || hot ? "×" : " ", { fg: ui.hovered(xr) ? c.error : st.fg, bg: st.bg, attrs: BOLD });
+      ui.text(x + w - GAP, y, isDocument(app) || hot ? tabsLook(ui).close : " ", { fg: ui.hovered(xr) ? c.error : st.fg, bg: st.bg, attrs: BOLD });
       ui.hit(xr, { cmd: `tab close ${i + 1}`, tip: t("close · ctrl+w · shift+esc") });
     }
     x += w + SEP;
@@ -300,7 +305,7 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
     // the light line between the pages and the documents
     if (docOf(e) && !lineDrawn && k > 0) {
       lineDrawn = true;
-      ui.text(x, r.y, "│", { fg: c.faint });
+      ui.text(x, r.y, tabsLook(ui).sep, { fg: c.faint });
       x += FAMILY_W;
     }
     const doc = e.kind === "tab" && isDocument(ws.tabs[e.index]);
@@ -362,7 +367,7 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
       const closeHot = ui.hovered({ x: closeX - 1, y: r.y, w: 3, h: 1 });
       // × : always on a document, only while hovered on a page
       const closeShown = doc ? true : hot;
-      ui.text(closeX, r.y, closeShown ? "×" : " ", { fg: closeHot ? c.error : on ? c.panel : c.subtle, bg, attrs: closeHot ? BOLD : 0 });
+      ui.text(closeX, r.y, closeShown ? tabsLook(ui).close : " ", { fg: closeHot ? c.error : on ? c.panel : c.subtle, bg, attrs: closeHot ? BOLD : 0 });
       const toFrame = dragToFrame(ws, i, "main");
       ui.hit(rect, {
         cmd: `tab ${i + 1}`,
@@ -405,8 +410,9 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
     if (rr) ui.text(dragging.to > dragging.from ? rr.x + rr.w : rr.x - SEP, r.y, "▐", { fg: c.accent, attrs: BOLD });
   }
   // the chips that didn't fit: a list
-  if (hidden.length && x + strWidth(` ▾ +${hidden.length} `) <= r.x + r.w) {
-    const label = shown.length ? ` ▾ +${hidden.length} ` : ` ▾ ${hidden.length} `;
+  const moreG = tabsLook(ui).more;
+  if (hidden.length && x + strWidth(` ${moreG} +${hidden.length} `) <= r.x + r.w) {
+    const label = shown.length ? ` ${moreG} +${hidden.length} ` : ` ${moreG} ${hidden.length} `;
     const rect = { x, y: r.y, w: strWidth(label), h: 1 };
     const hot = ui.hovered(rect);
     ui.text(x, r.y, label, { fg: hot ? c.panel : c.accent, bg: hot ? c.accent : c.highlight, attrs: BOLD });

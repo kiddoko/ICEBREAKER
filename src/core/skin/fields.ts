@@ -1,4 +1,5 @@
 import { hex, type RGB } from "../color";
+import { strWidth } from "../unicode";
 
 /**
  * THE FIELDS a theme component is made of (docs/THEMES_V2_PLAN.md § 2.2). A field says, once:
@@ -44,7 +45,17 @@ export interface ChoiceField extends FieldBase<string> {
   kind: "choice";
   options: readonly string[];
 }
-export type Field = NumField | BoolField | ColorField | ChoiceField;
+/**
+ * A few characters drawn in cells (a corner, a checkbox's tick, a tree's branch): always exactly
+ * `width` cells wide, so a theme changes what a cell shows, never the layout or a hit's size (§ 3).
+ * `blank` lets it be "" (the part is left out, or comes from elsewhere — the frame's style).
+ */
+export interface GlyphField extends FieldBase<string> {
+  kind: "glyph";
+  width: number;
+  blank: boolean;
+}
+export type Field = NumField | BoolField | ColorField | ChoiceField | GlyphField;
 
 const toNumber = (raw: unknown): number => (typeof raw === "number" ? raw : typeof raw === "string" && raw.trim() !== "" ? Number(raw.trim().replace(/%$/, "")) : NaN);
 
@@ -113,5 +124,21 @@ export function choice(options: readonly string[], def: string, doc: string): Ch
       return options.includes(s) ? { value: s } : { error: `one of ${options.join(", ")}` };
     },
     suggest: () => [...options],
+  };
+}
+
+/** a glyph `width` cells wide (one by default); `blank`: "" is allowed too */
+export function glyph(def: string, doc: string, o: { width?: number; blank?: boolean } = {}): GlyphField {
+  const width = o.width ?? 1, blank = o.blank ?? false;
+  const fits = (v: unknown): v is string => typeof v === "string" && !/[\n\t\r]/.test(v) && ((blank && v === "") || (v !== "" && strWidth(v) === width));
+  return {
+    kind: "glyph", width, blank, default: def, doc,
+    clamp: (v) => (fits(v) ? v : def),
+    read(raw) {
+      const v = typeof raw === "string" ? raw : String(raw);
+      if (fits(v)) return { value: v };
+      return { error: `"${v}": ${width === 1 ? "one cell" : `${width} cells`} wide expected${blank ? " (or \"\")" : ""} — a theme never changes a size` };
+    },
+    suggest: () => [def === "" ? '""' : def],
   };
 }

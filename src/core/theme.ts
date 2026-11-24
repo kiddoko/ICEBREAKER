@@ -2,7 +2,8 @@ import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import type { KeycapLook } from "./keycap";
 import type { PadLook } from "./padglyphs";
 import { hex, type RGB, readable } from "./color";
-import { KEYS, PAD } from "./skin/components";
+import { KEYS, PAD, type SkinLooks } from "./skin/components";
+import { PARTS } from "./skin/parts";
 import { applyFloor, readTable, type SkinProblem } from "./skin/registry";
 import { frameStyle, logoText, newerSchemaNotice, schemaOf, widgetFrameStyle } from "./skin/schema";
 
@@ -19,7 +20,9 @@ import { frameStyle, logoText, newerSchemaNotice, schemaOf, widgetFrameStyle } f
  * small as three lines.
  */
 
-export type BorderStyle = "round" | "single" | "heavy" | "double";
+export type BorderStyle = "round" | "single" | "heavy" | "double" | "dashed" | "ascii";
+/** the panel frame styles a theme can pick ([frame] style) */
+export const BORDER_STYLES: readonly BorderStyle[] = ["round", "single", "heavy", "double", "dashed", "ascii"];
 
 /** Small symbols a theme can swap (all optional in the .toml, under [glyphs]). */
 export interface ThemeGlyphs {
@@ -130,6 +133,12 @@ export interface Theme {
    */
   keys?: Partial<KeycapLook>;
   pad?: Partial<PadLook>;
+  /**
+   * The other components (milestone 3: [frame] [tabs] [button] [checkbox] [choice] [slider] [list]
+   * [caret] [tree] [icons] [statusbar] [tip], core/skin/parts.ts): only what the file or its parent
+   * set, by component id. The drawing code reads the complete look: `look(theme, CHECKBOX)`.
+   */
+  skin?: SkinLooks;
   /** the file's schema (1 when it doesn't say; core/skin/schema.ts) */
   schema?: number;
   /** what the theme file got wrong in its components (the field keeps the deck's or the parent's value) */
@@ -204,18 +213,33 @@ export function parseTheme(source: string, base: Theme | null, origin: Theme["so
   const keysRead = readTable(KEYS, doc.keys, ctx, base?.keys);
   const padRead = readTable(PAD, doc.pad, ctx, base?.pad);
   const keysFloor = applyFloor(KEYS, keysRead.look, c);
+  const skin: SkinLooks = {};
+  const partProblems: SkinProblem[] = [];
+  for (const comp of PARTS) {
+    let raw = doc[comp.id];
+    // [frame] style is the frame's chars (read below, as in schema 1's [meta] border): not a field
+    if (comp.id === "frame" && raw && typeof raw === "object" && !Array.isArray(raw)) {
+      const { style: _, ...rest } = raw as Table;
+      raw = rest;
+    }
+    const read = readTable(comp, raw, ctx, base?.skin?.[comp.id]);
+    const floored = applyFloor(comp, read.look, c);
+    partProblems.push(...read.problems, ...floored.problems);
+    if (floored.look && Object.keys(floored.look).length) skin[comp.id] = floored.look as Record<string, unknown>;
+  }
   const newer = newerSchemaNotice(doc);
-  const skinProblems = [...(newer ? [{ key: "meta.schema", reason: newer }] : []), ...keysRead.problems, ...keysFloor.problems, ...padRead.problems];
+  const skinProblems = [...(newer ? [{ key: "meta.schema", reason: newer }] : []), ...keysRead.problems, ...keysFloor.problems, ...padRead.problems, ...partProblems];
 
   // schema 1 ([meta] border, [meta] widget_frame, [ascii] logo) or 2 ([frame] style…): core/skin/schema.ts
   const border = String(frameStyle(doc) ?? base?.border ?? "round") as BorderStyle;
+  if (!BORDER_STYLES.includes(border)) skinProblems.push({ key: "frame.style", reason: `"${border}": one of ${BORDER_STYLES.join(", ")} — round is used` });
   const widgetFrame = widgetFrameStyle(doc);
   const logo = logoText(doc);
   return {
     name: String(meta.name ?? "unnamed"),
     author: String(meta.author ?? "anonymous"),
     description: String(meta.description ?? ""),
-    border: ["round", "single", "heavy", "double"].includes(border) ? border : "round",
+    border: BORDER_STYLES.includes(border) ? border : "round",
     palette,
     c,
     syntax,
@@ -256,6 +280,7 @@ export function parseTheme(source: string, base: Theme | null, origin: Theme["so
     },
     ...(keysFloor.look ? { keys: keysFloor.look } : {}),
     ...(padRead.look ? { pad: padRead.look } : {}),
+    ...(Object.keys(skin).length ? { skin } : {}),
     ...(skinProblems.length ? { skinProblems } : {}),
     ...(schemaOf(doc) !== 1 ? { schema: schemaOf(doc) } : {}),
     extends: typeof meta.extends === "string" ? meta.extends : undefined,

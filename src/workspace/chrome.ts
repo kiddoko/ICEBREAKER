@@ -4,6 +4,8 @@
  * LOG), the hover tip and the voice's subtitles. Workspace.render calls these;
  * they read the workspace, they don't own any state.
  */
+import { look } from "../core/skin/components";
+import { STATUSBAR } from "../core/skin/parts";
 import { mix } from "../core/color";
 import { t, tLoose, dateLocale } from "../core/i18n";
 import { BOLD, type Rect } from "../core/grid";
@@ -302,7 +304,7 @@ export function renderTopCorners(ws: Workspace, ui: UI, top: TopCorners, cols: n
   x = ui.text(x, top.y, "■ ", { fg: lamp, bg });
   const who = d.ai.provider.label;
   ui.hit(upR, d.ai.ready ? { cmd: "link", tip: `UPLINK: ${who}${d.ai.busy > 0 ? ` · ${t("thinking…")}` : ""}\n${t("ctrl+space · or `chat` right here in the shell")}` } : { cmd: "settings", tip: `UPLINK ${t("off")}: ${d.ai.problem ?? ""}` });
-  if (!f.clockNarrow) x = ui.text(x, top.y, "│", { fg: c.faint, bg });
+  if (!f.clockNarrow) x = ui.text(x, top.y, look(ui.theme, STATUSBAR).sep, { fg: c.faint, bg });
   const clockR = { x, y: top.y, w: cols - x, h: 1 };
   const calOpen = ws.overlays.some((o) => !o.done && o instanceof MiniCalendar);
   const clockHot = ui.hovered(clockR) || calOpen;
@@ -426,7 +428,7 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
         // a one-character button like ☾ is hard to hit otherwise
         const cell = { x: rx, y: r.y, w: w + 1 + sep, h: 1 };
         const hot = !!p.cmd && ui.hovered(cell) && !drag;
-        if (sep) ui.text(rx, r.y, "│ ", { fg: drag?.id === id ? c.accent : c.faint, bg: c.statusBg });
+        if (sep) ui.text(rx, r.y, `${look(ui.theme, STATUSBAR).sep} `, { fg: drag?.id === id ? c.accent : c.faint, bg: c.statusBg });
         if (hot) ui.fill({ x: rx + Math.max(0, sep - 1), y: r.y, w: w + (sep ? 2 : 1), h: 1 }, { bg: c.highlight });
         ui.text(rx + sep, r.y, p.text, { fg: drag?.id === id ? c.accent : hot ? c.accent : p.fg, bg: hot ? c.highlight : c.statusBg });
         ws.statusSlots.push({ id, x: rx, w: w + 1 + sep });
@@ -439,7 +441,7 @@ export function renderStatusBar(ws: Workspace, ui: UI, r: Rect): void {
   if (drag && drag.to !== undefined) {
     const slots = [...ws.statusSlots].sort((a, b) => a.x - b.x);
     const at = drag.to >= slots.length ? (slots.length ? slots[slots.length - 1].x + slots[slots.length - 1].w : r.x + r.w) : slots[drag.to]?.x;
-    if (at !== undefined) ui.text(Math.min(r.x + r.w - 1, at), r.y, "┃", { fg: c.accent, bg: c.statusBg, attrs: BOLD });
+    if (at !== undefined) ui.text(Math.min(r.x + r.w - 1, at), r.y, look(ui.theme, STATUSBAR).drop, { fg: c.accent, bg: c.statusBg, attrs: BOLD });
   }
 }
 
@@ -468,7 +470,7 @@ function drawFrameSwitch(ws: Workspace, ui: UI, x: number, y: number, id: string
 function statusGrip(ws: Workspace, ui: UI, x: number, y: number, id: string, order: string[]): void {
   const c = ui.c;
   const grip = { x, y, w: 2, h: 1 };
-  ui.text(x, y, "│ ", { fg: ws.statusDrag?.id === id ? c.accent : ui.hovered(grip) ? c.accent : c.faint, bg: c.statusBg });
+  ui.text(x, y, `${look(ui.theme, STATUSBAR).sep} `, { fg: ws.statusDrag?.id === id ? c.accent : ui.hovered(grip) ? c.accent : c.faint, bg: c.statusBg });
   statusHit(ws, ui, grip, id, order, undefined, t("drag sideways: move it · right-click: move, hide…"));
 }
 

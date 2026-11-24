@@ -18,11 +18,13 @@ function bounds(f: Field): string {
   if (f.kind === "number") return `${f.min}–${f.max}${f.integer ? ", whole" : ""}`;
   if (f.kind === "bool") return "true / false";
   if (f.kind === "choice") return f.options.join(" · ");
+  if (f.kind === "glyph") return `${f.width === 1 ? "1 cell" : `${f.width} cells`}${f.blank ? " or \"\"" : ""}`;
   return f.default === null ? "#hex · palette name · auto" : "#hex · palette name";
 }
 
 function shown(f: Field): string {
   if (f.kind === "color") return f.default === null ? "auto" : hexOf(f.default);
+  if (f.kind === "glyph") return f.default.trim() === "" ? (f.default === "" ? '""' : '" "') : `\`${f.default.replace(/\|/g, "\\|")}\``;
   return String(f.default);
 }
 
@@ -31,6 +33,10 @@ export function referenceTable(): string {
   const rows = ["| component | field | what | values | the deck's own |", "|---|---|---|---|---|"];
   for (const comp of COMPONENTS) {
     let first = true;
+    if (comp.id === "frame") {
+      rows.push("| `[frame]` | `style` | the chars (schema 1: [meta] border) | round · single · heavy · double · dashed · ascii | round |");
+      first = false;
+    }
     for (const [k, f] of Object.entries(comp.fields) as [string, Field][]) {
       rows.push(`| ${first ? `\`[${comp.id}]\`` : ""} | \`${k}\` | ${f.doc} | ${bounds(f)} | ${shown(f)} |`);
       first = false;
@@ -55,8 +61,11 @@ export function jsonSchema(): Record<string, unknown> {
       if (f.kind === "number") props[k] = { ...base, type: f.integer ? "integer" : "number", minimum: f.min, maximum: f.max, default: f.default };
       else if (f.kind === "bool") props[k] = { ...base, type: "boolean", default: f.default };
       else if (f.kind === "choice") props[k] = { ...base, enum: [...f.options], default: f.default };
+      else if (f.kind === "glyph") props[k] = { ...base, type: "string", ...(f.blank ? {} : { minLength: 1 }), maxLength: f.width * 2, default: f.default };
       else props[k] = { ...base, ...color, default: shown(f) };
     }
+    // [frame] style: the chars' style, read beside the frame's fields (schema 1 wrote it [meta] border)
+    if (comp.id === "frame") props.style = { description: "the chars: a style name", enum: ["round", "single", "heavy", "double", "dashed", "ascii"], default: "round" };
     properties[comp.id] = { type: "object", description: comp.doc, additionalProperties: false, properties: props };
   }
   return {

@@ -16,9 +16,91 @@
     },
     "frame": {
       "type": "object",
+      "description": "the frame round every panel (its `style` picks the chars: round · single · heavy · double · dashed · ascii)",
+      "additionalProperties": false,
       "properties": {
+        "tl": {
+          "description": "top-left corner (\"\": the style's)",
+          "type": "string",
+          "maxLength": 2,
+          "default": ""
+        },
+        "tr": {
+          "description": "top-right corner (\"\": the style's)",
+          "type": "string",
+          "maxLength": 2,
+          "default": ""
+        },
+        "bl": {
+          "description": "bottom-left corner (\"\": the style's)",
+          "type": "string",
+          "maxLength": 2,
+          "default": ""
+        },
+        "br": {
+          "description": "bottom-right corner (\"\": the style's)",
+          "type": "string",
+          "maxLength": 2,
+          "default": ""
+        },
+        "h": {
+          "description": "top and bottom edge (\"\": the style's)",
+          "type": "string",
+          "maxLength": 2,
+          "default": ""
+        },
+        "v": {
+          "description": "left and right edge (\"\": the style's)",
+          "type": "string",
+          "maxLength": 2,
+          "default": ""
+        },
+        "case": {
+          "description": "the title's letters",
+          "enum": [
+            "as-is",
+            "lower",
+            "upper"
+          ],
+          "default": "as-is"
+        },
+        "align": {
+          "description": "where the title sits on the top edge",
+          "enum": [
+            "left",
+            "center"
+          ],
+          "default": "left"
+        },
+        "mark": {
+          "description": "the [glyphs] mark before a focused frame's title",
+          "type": "boolean",
+          "default": true
+        },
+        "info": {
+          "description": "the small text on the right of the top edge",
+          "type": "boolean",
+          "default": true
+        },
+        "focus": {
+          "description": "how a focused frame shows it: its colour, or its colour and heavier chars",
+          "enum": [
+            "color",
+            "both"
+          ],
+          "default": "color"
+        },
         "style": {
-          "type": "string"
+          "description": "the chars: a style name",
+          "enum": [
+            "round",
+            "single",
+            "heavy",
+            "double",
+            "dashed",
+            "ascii"
+          ],
+          "default": "round"
         }
       }
     },
@@ -148,6 +230,531 @@
           "minimum": 0.5,
           "maximum": 1,
           "default": 0.86
+        }
+      }
+    },
+    "tabs": {
+      "type": "object",
+      "description": "the tab strip on top of a frame",
+      "additionalProperties": false,
+      "properties": {
+        "style": {
+          "description": "thick (a half-block bar under each tab) · thin · flat (colours only)",
+          "enum": [
+            "thick",
+            "thin",
+            "flat"
+          ],
+          "default": "thick"
+        },
+        "lip": {
+          "description": "the bar under a tab, on the frame's line",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "▀"
+        },
+        "close": {
+          "description": "a tab's close mark",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "×"
+        },
+        "more": {
+          "description": "the list of the tabs that don't fit",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "▾"
+        },
+        "sep": {
+          "description": "the line between the pages and the documents",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "│"
+        }
+      }
+    },
+    "button": {
+      "type": "object",
+      "description": "a button: its ends and its ground",
+      "additionalProperties": false,
+      "properties": {
+        "style": {
+          "description": "pad (a filled pad) · bracket [ save ] · angle ⟨ save ⟩ · bare (no ground until hovered)",
+          "enum": [
+            "pad",
+            "bracket",
+            "angle",
+            "bare"
+          ],
+          "default": "pad"
+        },
+        "left": {
+          "description": "the cell before the label",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": " "
+        },
+        "right": {
+          "description": "the cell after the label",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": " "
+        },
+        "fill": {
+          "description": "the highlight ground behind an idle button",
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "checkbox": {
+      "type": "object",
+      "description": "a box you tick",
+      "additionalProperties": false,
+      "properties": {
+        "style": {
+          "description": "brackets [■] · ballot ☑ · dots ●",
+          "enum": [
+            "brackets",
+            "ballot",
+            "dots"
+          ],
+          "default": "brackets"
+        },
+        "left": {
+          "description": "the cell before the tick",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "["
+        },
+        "right": {
+          "description": "the cell after the tick",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "]"
+        },
+        "on": {
+          "description": "ticked",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "■"
+        },
+        "off": {
+          "description": "not ticked",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": " "
+        },
+        "some": {
+          "description": "partly ticked (some of a group)",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "▪"
+        }
+      }
+    },
+    "choice": {
+      "type": "object",
+      "description": "one value among several, with an arrow each side",
+      "additionalProperties": false,
+      "properties": {
+        "style": {
+          "description": "angle ‹ › · triangle ◂ ▸ · ascii < >",
+          "enum": [
+            "angle",
+            "triangle",
+            "ascii"
+          ],
+          "default": "angle"
+        },
+        "left": {
+          "description": "the back arrow",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "‹"
+        },
+        "right": {
+          "description": "the forward arrow",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "›"
+        }
+      }
+    },
+    "slider": {
+      "type": "object",
+      "description": "a value along a track",
+      "additionalProperties": false,
+      "properties": {
+        "style": {
+          "description": "line ━■─ · blocks ▓█░ · dots •●·",
+          "enum": [
+            "line",
+            "blocks",
+            "dots"
+          ],
+          "default": "line"
+        },
+        "track": {
+          "description": "the part after the value",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "─"
+        },
+        "fill": {
+          "description": "the part up to the value",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "━"
+        },
+        "knob": {
+          "description": "the handle",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "■"
+        }
+      }
+    },
+    "list": {
+      "type": "object",
+      "description": "the selected row of a list",
+      "additionalProperties": false,
+      "properties": {
+        "style": {
+          "description": "fill (the row lit) · bar ▌ · caret ›",
+          "enum": [
+            "fill",
+            "bar",
+            "caret"
+          ],
+          "default": "fill"
+        },
+        "marker": {
+          "description": "a mark on the selected row's first cell (\"\": none)",
+          "type": "string",
+          "maxLength": 2,
+          "default": ""
+        },
+        "glide": {
+          "description": "the selection fades from row to row",
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "caret": {
+      "type": "object",
+      "description": "the text cursor (desktop deck)",
+      "additionalProperties": false,
+      "properties": {
+        "shape": {
+          "description": "bar · block · underline · hollow",
+          "enum": [
+            "bar",
+            "block",
+            "underline",
+            "hollow"
+          ],
+          "default": "bar"
+        },
+        "blink": {
+          "description": "it breathes a few times after a key, then stays solid",
+          "type": "boolean",
+          "default": true
+        },
+        "width": {
+          "description": "the bar's or the line's thickness, in pixels",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4,
+          "default": 2
+        }
+      }
+    },
+    "tree": {
+      "type": "object",
+      "description": "the vault's tree guides and folder marks",
+      "additionalProperties": false,
+      "properties": {
+        "style": {
+          "description": "lines ├─ · round ╰─ · ascii (plain signs)",
+          "enum": [
+            "lines",
+            "round",
+            "ascii"
+          ],
+          "default": "lines"
+        },
+        "pipe": {
+          "description": "an open branch above",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "│"
+        },
+        "branch": {
+          "description": "an item with more after it",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "├"
+        },
+        "last": {
+          "description": "the last item of its folder",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "└"
+        },
+        "dash": {
+          "description": "the stroke to the item",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "─"
+        },
+        "open": {
+          "description": "an open folder",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "▾"
+        },
+        "closed": {
+          "description": "a closed folder",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "▸"
+        }
+      }
+    },
+    "icons": {
+      "type": "object",
+      "description": "the glyph of each icon (file types…), by its id",
+      "additionalProperties": false,
+      "properties": {
+        "style": {
+          "description": "deck (the deck's own) · ascii (plain letters and signs)",
+          "enum": [
+            "deck",
+            "ascii"
+          ],
+          "default": "deck"
+        },
+        "file_folder": {
+          "description": "icon file.folder",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "▸"
+        },
+        "file_note": {
+          "description": "icon file.note",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "≡"
+        },
+        "file_python": {
+          "description": "icon file.python",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "∿"
+        },
+        "file_js": {
+          "description": "icon file.js",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "ʝ"
+        },
+        "file_script": {
+          "description": "icon file.script",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "❯"
+        },
+        "file_code": {
+          "description": "icon file.code",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "λ"
+        },
+        "file_config": {
+          "description": "icon file.config",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "⚙"
+        },
+        "file_table": {
+          "description": "icon file.table",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "▥"
+        },
+        "file_web": {
+          "description": "icon file.web",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "◇"
+        },
+        "file_text": {
+          "description": "icon file.text",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "≡"
+        },
+        "file_image": {
+          "description": "icon file.image",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "▣"
+        },
+        "file_pdf": {
+          "description": "icon file.pdf",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "▤"
+        },
+        "file_audio": {
+          "description": "icon file.audio",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "♪"
+        },
+        "file_video": {
+          "description": "icon file.video",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "▶"
+        },
+        "file_archive": {
+          "description": "icon file.archive",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "▦"
+        },
+        "file_canvas": {
+          "description": "icon file.canvas",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "◫"
+        },
+        "file_other": {
+          "description": "icon file.other",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "◦"
+        }
+      }
+    },
+    "statusbar": {
+      "type": "object",
+      "description": "the status bar at the bottom",
+      "additionalProperties": false,
+      "properties": {
+        "style": {
+          "description": "line │ · dots · · blank",
+          "enum": [
+            "line",
+            "dots",
+            "blank"
+          ],
+          "default": "line"
+        },
+        "sep": {
+          "description": "between two items (and on the top row, before the clock)",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "│"
+        },
+        "drop": {
+          "description": "where a dragged item would land",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "┃"
+        }
+      }
+    },
+    "tip": {
+      "type": "object",
+      "description": "the tip shown when the pointer rests on something",
+      "additionalProperties": false,
+      "properties": {
+        "style": {
+          "description": "deck (a thicker accent edge) · plain · round",
+          "enum": [
+            "deck",
+            "plain",
+            "round"
+          ],
+          "default": "deck"
+        },
+        "cmd": {
+          "description": "before the command a tip shows",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2,
+          "default": "❯"
+        },
+        "edge": {
+          "description": "the left edge's thickness, in pixels",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6,
+          "default": 3
+        },
+        "border": {
+          "description": "the other edges' thickness, in pixels",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3,
+          "default": 1
+        },
+        "radius": {
+          "description": "corners, in pixels",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 12,
+          "default": 2
+        },
+        "dashed": {
+          "description": "a dashed line between the text and the command (else solid)",
+          "type": "boolean",
+          "default": true
         }
       }
     }

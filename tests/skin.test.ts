@@ -86,6 +86,11 @@ describe("skin registry: every field, from its declaration", () => {
           expect(f.read("off", ctx)).toEqual({ value: false });
           expect(f.read(true, ctx)).toEqual({ value: true });
           expect(f.read("maybe", ctx)).toHaveProperty("error");
+        } else if (f.kind === "glyph") {
+          expect(f.read(f.default, ctx)).toEqual({ value: f.default });
+          expect(f.read("x".repeat(f.width + 1), ctx), "never wider").toHaveProperty("error");
+          expect(f.clamp("x".repeat(f.width + 1))).toBe(f.default);
+          expect(f.read("", ctx)).toEqual(f.blank ? { value: "" } : expect.objectContaining({ error: expect.any(String) }));
         } else {
           for (const o of f.options) expect(f.read(o, ctx)).toEqual({ value: o });
           expect(f.read("???", ctx)).toHaveProperty("error");

@@ -1,4 +1,6 @@
 import { GlyphAtlas } from "./atlas";
+import { CARET, type CaretLook } from "./skin/parts";
+import { defaults } from "./skin/registry";
 import { css, NONE } from "./color";
 import { BOLD, Grid, ITALIC, NOFADE, PIXELS, STRIKE, UNDERLINE } from "./grid";
 import { fontStack } from "./fonts";
@@ -17,6 +19,9 @@ export const FONT_STACK = fontStack("JetBrains Mono");
  * repaints the cells that changed since the last frame. A typical frame
  * touches a handful of cells, which is what keeps us at 60fps on weak laptops.
  */
+/** the deck's own caret: a thin breathing bar */
+const CARET_DEFAULT: CaretLook = defaults(CARET);
+
 export class Renderer {
   cellW = 0;
   cellH = 0;
@@ -146,7 +151,7 @@ export class Renderer {
   /** how many times the caret breathes after the last key or move before it stays solid */
   static readonly CARET_BREATHS = 5;
 
-  setCaret(pos: { x: number; y: number } | null, color: string, typedAt: number, still: boolean): void {
+  setCaret(pos: { x: number; y: number } | null, color: string, typedAt: number, still: boolean, shape: CaretLook = CARET_DEFAULT): void {
     const el = this.caretEl, tr = this.trailEl;
     if (!pos || !this.cellW) {
       if (el.style.display !== "none") el.style.display = tr.style.display = "none";
@@ -159,13 +164,23 @@ export class Renderer {
     el.classList.toggle("still", still || !shown);
     tr.classList.toggle("still", still || !shown);
     if (!shown) el.style.display = tr.style.display = "block";
-    const h = `${Math.round(ch * 0.86)}px`;
+    // its shape: the theme's [caret] (core/skin/parts.ts) — a bar (the deck's), a block, a line under the letter, a hollow box
+    const px = shape.width;
+    const block = shape.shape === "block" || shape.shape === "hollow";
+    const line = shape.shape === "underline";
+    const h = `${line ? px : Math.round(ch * 0.86)}px`;
     for (const e of [el, tr]) {
-      e.style.background = color;
+      e.style.background = shape.shape === "hollow" ? "transparent" : color;
       e.style.height = h;
+      e.style.width = `${block || line ? Math.round(cw) : px}px`;
+      e.style.border = shape.shape === "hollow" ? `${px}px solid ${color}` : "";
+      e.style.boxSizing = "border-box";
     }
+    // a block sits over its letter: see-through, so the letter still reads
+    el.style.opacity = shape.shape === "block" ? ".55" : "";
     el.style.color = color;
-    el.style.boxShadow = `0 0 6px ${color}`;
+    el.style.boxShadow = shape.shape === "bar" ? `0 0 6px ${color}` : "";
+
     const moved = pos.x !== this.caretAt.x || pos.y !== this.caretAt.y;
     if (moved) {
       // the farther it goes, the longer (and softer) the glide; a jump (end of line,
@@ -176,7 +191,7 @@ export class Renderer {
       const ease = "cubic-bezier(.22,1,.36,1)";
       el.style.transition = `transform ${ms}ms ${ease} ${wait}ms, height 80ms`;
       tr.style.transition = `transform ${Math.round(ms * 1.9)}ms ${ease} ${wait + 25}ms, height 80ms`;
-      const at = this.toScreen(this.left + pos.x * cw, this.top + pos.y * ch + ch * 0.07);
+      const at = this.toScreen(this.left + pos.x * cw, this.top + pos.y * ch + (line ? ch * 0.93 - px : ch * 0.07));
       const to = `translate(${Math.round(at.left)}px, ${Math.round(at.top)}px)`;
       el.style.transform = to;
       tr.style.transform = to;
@@ -191,6 +206,8 @@ export class Renderer {
       el.style.animation = "";
       if (typedAt !== this.caretAt.typed) el.classList.add("key");
     }
+    // no breathing ([caret] blink = false): solid, always
+    if (!shape.blink) el.style.animation = "none";
     this.caretAt = { x: pos.x, y: pos.y, typed: typedAt };
   }
 

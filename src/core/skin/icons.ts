@@ -1,7 +1,7 @@
 /**
  * ICON IDS (themes v2, milestone 1): the deck asks for an icon by a stable id —
- * `icon("file.python")` — never writes the glyph itself, so a theme can swap any of them later
- * (the `icons` component, milestone 3; the same idea as VS Code's product icon ids). The glyphs
+ * `icon("file.python")` — never writes the glyph itself, so a theme can swap any of them
+ * (the `icons` component, milestone 3: the same idea as VS Code's product icon ids). The glyphs
  * here are the deck's own, unchanged. Add an id here before drawing a new icon.
  */
 export const ICONS = {
@@ -26,7 +26,13 @@ export const ICONS = {
 
 export type IconId = keyof typeof ICONS;
 
-/** the glyph for an icon id (today the deck's; a theme's once the icons component lands) */
+/** the active theme's glyphs ([icons], core/skin/parts.ts), set by the deck when the theme changes */
+let current: Partial<Record<IconId, string>> = {};
+export function setIconGlyphs(glyphs: Partial<Record<IconId, string>>): void {
+  current = glyphs;
+}
+
+/** the glyph for an icon id: the theme's ([icons]), else the deck's */
 export function icon(id: IconId): string {
-  return ICONS[id];
+  return current[id] ?? ICONS[id];
 }
