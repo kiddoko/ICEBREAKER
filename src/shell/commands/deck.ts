@@ -901,7 +901,7 @@ const plugin: Command = {
   name: "plugin",
   aliases: ["plugins"],
   summary: "list, enable, disable, scaffold plugins",
-  usage: "plugin [ls]\nplugin enable <id>   (what it needs and is off comes on first)\nplugin disable <id>  (what needs it goes off too, after asking)\nplugin perms [id]    (what each module may do, and when it last did)\nplugin revoke <id> <permission>   (take one away: it keeps running)\nplugin grant <id> <permission>    (give it back)\nplugin reload\nplugin new <id>     (scaffold a plugin in .icebreaker/plugins/<id>)\nplugin install <user/repo | id>   (download from GitHub / the community index)\nplugin update <id>  (re-download an installed plugin — store update shows what's new)\nplugin search [words]  (= store search)\nplugin audit <id>   (what its code does that a module shouldn't need)\nplugin open-with [ext] [module | -]   (which module opens .mod files when two can; - asks again)\n  --window          (enable, disable) ask in dialogs instead of the shell",
+  usage: "plugin [ls]\nplugin enable <id>   (what it needs and is off comes on first)\nplugin disable <id>  (what needs it goes off too, after asking)\nplugin info <id>     (what it is, its state and why, what it asks for and may use)\nplugin perms [id]    (what each module may do, and when it last did)\nplugin revoke <id> <permission>   (take one away: it keeps running)\nplugin grant <id> <permission>    (give it back)\nplugin reload\nplugin new <id>     (scaffold a plugin in .icebreaker/plugins/<id>)\nplugin install <user/repo | id>   (download from GitHub / the community index)\nplugin update <id>  (re-download an installed plugin — store update shows what's new)\nplugin search [words]  (= store search)\nplugin audit <id>   (what its code does that a module shouldn't need)\nplugin open-with [ext] [module | -]   (which module opens .mod files when two can; - asks again)\n  --window          (enable, disable) ask in dialogs instead of the shell",
   man: "Plugins live in <vault>/.icebreaker/plugins/<id>/ with a plugin.json and a main.js.\nVault plugins are disabled until you enable them; you'll see the permissions they ask for first.\nSee docs/PLUGINS.md.",
   async run(ctx) {
     const host = ctx.deck.plugins;
@@ -929,6 +929,8 @@ const plugin: Command = {
       for (const p of list) {
         const perms = host.permissionsOf(p.manifest.id);
         ctx.out(`${fmt.bold(p.manifest.name)} ${fmt.dim(`(${p.manifest.id}) · ${p.source === "builtin" ? "ships with the deck" : "from the STORE or the vault"}${p.active ? "" : " · off"}`)}\n`);
+        // off, and why (an update that asks for more…): with what to type
+        if (!p.active && p.error) ctx.out(fmt.red(`  ${p.error}\n`));
         if (!perms.length) ctx.out(fmt.dim("  asks for nothing\n"));
         for (const x of perms) {
           const d = describePerm(x.perm);
@@ -988,7 +990,7 @@ const plugin: Command = {
           // what it needed and was off came on with it (plugins/deps.ts)
           const along = host.active().map((p) => p.manifest.id).filter((x) => x !== id && !before.has(x));
           const wasOn = before.has(id);
-          ctx.out(ok ? `${id}: enabled${along.length ? fmt.dim(` · with what it needs: ${along.join(", ")}`) : ""}\n` : wasOn ? `${id}: already on${fmt.dim(" — its files changed? plugin reload (it's approved again from its plugin.json)")}\n` : `${id}: unchanged\n`);
+          ctx.out(ok ? `${id}: enabled${along.length ? fmt.dim(` · with what it needs: ${along.join(", ")}`) : ""}\n` : wasOn ? `${id}: already on${fmt.dim(" — its files changed? plugin reload (within what you approved; asking for more brings it back here)")}\n` : `${id}: unchanged\n`);
           return ok || host.active().some((p) => p.manifest.id === id) ? 0 : 1;
         }
         // others need it: they go off with it — after asking
@@ -1003,11 +1005,30 @@ const plugin: Command = {
         return 1;
       }
     }
+    if (sub === "info") {
+      const p = host.list().find((x) => x.manifest.id === id);
+      if (!id || !p) return ctx.err(id ? `plugin info: no module "${id}" (plugin ls)\n` : "usage: plugin info <id>\n"), 1;
+      const m = p.manifest;
+      const granted = ctx.deck.settings.data.plugins.granted?.[m.id];
+      const state = p.active ? fmt.green("on") : p.error ? fmt.red("off") : fmt.gray("off");
+      ctx.out(`${fmt.bold(m.name)} ${fmt.dim(`(${m.id}) · v${m.version}${m.author ? ` · by ${m.author}` : ""} · ${p.source === "builtin" ? "ships with the deck" : `.icebreaker/plugins/${m.id}/`}`)}\n`);
+      if (m.description) ctx.out(`${m.description}\n`);
+      ctx.out(`${fmt.bold("state")}      ${state}${p.error ? ` — ${p.error}` : ""}\n`);
+      ctx.out(`${fmt.bold("asks for")}   ${sayPerms(host.asks(m)) || "nothing"}\n`);
+      if (p.source === "vault") ctx.out(`${fmt.bold("approved")}   ${Array.isArray(granted) ? sayPerms(granted) || "nothing" : fmt.dim("not yet")}\n`);
+      if (p.active) ctx.out(`${fmt.bold("may use")}    ${sayPerms(host.effective(m.id)) || "nothing"}\n`);
+      ctx.out(fmt.dim(`plugin perms ${m.id} · plugin audit ${m.id}${p.active ? "" : ` · plugin enable ${m.id}`}\n`));
+      return 0;
+    }
     if (sub === "reload") {
       // you ask for it yourself (modules can't run this): the code as it is now is the code you approve
+      // what changed within what you approved runs (approved again from its plugin.json); what asks
+      // for MORE stays off until you read it: said here, with the command (Windows bench 24/11)
       await host.reload(true);
       ctx.out(`${host.active().length} plugins active\n`);
-      return;
+      const off = host.offReasons();
+      for (const x of off) ctx.err(`${fmt.red("off")} ${x.id}: ${x.error}\n`);
+      return off.length ? 1 : 0;
     }
     if (sub === "new") {
       if (!id) {

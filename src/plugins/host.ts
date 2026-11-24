@@ -114,6 +114,16 @@ export class PluginHost {
       }
       await this.activate(p);
     }
+    // what you switched on and stays off: said in the LOG, with what to type (it was only in its page)
+    for (const x of this.offReasons()) this.deck.log?.add("error", `[${x.id}] ${t("stays off: {x}", { x: x.error })}`);
+  }
+
+  /** The modules you switched on that are off now, and why (plugin reload says them, `plugin info` too). */
+  offReasons(): { id: string; error: string }[] {
+    const { enabled, disabled } = this.deck.settings.data.plugins;
+    return this.plugins
+      .filter((p) => !p.active && p.error && (p.source === "vault" ? enabled.includes(p.manifest.id) : !disabled.includes(p.manifest.id)))
+      .map((p) => ({ id: p.manifest.id, error: p.error! }));
   }
 
   /**
@@ -999,7 +1009,17 @@ export class PluginHost {
         // changing notes is high-risk: the first time it really writes, you're asked
         write: async (raw, c) => { const p = inVault(raw); need("vault:write", p); notDeck(p); await gate("vault:write", p); note("vault:write", p); return deck.vault.write(p, c); },
         append: async (raw, text) => { const p = inVault(raw); need("vault:write", p); notDeck(p); await gate("vault:write", p); note("vault:write", p); return deck.vault.append(p, text); },
-        mkdir: async (raw) => { const p = inVault(raw); need("vault:write", p); notDeck(p); await gate("vault:write", p, undefined, !(await deck.vault.exists(p))); note("vault:write", p); return deck.vault.mkdir(p); }, // (a NEW folder: "this time" covers what it writes in it)
+        // a folder already there: nothing is written, nothing is asked (an export's « songs » parent
+        // asked on its own, Windows bench 24/11); a NEW one: « make it and write in it », one question
+        mkdir: async (raw) => {
+          const p = inVault(raw);
+          need("vault:write", p);
+          notDeck(p);
+          if (await deck.vault.exists(p)) return;
+          await gate("vault:write", p, undefined, true);
+          note("vault:write", p);
+          return deck.vault.mkdir(p);
+        },
         readBytes: async (raw) => { const p = inVault(raw); need("vault:read", p); if (thirdParty) notDeck(p); note("vault:read", p); return deck.vault.readBytes(p); },
         // never the deck's own folders' contents (other modules' code, the trash's log…) for a STORE / vault module
         list: async (raw) => {

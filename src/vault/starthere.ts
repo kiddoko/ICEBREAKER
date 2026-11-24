@@ -683,7 +683,7 @@ todo add "pack the books" --every sat --cycles 3
   they're really used** (no · this time — that file only — · always), and every
   command for your real terminal is shown first, whole. **Settings → PERMISSIONS** lists every module with each
   permission, its level and its last use: enter takes one away or gives it back,
-  the module keeps running. In the shell: \`plugin perms\`, \`plugin revoke todo
+  the module keeps running. In the shell: \`plugin info <module>\` (its state and why), \`plugin perms\`, \`plugin revoke todo
   vault:write\`, \`plugin grant todo vault:write\`. An update that asks for more
   waits for your yes: say no and you keep the version you have.
 - **The access journal**: who used which permission, when, on what — a module, the
