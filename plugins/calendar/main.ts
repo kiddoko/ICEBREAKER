@@ -18,6 +18,7 @@
  */
 import type { App } from "../../src/apps/types";
 import { parseEventsFile } from "./importer";
+import { eventLine, notYetIn, parseEventLine } from "./lines";
 import { monthShape, weekShape, WEEK_W } from "./sizes";
 import type { Rect } from "../../src/core/grid";
 import type { Action, KeyInput } from "../../src/core/input";
@@ -124,19 +125,10 @@ export function activate(ib: IcebreakerAPI): void {
   //   - 2026-11-24..2026-11-26 Trip ^l13          (all day, end included)
   const DIR = "calendar";
   const FILE = /^calendar\/(\d{4})-(\d{2})\.md$/;
-  const LINE = /^\s*[-*]\s+(\d{4}-\d{2}-\d{2})(?:\.\.(\d{4}-\d{2}-\d{2}))?\s+(?:(\d{1,2}[:h]\d{2}|\d{1,2}h)(?:-(\d{1,2}[:h]\d{2}|\d{1,2}h))?\s+)?(.*?)(?:\s+\^(l\d+))?\s*$/;
   /** the lines of each month file that aren't events (title, your notes): kept as they are */
   const extra = new Map<string, string[]>();
   let localAt = 0;
-  const toLine = (e: Ev) => {
-    const s = dayOf(e.start);
-    let when: string;
-    if (e.allDay) {
-      const last = addDays(dayOf(e.end), -1);
-      when = ymd(last) > ymd(s) ? `${ymd(s)}..${ymd(last)}` : ymd(s);
-    } else when = `${ymd(s)} ${hm(s)}-${hm(dayOf(e.end))}`;
-    return `- ${when} ${e.title}${e.where ? ` @ ${e.where}` : ""} ^${e.id}`;
-  };
+  const toLine = (e: Ev) => eventLine(e);
   async function loadLocal(): Promise<void> {
     localAt = Date.now();
     const out: Ev[] = [];
@@ -146,29 +138,12 @@ export function activate(ib: IcebreakerAPI): void {
       const text = await ib.vault.read(path).catch(() => "");
       const keep: string[] = [];
       for (const raw of text.split("\n")) {
-        const m = LINE.exec(raw);
-        if (!m) {
+        const e: Ev | null = parseEventLine(raw);
+        if (!e) {
           keep.push(raw);
           continue;
         }
-        const [, d1, d2, t1, t2, rest, id] = m;
-        const at = rest.lastIndexOf(" @ ");
-        const title = (at >= 0 ? rest.slice(0, at) : rest).trim() || "(no title)";
-        const where = at >= 0 ? rest.slice(at + 3).trim() : undefined;
-        const day = dayOf(d1);
-        let e: Ev;
-        if (t1) {
-          const [h1, m1 = 0] = t1.split(/[:h]/).map((x) => Number(x || 0));
-          const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h1, m1);
-          let end = new Date(start.getTime() + 3600_000);
-          if (t2) {
-            const [h2, m2 = 0] = t2.split(/[:h]/).map((x) => Number(x || 0));
-            end = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h2, m2);
-            if (end <= start) end = addDays(end, 1);
-          }
-          e = { id: id ?? "", cal: "local", title, start: start.toISOString(), end: end.toISOString(), allDay: false, where };
-        } else e = { id: id ?? "", cal: "local", title, start: d1, end: ymd(addDays(dayOf(d2 ?? d1), 1)), allDay: true, where };
-        if (!id) missing.push(e);
+        if (!e.id) missing.push(e);
         out.push(e);
       }
       while (keep.length && !keep[keep.length - 1].trim()) keep.pop();
@@ -209,8 +184,10 @@ export function activate(ib: IcebreakerAPI): void {
     // events from older versions (plugin-data) move into the vault files
     const old = await ib.storage.get<Ev[]>("local", []);
     if (old.length) {
-      for (const e of old) local.push({ ...e, id: `l${nextLocal++}` });
-      await writeMonths(old);
+      // (`cal google disconnect` used to put the local events back here: they came back twice)
+      const fresh = notYetIn(old, local);
+      for (const e of fresh) local.push({ ...e, id: `l${nextLocal++}` });
+      if (fresh.length) await writeMonths(fresh);
       await ib.storage.set("local", []);
     }
     // calendar names, ids (your e-mail), events: Google data, kept out of the vault
@@ -780,7 +757,8 @@ export function activate(ib: IcebreakerAPI): void {
         hidden = hidden.filter((h) => !h.startsWith("g:"));
         if (defaultCal.startsWith("g:")) defaultCal = "local";
         defaultChosen = false;
-        await ib.storage.set("local", local); // (the Google cache file was deleted)
+        // (the local events live in the vault's month files: nothing to keep here — they used
+        // to be written to plugin-data too, and came back twice at the next start)
         ctx.out("disconnected (cached Google events removed)\n");
         return 0;
       }
