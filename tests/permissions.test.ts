@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { describePerm, Grants, levelOf, migrateGranted, missing, parsePerm, readPerms, sortPerms } from "../src/plugins/permissions";
 import { allows, guardedVault, trusted, type Origin } from "../src/shell/origin";
 import { DEFAULT_SETTINGS, migratePermissions, type Settings } from "../src/core/settings";
@@ -206,6 +206,31 @@ describe("the access journal (core/access.ts)", () => {
     log.note("m", "net", `api.example.com\n\u0007${"x".repeat(500)}`);
     expect(log.list[0].what.length).toBe(160);
     expect(log.list[0].what).not.toMatch(/[\u0000-\u001f]/);
+  });
+  it("an encrypted vault: access.json never gets a note's name (it's outside the vault)", async () => {
+    const files: Record<string, string> = {};
+    const platform = { config: { read: async (n: string) => files[n] ?? null, write: async (n: string, c: string) => void (files[n] = c) } } as never;
+    vi.useFakeTimers();
+    try {
+      const log = new AccessLog(platform, async () => true);
+      await log.load();
+      log.note("med", "vault:write", "secret/plans.md");
+      log.note("ai", "vault:read", "diary/2026-11-24.md");
+      log.note("med", "net", "api.example.com");
+      await vi.advanceTimersByTimeAsync(2500);
+      expect(files["access.json"]).toBeDefined();
+      expect(files["access.json"]).not.toContain("plans.md");
+      expect(files["access.json"]).not.toContain("diary");
+      // who and when stay; a host isn't a note
+      expect(files["access.json"]).toContain("vault:write");
+      expect(files["access.json"]).toContain("api.example.com");
+      // the names stay in memory for the LOG and Settings
+      expect(log.list.map((a) => a.what)).toContain("secret/plans.md");
+      // a plain vault keeps them
+      expect(JSON.stringify(AccessLog.forDisk(log.list, false))).toContain("plans.md");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

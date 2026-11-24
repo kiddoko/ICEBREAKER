@@ -17,6 +17,7 @@ const APP_VERSION: string = pkg.version;
 import { ShellExecutor } from "./exec";
 import { commandWords, quoteWord, subCompletions, wordAtCursor } from "./complete";
 import { TerminalBuffer } from "./terminal";
+import { looksSecret } from "../core/redact";
 import type { ReadOptions } from "./types";
 
 interface Reading {
@@ -49,11 +50,12 @@ const HISTORY_FILE = ".icebreaker/shell_history";
 /**
  * What the shell history (.icebreaker/shell_history, in the vault) keeps: not a line
  * that starts with a space (like bash's ignorespace: type " cmd" to leave no trace),
- * nor one that holds what looks like a secret (an API key, a token, a password=).
+ * nor one that holds what looks like a secret (an API key, a token, a password=, recovery words).
  */
 export function keepInHistory(line: string): boolean {
   if (!line.trim() || line.startsWith(" ")) return false;
-  return !/\b(sk-[a-z0-9_-]{8,}|ghp_[a-z0-9]{8,}|gh[ousr]_[a-z0-9]{8,}|xox[abp]-[a-z0-9-]{8,}|AKIA[0-9A-Z]{12,}|eyJ[a-z0-9_-]{10,}\.[a-z0-9_-]{10,})|\b(password|passwd|token|secret|api[_-]?key)\s*[=:]\s*\S/i.test(line);
+  // a key, a password or recovery words typed on the line (core/redact.ts)
+  return !looksSecret(line);
 }
 export class ShellApp implements App {
   readonly kind = "shell";
@@ -127,7 +129,8 @@ export class ShellApp implements App {
       const done = (v: string | null) => {
         if (this.reading !== r) return;
         this.reading = null;
-        const shown = v === null ? "^C" : opts.mask ? "•".repeat(Math.min(12, v.length)) : v || "—";
+        // a password shows as the same bullets whatever its length (the scrollback keeps it)
+        const shown = v === null ? "^C" : opts.mask ? "••••••••" : v || "—";
         this.term.write(`\x1b[2m${label} ❯\x1b[0m ${shown}\n`);
         this.input = "";
         this.cursor = 0;

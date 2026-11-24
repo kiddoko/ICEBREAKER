@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.8.1 — not released yet (branch module-host, then layout-polish)
+## 0.8.1 — not released yet
 
 **Nothing cut, nothing on top of something else** (`debug layout pages`: none left, in English and
 French, with the tree and the shell open or closed)
@@ -24,6 +24,23 @@ French, with the tree and the shell open or closed)
   the status bar leaves out its last hints.
 - **The shell maximized keeps the keyboard**: a page a command opens there (`med new`, `todo open`)
   comes in as a tab behind it, with a message — it took the screen and the keys while you typed.
+
+**After a friend's review (22/11): temp files, logs, secrets in memory**
+- **The plain backup `vault encrypt` makes first** is said in yellow at the end — still on the disk,
+  your notes unencrypted, maybe copied by Time Machine, iCloud / Dropbox / OneDrive or the Trash — and
+  the deck **offers to delete it now** (overwritten with zeros, then removed). Later: `vault status`
+  reminds you, `vault backups` lists them, `vault wipe-backup [zip]` deletes them.
+- **No secret in the logs**: the LOG tab, the error log, the console and the shell's history mask API
+  keys, tokens, `password=…` and recovery words (12 or more bare words in a row) — even typed by
+  mistake on the command line (`src/core/redact.ts`, `tests/redact.test.ts`).
+- **An encrypted vault's note names stay out of `access.json`** (the access journal, outside the vault):
+  it keeps who and when only. The names still show in the LOG and Settings until you quit.
+- **The system voices read a note through a pipe** (macOS, Linux): no text file any more; the voice's
+  and the encoders' work files are wiped on every way out, and leftovers of a crash at the next use.
+- **Passwords**: a masked field keeps no undo history and never copies to the clipboard; a dialog
+  forgets the password as soon as it answers; the shell shows the same bullets whatever its length;
+  a login's password waiting for its vault is wiped after two minutes even if nothing asks for it.
+- **`factory-reset` and `dev_restart` are not in a release build at all** (not compiled, not registered).
 
 **What modules asked the deck for** (BreakerMED first)
 - **A module opens its kinds of files**: `"opens": ["bmed", "mod", "med"]` in its plugin.json, and a
