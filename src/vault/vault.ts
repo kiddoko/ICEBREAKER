@@ -1,8 +1,6 @@
 import type { UndoHistory } from "../core/undo";
-import { writeStartHere } from "./starthere";
+import { writeStartHere, writeWelcome } from "./starthere";
 import { Emitter } from "../core/events";
-import { WELCOME_NOTE, WELCOME_NOTE_FR } from "../platform/demo-vault";
-import { lang } from "../core/i18n";
 import type { VaultBackend, VaultEntry } from "../platform/types";
 import { basename, dirname, isoDate, join, newNameProblem, normalize } from "./paths";
 
@@ -28,11 +26,12 @@ export class Vault {
     await this.rescan();
     if (this.entries.length === 0) {
       // Brand-new vault: leave a note explaining where you are — in the account's language
-      if (lang() === "fr") await this.write("Bienvenue.md", WELCOME_NOTE_FR);
-      else await this.write("Welcome.md", WELCOME_NOTE);
+      // (it follows a language switch while you haven't changed it: vault/starthere.ts)
+      await writeWelcome(this);
     }
-    // the docs, as notes (START HERE/, FOR DEVELOPERS/): written into a new vault, and
-    // brought up to date in an old one at every start — the notes you edited stay yours
+    // the docs, as notes (START HERE/; FOR DEVELOPERS/ where `starthere dev` wrote it): written
+    // into a new vault, and brought up to date in an old one at every start — the notes you
+    // edited stay yours
     if ((await writeStartHere(this).catch(() => 0)) > 0) await this.rescan();
   }
 

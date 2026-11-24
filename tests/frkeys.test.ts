@@ -34,6 +34,11 @@ describe("every t() key has its French (bench 0.8: an English key edited without
     expect(texts.length).toBeGreaterThan(5);
     expect(texts.filter((k) => FR[k] === undefined)).toEqual([]);
   });
+  it("every command's summary (help, -h), in src and in the bundled modules (bench 0.8.0)", () => {
+    const sums = [...files("src"), ...files("plugins")].flatMap((f) => [...readFileSync(f, "utf8").matchAll(/\bsummary: "((?:[^"\\]|\\.)+)"/g)].map((m) => JSON.parse(`"${m[1]}"`) as string));
+    expect(sums.length).toBeGreaterThan(100);
+    expect(sums.filter((k) => FR[k] === undefined)).toEqual([]);
+  });
   it("every plain t() key in src", () => {
     const missing = new Set(files("src").filter((f) => !f.includes("/i18n")).flatMap((f) => keysOf(readFileSync(f, "utf8"))).filter((k) => FR[k] === undefined));
     expect([...missing]).toEqual([]);

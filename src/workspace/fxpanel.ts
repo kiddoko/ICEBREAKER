@@ -7,6 +7,7 @@ import type { Overlay } from "./overlays";
 import { askNumber, heldStep, slider } from "../ui/slider";
 import { fxMax, getFx, setFx, type FxLevel } from "../core/fxlevels";
 import { truncate } from "../core/unicode";
+import { t } from "../core/i18n";
 import { GAP, INSET } from "../ui/layout";
 
 type FxKey = "ambient" | "glitch" | "bloom" | "scanlines" | "vignette" | "flicker";
@@ -58,7 +59,7 @@ export class FxPanel implements Overlay {
       { label: "background", hint: "the theme's animation", key: "ambient" },
       { label: "glitch", hint: "transitions", key: "glitch" },
       { label: "flicker", hint: "unstable tube", key: "flicker" },
-      ...FX_PRESET_NAMES.map((p) => ({ label: `▸ ${p}`, hint: FX_PRESETS[p].hint, preset: p })),
+      ...FX_PRESET_NAMES.map((p) => ({ label: `▸ ${p}`, hint: t(FX_PRESETS[p].hint), preset: p })),
     ];
     this.list.onActivate = (row) => this.activate(row);
   }

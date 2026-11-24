@@ -1,5 +1,5 @@
 import { isoDate } from "./paths";
-import { dateLocale } from "../core/i18n";
+import { dateLocale, lang } from "../core/i18n";
 import { dayLong, parseDay } from "../core/dates";
 import { parseFlags } from "../shell/parser";
 import type { Vault } from "./vault";
@@ -7,7 +7,8 @@ import type { Vault } from "./vault";
 /**
  * Journal conventions: one Markdown file per day in `<journal folder>/YYYY-MM-DD.md`
  * (Obsidian "Daily notes" compatible). New entries come from
- * `.icebreaker/templates/journal.md` if you create it, else the default below.
+ * `.icebreaker/templates/journal.md` if you create it, else the default below —
+ * in the deck's language (a French deck's entries have « ## fil du jour », « ## pensées »).
  *
  * Template placeholders: {{date}} {{title}} {{weekday}} {{time}}
  */
@@ -23,6 +24,26 @@ mood:
 ## thoughts
 `;
 
+const DEFAULT_TEMPLATE_FR = `---
+date: {{date}}
+tags: [journal]
+humeur:
+---
+# {{title}}
+
+## fil du jour
+
+## pensées
+`;
+
+/** the default template, in the deck's language */
+export function defaultTemplate(language: string = lang()): string {
+  return language === "fr" ? DEFAULT_TEMPLATE_FR : DEFAULT_TEMPLATE;
+}
+
+/** the heading lines go under (`journal "…"`): « ## log », or « ## fil du jour » in a French entry */
+export const LOG_HEADING = /^##\s+(log|fil du jour)\b/i;
+
 export function titleFor(date: Date, locale: string): string {
   const s = dayLong(date, locale || dateLocale(), true);
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -35,7 +56,7 @@ async function template(vault: Vault): Promise<string> {
   } catch {
     /* fall back to default */
   }
-  return DEFAULT_TEMPLATE;
+  return defaultTemplate();
 }
 
 /** Make sure the entry for `date` exists; returns its path. */
@@ -57,7 +78,7 @@ export async function entryText(vault: Vault, date: Date, locale: string): Promi
 }
 
 /**
- * Add "- HH:MM text" to the "## log" section of the day's entry
+ * Add "- HH:MM text" to the "## log" (« ## fil du jour ») section of the day's entry
  * (or at the end if there's no such section). Used by `journal add`.
  */
 export async function appendLog(vault: Vault, date: Date, text: string, locale: string): Promise<string> {
@@ -66,7 +87,7 @@ export async function appendLog(vault: Vault, date: Date, text: string, locale: 
   const time = new Date().toLocaleTimeString(locale || dateLocale(), { hour: "2-digit", minute: "2-digit" });
   const entry = `- ${time} ${text.trim()}`;
 
-  const logIdx = lines.findIndex((l) => /^##\s+log\b/i.test(l));
+  const logIdx = lines.findIndex((l) => LOG_HEADING.test(l));
   if (logIdx === -1) {
     lines.push(entry);
   } else {

@@ -35,7 +35,7 @@ Everything works with **keyboard only**, **mouse only**, a **gamepad**, or any m
 - \`Ctrl+Z\` / \`Ctrl+Shift+Z\` — undo / redo the last thing done (settings, widgets, trash, renames, new notes, tasks, reminders, habits, events; a module uninstalled, right after)
 - \`Tab\` — the next thing on the screen · \`F6\` / \`Shift+F6\` (or \`Shift+Tab\`) — the next / previous part of the screen (page → panel → shell → tree)
 - \`Ctrl+Shift+H / M / E / U\` — HOME · MODULES · NEXUS · UPLINK (the AI)
-- \`Ctrl+Shift+T / P\` — the tree (also \`Ctrl+B\`) · the side panel · **Ctrl+\`** — the shell · \`F10\` or a click on **◆ ICEBREAKER ▾** (top left): the deck's menu
+- \`Ctrl+Shift+T / P\` — the tree (also \`Ctrl+B\`) · the side panel · **Ctrl+\`** — the shell (the key left of 1: **Ctrl+²** on an AZERTY PC keyboard) · \`F10\` or a click on **◆ icebreaker ▾** (top left; **◆ ▾** in a window under about 1360 pixels, like the 1280 one the app first opens): the deck's menu
 - \`Ctrl+N\` new note · \`Ctrl+Shift+N\` new folder · \`Ctrl+J\` the journal (open at today) · \`Ctrl+,\` settings
 - \`Ctrl+Tab\` / \`Ctrl+Shift+Tab\` — next / previous tab · \`Ctrl+1…9\` — that tab, counted in the order you see them · \`Ctrl+W\` / \`Shift+Esc\` — close it (the one you're looking at, in whichever frame) · drag a tab onto another frame or another tab
 - \`Ctrl+S\` — save (notes also save themselves; a note emptied by mistake is only written by \`Ctrl+S\`, closing it or 30 s later, and its text goes to the trash first) · \`Ctrl+Shift+S\` — save as · \`Ctrl+Enter\` — follow the [[link]] under the cursor
@@ -93,7 +93,8 @@ ${cmds}
 - A module allowed to play sound (permission "audio": a tracker, a drum machine) shows **♪ its name** in the status bar while it plays: click it (or \`audio stop\`) to silence it. Its page's tab shows **♪** too: a click there mutes just that tab (**⊘**: it keeps playing, you don't hear it), again to hear it. Its volume: Settings → SOUND → mixer → Modules.
 - A page that **plays the keyboard** (a tracker, a piano, a game: the keys are its own) keeps every key while it's in front — letters, digits, space and all the **alt** combinations, alt + arrows too (on Windows and Linux the deck's pane keys): **esc** first closes what the page has open (its menu, its dialog), then gives the keys back to the deck (the tree or the shell takes them; the page alone in the window: the tab you were on before), a click on the page brings them back. ⌘ / ctrl shortcuts stay the deck's — but in a module's page ⌘C ⌘X ⌘V ⌘A are the page's own (copy, cut, paste, select all).
 - A module can **open a kind of file** (BreakerMED: .bmed .mod .med): double-click it in the tree, enter in NEXUS or \`open songs/tune.mod\` and it opens in that module's page. Outside the folders the module may read, you're asked first (that file only). Two modules for one kind: you choose once — \`plugin open-with\` shows and changes it.
-- \`.icebreaker/templates/journal.md\` — your journal template
+- \`.icebreaker/templates/journal.md\` — your journal template (without one, a new day's page is in the deck's language: « ## log / ## thoughts », « ## fil du jour / ## pensées » in French)
+- **START HERE/** — the guide, as notes, in the deck's language: switch the language and the notes you haven't changed follow (the Welcome note too), the ones you changed stay yours. \`starthere\` brings back the missing ones, \`starthere --force\` rewrites them all, \`starthere dev\` adds **FOR DEVELOPERS/** (themes, modules, sound packs — not in a new vault).
 - \`.trash/\` — where \`rm\` puts things (\`trash open\` to see it, restore). A note sent there closes its tabs and leaves the pins; ⌘Z brings it back. To delete for good: TRASH → **delete permanently** (or \`del\`), \`trash purge <n>\`, \`trash empty\` — it asks first and **can't be undone** (no ⌘Z): it's the only way the deck erases anything, and only you can (never a module, nor your real terminal).
 
 ## Look
@@ -107,7 +108,7 @@ ${cmds}
 - THEME STUDIO (\`launch studio\`): every knob of the theme, live. Enter on a colour opens the **palette** — 18 hues × 10 shades at the saturation you pick, greys, the theme's own colours; arrows / mouse choose, tab reaches the saturation and the #hex field (still typable), enter keeps it. ↺ on a changed knob (or \`r\`) puts the theme's value back.
 
 ## The screen
-- **Top row**: no menu bar — the frames' tabs, **◆ icebreaker ▾** (the deck's menu) in the left corner, **uplink ■ │ the date and time** in the right one (a click on the date: a **mini calendar**, \`clock calendar\`).
+- **Top row**: no menu bar — the frames' tabs, **◆ icebreaker ▾** (the deck's menu; **◆ ▾** in a narrow window) in the left corner, **uplink ■ │ the date and time** in the right one (a click on the date: a **mini calendar**, \`clock calendar\`).
 - **Tabs**: the deck's pages (home, nexus, sysmon, settings, a module's page) come first and short (× on hover), then your documents, wider (● when not saved).
 - **Frames**: the tree, the page, the side panel, the shell. **▣** in the status bar (\`frame solo\`): the page alone, the others folded away; again: they come back.
 - **Status bar** (bottom): arrange it — drag an item sideways, right-click it (move, hide, **join the one on its left** / on its own: groups like tabs), \`statusbar move | hide | show | join | alone | reset\`. ◧ ▾ ◨ ▣ (the tree, the shell, the panel, the page alone) are four items that each move.

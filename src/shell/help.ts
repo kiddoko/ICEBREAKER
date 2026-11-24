@@ -1,7 +1,7 @@
 import { fmt } from "../core/ansi";
 import { osKeys } from "../core/keyhints";
 import { padEnd } from "../core/unicode";
-import { t } from "../core/i18n";
+import { t, tLoose } from "../core/i18n";
 import type { Command } from "./types";
 
 /**
@@ -14,7 +14,7 @@ export function helpText(c: Command, tty: boolean): string {
   const h = (s: string) => (tty ? fmt.bold(fmt.magenta(s)) : s);
   const d = (s: string) => (tty ? fmt.dim(s) : s);
   const out: string[] = [];
-  out.push(`${tty ? fmt.bold(c.name) : c.name} — ${c.summary}${c.source && c.source !== "core" ? d(`   (module: ${c.source})`) : ""}`);
+  out.push(`${tty ? fmt.bold(c.name) : c.name} — ${tLoose(c.summary)}${c.source && c.source !== "core" ? d(`   (module: ${c.source})`) : ""}`);
   out.push("", h("USAGE"));
   for (const l of (c.usage ?? c.name).split("\n")) out.push(`  ${l}`);
   if (c.examples?.length) {
@@ -52,7 +52,8 @@ export function helpList(commands: Command[], args: string[], tty: boolean): str
   const h = (s: string) => (tty ? fmt.bold(fmt.magenta(s)) : s);
   const g = (s: string) => (tty ? fmt.green(s) : s);
   const d = (s: string) => (tty ? fmt.dim(s) : s);
-  const line = (c: Command) => `  ${g(padEnd(c.name, 12))} ${c.summary}`;
+  // the summaries in the deck's language (a module gives its French with addTranslations)
+  const line = (c: Command) => `  ${g(padEnd(c.name, 12))} ${tLoose(c.summary)}`;
   const out: string[] = [];
   const what = args[0]?.toLowerCase();
   if (!what) {
@@ -61,7 +62,6 @@ export function helpList(commands: Command[], args: string[], tty: boolean): str
       const c = shown.find((x) => x.name === n);
       if (c) out.push(line(c));
     }
-    // (help's output isn't translated on its way out — the summaries are English, like man pages — its own lines are)
     out.push("", d(t("help all       every command")), d(t("help <module>  a module's commands (help todo)")), d(t(osKeys("<command> -h   its help and examples · ⌘K / shift twice: THE MENU · F1 manual"))));
     return `${out.join("\n")}\n`;
   }

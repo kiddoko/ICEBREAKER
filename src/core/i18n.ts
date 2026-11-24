@@ -104,6 +104,16 @@ export function tLoose(text: string): string {
     .join("\n");
 }
 
+/**
+ * A key's name as a keycap shows it (a menu line's key, a hint): "space" is « espace » on a
+ * French deck, "enter" « entrée », "esc" « échap », "del" « suppr » — the names French
+ * keyboards print. Anything else (⌘K, F2, ctrl+shift+P) stays as it is.
+ */
+const KEY_NAMES: Partial<Record<Lang, Record<string, string>>> = { fr: { space: "espace", enter: "entrée", esc: "échap", del: "suppr", delete: "suppr" } };
+export function keyName(k: string): string {
+  return KEY_NAMES[current]?.[k.trim().toLowerCase()] ?? k;
+}
+
 /** Modules add their own strings: addTranslations("fr", { "Add": "Ajouter" }). */
 export function addTranslations(l: Lang, strings: Record<string, string>): void {
   Object.assign(tables[l], strings);

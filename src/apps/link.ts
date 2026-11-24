@@ -316,7 +316,7 @@ export class LinkApp implements App {
     const body = `---\ndate: ${isoDate(d)}\nmodel: ${this.deck.ai.provider.label}\ntags: [chat]\n---\n# ${c.name || `Link session ${stamp}`}\n\n${c.transcript.join("\n")}`;
     try {
       await this.deck.vault.write(path, body);
-      if (force) this.deck.notify(`saved ${path}`, "success");
+      if (force) this.deck.notify(t("saved {path}", { path }), "success");
     } catch (e) {
       console.error("chat save failed", e);
     }

@@ -92,8 +92,8 @@ async function checkIn(ctx: ShellContext): Promise<number> {
 
     text = await deck.vault.read(path); // may have changed while answering
     text = removeSection(text);
-    // fill an empty `mood:` frontmatter field (the default template has one)
-    text = text.replace(/^(---\n[\s\S]*?\nmood:)[ \t]*(\n)/, `$1 ${n("mood", mood)}$2`);
+    // fill an empty `mood:` frontmatter field (the default template has one; « humeur: » in French)
+    text = text.replace(/^(---\n[\s\S]*?\n(?:mood|humeur):)[ \t]*(\n)/, `$1 ${n("mood", mood)}$2`);
     await deck.vault.write(path, `${text.replace(/\s*$/, "")}\n\n${block}\n`);
     ctx.out(`\n${fmt.green("✓")} logged to ${fmt.bold(path)}${tasks.length ? fmt.dim(` · ${tasks.length} task${tasks.length > 1 ? "s" : ""} for tomorrow`) : ""}\n`);
     deck.notify("daily log saved", "success");

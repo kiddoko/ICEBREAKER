@@ -84,7 +84,7 @@ const journal: Command = {
   summary: "today's journal: opens it, or adds a line to it (journal \"text\")",
   usage: "journal                   today's page (ctrl+J from anywhere)\njournal <text…>           adds a timestamped line to today's page, without opening it\njournal yesterday | -N | YYYY-MM-DD    opens that day\njournal ls [-n N]         the last entries\n(also: journal add <text>, echo text | journal; `today` is the same command)",
   man: `Entries live in <vault>/${"journal"}/YYYY-MM-DD.md (folder: config journal.folder).
-"journal <text>" appends a timestamped line to the "## log" section of today's entry,
+"journal <text>" appends a timestamped line to the "## log" section of today's entry ("## fil du jour" in French),
 without opening anything — handy from scripts: \`date | journal\`.
 One word that names a day (today, yesterday, hier, -3, 2026-11-05, 24/12) opens that day;
 to log such a word, write \`journal add yesterday\`.

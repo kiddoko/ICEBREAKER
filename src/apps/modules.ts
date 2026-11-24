@@ -1,6 +1,6 @@
 import { mix, type RGB } from "../core/color";
 import { BOLD, type Rect } from "../core/grid";
-import { t } from "../core/i18n";
+import { t, tLoose } from "../core/i18n";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import type { MenuEntry, UI } from "../ui/ui";
@@ -346,18 +346,18 @@ export class ModulesApp implements App {
     }
     // a few facts, as room allows: what it is, its state
     if (ty < bot) {
-      const kind = cart.module ? (cart.builtin ? "MOD·CORE" : "MOD·STORE") : "SYS";
+      const kind = t(cart.module ? (cart.builtin ? "MOD·CORE" : "MOD·STORE") : "SYS");
       ui.text(ix, ty, `${kind} · ${cart.module ? (cart.on ? t("on") : t("off")) : t("ready")}`, { fg: fade(cart.on ? c.success : c.subtle), bg: body }, iw);
       ty++;
     }
     if (ty < bot && h >= 7) {
-      ui.text(ix, ty, cart.description, { fg: fade(c.muted), bg: body }, iw);
+      ui.text(ix, ty, tLoose(cart.description), { fg: fade(c.muted), bg: body }, iw);
       ty++;
     }
-    if (ty < bot && front && h >= 8) ui.text(ix, bot - 1, cart.module && !cart.on ? "enter ▸ switch on" : "enter ▸ launch", { fg: c.accent, bg: body }, iw - 1);
+    if (ty < bot && front && h >= 8) ui.text(ix, bot - 1, t(cart.module && !cart.on ? "enter ▸ switch on" : "enter ▸ launch"), { fg: c.accent, bg: body }, iw - 1);
     // its shadow on the floor
     if (bot + 1 <= floor) ui.text(x + 1, bot + 1, "▔".repeat(Math.max(0, w - 2)), { fg: mix(c.bg, edge, 0.35) });
-    ui.hit({ x, y, w, h }, front ? { onClick: () => this.run(cart), onDouble: () => this.run(cart), tip: cart.description, menu: () => this.cartMenu(cart) } : { onClick: () => (this.sel = v.i), tip: cart.description, menu: () => ((this.sel = v.i), this.cartMenu(cart)) });
+    ui.hit({ x, y, w, h }, front ? { onClick: () => this.run(cart), onDouble: () => this.run(cart), tip: tLoose(cart.description), menu: () => this.cartMenu(cart) } : { onClick: () => (this.sel = v.i), tip: tLoose(cart.description), menu: () => ((this.sel = v.i), this.cartMenu(cart)) });
   }
 
   /** Under the ring: the one in front — what it is and what you can do (like NEXUS's data panel). */
@@ -368,7 +368,7 @@ export class ModulesApp implements App {
     if (!cur) return;
     ui.text(r.x + 2, r.y + 1, `${cur.icon}  ${cur.name.toLowerCase()}`, { fg: c.accent, bg: c.panelAlt, attrs: BOLD });
     if (cur.module) ui.textRight(r.x + r.w - 2, r.y + 1, `${cur.builtin ? t("built-in") : t("from the store")} · ${cur.on ? t("on") : t("off")}`, { fg: cur.on ? c.success : c.subtle, bg: c.panelAlt });
-    if (r.h > 2) ui.text(r.x + 2, r.y + 2, cur.description, { fg: c.fg, bg: c.panelAlt }, r.w - 4);
+    if (r.h > 2) ui.text(r.x + 2, r.y + 2, tLoose(cur.description), { fg: c.fg, bg: c.panelAlt }, r.w - 4);
     if (r.h <= 3) return;
     let bx = r.x + 2;
     const by = r.y + 3;

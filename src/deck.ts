@@ -1,6 +1,6 @@
 import { AccessLog } from "./core/access";
 import { PermissionDialog, type PermDialogSpec } from "./workspace/permdialog";
-import { startHereCommand } from "./vault/starthere";
+import { startHereCommand, writeStartHere } from "./vault/starthere";
 import { PRESETS } from "./workspace/layout/arrange";
 import type { ModuleSettingSpec } from "./plugins/api";
 import { focusSpec } from "./apps/focus";
@@ -582,6 +582,9 @@ export class Deck implements InputSink {
       if (this.log.debugOn) this.debug(`setting changed: ${path}`);
       // pins changed (pin, unpin, ⌘Z…): HOME's squares follow
       if (path === "favorites") syncLinkWidgets(this);
+      // the deck speaks another language (the setup's first answer, Settings → YOU): the vault's
+      // first notes and an untouched shell banner follow
+      if (path === "user.language") void this.followLanguage();
     });
     this.errors.onAdd = (e) => {
       this.log.add("error", `${e.code}  ${t(e.title)}`, { detail: e.detail, code: e.code });
@@ -1073,7 +1076,7 @@ export class Deck implements InputSink {
   }
 
   async newNote(folder = "notes"): Promise<void> {
-    const title = await this.prompt("New note title", { placeholder: "e.g. Night city ideas" });
+    const title = await this.prompt(t("New note title"), { placeholder: t("e.g. Night city ideas") });
     if (!title?.trim()) return;
     if (folder === "notes") return void this.act(`note ${title.trim()}`);
     const path = join(folder, `${slugify(title)}.md`);
@@ -1086,7 +1089,7 @@ export class Deck implements InputSink {
 
   /** Ask for a name, make the folder (inside `parent`, default the vault root). */
   async newFolder(parent = ""): Promise<void> {
-    const name = await this.prompt("New folder", { placeholder: "e.g. projects" });
+    const name = await this.prompt(t("New folder"), { placeholder: t("e.g. projects") });
     if (!name?.trim()) return;
     await this.act(`mkdir ${q(parent ? `${parent.replace(/\/$/, "")}/${name.trim()}` : name.trim())}`);
   }
@@ -1287,6 +1290,21 @@ export class Deck implements InputSink {
       this.sound.play("back");
       this.notify(`${redo ? "↷ " + t("redone") : "↶ " + t("undone")}: ${this.undoLabel(label)}`);
     } else this.notify(t(redo ? "nothing to redo" : "nothing to undo"));
+    this.requestFrame();
+  }
+
+  /**
+   * The language changed: START HERE and the Welcome note you haven't touched are rewritten in
+   * it (the ones you changed stay yours: vault/starthere.ts), and a shell still showing only its
+   * banner says it again. Nothing before the vault is mounted (the login page's language).
+   */
+  private async followLanguage(): Promise<void> {
+    const language = this.settings.data.user.language;
+    setLang(language); // (applySettings does it too, but may come after this listener)
+    for (const sh of this.shells) sh.relanguage();
+    if (!this.vault.root) return;
+    const n = await writeStartHere(this.vault, { language }).catch(() => 0);
+    if (n) await this.vault.rescan();
     this.requestFrame();
   }
 

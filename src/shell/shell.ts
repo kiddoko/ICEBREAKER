@@ -220,10 +220,28 @@ export class ShellApp implements App {
   /** Print the login banner and load history (call once the vault is mounted). */
   motd(): void {
     void this.loadHistory();
+    this.banner();
+  }
+
+  /** the banner is all there is in this shell (nothing typed or run since): a language switch can redo it */
+  private bannerOnly = false;
+  private banner(): void {
     const handle = this.deck.settings.data.user.handle;
     // in the deck's language (it was English on a French deck)
+    this.bannerOnly = true;
     this.term.write(`\x1b[2m${t("ICEBREAKER shell · ibsh {v} · type ", { v: APP_VERSION })}\x1b[0m\x1b[35mhelp\x1b[0m\x1b[2m${t(" to list commands, ")}\x1b[0m\x1b[35mman <cmd>\x1b[0m\x1b[2m${t(" for details")}\x1b[0m\n`);
     this.term.write(`\x1b[2m${t("last login: {when} on deck as ", { when: new Date().toLocaleString(dateLocale()) })}\x1b[0m\x1b[95m${handle}\x1b[0m\n`);
+  }
+
+  /**
+   * The deck's language changed (the setup's first question, Settings → YOU): a shell that
+   * shows only its banner says it again in the new language (it stayed English when the shell
+   * opened before the language was chosen). A shell you used keeps what it shows.
+   */
+  relanguage(): void {
+    if (!this.bannerOnly) return;
+    this.term.clear();
+    this.banner();
   }
 
   /** Run a command line as if typed (used by the palette and buttons). */
@@ -243,6 +261,7 @@ export class ShellApp implements App {
 
   /** `from`: who ran it when it isn't you typing (a module's id, "terminal") — said next to the line */
   private echoPrompt(line: string, from = ""): void {
+    this.bannerOnly = false;
     this.term.ensureNewline();
     this.term.write(`\x1b[35m${display(this.exec.cwd)}\x1b[0m \x1b[95m❯\x1b[0m ${line}${from ? `  \x1b[2m◂ ${from}\x1b[0m` : ""}\n`);
   }
