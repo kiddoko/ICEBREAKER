@@ -216,6 +216,8 @@ export class Vault {
   async rename(from: string, to: string): Promise<void> {
     // into the trash and back: the name it had; anywhere else: a name every screen shows as it is
     if (!normalize(to).startsWith(".trash/") && !normalize(from).startsWith(".trash/")) this.checkNewName(to);
+    // `mv ta ta/sub`: a clear word, not the disk's raw error (os error 87 on Windows)
+    if (normalize(to).startsWith(`${normalize(from)}/`)) throw new Error(`${normalize(from)}: can't move a folder into itself`);
     await this.backend.rename(normalize(from), normalize(to));
     // a restore from the trash records itself (as the trash's undo), not as a rename
     if (!normalize(from).startsWith(".trash/"))

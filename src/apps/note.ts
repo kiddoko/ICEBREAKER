@@ -20,9 +20,13 @@ import { folders } from "../core/suggest";
  */
 export class NoteApp implements App {
   readonly kind = "note";
-  readonly key: string;
+  /** `note:<path>` — both follow the file when it's renamed or moved (moveTo) */
+  key: string;
   readonly editor: TextEditor;
+  /** what was last loaded or saved, with "\n" line ends (the editor's) */
   private saved = "";
+  /** the file's own line ends: a note written on Windows keeps its "\r\n" when saved here */
+  private eol: "\n" | "\r\n" = "\n";
   private saving = false;
   private loaded = false;
   private error = "";
@@ -33,7 +37,7 @@ export class NoteApp implements App {
 
   constructor(
     private readonly deck: Deck,
-    readonly path: string,
+    public path: string,
     /** Called once the file content is in the editor (e.g. to place the cursor). */
     private readonly onLoaded?: (editor: TextEditor) => void,
   ) {
@@ -60,7 +64,8 @@ export class NoteApp implements App {
   private async diskChange(): Promise<string | null> {
     if (!this.loaded || this.saving) return null;
     const disk = (await this.deck.vault.exists(this.path)) ? await this.deck.vault.read(this.path).catch(() => null) : null;
-    return disk !== null && disk !== this.saved ? disk : null;
+    // compared as the editor holds it: a "\r\n" file is the same text, not a change on disk
+    return disk !== null && toLf(disk) !== this.saved ? disk : null;
   }
 
   private async checkDisk(): Promise<void> {
@@ -76,7 +81,9 @@ export class NoteApp implements App {
   private async takeDisk(): Promise<void> {
     this.conflict = false;
     clearTimeout(this.saveTimer);
-    const text = (await this.deck.vault.exists(this.path)) ? await this.deck.vault.read(this.path).catch(() => this.saved) : this.saved;
+    const raw = (await this.deck.vault.exists(this.path)) ? await this.deck.vault.read(this.path).catch(() => null) : null;
+    if (raw !== null) this.eol = lineEnding(raw);
+    const text = raw === null ? this.saved : toLf(raw);
     this.editor.replaceAll(text);
     this.saved = text;
     this.deck.requestFrame();
@@ -85,14 +92,17 @@ export class NoteApp implements App {
   /** Keep yours: written over the version on disk. */
   private async keepMine(): Promise<void> {
     this.conflict = false;
-    this.saved = (await this.deck.vault.read(this.path).catch(() => this.saved)) ?? this.saved;
+    const raw = await this.deck.vault.read(this.path).catch(() => null);
+    if (raw !== null) this.saved = toLf(raw);
     await this.save();
   }
 
   private async load(keepCursor = false): Promise<void> {
     try {
-      const text = (await this.deck.vault.exists(this.path)) ? await this.deck.vault.read(this.path) : "";
-      if (keepCursor && text === this.editor.text) return;
+      const raw = (await this.deck.vault.exists(this.path)) ? await this.deck.vault.read(this.path) : "";
+      this.eol = lineEnding(raw);
+      const text = toLf(raw);
+      if (keepCursor && text === this.editor.text) return void (this.saved = text);
       const cursor = this.editor.cursor;
       this.editor.setText(text);
       if (keepCursor) {
@@ -107,6 +117,16 @@ export class NoteApp implements App {
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
     }
+  }
+
+  /**
+   * The file was renamed or moved (the tree, `mv`, ⌘Z of one): the tab follows it — its title,
+   * and where the next save goes (never back to the old name, which would bring the file back).
+   */
+  moveTo(path: string): void {
+    this.path = path;
+    this.key = `note:${path}`;
+    this.deck.requestFrame();
   }
 
   title(): string {
@@ -149,7 +169,7 @@ export class NoteApp implements App {
     this.saving = true;
     const text = this.editor.text;
     try {
-      await this.deck.vault.write(this.path, text);
+      await this.deck.vault.write(this.path, withEol(text, this.eol));
       this.saved = text;
       this.error = "";
     } catch (e) {
@@ -179,6 +199,16 @@ export class NoteApp implements App {
 
   async close(): Promise<boolean> {
     await this.save();
+    // still not written (changed on disk, a failed save): the tab doesn't take your edits with it
+    if (this.dirty()) {
+      const lose = await this.deck.confirm(
+        t("close {0} without saving?").replace("{0}", basename(this.path)),
+        t(this.conflict ? "it changed on disk: « keep mine » writes yours, « take the disk's » takes the other" : "it could not be saved: your edits here would be lost"),
+        false,
+      );
+      if (!lose) return false;
+    }
+    clearTimeout(this.saveTimer);
     this.unsubscribe();
     return true;
   }
@@ -295,9 +325,10 @@ export class NoteApp implements App {
     const dirty = this.dirty();
     if (this.conflict) {
       // changed on disk while you were editing: choose, nothing is saved until then
-      x = ui.text(x, r.y, ` ${t("changed on disk")} `, { fg: c.panel, bg: c.warning, raw: true }) + 1;
-      x += ui.button(x, r.y, t("Take the disk's"), () => void this.takeDisk(), { tip: t("the version on disk replaces yours here (⌘Z brings yours back)") }) + 1;
+      // the two choices first, on the left: a toast (top right) never covers them
       x += ui.button(x, r.y, t("Keep mine"), () => void this.keepMine(), { tip: t("yours is written over the version on disk"), accent: c.error }) + 1;
+      x += ui.button(x, r.y, t("Take the disk's"), () => void this.takeDisk(), { tip: t("the version on disk replaces yours here (⌘Z brings yours back)") }) + 1;
+      ui.text(x, r.y, ` ${t("changed on disk")} `, { fg: c.panel, bg: c.warning, raw: true });
       return;
     }
     const tool = (label: string, run: () => void, tip: string, o: { accent?: number; off?: boolean } = {}) => {
@@ -363,4 +394,19 @@ export const noteSpec: AppSpec = {
 /** A note that had text and now has none (written only on purpose, never by the autosave). */
 export function emptiedNote(text: string, saved: string): boolean {
   return text.trim() === "" && saved.trim() !== "";
+}
+
+/** "\r\n" when the file's lines end so (a note written on Windows), else "\n". */
+export function lineEnding(raw: string): "\n" | "\r\n" {
+  return raw.includes("\r\n") ? "\r\n" : "\n";
+}
+
+/** The text as the editor holds it: every line end is "\n". */
+export function toLf(raw: string): string {
+  return raw.replace(/\r\n?/g, "\n");
+}
+
+/** The editor's text with the file's line ends, to write it back. */
+export function withEol(text: string, eol: "\n" | "\r\n"): string {
+  return eol === "\n" ? text : text.replace(/\n/g, "\r\n");
 }

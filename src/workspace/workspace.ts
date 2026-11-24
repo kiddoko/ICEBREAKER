@@ -426,6 +426,35 @@ export class Workspace {
     this.sidePanel = new SidePanel(deck);
     // a note (or a folder) sent to the trash: nothing keeps showing it
     deck.vault.events.on("trashed", ({ path, dest }) => this.letGo(path, dest));
+    // a note (or its folder) renamed or moved: its tab follows it
+    deck.vault.events.on("renamed", ({ from, to }) => this.follow(from, to));
+  }
+
+  /**
+   * `from` is now `to` (a file or a folder): the notes open from there follow — their path,
+   * title and next save — and keep their group, their frame and their place in esc → back.
+   */
+  follow(from: string, to: string): void {
+    if (to.startsWith(".trash/") || from.startsWith(".trash/")) return;
+    const under = (p: string) => p === from || p.startsWith(`${from}/`);
+    const rename: Record<string, string> = {};
+    for (const tab of this.tabs) {
+      const move = (tab as App & { moveTo?: (path: string) => void }).moveTo;
+      if (tab.kind !== "note" || !move || !under(tab.key.slice(5))) continue;
+      const old = tab.key;
+      const path = to + old.slice(5 + from.length);
+      if (this.tabs.some((t) => t.key === `note:${path}`)) continue;
+      move.call(tab, path);
+      rename[old] = tab.key;
+    }
+    if (!Object.keys(rename).length) return;
+    const saved = renameKeys({ groups: this.groups, places: this.places, shows: this.shows }, rename);
+    const open = this.tabs.map((a) => a.key);
+    this.groups = parseGroups(saved.groups);
+    this.places = parsePlaces(saved.places, open);
+    this.shows = parseShows(saved.shows, this.places);
+    this.visited = this.visited.map((k) => rename[k] ?? k);
+    this.deck.requestFrame();
   }
 
   /**

@@ -72,7 +72,14 @@ export function createWebPlatform(): Platform {
         addParents(p);
       },
       trash: async (p) => {
-        const dest = `.trash/${Date.now()}-${p.split("/").pop()}`;
+        // like the Rust side: never over something already in the trash (two "same.md" at once)
+        const taken = (d: string) => files.has(d) || dirs.has(d);
+        const name = p.split("/").pop() ?? p;
+        const stamp = Math.floor(Date.now() / 1000);
+        const dot = files.has(p) ? name.lastIndexOf(".") : -1;
+        const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+        let dest = `.trash/${stamp}-${name}`;
+        for (let n = 2; taken(dest); n++) dest = `.trash/${stamp}-${stem} (${n})${ext}`;
         for (const [k, v] of [...files]) {
           if (k === p || k.startsWith(p + "/")) {
             files.delete(k);
