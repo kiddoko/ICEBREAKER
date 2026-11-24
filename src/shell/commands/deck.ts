@@ -24,6 +24,9 @@ import { pickFolder } from "../../workspace/filebrowser";
 import type { Command, ShellContext } from "../types";
 import { applyTweaks, tweaksToToml, type Theme } from "../../core/theme";
 import { checkTheme } from "../../core/skin/check";
+import { component } from "../../core/skin/components";
+import type { Field } from "../../core/skin/fields";
+import { resolve } from "../../core/skin/registry";
 import { upgradeSource } from "../../core/skin/schema";
 import { knob, knobNames, knobSuggestions, KNOBS, parseKnobValue, SKIN_KNOBS } from "../../core/tweaks";
 import { account, lock, login } from "./account";
@@ -1064,5 +1067,11 @@ export function knobValue(t: Theme, key: string): string {
   }
   if (sec === "sound") return String((t.sound as unknown as Record<string, unknown>)[k] ?? "");
   if (sec === "anim") return String((t.anim as unknown as Record<string, unknown>)[k] ?? "");
+  // a component's field (core/skin): the resolved value, what the theme set over the deck's
+  const comp = component(sec);
+  if (comp && k in comp.fields) {
+    const v = (resolve(comp, (t as unknown as Record<string, object | undefined>)[sec]) as Record<string, unknown>)[k];
+    return (comp.fields as Record<string, Field>)[k].kind === "color" ? hexOf(v as number | null) : typeof v === "boolean" ? (v ? "on" : "off") : String(v);
+  }
   return "";
 }

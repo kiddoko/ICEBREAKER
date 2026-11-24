@@ -199,3 +199,15 @@ describe("icon ids (themes v2, milestone 1): same glyphs, asked by id", () => {
     expect([icon("file.folder"), icon("file.note")]).toEqual(["▸", "≡"]);
   });
 });
+
+describe("theme tweak lists a component field's value", () => {
+  it("knobValue reads the resolved look", async () => {
+    const { knobValue } = await import("../src/shell/commands/deck");
+    const base = new ThemeManager().default;
+    expect(knobValue(base, "keys.radius")).toBe("0.17");
+    expect(knobValue(base, "keys.face")).toBe("auto");
+    expect(knobValue(base, "keys.bold")).toBe("on");
+    expect(knobValue({ ...base, keys: { radius: 0 } }, "keys.radius")).toBe("0");
+    expect(knobValue(base, "pad.inkLight")).toBe("#ffffff");
+  });
+});
