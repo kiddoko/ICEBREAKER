@@ -28,14 +28,18 @@
   tree): `starthere dev` writes it. A vault that already has it keeps it up to date.
 - In French: the new-note window, the « saved » toast, the journal page (its stats, buttons and
   hints) and a new day's page (« ## fil du jour », « ## pensées », « humeur: »), every
-  command's line in `help` and `-h`, the MODULES cards (« mod·intégré », « entrée ▸ lancer », the
-  descriptions), the effects presets in THE MENU, the « CHOISIR » list, the « espace » key in
-  menus. A shell that opened before the language was chosen says its banner again in it.
+  command's line in `help`, a `-h` page (its headings, what each usage line and example does),
+  the MODULES cards (« mod·base · oui », « entrée ▸ lancer », the descriptions; one word per action:
+  activer, désactiver, désinstaller), the effects presets in THE MENU (at once, no restart), the
+  « CHOISIR » list, the « espace » key in menus, the real terminal's key hint. A shell that opened
+  before the language was chosen says its banner again in it. (A journal page's `date:` and
+  `tags:` stay: Obsidian reads them.)
 - START HERE on Windows and Linux: a shortcut is said once (« Ctrl+N », not « Ctrl+N / Ctrl+N »),
   a key about the Mac stays the Mac's (« ⌘X on a Mac »), the diagram shows that system's shell
   (powershell, bash) and keeps its width.
 - The top row's left corner is **◆ ▾** in a window under about 1360 pixels (the app opens at 1280):
-  the manual, START HERE and GETTING_STARTED say so. The Welcome note no longer links to a note
+  START HERE's diagram draws it that way and names the wide **◆ icebreaker ▾**; the manual and
+  GETTING_STARTED say so. `starthere dev` run again says « FOR DEVELOPERS is already there ». The Welcome note no longer links to a note
   a new vault doesn't have, and says which key shows the shell on an AZERTY keyboard (Ctrl+²).
 
 ## 0.8.0 — 2026-11-24

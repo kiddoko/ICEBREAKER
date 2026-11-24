@@ -172,3 +172,66 @@ describe("START HERE on Windows and Linux", () => {
     });
   }
 });
+
+import { startHereCommand } from "../src/vault/starthere";
+import { helpText } from "../src/shell/help";
+import { ActionRegistry } from "../src/apps/registry";
+import { registerFxActions } from "../src/deck-actions";
+import { terminalKeysHint } from "../src/shell/systerm";
+import { t } from "../src/core/i18n";
+import type { Deck } from "../src/deck";
+
+describe("the bench's second look at #35", () => {
+  afterEach(() => setLang("en"));
+
+  it("THE MENU's effects follow a language switch without a restart", () => {
+    const deck = { actions: new ActionRegistry() } as unknown as Deck;
+    registerFxActions(deck);
+    expect(deck.actions.get("fx.light")!.title).toContain("a hint of glow");
+    setLang("fr");
+    registerFxActions(deck); // what deck.followLanguage does
+    expect(deck.actions.get("fx.light")!.title).toContain("un soupçon de lueur");
+  });
+
+  it("README's diagram shows the corner as drawn at the start size, and names the wide one", () => {
+    for (const lg of ["en", "fr"]) {
+      const md = startHereNotes(lg)["README.md"];
+      expect(md).toContain("┌ ◆ ▾  vault");
+      expect(md).toContain("**◆ icebreaker ▾**");
+    }
+  });
+
+  it("`starthere dev` twice: the right folder, its capitals, in French", async () => {
+    setLang("fr");
+    const v = Object.assign(memVault(), { rescan: async () => {} });
+    const out: string[] = [];
+    const ctx = { args: ["dev"], out: (s: string) => void out.push(s), deck: { vault: v, openFile: async () => {} } };
+    await startHereCommand.run(ctx as never);
+    await startHereCommand.run(ctx as never);
+    expect(out[1]).toContain("FOR DEVELOPERS est déjà là (starthere dev --force le réécrit)");
+  });
+
+  it("`starthere -h` in French: the headings and what each line does", () => {
+    setLang("fr");
+    const page = helpText(startHereCommand, false);
+    expect(page).toContain("UTILISATION");
+    expect(page).toContain("starthere dev      écrire aussi FOR DEVELOPERS/");
+    expect(page).toContain("EXEMPLES");
+    expect(page).not.toContain("bring the docs up to date");
+  });
+
+  it("a MODULES card's status fits (« mod·base · oui »), one word per action", () => {
+    setLang("fr");
+    expect(`${t("MOD·CORE")} · ${t("on")}`).toBe("mod·base · oui");
+    expect(t("uninstall  del")).toContain("désinstaller");
+    expect(t("Uninstall…")).toMatch(/^désinstaller/);
+    expect(t("←↑↓→ choose · enter launch · space switch on/off · del uninstall · type to search")).toContain("suppr désinstaller");
+    expect(t("Turn off")).toBe("désactiver");
+    expect(t("CHOOSE")).toBe("choisir");
+  });
+
+  it("the real terminal's key hint in French", () => {
+    setLang("fr");
+    expect(terminalKeysHint()).toMatch(/copie|copier/);
+  });
+});

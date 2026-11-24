@@ -63,7 +63,7 @@ export class ModulesApp implements App {
     return "modules";
   }
   status(): string {
-    return t("←↑↓→ choose · enter launch · space on/off · del remove · type to search");
+    return t("←↑↓→ choose · enter launch · space switch on/off · del uninstall · type to search");
   }
 
   private carts(): Cart[] {
@@ -168,7 +168,7 @@ export class ModulesApp implements App {
   }
   private remove(c: ReturnType<ModulesApp["carts"]>[number] | undefined): void {
     if (!c?.module) return;
-    void this.deck.confirm(t("Remove {name}?", { name: c.name }), c.builtin ? t("It ships with the deck: the STORE can reinstall it any time.") : t("Its files go to .trash in your vault.")).then((ok) => {
+    void this.deck.confirm(t("Uninstall {name}?", { name: c.name }), c.builtin ? t("It ships with the deck: the STORE can reinstall it any time.") : t("Its files go to .trash in your vault.")).then((ok) => {
       if (ok) void this.deck.act(`store remove ${c.id} --window`);
     });
   }
@@ -378,7 +378,7 @@ export class ModulesApp implements App {
     else if (cur.widgetsOnly) btn(t("its widgets: HOME → e → a"), () => this.run(cur), "e then a on HOME");
     if (cur.module) {
       if (cur.on) btn(t("switch off  space"), () => void this.deck.act(`plugin disable ${cur.id} --window`), "space · plugin disable");
-      btn(t("remove  del"), () => this.remove(cur), "del · store remove", c.error);
+      btn(t("uninstall  del"), () => this.remove(cur), "del · store remove", c.error);
     }
     btn(t("store"), () => void this.deck.act("store"), "store");
   }

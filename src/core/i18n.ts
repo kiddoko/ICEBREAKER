@@ -60,7 +60,10 @@ export function dateLocale(): string {
 const KEEP_CAPS = new Set(["ICEBREAKER", "AI", "API", "CPU", "GPU", "RAM", "JSON", "NAS", "OK", "URL", "USB", "MM", "YYYY", "DD", "HH", "RGB", "CRT", "PDF", "HTTP", "HTTPS", "ID", "UI", "CLI", "GUI", "BPM", "MIDI", "OS", "UTC", "GMT", "AM", "PM", "IP", "LAN", "VPN", "SSH", "MCP", "LLM", "MED", "TTS", "STT", "WAV", "MP", "OGG", "FLAC", "SVG", "PNG", "CSV", "PIN", "QR", "IA", "ZIP", "UK", "US", "ISO", "ICS"]);
 const PROPER = new Set(["Ableton", "Claude", "Code", "Google", "Calendar", "Markdown", "Meteo", "Obsidian", "Anthropic", "Ollama", "Finder", "Explorer", "Windows", "Linux", "Mac", "Spotify", "Apple", "Music", "GitHub", "Tauri", "Chrome", "Safari", "Firefox", "Opus", "Sonnet", "Haiku", "Fable", "Paris", "Unicode", "Gemini", "English", "Français"]);
 const lowered: Record<Lang, Map<string, string>> = { en: new Map(), fr: new Map() };
+/** the vault's own folders, named as they are on disk: their capitals stay */
+const FOLDER_NAMES = /(START HERE|FOR DEVELOPERS)/;
 export function uiCase(s: string): string {
+  if (FOLDER_NAMES.test(s)) return s.split(FOLDER_NAMES).map((part, i) => (i % 2 ? part : uiCase(part))).join("");
   return s.replace(/[A-Za-zÀ-ÖØ-öø-ÿŒœ][A-Za-zÀ-ÖØ-öø-ÿŒœ'’]*/g, (w, at: number) => {
     // inside a {var} or right after a digit / key glyph (F1, ⌘K): not a word to lower
     if (s[at - 1] === "{" || /[0-9⌘⌥⇧⌃]/.test(s[at - 1] ?? "")) return w;

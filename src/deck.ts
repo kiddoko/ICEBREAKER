@@ -94,7 +94,7 @@ import { beginStart, endStart, lookKey, readDevice, writeDevice } from "./core/d
 import { FX_PRESETS } from "./workspace/fxpanel";
 import { Catalog } from "./core/catalog";
 import { blocksSpec } from "./apps/blocks";
-import { registerCoreActions } from "./deck-actions";
+import { registerCoreActions, registerFxActions } from "./deck-actions";
 import { coreSettingRows } from "./apps/settings-rows";
 import type { ToastKind } from "./workspace/overlays";
 import { Workspace } from "./workspace/workspace";
@@ -1302,6 +1302,7 @@ export class Deck implements InputSink {
     const language = this.settings.data.user.language;
     setLang(language); // (applySettings does it too, but may come after this listener)
     for (const sh of this.shells) sh.relanguage();
+    registerFxActions(this); // THE MENU's titles built from t() at registration
     if (!this.vault.root) return;
     const n = await writeStartHere(this.vault, { language }).catch(() => 0);
     if (n) await this.vault.rescan();

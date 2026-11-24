@@ -33,7 +33,7 @@ des widgets, un vrai shell, une IA si tu en veux une. Tout marche hors ligne, au
 ## La visite en 30 secondes
 
 \`\`\`
-┌ ◆ icebreaker ▾  vault ⌂ home  ✎ idées  ♪ musique × + ── uplink ■ │ heure ┐
+┌ ◆ ▾  vault   ⌂ home  ✎ idées  ♪ musique × + ─────────── uplink ■ │ heure ┐
 │ ┌────────┐ ┌───────────────────────────────────────────────────────────┐ │
 │ │ ★ épin.│ │  widgets : horloge · météo · tâches · habitudes · stats…  │ │
 │ │ arbre  │ │  e = modifier · a = ajouter un widget · entrée = l'ouvrir │ │
@@ -43,6 +43,8 @@ des widgets, un vrai shell, une IA si tu en veux une. Tout marche hors ligne, au
 │ └──────────────────────────────────────────────────────────────────────┘ │
 └ barre d'état : touches d'ici · ◧ ▾ ◨ ▣ · ✦ fx · ⌘K menu · F1 aide ───────┘
 \`\`\`
+
+En haut à gauche, **◆ ▾** est le menu du deck (**◆ icebreaker ▾** dans une fenêtre large).
 
 | Tu veux… | Fais ça |
 |---|---|

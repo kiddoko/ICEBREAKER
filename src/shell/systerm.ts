@@ -17,9 +17,9 @@ const EXIT_MARK = "\x1b]ib-exit\x07";
  * shell, except ctrl+C over a selection (copy) and ctrl+V (paste).
  */
 export function terminalKeysHint(): string {
-  return IS_MAC
+  return tr(IS_MAC
     ? "ctrl = Control (nano: ctrl+X quits) · ⌘C ⌘V copy/paste · ⌘X interrupt (ctrl+C)"
-    : "ctrl+C copies a selection, else interrupts · ctrl+shift+C copy · ctrl+V paste";
+    : "ctrl+C copies a selection, else interrupts · ctrl+shift+C copy · ctrl+V paste");
 }
 
 /** xterm's 256 colors: 16 from the theme, a 6×6×6 cube, 24 greys. */

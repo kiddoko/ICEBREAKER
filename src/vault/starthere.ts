@@ -51,7 +51,7 @@ the keyboard, the mouse or a gamepad.
 ## The 30-second tour
 
 \`\`\`
-┌ ◆ icebreaker ▾  vault   ⌂ home  ✎ ideas  ♪ music ×  + ── uplink ■ │ time ┐
+┌ ◆ ▾  vault   ⌂ home  ✎ ideas  ♪ music ×  + ───────────── uplink ■ │ time ┐
 │ ┌────────┐ ┌───────────────────────────────────────────────────────────┐ │
 │ │ ★ pins │ │  widgets: clock · weather · todo · habits · stats · chat… │ │
 │ │ tree   │ │  e = edit the layout · a = add a widget · enter = open it │ │
@@ -61,6 +61,8 @@ the keyboard, the mouse or a gamepad.
 │ └──────────────────────────────────────────────────────────────────────┘ │
 └ status bar: what keys do here · ◧ ▾ ◨ ▣ · ✦ fx · ⌘K menu · F1 help ──────┘
 \`\`\`
+
+Top left, **◆ ▾** is the deck's menu (**◆ icebreaker ▾** in a wide window).
 
 | You want to… | Do this |
 |---|---|
@@ -1165,7 +1167,9 @@ export const startHereCommand: Command = {
     const n = await writeStartHere(ctx.deck.vault, { force: ctx.args.includes("--force"), dev });
     await ctx.deck.vault.rescan();
     const open = dev ? `${DEV_DIR}/README.md` : `${DIR}/README.md`;
-    ctx.out(n ? `${t("{folder}: {n} notes written — open {note}", { folder: dev ? DEV_DIR : DIR, n, note: open.replace(/\.md$/, "") })}\n` : `${t("START HERE is already there (starthere --force rewrites it)")}\n`);
+    // the folder's name and the command keep their case (t() lowers the rest: the UI is lowercase)
+    const folder = dev ? DEV_DIR : DIR;
+    ctx.out(n ? `${t("{folder}: {n} notes written — open {note}", { folder, n, note: open.replace(/\.md$/, "") })}\n` : `${t("{folder} is already there ({cmd} rewrites it)", { folder, cmd: dev ? "starthere dev --force" : "starthere --force" })}\n`);
     if (n) void ctx.deck.openFile(open);
     return 0;
   },
