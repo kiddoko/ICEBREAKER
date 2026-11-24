@@ -1,4 +1,6 @@
 import { BOLD, type Rect } from "../core/grid";
+import { look } from "../core/skin/components";
+import { SLIDER } from "../core/skin/parts";
 import { strWidth, truncate } from "../core/unicode";
 import type { UI } from "./ui";
 
@@ -146,9 +148,11 @@ export function slider(ui: UI, r: Rect, value: number, min: number, max: number,
   const track = { x: r.x, y: r.y, w: tw, h: 1 };
   const k = max > min ? (clamp(value) - min) / (max - min) : 0;
   const hot = ui.hovered(track);
+  // its glyphs: the theme's [slider] (core/skin/parts.ts), one cell each
+  const sl = look(ui.theme, SLIDER);
   if (o.disabled) {
     // greyed: the track and the number, no handle to grab
-    ui.text(r.x, r.y, "─".repeat(tw), { fg: c.faint });
+    ui.text(r.x, r.y, sl.track.repeat(tw), { fg: c.faint });
     ui.textRight(r.x + r.w, r.y, text, { fg: c.subtle });
     ui.hit(track, { onClick: () => {}, tip: o.tip ?? "locked" });
     return;
@@ -172,9 +176,9 @@ export function slider(ui: UI, r: Rect, value: number, min: number, max: number,
   //  · the number: "80%" by default, the unit when it isn't a percentage (px, fps, min), "off" at 0 when 0 is off
   const on = !(o.zeroIsOff && value === 0);
   const at0 = Math.round(k * (tw - 1));
-  ui.text(r.x, r.y, "━".repeat(at0), { fg: on ? c.accent : c.subtle });
-  if (at0 + 1 < tw) ui.text(r.x + at0 + 1, r.y, "─".repeat(tw - at0 - 1), { fg: c.subtle });
-  ui.text(r.x + at0, r.y, "■", { fg: hot ? c.fg : on ? c.accent : c.subtle, attrs: BOLD });
+  ui.text(r.x, r.y, sl.fill.repeat(at0), { fg: on ? c.accent : c.subtle });
+  if (at0 + 1 < tw) ui.text(r.x + at0 + 1, r.y, sl.track.repeat(tw - at0 - 1), { fg: c.subtle });
+  ui.text(r.x + at0, r.y, sl.knob, { fg: hot ? c.fg : on ? c.accent : c.subtle, attrs: BOLD });
   ui.textRight(r.x + r.w, r.y, text, { fg: on ? c.accent : c.subtle, attrs: BOLD });
   // where the pointer is along the track, to the pixel: 0 at the left edge, 1 at the right
   const at = (m: { x: number; fx?: number }) => {

@@ -2,7 +2,9 @@ import { gradient as sampleGradient, mix, NONE, type RGB } from "../core/color";
 import { keySpans } from "./keycaps";
 import { padCells } from "./keyicons";
 import { keycapLook, type KeycapLook } from "../core/keycap";
-import { keyFace } from "../core/skin/components";
+import { BUTTON, FRAME, type FrameLook } from "../core/skin/parts";
+import { keyFace, look } from "../core/skin/components";
+import { defaults } from "../core/skin/registry";
 import { CAP_END, CAP_PAD_L, CAP_PAD_R, CAP_START } from "../core/grid";
 import type { PadKind } from "../core/padglyphs";
 import { BOLD, Grid, type Rect, type Style } from "../core/grid";
@@ -84,6 +86,8 @@ const BORDERS: Record<string, { tl: string; tr: string; bl: string; br: string; 
   dashed: { tl: "┌", tr: "┐", bl: "└", br: "┘", h: "╌", v: "╎" },
   corners: { tl: "┌", tr: "┐", bl: "└", br: "┘", h: " ", v: " " },
   line: { tl: "─", tr: "─", bl: " ", br: " ", h: "─", v: " ", hb: " " },
+  // and for panels too ([frame] style)
+  ascii: { tl: "+", tr: "+", bl: "+", br: "+", h: "-", v: "|" },
 };
 
 export interface BoxOptions {
@@ -96,6 +100,9 @@ export interface BoxOptions {
   bg?: RGB;
   border?: string;
 }
+
+/** the deck's own frame rules (widget frames and an asked-for border keep them) */
+const FRAME_DEFAULT: FrameLook = defaults(FRAME);
 
 const SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
 
@@ -429,7 +436,11 @@ export class UI {
    */
   box(r: Rect, o: BoxOptions = {}): Rect {
     if (r.w < 2 || r.h < 2) return { x: r.x, y: r.y, w: 0, h: 0 };
-    const b = BORDERS[o.border ?? this.theme.border] ?? BORDERS.round;
+    // a panel's frame (no border asked): the theme's [frame] style, its chars, its title rules
+    const fl = o.border === undefined ? look(this.theme, FRAME) : FRAME_DEFAULT;
+    const style = o.border ?? (o.focused && fl.focus === "both" ? (this.theme.border === "heavy" ? "double" : "heavy") : this.theme.border);
+    const sb = BORDERS[style] ?? BORDERS.round;
+    const b = fl === FRAME_DEFAULT ? sb : { tl: fl.tl || sb.tl, tr: fl.tr || sb.tr, bl: fl.bl || sb.bl, br: fl.br || sb.br, h: fl.h || sb.h, v: fl.v || sb.v, hb: fl.h || sb.hb };
     const bc = o.focused ? this.c.borderFocus : this.c.border;
     const bg = o.bg ?? this.c.panel;
     if (o.fill !== false) this.fill(r, { bg });
@@ -447,11 +458,13 @@ export class UI {
     if (o.title) {
       // focused: accent text with a mark, no filled badge (stays readable next to the tab bar)
       const mark = this.theme.glyphs.mark;
-      const label = o.focused ? ` ${mark} ${o.title} ` : ` ${o.title} `;
-      const style = o.focused ? { fg: this.c.titleFocus, bg, attrs: BOLD } : { fg: this.c.title, bg };
-      titleEnd = this.text(r.x + 2, r.y, label, style, r.w - 4);
+      const title = fl.case === "upper" ? o.title.toUpperCase() : fl.case === "lower" ? o.title.toLowerCase() : o.title;
+      const label = o.focused && fl.mark ? ` ${mark} ${title} ` : ` ${title} `;
+      const ts = o.focused ? { fg: this.c.titleFocus, bg, attrs: BOLD } : { fg: this.c.title, bg };
+      const tx = fl.align === "center" ? Math.max(titleEnd, r.x + Math.floor((r.w - strWidth(label)) / 2)) : titleEnd;
+      titleEnd = this.text(tx, r.y, label, ts, r.w - 4 - (tx - titleEnd));
     }
-    if (o.info) {
+    if (o.info && fl.info) {
       const room = r.x + r.w - 2 - titleEnd - 2;
       if (room > 3) this.textRight(r.x + r.w - 2, r.y, ` ${truncate(o.info, room - 2)} `, { fg: o.focused ? this.c.muted : this.c.subtle, bg });
     }
@@ -464,16 +477,19 @@ export class UI {
    * faint, not clickable (‹ with nothing before). docs/UI_KIT.md.
    */
   button(x: number, y: number, label: string, onClick: () => void, o: { selected?: boolean; accent?: RGB; cmd?: string; tip?: string; quiet?: boolean; disabled?: boolean } = {}): number {
-    const s = ` ${label} `;
+    // its ends and its ground: the theme's [button] (core/skin/parts.ts), always one cell each side
+    const bl = look(this.theme, BUTTON);
+    const s = `${bl.left}${label}${bl.right}`;
     const w = strWidth(s);
     const rect = { x, y, w, h: 1 };
     const accent = o.accent ?? this.c.accent;
+    const ground = bl.fill ? { bg: this.c.highlight } : {};
     if (o.disabled) {
-      this.text(x, y, s, { fg: this.c.faint, bg: this.c.highlight });
+      this.text(x, y, s, { fg: this.c.faint, ...ground });
       return w;
     }
     const hot = o.selected || this.hovered(rect);
-    this.text(x, y, s, hot ? { fg: this.c.panel, bg: accent, attrs: BOLD } : { fg: o.quiet ? this.c.muted : accent, bg: this.c.highlight });
+    this.text(x, y, s, hot ? { fg: this.c.panel, bg: accent, attrs: BOLD } : { fg: o.quiet ? this.c.muted : accent, ...ground });
     this.hit(rect, o.cmd ? { cmd: o.cmd, tip: o.tip } : { onClick: () => onClick(), tip: o.tip });
     return w;
   }

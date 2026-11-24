@@ -15,7 +15,7 @@ description = "Deep void, violet ICE. Catppuccin-flavoured."
 schema = 2                # themes v2 (docs/THEMES.md): frames in [frame] / [widget_frame]
 
 [frame]                    # the frame round panels and pages
-style = "round"          # round | single | heavy | double
+style = "round"          # round | single | heavy | double | dashed | ascii
 
 [widget_frame]             # the frame round HOME widgets
 style = "round"    # HOME widgets: round · single · heavy · double · dashed · corners · line
@@ -189,3 +189,20 @@ screensaver = "warp"
 # ring = 0.5          # 0 – 1
 # weight = 800        # 100 – 900
 # size = 0.86         # share of the cell's height (0.5 – 1)
+#
+# Frames, tabs, controls, list, caret, tree, icons, status bar, tips: most have a
+# style (a recipe, the deck's own looks by name) and fields over it. Every glyph
+# stays as wide as the deck's (nothing moves). The full table: docs/THEMES.md.
+#
+# [frame]             # (style above) case = "upper" · align = "center" · focus = "both"
+# [tabs]              # style = thick · thin · flat;  close = "×"  more = "▾"
+# [button]            # style = pad · bracket · angle · bare
+# [checkbox]          # style = brackets · ballot · dots;  on = "■"  off = " "  some = "▪"
+# [choice]            # style = angle · triangle · ascii
+# [slider]            # style = line · blocks · dots;  knob = "■"
+# [list]              # style = fill · bar · caret;  glide = true
+# [caret]             # shape = bar · block · underline · hollow;  blink = true
+# [tree]              # style = lines · round · ascii
+# [icons]             # style = deck · ascii;  file_python = "∿" …
+# [statusbar]         # style = line · dots · blank
+# [tip]               # style = deck · plain · round;  radius = 2

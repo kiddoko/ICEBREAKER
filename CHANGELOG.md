@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.1 — not released yet
+
+**Themes v2, step 3: components** (docs/THEMES_V2_PLAN.md — the built-in themes look the same)
+- A theme can now restyle the **frames, the tabs, the buttons, the checkboxes, the choices, the
+  sliders, the lists, the text cursor, the vault's tree, the icons, the status bar and the tips** —
+  each a table of its name: `[checkbox] style = "ballot"`, `[slider] knob = "◆"`, `[caret] shape =
+  "block"`, `[frame] case = "upper"`. Most have a **style** (a recipe: one of the deck's own looks,
+  by name) and every field can then be changed over it. `theme set checkbox.style dots` works too.
+- `[frame] style` knows `dashed` and `ascii` too.
+- What a theme can't do: change a size (a glyph is always as wide as the deck's, so nothing moves
+  and every click lands where it did), make two states look the same (on / off, open / closed), or
+  blank a part that means something (a slider's handle). That field keeps the deck's own, and
+  `theme check` says why — it also lists what a theme restyles.
+- The table of every field in docs/THEMES.md and themes/schema-2.json are generated from them.
+- Tests: each recipe drawn in each state; none reads worse than the deck's own, in any built-in
+  theme; the parts that carry a state (a tick, a handle, arrows, a focused frame) at 3:1 at least;
+  every click area unchanged; the 11 built-in themes draw exactly what they drew.
+
 ## 0.8.0 — 2026-11-24
 
 The new top of the window, keys and the pad, the tab bar, themes v2 (steps 1–2), what modules

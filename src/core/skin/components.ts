@@ -2,12 +2,14 @@ import { mix, type RGB } from "../color";
 import type { KeycapLook } from "../keycap";
 import type { PadLook } from "../padglyphs";
 import { bool, color, int, num } from "./fields";
-import { type Component, contrastRule, defineComponent, type FloorColors } from "./registry";
+import { ICONS, type IconId } from "./icons";
+import { ICONS_COMPONENT, iconField, PARTS } from "./parts";
+import { type Component, contrastRule, defineComponent, type FloorColors, resolve } from "./registry";
 
 /**
- * The components a theme can restyle today (milestone 1: the keys and the pad's buttons).
- * Each is a TOML table of the same name ([keys], [pad]) and a `theme set` prefix (keys.radius).
- * The next ones (frame, tabs, button, checkbox…) join this list in milestone 3.
+ * The components a theme can restyle: the keys and the pad's buttons (milestone 1, here), then
+ * frames, tabs, controls, list, caret, tree, icons, status bar and tip (milestone 3, parts.ts).
+ * Each is a TOML table of the same name ([keys], [tabs]) and a `theme set` prefix (keys.radius).
  */
 
 /** a key's face when the theme leaves it to the deck: a raised tone of the panel, a touch of accent */
@@ -58,8 +60,32 @@ export const PAD = defineComponent<PadLook>({
 });
 
 /** every component, in the order the studio and the docs list them */
-export const COMPONENTS: Component<object>[] = [KEYS as unknown as Component<object>, PAD as unknown as Component<object>];
+export const COMPONENTS: Component<object>[] = [KEYS as unknown as Component<object>, PAD as unknown as Component<object>, ...PARTS];
+
+/** what a Theme carries of the milestone-3 components: only the fields its file (or a parent) set */
+export type SkinLooks = Partial<Record<string, Record<string, unknown>>>;
+
+const resolved = new WeakMap<object, Map<string, unknown>>();
+
+/**
+ * A component's complete look for a theme (defaults, its recipe, what the theme set, clamped and
+ * floored at load): what the drawing code reads — `look(ui.theme, CHECKBOX).on`. Worked out once
+ * per theme object, then kept.
+ */
+export function look<V extends object>(theme: { skin?: SkinLooks }, comp: Component<V>): V {
+  let m = resolved.get(theme);
+  if (!m) resolved.set(theme, (m = new Map()));
+  let v = m.get(comp.id) as V | undefined;
+  if (!v) m.set(comp.id, (v = resolve(comp, theme.skin?.[comp.id] as Partial<V> | undefined)));
+  return v;
+}
 
 export function component(id: string): Component<object> | undefined {
   return COMPONENTS.find((c) => c.id === id);
+}
+
+/** a theme's icons as id → glyph (what setIconGlyphs takes): the deck's, its recipe, its own */
+export function iconGlyphs(theme: { skin?: SkinLooks }): Record<IconId, string> {
+  const l = look(theme, ICONS_COMPONENT) as Record<string, string>;
+  return Object.fromEntries((Object.keys(ICONS) as IconId[]).map((id) => [id, l[iconField(id)]])) as Record<IconId, string>;
 }

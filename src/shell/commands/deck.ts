@@ -230,6 +230,7 @@ const theme: Command = {
     ["theme tweak", "every knob, and what you changed"],
     ["theme set accent #ff2e88", "a pink accent on the current theme (theme tweak … works too)"],
     ["theme set keys.radius 0", "square keys (every keys.* and pad.* field: theme set keys.<tab>)"],
+    ["theme set checkbox.style ballot", "☑ checkboxes (frame, tabs, button, checkbox, choice, slider, list, caret, tree, icons, statusbar, tip: theme set <component>.<tab>)"],
     ["theme tweak background snow", "snow behind the panels (fog, rain, stars, embers, scan, none)"],
     ["theme tweak density 0.3", "less of it"],
     ["theme tweak sounds crystal", "glassy sounds (retro, soft, industrial)"],
@@ -240,7 +241,7 @@ const theme: Command = {
     ["theme new mytheme", "copy the current theme file to edit by hand"],
   ],
   summary: "list, switch, tweak, export and create themes",
-  usage: "theme [ls]\ntheme set <name>\ntheme set <knob> <value>   (your changes on top of the theme; = theme tweak)\ntheme tweak [<knob> <value> | reset [knob]]\ntheme check [name]   (what the deck made of a theme file: schema, problems, the floor)\ntheme upgrade <name> [--write]   (your theme file as schema 2: a preview, then --write)\ntheme export <name>  (theme + tweaks → a new theme file)\ntheme studio         (the visual editor)\ntheme new <name>     (copies the current theme into your vault and opens it)\ntheme reload         (re-read .icebreaker/themes/*.toml)\ntheme install <user/repo/file.toml | id>   (download a community theme)",
+  usage: "theme [ls]\ntheme set <name>\ntheme set <knob> <value>   (your changes on top of the theme; = theme tweak)\ntheme tweak [<knob> <value> | reset [knob]]\ntheme check [name]   (what the deck made of a theme file: schema, what it restyles, problems, the floor)\ntheme upgrade <name> [--write]   (your theme file as schema 2: a preview, then --write)\ntheme export <name>  (theme + tweaks → a new theme file)\ntheme studio         (the visual editor)\ntheme new <name>     (copies the current theme into your vault and opens it)\ntheme reload         (re-read .icebreaker/themes/*.toml)\ntheme install <user/repo/file.toml | id>   (download a community theme)",
   man: "Tweaks are kept per theme in settings.json (appearance.tweaks) — the theme file is never changed.\nKnobs: colors (accent accent2 text bg panel border), font font-size, frame mark bullet,\nbackground density speed bg-color bg-color2, sounds pitch, select noise; and every component field: keys.radius keys.lip keys.face… pad.size pad.weight…\n(theme tweak lists them all). Raw keys work too: theme tweak ui.cursor #fff.\nThe full format is in themes/nightshade.toml and docs/THEMES.md.",
   // theme set <tab> → knobs and component fields (keys.radius…), theme set keys.lip <tab> → values
   complete: (args: string[]) =>

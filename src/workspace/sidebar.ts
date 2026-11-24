@@ -1,4 +1,6 @@
 import { fileIcon } from "../ui/fileicon";
+import { look } from "../core/skin/components";
+import { TREE } from "../core/skin/parts";
 import { q, type MenuEntry } from "../ui/ui";
 import { strWidth } from "../core/unicode";
 import { t } from "../core/i18n";
@@ -531,12 +533,14 @@ export class Sidebar {
       }
       // tree guides: │ for open branches above, then ├─ or └─
       // (top-level items have no connector: their rail is rails[0], not drawn)
-      for (let i = 1; i < depth; i++) x = ui.text(x, row.y, rails[i] ? "│ " : "  ", guide);
-      if (depth > 0) x = ui.text(x, row.y, last ? "└" : "├", guide);
+      // their glyphs: the theme's [tree] (core/skin/parts.ts), one cell each
+      const tl = look(ui.theme, TREE);
+      for (let i = 1; i < depth; i++) x = ui.text(x, row.y, rails[i] ? `${tl.pipe} ` : "  ", guide);
+      if (depth > 0) x = ui.text(x, row.y, last ? tl.last : tl.branch, guide);
       if (entry.isDir) {
         const opened = this.open.has(entry.path);
-        x = ui.text(x, row.y, depth > 0 ? "─" : "", guide);
-        x = ui.text(x, row.y, opened ? "▾" : "▸", { fg: c.accent });
+        x = ui.text(x, row.y, depth > 0 ? tl.dash : "", guide);
+        x = ui.text(x, row.y, opened ? tl.open : tl.closed, { fg: c.accent });
         if (custom) x = ui.text(x, row.y, custom, { fg: c.accent });
         // the colour tag: a small square at the right edge (a word in greys-only themes)
         const mark = tag ? (mono ? `${t(tag)} ` : "■ ") : "";
@@ -548,7 +552,7 @@ export class Sidebar {
         }
       } else {
         const md = entry.name.endsWith(".md");
-        x = ui.text(x, row.y, depth > 0 ? "─" : "", guide);
+        x = ui.text(x, row.y, depth > 0 ? tl.dash : "", guide);
         // the icon, then a space: a glyph never touches the name
         // the icon slot is always 2 columns (icon or not): every name starts at the same place
         const icon = custom ?? (md ? "" : fileIcon(entry.name));

@@ -71,6 +71,9 @@ import { q, type Hit } from "./ui/ui";
 import { keyFace, UI } from "./ui/ui";
 import { keycapLook } from "./core/keycap";
 import { setPadLook } from "./core/padglyphs";
+import { iconGlyphs, look } from "./core/skin/components";
+import { setIconGlyphs } from "./core/skin/icons";
+import { CARET, TIP } from "./core/skin/parts";
 import { basename, join, slugify } from "./vault/paths";
 import { Vault } from "./vault/vault";
 import { BootScreen, type BootLine } from "./workspace/boot";
@@ -629,7 +632,7 @@ export class Deck implements InputSink {
     const wait = this.tipView.want(
       want?.content ?? null,
       want?.key ?? "",
-      { bg: css(c.panelAlt), fg: css(c.fg), muted: css(c.muted), accent: css(c.accent), border: css(c.accent), keyFace: keyFace(c), keyLook: keycapLook(this.theme.keys) },
+      { bg: css(c.panelAlt), fg: css(c.fg), muted: css(c.muted), accent: css(c.accent), border: css(c.accent), keyFace: keyFace(c), keyLook: keycapLook(this.theme.keys), look: look(this.theme, TIP) },
       { family: this.renderer.fontFamily, px: this.renderer.fontSize },
       !!this.settings.data.appearance.reduceMotion,
       ui.pad,
@@ -703,7 +706,7 @@ export class Deck implements InputSink {
     }
     if (this.renderer.fading) ui.animate(33); // letters still fading in (renderer.fadeMs): 3–4 steps, on the clock
     if (ui.caret) this.input.placeCaret(ui.caret.x, ui.caret.y);
-    this.renderer.setCaret(ui.softCaret ? ui.caret : null, css(ui.c.cursor), ui.caretTyped, !!this.settings.data.appearance.reduceMotion);
+    this.renderer.setCaret(ui.softCaret ? ui.caret : null, css(ui.c.cursor), ui.caretTyped, !!this.settings.data.appearance.reduceMotion, look(this.theme, CARET));
     this.hits = ui.hits;
     if (ui.awake) this.awakeAt = performance.now(), this.loop.rest("awake");
     return ui.wakeIn;
@@ -1203,6 +1206,8 @@ export class Deck implements InputSink {
     // the theme's hooks for the keys and the pad's buttons (core/keycap.ts, core/padglyphs.ts)
     this.renderer.keycapLook = keycapLook(t.keys);
     setPadLook(t.pad);
+    // the theme's [icons]: what icon("file.python") answers everywhere (core/skin/icons.ts)
+    setIconGlyphs(iconGlyphs(t));
     this.renderer.setGlow(lv.glow ?? 0, t.c.bg);
     // the curved glass bends the whole picture (crt.ts) — composed with the bloom and the CRT lines
     this.renderer.setCurve(curve, this.renderer.bloomEnabled ? bloomNow : 0, fx.scanlines ? (t.fx.scanlines * lv.scanlines) / 100 : 0);
