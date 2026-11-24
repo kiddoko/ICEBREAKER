@@ -15,6 +15,8 @@
  * Writing to it: `deck.log.add(kind, text, { detail, code, source })`.
  * Reading it: `deck.log.list` (oldest first), `log tail` in the shell.
  */
+import { redact } from "./redact";
+
 export type LogKind = "cmd" | "action" | "error" | "notify" | "debug" | "access";
 
 /** The kinds in the order the filter shows them, with their glyph. */
@@ -45,8 +47,11 @@ export interface LogEntry {
   failed?: boolean;
 }
 
-/** ANSI colours out: the log stores plain text, it draws its own colours. */
-const plain = (s: string) => s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "");
+/** ANSI colours out (the log stores plain text, it draws its own colours), secrets masked (core/redact.ts). */
+/** how much of an entry's detail is masked again with each new piece (EventLog.append): longer than any key or 24 words */
+const APPEND_LOOKBACK = 4096;
+
+const plain = (s: string) => redact(s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, ""));
 
 export class EventLog {
   readonly list: LogEntry[] = [];
@@ -75,7 +80,12 @@ export class EventLog {
 
   /** More output for an entry (a click's command still running). */
   append(e: LogEntry, more: string): void {
-    e.detail = (e.detail ?? "") + plain(more);
+    // masked with what came just before: a key printed in two pieces is still one key.
+    // Only the end is looked at again (the rest was masked already): a long output stays
+    // fast instead of being masked from its first line at every piece.
+    const old = e.detail ?? "";
+    const cut = Math.max(0, old.length - APPEND_LOOKBACK);
+    e.detail = old.slice(0, cut) + plain(old.slice(cut) + more);
     this.onAdd(e);
   }
 

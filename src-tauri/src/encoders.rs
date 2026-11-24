@@ -258,6 +258,8 @@ fn private_dir(app: &AppHandle) -> Result<PathBuf, String> {
         use std::os::unix::fs::PermissionsExt;
         let _ = std::fs::set_permissions(&d, std::fs::Permissions::from_mode(0o700));
     }
+    // an encode a crash cut short left its file (a module's sound): wiped
+    crate::crypto::sweep_work_files(&d, "enc-");
     Ok(d)
 }
 

@@ -6,7 +6,7 @@ Each finding: what, how bad, and where it stands. The first pass (1–13) came w
 big cleanup; the security pass (14–24) fixed most of what was left open; 25–31 came with
 the updates and the check before going public; **32–58 come from a full review of the
 code by another AI (2026-11-20), which found that several of the earlier fixes could be
-walked around** — they're listed with what they walked around. **Nobody outside the project has audited
+walked around** — they're listed with what they walked around. **72–78: the pass on temp files, logs and secrets in memory (2026-11-24)** after a friend's review. **Nobody outside the project has audited
 ICEBREAKER** — read [../DISCLAIMER.md](../DISCLAIMER.md).
 
 Severity: 🔴 critical (your notes, keys or computer) · 🟠 high · 🟡 medium · ⚪ low.
@@ -86,6 +86,13 @@ Severity: 🔴 critical (your notes, keys or computer) · 🟠 high · 🟡 medi
 | 68 | Stealth mode was checked in the page only: the native commands that go online (`news_rss`, `net_get`, `voice_install`, `encoders_install`, the updater, Google, Claude Code) didn't look at it themselves | 🟡 | each of them reads `privacy.stealth` from the unlocked account's own settings file before going online (`config::online`, `src-tauri/src/config.rs`) — whatever the page says |
 | 69 | The AI listed, searched and read any note of the vault by itself, with nothing on screen saying so | 🟡 | `ai.reads` (Settings → PERMISSIONS): nothing · what you give it · the whole vault — in the deck's tools (`src/ai/tools.ts`) and for Claude Code (no file tool unless "all": `claude_code.rs`); the top bar says "the AI reads …" and the journal keeps it; a new account starts on "what you give it" |
 | 70 | A module allowed to read or write notes had the whole vault | ⚪ | a permission can name a folder (`vault:read:songs/`, `vault:write:songs/`): checked on every path, in `ib.vault` and in the lines it runs (`src/shell/origin.ts`) |
+| 72 | **Security pass of 2026-11-24** (a friend's review, 22/11) — the plain backup zip `vault encrypt` makes first stayed on the disk with one dim line about it | 🟡 | said in yellow at the end (still on the disk, unencrypted, Time Machine / iCloud / Dropbox / OneDrive / Trash may hold copies) and offered to be deleted at once; `vault status` reminds, `vault backups` lists, `vault wipe-backup` deletes — **overwritten with zeros, flushed, then removed** (`crypto::wipe_file`, best effort on SSD / copy-on-write), only a file named like a backup of the mounted vault, next to it, never a link (`vault.rs` tests) |
+| 73 | The LOG tab kept every line you typed and what commands printed — and a module with `shell` reads its last lines (`ib.log.tail`): a key or a password typed on the command line by mistake stayed there (the history already left such lines out). The error log and the console likewise | 🟡 | `src/core/redact.ts`: API keys and tokens by shape, `password=` / `token:` / `--password x`, and recovery words (12+ bare short words in a row) become `[redacted]` in the LOG, the error log, every `console.*` of the page (guarded once in `main.ts`) and the boot-failure screen; the shell's history uses the same test. `tests/redact.test.ts` fails if a password or the 24 words reach any of them |
+| 74 | `access.json` (the access journal, in the app's configuration folder, **outside** the encrypted vault) kept the names of the notes modules and the AI read — an encrypted vault's names in plain on the disk | 🟡 | for an encrypted vault the file keeps who / which permission / when, not the note (`AccessLog.forDisk`); the names stay in memory for the LOG and Settings; can't tell: hidden (`tests/permissions.test.ts`) |
+| 75 | The system voices got a note's text in a file (the app's private cache, removed after) — and on an error before the removal, the text and the sound stayed | ⚪ | macOS `say -f -` and Linux `espeak --stdin` read it through a pipe; Windows' SAPI keeps a private file; every work file of the voice and the encoder pack is wiped on every way out (`crypto::WipeOnDrop`), and what a crash left is wiped at the next use (`sweep_work_files`) |
+| 76 | A masked field (a password) kept up to 300 undo steps — each a piece of the password — and ⌘C / ⌘X copied it; the dialog's field still held it after it answered; the shell showed as many bullets as letters (up to 12) | ⚪ | no undo and no copy in a masked field; the dialog clears its field as it answers; the shell shows eight bullets whatever the length; `vault encrypt / rekey / recovery` drop their copy of the password before the recovery words are shown (strings can't be wiped: O5) |
+| 77 | A login's password waiting for its vault to be mounted (2 minutes at most) was only dropped when a vault command came by | ⚪ | a thread drops it every 15 s once it's 2 minutes old (`lib.rs`, `vault::prune_pending`) |
+| 78 | `dev_factory_reset` and `dev_restart` were registered in release builds (they refused, but any page code could call them) | ⚪ | compiled and registered only with `--features dev-tools`; `dev.rs` `release_has_no_dev_commands` checks the `cfg`s stay |
 
 ## Open — for the security pass
 
@@ -94,13 +101,14 @@ Severity: 🔴 critical (your notes, keys or computer) · 🟠 high · 🟡 medi
 | O2 | **Any code in the page** can still call every native command (`fs_list`, `vault_*`… — `fs_read_text` and `net_get` are narrowed, #17–18; stealth mode is now checked by the native side itself, #68). Only the deck's own code and the built-in modules run there now, and the deck never renders notes as HTML (a grid of cells), so there's no known way in — but nothing *locks* it | 🟠 | lock the bridge: the deck keeps the only handle (sandbox step 2), and `fs_read_text` only for a file you just chose in the file browser; `net_get` only for the STORE's sources |
 | O3 | The built-in modules (TODO, CALENDAR, MUSIC…) still run in the deck | 🟡 | move them into the Worker one by one (docs/SANDBOX.md) |
 | O4 | The CSP allows `blob:` scripts in the page (for modules that ran there) and `'unsafe-inline'` styles | 🟡 | once every module is in a Worker: no `blob:` in `script-src` (only `worker-src blob:`) |
-| O5 | Passwords and recovery words pass through the UI's JavaScript: strings can't be wiped from memory (Rust zeroizes its copies) | ⚪ | accept and document; keep them out of logs (they are) |
+| O5 | Passwords and recovery words pass through the UI's JavaScript: strings can't be wiped from memory (Rust zeroizes its copies) | ⚪ | accepted. Shortened (#76): sent to the native side at once, no undo history, no clipboard, the dialog's field cleared, no copy held while the recovery words show; kept out of every log (#73). Left: the lock screen keeps an approving account's password until the new account is made (by design: one step later) |
 | O11 | Sync (iCloud, Syncthing) of an encrypted vault from two computers at once: the one index can conflict (no note lost, but some back in `.trash/recovered-…`) | 🟡 | a per-device journal of index changes merged on open |
 | O12 | The login page's file browser (open a vault) lists the computer's folders before anyone is logged in | ⚪ | by design (the person at the keyboard has the computer); only folders, no file content |
 | O17 | The built-in modules and the deck's own functions trust their callers' words: a function exposed tomorrow that builds a command from an argument without quoting it would reopen #32 for that function | 🟡 | `tests/origin.test.ts` guards the mechanism; each new function must use `line(…)` (plugins/frame-services.ts) |
 | O18 | The neural voice takes its text as an argument: while it speaks, other users of the computer can see that text in the list of processes | ⚪ | the engine has no other way in; the system voices read a private file |
 | O19 | Windows: the deck's terminals start PowerShell with `-ExecutionPolicy Bypass` (needed to load its hook) | ⚪ | sign the hook, or load it another way |
-| O20 | CI: the updater key has no password (the actions are pinned now: #59) | ⚪ | a key with a password in the secret |
+| O20 | CI: the updater key has no password (the actions are pinned: #59 — checked again 2026-11-24, every `uses:` of `build.yml` and `encoders.yml` is a 40-character commit sha) | ⚪ | a key with a password in the secret |
+| O22 | An encrypted vault's **settings copy** in the app's configuration folder (`users/<id>/settings.json`, 0600, outside the vault) can name notes in plain: pins, HOME links, the session's open tabs, recent notes | 🟡 | keep those keys only in the vault's encrypted settings when the vault is encrypted (the copy keeps what the login needs: theme, language, where the vault is) — touches the settings sync (`account.rs` mirror / `account_vault_sync`): its own change |
 | O13 | The audit (`plugin audit`) reads the code before it runs; a minified or obfuscated module can hide what it does | ⚪ | with the sandbox it matters much less; keep showing "minified" in red |
 | O21 | A module with `audio` can play any sound, inaudible ones too (an ultrasound "beacon" some trackers use to link devices) | ⚪ | the permission says it plays sound; ♪ its name in the status bar while it plays, one click silences it; idea: a low-pass on the modules' channel |
 
@@ -142,6 +150,19 @@ Severity: 🔴 critical (your notes, keys or computer) · 🟠 high · 🟡 medi
   10 minutes. `ib.audio.encode` needs `audio` (it turns the module's own sound into bytes that only
   `vault:write` can then save).
 - **ICEBREAKER's own updates**: signature checked before installing, https only.
+- **Secrets in Rust memory** (2026-11-24): the vault key is one `VaultKey` (boxed, not `Clone`,
+  wiped on drop) moved into the unlocked `Store`; locking, logging out and quitting drop it; the
+  cipher made from it per call wipes its own copy (`chacha20poly1305`'s `Drop`). Every password,
+  recovery phrase and approving password a command receives is wrapped in `Zeroizing` at once;
+  Argon2's output and the recovery words' seed are `Zeroizing` too; decrypted notes come back
+  `Zeroizing` until they're handed to the page.
+- **Temp files** (2026-11-24): every save, `vault encrypt`, `rekey` and `adopt` write the
+  already-encrypted bytes to a temp file in the same folder, then rename (no plain moment);
+  Google's token goes to `curl` through stdin, never a file or an argument; the encoder pack gets
+  the sound through stdin, its output in the app's private cache (wiped, #75). There is no
+  dictation yet (nothing records the microphone). `vault decrypt` / `export` write plain files on
+  purpose. Rust prints nothing sensitive (`eprintln!` only for the frame rate), and writes no log
+  file but the neural voice's own error (`voice/last-error.log`: the engine's message, not the text).
 
 ## How to repeat the test
 

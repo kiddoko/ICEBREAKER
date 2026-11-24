@@ -147,6 +147,8 @@ fn private_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
         use std::os::unix::fs::PermissionsExt;
         let _ = std::fs::set_permissions(&d, std::fs::Permissions::from_mode(0o700));
     }
+    // what a crash left (a note's text, its sound): wiped
+    crate::crypto::sweep_work_files(&d, "voice-");
     Ok(d)
 }
 
@@ -176,6 +178,9 @@ pub async fn voice_speak(app: AppHandle, text: String, engine: String, voice: St
     let tag = random_tag();
     let tmp = work.join(format!("voice-{tag}.wav"));
     let txt_path = work.join(format!("voice-{tag}.txt"));
+    // both wiped whatever happens (an error, a `?`): crypto::WipeOnDrop
+    let _wipe_wav = crate::crypto::WipeOnDrop(tmp.clone());
+    let _wipe_txt = crate::crypto::WipeOnDrop(txt_path.clone());
     let piper = piper_bin(&app);
     let model_dir = dir(&app)?.join("models").join(&voice);
     let tmp2 = tmp.clone();
@@ -230,16 +235,28 @@ pub async fn voice_speak(app: AppHandle, text: String, engine: String, voice: St
         }
         let sys = system_engine().ok_or("no system voice here (Linux: install espeak-ng) — or voice install for piper")?;
         let txt = txt_path.clone();
-        crate::crypto::write_private(&txt, text.as_bytes()).map_err(|e| e.to_string())?;
+        // macOS and Linux: the text through stdin, never in a file. Windows' SAPI reads a
+        // private file (wiped right after: _wipe_txt), PowerShell's stdin mangles accents.
+        let fed = |mut c: Command| -> std::io::Result<std::process::ExitStatus> {
+            c.stdin(Stdio::piped());
+            let mut child = c.spawn()?;
+            if let Some(mut i) = child.stdin.take() {
+                use std::io::Write;
+                let _ = i.write_all(text.as_bytes());
+            }
+            child.wait()
+        };
         let status = match sys.as_str() {
             "say" => {
                 let mut c = Command::new("say");
                 if !voice.is_empty() {
                     c.args(["-v", &voice]);
                 }
-                c.args(["-r", &format!("{}", (185.0 * rate) as u32), "--file-format=WAVE", "--data-format=LEI16@22050", "-o"]).arg(&tmp2).arg("-f").arg(&txt).status()
+                c.args(["-r", &format!("{}", (185.0 * rate) as u32), "--file-format=WAVE", "--data-format=LEI16@22050", "-o"]).arg(&tmp2).args(["-f", "-"]);
+                fed(c)
             }
             "sapi" => {
+                crate::crypto::write_private(&txt, text.as_bytes()).map_err(|e| e.to_string())?;
                 let script = format!(
                     "Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; {} $s.Rate = {}; $s.SetOutputToWaveFile('{}'); $s.Speak([IO.File]::ReadAllText('{}')); $s.Dispose()",
                     if voice.is_empty() { String::new() } else { format!("$s.SelectVoice('{}');", voice.replace('\'', "''")) },
@@ -254,11 +271,14 @@ pub async fn voice_speak(app: AppHandle, text: String, engine: String, voice: St
                 if !voice.is_empty() {
                     c.args(["-v", &voice]);
                 }
-                c.args(["-s", &format!("{}", (170.0 * rate) as u32), "-w"]).arg(&tmp2).arg("-f").arg(&txt).status()
+                c.args(["-s", &format!("{}", (170.0 * rate) as u32), "-w"]).arg(&tmp2).arg("--stdin");
+                fed(c)
             }
         }
         .map_err(|e| format!("{sys}: {e}"))?;
-        let _ = std::fs::remove_file(&txt);
+        if txt.exists() {
+            let _ = crate::crypto::wipe_file(&txt);
+        }
         if !status.success() {
             return Err(format!("{sys} failed (voice \"{voice}\"?)"));
         }
@@ -267,7 +287,7 @@ pub async fn voice_speak(app: AppHandle, text: String, engine: String, voice: St
     .await
     .map_err(|e| e.to_string())??;
     let bytes = std::fs::read(&tmp).map_err(|e| e.to_string())?;
-    let _ = std::fs::remove_file(&tmp);
+    // (the sound file: wiped by _wipe_wav, here or on any error above)
     Ok(tauri::ipc::Response::new(bytes))
 }
 

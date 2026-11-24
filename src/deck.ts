@@ -286,7 +286,8 @@ export class Deck implements InputSink {
     });
     this.vault.history = this.history;
     // the access journal: its lines show in the LOG too ("◈ [todo] vault:write · notes/a.md")
-    this.access = new AccessLog(platform);
+    // (an encrypted vault: its notes' names never go into access.json, outside the vault)
+    this.access = new AccessLog(platform, async () => (await platform.vault.crypt?.status())?.encrypted ?? false);
     this.access.onAdd = (a) => void this.log.add("access", `${a.perm}${a.what ? ` · ${a.what}` : ""}`, { source: a.who });
     this.stats = new StatsStore(this.vault);
     this.marks = new Marks(this.vault);

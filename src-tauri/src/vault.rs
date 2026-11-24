@@ -161,8 +161,9 @@ pub fn settle(state: &VaultState, path: &Path) {
     }
 }
 
-/// The login's password waits for the vault to be mounted for 2 minutes at most.
-fn prune_pending(state: &VaultState) {
+/// The login's password waits for the vault to be mounted for 2 minutes at most
+/// (also called every 15 s by a thread: lib.rs).
+pub fn prune_pending(state: &VaultState) {
     if let Ok(mut p) = state.pending.lock() {
         if p.as_ref().is_some_and(|(_, at)| at.elapsed() >= Duration::from_secs(120)) {
             *p = None; // dropping it wipes it
@@ -1100,6 +1101,48 @@ pub fn encrypt(state: &VaultState, password: &str, stamp: &str) -> CmdResult<sto
     })
 }
 
+/// Is `file` a name `vault encrypt` gives its plain backup next to the vault `vname`?
+/// (`<vname>-backup-<date>.zip`, `<vname>-backup-<date>-2.zip`…)
+fn is_backup_name(vname: &str, file: &str) -> bool {
+    let Some(rest) = file.strip_prefix(vname).and_then(|r| r.strip_prefix("-backup-")).and_then(|r| r.strip_suffix(".zip")) else { return false };
+    !rest.is_empty() && rest.len() <= 40 && rest.chars().all(|c| c.is_ascii_digit() || c == '-')
+}
+
+/// The plain backups `vault encrypt` left next to the vault at `root` (files only, no links).
+fn backups_next_to(root: &Path) -> Vec<PathBuf> {
+    let (Some(parent), Some(vname)) = (root.parent(), root.file_name().map(|n| n.to_string_lossy().into_owned())) else { return vec![] };
+    let Ok(rd) = fs::read_dir(parent) else { return vec![] };
+    let mut v: Vec<PathBuf> = rd
+        .flatten()
+        .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false) && is_backup_name(&vname, &e.file_name().to_string_lossy()))
+        .map(|e| e.path())
+        .collect();
+    v.sort();
+    v
+}
+
+/// Wipe one of them (crypto::wipe_file: overwritten, then removed). Only a file
+/// [`backups_next_to`] lists: this can't remove anything else.
+fn wipe_backup_at(root: &Path, path: &Path) -> CmdResult<()> {
+    let found = backups_next_to(root);
+    if !found.iter().any(|b| b == path) {
+        return Err(format!("{}: not a plain backup of this vault", path.display()));
+    }
+    crypto::wipe_file(path).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// `vault backups`: the plain backup zips next to the mounted vault (your notes in plain).
+#[tauri::command]
+pub fn vault_backups(state: State<VaultState>) -> CmdResult<Vec<String>> {
+    Ok(backups_next_to(&root(&state)?).into_iter().map(|p| p.to_string_lossy().into_owned()).collect())
+}
+
+/// `vault wipe-backup`: one of them overwritten then removed (best effort: see crypto::wipe_file).
+#[tauri::command(async)]
+pub fn vault_wipe_backup(state: State<VaultState>, path: String) -> CmdResult<()> {
+    wipe_backup_at(&root(&state)?, Path::new(&path))
+}
+
 /// `vault rekey`: a new vault key, every file encrypted again (store::rekey_vault).
 /// `password` = the account's, already checked (account.rs). The report carries the new recovery words.
 pub fn rekey(state: &VaultState, password: &str) -> CmdResult<store::Report> {
@@ -1175,6 +1218,32 @@ pub fn export(app: &AppHandle, state: &VaultState, dest: &str) -> CmdResult<stor
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn plain_backups_are_found_and_wiped_nothing_else() {
+        let base = std::env::temp_dir().join(format!("ib-backups-{}", store::now_ms()));
+        let root = base.join("Notes");
+        fs::create_dir_all(&root).unwrap();
+        for f in ["Notes-backup-2026-11-24-0130.zip", "Notes-backup-2026-11-24-0130-2.zip", "Notes-backup-.zip", "Other-backup-2026.zip", "Notes-backup-2026.zip.partial", "Notes-backup-x.zip", "holiday.zip"] {
+            fs::write(base.join(f), b"PK plain notes").unwrap();
+        }
+        let found: Vec<String> = backups_next_to(&root).iter().map(|p| p.file_name().unwrap().to_string_lossy().into_owned()).collect();
+        assert_eq!(found, ["Notes-backup-2026-11-24-0130-2.zip", "Notes-backup-2026-11-24-0130.zip"]);
+        // anything else is refused, even by a path that leads back to a backup
+        assert!(wipe_backup_at(&root, &base.join("holiday.zip")).is_err());
+        assert!(wipe_backup_at(&root, &root.join("../Notes-backup-2026-11-24-0130.zip")).is_err());
+        assert!(base.join("holiday.zip").exists());
+        wipe_backup_at(&root, &base.join("Notes-backup-2026-11-24-0130.zip")).unwrap();
+        assert!(!base.join("Notes-backup-2026-11-24-0130.zip").exists());
+        assert_eq!(backups_next_to(&root).len(), 1);
+        // a link named like a backup isn't one
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(base.join("holiday.zip"), base.join("Notes-backup-1.zip")).unwrap();
+            assert_eq!(backups_next_to(&root).len(), 1);
+        }
+        let _ = fs::remove_dir_all(&base);
+    }
 
     #[test]
     fn icebreakers_own_files_are_closed_to_the_ui() {

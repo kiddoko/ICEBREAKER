@@ -8,6 +8,8 @@
  * 5xx modules · 6xx terminal · 7xx settings/config · 9xx anything else.
  */
 
+import { redact } from "./redact";
+
 export interface ErrorCode {
   code: string;
   title: string;
@@ -71,6 +73,8 @@ export class ErrorLog {
   onAdd: (e: LoggedError) => void = () => {};
 
   add(detail: string, code = codeFor(detail)): LoggedError {
+    // a password or key in an error's text never stays in the log (core/redact.ts)
+    detail = redact(detail);
     const e = { code, title: describe(code).title, detail, at: Date.now() };
     // the same error again within a few seconds: just once
     const last = this.list[this.list.length - 1];

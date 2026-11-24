@@ -84,6 +84,13 @@ pub fn run() {
         .setup(|app| {
             term::start_bridge(app.handle());
             account::init(app.handle());
+            // a login's password waiting for its vault is wiped after 2 minutes even if no
+            // vault command comes to look at it (vault.rs prune_pending)
+            let h = app.handle().clone();
+            std::thread::spawn(move || loop {
+                std::thread::sleep(std::time::Duration::from_secs(15));
+                vault::prune_pending(&tauri::Manager::state::<vault::VaultState>(&h));
+            });
             #[cfg(target_os = "macos")]
             promotion::unlock(app);
             #[cfg(windows)]
@@ -93,6 +100,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             vault::vault_default_path,
             vault::vault_mount,
+            vault::vault_backups,
+            vault::vault_wipe_backup,
             vault::vault_list,
             vault::vault_walk,
             vault::vault_read,
@@ -182,8 +191,11 @@ pub fn run() {
             screen::screen_is_fullscreen,
             screen::screen_notch,
             dev::dev_tools_available,
-            dev::dev_factory_reset, // DEV ONLY
-            dev::dev_restart,       // DEV ONLY
+            // DEV ONLY: not even registered in a release build (dev.rs)
+            #[cfg(feature = "dev-tools")]
+            dev::dev_factory_reset,
+            #[cfg(feature = "dev-tools")]
+            dev::dev_restart,
         ])
         .build(tauri::generate_context!())
         .expect("error while running ICEBREAKER")
