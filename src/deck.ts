@@ -43,7 +43,7 @@ import { macMenuActions } from "./workspace/macmenu";
 import { bloomRadius, bloomStrength, flickerSpeed } from "./core/fxlevels";
 import { Sound, SOUND_CHANNELS, type SoundName } from "./core/sound";
 import { Mixer } from "./core/mixer";
-import { DEFAULT_SETTINGS, type SettingsStore } from "./core/settings";
+import { brokenSettingsWhere, DEFAULT_SETTINGS, type SettingsStore } from "./core/settings";
 import { UndoHistory } from "./core/undo";
 import { setTypewriterHost } from "./ui/typewriter";
 import { TIP_CSS, TipView } from "./ui/tipview";
@@ -510,6 +510,11 @@ export class Deck implements InputSink {
     this.shellsGreeted = true;
     this.openApp("home");
     if (!s.setup.done) this.openApp("setup");
+    // settings.json couldn't be read: the setup starts again — say why, and where the old file is
+    if (this.settings.brokenKept) {
+      const os = IS_MAC ? "mac" : /windows/i.test(navigator.userAgent) ? "windows" : "linux";
+      this.workspace.toasts.push(t("your settings couldn't be read: back to the defaults. The old file is kept: {where}", { where: brokenSettingsWhere(os) }), "warning", true);
+    }
     void this.askVaultSettings();
     // the tabs you had open last time
     await step(() => this.workspace.restoreSession(!s.setup.done).catch(() => {}), () => (s.setup.done && s.session?.tabs?.length ? { text: t("Session restored: {n} tab(s)", { n: s.session.tabs.length }), status: "OK" } : null));

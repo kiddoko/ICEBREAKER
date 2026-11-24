@@ -74,3 +74,23 @@ describe("closing a note that can't be saved", () => {
     expect(asked.length).toBe(0);
   });
 });
+
+describe("« changed on disk » while you look at the note", () => {
+  const conflict = async (shown: boolean) => {
+    const { note, platform, vault, notes } = await openCrlf();
+    if (shown) (note as unknown as { drawnAt: number }).drawnAt = performance.now();
+    note.editor.onText("mine");
+    await platform.vault.write("win.md", "theirs\r\n");
+    await vault.rescan();
+    await settle();
+    await settle();
+    expect(note.status()).toContain("changed on disk");
+    return notes.filter((n) => n.includes("changed on disk"));
+  };
+  it("on screen: only its bar says it (no toast over « take the disk's »)", async () => {
+    expect(await conflict(true)).toEqual([]);
+  });
+  it("in a tab you're not looking at: a toast", async () => {
+    expect((await conflict(false)).length).toBe(1);
+  });
+});
