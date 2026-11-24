@@ -11,6 +11,7 @@ import { channels, mix, type RGB } from "../core/color";
 import { PIXELS, type Rect } from "../core/grid";
 import type { UI } from "../ui/ui";
 import { moonPhase, phaseGlyph } from "./moonphase";
+import { TOKENS } from "../core/skin/tokens";
 
 /** the seas, as soft ellipses on the face we see (x right, y down, the disc is -1…1): x, y, rx, ry, how dark */
 const MARIA: [number, number, number, number, number][] = [
@@ -58,7 +59,7 @@ function lightTheme(ui: UI): boolean {
 
 /** the moon's colour where fully lit (a warm grey, a touch of the theme) */
 function litTone(ui: UI): RGB {
-  return lightTheme(ui) ? 0xf3eddf : mix(mix(ui.c.fg, 0xf4ecd8, 0.55), ui.c.warning, 0.08);
+  return lightTheme(ui) ? TOKENS.moonPaper : mix(mix(ui.c.fg, TOKENS.moonGlow, 0.55), ui.c.warning, 0.08);
 }
 
 /** the moon's colour for words about it (the theme's text on a light theme, where a pale grey wouldn't read) */
@@ -94,7 +95,7 @@ export function drawMoon(ui: UI, r: Rect, t = Date.now(), o: { earthshine?: numb
   // a light theme: the moon in its own night (a dark disc, its lit part bright) — drawn on the
   // page's light, the night side vanished and the lit side came out darker than it
   const tone = litTone(ui);
-  const bg = lightTheme(ui) ? mix(c.bg, 0x14161c, 0.9) : c.bg;
+  const bg = lightTheme(ui) ? mix(c.bg, TOKENS.moonNight, 0.9) : c.bg;
   /** a pixel's colour, or null outside the disc */
   const px = (x: number, y: number): RGB | null => {
     const nx = (x - cx) / R, ny = (y - cy) / R;

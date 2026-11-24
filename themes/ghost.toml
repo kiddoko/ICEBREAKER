@@ -4,8 +4,13 @@
 name = "ghost"
 author = "icebreaker"
 description = "Ice white on blue-black, hairline IBM Plex Mono."
-border = "single"
-widget_frame = "line"
+schema = 2                # themes v2 (docs/THEMES.md): frames in [frame] / [widget_frame]
+
+[frame]
+style = "single"
+
+[widget_frame]
+style = "line"
 
 [palette]
 void  = "#06080d"

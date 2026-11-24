@@ -5,8 +5,13 @@
 name = "neon-district"
 author = "icebreaker"
 description = "Hot pink and cyan over a violet night, circuit traces, synth plucks."
-border = "heavy"
-widget_frame = "corners"  # widgets only get their four corners
+schema = 2                # themes v2 (docs/THEMES.md): frames in [frame] / [widget_frame]
+
+[frame]
+style = "heavy"
+
+[widget_frame]
+style = "corners"  # widgets only get their four corners
 
 [palette]
 night    = "#0d0221"

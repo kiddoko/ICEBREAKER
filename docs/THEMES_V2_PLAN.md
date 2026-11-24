@@ -462,6 +462,13 @@ Starting numbers, to measure with `debug perf` and tune in milestone 2:
 A test renders a reference screen for every built-in theme and fails if the frame time
 regresses more than 10 % against `master`.
 
+**Baseline (milestone 2, 2026-11-24, Apple M5 Pro, Node under vitest, schema-2 built-ins):**
+loading all 11 built-in themes (parse + resolve + floor) **0.34 ms**; `keycapLook()` (resolve a
+key look through the registry) **0.3 µs**; drawing the golden screen of `tests/skin-golden.ts`
+(48 × 8 grid: frame, text, keys, a button) **0.06 ms** per theme. Far under budget; to compare
+against once components (milestone 3) and sprites / hooks (5–6) land. The frame-time regression
+test is still to write (milestone 3).
+
 ---
 
 ## 7. Migrating the 11 built-in themes
@@ -554,6 +561,14 @@ three lines"), `GUIDELINES.md` (a theme / a module: the floor, `icon()` instead 
 ---
 
 ## 11. Open questions for the user
+
+> **Answered by the user (2026-11-24, 01:10)** — all four recommendations taken:
+> - **Q1**: `theme set <key> <value>` is the documented form (one argument = switch theme, two =
+>   tweak); `theme tweak` stays as an alias forever. *(Done in milestone 1.)*
+> - **Q2**: draw-hook code in themes: yes, but last (milestone 6), sandboxed and baked.
+> - **Q3**: protected surfaces: theme colours clamped harder (7:1, warning ≠ accent) + the deck's
+>   own components + a fixed `⛨` double frame.
+> - **Q4**: built-in themes migrated identical first; signatures in a later PR.
 
 **Q1. `theme set <key> <value>` or keep `theme tweak`?**
 `theme set <name>` already switches theme. *Recommendation:* make `theme set` the documented

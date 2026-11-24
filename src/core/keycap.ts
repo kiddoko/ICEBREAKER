@@ -1,5 +1,7 @@
 import { css, mix, type RGB } from "./color";
 import { CAP_END, CAP_PAD_L, CAP_PAD_R, CAP_START } from "./grid";
+import { KEYS } from "./skin/components";
+import { defaults, resolve } from "./skin/registry";
 
 /**
  * THE KEYS (0.8): every shortcut written on screen sits on a key — one key per shortcut,
@@ -47,23 +49,12 @@ export interface KeycapLook {
   bold: boolean;
 }
 
-/** the deck's keys: bevelled (the user's choice, 0.8) */
-export const BEVELLED: KeycapLook = { radius: 0.17, border: 1, lip: 0.12, shine: 1, reach: 0.42, top: 0.1, bottom: 0.06, face: null, bold: true };
+/** the deck's keys: bevelled (the user's choice, 0.8) — the defaults of the skin's `keys` component */
+export const BEVELLED: KeycapLook = defaults(KEYS);
 
-/** A theme's key look: its own parts over the bevelled key (numbers kept in sane bounds). */
+/** A theme's key look: its own parts over the bevelled key, kept in the bounds core/skin declares. */
 export function keycapLook(own?: Partial<KeycapLook>): KeycapLook {
-  const k = { ...BEVELLED, ...(own ?? {}) };
-  const clamp = (v: number, lo: number, hi: number, d: number) => (Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);
-  return {
-    ...k,
-    radius: clamp(k.radius, 0, 0.5, BEVELLED.radius),
-    border: Math.round(clamp(k.border, 0, 4, BEVELLED.border)),
-    lip: clamp(k.lip, 0, 0.3, BEVELLED.lip),
-    shine: Math.round(clamp(k.shine, 0, 3, BEVELLED.shine)),
-    reach: clamp(k.reach, 0, 0.5, BEVELLED.reach),
-    top: clamp(k.top, 0, 0.3, BEVELLED.top),
-    bottom: clamp(k.bottom, 0, 0.3, BEVELLED.bottom),
-  };
+  return resolve(KEYS, own);
 }
 
 /** The key's geometry in a cell of `cw` × `ch` device pixels: whole pixels, the same at every size. */

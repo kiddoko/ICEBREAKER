@@ -4,8 +4,13 @@
 name = "neon-ronin"
 author = "icebreaker"
 description = "Teal steel and hot pink neon."
-border = "heavy"
-widget_frame = "corners"
+schema = 2                # themes v2 (docs/THEMES.md): frames in [frame] / [widget_frame]
+
+[frame]
+style = "heavy"
+
+[widget_frame]
+style = "corners"
 
 [palette]
 night  = "#070b10"

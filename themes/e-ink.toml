@@ -6,8 +6,13 @@
 name = "e-ink"
 author = "icebreaker"
 description = "Matte digital ink on paper: black, white and greys, no glow, pages that refresh."
-border = "single"
-widget_frame = "line"     # widgets get a rule on top, no box
+schema = 2                # themes v2 (docs/THEMES.md): frames in [frame] / [widget_frame]
+
+[frame]
+style = "single"
+
+[widget_frame]
+style = "line"     # widgets get a rule on top, no box
 
 [palette]
 # old cream paper, matte (less bright than white), and a dark ink that is never pure black

@@ -16,6 +16,7 @@ import { basename, dirname } from "../vault/paths";
 import { ago } from "../core/time";
 import type { App, AppSpec } from "./types";
 import { fileIcon } from "../ui/fileicon";
+import { icon } from "../core/skin/icons";
 
 /**
  * NEXUS — the vault as a place. The current folder's files ride a carousel in
@@ -31,8 +32,8 @@ import { fileIcon } from "../ui/fileicon";
  */
 /** what a node is: a folder, a note, or a file of some kind — its glyph, its word, its colour */
 export function kindOf(e: { isDir: boolean; name: string }): { icon: string; word: string; color: (c: UI["c"]) => RGB } {
-  if (e.isDir) return { icon: "▸", word: "folder", color: (c) => c.accentAlt };
-  if (/\.md$/i.test(e.name)) return { icon: "≡", word: "note", color: (c) => c.accent };
+  if (e.isDir) return { icon: icon("file.folder"), word: "folder", color: (c) => c.accentAlt };
+  if (/\.md$/i.test(e.name)) return { icon: icon("file.note"), word: "note", color: (c) => c.accent };
   const ext = /\.([a-z0-9]{1,5})$/i.exec(e.name)?.[1]?.toLowerCase() ?? "file";
   return { icon: fileIcon(e.name), word: ext, color: (c) => c.warning };
 }

@@ -32,7 +32,10 @@ title_focus = "#39ff14"
 
 | section    | what                                                                  |
 |------------|-----------------------------------------------------------------------|
-| `[meta]`   | `name`, `author`, `description`, `border` (round / single / heavy / double), `widget_frame` for HOME widgets (those + dashed / corners / line), `extends` |
+| `[meta]`   | `name`, `author`, `description`, `schema` (2), `extends` — and in schema 1, `border` / `widget_frame` |
+| `[frame]`  | `style`: the frame round panels and pages (round / single / heavy / double) |
+| `[widget_frame]` | `style`: HOME widgets' frame (those + dashed / corners / line) |
+| `[logo]`   | `text`: a replacement for the boot logo (schema 1: `[ascii] logo`) |
 | `[palette]`| named colors, referenced by the sections below                         |
 | `[ui]`     | backgrounds, text, accent, borders, cursor, status colors…            |
 | `[syntax]` | Markdown highlighting in the editor and chat                          |
@@ -46,25 +49,73 @@ title_focus = "#39ff14"
 
 `[meta] extends = "phosphor"` builds on another theme: write only what changes.
 
+**Schema 2** (`[meta] schema = 2`, themes v2): the frames and the logo move into their own
+tables — `[frame] style` (was `[meta] border`), `[widget_frame] style` (was `[meta]
+widget_frame`), `[logo] text` (was `[ascii] logo`). Files without `schema` are schema 1 and keep
+working forever: the deck converts them in memory (`upgrade1to2`, `src/core/skin/schema.ts`) and
+never rewrites the file. A file made for a newer deck loads what this one understands, and `theme
+ls` says so. `theme check [name]` shows what the deck made of a theme: its schema, what its file
+got wrong, and the floor. `theme upgrade <name>` shows one of your files as schema 2, and
+`theme upgrade <name> --write` writes it (the old file stays beside it as `<name>.toml.v1`;
+TOML comments are not kept).
+
 Bundled fonts (SIL OFL): JetBrains Mono (default), IBM Plex Mono, Fira Code,
 Space Mono, VT323, Share Tech Mono. Any font installed on the system works too.
 A theme without `[font]` uses JetBrains Mono and the user's weight setting.
 
-## Theme hooks (code, not theme files yet)
+## Components: `[keys]` and `[pad]`
 
-Some of the interface is drawn from a small **look object** the theme can provide, so a later
-theme overhaul can restyle it without touching the drawing code. Today the built-in themes don't
-set them and theme files don't read them yet; what a theme leaves out is the deck's own look.
+Some parts of the interface are **components** a theme can restyle, field by field. Each is
+declared once in `src/core/skin/components.ts` (its fields, their bounds, defaults and help —
+the skin registry, docs/THEMES_V2_PLAN.md); the loader, `theme set`, its completion and the tests
+all read that declaration. What a theme leaves out is the deck's own look. The built-in themes
+don't set them yet (themes v2, milestone 1: nothing changes on screen).
 
-| hook | what | the deck's own |
-|---|---|---|
-| `Theme.keys` (`KeycapLook`, `src/core/keycap.ts`) | the key every shortcut sits on: `radius` (share of the cell's height), `border` (device pixels), `lip` (the darker bottom: share of the height, 0 = flat), `shine` (the light top edge, device pixels), `reach` (how far into the spaces beside it, share of a cell), `top` / `bottom` (room around it), `face` (its colour, or the theme's raised panel tone), `bold` | `BEVELLED` |
-| `Theme.pad` (`PadLook`, `src/core/padglyphs.ts`) | the gamepad's buttons shown in place of the keys while a pad is used: `inkDark` / `inkLight` (the letter, whichever reads on the button), `psBody` (a PlayStation button's body), `ring`, `weight` (the letters'), `size` (share of the cell's height) | `PAD_LOOK` |
+```toml
+[keys]          # the key every shortcut sits on
+radius = 0      # square keys
+lip = 0         # flat, no darker bottom
+face = "surface0"   # a [palette] name, a #hex, or auto
+```
 
-Every value is kept within sane bounds (`keycapLook`, `setPadLook`), so a theme can't break the
-drawing. The keys' text is always the theme's font; the pad buttons' colours (A green, ✕ blue…)
-are the pad maker's. The test `tests/contrast.test.ts` checks a key's text on its face in every
-built-in theme (≥ 4.5:1) — a theme that sets `face` should keep that.
+<!-- generated: components (src/core/skin/docs.ts) -->
+| component | field | what | values | the deck's own |
+|---|---|---|---|---|
+| `[keys]` | `radius` | corners, as a share of the cell's height (0: square) | 0–0.5 | 0.17 |
+|  | `border` | outline, in device pixels (0: none) | 0–4, whole | 1 |
+|  | `lip` | depth: the darker bottom, as a share of the cell's height (0: flat) | 0–0.3 | 0.12 |
+|  | `shine` | the lighter line along the top, in device pixels (0: none) | 0–3, whole | 1 |
+|  | `reach` | how far a key reaches into the spaces beside it, as a share of a cell's width | 0–0.5 | 0.42 |
+|  | `top` | room above the key, as a share of the cell's height | 0–0.3 | 0.1 |
+|  | `bottom` | room below the key, as a share of the cell's height | 0–0.3 | 0.06 |
+|  | `face` | the key's face: a #hex, a [palette] name, or auto (from the theme's colours) | #hex · palette name · auto | auto |
+|  | `bold` | the key's text in bold | true / false | true |
+| `[pad]` | `inkDark` | the letter on a light button | #hex · palette name | #101018 |
+|  | `inkLight` | the letter on a dark button | #hex · palette name | #ffffff |
+|  | `psBody` | a PlayStation button's body | #hex · palette name | #1d1c26 |
+|  | `ring` | how strongly the ring round a PlayStation button shows | 0–1 | 0.5 |
+|  | `weight` | the letters' weight | 100–900, whole | 800 |
+|  | `size` | the icon's size, as a share of the cell's height | 0.5–1 | 0.86 |
+<!-- end of generated -->
+
+This table and `themes/schema-2.json` (a JSON Schema for editors) are generated from the
+registry: `UPDATE_THEME_DOCS=1 npx vitest run tests/skindocs.test.ts`.
+
+A value out of bounds is clamped; a value that can't be read (a word where a number goes, an
+unknown field) is left out — that field keeps the parent theme's or the deck's — and `theme ls`
+says which and why. A theme never half-loads.
+
+**The floor**: a shortcut's text must read on its key (4.5:1). A `face` the theme's text can't
+be read on goes back to `auto`, and `theme ls` says so. The keys' text is always the theme's
+font; the pad buttons' colours (A green, ✕ blue…) are the pad maker's.
+
+In code, `Theme.keys` / `Theme.pad` hold what the theme set; `keycapLook()` and `setPadLook()`
+give the complete, clamped look (`resolve()` in `src/core/skin/registry.ts`).
+
+**Icons and colours by name.** The deck asks for file icons by id (`icon("file.python")`,
+`src/core/skin/icons.ts`) and the widgets name the colours they used to write as hex
+(`TOKENS.rain`, `src/core/skin/tokens.ts`). Same glyphs, same colours today; a theme will be able
+to set them in a later step.
 
 ## Readable, whatever the colours
 
@@ -108,14 +159,16 @@ before, as a block and on text. Enter or a double-click keeps it (a
 `theme tweak` command), **↺ theme's value** (or del) removes the tweak, esc
 leaves it as it was.
 
-It's all commands (the shell's log shows them), so this works too:
+It's all commands (the shell's log shows them), so this works too —
+`theme set <knob> <value>` (`theme tweak` is the same command, and stays):
 
 ```
-theme tweak accent #ff2e88
-theme tweak background snow
-theme tweak density 0.3
-theme tweak sounds crystal
-theme tweak font "IBM Plex Mono"
+theme set accent #ff2e88
+theme set background snow
+theme set density 0.3
+theme set sounds crystal
+theme set font "IBM Plex Mono"
+theme set keys.radius 0         (every [keys] and [pad] field: theme set keys.<tab>)
 theme tweak reset accent        (or: theme tweak reset — everything)
 theme export my-night           (theme + tweaks → .icebreaker/themes/my-night.toml)
 ```

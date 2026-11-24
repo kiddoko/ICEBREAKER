@@ -1,3 +1,4 @@
+import { TOKENS } from "../core/skin/tokens";
 import { setWidgetSetting, widgetConfig, widgetTarget } from "./instances";
 import { Row } from "../ui/layout";
 import { checkbox, choice } from "../ui/controls";
@@ -274,7 +275,7 @@ const weatherPopup: WidgetPopupSpec = {
       new Bar(ui, detR.x + INSET * 2, detR.y, detR.x + detR.w - INSET * 2)
         .text(`${t("feels")} ${Math.round(w.feels)}°`, { fg: c.subtle }, { priority: 7 })
         .text(`${t("wind")} ${Math.round(w.wind)} km/h`, { fg: c.subtle }, { priority: 5 })
-        .text(`☂ ${w.rainChance}%`, { fg: mix(0x7fb4ea, c.bg, 0.2) }, { priority: 8 })
+        .text(`☂ ${w.rainChance}%`, { fg: mix(TOKENS.rain, c.bg, 0.2) }, { priority: 8 })
         .text(`${w.humidity}%rh`, { fg: c.subtle }, { priority: 3 })
         .text(`↑${w.sunrise} ↓${w.sunset}`, { fg: c.subtle }, { side: "right", priority: 4 })
         .draw();
@@ -289,12 +290,12 @@ const weatherPopup: WidgetPopupSpec = {
       const y = weekR.y + i;
       const k = sky(d.code);
       ui.text(x0, y, new Date(`${d.date}T12:00`).toLocaleDateString(dateLocale(), { weekday: "short", day: "numeric" }), { fg: c.muted }, DAY - 1);
-      ui.text(x0 + DAY, y, SKY[k] ?? "·", { fg: k === "sun" || k === "partly" ? c.warning : k === "snow" ? c.fg : mix(0x7fb4ea, c.bg, 0.15) });
-      ui.textRight(barX - 1, y, `${Math.round(d.min)}°`, { fg: mix(0x7fb4ea, c.bg, 0.1) });
+      ui.text(x0 + DAY, y, SKY[k] ?? "·", { fg: k === "sun" || k === "partly" ? c.warning : k === "snow" ? c.fg : mix(TOKENS.rain, c.bg, 0.15) });
+      ui.textRight(barX - 1, y, `${Math.round(d.min)}°`, { fg: mix(TOKENS.rain, c.bg, 0.1) });
       const a = Math.round(((d.min - lo) / span) * barW), b = Math.max(a + 1, Math.round(((d.max - lo) / span) * barW));
       ui.text(barX, y, "─".repeat(barW), { fg: c.faint });
-      ui.text(barX + a, y, "━".repeat(Math.min(barW - a, b - a)), { fg: mix(0x7fb4ea, 0xffcf5a, (d.max - lo) / span) });
-      ui.text(barX + barW + 1, y, `${Math.round(d.max)}°`, { fg: 0xffcf5a }, HI);
+      ui.text(barX + a, y, "━".repeat(Math.min(barW - a, b - a)), { fg: mix(TOKENS.rain, TOKENS.heat, (d.max - lo) / span) });
+      ui.text(barX + barW + 1, y, `${Math.round(d.max)}°`, { fg: TOKENS.heat }, HI);
     });
   },
   onText: (t, { deck, key }) => {

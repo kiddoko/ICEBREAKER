@@ -12,8 +12,13 @@
 name = "nightshade"
 author = "icebreaker"
 description = "Deep void, violet ICE. Catppuccin-flavoured."
-border = "round"          # round | single | heavy | double
-widget_frame = "round"    # HOME widgets: round · single · heavy · double · dashed · corners · line
+schema = 2                # themes v2 (docs/THEMES.md): frames in [frame] / [widget_frame]
+
+[frame]                    # the frame round panels and pages
+style = "round"          # round | single | heavy | double
+
+[widget_frame]             # the frame round HOME widgets
+style = "round"    # HOME widgets: round · single · heavy · double · dashed · corners · line
 
 # Raw colors. Names are yours to choose; [ui] / [syntax] / [ansi] refer to them.
 [palette]
@@ -161,3 +166,26 @@ page   = "glitch"
 type   = "none"
 noise  = "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄ0123456789:=*+<>"
 screensaver = "warp"
+
+# ── components (themes v2, docs/THEMES.md) ─────────────────────────────────────
+# Leave them out to keep the deck's own look; set only the fields you want.
+# theme set keys.<tab> tries them live.
+#
+# [keys]              # the key every shortcut sits on
+# radius = 0.17       # corners, share of the cell's height (0 – 0.5)
+# border = 1          # outline, device pixels (0 – 4)
+# lip = 0.12          # the darker bottom, share of the height (0: flat)
+# shine = 1           # the light top edge, device pixels (0 – 3)
+# reach = 0.42        # how far into the spaces beside it, share of a cell
+# top = 0.1           # room above the key
+# bottom = 0.06       # room below it
+# face = "auto"       # its colour: auto, a [palette] name or #hex (must read 4.5:1 under the text)
+# bold = true
+#
+# [pad]               # the gamepad's buttons
+# inkDark = "#101018" # the letter on a light button
+# inkLight = "#ffffff"
+# psBody = "#1d1c26"  # a PlayStation button's body
+# ring = 0.5          # 0 – 1
+# weight = 800        # 100 – 900
+# size = 0.86         # share of the cell's height (0.5 – 1)

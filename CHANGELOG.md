@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.9.0 — not released yet
+
+**Themes v2, step 1: the skin registry** (docs/THEMES_V2_PLAN.md — nothing changes on screen)
+- The keys every shortcut sits on and the gamepad's buttons are **components**, declared once
+  (`src/core/skin/`): their fields, bounds, defaults and help. A theme file can now set them —
+  `[keys] radius = 0`, `[pad] size = 0.7`, `face = "surface0"` — and `theme ls` says what it got
+  wrong (that field keeps the deck's own).
+- **`theme set <knob> <value>`** is the way to tweak (`theme set keys.radius 0`, `theme set accent
+  #ff2e88`); `theme set <name>` still switches theme, and `theme tweak` stays. Completion knows
+  every field: `theme set keys.<tab>`, then its values.
+- The floor: a key face the theme's text can't be read on (under 4.5:1) goes back to the deck's.
+- File icons are asked by id and the widgets' raw colours have names — the same glyphs and colours,
+  ready for themes to change them later.
+- Tests prove the 11 built-in themes draw exactly what they drew before (tests/skin-golden.json).
+
+**Themes v2, step 2 (started): theme files, schema 2**
+- `[meta] schema = 2` puts the frames and the logo in their own tables (`[frame] style`,
+  `[widget_frame] style`, `[logo] text`). Every theme written before keeps working: it's converted
+  in memory, the file is never touched. Tests check the 11 built-in themes load the same both ways.
+- **`theme check [name]`**: what the deck made of a theme — its schema, what its file got wrong,
+  readable text and keys.
+- The 11 built-in theme files are schema 2 now — a test checks each resolves to exactly the values
+  it had before (tests/themes-golden.json, written from 0.8.1).
+- **`theme upgrade <name>`**: one of your theme files as schema 2 — a preview first, `--write` to
+  write it (the old file is kept as `<name>.toml.v1`).
+- The components' reference table in `docs/THEMES.md` and `themes/schema-2.json` (a JSON Schema
+  for editors) are generated from the registry; a test fails when they're out of date.
+
 ## 0.8.1 — not released yet
 
 **The tabs: pages, then documents**

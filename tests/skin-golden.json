@@ -1,0 +1,57 @@
+{
+  "abyss": {
+    "grid": "e979c4e5",
+    "caps": "bb15843d",
+    "geometry": "2d11f27d"
+  },
+  "amber": {
+    "grid": "4f00b52c",
+    "caps": "149532b1",
+    "geometry": "2d11f27d"
+  },
+  "e-ink": {
+    "grid": "d8b65837",
+    "caps": "7e6026f5",
+    "geometry": "2d11f27d"
+  },
+  "e-ink-night": {
+    "grid": "efcbb2d9",
+    "caps": "47beb0bd",
+    "geometry": "2d11f27d"
+  },
+  "ghost": {
+    "grid": "29b4f460",
+    "caps": "592555dd",
+    "geometry": "2d11f27d"
+  },
+  "graphite": {
+    "grid": "346db454",
+    "caps": "85e37699",
+    "geometry": "2d11f27d"
+  },
+  "neon-district": {
+    "grid": "dfb2e827",
+    "caps": "e8451121",
+    "geometry": "2d11f27d"
+  },
+  "neon-ronin": {
+    "grid": "8b40d53f",
+    "caps": "b050ad81",
+    "geometry": "2d11f27d"
+  },
+  "nightshade": {
+    "grid": "10ad2678",
+    "caps": "c01b27c9",
+    "geometry": "2d11f27d"
+  },
+  "phosphor": {
+    "grid": "1e8625c5",
+    "caps": "2e5b4a41",
+    "geometry": "2d11f27d"
+  },
+  "redline": {
+    "grid": "a1133e12",
+    "caps": "8984ef3d",
+    "geometry": "2d11f27d"
+  }
+}

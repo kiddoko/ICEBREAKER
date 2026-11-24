@@ -23,7 +23,12 @@ import { storeCommand } from "../../apps/store";
 import { pickFolder } from "../../workspace/filebrowser";
 import type { Command, ShellContext } from "../types";
 import { applyTweaks, tweaksToToml, type Theme } from "../../core/theme";
-import { knob, KNOBS, parseKnobValue } from "../../core/tweaks";
+import { checkTheme } from "../../core/skin/check";
+import { component } from "../../core/skin/components";
+import type { Field } from "../../core/skin/fields";
+import { resolve } from "../../core/skin/registry";
+import { upgradeSource } from "../../core/skin/schema";
+import { knob, knobNames, knobSuggestions, KNOBS, parseKnobValue, SKIN_KNOBS } from "../../core/tweaks";
 import { account, lock, login } from "./account";
 import { chat, daily } from "./daily";
 import { audioCommand, errorsCommand, mute, sound } from "./sound";
@@ -223,7 +228,8 @@ const theme: Command = {
     ["theme", "list themes"],
     ["theme set phosphor", "green screen"],
     ["theme tweak", "every knob, and what you changed"],
-    ["theme tweak accent #ff2e88", "a pink accent on the current theme"],
+    ["theme set accent #ff2e88", "a pink accent on the current theme (theme tweak … works too)"],
+    ["theme set keys.radius 0", "square keys (every keys.* and pad.* field: theme set keys.<tab>)"],
     ["theme tweak background snow", "snow behind the panels (fog, rain, stars, embers, scan, none)"],
     ["theme tweak density 0.3", "less of it"],
     ["theme tweak sounds crystal", "glassy sounds (retro, soft, industrial)"],
@@ -234,9 +240,15 @@ const theme: Command = {
     ["theme new mytheme", "copy the current theme file to edit by hand"],
   ],
   summary: "list, switch, tweak, export and create themes",
-  usage: "theme [ls]\ntheme set <name>\ntheme tweak [<knob> <value> | reset [knob]]   (your changes on top of the theme)\ntheme export <name>  (theme + tweaks → a new theme file)\ntheme studio         (the visual editor)\ntheme new <name>     (copies the current theme into your vault and opens it)\ntheme reload         (re-read .icebreaker/themes/*.toml)\ntheme install <user/repo/file.toml | id>   (download a community theme)",
-  man: "Tweaks are kept per theme in settings.json (appearance.tweaks) — the theme file is never changed.\nKnobs: colors (accent accent2 text bg panel border), font font-size, frame mark bullet,\nbackground density speed bg-color bg-color2, sounds pitch, select noise. Raw keys work too: theme tweak ui.cursor #fff.\nThe full format is in themes/nightshade.toml and docs/THEMES.md.",
-  complete: () => ["ls", "set", "tweak", "export", "studio", "new", "reload", "install"],
+  usage: "theme [ls]\ntheme set <name>\ntheme set <knob> <value>   (your changes on top of the theme; = theme tweak)\ntheme tweak [<knob> <value> | reset [knob]]\ntheme check [name]   (what the deck made of a theme file: schema, problems, the floor)\ntheme upgrade <name> [--write]   (your theme file as schema 2: a preview, then --write)\ntheme export <name>  (theme + tweaks → a new theme file)\ntheme studio         (the visual editor)\ntheme new <name>     (copies the current theme into your vault and opens it)\ntheme reload         (re-read .icebreaker/themes/*.toml)\ntheme install <user/repo/file.toml | id>   (download a community theme)",
+  man: "Tweaks are kept per theme in settings.json (appearance.tweaks) — the theme file is never changed.\nKnobs: colors (accent accent2 text bg panel border), font font-size, frame mark bullet,\nbackground density speed bg-color bg-color2, sounds pitch, select noise; and every component field: keys.radius keys.lip keys.face… pad.size pad.weight…\n(theme tweak lists them all). Raw keys work too: theme tweak ui.cursor #fff.\nThe full format is in themes/nightshade.toml and docs/THEMES.md.",
+  // theme set <tab> → knobs and component fields (keys.radius…), theme set keys.lip <tab> → values
+  complete: (args: string[]) =>
+    !args.length ? ["ls", "set", "tweak", "check", "upgrade", "export", "studio", "new", "reload", "install"]
+    : args[0] !== "set" && args[0] !== "tweak" ? []
+    : args.length === 1 ? knobNames()
+    : args.length === 2 ? knobSuggestions(args[1])
+    : [],
   async run(ctx) {
     const [sub, name] = ctx.args;
     const d = ctx.deck;
@@ -247,15 +259,28 @@ const theme: Command = {
         ctx.out(`${cur ? fmt.magenta("●") : " "} ${ctx.isTTY ? swatch : ""} ${padEnd(t.name, 14)} ${fmt.dim(`${t.source} · ${t.description}`)}\n`);
       }
       for (const e of d.themes.errors) ctx.err(`✖ ${e.file}: ${e.error}\n`);
+      // what a theme file set wrong in its components: that field kept the deck's own (core/skin)
+      for (const t of d.themes.list()) for (const p of t.skinProblems ?? []) ctx.err(`⚠ ${t.name}: ${p.key} — ${p.reason}\n`);
       return;
     }
-    if (sub === "set" || sub === "use") {
+    // theme set <name> switches; theme set <knob> <value> is a tweak (theme tweak, its alias forever)
+    if ((sub === "set" || sub === "use") && ctx.args.length < 3) {
       if (!name || !d.setTheme(name)) {
         ctx.err(`theme: unknown theme "${name ?? ""}" — try \`theme ls\`\n`);
         return 1;
       }
       ctx.out(`theme → ${name}\n`);
       return;
+    }
+    // theme check <name>: what the loader made of a theme, without switching to it (core/skin)
+    if (sub === "check") {
+      const t = name ? d.themes.get(name) : d.themes.current;
+      const broken = name ? d.themes.errors.find((e) => e.file.replace(/\\/g, "/").split("/").pop() === `${name}.toml`) : undefined;
+      if (broken) return ctx.err(`✖ ${broken.file}: ${broken.error}\n`), 1;
+      if (!t) return ctx.err(`theme check: unknown theme "${name}" — try \`theme ls\`\n`), 1;
+      const out = checkTheme(t);
+      for (const line of out.lines) ctx.out(`${line}\n`);
+      return out.ok ? 0 : 1;
     }
     if (sub === "install") {
       if (!name) return ctx.err("usage: theme install <user/repo/file.toml | id>\n"), 1;
@@ -273,7 +298,7 @@ const theme: Command = {
       d.openApp("studio");
       return;
     }
-    if (sub === "tweak" || sub === "untweak") {
+    if (sub === "tweak" || sub === "untweak" || sub === "set") {
       const all = { ...d.settings.data.appearance.tweaks };
       const mine: Record<string, string | number> = { ...(all[d.themes.current.name] ?? {}) };
       const save = () => {
@@ -285,7 +310,7 @@ const theme: Command = {
       if (!k) {
         ctx.out(`${fmt.bold(d.theme.name)} ${fmt.dim("— theme tweak <knob> <value>")}\n`);
         let group = "";
-        for (const kn of KNOBS) {
+        for (const kn of [...KNOBS, ...SKIN_KNOBS]) {
           if (kn.group !== group) ctx.out(`${fmt.magenta(kn.group)}\n`);
           group = kn.group;
           const v = mine[kn.key];
@@ -310,7 +335,10 @@ const theme: Command = {
       const before = mine[kn.key];
       mine[kn.key] = parsed.value;
       try {
-        applyTweaks(d.themes.get(d.settings.data.appearance.theme) ?? d.themes.default, mine);
+        const t = applyTweaks(d.themes.get(d.settings.data.appearance.theme) ?? d.themes.default, mine);
+        // a component field the skin refused (a palette name it doesn't know, the floor…)
+        const refused = t.skinProblems?.find((p) => p.key === kn.key || p.key.startsWith(`${kn.key}/`));
+        if (refused) throw new Error(`${refused.key}: ${refused.reason}`);
       } catch (e) {
         if (before === undefined) delete mine[kn.key];
         else mine[kn.key] = before;
@@ -341,7 +369,32 @@ const theme: Command = {
       await d.reloadUserThemes();
       ctx.out(`${d.themes.list().length} themes loaded\n`);
       for (const e of d.themes.errors) ctx.err(`✖ ${e.file}: ${e.error}\n`);
+      // what a theme file set wrong in its components: that field kept the deck's own (core/skin)
+      for (const t of d.themes.list()) for (const p of t.skinProblems ?? []) ctx.err(`⚠ ${t.name}: ${p.key} — ${p.reason}\n`);
       return;
+    }
+    // theme upgrade <name> [--write]: one of your theme files as schema 2 (core/skin/schema.ts)
+    if (sub === "upgrade") {
+      if (!name) return ctx.err("usage: theme upgrade <name> [--write]\n"), 1;
+      const path = `.icebreaker/themes/${slugify(name)}.toml`;
+      if (!(await d.vault.exists(path))) return ctx.err(`theme upgrade: no ${path} — only your own theme files (built-in ones are read as schema 2 already)\n`), 1;
+      const src = await d.vault.read(path);
+      let v2: string | null;
+      try {
+        v2 = upgradeSource(src);
+      } catch (e) {
+        return ctx.err(`theme upgrade: ${e instanceof Error ? e.message : e}\n`), 1;
+      }
+      if (v2 === null) return void ctx.out(`${path} is already schema 2\n`);
+      if (!ctx.args.includes("--write")) {
+        ctx.out(`${v2}\n${fmt.dim(`— a preview: ${path} is unchanged. Comments are not kept. To write it (the old file stays as ${path}.v1):`)}\n${fmt.magenta(`theme upgrade ${name} --write`)}\n`);
+        return 0;
+      }
+      await d.vault.write(`${path}.v1`, src);
+      await d.vault.write(path, v2);
+      await d.reloadUserThemes();
+      ctx.out(`${fmt.green("✓")} ${path} → schema 2 (the old one: ${path}.v1)\n`);
+      return 0;
     }
     if (sub === "new") {
       if (!name) {
@@ -1014,5 +1067,11 @@ export function knobValue(t: Theme, key: string): string {
   }
   if (sec === "sound") return String((t.sound as unknown as Record<string, unknown>)[k] ?? "");
   if (sec === "anim") return String((t.anim as unknown as Record<string, unknown>)[k] ?? "");
+  // a component's field (core/skin): the resolved value, what the theme set over the deck's
+  const comp = component(sec);
+  if (comp && k in comp.fields) {
+    const v = (resolve(comp, (t as unknown as Record<string, object | undefined>)[sec]) as Record<string, unknown>)[k];
+    return (comp.fields as Record<string, Field>)[k].kind === "color" ? hexOf(v as number | null) : typeof v === "boolean" ? (v ? "on" : "off") : String(v);
+  }
   return "";
 }

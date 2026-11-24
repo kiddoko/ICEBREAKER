@@ -2,6 +2,9 @@ import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import type { KeycapLook } from "./keycap";
 import type { PadLook } from "./padglyphs";
 import { hex, type RGB, readable } from "./color";
+import { KEYS, PAD } from "./skin/components";
+import { applyFloor, readTable, type SkinProblem } from "./skin/registry";
+import { frameStyle, logoText, newerSchemaNotice, schemaOf, widgetFrameStyle } from "./skin/schema";
 
 /**
  * Themes are TOML files (see /themes/nightshade.toml for the annotated reference).
@@ -122,10 +125,15 @@ export interface Theme {
   /**
    * THEME HOOKS for the keys and the pad's buttons (docs/THEMES.md): how they look, any part of
    * it — the rest is the deck's bevelled key (core/keycap.ts BEVELLED) and its pad buttons
-   * (core/padglyphs.ts PAD_LOOK). Not read from theme files yet: the theme overhaul will.
+   * (core/padglyphs.ts PAD_LOOK). Read from the theme's [keys] and [pad] tables, field by field,
+   * through the skin registry (core/skin): bounds, colours, the floor.
    */
   keys?: Partial<KeycapLook>;
   pad?: Partial<PadLook>;
+  /** the file's schema (1 when it doesn't say; core/skin/schema.ts) */
+  schema?: number;
+  /** what the theme file got wrong in its components (the field keeps the deck's or the parent's value) */
+  skinProblems?: SkinProblem[];
   /** The theme it was built on (meta.extends), if any. */
   extends?: string;
   source: "builtin" | "vault";
@@ -191,7 +199,18 @@ export function parseTheme(source: string, base: Theme | null, origin: Theme["so
     ? gradientRaw.map((g) => (String(g).startsWith("#") ? hex(String(g)) : palette[String(g)] ?? c.accent))
     : base?.gradient ?? [c.accent, c.accentAlt];
 
-  const border = String(meta.border ?? base?.border ?? "round") as BorderStyle;
+  // the components (core/skin): each field checked on its own, then the floor (readable keys…)
+  const ctx = { palette };
+  const keysRead = readTable(KEYS, doc.keys, ctx, base?.keys);
+  const padRead = readTable(PAD, doc.pad, ctx, base?.pad);
+  const keysFloor = applyFloor(KEYS, keysRead.look, c);
+  const newer = newerSchemaNotice(doc);
+  const skinProblems = [...(newer ? [{ key: "meta.schema", reason: newer }] : []), ...keysRead.problems, ...keysFloor.problems, ...padRead.problems];
+
+  // schema 1 ([meta] border, [meta] widget_frame, [ascii] logo) or 2 ([frame] style…): core/skin/schema.ts
+  const border = String(frameStyle(doc) ?? base?.border ?? "round") as BorderStyle;
+  const widgetFrame = widgetFrameStyle(doc);
+  const logo = logoText(doc);
   return {
     name: String(meta.name ?? "unnamed"),
     author: String(meta.author ?? "anonymous"),
@@ -211,8 +230,8 @@ export function parseTheme(source: string, base: Theme | null, origin: Theme["so
       monochrome: typeof fxRaw.monochrome === "boolean" ? fxRaw.monochrome : base?.fx.monochrome ?? false,
       paper: num("paper", base?.fx.paper ?? 0),
     },
-    widgetFrame: typeof meta.widget_frame === "string" ? String(meta.widget_frame) : base?.widgetFrame ?? "round",
-    logo: typeof (doc.ascii as Table | undefined)?.logo === "string" ? String((doc.ascii as Table).logo) : base?.logo,
+    widgetFrame: typeof widgetFrame === "string" ? widgetFrame : base?.widgetFrame ?? "round",
+    logo: typeof logo === "string" ? logo : base?.logo,
     glyphs: parseGlyphs((doc.glyphs ?? {}) as Table, base?.glyphs),
     font: parseFont((doc.font ?? {}) as Table, base?.font ?? null),
     background: parseBackground((doc.background ?? {}) as Table, base?.background, (k) => {
@@ -235,6 +254,10 @@ export function parseTheme(source: string, base: Theme | null, origin: Theme["so
       type: typeof ((doc.anim ?? {}) as Table).type === "string" ? String(((doc.anim ?? {}) as Table).type) : base?.anim.type ?? "none",
       screensaver: typeof ((doc.anim ?? {}) as Table).screensaver === "string" ? String(((doc.anim ?? {}) as Table).screensaver) : base?.anim.screensaver ?? "city",
     },
+    ...(keysFloor.look ? { keys: keysFloor.look } : {}),
+    ...(padRead.look ? { pad: padRead.look } : {}),
+    ...(skinProblems.length ? { skinProblems } : {}),
+    ...(schemaOf(doc) !== 1 ? { schema: schemaOf(doc) } : {}),
     extends: typeof meta.extends === "string" ? meta.extends : undefined,
     source: origin,
   };
@@ -302,7 +325,7 @@ export function tweaksToToml(name: string, tweaks: Tweaks, extendsName?: string)
 export function applyTweaks(theme: Theme, tweaks: Tweaks | undefined): Theme {
   if (!tweaks || !Object.keys(tweaks).length) return theme;
   const t = parseTheme(tweaksToToml(theme.name, tweaks), theme, theme.source);
-  return { ...t, author: theme.author, description: theme.description, extends: theme.extends };
+  return { ...t, author: theme.author, description: theme.description, extends: theme.extends, ...(theme.schema ? { schema: theme.schema } : {}) };
 }
 
 // Built-in themes are the .toml files in /themes, bundled at build time.

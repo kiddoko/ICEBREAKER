@@ -787,14 +787,19 @@ scanlines = 0.1
 
 [anim]
 screensaver = "city"  # city · paper · terminal · sonar · warp
+
+[keys]
+radius = 0          # the keys under the shortcuts: square
+lip = 0             # flat
 \`\`\`
 
 | Command | |
 |---|---|
 | \`theme\` | list them |
 | \`theme set <name>\` | switch |
-| \`theme tweak accent #ff2e88\` | change one value, live (\`theme tweak\` lists them) |
+| \`theme set accent #ff2e88\` | change one value, live (\`theme tweak\` lists them; \`theme set keys.<tab>\` for the keys) |
 | \`theme new <name>\` | a copy to edit |
+| \`theme check <name>\` | what the deck made of a theme file: what it got wrong, readable or not |
 
 Full reference: \`docs/THEMES.md\` in the repository.
 `,
