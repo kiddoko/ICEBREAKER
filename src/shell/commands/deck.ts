@@ -987,7 +987,8 @@ const plugin: Command = {
           const ok = await host.enable(id, ctx.args.includes("--window") ? undefined : ask);
           // what it needed and was off came on with it (plugins/deps.ts)
           const along = host.active().map((p) => p.manifest.id).filter((x) => x !== id && !before.has(x));
-          ctx.out(ok ? `${id}: enabled${along.length ? fmt.dim(` · with what it needs: ${along.join(", ")}`) : ""}\n` : `${id}: unchanged\n`);
+          const wasOn = before.has(id);
+          ctx.out(ok ? `${id}: enabled${along.length ? fmt.dim(` · with what it needs: ${along.join(", ")}`) : ""}\n` : wasOn ? `${id}: already on${fmt.dim(" — its files changed? plugin reload (it's approved again from its plugin.json)")}\n` : `${id}: unchanged\n`);
           return ok || host.active().some((p) => p.manifest.id === id) ? 0 : 1;
         }
         // others need it: they go off with it — after asking

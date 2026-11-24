@@ -147,9 +147,11 @@ export class PluginHost {
     const p = this.plugins.find((x) => x.manifest.id === id);
     if (!p) return [];
     const s = this.deck.settings.data.plugins;
-    const base = p.source === "vault" ? (Array.isArray(s.granted?.[id]) ? s.granted[id] : []) : this.asks(p.manifest);
+    // a vault module: what you approved AND its plugin.json asks for now — never more than either
+    // (Fable bench 24/11: a copy asking only for songs/ kept the old copy's whole vault, and wrote at its root)
+    const base = p.source === "vault" ? (Array.isArray(s.granted?.[id]) ? withinManifest(s.granted[id], this.asks(p.manifest)) : []) : this.asks(p.manifest);
     const off = s.revoked?.[id] ?? [];
-    return off.length ? base.filter((x) => !off.includes(x)) : base;
+    return off.length ? base.filter((x) => !off.includes(x) && !off.includes(parsePerm(x)?.base ?? x)) : base;
   }
 
   // ── the clipboard (ib.ui.copy): only right after the user's ⌘C / ⌘X on the module's page ──
@@ -494,8 +496,24 @@ export class PluginHost {
     const pinned = (this.deck.settings.data.plugins.pinned ?? {})[p.manifest.id];
     const now = await this.fingerprint(p);
     if (!now) return false;
-    if (trustChanges && pinned !== now) await this.pin(p);
+    if (trustChanges && pinned !== now) {
+      // you reloaded it yourself: this code is the one you run — but approved the way `enable`
+      // approves, from ITS plugin.json: the grants cut to what it asks, nothing "always" any more
+      // (the high-risk questions come again), nothing of the old copy kept (Fable bench 24/11)
+      this.approveAgain(p);
+      await this.pin(p);
+    }
     return trustChanges || pinned === now;
+  }
+
+  /** A changed copy's approval, from its own plugin.json: granted = what it asks (within what you'd approved), no "always". */
+  private approveAgain(p: LoadedPlugin): void {
+    const s = this.deck.settings;
+    const id = p.manifest.id;
+    const before = s.data.plugins.granted?.[id];
+    if (Array.isArray(before)) s.set("plugins.granted", { ...(s.data.plugins.granted ?? {}), [id]: withinManifest(before, this.asks(p.manifest)) });
+    const { [id]: _a, ...always } = s.data.plugins.always ?? {};
+    s.set("plugins.always", always);
   }
 
   /**
@@ -1126,6 +1144,14 @@ export class PluginHost {
     // one module can't rewire the API another one gets (ib.ui.notify = …)
     return freezeApi(api);
   }
+}
+
+/**
+ * What a module may use: the permissions its plugin.json asks for that your approval covers
+ * ("vault:write:songs/" from an approved "vault:write"), never one it no longer asks for.
+ */
+export function withinManifest(granted: readonly string[], asks: readonly string[]): string[] {
+  return asks.filter((a) => missing([a], granted).length === 0);
 }
 
 /**
