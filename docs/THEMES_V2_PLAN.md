@@ -555,6 +555,14 @@ three lines"), `GUIDELINES.md` (a theme / a module: the floor, `icon()` instead 
 
 ## 11. Open questions for the user
 
+> **Answered by the user (2026-11-24, 01:10)** — all four recommendations taken:
+> - **Q1**: `theme set <key> <value>` is the documented form (one argument = switch theme, two =
+>   tweak); `theme tweak` stays as an alias forever. *(Done in milestone 1.)*
+> - **Q2**: draw-hook code in themes: yes, but last (milestone 6), sandboxed and baked.
+> - **Q3**: protected surfaces: theme colours clamped harder (7:1, warning ≠ accent) + the deck's
+>   own components + a fixed `⛨` double frame.
+> - **Q4**: built-in themes migrated identical first; signatures in a later PR.
+
 **Q1. `theme set <key> <value>` or keep `theme tweak`?**
 `theme set <name>` already switches theme. *Recommendation:* make `theme set` the documented
 form (one argument = switch, two = tweak) and keep `theme tweak` as an alias forever, so

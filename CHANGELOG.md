@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.0 — not released yet
+
+**Themes v2, step 1: the skin registry** (docs/THEMES_V2_PLAN.md — nothing changes on screen)
+- The keys every shortcut sits on and the gamepad's buttons are **components**, declared once
+  (`src/core/skin/`): their fields, bounds, defaults and help. A theme file can now set them —
+  `[keys] radius = 0`, `[pad] size = 0.7`, `face = "surface0"` — and `theme ls` says what it got
+  wrong (that field keeps the deck's own).
+- **`theme set <knob> <value>`** is the way to tweak (`theme set keys.radius 0`, `theme set accent
+  #ff2e88`); `theme set <name>` still switches theme, and `theme tweak` stays. Completion knows
+  every field: `theme set keys.<tab>`, then its values.
+- The floor: a key face the theme's text can't be read on (under 4.5:1) goes back to the deck's.
+- File icons are asked by id and the widgets' raw colours have names — the same glyphs and colours,
+  ready for themes to change them later.
+- Tests prove the 11 built-in themes draw exactly what they drew before (tests/skin-golden.json).
+
 ## 0.8.1 — not released yet
 
 **Nothing cut, nothing on top of something else** (`debug layout pages`: none left, in English and
