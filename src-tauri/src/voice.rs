@@ -96,47 +96,79 @@ pub async fn voice_list(app: AppHandle, engine: String) -> Result<Vec<VoiceName>
     if engine == "piper" {
         return Ok(piper_voices(&app).into_iter().map(|id| VoiceName { lang: id.split('-').next().unwrap_or("").to_string(), id }).collect());
     }
-    tauri::async_runtime::spawn_blocking(move || {
-        let sys = system_engine().ok_or("no system voice here (Linux: install espeak-ng)")?;
-        let out = match sys.as_str() {
-            "say" => Command::new("say").args(["-v", "?"]).output(),
-            "sapi" => quiet(Command::new("powershell").args(["-NoProfile", "-Command", "Add-Type -AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).GetInstalledVoices() | % { $_.VoiceInfo.Name + '|' + $_.VoiceInfo.Culture }"])).output(),
-            other => Command::new(other).arg("--voices").output(),
-        }
-        .map_err(|e| e.to_string())?;
-        let text = String::from_utf8_lossy(&out.stdout);
-        let mut v = vec![];
-        for line in text.lines() {
-            match sys.as_str() {
-                // "Thomas              fr_FR    # Bonjour, je m'appelle Thomas."
-                "say" => {
-                    let head = line.split('#').next().unwrap_or("").trim_end();
-                    if let Some(i) = head.rfind(char::is_whitespace) {
-                        let (name, lang) = (head[..i].trim(), head[i..].trim());
-                        if !name.is_empty() {
-                            v.push(VoiceName { id: name.to_string(), lang: lang.to_string() });
-                        }
-                    }
-                }
-                "sapi" => {
-                    if let Some((n, l)) = line.split_once('|') {
-                        v.push(VoiceName { id: n.trim().to_string(), lang: l.trim().to_string() });
-                    }
-                }
-                // " 5  fr-fr          --/M      French             roa/fr"
-                _ => {
-                    let cols: Vec<&str> = line.split_whitespace().collect();
-                    if cols.len() >= 4 && cols[0].parse::<u32>().is_ok() {
-                        v.push(VoiceName { id: cols[1].to_string(), lang: cols[1].to_string() });
+    tauri::async_runtime::spawn_blocking(system_voices).await.map_err(|e| e.to_string())?
+}
+
+/// The voices the system engine offers (asks the OS: `say -v ?`, SAPI, `espeak --voices`).
+fn system_voices() -> Result<Vec<VoiceName>, String> {
+    let sys = system_engine().ok_or("no system voice here (Linux: install espeak-ng)")?;
+    let out = match sys.as_str() {
+        "say" => Command::new("say").args(["-v", "?"]).output(),
+        "sapi" => quiet(Command::new("powershell").args(["-NoProfile", "-Command", "Add-Type -AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).GetInstalledVoices() | % { $_.VoiceInfo.Name + '|' + $_.VoiceInfo.Culture }"])).output(),
+        other => Command::new(other).arg("--voices").output(),
+    }
+    .map_err(|e| e.to_string())?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let mut v = vec![];
+    for line in text.lines() {
+        match sys.as_str() {
+            // "Thomas              fr_FR    # Bonjour, je m'appelle Thomas."
+            "say" => {
+                let head = line.split('#').next().unwrap_or("").trim_end();
+                if let Some(i) = head.rfind(char::is_whitespace) {
+                    let (name, lang) = (head[..i].trim(), head[i..].trim());
+                    if !name.is_empty() {
+                        v.push(VoiceName { id: name.to_string(), lang: lang.to_string() });
                     }
                 }
             }
+            "sapi" => {
+                if let Some((n, l)) = line.split_once('|') {
+                    v.push(VoiceName { id: n.trim().to_string(), lang: l.trim().to_string() });
+                }
+            }
+            // " 5  fr-fr          --/M      French             roa/fr"
+            _ => {
+                let cols: Vec<&str> = line.split_whitespace().collect();
+                if cols.len() >= 4 && cols[0].parse::<u32>().is_ok() {
+                    v.push(VoiceName { id: cols[1].to_string(), lang: cols[1].to_string() });
+                }
+            }
         }
-        Ok(v)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    }
+    Ok(v)
 }
+
+/// The system voices seen last (asking Windows costs a PowerShell start: once, then on a miss).
+static SYSTEM_VOICES: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+/// Is `voice` one the system engine lists? A voice name comes from the settings, which a
+/// synced plain vault or a module could have written: only names the OS itself gave are
+/// ever handed to it (Fable pass 24/11: a crafted name ran PowerShell code).
+fn is_system_voice(voice: &str) -> bool {
+    let known = |list: &Vec<String>| list.iter().any(|v| v == voice);
+    if let Ok(list) = SYSTEM_VOICES.lock() {
+        if known(&list) {
+            return true;
+        }
+    }
+    let fresh: Vec<String> = system_voices().map(|v| v.into_iter().map(|n| n.id).collect()).unwrap_or_default();
+    let ok = known(&fresh);
+    if let Ok(mut list) = SYSTEM_VOICES.lock() {
+        *list = fresh;
+    }
+    ok
+}
+
+/// A voice name we may pass on at all: a name (never a path), never read as an option.
+fn plausible_voice_name(voice: &str) -> bool {
+    voice.chars().count() <= 128 && !voice.starts_with('-') && !voice.contains("..") && !voice.chars().any(|c| c.is_control() || c == '/' || c == '\\')
+}
+
+/// The PowerShell script SAPI runs. It holds NO value of ours: the voice, the rate and the
+/// two file paths reach it through environment variables (IB_VOICE, IB_RATE, IB_OUT, IB_TXT),
+/// which PowerShell reads as plain data — nothing in them can end a quote and run code.
+const SAPI_SCRIPT: &str = "Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; if ($env:IB_VOICE) { $s.SelectVoice($env:IB_VOICE) }; $s.Rate = [int]$env:IB_RATE; $s.SetOutputToWaveFile($env:IB_OUT); $s.Speak([IO.File]::ReadAllText($env:IB_TXT)); $s.Dispose()";
 
 /// A folder only your user can open, for the voice's work files.
 fn private_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
@@ -161,8 +193,8 @@ fn random_tag() -> String {
 /// Speak `text` into a WAV (or AIFF on macOS) and return its bytes.
 #[tauri::command]
 pub async fn voice_speak(app: AppHandle, text: String, engine: String, voice: String, rate: f64) -> Result<tauri::ipc::Response, String> {
-    // a voice is a name (a folder of models/, a system voice): never a path
-    if voice.contains(['/', '\\']) || voice.contains("..") {
+    // a voice is a name (a folder of models/, a system voice): never a path, never an option
+    if !plausible_voice_name(&voice) {
         return Err(format!("{voice}: not a voice name"));
     }
     let text: String = text.chars().filter(|c| !c.is_control() || *c == '\n').take(4000).collect();
@@ -234,6 +266,10 @@ pub async fn voice_speak(app: AppHandle, text: String, engine: String, voice: St
             return Ok(());
         }
         let sys = system_engine().ok_or("no system voice here (Linux: install espeak-ng) — or voice install for piper")?;
+        // only a voice the OS itself lists (the name came from the settings: anyone's)
+        if !voice.is_empty() && !is_system_voice(&voice) {
+            return Err(format!("no system voice \"{voice}\" — voice list"));
+        }
         let txt = txt_path.clone();
         // macOS and Linux: the text through stdin, never in a file. Windows' SAPI reads a
         // private file (wiped right after: _wipe_txt), PowerShell's stdin mangles accents.
@@ -257,14 +293,13 @@ pub async fn voice_speak(app: AppHandle, text: String, engine: String, voice: St
             }
             "sapi" => {
                 crate::crypto::write_private(&txt, text.as_bytes()).map_err(|e| e.to_string())?;
-                let script = format!(
-                    "Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; {} $s.Rate = {}; $s.SetOutputToWaveFile('{}'); $s.Speak([IO.File]::ReadAllText('{}')); $s.Dispose()",
-                    if voice.is_empty() { String::new() } else { format!("$s.SelectVoice('{}');", voice.replace('\'', "''")) },
-                    ((rate - 1.0) * 6.0).round() as i32,
-                    tmp2.to_string_lossy().replace('\'', "''"),
-                    txt.to_string_lossy().replace('\'', "''")
-                );
-                quiet(Command::new("powershell").args(["-NoProfile", "-Command", &script])).status()
+                let mut c = Command::new("powershell");
+                c.args(["-NoProfile", "-NonInteractive", "-Command", SAPI_SCRIPT])
+                    .env("IB_VOICE", &voice)
+                    .env("IB_RATE", (((rate - 1.0) * 6.0).round() as i32).to_string())
+                    .env("IB_OUT", &tmp2)
+                    .env("IB_TXT", &txt);
+                quiet(&mut c).status()
             }
             other => {
                 let mut c = Command::new(other);
@@ -382,4 +417,32 @@ pub async fn voice_install(app: AppHandle, lang: String) -> Result<String, Strin
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_sapi_script_holds_no_value_of_ours() {
+        // Fable pass 24/11: a voice name with U+2019 ended PowerShell's quote and ran code.
+        // The script is a constant: the name only ever travels in IB_VOICE.
+        for bad in ['\'', '\u{2018}', '\u{2019}', '\u{201A}', '\u{201B}'] {
+            assert!(!SAPI_SCRIPT.contains(bad), "quote {bad:?} in the script");
+        }
+        for var in ["$env:IB_VOICE", "$env:IB_RATE", "$env:IB_OUT", "$env:IB_TXT"] {
+            assert!(SAPI_SCRIPT.contains(var));
+        }
+    }
+
+    #[test]
+    fn a_crafted_voice_name_is_never_a_system_voice() {
+        let payload = "a\u{2019}); Set-Content (Join-Path $env:TEMP proof.txt) INJECTED; (\u{2018}b";
+        assert!(!is_system_voice(payload));
+        assert!(!plausible_voice_name("--output-filename=x"));
+        assert!(!plausible_voice_name("../x"));
+        assert!(!plausible_voice_name("a\nb"));
+        assert!(plausible_voice_name("Thomas"));
+        assert!(plausible_voice_name("fr_FR-siwis-medium"));
+    }
 }

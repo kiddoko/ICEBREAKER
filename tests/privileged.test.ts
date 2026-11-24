@@ -18,6 +18,17 @@ describe("what modules may never do", () => {
     expect(isPrivileged("macro", ["add", "notes", "factory-reset --yes"])).toBe(true);
     expect(isPrivileged("config", ["set", "keys.ctrl+s", "x"])).toBe(true);
   });
+  it("refuses the settings a module could turn into code or a leak (Fable pass 24/11)", () => {
+    // the voice name reached PowerShell; the others run, or send, things
+    for (const k of ["voice.name", "voice.engine", "shell.macros", "ai.ollamaHost", "ai.reads", "updates.endpoint"]) {
+      expect(isPrivileged("config", ["set", k, "x"]), k).toBe(true);
+      expect(isPrivileged("config", ["reset", k]), k).toBe(true);
+    }
+    for (const sub of ["use", "engine", "language", "lang", "install"]) expect(isPrivileged("voice", [sub, "x"]), sub).toBe(true);
+    expect(isPrivileged("voice", ["say", "hi"])).toBe(false);
+    expect(isPrivileged("voice", ["stop"])).toBe(false);
+    expect(isPrivileged("voice", ["list"])).toBe(false);
+  });
   it("lets modules do their usual things", () => {
     expect(isPrivileged("vault", [])).toBe(false);
     expect(isPrivileged("vault", ["status"])).toBe(false);

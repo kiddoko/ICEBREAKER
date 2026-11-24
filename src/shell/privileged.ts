@@ -22,7 +22,8 @@ export const PRIVILEGED_NAMES = new Set([
 ]);
 
 /** the settings that hold commands, or decide what runs, where things go and what leaves the computer */
-const SETTINGS = /^(privacy|plugins|ai|keys|keyoverrides|menu|shell|updates|vault|favorites|gamepad|home|modulesettings|session|setup|layout)(\.|$)/i;
+// (voice: its name reaches the OS speech engine — Fable pass 24/11)
+const SETTINGS = /^(privacy|plugins|ai|keys|keyoverrides|menu|shell|updates|vault|favorites|gamepad|home|modulesettings|session|setup|layout|voice)(\.|$)/i;
 
 const flagless = (args: string[]): string[] => args.filter((a) => !a.startsWith("-")).map((a) => a.toLowerCase());
 
@@ -77,9 +78,11 @@ export function isPrivileged(name: string, args: string[], from?: string): boole
       // deleting for good is yours only (looking and putting back are fine)
       return any("purge", "empty");
     case "theme":
-    case "voice":
       // downloads
       return any("install");
+    case "voice":
+      // downloading, and choosing which voice / engine the OS is handed: yours
+      return any("install", "use", "engine", "language", "lang");
     case "encoders":
       // downloading a program, or deleting it: yours
       return !only("", "status");
