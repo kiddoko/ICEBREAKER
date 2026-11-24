@@ -462,6 +462,13 @@ Starting numbers, to measure with `debug perf` and tune in milestone 2:
 A test renders a reference screen for every built-in theme and fails if the frame time
 regresses more than 10 % against `master`.
 
+**Baseline (milestone 2, 2026-11-24, Apple M5 Pro, Node under vitest, schema-2 built-ins):**
+loading all 11 built-in themes (parse + resolve + floor) **0.34 ms**; `keycapLook()` (resolve a
+key look through the registry) **0.3 µs**; drawing the golden screen of `tests/skin-golden.ts`
+(48 × 8 grid: frame, text, keys, a button) **0.06 ms** per theme. Far under budget; to compare
+against once components (milestone 3) and sprites / hooks (5–6) land. The frame-time regression
+test is still to write (milestone 3).
+
 ---
 
 ## 7. Migrating the 11 built-in themes
