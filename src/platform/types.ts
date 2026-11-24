@@ -141,7 +141,8 @@ export interface Platform {
   config: {
     /** settings.json, secrets.json, access.json (the access journal): the unlocked account's (nothing while locked) · device.json: the deck's own */
     read(name: "settings.json" | "secrets.json" | "device.json" | "access.json"): Promise<string | null>;
-    write(name: "settings.json" | "secrets.json" | "device.json" | "access.json", content: string): Promise<void>;
+    /** (settings.json.broken: an unreadable settings file, kept before the defaults replace it) */
+    write(name: "settings.json" | "secrets.json" | "device.json" | "access.json" | "settings.json.broken", content: string): Promise<void>;
   };
   system: {
     stats(): Promise<SystemStats>;

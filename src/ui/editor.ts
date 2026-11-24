@@ -318,11 +318,21 @@ export class TextEditor {
 
   /** Visual x of a position inside its segment. */
   private xOf(p: Pos): number {
-    const seg = this.segs(p.line)[this.segIndex(p)];
-    return strWidth(this.lines[p.line].slice(seg.start, p.col));
+    const line = this.clampLine(p.line);
+    const seg = this.segs(line)[this.segIndex({ line, col: p.col })] ?? { start: 0 };
+    return strWidth(this.lines[line].slice(seg.start, p.col));
+  }
+
+  /** a line that exists (a click mapped by the last frame can name one the text no longer has) */
+  private clampLine(line: number): number {
+    return Math.max(0, Math.min(this.lines.length - 1, Number.isFinite(line) ? line : 0));
   }
 
   private colAtX(line: number, segI: number, x: number): number {
+    // the screen's map of rows is the last frame's: the text may have changed since (a reload,
+    // a click storm) — E901 « reading 'start' » on the Windows bench
+    line = this.clampLine(line);
+    segI = Math.max(0, Math.min(this.segs(line).length - 1, segI));
     const seg = this.segs(line)[segI];
     const s = this.lines[line];
     let w = 0;
@@ -543,7 +553,8 @@ export class TextEditor {
     const row = Math.max(0, Math.min(this.rowMap.length - 1, y - this.textY));
     const r = this.rowMap[row];
     if (!r) return this.endPos();
-    return { line: r.line, col: this.colAtX(r.line, r.seg, Math.max(0, x - this.textX)) };
+    const line = this.clampLine(r.line);
+    return { line, col: this.colAtX(line, r.seg, Math.max(0, x - this.textX)) };
   }
 
   private selectWordAt(p: Pos): void {

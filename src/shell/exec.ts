@@ -10,7 +10,7 @@ import { basename, dirname, globToRegex, resolvePath } from "../vault/paths";
 import { AI_COMMANDS, allows, guardedDeck, guardedVault, trusted, type Origin } from "./origin";
 import { classOf, NOTE_COMMANDS } from "./classes";
 import { isPrivileged } from "./privileged";
-import { parse, ParseError, type SimpleCommand, type Word } from "./parser";
+import { parse, ParseError, segments, type SimpleCommand, type Word } from "./parser";
 import { helpText, wantsHelp } from "./help";
 import type { ReadOptions, ShellContext, ShellControls } from "./types";
 
@@ -75,11 +75,27 @@ export class ShellExecutor {
     try {
       let status = 0;
       let prevNext: string | null = null;
-      for (const p of pipelines) {
-        if (prevNext === "&&" && status !== 0) break;
-        if (prevNext === "||" && status === 0) break;
+      // each piece is read when its turn comes, with the variables of that moment
+      // (`export X=1; echo $X`, `false; echo $?`) — the whole line was checked above
+      const pieces = segments(trimmed);
+      const lazy = pieces.length === pipelines.length;
+      for (let n = 0; n < pipelines.length; n++) {
+        // `a && b || c`: a skipped piece passes its turn on (bash: c runs when a fails)
+        if ((prevNext === "&&" && status !== 0) || (prevNext === "||" && status === 0)) {
+          prevNext = pipelines[n].next;
+          continue;
+        }
+        let p = pipelines[n];
+        if (lazy && n > 0) {
+          try {
+            p = parse(pieces[n].text, { ...this.env, "?": String(this.lastStatus = status) })[0] ?? p;
+          } catch (e) {
+            this.print(`ibsh: ${e instanceof ParseError ? e.message : String(e)}\n`, true);
+            return (this.lastStatus = 2);
+          }
+        }
         status = await this.runPipeline(p.commands, origin);
-        prevNext = p.next;
+        prevNext = pipelines[n].next;
         if (this.abort?.signal.aborted) break;
       }
       return (this.lastStatus = status);
