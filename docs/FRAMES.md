@@ -79,6 +79,18 @@ stacked, moved, split, folded. This page is how it works and where it stands.
   ◆ menu and the menu bar (settings, NEXUS, STORE, MODULES, trash) are tabs like the others; quitting
   with the page alone brings the frames back first; the log beside the shell folds (›) and is
   dragged wider (`log width`).
+- **0.8: the top row.** No menu bar any more: the window's first row is the frames' tabs, with
+  **◆ icebreaker ▾** in its left corner (the deck's menu, which now starts with modules, store,
+  nexus, settings and help, their keys beside them) and **uplink ■ │ date time** in its right
+  corner, whatever the arrangement (`src/workspace/layout/toprow.ts`, pure, tested). A frame
+  whose header is on that row draws its label, tabs and buttons between the corners
+  (`headerSpan`, `Workspace.headerOf`); a folded strip under a corner starts a row lower
+  (`stripClear`); a corner takes its short form (**◆ ▾**, **■ 19:07**) below 170 / 150 columns
+  or when the frame under it would keep fewer than 16 header cells (`fitCorners`: the tree
+  moved under the clock). The row of air under the old bar is gone (its background glyphs read
+  as stray dots). VAULT and PANEL are **frame labels**, not tabs (they can't be moved or
+  grouped): bold, lit in the accent only while that frame has the focus. Every movable tab has
+  one style, **as wide as its name** (10–24 cells) while they all fit, then sharing the room.
 - **Step 3 is done (0.6.0).** Next: step 4, each tab's history (back / forward); step 5,
   the INFO panel; the battery in the top bar (it needs a native call).
 
@@ -155,8 +167,8 @@ It's pure: no deck, no drawing — the tests run it without a screen.
 
 ## In the workspace
 
-`Workspace.render` builds `todayLayout(…)`, solves it in the body (between the top bar and
-the status bar), and draws each frame in its rect, in the same order as before (tree,
+`Workspace.render` builds `todayLayout(…)`, solves it in the body (from the top row to the
+status bar), and draws each frame in its rect, in the same order as before (tree,
 panel, page, shell). `ws.layout` holds this frame's tree; `ws.rects` is filled from the
 frames as before, so the tour, the side panel's drop, the mouse's focus and `debug state`
 are unchanged. Every member the rest of the code uses (`sidebarVisible`, `shellVisible`,

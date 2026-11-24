@@ -67,7 +67,9 @@ import { ShellApp } from "./shell/shell";
 import { ShellExecutor } from "./shell/exec";
 import { CommandRegistry } from "./shell/types";
 import { q, type Hit } from "./ui/ui";
-import { UI } from "./ui/ui";
+import { keyFace, UI } from "./ui/ui";
+import { keycapLook } from "./core/keycap";
+import { setPadLook } from "./core/padglyphs";
 import { ensureEntry } from "./vault/journal";
 import { basename, join, slugify } from "./vault/paths";
 import { Vault } from "./vault/vault";
@@ -240,6 +242,8 @@ export class Deck implements InputSink {
   readonly mixer = new Mixer();
   readonly voice: DeckVoice;
 
+  /** the last thing pressed was a pad button (until a keyboard key): shortcuts show the pad's buttons */
+  padInput = false;
   private readonly ui = Object.assign(new UI(), { softCaret: true }); // the caret glides (renderer.setCaret)
   private grid = new Grid(1, 1);
   /** the screen's size in cells (debug state) */
@@ -335,11 +339,13 @@ export class Deck implements InputSink {
     this.gamepad = new GamepadInput((a) => {
       this.lastActivity = performance.now();
       this.loop.rest("awake");
+      this.padInput = true;
       this.action(a, "gamepad");
     });
     // hold RB: THE MENU (the stick chooses, letting go runs it)
     this.gamepad.onWheel = (e) => {
       this.lastActivity = performance.now();
+      this.padInput = true;
       const open = this.workspace.overlays.find((o): o is QuickMenu => o instanceof QuickMenu && !o.done);
       if (e.type === "open") {
         if (!open && !this.locked) this.workspace.menu({ pad: true });
@@ -619,9 +625,10 @@ export class Deck implements InputSink {
     const wait = this.tipView.want(
       want?.content ?? null,
       want?.key ?? "",
-      { bg: css(c.panelAlt), fg: css(c.fg), muted: css(c.muted), accent: css(c.accent), border: css(c.accent) },
+      { bg: css(c.panelAlt), fg: css(c.fg), muted: css(c.muted), accent: css(c.accent), border: css(c.accent), keyFace: keyFace(c), keyLook: keycapLook(this.theme.keys) },
       { family: this.renderer.fontFamily, px: this.renderer.fontSize },
       !!this.settings.data.appearance.reduceMotion,
+      ui.pad,
     );
     if (wait > 0) ui.animate(wait);
   }
@@ -632,6 +639,8 @@ export class Deck implements InputSink {
     const ui = this.ui;
     ui.begin(this.grid, this.theme, now, this.input.mouseCell);
     ui.cellAspect = this.renderer.cellW / this.renderer.cellH;
+    // the shortcuts on screen show the pad's buttons while a pad is used (ui/keyicons.ts)
+    ui.pad = this.padInput && this.gamepad.connected ? this.gamepad.kind : null;
     ui.still = this.loop.still || !!this.settings.data.appearance.reduceMotion;
     if (this.starting) {
       this.renderer.draw(this.grid);
@@ -784,6 +793,8 @@ export class Deck implements InputSink {
   // ── InputSink: everything the keyboard/mouse/gamepad produce lands here ──
 
   key(k: KeyInput): void {
+    // a keyboard key: the shortcuts on screen are keys again (they showed the pad's buttons)
+    this.padInput = false;
     // Windows / Linux: alt+F4 closes the window, as everywhere — before anyone else can keep it
     // (the boot, the login screen, a pop-up, your real terminal, a page that plays the keyboard
     // and owns the alt keys). The page keeps every key, so the system never sees it.
@@ -800,6 +811,7 @@ export class Deck implements InputSink {
   }
 
   text(t: string): void {
+    this.padInput = false;
     if (this.boot) return this.boot.skip();
     if (this.lock) return this.lock.onText(t), this.requestFrame();
     this.workspace.handleText(t);
@@ -1162,6 +1174,9 @@ export class Deck implements InputSink {
     this.renderer.bloomEnabled = fx.bloom && t.fx.bloom * lv.bloom > 0;
     this.renderer.setBloomRadius(bloomRadius(fx.bloom ? lv.bloom : 0));
     this.renderer.setChroma(lv.chroma ?? 0);
+    // the theme's hooks for the keys and the pad's buttons (core/keycap.ts, core/padglyphs.ts)
+    this.renderer.keycapLook = keycapLook(t.keys);
+    setPadLook(t.pad);
     this.renderer.setGlow(lv.glow ?? 0, t.c.bg);
     // the curved glass bends the whole picture (crt.ts) — composed with the bloom and the CRT lines
     this.renderer.setCurve(curve, this.renderer.bloomEnabled ? bloomNow : 0, fx.scanlines ? (t.fx.scanlines * lv.scanlines) / 100 : 0);

@@ -2,6 +2,8 @@ import { GlyphAtlas } from "./atlas";
 import { css, NONE } from "./color";
 import { BOLD, Grid, ITALIC, NOFADE, PIXELS, STRIKE, UNDERLINE } from "./grid";
 import { fontStack } from "./fonts";
+import { BEVELLED, drawCapSlice, type KeycapLook } from "./keycap";
+import { setPadFont } from "./padglyphs";
 import { chromaStrength } from "./fxlevels";
 import { charWidth } from "./unicode";
 import { CrtGlass, curveK, unwarpPoint, warpPoint, type GlassInput } from "./crt";
@@ -21,6 +23,8 @@ export class Renderer {
   cols = 0;
   rows = 0;
   dpr = 1;
+  /** how the shortcuts' keys look: the theme's (Theme.keys, core/keycap.ts), set by the deck */
+  keycapLook: KeycapLook = BEVELLED;
   /** Canvas position on the page, in CSS pixels. */
   left = 0;
   top = 0;
@@ -233,6 +237,7 @@ export class Renderer {
     // every theme / font / effect change made a new one (memory climbed past 1 GB)
     (this.atlas as GlyphAtlas | undefined)?.release();
     this.atlas = new GlyphAtlas(this.cellW, this.cellH, this.baseline, (a) => this.font(a));
+    setPadFont(this.stack);
     this.atlas.softness = this.soft ?? 0;
     this.front = null;
   }
@@ -618,7 +623,9 @@ export class Renderer {
           g.ch[i] !== front!.ch[i] ||
           g.fg[i] !== front!.fg[i] ||
           g.bg[i] !== front!.bg[i] ||
-          g.attr[i] !== front!.attr[i];
+          g.attr[i] !== front!.attr[i] ||
+          g.cap[i] !== front!.cap[i] ||
+          g.capEdge[i] !== front!.capEdge[i];
         if (fade > 0) {
           // born[i]: > 0 = fading in since then · < 0 = empty since -born[i] · 0 = settled
           if (g.attr[i] & NOFADE) born[i] = 0; // scenery: drawn as it is
@@ -669,6 +676,12 @@ export class Renderer {
           bctx.fillRect(x * cw, y * ch, (end - x) * cw, ch);
         }
         x = end;
+      }
+
+      // 1b) the shortcuts' keys (core/keycap.ts), over the background, under their text
+      for (let x = 0; x < g.cols; x++) {
+        const i = base + x;
+        if (dirty[x] && g.cap[i] !== NONE) drawCapSlice(ctx, x * cw, y * ch, cw, ch, this.L(g.cap[i]), g.capEdge[i], this.keycapLook);
       }
 
       // the foreground layer: these cells emptied (rounded outward to whole half pixels)
@@ -751,6 +764,8 @@ export class Renderer {
     front!.fg.set(g.fg);
     front!.bg.set(g.bg);
     front!.attr.set(g.attr);
+    front!.cap.set(g.cap);
+    front!.capEdge.set(g.capEdge);
 
     if (painted && this.bloomEnabled) this.bloomFrame();
     if (painted && this.chroma > 0) this.chromaFrame();

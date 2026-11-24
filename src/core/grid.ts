@@ -18,6 +18,15 @@ export const PIXELS = 64;
  */
 export const NOFADE = 128;
 
+/**
+ * where a cell is on a key (Grid.capEdge): its left end, its right end — or the space just
+ * before / after the key, where the key reaches half a cell so its text has room (no layout moves)
+ */
+export const CAP_START = 1;
+export const CAP_END = 2;
+export const CAP_PAD_L = 4;
+export const CAP_PAD_R = 8;
+
 export interface Rect {
   x: number;
   y: number;
@@ -49,6 +58,13 @@ export class Grid {
   readonly fg: Int32Array;
   readonly bg: Int32Array;
   readonly attr: Uint8Array;
+  /**
+   * A shortcut's key (0.8, core/keycap.ts): the face colour of the key drawn behind this cell's
+   * character (NONE: no key), and where the cell is on it — CAP_START, CAP_END (both: a one-cell
+   * key). The renderer draws the key, the character stays the font's: as sharp as all the text.
+   */
+  readonly cap: Int32Array;
+  readonly capEdge: Uint8Array;
   /** while true, what's written is scenery (NOFADE): ui.art and the backgrounds set it */
   ambient = false;
 
@@ -65,6 +81,8 @@ export class Grid {
     this.fg = new Int32Array(n);
     this.bg = new Int32Array(n);
     this.attr = new Uint8Array(n);
+    this.cap = new Int32Array(n).fill(NONE);
+    this.capEdge = new Uint8Array(n);
     this.clip = { x: 0, y: 0, w: cols, h: rows };
   }
 
@@ -73,6 +91,8 @@ export class Grid {
     this.fg.fill(fg);
     this.bg.fill(bg);
     this.attr.fill(0);
+    this.cap.fill(NONE);
+    this.capEdge.fill(0);
     this.clipStack = [];
     this.clip = { x: 0, y: 0, w: this.cols, h: this.rows };
   }
@@ -114,6 +134,8 @@ export class Grid {
     if (fg !== NONE) this.fg[i] = fg;
     if (bg !== NONE) this.bg[i] = bg;
     this.attr[i] = attrs;
+    this.cap[i] = NONE;
+    this.capEdge[i] = 0;
 
     if (w === 2 && cp !== 32) {
       this.breakWide(x + 1, y);
@@ -121,8 +143,18 @@ export class Grid {
       if (fg !== NONE) this.fg[i + 1] = fg;
       if (bg !== NONE) this.bg[i + 1] = bg;
       this.attr[i + 1] = attrs;
+      this.cap[i + 1] = NONE;
+      this.capEdge[i + 1] = 0;
     }
     return w;
+  }
+
+  /** Put a key behind cell (x, y) (after `set`): its face colour, and CAP_START / CAP_END. */
+  setCap(x: number, y: number, face: RGB, edge: number): void {
+    if (!this.inClip(x, y)) return;
+    const i = y * this.cols + x;
+    this.cap[i] = face;
+    this.capEdge[i] = edge;
   }
 
   /** Change only the colors of a cell (used for highlights and selections). */

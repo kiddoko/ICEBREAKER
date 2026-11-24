@@ -50,6 +50,22 @@ Bundled fonts (SIL OFL): JetBrains Mono (default), IBM Plex Mono, Fira Code,
 Space Mono, VT323, Share Tech Mono. Any font installed on the system works too.
 A theme without `[font]` uses JetBrains Mono and the user's weight setting.
 
+## Theme hooks (code, not theme files yet)
+
+Some of the interface is drawn from a small **look object** the theme can provide, so a later
+theme overhaul can restyle it without touching the drawing code. Today the built-in themes don't
+set them and theme files don't read them yet; what a theme leaves out is the deck's own look.
+
+| hook | what | the deck's own |
+|---|---|---|
+| `Theme.keys` (`KeycapLook`, `src/core/keycap.ts`) | the key every shortcut sits on: `radius` (share of the cell's height), `border` (device pixels), `lip` (the darker bottom: share of the height, 0 = flat), `shine` (the light top edge, device pixels), `reach` (how far into the spaces beside it, share of a cell), `top` / `bottom` (room around it), `face` (its colour, or the theme's raised panel tone), `bold` | `BEVELLED` |
+| `Theme.pad` (`PadLook`, `src/core/padglyphs.ts`) | the gamepad's buttons shown in place of the keys while a pad is used: `inkDark` / `inkLight` (the letter, whichever reads on the button), `psBody` (a PlayStation button's body), `ring`, `weight` (the letters'), `size` (share of the cell's height) | `PAD_LOOK` |
+
+Every value is kept within sane bounds (`keycapLook`, `setPadLook`), so a theme can't break the
+drawing. The keys' text is always the theme's font; the pad buttons' colours (A green, ✕ blue…)
+are the pad maker's. The test `tests/contrast.test.ts` checks a key's text on its face in every
+built-in theme (≥ 4.5:1) — a theme that sets `face` should keep that.
+
 ## Readable, whatever the colours
 
 When a theme is loaded (built-in, yours, or tweaked), its secondary text (`muted`) is kept at

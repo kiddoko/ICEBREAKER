@@ -203,6 +203,20 @@ const tab: Command = {
   },
 };
 
+/** each page by the name on its tab ("nexus", "catalog", "manual"), not its inner id (E2) */
+const tabName = (a: { title: string }) => a.title.toLowerCase().replace(/\s*\(.*\)$/, "");
+
+/**
+ * The page (app or module) called `name` — its id, its tab's name or a module's — or undefined.
+ * `launch nexus` is its page, explorer; `open breakermed` too (shell/commands/deck.ts).
+ */
+export function pageNamed(d: ShellContext["deck"], name: string): string | undefined {
+  const n = name.trim().toLowerCase();
+  if (!n) return undefined;
+  if (d.apps.get(n) && d.apps.get(n)!.kind !== "note") return n;
+  return d.apps.list().find((x) => x.kind !== "note" && (x.title.toLowerCase() === n || tabName(x) === n))?.kind ?? CORE_PACKAGES.find((x) => x.id === n)?.apps?.find((k) => d.apps.get(k));
+}
+
 const launch: Command = {
   name: "launch",
   examples: [
@@ -216,8 +230,6 @@ const launch: Command = {
   run(ctx) {
     const d = ctx.deck;
     const kind = ctx.args.join(" ");
-    // each page by the name on its tab ("nexus", "catalog", "manual"), not its inner id (E2)
-    const tabName = (a: { title: string }) => a.title.toLowerCase().replace(/\s*\(.*\)$/, "");
     if (!kind) {
       // the icons' column as wide as the widest one (STATS' « ▁▃▇ » is 3 cells: its name went a column right)
       const apps = d.apps.list().filter((a) => a.kind !== "note");
@@ -225,9 +237,7 @@ const launch: Command = {
       for (const a of apps) ctx.out(`${padEnd(a.icon ?? "·", iw)} ${padEnd(tabName(a), 13)} ${fmt.dim(a.description ?? "")}\n`);
       return 0;
     }
-    // a module's name works too: `launch nexus` is its page, explorer (it said "no app")
-    const name = kind.toLowerCase();
-    const found = d.apps.get(name) ? name : d.apps.list().find((x) => x.title.toLowerCase() === name || tabName(x) === name)?.kind ?? CORE_PACKAGES.find((x) => x.id === name)?.apps?.find((k) => d.apps.get(k));
+    const found = pageNamed(d, kind);
     if (!found) return ctx.err(`launch: no app "${kind}" (launch to list)\n`), 1;
     d.openApp(found);
   },

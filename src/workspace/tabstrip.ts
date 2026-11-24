@@ -9,8 +9,9 @@
  * shown or hovered), a half-block bar under it on the frame's top line — the one shown
  * in the accent (dimmer when its frame hasn't the focus). HOME is pinned: always first,
  * ⌂, no ×. No number in front
- * of the name any more: the numbers (⌘1…9) show only while ⌘ / ctrl is held. Wide when
- * there are few, narrower as more open (15–24 cells); the rest in a "▾ +N" list, the one
+ * of the name any more: the numbers (⌘1…9) show only while ⌘ / ctrl is held. Each as wide as
+ * its name (0.8: 10–24 cells) while they all fit; then they share the room (15–24 cells), the
+ * rest in a "▾ +N" list, the one
  * shown always visible. Drag a tab sideways to put it elsewhere (`tab move <n> <m>`).
  */
 import { mix } from "../core/color";
@@ -78,17 +79,19 @@ export function drawChip(ui: UI, x: number, y: number, w: number, bg: number, ba
 }
 
 /**
- * The header of a frame that holds one thing (VAULT, PANEL): one tab with its name,
- * at the left of the header row. Returns its rect.
+ * A frame's own label (VAULT, PANEL) at `x` on its header row: not a tab (it can't be moved or
+ * grouped), so never a lit chip — its name in bold, in the accent only while that frame has the
+ * focus and shows its own content (a short accent stroke under it on the frame's line, like the
+ * shown tab's bar), muted otherwise. A click brings the frame's own content back. Returns its
+ * rect (the tabs moved into the frame go after it).
  */
-export function soloTab(ui: UI, r: Rect, label: string, focused: boolean, hit: { cmd?: string; onClick?: () => void; tip?: string; menu?: () => MenuEntry[] }, on = true): Rect {
-  // one cell in from the frame's corner; the name with a space on each side
-  const w = Math.min(r.w - INSET * 2, strWidth(label) + INSET * 2);
-  const rect = { x: r.x + INSET, y: r.y, w, h: 2 };
-  if (w < 3) return rect;
-  const st = chipStyle(ui, on, focused, !on && ui.hovered(rect));
-  drawChip(ui, rect.x, r.y, w, st.bg);
-  ui.text(rect.x + INSET, r.y, label, { fg: st.fg, bg: st.bg, attrs: BOLD }, w - INSET * 2);
+export function frameLabel(ui: UI, x: number, y: number, label: string, lit: boolean, hit: { cmd?: string; onClick?: () => void; tip?: string; menu?: () => MenuEntry[] }): Rect {
+  const c = ui.c;
+  const text = ` ${label.toLowerCase()} `;
+  const rect = { x, y, w: strWidth(text), h: 2 };
+  const hot = ui.hovered(rect);
+  ui.text(x, y, text, { fg: lit ? c.accent : hot ? c.fg : c.muted, ...(hot ? { bg: c.highlight } : {}), attrs: BOLD });
+  if (lit) ui.text(x, y + 1, "▀".repeat(rect.w), { fg: c.accent });
   ui.hit(rect, hit);
   return rect;
 }
@@ -213,8 +216,26 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
   const avail = r.x + r.w - x - PLUS_W - pinnedW;
   let tabW = others ? Math.max(MINW, Math.min(MAXW, Math.floor(avail / others) - 1)) : MAXW;
   const activeEntry = entries.findIndex((e) => (e.kind === "tab" ? e.index === ws.active : e.indexes.includes(ws.active)));
+  // each tab as wide as its name (icon, name, ×), when they all fit that way
+  const natural = (ei: number): number => {
+    const e = entries[ei];
+    if (e.kind === "group") {
+      const i = e.indexes.find((j) => ws.tabs[j]?.key === e.group.active) ?? e.indexes[0];
+      const name = e.group.name ? `${e.group.name} · ${tabTitle(ws.tabs[i])}` : tabTitle(ws.tabs[i]);
+      return Math.min(MAXW, strWidth(name) + strWidth(` ${e.indexes.length}`) + 5);
+    }
+    if (isPinned(ws, e.index)) return pinW(ws, e.index);
+    const app = ws.tabs[e.index];
+    // its icon, ● when unsaved, ♪ when its page plays sound (as drawn below)
+    const owner = app ? ws.deck.apps.sourceOf(app.kind) : "";
+    const sound = !!owner && owner !== "core" && (ws.deck.mixer.isMuted(owner) || ws.deck.mixer.playing().includes(owner));
+    const extra = (iconOf(ws, e.index) ? strWidth(iconOf(ws, e.index)) + 1 : 0) + (app?.dirty?.() ? 2 : 0) + (sound ? 2 : 0);
+    return Math.max(10, Math.min(MAXW, strWidth(tabTitle(app)) + extra + 5));
+  };
+  const fitted = entries.reduce((sum, _, ei) => sum + natural(ei) + SEP, 0) <= r.x + r.w - x - PLUS_W;
   let shown = Array.from({ length: n }, (_, i) => i);
-  if (others * (tabW + 1) > avail) {
+  // they don't all fit as wide as their names: they share the room (15–24 cells), the rest in a list
+  if (!fitted && others * (tabW + 1) > avail) {
     tabW = MINW;
     // so narrow that not even one tab fits beside the list: only the list
     const fit = Math.floor((avail - MORE_W) / (tabW + 1)) + pinned.length;
@@ -233,7 +254,7 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
   shown.forEach((ei, k) => {
     const e = entries[ei];
     const pin = e.kind === "tab" && isPinned(ws, e.index);
-    const w = pin && e.kind === "tab" ? pinW(ws, e.index) : tabW;
+    const w = pin && e.kind === "tab" ? pinW(ws, e.index) : fitted ? natural(ei) : tabW;
     const rect = { x, y: r.y, w, h: 2 };
     rects.push(rect);
     chipsNow.push({ rect, first: e.kind === "tab" ? e.index : e.indexes[0], group: e.kind === "group" ? e.group.id : undefined });
@@ -283,7 +304,7 @@ export function renderTabStrip(ws: Workspace, ui: UI, r: Rect): void {
         const muted = mx.isMuted(sound);
         tx = ui.text(tx, r.y, muted ? "⊘ " : "♪ ", { fg: ui.hovered(speaker) ? c.warning : muted ? c.error : on ? c.panel : c.accent, bg, attrs: BOLD });
       }
-      if (room - 2 >= 6 && iconOf(ws, i)) tx = ui.text(tx, r.y, `${iconOf(ws, i)} `, { fg: on ? c.panel : c.subtle, bg });
+      if ((fitted || room - 2 >= 6) && iconOf(ws, i)) tx = ui.text(tx, r.y, `${iconOf(ws, i)} `, { fg: on ? c.panel : c.subtle, bg });
       if (unsaved) tx = ui.text(tx, r.y, "● ", { fg: c.error, bg, attrs: BOLD });
       ui.text(tx, r.y, tabTitle(ws.tabs[i]), { fg, bg, attrs: on ? BOLD : 0 }, Math.max(0, closeX - tx - 1));
       const closeHot = ui.hovered({ x: closeX - 1, y: r.y, w: 3, h: 1 });

@@ -65,7 +65,7 @@ this computer: it never goes into the vault, so it doesn't travel or sync.
 
 **What the AI may read** is yours to set: nothing, what you give it (a note you name in your
 message, pipe to it or have in front), or your whole vault. A new account starts on "what I
-give it". The top bar says when it reads.
+give it". The clock, top right, says when it reads.
 
 ## When the app uses the network
 

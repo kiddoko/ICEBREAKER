@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { contrast, readable } from "../src/core/color";
 import { ThemeManager } from "../src/core/theme";
+import { keyFace } from "../src/ui/ui";
 
 describe("readable text in every theme", () => {
   it("contrast ratios (WCAG)", () => {
@@ -21,5 +22,9 @@ describe("readable text in every theme", () => {
         expect(contrast(th.c.subtle, bg), `${th.name} subtle`).toBeGreaterThanOrEqual(4.5);
       }
     }
+  });
+  it("every built-in theme: a shortcut's text ≥ 4.5:1 on its key (0.8 keycaps)", () => {
+    const tm = new ThemeManager();
+    for (const th of tm.list()) expect(contrast(th.c.fg, keyFace(th.c)), th.name).toBeGreaterThanOrEqual(4.5);
   });
 });

@@ -1,4 +1,6 @@
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
+import type { KeycapLook } from "./keycap";
+import type { PadLook } from "./padglyphs";
 import { hex, type RGB, readable } from "./color";
 
 /**
@@ -117,6 +119,13 @@ export interface Theme {
   background: ThemeBackground;
   sound: ThemeSound;
   anim: ThemeAnim;
+  /**
+   * THEME HOOKS for the keys and the pad's buttons (docs/THEMES.md): how they look, any part of
+   * it — the rest is the deck's bevelled key (core/keycap.ts BEVELLED) and its pad buttons
+   * (core/padglyphs.ts PAD_LOOK). Not read from theme files yet: the theme overhaul will.
+   */
+  keys?: Partial<KeycapLook>;
+  pad?: Partial<PadLook>;
   /** The theme it was built on (meta.extends), if any. */
   extends?: string;
   source: "builtin" | "vault";

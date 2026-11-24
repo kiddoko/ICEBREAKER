@@ -38,6 +38,9 @@ export interface Frame {
   fg?: Int32Array;
   bg?: Int32Array;
   attr?: Uint8Array;
+  /** the shortcuts' keys (Grid.cap / capEdge, core/keycap.ts) */
+  cap?: Int32Array;
+  capEdge?: Uint8Array;
   hits: HitInfo[];
   /** ui.animate: the next frame in this many ms (Infinity: none asked) */
   wake: number;
@@ -96,7 +99,8 @@ export type ToModule =
   | { t: "close"; inst: string }
   /** its tab is closing: may it? (its close() can ask "save?" first) — answered with "closing" */
   | { t: "closing"; inst: string; id: number }
-  | { t: "render"; inst: string; target: Target; w: number; h: number; focused: boolean; mouse: { x: number; y: number }; now: number }
+  /** `pad`: the pad in use, if any — the module's shortcuts show its buttons (ui/keyicons.ts) */
+  | { t: "render"; inst: string; target: Target; w: number; h: number; focused: boolean; mouse: { x: number; y: number }; now: number; pad?: "xbox" | "playstation" | "nintendo" | "generic" | null }
   | { t: "hit"; inst: string; id: number; kind: "click" | "double" | "drag" | "up" | "wheel" | "right"; m: unknown; delta?: number }
   | { t: "key"; inst: string; target: Target; k: unknown }
   | { t: "text"; inst: string; target: Target; text: string }

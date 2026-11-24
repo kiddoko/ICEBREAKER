@@ -4,7 +4,7 @@ import type { TipContent } from "../ui/tipview";
 import { MiniCalendar } from "./minical";
 import { PageAlone } from "./pagealone";
 import { WhenPicker, type WhenOptions, type WhenResult } from "./whenpicker";
-import { editBand, renderNotchBand, renderShellPanel, renderStatusBar, renderSubtitles, renderTip, renderTopBar } from "./chrome";
+import { editBand, renderNotchBand, renderShellPanel, renderStatusBar, renderSubtitles, renderTip, renderTopCorners, topCorners } from "./chrome";
 import { shortcutFor, type Shortcut } from "../core/shortcuts";
 import { SidePanel } from "./sidepanel";
 import { LogPane } from "./logpane";
@@ -34,17 +34,16 @@ import { frames, todayLayout, type Node as LayoutNode, type Today } from "./layo
 import { CLASSIC, effectiveLayout, isFolded, parseArrangement, resizeBetween, setFolded, type ANode, type FrameId } from "./layout/arrange";
 import { bordersOf, solveLayout, type Border } from "./layout/solve";
 import { paneToward } from "./layout/focus";
-import { drawDropFrame, placeChips, renderTabStrip, soloTab, tabbedBox } from "./tabstrip";
+import { drawDropFrame, frameLabel, placeChips, renderTabStrip, tabbedBox } from "./tabstrip";
+import { headerSpan, stripClear, type TopCorners } from "./layout/toprow";
 import { frameOfPane, PANE_OF, parsePlaces, parseShows, prunePlaces, type PlaceFrame, type Places, type Shows } from "./tabplaces";
 import { groupOf, joinGroup, parseGroups, pick, prune, renameGroup, stripEntries, takeOut, type StripEntry, type TabGroup } from "./tabgroups";
-import { GAP, INSET, SECTION } from "../ui/layout";
+import { GAP, INSET } from "../ui/layout";
 import { isTerminalKey, parseView, type ShellTabSave, renameKeys, type SessionView } from "./sessionview";
 import { strWidth, truncate } from "../core/unicode";
 
 export type ShellTab = "term" | "ibsh" | "log";
 
-/** the top bar's rows: one (the deck menu, UPLINK, the clock — the tabs are on the frames) */
-export const TOP_H = 1;
 /** the shell's share of the height to begin with (and after `layout reset`) */
 export const SHELL_RATIO = 0.3;
 
@@ -1048,6 +1047,12 @@ export class Workspace {
   openDeckMenu(): void {
     this.openMenu(deckMenu(this), 0, this.topBarY + 1, DECK_MENU_TITLE());
   }
+  /** the top row's corners this frame (the deck's menu, the clock): the frames' headers leave them room */
+  top: TopCorners = { y: 0, logoEnd: 0, clockStart: 0 };
+  /** where frame `r` can draw its header (its label, its tabs, its buttons): clear of the top row's corners */
+  headerOf(r: Rect): { x: number; xEnd: number } {
+    return headerSpan(r, this.top);
+  }
   /** the top bar's row (under the notch band when there is one), set by render */
   private topBarY = 0;
 
@@ -1529,15 +1534,16 @@ export class Workspace {
     if (N) renderNotchBand(ui, { x: 0, y: 0, w: W, h: N });
     if (N && d.settings.data.fx.ambient && !d.settings.data.appearance.reduceMotion) drawBackground(ui, { x: 0, y: 0, w: W, h: N }, ui.theme, 0.7);
 
-    // the top bar: one row — the deck menu, UPLINK, the clock (each frame has its tabs on its border)
+    // the top row (0.8: no menu bar): the frames' tabs, the deck's menu in its left corner and
+    // uplink + the clock in its right one (workspace/layout/toprow.ts) — measured first, so the
+    // frames whose header is on that row leave them room; the row starts clear (the background's
+    // glyphs drifting between the frames' tabs read as stray dots)
     this.topBarY = N;
-    renderTopBar(this, ui, { x: 0, y: N, w: W, h: TOP_H });
-
     // the frames: the arrangement (settings.layout — today's when nothing's saved) with the
     // switches applied (tree, panel, shell shown), solved into one rect each (layout/solve.ts).
     // The maximized shell keeps its own layout (the page in a strip at the bottom).
-    // a row of air under the top bar: the frames' tabs (VAULT, home…, PANEL) sat right against it
-    const body = { x: 1, y: N + TOP_H + SECTION, w: W - 2, h: H - TOP_H - SECTION - 1 };
+    const body = { x: 1, y: N, w: W - 2, h: H - 1 };
+    ui.fill({ x: 0, y: body.y, w: W, h: 1 }, { bg: ui.c.bg });
     const max = this.shellVisible && this.shellMax;
     const today: Today = (this.today = { sidebar: this.sidebarVisible, shell: this.shellVisible, shellMax: this.shellMax, panel: !!d.settings.data.panel?.shown, shellRatio: this.shellRatio, cols: W, bodyH: body.h });
     const layout = max ? todayLayout(today) : effectiveLayout(this.arrangement, today);
@@ -1545,6 +1551,7 @@ export class Workspace {
     this.layout = layout;
     const arr = this.arrangement;
     const strips = new Set(frames(layout).filter((f) => f.strip).map((f) => f.id));
+    this.top = topCorners(this, ui, body.y, W, frames(layout).filter((f) => !f.strip).map((f) => at.get(f.id)).filter((r): r is Rect => !!r));
 
     // the borders between frames: grab one to resize (registered first: what the frames draw on
     // their top line — the shell's tabs, a title — wins the click; the gap between columns is free)
@@ -1558,7 +1565,7 @@ export class Workspace {
     // folded frames: a one-cell strip with their name; a click opens them again
     for (const id of strips) {
       const r = at.get(id);
-      if (r) drawStrip(ui, r, id === "vault" ? "vault" : id === "panel" ? "panel" : "shell", `frame unfold ${id === "vault" ? "tree" : id}`);
+      if (r) drawStrip(ui, stripClear(r, this.top), id === "vault" ? "vault" : id === "panel" ? "panel" : "shell", `frame unfold ${id === "vault" ? "tree" : id}`);
     }
     const vaultR = strips.has("vault") ? undefined : at.get("vault");
     if (this.sidebarVisible && vaultR) {
@@ -1568,8 +1575,10 @@ export class Workspace {
       // a tab moved here (tab move <n> tree) may be the one shown instead of the tree
       const moved = this.shownIn("vault");
       const inner = tabbedBox(ui, vaultR, { focused, info: moved ? undefined : `${d.vault.markdown().length}` });
-      const own = soloTab(ui, vaultR, "vault", focused, { onClick: () => (moved ? this.showIn("vault", null) : (this.focus = "sidebar")), tip: t("your notes and files · ◧ or ⌘B hides the tree"), menu: () => [...frameMenu("tree"), "-", { label: t("Hide tree"), cmd: "view sidebar", hint: IS_MAC ? "⌘B" : "ctrl+B" }] }, !moved);
-      placeChips(this, ui, own.x + own.w + INSET, vaultR.y, vaultR.x + vaultR.w - INSET, "vault", focused);
+      const span = this.headerOf(vaultR);
+      const vaultHit = { onClick: () => (moved ? this.showIn("vault", null) : (this.focus = "sidebar")), tip: t("your notes and files · ◧ or ⌘B hides the tree"), menu: () => [...frameMenu("tree"), "-", { label: t("Hide tree"), cmd: "view sidebar", hint: IS_MAC ? "⌘B" : "ctrl+B" }] as MenuEntry[] };
+      const own = frameLabel(ui, span.x, vaultR.y, "vault", focused && !moved, vaultHit);
+      placeChips(this, ui, own.x + own.w + INSET, vaultR.y, span.xEnd, "vault", focused);
       // (clipped: in a tiny window the tree's list drew a row under its frame)
       if (moved) ui.clip(inner, () => moved.render(ui, inner, focused));
       else ui.clip(inner, () => this.sidebar.render(ui, inner, this.focus === "sidebar"));
@@ -1586,11 +1595,12 @@ export class Workspace {
       if (moved) {
         // a tab moved here, shown instead of the widgets (PANEL's tab brings them back)
         const inner = tabbedBox(ui, panelR, { focused });
-        soloTab(ui, panelR, t("PANEL"), focused, { onClick: () => this.showIn("panel", null), tip: t("the panel's widgets") }, false);
+        frameLabel(ui, this.headerOf(panelR).x, panelR.y, t("PANEL"), false, { onClick: () => this.showIn("panel", null), tip: t("the panel's widgets") });
         ui.clip(inner, () => moved.render(ui, inner, focused));
       } else this.sidePanel.render(ui, panelR);
       // the tabs moved here, after PANEL's own
-      placeChips(this, ui, panelR.x + strWidth(t("PANEL")) + INSET * 4, panelR.y, panelR.x + panelR.w - INSET, "panel", focused);
+      const span = this.headerOf(panelR);
+      placeChips(this, ui, span.x + strWidth(t("PANEL")) + INSET * 3, panelR.y, span.xEnd, "panel", focused);
     }
     if (this.focus === "panel" && !this.rects.panel) this.focus = "main"; // the panel went away
     // the page (maximized shell: in the strip at the bottom)
@@ -1600,7 +1610,8 @@ export class Workspace {
     const mainFocused = this.focus === "main" && !this.topModal;
     // its tabs on its top border (tabstrip.ts): the names above, their bars on the line
     const inner = tabbedBox(ui, mainR, { focused: mainFocused });
-    renderTabStrip(this, ui, { x: mainR.x + INSET, y: mainR.y, w: mainR.w - INSET * 2, h: 2 });
+    const mainSpan = this.headerOf(mainR);
+    renderTabStrip(this, ui, { x: mainSpan.x, y: mainR.y, w: mainSpan.xEnd - mainSpan.x, h: 2 });
     if (app?.menu) ui.hit(inner, { menu: () => app.menu!() });
     if (app) ui.clip(inner, () => app.render(ui, inner, mainFocused));
     if (this.editing) editBand(this, ui, inner, this.sidePanel.area);
@@ -1608,6 +1619,8 @@ export class Workspace {
     const shellR = strips.has("shell") ? undefined : at.get("shell");
     // its own top border resizes it (its share of the height) where it's along the bottom
     if (this.shellVisible && shellR) renderShellPanel(this, ui, shellR, body, max || !this.shellAtBottom);
+    // the top row's corners, over the frames' header row
+    renderTopCorners(this, ui, this.top, W);
     // a folded frame can't keep the focus (keys would go somewhere you can't see)
     if (this.focus === "sidebar" && strips.has("vault")) this.focus = "main";
     if (this.focus === "shell" && strips.has("shell")) this.focus = "main";

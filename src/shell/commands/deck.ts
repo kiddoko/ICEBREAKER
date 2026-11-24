@@ -28,7 +28,7 @@ import { chat, daily } from "./daily";
 import { audioCommand, errorsCommand, mute, sound } from "./sound";
 import { debugCommand, logCommand } from "./log";
 import { FX_LEVELS, fxMax, getFx, setFx, type FxLevel } from "../../core/fxlevels";
-import { uiCommands } from "./ui";
+import { pageNamed, uiCommands } from "./ui";
 import { newsCommand } from "../../widgets/news";
 
 /** Commands specific to ICEBREAKER: notes, journal, AI, themes, plugins, settings. */
@@ -37,18 +37,24 @@ const open: Command = {
   name: "open",
   examples: [
     ["open notes/idees.md", "open (or create) a note"],
+    ["open todo", "a page's name opens the page (a module's too)"],
   ],
   aliases: ["edit", "vim", "nvim", "nano", "code"],
-  summary: "open a note in the editor (created if missing)",
-  usage: "open path",
+  summary: "open a page by its name, or a note (created if missing)",
+  usage: "open <page name or note path>",
   complete: "path",
   async run(ctx) {
     if (!ctx.args[0]) {
-      ctx.err("usage: open path\n");
+      ctx.err("usage: open <page name or note path>\n");
       return 1;
     }
+    // a page's name (open breakermed, open todo): its page — a note only when no page has it;
+    // a path (a "/" or an extension) is always a note
+    const typed = ctx.args.join(" ");
+    const page = /[/\\]|\.\w+$/.test(typed) ? undefined : pageNamed(ctx.deck, typed);
+    if (page) return void ctx.deck.openApp(page);
     // a name with spaces typed without quotes (open START HERE/README): the whole of it is the path
-    let p = ctx.resolve(ctx.args.join(" "));
+    let p = ctx.resolve(typed);
     if (!/\.\w+$/.test(p)) p += ".md";
     if (ctx.deck.vault.isDir(p)) {
       ctx.err(`open: ${ctx.args[0]} is a directory\n`);

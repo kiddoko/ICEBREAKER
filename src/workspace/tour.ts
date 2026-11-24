@@ -35,7 +35,7 @@ const STEPS: TourStep[] = [
   },
   {
     title: "TABS",
-    text: "Every page you open is a tab on top of its frame: click one, or ⌘1…9. ⌘W closes it, ctrl+tab goes to the next one; HOME is pinned, always first. Drag a tab onto another frame to keep it there, or onto another tab: a group. Top left, ◆ ICEBREAKER is the deck's menu: modules, the store, settings, log out.",
+    text: "Every page you open is a tab on top of its frame: click one, or ⌘1…9. ⌘W closes it, ctrl+tab goes to the next one; HOME is pinned, always first. Drag a tab onto another frame to keep it there, or onto another tab: a group. Top left, ◆ icebreaker is the deck's menu: modules, the store, nexus, settings, help, log out.",
     at: (ws, s) => (ws.rects.main ? { ...ws.rects.main, h: 2 } : { x: 0, y: 0, w: s.w, h: 1 }),
   },
   {

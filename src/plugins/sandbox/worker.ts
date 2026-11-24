@@ -235,7 +235,7 @@ function makeIb(manifest: unknown, version: string): unknown {
 interface Slot {
   grid: Grid;
   ui: UI;
-  prev: { ch: Uint32Array; fg: Int32Array; bg: Int32Array; attr: Uint8Array } | null;
+  prev: { ch: Uint32Array; fg: Int32Array; bg: Int32Array; attr: Uint8Array; cap: Int32Array } | null;
   hits: Hit[];
   menus: Map<number, MenuEntry[]>;
 }
@@ -259,11 +259,14 @@ function draw(m: Extract<ToModule, { t: "render" }>): void {
   const s = slotFor(m.inst, m.w, m.h);
   const ui = s.ui;
   ui.begin(s.grid, theme, m.now, m.mouse);
+  ui.pad = m.pad ?? null;
   // untouched until drawn: the deck keeps what's under those cells
   s.grid.ch.fill(UNTOUCHED);
   s.grid.fg.fill(NONE);
   s.grid.bg.fill(NONE);
   s.grid.attr.fill(0);
+  s.grid.cap.fill(NONE);
+  s.grid.capEdge.fill(0);
   const r = { x: 0, y: 0, w: m.w, h: m.h };
   let title: string | undefined, status: string | undefined;
   try {
@@ -297,12 +300,12 @@ function draw(m: Extract<ToModule, { t: "render" }>): void {
     tip: h.tip,
   }));
   const g = s.grid;
-  const same = !!s.prev && eq(s.prev.ch, g.ch) && eq(s.prev.fg, g.fg) && eq(s.prev.bg, g.bg) && eq(s.prev.attr, g.attr);
+  const same = !!s.prev && eq(s.prev.ch, g.ch) && eq(s.prev.fg, g.fg) && eq(s.prev.bg, g.bg) && eq(s.prev.attr, g.attr) && eq(s.prev.cap, g.cap);
   const base = { t: "frame" as const, inst: m.inst, w: m.w, h: m.h, hits, wake: ui.wakeIn, caret: ui.caret, title, status };
   if (same) return post({ ...base, same: true });
-  const copy = { ch: g.ch.slice(), fg: g.fg.slice(), bg: g.bg.slice(), attr: g.attr.slice() };
-  s.prev = { ch: g.ch.slice(), fg: g.fg.slice(), bg: g.bg.slice(), attr: g.attr.slice() };
-  post({ ...base, same: false, ...copy }, [copy.ch.buffer, copy.fg.buffer, copy.bg.buffer, copy.attr.buffer]);
+  const copy = { ch: g.ch.slice(), fg: g.fg.slice(), bg: g.bg.slice(), attr: g.attr.slice(), cap: g.cap.slice(), capEdge: g.capEdge.slice() };
+  s.prev = { ch: g.ch.slice(), fg: g.fg.slice(), bg: g.bg.slice(), attr: g.attr.slice(), cap: g.cap.slice() };
+  post({ ...base, same: false, ...copy }, [copy.ch.buffer, copy.fg.buffer, copy.bg.buffer, copy.attr.buffer, copy.cap.buffer, copy.capEdge.buffer]);
 }
 
 function eq(a: ArrayLike<number>, b: ArrayLike<number>): boolean {
