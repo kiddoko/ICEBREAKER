@@ -134,3 +134,97 @@ describe("files found and put back in .trash/recovered-… are said once", () =>
     expect(recoveredMessage([...notes, "recovered .trash/recovered-1700/b.md", "recovered .trash/recovered-1700/c.md"], told)).toMatch(/^2 files/);
   });
 });
+
+// ── the bench's second look at #34 ────────────────────────────────────────
+
+import { ShellExecutor } from "../src/shell/exec";
+import { fakeDeck } from "./dataloss-helpers";
+import { keptOutNote, waitNote } from "../src/shell/commands/deck";
+import { setWait, waitLeft } from "../src/workspace/lock";
+import { uiCase } from "../src/core/i18n";
+
+describe("esc at « type word N »: what must still be said reaches the shell (V1/V3)", () => {
+  it("the command's last words print after it's stopped, the screen cleared first", async () => {
+    const f = fakeDeck();
+    const cmds: Record<string, unknown> = {
+      ask: {
+        name: "ask",
+        summary: "",
+        interactive: true,
+        async run(ctx: { onStop?: (t: string | null, o?: { clear?: boolean }) => void; read: (l: string) => Promise<string | null>; err: (t: string) => void }) {
+          ctx.onStop?.("stopped · no new recovery key: your old one still works", { clear: true });
+          await ctx.read("written down? type word 3");
+          ctx.err("never shown\n");
+        },
+      },
+    };
+    const deck = { ...f.deck, settings: { data: { ...f.deck.settings.data, user: { handle: "me" }, shell: { bridge: "more" } } }, commands: { get: (n: string) => cmds[n], names: () => Object.keys(cmds), all: () => Object.values(cmds) }, plugins: { list: () => [] } };
+    const out: string[] = [];
+    let cleared = 0;
+    const ex = new ShellExecutor(deck as unknown as Deck, (t) => void out.push(t), () => void (cleared = out.length + 1));
+    // a question waits until esc (the abort)
+    ex.readLine = (_l, _o, signal) => new Promise((res) => signal.addEventListener("abort", () => res(null)));
+    const running = ex.run("ask");
+    await new Promise((r) => setTimeout(r, 0));
+    ex.interrupt();
+    expect(await running).toBe(130);
+    const text = out.join("");
+    expect(text).toContain("your old one still works");
+    expect(text).not.toContain("never shown");
+    expect(cleared).toBe(1); // cleared before anything was printed
+  });
+
+  it("vault rekey hands the shell its result and that there's no new key yet", async () => {
+    const said: string[] = [];
+    const crypt = {
+      status: async () => ({ encrypted: true, unlocked: true, recovery: true, leftovers: 0, busy: false, notes: [] }),
+      rekey: async () => ({ files: 4, folders: 1, bytes: 10, left: [], recovery: WORDS }),
+      confirmRecovery: async () => {},
+      dropRecovery: async () => {},
+    };
+    const s = shellCtx((l) => (/\[y\/N\]/.test(l) ? "y" : /password/.test(l) ? "pw" : null), crypt);
+    (s.ctx as Record<string, unknown>).onStop = (t: string | null) => void (t && said.push(t));
+    await vault(s.ctx, ["rekey"]);
+    expect(said.join("\n")).toContain("4 files encrypted again");
+    expect(said.join("\n")).toContain("no new one yet (vault recovery)");
+  });
+});
+
+describe("the wait after wrong passwords (V7)", () => {
+  it("each name keeps its own countdown: a try on another name doesn't hide test2's", () => {
+    const w = new Map<string, number>();
+    setWait(w, "test2", 4000, 0);
+    setWait(w, "nobody", 0, 100);
+    expect(waitLeft(w, "test2", 1000)).toBe(3);
+    expect(waitLeft(w, " Test2", 1000)).toBe(3);
+    expect(waitLeft(w, "nobody", 1000)).toBe(0);
+  });
+  it("vault decrypt says the wait in the shell", async () => {
+    const crypt = {
+      status: async () => ({ encrypted: true, unlocked: true, recovery: true, leftovers: 0, busy: false, notes: [] }),
+      decrypt: async () => ({ files: 1, folders: 0, bytes: 1, left: [] }),
+    };
+    const s = shellCtx((l) => (/\[y\/N\]/.test(l) ? "y" : "pw"), crypt);
+    (s.ctx.deck.platform.account as Record<string, unknown>).wait = async () => 3400;
+    await vault(s.ctx, ["decrypt"]);
+    expect(s.out.join("")).toContain(waitNote(3400));
+    expect(waitNote(3400)).toContain("wait 4 s");
+  });
+});
+
+describe("vault export names what it really left out (V4)", () => {
+  it("by name, as the native side lists them", () => {
+    const n = keptOutNote(["account.json", "settings.json", "shell_history", "starthere.json", "stats.json"]);
+    expect(n).toContain(".icebreaker/starthere.json");
+    expect(n).toContain(".icebreaker/stats.json");
+    expect(n).not.toContain("secrets");
+  });
+});
+
+describe("proper names keep their capitals in a window", () => {
+  it("File History, Recycle Bin, Dropbox, Icebreaker", () => {
+    expect(uiCase("copies may also be in File History, OneDrive / Dropbox and the Recycle Bin")).toBe("copies may also be in File History, OneDrive / Dropbox and the Recycle Bin");
+    expect(uiCase("Make a folder “Icebreaker” in it")).toBe("make a folder “Icebreaker” in it");
+    expect(uiCase("Copies In Time Machine")).toBe("copies in Time Machine");
+  });
+});

@@ -30,6 +30,13 @@ export interface ShellContext {
    * they cancel (esc / ctrl+c) or when output isn't a terminal.
    */
   read(label: string, opts?: ReadOptions): Promise<string | null>;
+  /**
+   * What to print if esc / ctrl+C stops the command from now on (null: nothing). A stopped
+   * command says nothing more, so what it must still tell — "nothing was written" — is set
+   * before the question that can stop it. `clear`: the screen is cleared first (the
+   * recovery words on screen).
+   */
+  onStop?(text: string | null, opts?: { clear?: boolean }): void;
 }
 
 export interface ReadOptions {

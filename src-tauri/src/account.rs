@@ -58,6 +58,9 @@ pub struct AccountInfo {
 pub struct AccountState {
     /// the wait after wrong passwords, per account (delay.rs; quitting doesn't reset it)
     delays: Mutex<crate::delay::Delays>,
+    /// the accounts' names (folded), as accounts.json last read or wrote them: a wait is kept
+    /// per account only for these — every other name typed shares one (`delay_key`)
+    known: Mutex<std::collections::BTreeSet<String>>,
     /// the account unlocked in this run of the app (its id): its settings are the ones read and written
     session: Mutex<Option<String>>,
     /// a plain vault brought newer settings and you haven't answered yet: this computer's
@@ -107,6 +110,7 @@ fn load(app: &AppHandle) -> Result<Accounts, String> {
                 }
                 save(app, &all)?;
             }
+            remember_names(app, &all);
             return Ok(all);
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Accounts::default()),
@@ -116,7 +120,25 @@ fn load(app: &AppHandle) -> Result<Accounts, String> {
 
 fn save(app: &AppHandle, all: &Accounts) -> Result<(), String> {
     let json = serde_json::to_string_pretty(all).map_err(|e| e.to_string())?;
-    write_private(&config_dir(app)?.join("accounts.json"), &json)
+    write_private(&config_dir(app)?.join("accounts.json"), &json)?;
+    remember_names(app, all);
+    Ok(())
+}
+
+/// The names the waits may be kept under (`delay_key`).
+fn remember_names(app: &AppHandle, all: &Accounts) {
+    if let Some(st) = app.try_state::<AccountState>() {
+        *st.known.lock().unwrap() = all.accounts.iter().map(|a| norm(&a.user)).collect();
+    }
+}
+
+/// Where a name's wait is counted: its own if it's an account of this deck; every other
+/// name — a typo, a guess — shares one, kept under "" (no account has an empty name). So
+/// `login-delay` never lists the names someone tried, and an unknown name waits like a
+/// known one (nothing tells them apart).
+fn delay_key(state: &AccountState, user: &str) -> String {
+    let n = norm(user);
+    if state.known.lock().map(|k| k.contains(&n)).unwrap_or(false) { n } else { String::new() }
 }
 
 fn norm(user: &str) -> String {
@@ -159,7 +181,12 @@ fn weak(phc: &str) -> bool {
 pub fn init(app: &AppHandle) {
     let st = app.state::<AccountState>();
     if let Ok(dir) = config_dir(app) {
-        *st.delays.lock().unwrap() = crate::delay::Delays::load(&dir.join("login-delay"));
+        let _ = load(app); // the names the waits are kept under
+        let known = st.known.lock().unwrap().clone();
+        let mut d = crate::delay::Delays::load(&dir.join("login-delay"));
+        // what an older version kept for names that aren't accounts: dropped
+        d.retain(|k| k.is_empty() || known.contains(k));
+        *st.delays.lock().unwrap() = d;
     }
 }
 
@@ -192,13 +219,13 @@ fn find(all: &Accounts, user: &str, password: &str) -> Option<Account> {
 /// Wait what's left after this account's wrong passwords: 0.25 s, 0.5 s, 1 s … 8 s
 /// (delay.rs). `user` = the name typed; other accounts never wait for it.
 fn throttle(state: &AccountState, user: &str) {
-    crate::delay::wait(&state.delays, &norm(user));
+    crate::delay::wait(&state.delays, &delay_key(state, user));
 }
 
 /// A password for `user` was right (its wait goes back to 0) or wrong (it grows).
 fn record(state: &AccountState, user: &str, ok: bool) {
     if let Ok(mut d) = state.delays.lock() {
-        d.record(&norm(user), ok, crate::delay::now_ms());
+        d.record(&delay_key(state, user), ok, crate::delay::now_ms());
     }
 }
 
@@ -221,7 +248,8 @@ pub(crate) fn record_session(app: &AppHandle, ok: bool) {
 /// How long the next try for `user` will wait (ms): the login page says "wait N s".
 #[tauri::command]
 pub fn account_wait(state: State<AccountState>, user: String) -> u64 {
-    state.delays.lock().map(|d| d.remaining(&norm(&user), crate::delay::now_ms())).unwrap_or(0)
+    let key = delay_key(&state, &user);
+    state.delays.lock().map(|d| d.remaining(&key, crate::delay::now_ms())).unwrap_or(0)
 }
 
 fn open_session(state: &State<AccountState>, id: &str) {
@@ -1003,5 +1031,23 @@ mod tests {
         assert!(validate("neo", "short").is_err());
         assert!(validate("  ", "long enough pass").is_err());
         assert!(validate("neo", "long enough pass").is_ok());
+    }
+
+    #[test]
+    fn waits_are_kept_by_account_and_unknown_names_share_one() {
+        let st = AccountState::default();
+        *st.known.lock().unwrap() = ["test2".to_string()].into_iter().collect();
+        assert_eq!(delay_key(&st, " Test2 "), "test2");
+        // a name that isn't an account is never written down: all of them share ""
+        assert_eq!(delay_key(&st, "nobody"), "");
+        assert_eq!(delay_key(&st, "nobody2"), "");
+        // and "" can't be an account's name
+        assert!(validate("", "long enough pass").is_err());
+        record(&st, "nobody", false);
+        record(&st, "nobody2", false);
+        let d = st.delays.lock().unwrap();
+        // the two guesses counted once, together: 2 failures → 0.5 s
+        assert!(d.remaining("", crate::delay::now_ms()) > 250);
+        assert_eq!(d.remaining("nobody", crate::delay::now_ms()), 0);
     }
 }

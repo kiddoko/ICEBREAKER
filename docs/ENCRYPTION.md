@@ -133,13 +133,15 @@ On disk an encrypted vault is **one folder** and nothing else:
   file — and from the deck's own `.icebreaker/` only what you made or installed: `themes/`,
   `templates/`, `plugins/`, `scripts/`, `sounds/`, `icons.json`, `tags.json`, `context.md`.
   **Never** `account.json` (the account's card: its password's Argon2id hash), `settings.json`,
-  `secrets.json`, `shell_history`, nor the deck's counters and state files (`stats.json`…). It
-  says how many it left out. `vault decrypt` is the vault itself going back to plain: it keeps all.
+  `secrets.json`, `shell_history`, nor the deck's counters and state files (`stats.json`,
+  `starthere.json`…). It names what it left out. `vault decrypt` is the vault itself going back to plain: it keeps all.
 - **Wrong passwords wait** (`delay.rs`), **per account**: 0.25 s after the first, then 0.5,
   1, 2, 4, 8 s at most, counted from the failure (a right password typed 8 s later doesn't
   wait). Any right password — a login, the recovery key, `vault unlock`, `vault decrypt` —
   puts that account back to 0; other accounts never wait for it. The login page says
-  « wait N s ». The counts survive a restart (`login-delay` in the app's config folder).
+  « wait N s » (for each name typed), the shell too. The counts survive a restart (`login-delay`
+  in the app's config folder): the accounts' names only — every other name typed shares one
+  count, kept under no name, so the file never lists who was tried.
 - The **plain backup zip** `vault encrypt` makes first stays next to the vault until you
   delete it (readable by your user only): it's your notes in plain. At the end of `vault
   encrypt` the deck says so in yellow and **offers to delete it now**; later, `vault status`

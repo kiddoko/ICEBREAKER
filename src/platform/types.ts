@@ -74,8 +74,8 @@ export interface VaultCryptReport {
   left: string[];
   /** the recovery key's 24 words (encrypt, rekey): shown once, kept nowhere — written only by `confirmRecovery` */
   recovery?: string;
-  /** export: the deck's private files left out of the plain copy (account, settings, secrets, shell history…) */
-  kept_out?: number;
+  /** export: what of `.icebreaker/` the plain copy left out, by name ("account.json", "shell_history"…) */
+  kept_out?: string[];
 }
 
 export interface VaultCrypt {

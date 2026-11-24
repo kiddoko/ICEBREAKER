@@ -264,6 +264,8 @@ export class ShellExecutor {
     };
     const signal = this.abort!.signal;
     if (signal.aborted) return (live.on = false), { status: 130, stdout: "" }; // stopped before its turn (a | b, a; b)
+    /** said if it's stopped (ctx.onStop) */
+    let lastWords: { text: string; clear?: boolean } | null = null;
     const ctx: ShellContext = {
       args,
       stdin,
@@ -292,6 +294,7 @@ export class ShellExecutor {
         self.asking++;
         return self.readLine(label, opts, signal, () => self.interrupt()).finally(() => self.asking--);
       },
+      onStop: (text, opts) => void (lastWords = text ? { text, clear: opts?.clear } : null),
     };
     if (wantsHelp(args)) {
       ctx.out(helpText(cmd, isTTY));
@@ -303,8 +306,10 @@ export class ShellExecutor {
     let asked = false;
     const stopped = new Promise<"stopped">((res) => signal.addEventListener("abort", () => ((asked = this.asking > 0), res("stopped")), { once: true }));
     const stop = () => {
-      if (!this.stopShown && !asked) this.print("^C\n", true);
+      if (lastWords?.clear) this.clearScreen();
+      if (!this.stopShown && !asked && !lastWords?.clear) this.print("^C\n", true);
       this.stopShown = true;
+      if (lastWords) for (const line of lastWords.text.replace(/\n$/, "").split("\n")) this.print(tOutput(`${line}\n`, cmd.source), true);
       return { status: 130, stdout };
     };
     try {

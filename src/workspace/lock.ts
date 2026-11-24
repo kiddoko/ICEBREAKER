@@ -37,6 +37,19 @@ const ERROR_ROWS = 2;
 /** forgot password: the rows showing the 24 words typed */
 const WORD_ROWS = 4;
 
+/** The waits the login page knows, by name folded the way the native side folds it. */
+export function waitKey(user: string): string {
+  return user.trim().toLowerCase();
+}
+export function setWait(waits: Map<string, number>, user: string, ms: number, now: number): void {
+  if (ms > 0) waits.set(waitKey(user), now + ms);
+  else waits.delete(waitKey(user));
+}
+/** Whole seconds left for `user` (0: none). */
+export function waitLeft(waits: Map<string, number>, user: string, now: number): number {
+  return Math.max(0, Math.ceil(((waits.get(waitKey(user)) ?? 0) - now) / 1000));
+}
+
 /** "word 7 (\"abndon\") isn't in the list" → 7 (the native side's message, recovery.rs); 0: not known */
 export function recoveryWordAt(error: string): number {
   const m = error.match(/\bword (\d+)\b/);
@@ -111,8 +124,9 @@ export class LockScreen {
   /** who approves the new account (kept until it's made, then wiped) */
   private approver = { user: "", pass: "" };
   private busy = false;
-  /** the native side makes this account wait after its wrong passwords (delay.rs): until then, "wait N s" */
-  private waitUntil = 0;
+  /** the native side makes each account wait after its wrong passwords (delay.rs): until when, by name
+   *  typed (a try on another name kept test2's countdown away, though its wait went on: bench 24/11) */
+  private readonly waits = new Map<string, number>();
   private fails = 0;
   private error = "";
   private shownAt = 0;
@@ -266,13 +280,13 @@ export class LockScreen {
   /** How long `user`'s next try waits (the native side counts per account): shown as "wait N s". */
   private async learnWait(user: string): Promise<void> {
     const ms = (await this.deck.platform.account.wait?.(user).catch(() => 0)) ?? 0;
-    this.waitUntil = ms > 0 ? performance.now() + ms : 0;
+    setWait(this.waits, user, ms, performance.now());
     this.deck.requestFrame();
   }
 
-  /** "wait 3 s" while this account's wait runs, else "" */
+  /** "wait 3 s" while the wait of the name in the field runs, else "" */
   private waitText(): string {
-    const left = Math.ceil((this.waitUntil - performance.now()) / 1000);
+    const left = waitLeft(this.waits, this.val("user"), performance.now());
     return left > 0 ? t("wait {n} s", { n: left }) : "";
   }
 
@@ -383,7 +397,7 @@ export class LockScreen {
     this.approver.pass = "";
     this.busy = false;
     if (!ok) void this.learnWait(user);
-    else this.waitUntil = 0;
+    else this.waits.delete(waitKey(user));
     if (ok) {
       await writeDevice(this.deck.platform, (d) => {
         d.remember = this.remember;
@@ -524,9 +538,11 @@ export class LockScreen {
     // the error has its 2 rows kept, shown or not: the links never jump under the mouse
     const top = card.y + card.h + 1;
     let ly = top;
+    const wait = this.busy ? "" : this.waitText();
+    if (wait) ui.animate(250);
+    // the name typed still has a wait running, without an error on screen: say it all the same
+    if (!this.error && wait) ui.textCenter({ x: 0, y: ly, w: W, h: 1 }, ly++, `⏳ ${wait}`, { fg: c.warning });
     if (this.error) {
-      const wait = this.busy ? "" : this.waitText();
-      if (wait) ui.animate(250);
       const base = this.error === "access denied" && this.fails > 1 ? `${t("access denied")} ×${this.fails}` : t(this.error);
       const err = wait ? `${base} · ${wait}` : base;
       for (const line of wrapWords(`⚠ ${err}`, W - 4).slice(0, ERROR_ROWS)) ui.textCenter({ x: 0, y: ly, w: W, h: 1 }, ly++, line, { fg: c.error, attrs: BOLD });

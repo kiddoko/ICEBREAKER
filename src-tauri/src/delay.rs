@@ -5,7 +5,8 @@
 //! counts: a right password typed 8 s later doesn't wait at all). A right password
 //! — a login, the recovery key, a vault password — puts that account back to 0.
 //! Other accounts never wait for it. The counts survive a restart (`login-delay`
-//! in the app's config folder: names folded, counts and times, nothing else).
+//! in the app's config folder: the accounts' names folded, counts and times, nothing
+//! else — account.rs counts every name that isn't an account under one key, "").
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -43,6 +44,21 @@ impl Delays {
         Delays { map, file: Some(file.to_path_buf()) }
     }
 
+    /// Keeps only the keys `keep` says yes to (saved at once).
+    pub fn retain(&mut self, keep: impl Fn(&str) -> bool) {
+        let before = self.map.len();
+        self.map.retain(|k, _| keep(k));
+        if self.map.len() != before {
+            self.save();
+        }
+    }
+
+    fn save(&self) {
+        if let Some(p) = &self.file {
+            let _ = crate::crypto::write_private(p, serde_json::to_string(&self.map).unwrap_or_default().as_bytes());
+        }
+    }
+
     /// What is left to wait for `key` at `now` (ms).
     pub fn remaining(&self, key: &str, now: u64) -> u64 {
         self.map.get(key).map(|e| wait_for(e.fails).saturating_sub(now.saturating_sub(e.at))).unwrap_or(0).min(MAX_MS)
@@ -61,9 +77,7 @@ impl Delays {
         }
         // a day without trying: forgotten (the file doesn't grow with every name ever typed)
         self.map.retain(|_, e| now.saturating_sub(e.at) < 24 * 3600 * 1000);
-        if let Some(p) = &self.file {
-            let _ = crate::crypto::write_private(p, serde_json::to_string(&self.map).unwrap_or_default().as_bytes());
-        }
+        self.save();
     }
 }
 
@@ -103,6 +117,21 @@ mod tests {
         assert_eq!(d.remaining("test2", 0), 0);
         d.record("test2", false, 0);
         assert_eq!(d.remaining("test2", 0), 250);
+    }
+
+    #[test]
+    fn retain_drops_what_isnt_kept_and_saves() {
+        let dir = std::env::temp_dir().join(format!("ib-delay-r-{}", now_ms()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let f = dir.join("login-delay");
+        let mut d = Delays::load(&f);
+        for k in ["test2", "nobody", "nobody2", ""] {
+            d.record(k, false, now_ms());
+        }
+        d.retain(|k| k.is_empty() || k == "test2");
+        let text = std::fs::read_to_string(&f).unwrap();
+        assert!(text.contains("test2") && !text.contains("nobody"), "{text}");
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

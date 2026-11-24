@@ -575,7 +575,7 @@ function sizeText(bytes: number): string {
  * nowhere, not even in the scrollback. Esc or ctrl+C stops (false): the key is then
  * never written (vault.rs keeps it aside until `confirmRecovery`).
  */
-export async function showRecovery(ctx: ShellContext, words: string): Promise<boolean> {
+export async function showRecovery(ctx: ShellContext, words: string, stopped = recoveryNotKept(true)): Promise<boolean> {
   const list = words.trim().split(/\s+/);
   const show = () => {
     // compact (5 lines), so it fits a small shell panel: 3 rows of 8, read left to right
@@ -584,13 +584,20 @@ export async function showRecovery(ctx: ShellContext, words: string): Promise<bo
     ctx.out(fmt.dim("they open your vault if you forget your account's password (login page: forgot password?) · ICEBREAKER keeps no copy · whoever has them can open it\n"));
   };
   show();
+  // esc / ctrl+C ends the command at once, and a stopped command prints nothing more: what
+  // must still be said (nothing was written) is handed to the shell first, the words cleared
+  ctx.onStop?.(stopped, { clear: true });
   const i = Math.floor(Math.random() * 24);
   for (;;) {
     const typed = await ctx.read(`written down? type word ${i + 1}`, { placeholder: "from your paper" });
     // esc / ctrl+C: stopped. (Asking again would get null again at once, for ever: the
     // command is interrupted — that loop froze the deck, Windows bench 24/11.)
     if (typed === null) {
-      ctx.shell.clear();
+      // (the shell already cleared the screen and said `stopped`; without one, it's said here)
+      if (!ctx.onStop) {
+        ctx.shell.clear();
+        ctx.err(`${stopped}\n`);
+      }
       return false;
     }
     const w = typed.trim().toLowerCase();
@@ -599,6 +606,7 @@ export async function showRecovery(ctx: ShellContext, words: string): Promise<bo
     ctx.err(!w ? "write the words down first — they're the only way back if you forget your account's password\n" : `that's not word ${i + 1} — look at your paper again\n`);
     show();
   }
+  ctx.onStop?.(null);
   ctx.shell.clear();
   ctx.out(`${fmt.green("✓")} recovery key written down · the screen is cleared, the words are nowhere else\n`);
   return true;
@@ -651,6 +659,16 @@ export function backupCopiesNote(os: "mac" | "windows" | "linux" = hostOs()): st
   }[os];
 }
 
+/** "wait 4 s… (wrong passwords before)": the account's wait, rounded up. */
+export function waitNote(ms: number): string {
+  return `wait ${Math.ceil(ms / 1000)} s… (wrong passwords before)`;
+}
+
+/** What `vault export` left out of the plain copy, by name (what really was, not a fixed list). */
+export function keptOutNote(names: string[]): string {
+  return `left out of the copy, private to the deck: ${names.map((n) => `.icebreaker/${n}`).join(", ")}`;
+}
+
 /** `vault wipe-backup`: each path asked, then overwritten and removed (vault.rs vault_wipe_backup). */
 async function wipeBackups(ctx: ShellContext, paths: string[], ask: (title: string, detail: string) => Promise<boolean>): Promise<number> {
   const crypt = ctx.deck.platform.vault.crypt;
@@ -677,11 +695,12 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
   // --window (Settings, the setup): the password in a dialog, the recovery key in its window (copy all)
   // the words typed back → the key is written (vault.rs: kept aside until then); stopped →
   // forgotten, the vault's recovery key is what it was. Returns: kept.
-  const words = async (w: string, had: boolean): Promise<boolean> => {
-    const kept = window ? (await deck.workspace.recoveryWords(w), true) : await showRecovery(ctx, w);
+  // `stopped`: what the shell says if esc / ctrl+C stops it at the word (the command's own
+  // lines after that never show: it's said with them)
+  const words = async (w: string, stopped: string): Promise<boolean> => {
+    const kept = window ? (await deck.workspace.recoveryWords(w), true) : await showRecovery(ctx, w, stopped);
     if (!kept) {
       await crypt?.dropRecovery?.().catch(() => {});
-      ctx.err(`${recoveryNotKept(had)}\n`);
       return false;
     }
     await crypt!.confirmRecovery!();
@@ -721,12 +740,18 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
   const password = async (label = "your account's password"): Promise<string | null> => (window ? deck.prompt(label, { mask: true }) : ctx.read(label, { mask: true }));
   // the account's password, asked again while it's wrong (a typo gave up on the whole encryption:
   // the setup moved on to the tour with the vault still plain) — checked only, nothing unlocked
+  // after wrong passwords the native side makes this account wait (delay.rs): said, not silent
+  const sayWait = async (): Promise<void> => {
+    const ms = (await deck.platform.account.wait?.(deck.account ?? "").catch(() => 0)) ?? 0;
+    if (ms > 0) ctx.out(fmt.dim(`${waitNote(ms)}\n`));
+  };
   const accountPassword = async (): Promise<string | null> => {
     // the next question says what went wrong (a toast behind the dialog went unseen)
     let label = "your account's password";
     for (;;) {
       const pw = await password(label);
       if (pw === null || !deck.account) return pw;
+      await sayWait();
       if (await deck.platform.account.check(deck.account, pw).catch(() => true)) return pw;
       deck.sound.play("error");
       if (window) label = t("wrong password — try again (esc: cancel)");
@@ -782,8 +807,12 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
       const r = await crypt.encrypt(pw, localStamp());
       pw = null;
       await deck.vault.rescan();
-      if (r.recovery) await words(r.recovery, false);
-      ctx.out(`${fmt.green("✓")} encrypted: ${r.files} files, ${r.folders} folders, ${sizeText(r.bytes)} · each one checked\n`);
+      const done = `${fmt.green("✓")} encrypted: ${r.files} files, ${r.folders} folders, ${sizeText(r.bytes)} · each one checked`;
+      if (r.recovery) {
+        const warn = r.backup ? plainBackupWarning(r.backup) : [];
+        await words(r.recovery, [done, recoveryNotKept(false), ...warn, ...(r.backup ? [t("kept: delete it later with vault wipe-backup")] : [])].join("\n"));
+      }
+      ctx.out(`${done}\n`);
       if (r.left.length) ctx.err(`  couldn't remove ${r.left.length} plain file(s), remove them yourself:\n${r.left.map((l) => `    ${l}\n`).join("")}`);
       await tell(
         "The vault is encrypted",
@@ -811,8 +840,9 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
       const r = await crypt.rekey(pw);
       pw = null;
       // the old recovery key went with the old vault key: until the new words are typed back, there's none
-      const kept = r.recovery ? await words(r.recovery, false) : false;
-      ctx.out(`${fmt.green("✓")} a new vault key: ${r.files} files encrypted again, each checked · the old recovery key is gone${kept ? "" : " · no new one yet (vault recovery)"}\n`);
+      const done = `${fmt.green("✓")} a new vault key: ${r.files} files encrypted again, each checked · the old recovery key is gone`;
+      const kept = r.recovery ? await words(r.recovery, `${done} · no new one yet (vault recovery)\n${recoveryNotKept(false)}`) : false;
+      ctx.out(`${done}${kept ? "" : " · no new one yet (vault recovery)"}\n`);
       await tell("The vault has a new key", `${r.files} files encrypted again, each checked.\nThe old key, the old recovery words and copies made before open nothing new.`);
       return 0;
     }
@@ -824,7 +854,7 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
       if (pw === null) return 130;
       const w = await crypt.newRecovery(pw);
       pw = null;
-      return (await words(w, st.recovery)) ? 0 : 130;
+      return (await words(w, recoveryNotKept(st.recovery))) ? 0 : 130;
     }
     if (sub === "decrypt") {
       if (!st.encrypted) return ctx.out("this vault isn't encrypted\n"), 0;
@@ -833,6 +863,7 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
       if (!ok) return 1;
       const pw = await password();
       if (pw === null) return 130;
+      await sayWait();
       const r = await crypt.decrypt(pw);
       await deck.vault.rescan();
       ctx.out(`${fmt.green("✓")} plain again: ${r.files} files, ${r.folders} folders, ${sizeText(r.bytes)} · each one checked\n`);
@@ -850,7 +881,7 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
       const r = await crypt.export(dest, pw);
       ctx.out(`${fmt.green("✓")} plain copy: ${r.files} files, ${r.folders} folders, ${sizeText(r.bytes)} in ${dest} ${fmt.dim("· delete it when you're done")}\n`);
       // the account (its password's hash), settings, secrets and shell history never go in a plain copy
-      if (r.kept_out) ctx.out(fmt.dim(`${r.kept_out} private deck files left out: account, settings, secrets, shell history\n`));
+      if (r.kept_out?.length) ctx.out(fmt.dim(`${keptOutNote(r.kept_out)}\n`));
       await tell("A plain copy is ready", `${r.files} files, ${r.folders} folders, ${sizeText(r.bytes)} in\n${dest}\nDelete it when you're done: it's your notes in plain.`);
       return 0;
     }

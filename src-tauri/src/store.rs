@@ -790,8 +790,9 @@ pub struct Report {
     /// the recovery key's 24 words (encrypt, rekey): shown once, kept nowhere
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recovery: Option<String>,
-    /// the deck's private files a plain copy leaves out (export: see [`exported`])
-    pub kept_out: usize,
+    /// what of the deck's own folder a plain copy left out (export: see [`exported`]), by
+    /// name under `.icebreaker/` ("account.json", "shell_history"…), each once, sorted
+    pub kept_out: Vec<String>,
 }
 
 /// What of the deck's own folder (`.icebreaker/`) a plain copy (`vault export`) takes:
@@ -965,7 +966,10 @@ fn write_plain(store: &Store, dest: &Path, keep: fn(&str) -> bool) -> Result<Rep
     let r = (|| -> Result<()> {
         for (rel, n) in store.all() {
             if !keep(rel) {
-                report.kept_out += 1;
+                let top = rel.split('/').nth(1).unwrap_or(rel).to_string();
+                if !report.kept_out.contains(&top) {
+                    report.kept_out.push(top);
+                }
                 continue;
             }
             let p = dest.join(rel);
@@ -997,6 +1001,7 @@ fn write_plain(store: &Store, dest: &Path, keep: fn(&str) -> bool) -> Result<Rep
         }
         Ok(())
     })();
+    report.kept_out.sort();
     if let Err(e) = r {
         for f in made_files {
             let _ = fs::remove_file(f);
@@ -1623,7 +1628,7 @@ mod tests {
         let rep = export(&s, &root, &base.join("copy")).unwrap();
         let want: BTreeMap<String, Vec<u8>> = orig.iter().filter(|(k, _)| exported(k)).map(|(k, v)| (k.clone(), v.clone())).collect();
         assert_eq!(rep.files, want.len());
-        assert_eq!(rep.kept_out, 1, "stats.json");
+        assert_eq!(rep.kept_out, vec!["stats.json"]);
         assert_eq!(plain_files(&base.join("copy")), want);
         // the deck's private files stay out of a plain copy; themes and templates go
         let mut s = s;
@@ -1632,7 +1637,8 @@ mod tests {
         }
         let rep = export(&s, &root, &base.join("copy2")).unwrap();
         let got = plain_files(&base.join("copy2"));
-        assert_eq!(rep.kept_out, 5);
+        // named as they are: what was really left out
+        assert_eq!(rep.kept_out, vec!["account.json", "secrets.json", "settings.json", "shell_history", "stats.json"]);
         assert!(got.contains_key(".icebreaker/themes/night.toml") && got.contains_key(".icebreaker/templates/day.md") && got.contains_key(".icebreaker/plugins/demo/main.js"));
         for k in got.keys() {
             assert!(!k.contains("account.json") && !k.contains("settings.json") && !k.contains("secrets") && !k.contains("shell_history") && !k.contains("stats"), "{k}");
