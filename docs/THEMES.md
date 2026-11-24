@@ -52,7 +52,9 @@ widget_frame`), `[logo] text` (was `[ascii] logo`). Files without `schema` are s
 working forever: the deck converts them in memory (`upgrade1to2`, `src/core/skin/schema.ts`) and
 never rewrites the file. A file made for a newer deck loads what this one understands, and `theme
 ls` says so. `theme check [name]` shows what the deck made of a theme: its schema, what its file
-got wrong, and the floor.
+got wrong, and the floor. `theme upgrade <name>` shows one of your files as schema 2, and
+`theme upgrade <name> --write` writes it (the old file stays beside it as `<name>.toml.v1`;
+TOML comments are not kept).
 
 Bundled fonts (SIL OFL): JetBrains Mono (default), IBM Plex Mono, Fira Code,
 Space Mono, VT323, Share Tech Mono. Any font installed on the system works too.

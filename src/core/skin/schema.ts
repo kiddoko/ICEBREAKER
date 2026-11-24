@@ -1,3 +1,5 @@
+import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
+
 /**
  * THEME FILE SCHEMAS (themes v2, milestone 2 — docs/THEMES_V2_PLAN.md § 2.5).
  *
@@ -59,4 +61,17 @@ export function logoText(doc: Table): unknown {
 export function newerSchemaNotice(doc: Table): string | null {
   const s = schemaOf(doc);
   return s > SKIN_SCHEMA ? `made for a newer ICEBREAKER (theme schema ${s}, this deck reads ${SKIN_SCHEMA}): some of it may be ignored` : null;
+}
+
+/**
+ * `theme upgrade`: a theme file's text as schema 2 (null when it already is). TOML comments are
+ * not kept — the command shows the result first and keeps the old file beside it.
+ */
+export function upgradeSource(src: string): string | null {
+  const doc = parseToml(src) as Table;
+  if (schemaOf(doc) >= 2) return null;
+  const v2 = upgrade1to2(doc);
+  // [meta] first, as people write it
+  const { meta, ...rest } = v2;
+  return stringifyToml({ meta, ...rest });
 }

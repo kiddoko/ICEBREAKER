@@ -71,3 +71,18 @@ describe("theme check", () => {
     expect(r.lines.join("\n")).toMatch(/keys\.radius[\s\S]*keys\.face/);
   });
 });
+
+describe("theme upgrade", () => {
+  it("rewrites a schema-1 file as schema 2 that loads the same, [meta] first", async () => {
+    const { upgradeSource } = await import("../src/core/skin/schema");
+    const base = parseTheme(nightshade.src, null, "builtin");
+    const src = `# mine\n[meta]\nname = "mine"\nborder = "heavy"\nwidget_frame = "dashed"\n[ascii]\nlogo = "ME"\n[ui]\naccent = "#ff2e88"\n`;
+    const v2 = upgradeSource(src)!;
+    expect(v2.trimStart().startsWith("[meta]")).toBe(true);
+    expect(v2).toContain("schema = 2");
+    const a = parseTheme(src, base, "vault"), b = parseTheme(v2, base, "vault");
+    const { schema: _, ...rest } = b;
+    expect(rest).toEqual(a);
+    expect(upgradeSource(v2)).toBeNull();
+  });
+});
