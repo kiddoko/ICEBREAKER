@@ -149,6 +149,25 @@ export function levelOf(perm: string): Level {
   return specOf(perm)?.level ?? "total"; // what we can't name is treated as the worst
 }
 
+/**
+ * A path inside the vault, the way the disk will read it: "\\" as "/", no leading "/", every
+ * "." and ".." resolved. null when it leaves the vault ("../x", "safe/../../x") or names a
+ * drive ("C:x"). Every folder check compares THIS — "safe/../journal/a.md" is "journal/a.md",
+ * not something in safe/ (Fable pass 24/11: a module allowed only safe/ read the journal).
+ */
+export function vaultPath(target: string): string | null {
+  const parts: string[] = [];
+  for (const seg of String(target).replace(/\\/g, "/").split("/")) {
+    if (seg === "" || seg === ".") continue;
+    if (seg === "..") {
+      if (!parts.length) return null;
+      parts.pop();
+    } else parts.push(seg);
+  }
+  if (parts[0] && /^[a-z]:/i.test(parts[0])) return null;
+  return parts.join("/");
+}
+
 /** does `have` (one granted name) cover `base` on `target` (a path, a host)? */
 function coversOne(have: Parsed, base: Base, target?: string): boolean {
   // the whole calendar covers reading it
@@ -160,8 +179,11 @@ function coversOne(have: Parsed, base: Base, target?: string): boolean {
     const s = have.scope ?? "";
     return s.startsWith("*.") ? host === s.slice(2) || host.endsWith(s.slice(1)) : host === s;
   }
+  const vault = base === "vault:read" || base === "vault:write";
+  // a vault path that leaves the vault: never, whatever was granted
+  if (vault && target !== undefined && vaultPath(target) === null) return false;
   if (have.scope === undefined || target === undefined) return true; // all of it, or "at all?"
-  const path = target.replace(/\\/g, "/").replace(/^\/+/, "");
+  const path = vault ? vaultPath(target)! : target.replace(/\\/g, "/").replace(/^\/+/, "");
   // the folder itself, or anything in it — compared as the disk does on a Mac or Windows
   const a = path.toLowerCase(), b = have.scope.toLowerCase();
   return a.startsWith(b) || a + "/" === b;

@@ -1698,6 +1698,7 @@ export const FR: Record<string, string> = {
   "It wants to reach: {x}": "Il veut joindre : {x}",
   "{m} (module) asks": "{m} (module) demande",
   "TOTAL: this command has all your rights on this computer": "TOTAL : cette commande a tous tes droits sur cet ordinateur",
+  "too long to show it all ({n} lines) — say no unless you know it": "trop longue pour tout montrer ({n} lignes) — dis non si tu ne la connais pas",
   "[T]his time": "[C]ette fois",
   "[A]lways for this module": "[T]oujours pour ce module",
   "[A]lways in {x}": "[T]oujours dans {x}",

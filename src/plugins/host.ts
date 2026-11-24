@@ -1,6 +1,6 @@
 import { PRIVILEGED_NAMES } from "../shell/privileged";
 import type { Origin } from "../shell/origin";
-import { describePerm, Grants, levelOf, levelRank, missing, parsePerm, readPerms, sortPerms, quietWrite } from "./permissions";
+import { describePerm, Grants, levelOf, levelRank, missing, parsePerm, readPerms, sortPerms, quietWrite, vaultPath } from "./permissions";
 import type { PermDialogSpec, PermLine } from "../workspace/permdialog";
 import { isOfficialSource } from "./install";
 import { stealth } from "../core/stealth";
@@ -285,9 +285,11 @@ export class PluginHost {
     return true;
   }
 
-  /** the high-risk questions being asked now (two writes at once ask once) */
+  /** the high-risk questions being asked now (two writes of the same file at once ask once) */
   private asking = new Map<string, Promise<string>>();
-  /** "this time": until when (ms), by module and permission */
+  /** one question on screen at a time: the next waits its turn (a module can't stack one over another) */
+  private dialogs: Promise<unknown> = Promise.resolve();
+  /** "this time": until when (ms), by module, permission and target — that file, that host only */
   private once = new Map<string, number>();
   /** "no": until when (ms) — the same action's next steps (the file after its folder) aren't asked again */
   private refused = new Map<string, number>();
@@ -308,7 +310,11 @@ export class PluginHost {
     const s = this.deck.settings;
     if ((s.data.plugins.always?.[m.id] ?? []).includes(name)) return;
     const key = `${m.id}|${name}`;
-    if (level !== "total" && (this.once.get(key) ?? 0) > Date.now()) return;
+    // "this time" was for what the dialog showed: that file, that host — not the next one
+    // (Fable pass 24/11: one "this time" covered other files for 10 s)
+    const onceKey = `${key}|${want.base === "vault:write" ? (vaultPath(target) ?? target) : target.toLowerCase()}`;
+    const settled = () => (s.data.plugins.always?.[m.id] ?? []).includes(name) || (level !== "total" && (this.once.get(onceKey) ?? 0) > Date.now());
+    if (level !== "total" && (this.once.get(onceKey) ?? 0) > Date.now()) return;
     const d = describePerm(name, t);
     const no = () => new Error(t("{m}: you said no to “{p}”", { m: m.name.toLowerCase(), p: d.label }));
     // you just said no to this: the rest of the same action (an export's file after its folder) stops
@@ -331,17 +337,21 @@ export class PluginHost {
       ],
       selected: level === "total" ? 0 : 1,
     };
-    // a command for the terminal is its own question each time; the rest: one question at a time
-    let ask = level === "total" ? undefined : this.asking.get(key);
+    // a command for the terminal is its own question each time; the same file asked twice at once,
+    // one question; any other waits until the one on screen is answered (then asks, unless that
+    // answer already covers it: "always")
+    let ask = level === "total" ? undefined : this.asking.get(onceKey);
     if (!ask) {
-      const asked = this.deck.askPermission(spec);
+      const asked = this.dialogs.then(() => (settled() ? "settled" : level !== "total" && (this.refused.get(key) ?? 0) > Date.now() ? "no" : this.deck.askPermission(spec)));
+      this.dialogs = asked.catch(() => {});
       ask = asked;
       if (level !== "total") {
-        this.asking.set(key, asked);
-        void asked.finally(() => this.asking.delete(key));
+        this.asking.set(onceKey, asked);
+        void asked.finally(() => this.asking.delete(onceKey));
       }
     }
     const answer = await ask;
+    if (answer === "settled") return;
     if (answer === "always") {
       const always = s.data.plugins.always ?? {};
       if (!(always[m.id] ?? []).includes(name)) s.set("plugins.always", { ...always, [m.id]: [...(always[m.id] ?? []), name] });
@@ -349,7 +359,7 @@ export class PluginHost {
     }
     if (answer === "once") {
       // "this time" is this action: what it does in the next moments (several files of one export)
-      if (level !== "total") this.once.set(key, Date.now() + 10_000);
+      if (level !== "total") this.once.set(onceKey, Date.now() + 10_000);
       return;
     }
     if (level !== "total") this.refused.set(key, Date.now() + 10_000);
@@ -623,14 +633,7 @@ export class PluginHost {
   async scaffold(id: string): Promise<string> {
     const dir = `${VAULT_PLUGIN_DIR}/${id}`;
     if (await this.deck.vault.exists(dir)) throw new Error(`${dir} already exists`);
-    const manifest: PluginManifest = {
-      id,
-      name: id,
-      version: "0.1.0",
-      description: "My first ICEBREAKER plugin",
-      author: this.deck.settings.data.user.handle,
-      permissions: ["vault:read"],
-    };
+    const manifest = starterManifest(id, this.deck.settings.data.user.handle);
     await this.deck.vault.write(`${dir}/plugin.json`, JSON.stringify(manifest, null, 2) + "\n");
     await this.deck.vault.write(`${dir}/main.js`, PLUGIN_TEMPLATE.replaceAll("__ID__", id));
     this.plugins.push(this.vaultPlugin(manifest, dir));
@@ -816,6 +819,12 @@ export class PluginHost {
       const p = path.toLowerCase();
       return folders.some((f) => (p + "/").startsWith(f.toLowerCase()) || (isDir && f.toLowerCase().startsWith(p + "/")));
     };
+    /** the path as the disk reads it ("safe/../journal/a" is journal/a): what is checked is what is opened */
+    const inVault = (raw: unknown): string => {
+      const p = vaultPath(String(raw));
+      if (p === null) throw new Error(`${m.name}: ${String(raw)} is outside the vault`);
+      return p;
+    };
     const dataPath = `.icebreaker/plugin-data/${m.id}.json`;
     // vault:write is for notes: the deck's own folder (modules' code, themes, settings) is never a
     // module's to change — its own data goes through ib.storage
@@ -950,29 +959,31 @@ export class PluginHost {
       vault: {
         // a STORE / vault module reads notes — not the deck's own folder (other modules' data
         // and code, the shell's history): its own data is ib.storage
-        read: async (p) => (need("vault:read", String(p)), thirdParty && notDeck(p), note("vault:read", String(p)), deck.vault.read(p)),
-        exists: async (p) => (need("vault:read", String(p)), thirdParty && notDeck(p), deck.vault.exists(p)),
+        read: async (raw) => { const p = inVault(raw); need("vault:read", p); if (thirdParty) notDeck(p); note("vault:read", p); return deck.vault.read(p); },
+        exists: async (raw) => { const p = inVault(raw); need("vault:read", p); if (thirdParty) notDeck(p); return deck.vault.exists(p); },
         // (allowed in some folders only: their notes)
         notes: () => (need("vault:read"), deck.vault.markdown().map((e) => e.path).filter((x) => inScope(x))),
         modified: async () => (need("vault:read"), Object.fromEntries(deck.vault.markdown().filter((e) => inScope(e.path)).map((e) => [e.path, e.modified]))),
         // changing notes is high-risk: the first time it really writes, you're asked
-        write: async (p, c) => (need("vault:write", String(p)), notDeck(p), await gate("vault:write", String(p)), note("vault:write", String(p)), deck.vault.write(p, c)),
-        append: async (p, text) => (need("vault:write", String(p)), notDeck(p), await gate("vault:write", String(p)), note("vault:write", String(p)), deck.vault.append(p, text)),
-        mkdir: async (p) => (need("vault:write", String(p)), notDeck(p), await gate("vault:write", String(p)), note("vault:write", String(p)), deck.vault.mkdir(p)),
-        readBytes: async (p) => (need("vault:read", String(p)), thirdParty && notDeck(p), note("vault:read", String(p)), deck.vault.readBytes(p)),
+        write: async (raw, c) => { const p = inVault(raw); need("vault:write", p); notDeck(p); await gate("vault:write", p); note("vault:write", p); return deck.vault.write(p, c); },
+        append: async (raw, text) => { const p = inVault(raw); need("vault:write", p); notDeck(p); await gate("vault:write", p); note("vault:write", p); return deck.vault.append(p, text); },
+        mkdir: async (raw) => { const p = inVault(raw); need("vault:write", p); notDeck(p); await gate("vault:write", p); note("vault:write", p); return deck.vault.mkdir(p); },
+        readBytes: async (raw) => { const p = inVault(raw); need("vault:read", p); if (thirdParty) notDeck(p); note("vault:read", p); return deck.vault.readBytes(p); },
         // never the deck's own folders' contents (other modules' code, the trash's log…) for a STORE / vault module
-        list: async (dir) => {
+        list: async (raw) => {
           need("vault:read");
+          const dir = inVault(raw ?? "");
           if (thirdParty) notDeck(dir);
-          const all = await deck.vault.list(String(dir ?? ""));
+          const all = await deck.vault.list(dir);
           return all.filter((e) => (!thirdParty || !isDeckPath(e.path)) && inScope(e.path, e.isDir)).map((e) => ({ path: e.path, name: e.name, isDir: e.isDir, size: e.size, modified: e.modified }));
         },
-        writeBytes: async (p, data) => {
-          need("vault:write", String(p));
+        writeBytes: async (raw, data) => {
+          const p = inVault(raw);
+          need("vault:write", p);
           notDeck(p);
           if (!(data instanceof Uint8Array || data instanceof ArrayBuffer)) throw new Error("vault.writeBytes: the data must be a Uint8Array");
-          await gate("vault:write", String(p));
-          note("vault:write", String(p));
+          await gate("vault:write", p);
+          note("vault:write", p);
           return deck.vault.writeBytes(p, data);
         },
       },
@@ -1115,6 +1126,16 @@ export class PluginHost {
     // one module can't rewire the API another one gets (ib.ui.notify = …)
     return freezeApi(api);
   }
+}
+
+/**
+ * A new module's plugin.json (`plugin new`): today's permissions ("api": 2), so it may do only
+ * what it lists. Without "api" a module is read as one from before 0.6, which had notify and the
+ * deck's commands implied (Fable pass 24/11: a fresh `plugin new` ran `config set`, `mute`,
+ * `term new` with no question).
+ */
+export function starterManifest(id: string, author: string): PluginManifest {
+  return { id, name: id, version: "0.1.0", api: 2, description: "My first ICEBREAKER plugin", author, permissions: ["vault:read"] };
 }
 
 const PLUGIN_TEMPLATE = `// ICEBREAKER plugin: __ID__

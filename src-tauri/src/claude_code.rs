@@ -74,6 +74,12 @@ fn find_claude() -> Option<PathBuf> {
         .find(|p| p.is_file())
 }
 
+/// What Claude Code may read: the vault only (its folder, `./`). Bare `Read,Glob,Grep` allowed
+/// any file of the computer — a note that talks the model into it could reach ~/.ssh (Fable pass
+/// 24/11; checked with claude 2.1: the scoped rules refuse a path outside, the bare ones read it).
+const READS: &str = "Read(./**),Glob(./**),Grep(./**)";
+const READS_WRITES: &str = "Read(./**),Glob(./**),Grep(./**),Edit(./**)";
+
 /// Path of the `claude` CLI, or None if it isn't installed.
 #[tauri::command]
 pub fn claude_code_detect() -> Option<String> {
@@ -133,14 +139,14 @@ pub async fn claude_code_run(
         } else if req.writes {
             &[
                 "--allowedTools",
-                "Read,Glob,Grep,Edit(./**)",
+                READS_WRITES,
                 "--disallowedTools",
                 // never Claude Code's own set-up in the vault either: a note that talks the model
                 // into writing .claude/settings.json would plant a hook for the next run
                 "Bash,NotebookEdit,WebFetch,WebSearch,Read(./.icebreaker/**),Edit(./.icebreaker/**),Edit(./.obsidian/**),Edit(./.git/**),Edit(./.trash/**),Edit(./.claude/**),Edit(./CLAUDE.md),Edit(./CLAUDE.local.md),Edit(./.mcp.json),Edit(./.icebreaker-vault/**)",
             ][..]
         } else {
-            &["--allowedTools", "Read,Glob,Grep", "--disallowedTools", "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Read(./.icebreaker/**)"][..]
+            &["--allowedTools", READS, "--disallowedTools", "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Read(./.icebreaker/**)"][..]
         });
     // a session id and a model are names: never something Claude Code would read as an
     // option ("--dangerously-skip-permissions" as a model would switch every check off)
@@ -203,5 +209,19 @@ pub async fn claude_code_run(
 pub fn claude_code_cancel(state: State<'_, ClaudeCodeState>, id: String) {
     if let Some(child) = state.running.lock().unwrap().remove(&id) {
         let _ = child.lock().unwrap().kill();
+    }
+}
+
+#[cfg(test)]
+mod read_scope_tests {
+    use super::*;
+
+    #[test]
+    fn claude_code_reads_only_the_vault() {
+        for list in [READS, READS_WRITES] {
+            for tool in list.split(',') {
+                assert!(tool.ends_with("(./**)"), "{tool} isn't limited to the vault");
+            }
+        }
     }
 }

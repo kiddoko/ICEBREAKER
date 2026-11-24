@@ -179,9 +179,15 @@ export class PermissionDialog implements Overlay {
     };
     para(s.heading, c.fg, BOLD);
     for (const f of s.facts ?? []) para(f, f.startsWith("⚠") ? c.warning : f.startsWith("✔") || f.startsWith("✓") ? c.success : c.muted);
+    // the command for your real terminal: ALL of it, its hidden characters shown (it used to stop
+    // after 6 lines — what came after ran unseen, Fable pass 24/11); what doesn't fit the screen
+    // says so before it, where it can't be missed
+    const room = Math.max(3, screen.h - 2 - 2 - SECTION - 1);
     if (s.command !== undefined) {
+      const lines = commandLines(s.command, textW - GAP * 2);
       blank();
-      for (const l of wrapWords(s.command, textW - GAP * 2).slice(0, 6)) rows.push((y, x) => {
+      if (rows.length + lines.length > room) para(`⚠ ${t("too long to show it all ({n} lines) — say no unless you know it", { n: lines.length })}`, c.warning, BOLD);
+      for (const l of lines) rows.push((y, x) => {
         ui.fill({ x, y, w: textW, h: 1 }, { bg: c.highlight });
         ui.text(x + GAP, y, l, { fg: c.fg, bg: c.highlight, attrs: BOLD }, textW - GAP * 2);
       });
@@ -208,7 +214,6 @@ export class PermissionDialog implements Overlay {
       para(b, c.muted);
     }
 
-    const room = Math.max(3, screen.h - 2 - 2 - SECTION - 1);
     const shown = rows.slice(0, room);
     const H = shown.length + 2 + SECTION + 1;
     const box: Rect = { x: screen.x + Math.floor((screen.w - W) / 2), y: screen.y + Math.max(1, Math.floor((screen.h - H) / 3)), w: W, h: Math.min(H, screen.h - 2) };
@@ -226,4 +231,19 @@ export class PermissionDialog implements Overlay {
     const hintW = inner.w - INSET * 2 - s.buttons.reduce((n, b) => n + strWidth(b.label) + 2 + GAP, 0);
     if (first && hintW > 12) ui.text(inner.x + INSET, inner.y + inner.h - 1, t("esc: {a}", { a: first.label.replace(/[[\]]/g, "") }), { fg: c.subtle, bg: c.panelAlt }, hintW);
   }
+}
+
+/**
+ * A command as the dialog shows it: wrapped to `width`, every line kept, and what you couldn't
+ * otherwise see made visible — a new line as ⏎, a tab as →, other control characters (colour
+ * codes, carriage returns that would draw over the start) as ^X.
+ */
+export function commandLines(cmd: string, width: number): string[] {
+  const visible = cmd.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2066-\u2069\ufeff]/g, (ch) => {
+    if (ch === "\n") return " ⏎ ";
+    if (ch === "\t") return " → ";
+    const n = ch.charCodeAt(0);
+    return n < 32 ? `^${String.fromCharCode(n + 64)}` : `<U+${n.toString(16).toUpperCase().padStart(4, "0")}>`;
+  });
+  return wrapWords(visible, Math.max(8, width));
 }

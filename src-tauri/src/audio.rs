@@ -122,6 +122,15 @@ pub async fn audio_scan(folder: String) -> Result<Vec<Track>, String> {
     .map_err(|e| e.to_string())?
 }
 
+/// Where `seek:<seconds>` goes: a time, never something Duration can't hold — `seek:inf` or
+/// `seek:1e300` aborted the whole app (Duration::from_secs_f64 panics; Fable pass 24/11).
+fn seek_to(sec: f64) -> Option<Duration> {
+    if !sec.is_finite() {
+        return None;
+    }
+    Some(Duration::from_secs_f64(sec.clamp(0.0, 1.0e9)))
+}
+
 fn sender(state: &AudioState) -> Result<Sender<Cmd>, String> {
     let mut tx = state.tx.lock().unwrap();
     if let Some(t) = tx.as_ref() {
@@ -180,8 +189,8 @@ fn sender(state: &AudioState) -> Result<Sender<Cmd>, String> {
                         st.position = 0.0;
                         st.ended = false;
                     }
-                    Ok(Cmd::Seek(sec)) => if let Some(s) = &sink {
-                        if let Err(e) = s.try_seek(Duration::from_secs_f64(sec.max(0.0))) {
+                    Ok(Cmd::Seek(sec)) => if let (Some(s), Some(at)) = (&sink, seek_to(sec)) {
+                        if let Err(e) = s.try_seek(at) {
                             status.lock().unwrap().error = Some(format!("seek: {e}"));
                         }
                     },
@@ -241,4 +250,18 @@ pub fn audio_status(state: State<AudioState>) -> PlayerStatus {
     let out = st.clone();
     st.error = None; // reported once
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_seek_past_any_time_is_ignored_not_a_crash() {
+        assert_eq!(seek_to(f64::INFINITY), None);
+        assert_eq!(seek_to(f64::NAN), None);
+        assert_eq!(seek_to(-5.0), Some(Duration::ZERO));
+        assert_eq!(seek_to(1.0e300), Some(Duration::from_secs(1_000_000_000)));
+        assert_eq!(seek_to(12.5), Some(Duration::from_secs_f64(12.5)));
+    }
 }

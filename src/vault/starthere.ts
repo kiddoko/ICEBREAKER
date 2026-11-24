@@ -680,8 +680,8 @@ todo add "pack the books" --every sat --cycles 3
   you can read (*Read your notes*, *Change your notes* — the whole vault or one
   folder —, *Use your AI*, *Play sound*, *Go online* to a named site, *Type in your
   real terminal*…) and a level. The riskiest are **asked again the first time
-  they're really used** (no · this time · always), and every command for your real
-  terminal is shown first. **Settings → PERMISSIONS** lists every module with each
+  they're really used** (no · this time — that file only — · always), and every
+  command for your real terminal is shown first, whole. **Settings → PERMISSIONS** lists every module with each
   permission, its level and its last use: enter takes one away or gives it back,
   the module keeps running. In the shell: \`plugin perms\`, \`plugin revoke todo
   vault:write\`, \`plugin grant todo vault:write\`. An update that asks for more

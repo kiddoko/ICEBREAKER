@@ -108,6 +108,23 @@ describe("the modules' sampler (core/mixer-dsp.ts)", () => {
     expect(told).toBe(1);
   });
 
+  it("silenced by you, a module that ignores onStop can't play on — until you use it again (Fable pass 24/11)", async () => {
+    const m = new Mixer();
+    const notes = [{ voice: 0, play: "x" }];
+    // (no audio output in the tests: a schedule that would play says so)
+    await expect(m.schedule("drums", notes)).rejects.toThrow(/no audio output/);
+    m.stop("drums", true);
+    expect(m.isHushed("drums")).toBe(true);
+    await expect(m.schedule("drums", notes)).resolves.toBeUndefined(); // dropped, not played
+    m.stop("drums"); // stopping itself doesn't lift it
+    await expect(m.schedule("drums", notes)).resolves.toBeUndefined();
+    m.unhush("drums");
+    await expect(m.schedule("drums", notes)).rejects.toThrow(/no audio output/);
+    m.stop("drums", true);
+    m.release("drums");
+    expect(m.isHushed("drums")).toBe(false);
+  });
+
   it("8- and 16-bit samples become floats", () => {
     expect([...toFloats(Int8Array.from([-128, 0, 64]))]).toEqual([-1, 0, 0.5]);
     expect([...toFloats(Int16Array.from([-32768, 16384]))]).toEqual([-1, 0.5]);

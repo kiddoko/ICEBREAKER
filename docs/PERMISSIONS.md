@@ -44,8 +44,10 @@ read or write the deck's own folder (`.icebreaker/`).
 | **high** | listed in the warning colour; the answer starts on **No** | **asked again the first time it's really used**: no · this time · always |
 | **total** | listed in red | **every command is shown to you first**, unless you answered "always for this module" |
 
-"This time" is this action: what the module does in the next ten seconds (the files of one
-export) isn't asked again.
+"This time" is for what the question showed: that file (or that site), again in the next ten
+seconds — another file is asked about on its own. Two questions at once come one after the
+other, never one over the other. A command for your real terminal is shown whole, its hidden
+characters made visible (`^M`, `⏎`, `<U+202E>`); one too long for the screen says so first.
 
 ## Seeing them, taking one away
 

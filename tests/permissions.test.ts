@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { describePerm, Grants, levelOf, migrateGranted, missing, parsePerm, readPerms, sortPerms } from "../src/plugins/permissions";
+import { describePerm, Grants, levelOf, migrateGranted, missing, parsePerm, readPerms, sortPerms, vaultPath } from "../src/plugins/permissions";
 import { allows, guardedVault, trusted, type Origin } from "../src/shell/origin";
 import { DEFAULT_SETTINGS, migratePermissions, type Settings } from "../src/core/settings";
 import { AccessLog } from "../src/core/access";
@@ -51,6 +51,22 @@ describe("permissions in plain words (plugins/permissions.ts)", () => {
     expect(g.folders("vault:read")).toEqual(["songs/"]);
     expect(new Grants(() => ["vault:read"]).folders("vault:read")).toBeNull();
     expect(new Grants(() => ["vault:read"]).has("vault:read", "anything/at/all.md")).toBe(true);
+  });
+  it("\"..\" never walks out of the folder you approved (Fable pass 24/11)", () => {
+    const g = new Grants(() => ["vault:read:safe/", "vault:write:safe/"]);
+    for (const p of ["safe/../journal/2026-11-24.md", "safe\\..\\journal\\a.md", "safe/./../journal/a.md", "safe/sub/../../journal/a.md", "/safe/../journal/a.md"]) {
+      expect(g.has("vault:read", p), p).toBe(false);
+      expect(g.has("vault:write", p), p).toBe(false);
+    }
+    // what stays inside is fine
+    expect(g.has("vault:read", "safe/sub/../a.md")).toBe(true);
+    expect(g.has("vault:read", "./safe/a.md")).toBe(true);
+    // out of the vault: never, even with the whole vault
+    const all = new Grants(() => ["vault:read", "vault:write"]);
+    for (const p of ["../x.md", "safe/../../x.md", "C:/Windows/x", "c:x"]) expect(all.has("vault:read", p), p).toBe(false);
+    expect(vaultPath("safe/../journal//a.md")).toBe("journal/a.md");
+    expect(vaultPath("..")).toBeNull();
+    expect(vaultPath("")).toBe("");
   });
 
   it("a host's permission covers that host, nothing else", () => {

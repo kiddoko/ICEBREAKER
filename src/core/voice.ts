@@ -56,8 +56,10 @@ export class DeckVoice {
     // the voice you chose (voice use), if it speaks this language: a French voice chosen before
     // the language became Japanese used to go on reading everything (say included)
     if (v.name && !info.piper_voices.includes(v.name)) {
+      // only a voice the system lists: the name is a setting a synced vault could have written
+      // (deck/voice.rs checks again — Fable pass 24/11)
       const chosen = system.find((x) => x.id === v.name);
-      if (!chosen || !chosen.lang || speaksLang(chosen.lang, lang)) return { engine: "system", voice: v.name };
+      if (chosen && (!chosen.lang || speaksLang(chosen.lang, lang))) return { engine: "system", voice: chosen.id };
     }
     this.systemVoice[lang] ??= pickSystemVoice(system, lang);
     // no Japanese voice installed (common on Windows): say how to get one instead of reading it with an English voice

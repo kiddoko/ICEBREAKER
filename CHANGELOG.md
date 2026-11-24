@@ -30,6 +30,23 @@
 
 ## 0.8.1 — not released yet
 
+**Security: the Fable pass on the Windows bench (24/11) — two sandbox escapes in 0.7.2** (docs/SECURITY_AUDIT.md #79–87)
+- A **voice name** could run PowerShell code on Windows (a module, or a synced vault's settings,
+  set it). Only a voice the system lists is used now, and it never goes inside the script;
+  `voice use / engine / language` and `config set voice.*` are yours only, and the voice settings
+  stay on each computer.
+- **`..` no longer walks out** of the folder a module was allowed in (`safe/../journal/…` is the
+  journal, and is refused).
+- `plugin new` makes a module that may do only what it lists (`"api": 2`).
+- A module's question in the shell always says it's the module's (`[id · module] …`): it can't
+  pass for the deck's password prompt.
+- The permission dialog shows **the whole command**, hidden characters included; « this time » is
+  for that file only; two questions at once come one after the other.
+- Your `audio stop` holds: a module that ignores it stays silent until you use it again.
+- A module's translations can't freeze the deck any more.
+- UPLINK through Claude Code reads only the vault; the deck's PowerShell tabs keep your execution
+  policy (no Bypass); a seek to « inf » no longer stops the app.
+
 **The tabs: pages, then documents**
 - The deck's **pages** (home, nexus, sysmon, habits, settings, a module's page) are as short as
   their name, like ⌂ home; their × shows only while you hover them.

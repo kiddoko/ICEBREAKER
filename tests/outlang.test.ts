@@ -63,4 +63,17 @@ describe("a module's output: its own French first (0.7.2: BreakerMED's « tracks
     expect(tOutput("4 tracks", "music")).toBe("4 morceaux");
     expect(tOutput("4 tracks")).toBe("4 morceaux");
   });
+  it("a module's key full of {x} can't freeze the deck (Fable pass 24/11)", async () => {
+    const { addModuleTranslations } = await import("../src/core/i18n");
+    const key = Array.from({ length: 90 }, () => "{x}").join("a") + " done"; // (under the size limit: the matcher itself is tested)
+    addModuleTranslations("evil", "fr", { [key]: "fini", "{a} of {b} tracks": "{a} sur {b} pistes" });
+    setLang("fr");
+    const t0 = performance.now();
+    expect(tOutput("a".repeat(2000) + " nope", "evil")).toBe("a".repeat(2000) + " nope");
+    expect(tOutput("a".repeat(300) + " done", "evil")).toBe("fini"); // (it does match)
+    expect(tOutput("a".repeat(400) + "b", "evil")).toBe("a".repeat(400) + "b");
+    expect(performance.now() - t0).toBeLessThan(200);
+    // and its ordinary keys still work
+    expect(tOutput("3 of 12 tracks", "evil")).toBe("3 sur 12 pistes");
+  });
 });
