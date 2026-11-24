@@ -62,7 +62,10 @@ const PROPER = new Set(["Ableton", "Claude", "Code", "Google", "Calendar", "Mark
 /** proper names of more than one word, or that look like plain words: kept as they are */
 const PROPER_PHRASES = ["File History", "Recycle Bin", "Time Machine", "iCloud Drive", "Déjà Dup", "Historique des fichiers", "Dropbox", "OneDrive", "Timeshift", "Icebreaker"];
 const lowered: Record<Lang, Map<string, string>> = { en: new Map(), fr: new Map() };
+/** the vault's own folders, named as they are on disk: their capitals stay */
+const FOLDER_NAMES = /(START HERE|FOR DEVELOPERS)/;
 export function uiCase(s: string): string {
+  if (FOLDER_NAMES.test(s)) return s.split(FOLDER_NAMES).map((part, i) => (i % 2 ? part : uiCase(part))).join("");
   // where a proper name sits (its words keep their capitals)
   const kept: [number, number][] = [];
   for (const p of PROPER_PHRASES) for (let i = s.indexOf(p); i >= 0; i = s.indexOf(p, i + p.length)) kept.push([i, i + p.length]);
@@ -108,6 +111,16 @@ export function tLoose(text: string): string {
     .split("\n")
     .map((line) => one(line) ?? line.split(" · ").map((part) => one(part) ?? part).join(" · "))
     .join("\n");
+}
+
+/**
+ * A key's name as a keycap shows it (a menu line's key, a hint): "space" is « espace » on a
+ * French deck, "enter" « entrée », "esc" « échap », "del" « suppr » — the names French
+ * keyboards print. Anything else (⌘K, F2, ctrl+shift+P) stays as it is.
+ */
+const KEY_NAMES: Partial<Record<Lang, Record<string, string>>> = { fr: { space: "espace", enter: "entrée", esc: "échap", del: "suppr", delete: "suppr" } };
+export function keyName(k: string): string {
+  return KEY_NAMES[current]?.[k.trim().toLowerCase()] ?? k;
 }
 
 /** Modules add their own strings: addTranslations("fr", { "Add": "Ajouter" }). */

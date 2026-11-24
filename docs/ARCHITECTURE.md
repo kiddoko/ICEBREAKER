@@ -48,7 +48,7 @@ src-tauri/src/     the native side, one file per area (see §8)
 | `apps/` | `types.ts` the `App` interface · `home.ts` the widget grid · `note.ts` editor · `settings.ts` draws the settings (its rows come from `settings-rows.ts` through `deck.prefs`; `settings-help.ts` one sentence per setting) · `blocks.ts` the CATALOG page · `modules.ts` the shard ring · `explorer.ts` NEXUS · `trash.ts` · `shortcuts.ts` · `store.ts` · `setup.ts` · `terminal.ts` · weather (its sky: `weathersky.ts`, a pure drawing) / clocks / news (the NEWS page) / moon (the MOON page) / focus / journal / sysmon / studio / link / help |
 | `widgets/` | `types.ts` `WidgetSpec` · `builtin.ts` core widgets · `extra.ts` more · `links.ts` the shortcut squares (one per pin) · `popups.ts` widget pop-ups · `news.ts` NEWS (sources, feeds, the widget, `news`) · `moonphase.ts` the moon's phase (Meeus, pure) and `moondraw.ts` the moon drawn in half blocks · `alarms.ts` alarms (pure: days, next ring) and `alarmring.ts` the clock that rings them and the ringing screen · shared state in dependency-free files (`clockstate.ts`, `focusstate.ts`) |
 | `shell/` | `shell.ts` ibsh · `parser.ts` (pipes, `;` `&&` `\|\|`, quotes) · `exec.ts` · `commands/*.ts` every command, by area · `systerm.ts` your real shell in a PTY · `terminal.ts` the terminal emulator |
-| `vault/` | `vault.ts` (cached entries, events `changed` / `renamed` / `trashed`, trash log) · `marks.ts` colour tags & icons · `journal.ts` · `paths.ts` · `starthere.ts` the START HERE notes |
+| `vault/` | `vault.ts` (cached entries, events `changed` / `renamed` / `trashed`, trash log) · `marks.ts` colour tags & icons · `journal.ts` · `paths.ts` · `starthere.ts` the START HERE notes (`starthere-fr.ts` in French) |
 | `plugins/` | `api.ts` **the API modules get** (`ib.*`) · `host.ts` loading, on/off, remove · `core-packages.ts` core features presented as modules · `services.ts` modules calling each other |
 
 ---
@@ -273,9 +273,16 @@ and its controls (‹ ›, ✎, ›, ↺) only on the row you're on; a changed r
 ▎ on the left, del puts it back, the button bottom right resets the category.
 
 **The docs in the vault** — \`src/vault/starthere.ts\` holds the notes every vault
-gets (START HERE/, FOR DEVELOPERS/). **Update them with every change the user can
-see.** They sync at every start: missing notes are written, untouched ones replaced
-by the new version, ones the user edited kept (\`starthere --force\` rewrites them).
+gets: START HERE/ in English, and in French in \`src/vault/starthere-fr.ts\` (same
+file names, so links and stamps hold). **Update them with every change the user can
+see — in both languages.** They sync at every start and when the deck's language
+changes: missing notes are written, untouched ones replaced by the new version (or the
+other language's), ones the user edited kept (\`starthere --force\` rewrites them), ones
+the user deleted stay deleted. The Welcome note follows the language the same way
+(Welcome.md ⇄ Bienvenue.md, renamed only while untouched). FOR DEVELOPERS/ (English
+only) isn't in a new vault: \`starthere dev\` writes it, then it syncs like the rest.
+The notes are written with Mac keys and zsh; \`forThisOS\` rewrites them for Windows
+and Linux (Ctrl+, the system's shell, one form when both were the same).
 
 **A translation** — wrap UI text in `t("English")`, add the line to
 `core/i18n-fr.ts`. Missing keys simply show in English.

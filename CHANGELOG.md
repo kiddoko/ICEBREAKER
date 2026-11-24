@@ -42,6 +42,30 @@
   everywhere; a file the vault found and put back in `.trash/recovered-…/` is said once;
   `.gitattributes` keeps the test snapshots LF on Windows.
 
+**A French account is French from the first minute** (the Fable pass on the Windows bench, 0.8.0)
+- **START HERE in French**: the seven notes, written in the deck's language. The language you
+  pick in the setup's first question rewrites them at once, with the Welcome note
+  (Welcome.md becomes Bienvenue.md). Later, switching language does the same for every note you
+  haven't changed; the ones you changed stay yours, the ones you deleted stay deleted;
+  `starthere --force` rewrites them all in the deck's language.
+- **FOR DEVELOPERS/** is no longer in a new vault (it was half of what a newcomer saw in the
+  tree): `starthere dev` writes it. A vault that already has it keeps it up to date.
+- In French: the new-note window, the « saved » toast, the journal page (its stats, buttons and
+  hints) and a new day's page (« ## fil du jour », « ## pensées », « humeur: »), every
+  command's line in `help`, a `-h` page (its headings, what each usage line and example does),
+  the MODULES cards (« mod·base · oui », « entrée ▸ lancer », the descriptions; one word per action:
+  activer, désactiver, désinstaller), the effects presets in THE MENU (at once, no restart), the
+  « CHOISIR » list, the « espace » key in menus, the real terminal's key hint. A shell that opened
+  before the language was chosen says its banner again in it. (A journal page's `date:` and
+  `tags:` stay: Obsidian reads them.)
+- START HERE on Windows and Linux: a shortcut is said once (« Ctrl+N », not « Ctrl+N / Ctrl+N »),
+  a key about the Mac stays the Mac's (« ⌘X on a Mac »), the diagram shows that system's shell
+  (powershell, bash) and keeps its width.
+- The top row's left corner is **◆ ▾** in a window under about 1360 pixels (the app opens at 1280):
+  START HERE's diagram draws it that way and names the wide **◆ icebreaker ▾**; the manual and
+  GETTING_STARTED say so. `starthere dev` run again says « FOR DEVELOPERS is already there ». The Welcome note no longer links to a note
+  a new vault doesn't have, and says which key shows the shell on an AZERTY keyboard (Ctrl+²).
+
 ## 0.8.0 — 2026-11-24
 
 The new top of the window, keys and the pad, the tab bar, themes v2 (steps 1–2), what modules

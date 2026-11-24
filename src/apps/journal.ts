@@ -1,9 +1,9 @@
-import { dateLocale } from "../core/i18n";
+import { dateLocale, t } from "../core/i18n";
 import { BOLD, DIM, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
 import type { Deck } from "../deck";
 import type { UI } from "../ui/ui";
-import { entryText, streak, titleFor } from "../vault/journal";
+import { entryText, LOG_HEADING, streak, titleFor } from "../vault/journal";
 import { isoDate } from "../vault/paths";
 import type { TextEditor } from "../ui/editor";
 import { NoteApp } from "./note";
@@ -208,10 +208,10 @@ export class JournalApp implements App {
     const s = streak(entries);
     const thisMonth = [...entries].filter((e) => e.startsWith(isoDate(month).slice(0, 7))).length;
     const stats: [string, string][] = [
-      ["streak", `${s} day${s === 1 ? "" : "s"} ${s >= 7 ? "▲▲" : s ? "▲" : ""}`],
-      ["this month", `${thisMonth}/${days}`],
-      ["entries", String(entries.size)],
-      ["words", String(this.note?.editor.wordCount() ?? 0)],
+      [t("streak"), `${t(s === 1 ? "{n} day" : "{n} days", { n: s })} ${s >= 7 ? "▲▲" : s ? "▲" : ""}`],
+      [t("this month"), `${thisMonth}/${days}`],
+      [t("entries"), String(entries.size)],
+      [t("words"), String(this.note?.editor.wordCount() ?? 0)],
     ];
     stats.forEach(([k, v], i) => {
       if (sy + i >= r.y + r.h) return;
@@ -224,17 +224,17 @@ export class JournalApp implements App {
     const by = sy + 7;
     if (by < r.y + r.h - 1) {
       let x = r.x + 2;
-      x += ui.button(x, by, "today", () => {}, { cmd: "journal today", tip: "ctrl+j from anywhere" }) + 1;
-      ui.button(x, by, "ask ◆", () => this.deck.openApp("link", { prompt: `Read my journal entries from the last 7 days and give me a short recap: themes, mood, open tasks.` }), { tip: "LINK recaps your last 7 days\nin the shell: journal ls -n 7 | ask \"recap\"" });
+      x += ui.button(x, by, t("today"), () => {}, { cmd: "journal today", tip: t("⌘J from anywhere") }) + 1;
+      ui.button(x, by, t("ask ◆"), () => this.deck.openApp("link", { prompt: t("Read my journal entries from the last 7 days and give me a short recap: themes, mood, open tasks.") }), { tip: t("LINK recaps your last 7 days\nin the shell: journal ls -n 7 | ask \"recap\"") });
     }
-    if (focused) ui.text(r.x + 2, r.y + r.h - 1, "←↑↓→ day · [ ] month · enter", { fg: c.subtle });
+    if (focused) ui.text(r.x + 2, r.y + r.h - 1, t("←↑↓→ day · [ ] month · enter"), { fg: c.subtle });
   }
 }
 
 /** Put the cursor at the end of the "## log" section, on a fresh "- " line, ready to type. */
 function placeCursorInLog(ed: TextEditor): void {
   const lines = ed.lines;
-  const head = lines.findIndex((l) => /^##\s+log\b/i.test(l));
+  const head = lines.findIndex((l) => LOG_HEADING.test(l));
   if (head === -1) {
     ed.cursor = { line: lines.length - 1, col: lines[lines.length - 1].length };
     return;

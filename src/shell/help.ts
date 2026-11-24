@@ -1,7 +1,7 @@
 import { fmt } from "../core/ansi";
 import { osKeys } from "../core/keyhints";
 import { padEnd } from "../core/unicode";
-import { t } from "../core/i18n";
+import { lang, t, tLoose } from "../core/i18n";
 import type { Command } from "./types";
 
 /**
@@ -14,24 +14,30 @@ export function helpText(c: Command, tty: boolean): string {
   const h = (s: string) => (tty ? fmt.bold(fmt.magenta(s)) : s);
   const d = (s: string) => (tty ? fmt.dim(s) : s);
   const out: string[] = [];
-  out.push(`${tty ? fmt.bold(c.name) : c.name} — ${c.summary}${c.source && c.source !== "core" ? d(`   (module: ${c.source})`) : ""}`);
-  out.push("", h("USAGE"));
-  for (const l of (c.usage ?? c.name).split("\n")) out.push(`  ${l}`);
+  out.push(`${tty ? fmt.bold(c.name) : c.name} — ${tLoose(c.summary)}${c.source && c.source !== "core" ? d(`   (module: ${c.source})`) : ""}`);
+  out.push("", h(head("USAGE")));
+  // "starthere --force  rewrite them all": the command stays, what it does is said in the deck's language
+  for (const l of (c.usage ?? c.name).split("\n")) out.push(`  ${l.replace(/^(.*?\S)(\s{2,})(\S.*)$/, (_m, cmd: string, gap: string, what: string) => cmd + gap + tLoose(what))}`);
   if (c.examples?.length) {
-    out.push("", h("EXAMPLES"));
+    out.push("", h(head("EXAMPLES")));
     for (const ex of c.examples) {
       const [line, what] = Array.isArray(ex) ? ex : [ex, ""];
       out.push(`  ${tty ? fmt.cyan("❯") : "$"} ${line}`);
-      if (what) out.push(`    ${d(what)}`);
+      if (what) out.push(`    ${d(tLoose(what))}`);
     }
   }
   if (c.man) {
-    out.push("", h("MORE"));
+    out.push("", h(head("MORE")));
     for (const l of c.man.split("\n")) out.push(`  ${l}`);
   }
-  if (c.aliases?.length) out.push("", `${d("also:")} ${c.aliases.join(", ")}`);
+  if (c.aliases?.length) out.push("", `${d(lang() === "fr" ? "aussi :" : "also:")} ${c.aliases.join(", ")}`);
   // key hints the way this computer's keyboard reads (⌘K on a Mac, Ctrl+K elsewhere)
   return `${osKeys(out.join("\n"))}\n`;
+}
+
+/** a help page's headings, in the deck's language (capitals, like a man page) */
+function head(s: "USAGE" | "EXAMPLES" | "MORE"): string {
+  return lang() === "fr" ? { USAGE: "UTILISATION", EXAMPLES: "EXEMPLES", MORE: "PLUS" }[s] : s;
 }
 
 /** `cmd -h` / `cmd --help` (alone) shows the help instead of running the command. */
@@ -52,7 +58,8 @@ export function helpList(commands: Command[], args: string[], tty: boolean): str
   const h = (s: string) => (tty ? fmt.bold(fmt.magenta(s)) : s);
   const g = (s: string) => (tty ? fmt.green(s) : s);
   const d = (s: string) => (tty ? fmt.dim(s) : s);
-  const line = (c: Command) => `  ${g(padEnd(c.name, 12))} ${c.summary}`;
+  // the summaries in the deck's language (a module gives its French with addTranslations)
+  const line = (c: Command) => `  ${g(padEnd(c.name, 12))} ${tLoose(c.summary)}`;
   const out: string[] = [];
   const what = args[0]?.toLowerCase();
   if (!what) {
@@ -61,7 +68,6 @@ export function helpList(commands: Command[], args: string[], tty: boolean): str
       const c = shown.find((x) => x.name === n);
       if (c) out.push(line(c));
     }
-    // (help's output isn't translated on its way out — the summaries are English, like man pages — its own lines are)
     out.push("", d(t("help all       every command")), d(t("help <module>  a module's commands (help todo)")), d(t(osKeys("<command> -h   its help and examples · ⌘K / shift twice: THE MENU · F1 manual"))));
     return `${out.join("\n")}\n`;
   }

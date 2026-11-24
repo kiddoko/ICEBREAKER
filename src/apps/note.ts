@@ -274,7 +274,7 @@ export class NoteApp implements App {
 
   onKey(k: KeyInput): boolean {
     if (k.combo === "ctrl+s") {
-      void this.save().then(() => this.deck.notify(`saved ${this.path}`, "success"));
+      void this.save().then(() => this.deck.notify(t("saved {path}", { path: this.path }), "success"));
       return true;
     }
     // ⌘⇧S: save as (File → Save As in the macOS menu bar says so)
@@ -346,7 +346,7 @@ export class NoteApp implements App {
       x += ui.button(x, r.y, label, run, { tip, accent: o.accent }) + 1;
     };
     const mod = IS_MAC ? "⌘" : "ctrl+";
-    tool(dirty ? `● ${t("Save")}` : `✓ ${t("Saved")}`, () => void this.save().then(() => this.deck.notify(`saved ${this.path}`, "success")), `${mod}S`, { accent: dirty ? c.error : undefined, off: !dirty });
+    tool(dirty ? `● ${t("Save")}` : `✓ ${t("Saved")}`, () => void this.save().then(() => this.deck.notify(t("saved {path}", { path: this.path }), "success")), `${mod}S`, { accent: dirty ? c.error : undefined, off: !dirty });
     tool(t("Save as…"), () => void this.saveAs(), t("a copy under another name"));
     tool(`+ ${t("New")}`, () => void this.deck.newNote(dirname(this.path) || "notes"), `${mod}N`);
     x += 1;

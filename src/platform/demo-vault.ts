@@ -21,11 +21,12 @@ in your vault — open it with Obsidian, vim, anything. Nothing is locked in.
 > github.com/kiddoko/ICEBREAKER. More in **START HERE/README**.
 
 ## First moves
-- \`Ctrl+K\` (or shift twice) opens THE MENU — everything is in there
-- \`Ctrl+Z\` undoes anything; \`tour\` in the shell shows you around
-- \`Ctrl+J\` opens today's journal entry
-- \`Ctrl+\`\` (the key under Esc) toggles the shell
-- \`F1\` opens the manual; **START HERE/** in the tree is the guide
+- **⌘K** (or shift twice) opens THE MENU — everything is in there
+- **⌘Z** undoes anything; \`tour\` in the shell shows you around
+- **⌘N** writes a new note, **⌘J** opens today's journal entry
+- **⌃\`** shows or hides the shell — the key left of 1: \` on a QWERTY keyboard, ² on a
+  PC's AZERTY (or click **▾** in the status bar)
+- **F1** opens the manual; **START HERE/** in the tree is the guide
 
 ## The shell is real-ish
 Try these in the shell panel:
@@ -40,8 +41,8 @@ neofetch
 \`\`\`
 
 ## Links and tags
-Notes link with [[wikilinks]] like [[notes/ideas]] and get tags like #getting-started.
-\`Ctrl+Enter\` on a link follows it.
+Notes link with [[wikilinks]] like [[START HERE/README]] and get tags like #getting-started.
+**⌘Enter** on a link follows it.
 
 - [ ] write a first journal entry
 - [ ] set your handle: \`config set user.handle <you>\`
@@ -60,11 +61,12 @@ dans ton vault — ouvre-le avec Obsidian, vim, n'importe quoi. Rien n'est enfer
 > github.com/kiddoko/ICEBREAKER. Plus dans **START HERE/README**.
 
 ## Premiers gestes
-- \`Ctrl+K\` (ou maj deux fois) ouvre LE MENU — tout est dedans
-- \`Ctrl+Z\` annule n'importe quoi ; \`tour\` dans le shell te fait visiter
-- \`Ctrl+J\` ouvre l'entrée du journal du jour
-- \`Ctrl+\`\` (la touche sous Échap) montre ou cache le shell
-- \`F1\` ouvre le manuel ; **START HERE/** dans l'arbre est le guide (en anglais pour l'instant)
+- **⌘K** (ou maj deux fois) ouvre LE MENU — tout est dedans
+- **⌘Z** annule n'importe quoi ; \`tour\` dans le shell te fait visiter
+- **⌘N** écrit une nouvelle note, **⌘J** ouvre l'entrée du journal du jour
+- **⌃\`** montre ou cache le shell — la touche à gauche du 1 : ² sur un clavier AZERTY de PC,
+  \` sur un QWERTY (ou un clic sur **▾** dans la barre d'état)
+- **F1** ouvre le manuel ; **START HERE/** dans l'arbre est le guide
 
 ## Le shell est presque vrai
 Essaie ceci dans le panneau du shell :
@@ -79,8 +81,8 @@ neofetch
 \`\`\`
 
 ## Liens et étiquettes
-Les notes se lient avec des [[wikiliens]] comme [[notes/ideas]] et ont des étiquettes comme #premiers-pas.
-\`Ctrl+Entrée\` sur un lien le suit.
+Les notes se lient avec des [[wikiliens]] comme [[START HERE/README]] et ont des étiquettes comme #premiers-pas.
+**⌘Entrée** sur un lien le suit.
 
 - [ ] écrire une première entrée de journal
 - [ ] choisir ton nom : \`config set user.handle <toi>\`
