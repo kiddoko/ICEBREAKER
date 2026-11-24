@@ -68,6 +68,20 @@ fn default_shell() -> String {
 
 /// PowerShell: the same bridge. Unknown commands go to the deck
 /// (CommandNotFoundAction), module commands become functions, `ib` forces one.
+/// A script as PowerShell's -EncodedCommand takes it: UTF-16LE, then base64.
+fn encoded_command(script: &str) -> String {
+    const B64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let bytes: Vec<u8> = script.encode_utf16().flat_map(|u| u.to_le_bytes()).collect();
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let n = (chunk[0] as u32) << 16 | (*chunk.get(1).unwrap_or(&0) as u32) << 8 | *chunk.get(2).unwrap_or(&0) as u32;
+        for i in 0..4 {
+            out.push(if i <= chunk.len() { B64[(n >> (18 - 6 * i) & 63) as usize] as char } else { '=' });
+        }
+    }
+    out
+}
+
 const POWERSHELL_HOOK: &str = r#"
 # ── ICEBREAKER: its commands in your shell (unknown commands are asked to the deck) ──
 # UTF-8 both ways (Windows PowerShell 5.1 defaults to the old OEM code page: ◆ came out as â—†)
@@ -259,11 +273,11 @@ fi
         cmd.args(["--rcfile", &rc.to_string_lossy(), "-i"]);
     } else if name.contains("pwsh") || name.contains("powershell") {
         // PowerShell (Windows, or pwsh anywhere): your $PROFILE loads as usual
-        // (oh-my-posh, modules…), then this script adds ICEBREAKER's commands.
-        let ps1 = dir.join("icebreaker.ps1");
-        // with a BOM: Windows PowerShell 5.1 reads a BOM-less script as ANSI (garbled glyphs)
-        std::fs::write(&ps1, [b"\xEF\xBB\xBF".as_slice(), POWERSHELL_HOOK.as_bytes()].concat()).map_err(|e| e.to_string())?;
-        cmd.args(["-NoLogo", "-NoExit", "-ExecutionPolicy", "Bypass", "-File", &ps1.to_string_lossy()]);
+        // (oh-my-posh, modules…), then this script adds ICEBREAKER's commands. It goes as
+        // -EncodedCommand (UTF-16, so accents survive 5.1): a command isn't a script file, so no
+        // execution policy has to be switched off for it — the tab keeps YOUR policy (it used to
+        // start with -ExecutionPolicy Bypass: any script you ran there skipped its check, Fable pass 24/11)
+        cmd.args(["-NoLogo", "-NoExit", "-EncodedCommand", &encoded_command(POWERSHELL_HOOK)]);
     } else if name.contains("fish") {
         // fish reads its config, then this (-C runs after the config)
         let f = dir.join("icebreaker.fish");
@@ -569,5 +583,20 @@ pub fn bridge_send(bridge: State<BridgeState>, id: String, chunk: Option<String>
             st.insert(id.clone(), status.unwrap_or(0));
         }
         let _ = tx.send(Msg::Done);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn powershell_gets_the_hook_as_an_encoded_command() {
+        // (checked against Python's base64 of the UTF-16LE text)
+        assert_eq!(encoded_command("dir; é ✓"), "ZABpAHIAOwAgAOkAIAATJw==");
+        assert_eq!(encoded_command("a"), "YQA=");
+        assert_eq!(encoded_command(""), "");
+        // the whole hook fits Windows' command line (32 767 characters)
+        assert!(encoded_command(POWERSHELL_HOOK).len() < 30_000);
     }
 }
