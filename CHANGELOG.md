@@ -21,6 +21,8 @@
   in memory, the file is never touched. Tests check the 11 built-in themes load the same both ways.
 - **`theme check [name]`**: what the deck made of a theme — its schema, what its file got wrong,
   readable text and keys.
+- The components' reference table in `docs/THEMES.md` and `themes/schema-2.json` (a JSON Schema
+  for editors) are generated from the registry; a test fails when they're out of date.
 
 ## 0.8.1 — not released yet
 

@@ -73,21 +73,28 @@ lip = 0         # flat, no darker bottom
 face = "surface0"   # a [palette] name, a #hex, or auto
 ```
 
-| component | field | what | bounds | the deck's own |
+<!-- generated: components (src/core/skin/docs.ts) -->
+| component | field | what | values | the deck's own |
 |---|---|---|---|---|
-| `[keys]` | `radius` | corners, share of the cell's height (0: square) | 0–0.5 | 0.17 |
-| | `border` | outline, device pixels (0: none) | 0–4, whole | 1 |
-| | `lip` | depth: the darker bottom, share of the height (0: flat) | 0–0.3 | 0.12 |
-| | `shine` | the lighter line along the top, device pixels | 0–3, whole | 1 |
-| | `reach` | how far a key reaches into the spaces beside it, share of a cell | 0–0.5 | 0.42 |
-| | `top` / `bottom` | room above / below the key, share of the height | 0–0.3 | 0.1 / 0.06 |
-| | `face` | the key's colour: `#hex`, a `[palette]` name or `auto` | — | auto (the panel, raised) |
-| | `bold` | its text in bold | true / false | true |
-| `[pad]` | `inkDark` / `inkLight` | the letter on a light / dark gamepad button | colour | `#101018` / `#ffffff` |
-| | `psBody` | a PlayStation button's body | colour | `#1d1c26` |
-| | `ring` | how strongly the ring round a PlayStation button shows | 0–1 | 0.5 |
-| | `weight` | the letters' weight | 100–900 | 800 |
-| | `size` | the icon's size, share of the cell's height | 0.5–1 | 0.86 |
+| `[keys]` | `radius` | corners, as a share of the cell's height (0: square) | 0–0.5 | 0.17 |
+|  | `border` | outline, in device pixels (0: none) | 0–4, whole | 1 |
+|  | `lip` | depth: the darker bottom, as a share of the cell's height (0: flat) | 0–0.3 | 0.12 |
+|  | `shine` | the lighter line along the top, in device pixels (0: none) | 0–3, whole | 1 |
+|  | `reach` | how far a key reaches into the spaces beside it, as a share of a cell's width | 0–0.5 | 0.42 |
+|  | `top` | room above the key, as a share of the cell's height | 0–0.3 | 0.1 |
+|  | `bottom` | room below the key, as a share of the cell's height | 0–0.3 | 0.06 |
+|  | `face` | the key's face: a #hex, a [palette] name, or auto (from the theme's colours) | #hex · palette name · auto | auto |
+|  | `bold` | the key's text in bold | true / false | true |
+| `[pad]` | `inkDark` | the letter on a light button | #hex · palette name | #101018 |
+|  | `inkLight` | the letter on a dark button | #hex · palette name | #ffffff |
+|  | `psBody` | a PlayStation button's body | #hex · palette name | #1d1c26 |
+|  | `ring` | how strongly the ring round a PlayStation button shows | 0–1 | 0.5 |
+|  | `weight` | the letters' weight | 100–900, whole | 800 |
+|  | `size` | the icon's size, as a share of the cell's height | 0.5–1 | 0.86 |
+<!-- end of generated -->
+
+This table and `themes/schema-2.json` (a JSON Schema for editors) are generated from the
+registry: `UPDATE_THEME_DOCS=1 npx vitest run tests/skindocs.test.ts`.
 
 A value out of bounds is clamped; a value that can't be read (a word where a number goes, an
 unknown field) is left out — that field keeps the parent theme's or the deck's — and `theme ls`

@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ICEBREAKER theme (schema 2)",
+  "description": "Generated from src/core/skin — do not edit. The colour tables ([palette], [ui]…) are in docs/THEMES.md.",
+  "type": "object",
+  "properties": {
+    "meta": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2
+        }
+      }
+    },
+    "frame": {
+      "type": "object",
+      "properties": {
+        "style": {
+          "type": "string"
+        }
+      }
+    },
+    "widget_frame": {
+      "type": "object",
+      "properties": {
+        "style": {
+          "type": "string"
+        }
+      }
+    },
+    "logo": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "keys": {
+      "type": "object",
+      "description": "the key every shortcut sits on",
+      "additionalProperties": false,
+      "properties": {
+        "radius": {
+          "description": "corners, as a share of the cell's height (0: square)",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.5,
+          "default": 0.17
+        },
+        "border": {
+          "description": "outline, in device pixels (0: none)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4,
+          "default": 1
+        },
+        "lip": {
+          "description": "depth: the darker bottom, as a share of the cell's height (0: flat)",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.3,
+          "default": 0.12
+        },
+        "shine": {
+          "description": "the lighter line along the top, in device pixels (0: none)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3,
+          "default": 1
+        },
+        "reach": {
+          "description": "how far a key reaches into the spaces beside it, as a share of a cell's width",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.5,
+          "default": 0.42
+        },
+        "top": {
+          "description": "room above the key, as a share of the cell's height",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.3,
+          "default": 0.1
+        },
+        "bottom": {
+          "description": "room below the key, as a share of the cell's height",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.3,
+          "default": 0.06
+        },
+        "face": {
+          "description": "the key's face: a #hex, a [palette] name, or auto (from the theme's colours)",
+          "type": "string",
+          "pattern": "^(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|[A-Za-z0-9_-]+)$",
+          "default": "auto"
+        },
+        "bold": {
+          "description": "the key's text in bold",
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "pad": {
+      "type": "object",
+      "description": "the gamepad buttons shown beside a shortcut",
+      "additionalProperties": false,
+      "properties": {
+        "inkDark": {
+          "description": "the letter on a light button",
+          "type": "string",
+          "pattern": "^(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|[A-Za-z0-9_-]+)$",
+          "default": "#101018"
+        },
+        "inkLight": {
+          "description": "the letter on a dark button",
+          "type": "string",
+          "pattern": "^(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|[A-Za-z0-9_-]+)$",
+          "default": "#ffffff"
+        },
+        "psBody": {
+          "description": "a PlayStation button's body",
+          "type": "string",
+          "pattern": "^(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|[A-Za-z0-9_-]+)$",
+          "default": "#1d1c26"
+        },
+        "ring": {
+          "description": "how strongly the ring round a PlayStation button shows",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.5
+        },
+        "weight": {
+          "description": "the letters' weight",
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 900,
+          "default": 800
+        },
+        "size": {
+          "description": "the icon's size, as a share of the cell's height",
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 1,
+          "default": 0.86
+        }
+      }
+    }
+  }
+}
