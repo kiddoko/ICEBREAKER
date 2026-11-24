@@ -115,6 +115,7 @@ describe("a settings file that can't be read", () => {
     const s = await SettingsStore.load(p);
     expect(written["settings.json.broken"]).toBe(broken);
     expect(s.data.user).toBeTruthy();
+    expect(s.brokenKept).toBe(true); // the deck says so once, at start (deck.ts)
   });
   it("a good one, or none, leaves no copy", async () => {
     const written: Record<string, string> = {};
@@ -123,5 +124,10 @@ describe("a settings file that can't be read", () => {
       await SettingsStore.load(p);
     }
     expect(written["settings.json.broken"]).toBeUndefined();
+  });
+  it("where the copy is, said the way each computer names it", async () => {
+    const { brokenSettingsWhere } = await import("../src/core/settings");
+    expect(brokenSettingsWhere("mac")).toBe("~/Library/Application Support/org.icebreaker.deck/users/…/settings.json.broken");
+    expect(brokenSettingsWhere("windows")).toBe("%APPDATA%\\org.icebreaker.deck\\users\\…\\settings.json.broken");
   });
 });

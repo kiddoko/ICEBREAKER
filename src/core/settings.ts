@@ -437,6 +437,8 @@ export class SettingsStore {
   secrets: Secrets;
   /** the file as it was read: keys a newer ICEBREAKER wrote are kept when this one saves */
   private raw: Record<string, unknown> = {};
+  /** settings.json couldn't be read: the deck started from the defaults, the file is kept as settings.json.broken (said once, at start) */
+  brokenKept = false;
   private listeners = new Set<Listener>();
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -454,7 +456,7 @@ export class SettingsStore {
     const rawSecrets = await platform.config.read("secrets.json").catch(() => null);
     // a settings file that isn't JSON any more (cut short, edited by hand): the defaults are
     // about to be written over it — what it held is kept first, as settings.json.broken
-    if (unreadable(raw)) await platform.config.write("settings.json.broken", raw!).catch(() => {});
+    const broken = unreadable(raw) && (await platform.config.write("settings.json.broken", raw!).then(() => true, () => false));
     // (JSON copy rather than structuredClone: works on older macOS WebKit too)
     const data = deepMerge(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), safeJson(raw)) as Settings;
     // (migrations from before 0.4.0 are gone: update through 0.4.x first)
@@ -467,6 +469,7 @@ export class SettingsStore {
     const secrets = { anthropicApiKey: "", ...(safeJson(rawSecrets) as Partial<Secrets>) };
     const store = new SettingsStore(platform, data, secrets);
     store.raw = safeJson(raw);
+    store.brokenKept = broken;
     return store;
   }
 
@@ -574,6 +577,13 @@ export class SettingsStore {
       this.platform.config.write("settings.json", this.serialize()).catch(saveFailed);
     }, 300);
   }
+}
+
+/** Where settings.json.broken is, said the way this computer names it. */
+export function brokenSettingsWhere(os: "mac" | "windows" | "linux"): string {
+  const dir = os === "mac" ? "~/Library/Application Support/org.icebreaker.deck" : os === "windows" ? "%APPDATA%\\org.icebreaker.deck" : "~/.config/org.icebreaker.deck";
+  const sep = os === "windows" ? "\\" : "/";
+  return `${dir}${sep}users${sep}…${sep}settings.json.broken`;
 }
 
 /** Text that is there but isn't a JSON object (safeJson would give {}: the defaults). */

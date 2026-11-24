@@ -74,7 +74,9 @@ export class NoteApp implements App {
     const disk = await this.diskChange();
     if (disk === null) return;
     if (!this.dirty()) return void this.load(true);
-    if (!this.conflict) this.deck.notify(t("{0} changed on disk: your edits are kept, choose in its toolbar").replace("{0}", basename(this.path)), "warning");
+    // on screen, the note's own bar says it (a toast there covered « take the disk's » for 10 s);
+    // a note in a tab you're not looking at says it with a toast
+    if (!this.conflict && !this.onScreen()) this.deck.notify(t("{0} changed on disk: your edits are kept, choose in its toolbar").replace("{0}", basename(this.path)), "warning");
     this.conflict = true;
     this.deck.requestFrame();
   }
@@ -355,7 +357,16 @@ export class NoteApp implements App {
     tool("↷", () => this.editor.redo(), `${t("Redo")} · ${IS_MAC ? "⇧⌘Z" : "ctrl+shift+Z"}`);
   }
 
+  /** when this note was last drawn (onScreen) */
+  private drawnAt = -Infinity;
+
+  /** drawn in the last half second: you can see its bar */
+  onScreen(now = performance.now()): boolean {
+    return now - this.drawnAt < 500;
+  }
+
   render(ui: UI, r: Rect, focused: boolean): void {
+    this.drawnAt = performance.now();
     if (this.error && !this.loaded) {
       ui.textCenter(r, r.y + 2, `✖ ${this.error}`, { fg: ui.c.error });
       return;

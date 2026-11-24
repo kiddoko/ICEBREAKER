@@ -41,3 +41,17 @@ describe("macros said the shell's way", () => {
     expect(quoteForShell("zsh")).toBeNull();
   });
 });
+
+describe("the cmd hint is cut between words", async () => {
+  const { wrapWords, CMD_HINT } = await import("../src/shell/bridgeshell");
+  it("no word is split when it fits a line", () => {
+    for (const cols of [20, 37, 61, 80, 203]) {
+      const lines = wrapWords(CMD_HINT, cols);
+      expect(lines.every((l) => l.length <= cols)).toBe(true);
+      expect(lines.join(" ")).toBe(CMD_HINT);
+    }
+  });
+  it("a word longer than a line is cut, nothing lost", () => {
+    expect(wrapWords("aaaaaaaaaaaaaaa b", 10)).toEqual(["aaaaaaaaaa", "aaaaa b"]);
+  });
+});

@@ -74,6 +74,20 @@
   replace it; `mv Note.md note.md` (case only) is a rename, not « already exists »; `mv ta ta/sub`
   says « can't move a folder into itself ».
 
+**After the Windows bench checked those fixes (24/11)**
+- « changed on disk » no longer comes as a toast over the note you're looking at: its own bar
+  says it. A toast still comes when it's a note you're not looking at.
+- When `settings.json` couldn't be read, the setup starts again and now says why, once, with
+  where `settings.json.broken` is.
+- `ib ls` in a PowerShell tab lost and mixed up rows: what a deck command prints now reaches
+  your terminal in order. `ls -1` works (`-1` was taken for a number).
+- `true` and `false` are commands (`false && a || b`).
+- `cal`: an event that ends on a later day shows `+1d` (22:00–23:00 +1d), and « in N d » counts
+  calendar days (two events of the same day say the same).
+- The cmd tab's hint is cut between words. The trash says « just now » rather than « 1 min » for
+  what you just threw away.
+- `npm run check` leaves out `.claude/` (other sessions' copies of the repo).
+
 **Terminals and ibsh**
 - From a PowerShell tab, deck commands ran in the vault's root (`cd journal; ls` listed the
   root): Windows paths (`\`, any case) are understood now. The deck's macros (`ls -la`,

@@ -906,6 +906,7 @@ export const FR: Record<string, string> = {
   "click: fold / unfold · drag things onto it to move them in · right-click: more": "clic : plier / déplier · glisse des choses dessus pour les y ranger · clic droit : plus",
   "{0} changed on disk: your edits are kept, choose in its toolbar": "{0} a changé sur le disque : tes modifs sont gardées, choisis dans sa barre d'outils",
   "changed on disk": "changé sur le disque",
+  "your settings couldn't be read: back to the defaults. The old file is kept: {where}": "tes réglages n'ont pas pu être lus : retour aux réglages par défaut. L'ancien fichier est gardé : {where}",
   "close {0} without saving?": "fermer {0} sans enregistrer ?",
   "it changed on disk: « keep mine » writes yours, « take the disk's » takes the other": "elle a changé sur le disque : « Garder la mienne » écrit la tienne, « Prendre celle du disque » prend l'autre",
   "it could not be saved: your edits here would be lost": "elle n'a pas pu être enregistrée : tes modifs ici seraient perdues",

@@ -185,6 +185,10 @@ const exportCmd: Command = {
   },
 };
 
+/** `true` / `false`: an exit code and nothing else (`false && a || b`, a script's loop). */
+const trueCmd: Command = { name: "true", summary: "do nothing, successfully (exit code 0)", usage: "true", run: () => 0 };
+const falseCmd: Command = { name: "false", summary: "do nothing, unsuccessfully (exit code 1)", usage: "false", run: () => 1 };
+
 const sleep: Command = {
   name: "sleep",
   summary: "wait N seconds",
@@ -376,4 +380,4 @@ export function formatUptime(sec: number): string {
   return [d && `${d}d`, h && `${h}h`, `${m}m`].filter(Boolean).join(" ");
 }
 
-export const systemCommands: Command[] = [help, man, clear, history, date, cal, whoami, avatar, uname, hostname, uptime, env, exportCmd, sleep, which, neofetch, fortune, rain, exit, quit, reboot, fullscreen, colors];
+export const systemCommands: Command[] = [help, man, clear, history, date, cal, whoami, avatar, uname, hostname, uptime, env, exportCmd, trueCmd, falseCmd, sleep, which, neofetch, fortune, rain, exit, quit, reboot, fullscreen, colors];

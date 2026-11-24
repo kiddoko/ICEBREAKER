@@ -81,7 +81,7 @@ export const trashCommand: Command = {
     const items = await trashItems(d);
     if (!sub || sub === "ls") {
       if (!items.length) return ctx.out(fmt.dim("the trash is empty\n")), 0;
-      items.forEach((it, i) => ctx.out(`${fmt.dim(String(i + 1).padStart(3))}  ${it.isDir ? fmt.bold(`${it.name}/`) : it.name}  ${fmt.dim(`${it.from ? `from /${it.from} · ` : ""}${ago(it.at.getTime(), true)} ago`)}\n`));
+      items.forEach((it, i) => ctx.out(`${fmt.dim(String(i + 1).padStart(3))}  ${it.isDir ? fmt.bold(`${it.name}/`) : it.name}  ${fmt.dim(`${it.from ? `from /${it.from} · ` : ""}${sinceWhen(it.at.getTime())}`)}\n`));
       ctx.out(fmt.dim("trash restore <n> puts one back\n"));
       return 0;
     }
@@ -116,3 +116,9 @@ export const trashCommand: Command = {
     return ctx.err("usage: trash · trash restore <n> · trash purge <n> · trash empty · trash open\n"), 1;
   },
 };
+
+/** "5 min ago", or "just now" (not « just now ago », nor « 1 min » seconds after the rm) */
+function sinceWhen(at: number): string {
+  const a = ago(at, true);
+  return /^\d/.test(a) ? `${a} ago` : a;
+}

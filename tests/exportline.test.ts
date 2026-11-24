@@ -38,3 +38,13 @@ describe("variables set earlier on the same line", () => {
     expect(out.join("")).not.toContain("a\n");
   });
 });
+
+describe("true and false are commands", () => {
+  it("false && echo no || echo yes → yes, with no « command not found »", async () => {
+    const { systemCommands } = await import("../src/shell/commands/system");
+    const t = systemCommands.find((c) => c.name === "true")!;
+    const f = systemCommands.find((c) => c.name === "false")!;
+    expect(t.run({} as never)).toBe(0);
+    expect(f.run({} as never)).toBe(1);
+  });
+});

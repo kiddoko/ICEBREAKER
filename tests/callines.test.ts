@@ -41,3 +41,21 @@ describe("local calendar lines", () => {
     expect(notYetIn(old, have).map((e) => e.title)).toEqual(["b"]);
   });
 });
+
+describe("how an event's time is said", async () => {
+  const { timeSpan, until } = await import("../plugins/calendar/lines");
+  it("one ending on a later day says so", () => {
+    const s = new Date(2026, 10, 19, 22, 0);
+    expect(timeSpan(s.toISOString(), new Date(2026, 10, 19, 23, 0).toISOString())).toBe("22:00–23:00");
+    expect(timeSpan(s.toISOString(), new Date(2026, 10, 20, 23, 0).toISOString())).toBe("22:00–23:00 +1d");
+    expect(timeSpan(s.toISOString(), new Date(2026, 10, 20, 2, 0).toISOString())).toBe("22:00–02:00 +1d");
+  });
+  it("two events of the same day are as many days away", () => {
+    const now = new Date(2026, 10, 24, 15, 0);
+    expect(until(new Date(2026, 10, 25, 10, 0), now)).toBe(until(new Date(2026, 10, 25, 22, 0), now));
+    expect(until(new Date(2026, 10, 25, 22, 0), now)).toBe("in 1 d");
+    expect(until(new Date(2026, 10, 24, 15, 30), now)).toBe("in 30 min");
+    expect(until(new Date(2026, 10, 24, 20, 0), now)).toBe("in 5 h");
+    expect(until(new Date(2026, 10, 25, 1, 0), now)).toBe("in 10 h");
+  });
+});
