@@ -18,7 +18,7 @@
  */
 import type { App } from "../../src/apps/types";
 import { parseEventsFile } from "./importer";
-import { eventLine, notYetIn, parseEventLine } from "./lines";
+import { eventLine, notYetIn, parseEventLine, timeSpan, until } from "./lines";
 import { monthShape, weekShape, WEEK_W } from "./sizes";
 import type { Rect } from "../../src/core/grid";
 import type { Action, KeyInput } from "../../src/core/input";
@@ -76,14 +76,6 @@ function parseDuration(raw: string): number | null {
   return Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0);
 }
 
-/** "in 25 min", "in 3 h", "now" */
-function until(d: Date): string {
-  const min = Math.round((d.getTime() - Date.now()) / 60_000);
-  if (min <= 0) return "now";
-  if (min < 60) return `in ${min} min`;
-  if (min < 24 * 60) return `in ${Math.round(min / 60)} h`;
-  return `in ${Math.round(min / 1440)} d`;
-}
 
 let syncTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -331,7 +323,8 @@ export function activate(ib: IcebreakerAPI): void {
     const n = parseInt(c.slice(1), 16);
     return `\x1b[38;2;${(n >> 16) & 255};${(n >> 8) & 255};${n & 255}m${s}\x1b[39m`;
   };
-  const when = (e: Ev) => (e.allDay ? t("all day") : `${hm(dayOf(e.start))}–${hm(dayOf(e.end))}`);
+  // (an event ending on a later day says so: 22:00–23:00 +1d)
+  const when = (e: Ev) => (e.allDay ? t("all day") : timeSpan(e.start, e.end));
   const dayTitle = (d: Date) => {
     const n = Math.round((startOfDay(d).getTime() - startOfDay(new Date()).getTime()) / DAY);
     const label = D.dayLong(d, ib.lib.dateLocale());

@@ -88,3 +88,24 @@ export function notYetIn<T extends { title: string; start: string; end: string; 
   const seen = new Set(have.map(key));
   return old.filter((e) => !seen.has(key(e)) && (seen.add(key(e)), true));
 }
+
+/** "22:00–23:00", and "+1d" when it ends on a later day (a 25 h event isn't a 1 h one). */
+export function timeSpan(start: string, end: string): string {
+  const s = dayOf(start);
+  const e = dayOf(end);
+  const days = Math.round((dayOf(ymd(e)).getTime() - dayOf(ymd(s)).getTime()) / 86_400_000);
+  return `${hm(s)}–${hm(e)}${days > 0 ? ` +${days}d` : ""}`;
+}
+
+/**
+ * "in 25 min", "in 3 h", "in 2 d", "now". Days are calendar days: two events of the same day
+ * say the same (« in 1 d » for 10:00 and « in 2 d » for 22:00 the same day, before).
+ */
+export function until(d: Date, now = new Date()): string {
+  const min = Math.round((d.getTime() - now.getTime()) / 60_000);
+  if (min <= 0) return "now";
+  if (min < 60) return `in ${min} min`;
+  const days = Math.round((dayOf(ymd(d)).getTime() - dayOf(ymd(now)).getTime()) / 86_400_000);
+  if (days === 0 || min < 12 * 60) return `in ${Math.round(min / 60)} h`;
+  return `in ${days} d`;
+}
