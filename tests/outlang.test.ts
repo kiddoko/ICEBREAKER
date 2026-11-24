@@ -77,3 +77,13 @@ describe("a module's output: its own French first (0.7.2: BreakerMED's « tracks
     expect(tOutput("3 of 12 tracks", "evil")).toBe("3 sur 12 pistes");
   });
 });
+
+describe("the trash, seconds after the rm", () => {
+  afterEach(() => setLang("en"));
+  it("says just now, not « 1 min »", () => {
+    expect(ago(Date.now() - 5_000, true)).toBe("just now");
+    expect(ago(Date.now() - 90_000, true)).toBe("2 min");
+    setLang("fr");
+    expect(ago(Date.now() - 5_000, true)).toBe("à l'instant");
+  });
+});
