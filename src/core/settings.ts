@@ -452,6 +452,9 @@ export class SettingsStore {
   static async load(platform: Platform): Promise<SettingsStore> {
     const raw = await platform.config.read("settings.json").catch(() => null);
     const rawSecrets = await platform.config.read("secrets.json").catch(() => null);
+    // a settings file that isn't JSON any more (cut short, edited by hand): the defaults are
+    // about to be written over it — what it held is kept first, as settings.json.broken
+    if (unreadable(raw)) await platform.config.write("settings.json.broken", raw!).catch(() => {});
     // (JSON copy rather than structuredClone: works on older macOS WebKit too)
     const data = deepMerge(JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), safeJson(raw)) as Settings;
     // (migrations from before 0.4.0 are gone: update through 0.4.x first)
@@ -570,6 +573,17 @@ export class SettingsStore {
     this.saveTimer = setTimeout(() => {
       this.platform.config.write("settings.json", this.serialize()).catch(saveFailed);
     }, 300);
+  }
+}
+
+/** Text that is there but isn't a JSON object (safeJson would give {}: the defaults). */
+export function unreadable(raw: string | null): boolean {
+  if (!raw?.trim()) return false;
+  try {
+    const v: unknown = JSON.parse(raw.replace(/^\uFEFF/, ""));
+    return !v || typeof v !== "object" || Array.isArray(v);
+  } catch {
+    return true;
   }
 }
 
