@@ -15,6 +15,13 @@
   ready for themes to change them later.
 - Tests prove the 11 built-in themes draw exactly what they drew before (tests/skin-golden.json).
 
+**Themes v2, step 2 (started): theme files, schema 2**
+- `[meta] schema = 2` puts the frames and the logo in their own tables (`[frame] style`,
+  `[widget_frame] style`, `[logo] text`). Every theme written before keeps working: it's converted
+  in memory, the file is never touched. Tests check the 11 built-in themes load the same both ways.
+- **`theme check [name]`**: what the deck made of a theme — its schema, what its file got wrong,
+  readable text and keys.
+
 ## 0.8.1 — not released yet
 
 **Nothing cut, nothing on top of something else** (`debug layout pages`: none left, in English and

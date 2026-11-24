@@ -23,6 +23,7 @@ import { storeCommand } from "../../apps/store";
 import { pickFolder } from "../../workspace/filebrowser";
 import type { Command, ShellContext } from "../types";
 import { applyTweaks, tweaksToToml, type Theme } from "../../core/theme";
+import { checkTheme } from "../../core/skin/check";
 import { knob, knobNames, knobSuggestions, KNOBS, parseKnobValue, SKIN_KNOBS } from "../../core/tweaks";
 import { account, lock, login } from "./account";
 import { chat, daily } from "./daily";
@@ -235,11 +236,11 @@ const theme: Command = {
     ["theme new mytheme", "copy the current theme file to edit by hand"],
   ],
   summary: "list, switch, tweak, export and create themes",
-  usage: "theme [ls]\ntheme set <name>\ntheme set <knob> <value>   (your changes on top of the theme; = theme tweak)\ntheme tweak [<knob> <value> | reset [knob]]\ntheme export <name>  (theme + tweaks → a new theme file)\ntheme studio         (the visual editor)\ntheme new <name>     (copies the current theme into your vault and opens it)\ntheme reload         (re-read .icebreaker/themes/*.toml)\ntheme install <user/repo/file.toml | id>   (download a community theme)",
+  usage: "theme [ls]\ntheme set <name>\ntheme set <knob> <value>   (your changes on top of the theme; = theme tweak)\ntheme tweak [<knob> <value> | reset [knob]]\ntheme check [name]   (what the deck made of a theme file: schema, problems, the floor)\ntheme export <name>  (theme + tweaks → a new theme file)\ntheme studio         (the visual editor)\ntheme new <name>     (copies the current theme into your vault and opens it)\ntheme reload         (re-read .icebreaker/themes/*.toml)\ntheme install <user/repo/file.toml | id>   (download a community theme)",
   man: "Tweaks are kept per theme in settings.json (appearance.tweaks) — the theme file is never changed.\nKnobs: colors (accent accent2 text bg panel border), font font-size, frame mark bullet,\nbackground density speed bg-color bg-color2, sounds pitch, select noise; and every component field: keys.radius keys.lip keys.face… pad.size pad.weight…\n(theme tweak lists them all). Raw keys work too: theme tweak ui.cursor #fff.\nThe full format is in themes/nightshade.toml and docs/THEMES.md.",
   // theme set <tab> → knobs and component fields (keys.radius…), theme set keys.lip <tab> → values
   complete: (args: string[]) =>
-    !args.length ? ["ls", "set", "tweak", "export", "studio", "new", "reload", "install"]
+    !args.length ? ["ls", "set", "tweak", "check", "export", "studio", "new", "reload", "install"]
     : args[0] !== "set" && args[0] !== "tweak" ? []
     : args.length === 1 ? knobNames()
     : args.length === 2 ? knobSuggestions(args[1])
@@ -266,6 +267,16 @@ const theme: Command = {
       }
       ctx.out(`theme → ${name}\n`);
       return;
+    }
+    // theme check <name>: what the loader made of a theme, without switching to it (core/skin)
+    if (sub === "check") {
+      const t = name ? d.themes.get(name) : d.themes.current;
+      const broken = name ? d.themes.errors.find((e) => e.file.replace(/\\/g, "/").split("/").pop() === `${name}.toml`) : undefined;
+      if (broken) return ctx.err(`✖ ${broken.file}: ${broken.error}\n`), 1;
+      if (!t) return ctx.err(`theme check: unknown theme "${name}" — try \`theme ls\`\n`), 1;
+      const out = checkTheme(t);
+      for (const line of out.lines) ctx.out(`${line}\n`);
+      return out.ok ? 0 : 1;
     }
     if (sub === "install") {
       if (!name) return ctx.err("usage: theme install <user/repo/file.toml | id>\n"), 1;

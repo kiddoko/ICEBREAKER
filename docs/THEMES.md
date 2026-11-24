@@ -46,6 +46,14 @@ title_focus = "#39ff14"
 
 `[meta] extends = "phosphor"` builds on another theme: write only what changes.
 
+**Schema 2** (`[meta] schema = 2`, themes v2): the frames and the logo move into their own
+tables — `[frame] style` (was `[meta] border`), `[widget_frame] style` (was `[meta]
+widget_frame`), `[logo] text` (was `[ascii] logo`). Files without `schema` are schema 1 and keep
+working forever: the deck converts them in memory (`upgrade1to2`, `src/core/skin/schema.ts`) and
+never rewrites the file. A file made for a newer deck loads what this one understands, and `theme
+ls` says so. `theme check [name]` shows what the deck made of a theme: its schema, what its file
+got wrong, and the floor.
+
 Bundled fonts (SIL OFL): JetBrains Mono (default), IBM Plex Mono, Fira Code,
 Space Mono, VT323, Share Tech Mono. Any font installed on the system works too.
 A theme without `[font]` uses JetBrains Mono and the user's weight setting.
