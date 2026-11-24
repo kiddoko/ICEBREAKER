@@ -131,3 +131,14 @@ describe("a settings file that can't be read", () => {
     expect(brokenSettingsWhere("windows")).toBe("%APPDATA%\\org.icebreaker.deck\\users\\…\\settings.json.broken");
   });
 });
+
+describe("what the deck says when settings were reset", () => {
+  it("names the real folder of the account, in a message to close", async () => {
+    const { settingsResetMessage } = await import("../src/core/settings");
+    const where = "C:\\Users\\me\\AppData\\Roaming\\org.icebreaker.deck\\users\\3f2a\\settings.json.broken";
+    const m = settingsResetMessage(where);
+    expect(m.title).toContain("couldn't be read");
+    expect(m.detail).toContain(where);
+    expect(m.detail).not.toContain("…");
+  });
+});

@@ -59,3 +59,31 @@ describe("how an event's time is said", async () => {
     expect(until(new Date(2026, 10, 25, 1, 0), now)).toBe("in 10 h");
   });
 });
+
+describe("an event seen from a day it carries over to", async () => {
+  const { timeOn, weekLabel } = await import("../plugins/calendar/lines");
+  const start = new Date(2026, 10, 25, 22, 0).toISOString();
+  const end = new Date(2026, 10, 26, 23, 0).toISOString();
+  const long = new Date(2026, 10, 28, 9, 0).toISOString();
+  const wed = new Date(2026, 10, 25), thu = new Date(2026, 10, 26), fri = new Date(2026, 10, 27);
+  it("its first day: the whole span; a later day: marked, with no start time", () => {
+    expect(timeOn(start, end, wed)).toBe("22:00–23:00 +1d");
+    expect(timeOn(start, end, thu)).toBe("…–23:00");
+    expect(timeOn(start, long, fri)).toBe("…");
+  });
+  it("HOME « this week »: « … x » on Thursday, not « 22:00 x »", () => {
+    const e = { title: "x", start, allDay: false };
+    expect(weekLabel(e, wed)).toBe("22:00 x");
+    expect(weekLabel(e, thu)).toBe("… x");
+    expect(weekLabel({ ...e, allDay: true, start: "2026-11-25" }, thu)).toBe("x");
+  });
+});
+
+describe("a list row's title never covers its time", async () => {
+  const { titleAfter } = await import("../plugins/calendar/lines");
+  it("12 cells after the time as before, more for a longer time", () => {
+    expect(titleAfter(2, "22:00–23:00")).toBe(14);
+    expect(titleAfter(2, "all day")).toBe(14);
+    expect(titleAfter(2, "22:00–23:00 +1d")).toBe(18); // after the d, one blank
+  });
+});

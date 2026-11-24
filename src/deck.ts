@@ -43,7 +43,7 @@ import { macMenuActions } from "./workspace/macmenu";
 import { bloomRadius, bloomStrength, flickerSpeed } from "./core/fxlevels";
 import { Sound, SOUND_CHANNELS, type SoundName } from "./core/sound";
 import { Mixer } from "./core/mixer";
-import { brokenSettingsWhere, DEFAULT_SETTINGS, type SettingsStore } from "./core/settings";
+import { brokenSettingsWhere, DEFAULT_SETTINGS, settingsResetMessage, type SettingsStore } from "./core/settings";
 import { UndoHistory } from "./core/undo";
 import { setTypewriterHost } from "./ui/typewriter";
 import { TIP_CSS, TipView } from "./ui/tipview";
@@ -511,10 +511,8 @@ export class Deck implements InputSink {
     this.openApp("home");
     if (!s.setup.done) this.openApp("setup");
     // settings.json couldn't be read: the setup starts again — say why, and where the old file is
-    if (this.settings.brokenKept) {
-      const os = IS_MAC ? "mac" : /windows/i.test(navigator.userAgent) ? "windows" : "linux";
-      this.workspace.toasts.push(t("your settings couldn't be read: back to the defaults. The old file is kept: {where}", { where: brokenSettingsWhere(os) }), "warning", true);
-    }
+    // (a message you close, over the setup: a toast stayed on top of its title and the tree's « + dir »)
+    if (this.settings.brokenKept) void this.saySettingsReset();
     void this.askVaultSettings();
     // the tabs you had open last time
     await step(() => this.workspace.restoreSession(!s.setup.done).catch(() => {}), () => (s.setup.done && s.session?.tabs?.length ? { text: t("Session restored: {n} tab(s)", { n: s.session.tabs.length }), status: "OK" } : null));
@@ -903,6 +901,14 @@ export class Deck implements InputSink {
     };
     record();
     this.vault.events.on("rescanned", record);
+  }
+
+  /** settings.json couldn't be read (settings.ts brokenKept): say so once, with where the old file is — the real folder. */
+  private async saySettingsReset(): Promise<void> {
+    const os = IS_MAC ? "mac" : /windows/i.test(navigator.userAgent) ? "windows" : "linux";
+    const where = (await this.platform.config.where?.("settings.json.broken").catch(() => null)) ?? brokenSettingsWhere(os);
+    const m = settingsResetMessage(where);
+    await this.workspace.message(m.title, m.detail);
   }
 
   /** Do something through its shell command, echoed in the shell (mouse actions use this). */

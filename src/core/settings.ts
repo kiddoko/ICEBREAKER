@@ -1,5 +1,6 @@
 import { levelOf, levelRank, migrateGranted } from "../plugins/permissions";
 import type { UndoHistory } from "./undo";
+import { t } from "./i18n";
 import type { Platform } from "../platform/types";
 import type { WidgetPlacement } from "../widgets/types";
 
@@ -579,7 +580,15 @@ export class SettingsStore {
   }
 }
 
-/** Where settings.json.broken is, said the way this computer names it. */
+/** What the deck says once when settings.json couldn't be read (a message you close, not a toast). */
+export function settingsResetMessage(where: string): { title: string; detail: string } {
+  return {
+    title: t("Your settings couldn't be read"),
+    detail: t("They are back to the defaults, so the setup starts again.\nThe old file is kept, as it was:\n\n{where}", { where }),
+  };
+}
+
+/** Where settings.json.broken is, said the way this computer names it (when the deck can't ask). */
 export function brokenSettingsWhere(os: "mac" | "windows" | "linux"): string {
   const dir = os === "mac" ? "~/Library/Application Support/org.icebreaker.deck" : os === "windows" ? "%APPDATA%\\org.icebreaker.deck" : "~/.config/org.icebreaker.deck";
   const sep = os === "windows" ? "\\" : "/";

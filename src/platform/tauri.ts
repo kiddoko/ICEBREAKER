@@ -50,6 +50,7 @@ export function createTauriPlatform(): Platform {
     config: {
       read: (name) => invoke<string | null>("config_read", { name }),
       write: (name, content) => invoke<void>("config_write", { name, content }),
+      where: (name) => invoke<string | null>("config_where", { name }),
     },
     system: { stats: () => invoke<SystemStats>("system_stats"), gpu: () => invoke<GpuStats[]>("gpu_stats"), onBattery: () => invoke<boolean | null>("power_on_battery") },
     envApiKey: () => invoke<string | null>("env_api_key"),

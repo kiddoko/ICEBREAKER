@@ -109,3 +109,32 @@ export function until(d: Date, now = new Date()): string {
   if (days === 0 || min < 12 * 60) return `in ${Math.round(min / 60)} h`;
   return `in ${days} d`;
 }
+
+/**
+ * A timed event's time as seen from one day (a day's list, a week's column): on its first day
+ * « 22:00–23:00 +1d »; on a day it carries over to, « …–02:00 » (it ends that day) or « … » (it
+ * goes on). A continuation day is shown — the event is still on — but marked, never with a start
+ * time it doesn't have that day.
+ */
+export function timeOn(start: string, end: string, day: Date): string {
+  const s = dayOf(start);
+  if (ymd(s) >= ymd(day)) return timeSpan(start, end);
+  const e = dayOf(end);
+  return ymd(e) === ymd(day) ? `…–${hm(e)}` : "…";
+}
+
+/** The short form for a week's column: « 22:00 title », « … title » on a day it carries over to. */
+export function weekLabel(e: { title: string; start: string; allDay: boolean }, day: Date): string {
+  if (e.allDay) return e.title;
+  const s = dayOf(e.start);
+  return ymd(s) < ymd(day) ? `… ${e.title}` : `${hm(s)} ${e.title}`;
+}
+
+/**
+ * Where a list row's title starts, after its time drawn at `x`: 11 cells kept for the time, one
+ * blank — more when the time is longer (« 22:00–23:00 +1d »: the title was drawn over its +).
+ * (Every character of a time is one cell wide: digits, :, –, …, +.)
+ */
+export function titleAfter(x: number, time: string): number {
+  return x + Math.max(11, [...time].length) + 1;
+}

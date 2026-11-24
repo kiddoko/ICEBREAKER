@@ -18,7 +18,7 @@
  */
 import type { App } from "../../src/apps/types";
 import { parseEventsFile } from "./importer";
-import { eventLine, notYetIn, parseEventLine, timeSpan, until } from "./lines";
+import { eventLine, notYetIn, parseEventLine, timeOn, timeSpan, titleAfter, until, weekLabel } from "./lines";
 import { monthShape, weekShape, WEEK_W } from "./sizes";
 import type { Rect } from "../../src/core/grid";
 import type { Action, KeyInput } from "../../src/core/input";
@@ -325,6 +325,14 @@ export function activate(ib: IcebreakerAPI): void {
   };
   // (an event ending on a later day says so: 22:00–23:00 +1d)
   const when = (e: Ev) => (e.allDay ? t("all day") : timeSpan(e.start, e.end));
+  /** the same, seen from one day (a carried-over event: « …–02:00 ») — calendar/lines.ts */
+  const whenOn = (e: Ev, day: Date) => (e.allDay ? t("all day") : timeOn(e.start, e.end, day));
+  /**
+   * A list row's time then its title: the title starts after the time, whatever its width
+   * (« 22:00–23:00 +1d » is longer than the 11 cells kept for it: the title was drawn over its +).
+   * Returns where the title starts.
+   */
+  const timeCell = (ui: UI, x: number, y: number, text: string, style: Parameters<UI["text"]>[3]) => (ui.text(x, y, text.padEnd(11), style), titleAfter(x, text));
   const dayTitle = (d: Date) => {
     const n = Math.round((startOfDay(d).getTime() - startOfDay(new Date()).getTime()) / DAY);
     const label = D.dayLong(d, ib.lib.dateLocale());
@@ -988,7 +996,8 @@ export function activate(ib: IcebreakerAPI): void {
               ui.text(cell.x, ey, "▌", { fg: col, bg: tb });
               if (per === 2) ui.text(cell.x, ey + 1, "▌", { fg: col, bg: tb });
               // the hour first when there's room for it, then the name
-              const time = !e.allDay && cw >= 14 ? `${hm(dayOf(e.start))} ` : "";
+              // (a day it carries over to: « … », not another day's start time)
+              const time = !e.allDay && cw >= 14 ? (ymd(dayOf(e.start)) < ymd(d) ? "… " : `${hm(dayOf(e.start))} `) : "";
               const text = `${time}${e.title}`;
               const w = cell.w - 1;
               const fg = other ? c.muted : c.fg;
@@ -1048,10 +1057,10 @@ export function activate(ib: IcebreakerAPI): void {
         if (rbg !== -1) ui.fill(row, { bg: rbg });
         const st = rbg !== -1 ? { bg: rbg } : {};
         ui.text(ax, y, "▍", { fg: colorOf(ui, e.cal), ...st });
-        ui.text(ax + 2, y, when(e).padEnd(11), { fg: c.subtle, ...st });
+        const tx = timeCell(ui, ax + 2, y, whenOn(e, this.day), { fg: c.subtle, ...st });
         const cal = calOf(e.cal)?.name ?? "";
         const rx = cal && aw > 44 ? ui.textRight(ax + aw, y, cal, { fg: c.subtle, ...st }) : ax + aw;
-        ui.text(ax + 14, y, e.title, { fg: c.fg, attrs: isSel ? BOLD : 0, ...st }, rx - ax - 15);
+        ui.text(tx, y, e.title, { fg: c.fg, attrs: isSel ? BOLD : 0, ...st }, rx - tx - 1);
         ui.hit(row, { onClick: () => (this.sel = k), tip: `${e.title}${e.where ? `\n${e.where}` : ""}\nx / delete: remove · cal rm ${ref(e)}` });
         y++;
         if (e.where && y <= bottom) ui.text(ax + 14, y++, `@ ${e.where}`, { fg: c.subtle }, aw - 14);
@@ -1070,8 +1079,8 @@ export function activate(ib: IcebreakerAPI): void {
           }
           const row = { x: ax, y, w: aw, h: 1 };
           ui.text(ax, y, "▍", { fg: colorOf(ui, e.cal) });
-          ui.text(ax + 2, y, when(e).padEnd(11), { fg: c.subtle });
-          ui.text(ax + 14, y, e.title, { fg: ui.hovered(row) ? c.accent : c.muted }, aw - 14);
+          const tx = timeCell(ui, ax + 2, y, when(e), { fg: c.subtle });
+          ui.text(tx, y, e.title, { fg: ui.hovered(row) ? c.accent : c.muted }, ax + aw - tx);
           ui.hit(row, { onClick: () => this.goto(s), tip: `${dayTitle(s)}\nclick: go to that day` });
           y++;
         }
@@ -1206,8 +1215,8 @@ export function activate(ib: IcebreakerAPI): void {
       if (!evs.length) ui.text(ax, r.y + 2, t("nothing · a adds"), { fg: c.subtle });
       evs.slice(0, r.h - 4).forEach((e, i) => {
         ui.text(ax, r.y + 2 + i, "●", { fg: colorOf(ui, e.cal) });
-        ui.text(ax + 2, r.y + 2 + i, when(e).padEnd(11), { fg: c.subtle });
-        ui.text(ax + 14, r.y + 2 + i, e.title, { fg: c.fg }, aw - 14);
+        const tx = timeCell(ui, ax + 2, r.y + 2 + i, whenOn(e, popDay), { fg: c.subtle });
+        ui.text(tx, r.y + 2 + i, e.title, { fg: c.fg }, ax + aw - tx);
       });
       ui.button(ax, r.y + r.h - 1, t("+ add"), () => void addFlow(popDay), { tip: "a" });
     },
@@ -1304,7 +1313,7 @@ export function activate(ib: IcebreakerAPI): void {
         break;
       }
       const tx = ui.text(x, r.y + 1 + k, "▪ ", { fg: colorOf(ui, e.cal) });
-      ui.text(tx, r.y + 1 + k, e.allDay ? e.title : `${hm(dayOf(e.start))} ${e.title}`, { fg: c.fg }, x + w - tx);
+      ui.text(tx, r.y + 1 + k, weekLabel(e, today), { fg: c.fg }, x + w - tx);
     }
     ui.hit(r, { cmd: `cal open ${ymd(today)}`, tip: dayTitle(today) });
   }
@@ -1349,7 +1358,7 @@ export function activate(ib: IcebreakerAPI): void {
         break;
       }
       const tx = ui.text(r.x + INSET, y + 1 + k, "▪ ", { fg: colorOf(ui, e.cal) });
-      ui.text(tx, y + 1 + k, e.allDay ? e.title : `${hm(dayOf(e.start))} ${e.title}`, { fg: c.fg }, r.x + r.w - INSET - tx);
+      ui.text(tx, y + 1 + k, weekLabel(e, today), { fg: c.fg }, r.x + r.w - INSET - tx);
     }
   }
 
@@ -1383,7 +1392,8 @@ export function activate(ib: IcebreakerAPI): void {
         between(d, addDays(d, 1)).slice(0, r.h - 1).forEach((e, k) => {
           const y = r.y + 1 + k;
           ui.text(x + 1, y, "▪", { fg: colorOf(ui, e.cal) });
-          ui.text(x + 2, y, e.allDay ? e.title : `${hm(dayOf(e.start))} ${e.title}`, { fg: d < today ? c.muted : c.fg }, cw - 2);
+          // a day it carries over to: « … title », not the start time of another day
+          ui.text(x + 2, y, weekLabel(e, d), { fg: d < today ? c.muted : c.fg }, cw - 2);
         });
         ui.hit({ x, y: r.y, w: cw, h: r.h }, { cmd: `cal open ${ymd(d)}`, tip: dayTitle(d) });
       }
@@ -1471,8 +1481,8 @@ export function activate(ib: IcebreakerAPI): void {
           if (sel) ui.fill(row, { bg: mix(c.accent, c.bg, 0.8) });
           const st = sel ? { bg: mix(c.accent, c.bg, 0.8) } : {};
           ui.text(r.x + 2, y, "▍", { fg: colorOf(ui, e.cal), ...st });
-          ui.text(r.x + 4, y, when(e).padEnd(11), { fg: c.subtle, ...st });
-          ui.text(r.x + 16, y, e.title, { fg: c.fg, attrs: sel ? BOLD : 0, ...st }, r.w - 30);
+          const tx = timeCell(ui, r.x + 4, y, when(e), { fg: c.subtle, ...st });
+          ui.text(tx, y, e.title, { fg: c.fg, attrs: sel ? BOLD : 0, ...st }, r.x + r.w - 14 - tx);
           ui.textRight(r.x + r.w - 2, y, e.allDay ? "" : until(s), { fg: c.faint, ...st });
           ui.hit(row, { cmd: `cal open ${key}`, tip: "go to that day" });
           y++;

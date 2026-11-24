@@ -143,6 +143,8 @@ export interface Platform {
     read(name: "settings.json" | "secrets.json" | "device.json" | "access.json"): Promise<string | null>;
     /** (settings.json.broken: an unreadable settings file, kept before the defaults replace it) */
     write(name: "settings.json" | "secrets.json" | "device.json" | "access.json" | "settings.json.broken", content: string): Promise<void>;
+    /** the full path of one of these files on this computer (to tell you where it is); none in the browser */
+    where?(name: "settings.json.broken"): Promise<string | null>;
   };
   system: {
     stats(): Promise<SystemStats>;

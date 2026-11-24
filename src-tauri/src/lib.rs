@@ -139,6 +139,7 @@ pub fn run() {
             vault::vault_discard_seed,
             config::config_read,
             config::config_write,
+            config::config_where,
             config::env_api_key,
             config::app_quit,
             quit::app_quit_cancelled,
