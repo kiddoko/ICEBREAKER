@@ -254,6 +254,8 @@ const theme: Command = {
         ctx.out(`${cur ? fmt.magenta("●") : " "} ${ctx.isTTY ? swatch : ""} ${padEnd(t.name, 14)} ${fmt.dim(`${t.source} · ${t.description}`)}\n`);
       }
       for (const e of d.themes.errors) ctx.err(`✖ ${e.file}: ${e.error}\n`);
+      // what a theme file set wrong in its components: that field kept the deck's own (core/skin)
+      for (const t of d.themes.list()) for (const p of t.skinProblems ?? []) ctx.err(`⚠ ${t.name}: ${p.key} — ${p.reason}\n`);
       return;
     }
     // theme set <name> switches; theme set <knob> <value> is a tweak (theme tweak, its alias forever)
@@ -352,6 +354,8 @@ const theme: Command = {
       await d.reloadUserThemes();
       ctx.out(`${d.themes.list().length} themes loaded\n`);
       for (const e of d.themes.errors) ctx.err(`✖ ${e.file}: ${e.error}\n`);
+      // what a theme file set wrong in its components: that field kept the deck's own (core/skin)
+      for (const t of d.themes.list()) for (const p of t.skinProblems ?? []) ctx.err(`⚠ ${t.name}: ${p.key} — ${p.reason}\n`);
       return;
     }
     if (sub === "new") {

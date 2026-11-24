@@ -171,3 +171,27 @@ describe("theme set <key> <value>: knobs generated from the registry", () => {
     expect(complete([])).toContain("tweak");
   });
 });
+
+describe("tokens: no raw colour in the widgets (themes v2, milestone 1)", () => {
+  it("widgets name their colours (core/skin/tokens.ts) instead of writing a hex", async () => {
+    const { readdirSync } = await import("node:fs");
+    for (const f of readdirSync("src/widgets").filter((n) => n.endsWith(".ts"))) {
+      const src = readFileSync(`src/widgets/${f}`, "utf8");
+      const raw = (src.match(/0x[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{6}\b/g) ?? []).filter((h) => !/^(0x|#)(ffffff|000000)$/i.test(h));
+      expect(raw, f).toEqual([]);
+    }
+  });
+});
+
+describe("icon ids (themes v2, milestone 1): same glyphs, asked by id", () => {
+  it("file icons come from the registry and keep the 0.8 glyphs", async () => {
+    const { fileIcon, fileIconId } = await import("../src/ui/fileicon");
+    const { icon } = await import("../src/core/skin/icons");
+    const was: Record<string, string> = { "a.py": "∿", "a.ts": "ʝ", "a.sh": "❯", "a.rs": "λ", "a.toml": "⚙", "a.csv": "▥", "a.html": "◇", "a.txt": "≡", "a.png": "▣", "a.pdf": "▤", "a.mp3": "♪", "a.mp4": "▶", "a.zip": "▦", "a.canvas": "◫", "a.xyz": "◦" };
+    for (const [name, glyph] of Object.entries(was)) {
+      expect(fileIcon(name), name).toBe(glyph);
+      expect(icon(fileIconId(name))).toBe(glyph);
+    }
+    expect([icon("file.folder"), icon("file.note")]).toEqual(["▸", "≡"]);
+  });
+});

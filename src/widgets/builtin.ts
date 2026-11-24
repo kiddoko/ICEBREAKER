@@ -1,3 +1,4 @@
+import { TOKENS } from "../core/skin/tokens";
 import { widgetConfig } from "./instances";
 import { t, dateLocale } from "../core/i18n";
 import { focus } from "./focusstate";
@@ -237,7 +238,7 @@ const weatherWidget: WidgetSpec = {
         new Bar(ui, r.x + INSET, y + 1, r.x + r.w - INSET)
           .text(`${t("feels")} ${Math.round(w.feels)}°`, { fg: c.subtle }, { priority: 6 })
           .text(`${arrow} ${Math.round(w.wind)} km/h`, { fg: c.subtle, raw: true }, { priority: 5 })
-          .text(`☂ ${Math.round(w.rainChance)}%`, { fg: mix(0x7fb4ea, c.bg, 0.2) }, { priority: 7 })
+          .text(`☂ ${Math.round(w.rainChance)}%`, { fg: mix(TOKENS.rain, c.bg, 0.2) }, { priority: 7 })
           .draw();
       return;
     }
@@ -263,7 +264,7 @@ const weatherWidget: WidgetSpec = {
       new Bar(ui, detailR.x + INSET, detailR.y, detailR.x + detailR.w - INSET)
         .text(`${t("feels")} ${Math.round(w.feels)}°`, { fg: c.subtle }, { priority: 6 })
         .text(`${arrow} ${Math.round(w.wind)} km/h`, { fg: c.subtle, raw: true }, { priority: 5 })
-        .text(`☂ ${Math.round(w.rainChance)}%`, { fg: mix(0x7fb4ea, c.bg, 0.2) }, { priority: 7 })
+        .text(`☂ ${Math.round(w.rainChance)}%`, { fg: mix(TOKENS.rain, c.bg, 0.2) }, { priority: 7 })
         .text(`${Math.round(w.humidity)}%rh`, { fg: c.subtle }, { priority: 2 })
         .text(`↑${w.sunrise} ↓${w.sunset}`, { fg: c.subtle }, { side: "right", priority: 1 })
         .draw();
@@ -286,7 +287,7 @@ const weatherWidget: WidgetSpec = {
         const cr = rects[i];
         const k = sky(d.code);
         const [i1, i2] = skyIcon(k);
-        const tint = k === "sun" || k === "partly" ? c.warning : k === "rain" || k === "storm" ? mix(0x7fb4ea, c.bg, 0.1) : k === "snow" ? c.fg : c.muted;
+        const tint = k === "sun" || k === "partly" ? c.warning : k === "rain" || k === "storm" ? mix(TOKENS.rain, c.bg, 0.1) : k === "snow" ? c.fg : c.muted;
         const day = new Date(`${d.date}T12:00`).toLocaleDateString(locale, { weekday: "short" }).replace(".", "");
         ui.text(cr.x, cr.y, day, { fg: c.fg, attrs: BOLD }, cr.w);
         ui.text(cr.x, cr.y + 1, i1, { fg: tint }, cr.w);
