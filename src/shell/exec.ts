@@ -134,8 +134,21 @@ export class ShellExecutor {
         const path = resolvePath(this.cwd, c.output.path);
         const text = stripAnsi(res.stdout);
         try {
+          // `echo x > note.md` over a note: ⌘Z brings its text back (it used to be gone for good).
+          // (what it held is read by the deck itself, only for the undo: never shown to the line)
+          const existed = await this.deck.vault.exists(path).catch(() => false);
+          const before = existed ? await this.deck.vault.read(path).catch(() => null) : null;
           if (c.output.append) await vault.append(path, text);
           else await vault.write(path, text);
+          if (!existed) this.deck.vault.recordCreated(path);
+          else if (before !== null) {
+            const after = await this.deck.vault.read(path).catch(() => null);
+            this.deck.history?.record({
+              label: `${c.output.append ? ">>" : ">"} ${path}`,
+              undo: () => this.deck.vault.write(path, before),
+              redo: after === null ? undefined : () => this.deck.vault.write(path, after),
+            });
+          }
         } catch (e) {
           this.print(`ibsh: ${c.output.path}: ${errMsg(e)}\n`, true);
           return 1;

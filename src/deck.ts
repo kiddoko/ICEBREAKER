@@ -71,7 +71,6 @@ import { q, type Hit } from "./ui/ui";
 import { keyFace, UI } from "./ui/ui";
 import { keycapLook } from "./core/keycap";
 import { setPadLook } from "./core/padglyphs";
-import { ensureEntry } from "./vault/journal";
 import { basename, join, slugify } from "./vault/paths";
 import { Vault } from "./vault/vault";
 import { BootScreen, type BootLine } from "./workspace/boot";
@@ -1053,7 +1052,7 @@ export class Deck implements InputSink {
       existing.goto(date);
       this.workspace.open(existing);
     } else {
-      await ensureEntry(this.vault, date, this.settings.data.user.locale).catch(() => {});
+      // (no file yet: the journal shows the day's template and writes it once you type)
       this.openApp("journal", date);
     }
     this.requestFrame();

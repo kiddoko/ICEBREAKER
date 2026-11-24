@@ -40,6 +40,8 @@ export class NoteApp implements App {
     public path: string,
     /** Called once the file content is in the editor (e.g. to place the cursor). */
     private readonly onLoaded?: (editor: TextEditor) => void,
+    /** a file that doesn't exist yet shows this (a journal day's template); it's written only once you type */
+    private readonly draft?: string,
   ) {
     this.key = `note:${path}`;
     this.editor = new TextEditor("", {
@@ -99,7 +101,7 @@ export class NoteApp implements App {
 
   private async load(keepCursor = false): Promise<void> {
     try {
-      const raw = (await this.deck.vault.exists(this.path)) ? await this.deck.vault.read(this.path) : "";
+      const raw = (await this.deck.vault.exists(this.path)) ? await this.deck.vault.read(this.path) : (this.loaded ? "" : (this.draft ?? ""));
       this.eol = lineEnding(raw);
       const text = toLf(raw);
       if (keepCursor && text === this.editor.text) return void (this.saved = text);
@@ -157,6 +159,8 @@ export class NoteApp implements App {
   async save(opts: { auto?: boolean } = {}): Promise<void> {
     if (!this.dirty() || this.conflict) return;
     clearTimeout(this.saveTimer);
+    // a day's template you emptied before it was ever written: nothing to write, nothing to keep
+    if (this.draft !== undefined && this.editor.text.trim() === "" && !(await this.deck.vault.exists(this.path))) return void (this.saved = this.editor.text);
     if (emptiedNote(this.editor.text, this.saved)) {
       if (opts.auto) {
         this.saveTimer = setTimeout(() => void this.save(), NoteApp.EMPTY_SAVE_MS);
