@@ -72,8 +72,10 @@ export interface VaultCryptReport {
   backup?: string;
   /** plain files that couldn't be removed afterwards (encrypt) */
   left: string[];
-  /** the recovery key's 24 words (encrypt): shown once, kept nowhere */
+  /** the recovery key's 24 words (encrypt, rekey): shown once, kept nowhere — written only by `confirmRecovery` */
   recovery?: string;
+  /** export: what of `.icebreaker/` the plain copy left out, by name ("account.json", "shell_history"…) */
+  kept_out?: string[];
 }
 
 export interface VaultCrypt {
@@ -85,8 +87,12 @@ export interface VaultCrypt {
   /** `password`: the logged-in account's, checked by the native side */
   export(dest: string, password: string): Promise<VaultCryptReport>;
   unlock(password: string): Promise<void>;
-  /** A new recovery key (the old one stops working); `password` = the account's. Returns its 24 words. */
+  /** A new recovery key, proposed; `password` = the account's. Returns its 24 words. Nothing is written yet. */
   newRecovery(password: string): Promise<string>;
+  /** The proposed recovery key (newRecovery, encrypt, rekey) was typed back: written now, the old one stops working. */
+  confirmRecovery?(): Promise<void>;
+  /** It wasn't (esc): forgotten, the vault's recovery key is what it was. */
+  dropRecovery?(): Promise<void>;
   /** The recovery key opens the mounted vault; the account's `password` opens it from now on. */
   recover(words: string, password: string): Promise<void>;
   /** A new vault key: everything encrypted again, a new recovery key (its words in the report). */
@@ -193,6 +199,8 @@ export interface Platform {
     create(user: string, password: string, approver?: string, approverPassword?: string): Promise<{ id: string; user: string }>;
     /** Right name + password → that account is unlocked (its settings are the ones read and written). */
     verify(user: string, password: string): Promise<boolean>;
+    /** How long (ms) the next password of `user` will wait after its wrong ones (the login page says "wait N s"). */
+    wait?(user: string): Promise<number>;
     /** Right name + password of an account of this deck? Checked only: nothing is unlocked. */
     check(user: string, password: string): Promise<boolean>;
     /** No account unlocked any more. */

@@ -106,10 +106,8 @@ fn rekey_vault_with(root: &Path, password: &str, kdf: KdfParams, fail: &dyn Fn(S
     }
     let mut report = Report::default();
     let built = (|| -> Result<()> {
-        let (mut kf, key) = KeyFile::create_with(password, kdf).map_err(err)?;
-        let (secret, words) = recovery::generate()?;
-        kf.set_recovery(&key, &secret[..]).map_err(err)?;
-        report.recovery = Some(words.to_string());
+        // no recovery key yet: vault.rs makes one, written only once its words are typed back
+        let (kf, key) = KeyFile::create_with(password, kdf).map_err(err)?;
         let mut s = Store::create(partial.clone(), key)?;
         s.bulk = true;
         for (i, (path, n)) in old.all().enumerate() {
@@ -789,9 +787,25 @@ pub struct Report {
     pub backup: Option<String>,
     /// plain files that couldn't be removed afterwards (encrypt)
     pub left: Vec<String>,
-    /// the recovery key's 24 words (encrypt): shown once, kept nowhere
+    /// the recovery key's 24 words (encrypt, rekey): shown once, kept nowhere
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recovery: Option<String>,
+    /// what of the deck's own folder a plain copy left out (export: see [`exported`]), by
+    /// name under `.icebreaker/` ("account.json", "shell_history"…), each once, sorted
+    pub kept_out: Vec<String>,
+}
+
+/// What of the deck's own folder (`.icebreaker/`) a plain copy (`vault export`) takes:
+/// what you made or installed — themes, templates, plugins, scripts, sounds, icons, tags,
+/// the AI's context. Never the account (its card holds the password's hash), the
+/// settings, the secrets, the shell's history or the deck's counters and state files.
+/// Everything outside `.icebreaker/` is yours and always goes.
+pub fn exported(rel: &str) -> bool {
+    const KEEP: [&str; 8] = ["themes", "templates", "plugins", "scripts", "sounds", "icons.json", "tags.json", "context.md"];
+    let lower = rel.to_lowercase();
+    let Some(rest) = lower.strip_prefix(".icebreaker/") else { return true };
+    let first = rest.split('/').next().unwrap_or("");
+    KEEP.contains(&first)
 }
 
 /// Is there a recovery key for the vault at `root`?
@@ -799,15 +813,16 @@ pub fn has_recovery(root: &Path) -> bool {
     load_key_file(root).map(|k| k.has_recovery()).unwrap_or(false)
 }
 
-/// A new recovery key (the old one stops working). The password must open the vault.
-/// Returns its 24 words, to show once.
-pub fn new_recovery(root: &Path, password: &str) -> Result<Zeroizing<String>> {
-    let mut kf = load_key_file(root).map_err(err)?;
-    let key = kf.unlock(password).map_err(err)?;
-    let (secret, words) = recovery::generate()?;
-    kf.set_recovery(&key, &secret[..]).map_err(err)?;
-    save_key_file(root, &kf)?;
-    Ok(words)
+impl Store {
+    /// The recovery key `secret` becomes this vault's (the old one, if any, stops working).
+    /// Called only once its words were typed back (vault.rs `confirm_recovery`): until
+    /// then the key file isn't touched and the old recovery key still opens the vault.
+    pub fn set_recovery(&self, secret: &[u8]) -> Result<()> {
+        let root = self.dir.parent().ok_or("the vault has no folder")?;
+        let mut kf = load_key_file(root).map_err(err)?;
+        kf.set_recovery(&self.key, secret).map_err(err)?;
+        save_key_file_in(&self.dir, &kf)
+    }
 }
 
 /// Password forgotten: the recovery key opens the vault, and `new_password` becomes
@@ -865,12 +880,8 @@ fn encrypt_vault_with(root: &Path, password: &str, zip_path: &Path, kdf: KdfPara
 
     // 3. the encrypted copy
     let built = (|| -> Result<()> {
-        let report = &mut report;
-        let (mut kf, key) = KeyFile::create_with(password, kdf).map_err(err)?;
-        // the recovery key exists from the start: no encrypted vault without a way back
-        let (secret, words) = recovery::generate()?;
-        kf.set_recovery(&key, &secret[..]).map_err(err)?;
-        report.recovery = Some(words.to_string());
+        // the recovery key: vault.rs makes it, and writes it only once its words are typed back
+        let (kf, key) = KeyFile::create_with(password, kdf).map_err(err)?;
         let mut s = Store::create(partial.clone(), key)?;
         s.bulk = true;
         // inside, every name in one Unicode form (NFC): the same on every system
@@ -943,17 +954,24 @@ fn encrypt_vault_with(root: &Path, password: &str, zip_path: &Path, kdf: KdfPara
 
 /// Write every file of `store` as plain files under `dest`, each read back and
 /// compared. Refuses to overwrite anything; on any problem, what it wrote is removed.
-fn write_plain(store: &Store, dest: &Path) -> Result<Report> {
+fn write_plain(store: &Store, dest: &Path, keep: fn(&str) -> bool) -> Result<Report> {
     let mut made_files: Vec<PathBuf> = Vec::new();
     let mut made_dirs: Vec<PathBuf> = Vec::new();
     let mut report = Report::default();
     // names this computer can't hold (Windows: ":", "?", "CON"…): said before anything is written
-    let bad: Vec<String> = store.all().filter_map(|(rel, _)| name_problem(rel).map(|why| format!("{rel}: {why}"))).collect();
+    let bad: Vec<String> = store.all().filter(|(rel, _)| keep(rel)).filter_map(|(rel, _)| name_problem(rel).map(|why| format!("{rel}: {why}"))).collect();
     if !bad.is_empty() {
         return Err(format!("nothing was written — names this computer can't hold (rename them in ICEBREAKER first):\n  {}", bad.join("\n  ")));
     }
     let r = (|| -> Result<()> {
         for (rel, n) in store.all() {
+            if !keep(rel) {
+                let top = rel.split('/').nth(1).unwrap_or(rel).to_string();
+                if !report.kept_out.contains(&top) {
+                    report.kept_out.push(top);
+                }
+                continue;
+            }
             let p = dest.join(rel);
             if n.dir {
                 if !p.exists() {
@@ -983,6 +1001,7 @@ fn write_plain(store: &Store, dest: &Path) -> Result<Report> {
         }
         Ok(())
     })();
+    report.kept_out.sort();
     if let Err(e) = r {
         for f in made_files {
             let _ = fs::remove_file(f);
@@ -1184,7 +1203,7 @@ pub fn decrypt_vault(root: &Path, password: &str) -> Result<Report> {
     if !clash.is_empty() {
         return Err(format!("nothing was changed — plain files are already there:\n  {}", clash.join("\n  ")));
     }
-    let report = write_plain(&store, root).map_err(|e| format!("{e} — stopped: the vault is still encrypted, the plain files written were removed"))?;
+    let report = write_plain(&store, root, |_| true).map_err(|e| format!("{e} — stopped: the vault is still encrypted, the plain files written were removed"))?;
     drop(store);
     fs::remove_dir_all(root.join(STORE_DIR)).map_err(|e| format!("every file is plain again, but the encrypted folder couldn't be removed: {e}"))?;
     Ok(report)
@@ -1201,7 +1220,7 @@ pub fn export(store: &Store, root: &Path, dest: &Path) -> Result<Report> {
     if fs::read_dir(&real_dest).map_err(err)?.next().is_some() {
         return Err(format!("{}: the folder isn't empty", dest.display()));
     }
-    write_plain(store, &real_dest)
+    write_plain(store, &real_dest, exported)
 }
 
 #[cfg(test)]
@@ -1209,6 +1228,13 @@ mod tests {
     use super::*;
 
     const FAST: KdfParams = KdfParams { m_kib: 8, t: 1, p: 1 };
+
+    /// A recovery key made and written (what vault.rs does once its words are typed back).
+    fn with_recovery(s: &Store) -> String {
+        let (secret, words) = recovery::generate().unwrap();
+        s.set_recovery(&secret[..]).unwrap();
+        words.to_string()
+    }
 
     fn scratch(name: &str) -> PathBuf {
         let d = std::env::temp_dir().join(format!("ib-store-{name}-{}", new_id().unwrap()));
@@ -1436,7 +1462,11 @@ mod tests {
         let (rep, s) = encrypt_vault_with(&root, "password!", &zip_for(&base), FAST, &|_| Ok(())).unwrap();
         assert_eq!(rep.files, orig.len());
         assert!(rep.left.is_empty(), "{:?}", rep.left);
-        assert_eq!(rep.recovery.as_deref().unwrap().split(' ').count(), 24);
+        // no recovery key until its words are typed back (vault.rs confirm_recovery)
+        assert!(rep.recovery.is_none());
+        assert!(!has_recovery(&root));
+        let (secret, _) = recovery::generate().unwrap();
+        s.set_recovery(&secret[..]).unwrap();
         assert!(has_recovery(&root));
         assert!(s.is_dir("dossier vide"));
         drop(s);
@@ -1596,8 +1626,23 @@ mod tests {
         fs::write(base.join("full/x"), b"x").unwrap();
         assert!(export(&s, &root, &base.join("full")).is_err());
         let rep = export(&s, &root, &base.join("copy")).unwrap();
-        assert_eq!(rep.files, orig.len());
-        assert_eq!(plain_files(&base.join("copy")), orig);
+        let want: BTreeMap<String, Vec<u8>> = orig.iter().filter(|(k, _)| exported(k)).map(|(k, v)| (k.clone(), v.clone())).collect();
+        assert_eq!(rep.files, want.len());
+        assert_eq!(rep.kept_out, vec!["stats.json"]);
+        assert_eq!(plain_files(&base.join("copy")), want);
+        // the deck's private files stay out of a plain copy; themes and templates go
+        let mut s = s;
+        for (p, d) in [(".icebreaker/account.json", "{\"hash\":\"$argon2id$…\"}"), (".icebreaker/settings.json", "{}"), (".icebreaker/secrets.json", "{}"), (".icebreaker/shell_history", "vault export"), (".icebreaker/themes/night.toml", "name = \"night\""), (".icebreaker/templates/day.md", "# day")] {
+            s.write(p, d.as_bytes()).unwrap();
+        }
+        let rep = export(&s, &root, &base.join("copy2")).unwrap();
+        let got = plain_files(&base.join("copy2"));
+        // named as they are: what was really left out
+        assert_eq!(rep.kept_out, vec!["account.json", "secrets.json", "settings.json", "shell_history", "stats.json"]);
+        assert!(got.contains_key(".icebreaker/themes/night.toml") && got.contains_key(".icebreaker/templates/day.md") && got.contains_key(".icebreaker/plugins/demo/main.js"));
+        for k in got.keys() {
+            assert!(!k.contains("account.json") && !k.contains("settings.json") && !k.contains("secrets") && !k.contains("shell_history") && !k.contains("stats"), "{k}");
+        }
         assert!(is_encrypted(&root));
         fs::remove_dir_all(base).unwrap();
     }
@@ -1607,9 +1652,12 @@ mod tests {
         let base = scratch("recovery");
         let root = base.join("vault");
         let orig = sample(&root);
-        let (rep, s) = encrypt_vault_with(&root, "forgotten password", &zip_for(&base), FAST, &|_| Ok(())).unwrap();
+        let (_, s) = encrypt_vault_with(&root, "forgotten password", &zip_for(&base), FAST, &|_| Ok(())).unwrap();
+        // no recovery key yet: the words open nothing until they're written
+        let (_, unwritten) = recovery::generate().unwrap();
+        assert!(recover(&root, &unwritten, "new password").err().unwrap().contains("no recovery key"));
+        let words = with_recovery(&s);
         drop(s);
-        let words = rep.recovery.unwrap();
         // wrong words, or another vault's: refused, nothing changed
         let (_, other) = recovery::generate().unwrap();
         let before = fs::read(root.join(STORE_DIR).join(KEY_FILE)).unwrap();
@@ -1624,10 +1672,11 @@ mod tests {
         drop(s);
         assert!(Store::unlock(&root, "forgotten password").is_err());
         assert!(Store::unlock(&root, "new password").is_ok());
-        // a new recovery key: the old words stop working
-        assert!(new_recovery(&root, "wrong password").is_err());
-        let fresh = new_recovery(&root, "new password").unwrap();
-        assert_ne!(*fresh, words);
+        // a new recovery key: the old words stop working once it's written
+        let s = Store::unlock(&root, "new password").unwrap();
+        let fresh = with_recovery(&s);
+        drop(s);
+        assert_ne!(fresh, words);
         assert!(recover(&root, &words, "x password").is_err());
         assert!(recover(&root, &fresh, "newest password").is_ok());
         assert!(Store::unlock(&root, "newest password").is_ok());
@@ -1790,17 +1839,19 @@ mod tests {
         let base = scratch("rekey");
         let root = base.join("vault");
         let orig = sample(&root);
-        let (rep, s) = encrypt_vault_with(&root, "password!", &zip_for(&base), FAST, &|_| Ok(())).unwrap();
+        let (_, s) = encrypt_vault_with(&root, "password!", &zip_for(&base), FAST, &|_| Ok(())).unwrap();
+        let old_words = with_recovery(&s);
         drop(s);
-        let old_words = rep.recovery.unwrap();
         let old_key = fs::read(root.join(STORE_DIR).join(KEY_FILE)).unwrap();
         let (rep, s) = rekey_vault_with(&root, "password!", FAST, &|_| Ok(())).unwrap();
         assert_eq!(rep.files, orig.len());
         for (rel, data) in &orig {
             assert_eq!(&s.read(rel).unwrap()[..], &data[..], "{rel}");
         }
+        // the new key file has no recovery key until its words are typed back
+        assert!(rep.recovery.is_none() && !has_recovery(&root));
+        let new_words = with_recovery(&s);
         drop(s);
-        let new_words = rep.recovery.unwrap();
         assert_ne!(new_words, old_words);
         assert!(!root.join(OLD_DIR).exists() && !root.join(PARTIAL_DIR).exists());
         // the old recovery key no longer opens it; the new one does

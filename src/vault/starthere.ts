@@ -644,12 +644,14 @@ todo add "pack the books" --every sat --cycles 3
 - An account **locks the app**. Its vault can be **encrypted** too: \`vault encrypt\`
   (a plain backup zip next to the vault first, every file checked; at the end it offers
   to delete that zip — your notes in plain; later: \`vault wipe-backup\`, and copies in
-  Time Machine, iCloud or the Trash are yours to delete). Then this folder
-  holds only noise — no note, no name — and your password opens it at login; ICEBREAKER
+  your backups, a synced folder or the Trash are yours to delete). Then this folder
+  holds only noise — no note, no name — and your account's password opens it at login; ICEBREAKER
   and ibsh work as always, your real terminal, Obsidian and git see noise.
-  \`vault export <folder>\`: a plain copy. \`vault decrypt\`: back to plain files.
-  It gives a **recovery key**: 24 words, shown once — write them on paper. Forgot
-  the password? Login page → *forgot password?*. \`vault recovery\`: a new one. \`vault rekey\` (Settings → PRIVACY → Vault key): a new key for the whole vault, everything encrypted again — if an old copy may be in someone's hands.
+  \`vault export <folder>\`: a plain copy (never your account, settings, secrets or shell
+  history). \`vault decrypt\`: back to plain files.
+  It gives a **recovery key**: 24 words, shown once — write them on paper; it's kept only
+  once you type one of them back (esc: none yet). Forgot
+  the password? Login page → *forgot password?*. \`vault recovery\`: a new one (the old one works until you type a word of the new). \`vault rekey\` (Settings → PRIVACY → Vault key): a new key for the whole vault, everything encrypted again — if an old copy may be in someone's hands.
   It's an option (Settings → PRIVACY), either way, as often as you like.
   Three things: the **vault key** encrypts the files (you never see it); your **password**
   and the **recovery key** are two doors to it. Typed in the shell, these commands stay in

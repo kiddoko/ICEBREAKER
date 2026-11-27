@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 use crate::vault::{self, VaultState};
 use tauri::{AppHandle, Manager, State};
 use zeroize::Zeroizing;
@@ -56,9 +56,11 @@ pub struct AccountInfo {
 
 #[derive(Default)]
 pub struct AccountState {
-    fails: Mutex<u32>,
-    /// where the count of wrong passwords is kept (quitting doesn't reset the delay)
-    fails_file: Mutex<Option<PathBuf>>,
+    /// the wait after wrong passwords, per account (delay.rs; quitting doesn't reset it)
+    delays: Mutex<crate::delay::Delays>,
+    /// the accounts' names (folded), as accounts.json last read or wrote them: a wait is kept
+    /// per account only for these — every other name typed shares one (`delay_key`)
+    known: Mutex<std::collections::BTreeSet<String>>,
     /// the account unlocked in this run of the app (its id): its settings are the ones read and written
     session: Mutex<Option<String>>,
     /// a plain vault brought newer settings and you haven't answered yet: this computer's
@@ -108,6 +110,7 @@ fn load(app: &AppHandle) -> Result<Accounts, String> {
                 }
                 save(app, &all)?;
             }
+            remember_names(app, &all);
             return Ok(all);
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Accounts::default()),
@@ -117,7 +120,25 @@ fn load(app: &AppHandle) -> Result<Accounts, String> {
 
 fn save(app: &AppHandle, all: &Accounts) -> Result<(), String> {
     let json = serde_json::to_string_pretty(all).map_err(|e| e.to_string())?;
-    write_private(&config_dir(app)?.join("accounts.json"), &json)
+    write_private(&config_dir(app)?.join("accounts.json"), &json)?;
+    remember_names(app, all);
+    Ok(())
+}
+
+/// The names the waits may be kept under (`delay_key`).
+fn remember_names(app: &AppHandle, all: &Accounts) {
+    if let Some(st) = app.try_state::<AccountState>() {
+        *st.known.lock().unwrap() = all.accounts.iter().map(|a| norm(&a.user)).collect();
+    }
+}
+
+/// Where a name's wait is counted: its own if it's an account of this deck; every other
+/// name — a typo, a guess — shares one, kept under "" (no account has an empty name). So
+/// `login-delay` never lists the names someone tried, and an unknown name waits like a
+/// known one (nothing tells them apart).
+fn delay_key(state: &AccountState, user: &str) -> String {
+    let n = norm(user);
+    if state.known.lock().map(|k| k.contains(&n)).unwrap_or(false) { n } else { String::new() }
 }
 
 fn norm(user: &str) -> String {
@@ -160,10 +181,12 @@ fn weak(phc: &str) -> bool {
 pub fn init(app: &AppHandle) {
     let st = app.state::<AccountState>();
     if let Ok(dir) = config_dir(app) {
-        let p = dir.join("login-delay");
-        let n = fs::read_to_string(&p).ok().and_then(|s| s.trim().parse::<u32>().ok()).unwrap_or(0);
-        *st.fails.lock().unwrap() = n.min(32);
-        *st.fails_file.lock().unwrap() = Some(p);
+        let _ = load(app); // the names the waits are kept under
+        let known = st.known.lock().unwrap().clone();
+        let mut d = crate::delay::Delays::load(&dir.join("login-delay"));
+        // what an older version kept for names that aren't accounts: dropped
+        d.retain(|k| k.is_empty() || known.contains(k));
+        *st.delays.lock().unwrap() = d;
     }
 }
 
@@ -193,20 +216,40 @@ fn find(all: &Accounts, user: &str, password: &str) -> Option<Account> {
     }
 }
 
-/// Wait longer after each failure: 0.25 s, 0.5 s, 1 s … 8 s.
-fn throttle(state: &State<AccountState>) {
-    let fails = *state.fails.lock().unwrap();
-    if fails > 0 {
-        std::thread::sleep(Duration::from_millis((250u64 << (fails - 1).min(5)).min(8000)));
+/// Wait what's left after this account's wrong passwords: 0.25 s, 0.5 s, 1 s … 8 s
+/// (delay.rs). `user` = the name typed; other accounts never wait for it.
+fn throttle(state: &AccountState, user: &str) {
+    crate::delay::wait(&state.delays, &delay_key(state, user));
+}
+
+/// A password for `user` was right (its wait goes back to 0) or wrong (it grows).
+fn record(state: &AccountState, user: &str, ok: bool) {
+    if let Ok(mut d) = state.delays.lock() {
+        d.record(&delay_key(state, user), ok, crate::delay::now_ms());
     }
 }
 
-fn record(state: &State<AccountState>, ok: bool) {
-    let mut f = state.fails.lock().unwrap();
-    *f = if ok { 0 } else { f.saturating_add(1) };
-    if let Some(p) = state.fails_file.lock().unwrap().as_ref() {
-        let _ = crate::crypto::write_private(p, f.to_string().as_bytes());
-    }
+/// The name of the logged-in account ("" if none): the key of its wait.
+fn session_user(app: &AppHandle, state: &AccountState) -> String {
+    session_account(app, state).map(|a| a.user).unwrap_or_default()
+}
+
+/// The logged-in account waits after its wrong vault passwords too (vault unlock, decrypt).
+pub(crate) fn wait_session(app: &AppHandle) {
+    let st = app.state::<AccountState>();
+    throttle(&st, &session_user(app, &st));
+}
+
+pub(crate) fn record_session(app: &AppHandle, ok: bool) {
+    let st = app.state::<AccountState>();
+    record(&st, &session_user(app, &st), ok);
+}
+
+/// How long the next try for `user` will wait (ms): the login page says "wait N s".
+#[tauri::command]
+pub fn account_wait(state: State<AccountState>, user: String) -> u64 {
+    let key = delay_key(&state, &user);
+    state.delays.lock().map(|d| d.remaining(&key, crate::delay::now_ms())).unwrap_or(0)
 }
 
 fn open_session(state: &State<AccountState>, id: &str) {
@@ -243,9 +286,9 @@ pub fn account_create(app: AppHandle, state: State<AccountState>, vault: State<V
     let approver_password = approver_password.map(Zeroizing::new);
     let mut all = load(&app)?;
     if !all.accounts.is_empty() {
-        throttle(&state);
+        throttle(&state, approver.as_deref().unwrap_or(""));
         let ok = find(&all, approver.as_deref().unwrap_or(""), approver_password.as_ref().map(|p| p.as_str()).unwrap_or("")).is_some();
-        record(&state, ok);
+        record(&state, approver.as_deref().unwrap_or(""), ok);
         if !ok {
             return Err("an account of this deck must approve it (its name and password)".into());
         }
@@ -272,10 +315,10 @@ pub fn account_create(app: AppHandle, state: State<AccountState>, vault: State<V
 #[tauri::command(async)]
 pub fn account_check(app: AppHandle, state: State<AccountState>, user: String, password: String) -> Result<bool, String> {
     let password = Zeroizing::new(password);
-    throttle(&state);
+    throttle(&state, &user);
     let all = load(&app)?;
     let ok = find(&all, &user, &password).is_some();
-    record(&state, ok);
+    record(&state, &user, ok);
     Ok(ok)
 }
 
@@ -283,10 +326,10 @@ pub fn account_check(app: AppHandle, state: State<AccountState>, user: String, p
 #[tauri::command(async)]
 pub fn account_verify(app: AppHandle, state: State<AccountState>, vault: State<VaultState>, user: String, password: String) -> Result<bool, String> {
     let password = Zeroizing::new(password);
-    throttle(&state);
+    throttle(&state, &user);
     let all = load(&app)?;
     let found = find(&all, &user, &password);
-    record(&state, found.is_some());
+    record(&state, &user, found.is_some());
     if let Some(a) = &found {
         // a hash from an older, cheaper cost: made again now that the password is known
         if weak(&a.hash) {
@@ -314,12 +357,12 @@ pub fn account_lock(state: State<AccountState>, vault: State<VaultState>) {
 
 /// Is this the logged-in account's password? (throttled like the login)
 pub(crate) fn check_session(app: &AppHandle, state: &State<AccountState>, password: &str) -> Result<(), String> {
-    throttle(state);
     let all = load(app)?;
     let id = state.session().ok_or("log in first: the vault is encrypted with your account's password")?;
     let acc = all.accounts.iter().find(|a| a.id == id).ok_or("no account")?;
+    throttle(state, &acc.user);
     let ok = check(acc, &acc.user.clone(), password);
-    record(state, ok);
+    record(state, &acc.user, ok);
     if ok { Ok(()) } else { Err("wrong password".into()) }
 }
 
@@ -355,7 +398,8 @@ pub fn vault_rekey(app: AppHandle, state: State<AccountState>, vault: State<Vaul
 pub fn vault_recovery_new(app: AppHandle, state: State<AccountState>, vault: State<VaultState>, password: String) -> Result<String, String> {
     let password = Zeroizing::new(password);
     check_session(&app, &state, &password)?;
-    Ok(vault::new_recovery(&vault, &password)?.to_string())
+    // proposed only: written once its words are typed back (vault_recovery_confirm)
+    Ok(vault::new_recovery(&vault)?.to_string())
 }
 
 /// `vault unlock` with the recovery key: the mounted vault opens, and the
@@ -366,7 +410,11 @@ pub fn vault_recover(app: AppHandle, state: State<AccountState>, vault: State<Va
     let password = Zeroizing::new(password);
     check_session(&app, &state, &password)?;
     let path = vault::mounted(&vault).ok_or("no vault mounted")?;
-    vault::recover(&vault, &path, &words, &password)
+    let who = session_user(&app, &state);
+    throttle(&state, &who);
+    let r = vault::recover(&vault, &path, &words, &password);
+    record(&state, &who, r.is_ok());
+    r
 }
 
 /// Login page, "forgot password": the account's name + its vault's recovery key
@@ -388,9 +436,9 @@ pub fn account_recover(app: AppHandle, state: State<AccountState>, vault: State<
         if !crate::store::is_encrypted(&p) {
             return Err("this vault isn't encrypted: it has no recovery key (open it with its name and password)".into());
         }
-        throttle(&state);
-        let mut st = crate::store::recover(&p, &words, &new_password).inspect_err(|_| record(&state, false))?;
-        record(&state, true);
+        throttle(&state, &user);
+        let mut st = crate::store::recover(&p, &words, &new_password).inspect_err(|_| record(&state, &user, false))?;
+        record(&state, &user, true);
         let bits = vault_bits(&p, Some(&st));
         if bits.0.as_ref().is_some_and(|c| norm(&c.user) != norm(&user)) {
             return Err(nope());
@@ -400,8 +448,8 @@ pub fn account_recover(app: AppHandle, state: State<AccountState>, vault: State<
     }
     let mut all = load(&app)?;
     let Some(i) = all.accounts.iter().position(|a| norm(&a.user) == norm(&user)) else {
-        throttle(&state);
-        record(&state, false);
+        throttle(&state, &user);
+        record(&state, &user, false);
         return Err(nope());
     };
     let id = all.accounts[i].id.clone();
@@ -413,7 +461,11 @@ pub fn account_recover(app: AppHandle, state: State<AccountState>, vault: State<
         .filter(|p| !p.is_empty())
         .map(PathBuf::from)
         .ok_or_else(nope)?;
-    vault::recover(&vault, &path, &words, &new_password).map_err(|e| if e.contains("isn't encrypted") || e.contains("no recovery key") { nope() } else { e })?;
+    throttle(&state, &user);
+    let r = vault::recover(&vault, &path, &words, &new_password);
+    // a recovery key that opens the vault is a successful login: the wait goes back to 0
+    record(&state, &user, r.is_ok());
+    r.map_err(|e| if e.contains("isn't encrypted") || e.contains("no recovery key") { nope() } else { e })?;
     all.accounts[i].hash = hash(&new_password)?;
     save(&app, &all).map_err(|e| format!("the vault opens with the new password, but the account couldn't be saved ({e}): use the recovery key again"))?;
     open_session(&state, &id);
@@ -426,12 +478,13 @@ pub fn account_recover(app: AppHandle, state: State<AccountState>, vault: State<
 pub fn account_change(app: AppHandle, state: State<AccountState>, vault: State<VaultState>, password: String, new_user: String, new_password: String) -> Result<(), String> {
     let password = Zeroizing::new(password);
     let new_password = Zeroizing::new(new_password);
-    throttle(&state);
     let mut all = load(&app)?;
     let id = state.session().ok_or("locked")?;
     let i = all.accounts.iter().position(|a| a.id == id).ok_or("no account")?;
-    let ok = check(&all.accounts[i], &all.accounts[i].user.clone(), &password);
-    record(&state, ok);
+    let who = all.accounts[i].user.clone();
+    throttle(&state, &who);
+    let ok = check(&all.accounts[i], &who, &password);
+    record(&state, &who, ok);
     if !ok {
         return Err("wrong password".into());
     }
@@ -458,12 +511,13 @@ pub fn account_change(app: AppHandle, state: State<AccountState>, vault: State<V
 #[tauri::command(async)]
 pub fn account_remove(app: AppHandle, state: State<AccountState>, vault: State<VaultState>, password: String) -> Result<(), String> {
     let password = Zeroizing::new(password);
-    throttle(&state);
     let mut all = load(&app)?;
     let id = state.session().ok_or("locked")?;
     let i = all.accounts.iter().position(|a| a.id == id).ok_or("no account")?;
-    let ok = check(&all.accounts[i], &all.accounts[i].user.clone(), &password);
-    record(&state, ok);
+    let who = all.accounts[i].user.clone();
+    throttle(&state, &who);
+    let ok = check(&all.accounts[i], &who, &password);
+    record(&state, &who, ok);
     if !ok {
         return Err("wrong password".into());
     }
@@ -797,9 +851,9 @@ fn adopt_vault(
     // an account to make, or to take over, needs an account of this deck to approve it
     let approve = |all: &Accounts| -> Result<(), String> {
         let (au, ap) = approver.unwrap_or(("", ""));
-        throttle(state);
+        throttle(state, au);
         let ok = find(all, au, ap).is_some();
-        record(state, ok);
+        record(state, au, ok);
         if ok { Ok(()) } else { Err("an account of this deck must approve it (its name and password)".into()) }
     };
     let i = match (mine, same_name) {
@@ -885,16 +939,16 @@ pub fn account_open_vault(app: AppHandle, state: State<AccountState>, vault: Sta
     vault::settle(&vault, &path);
     let wrong = || "that name and password don't open this vault".to_string();
     if crate::store::is_encrypted(&path) {
-        throttle(&state);
+        throttle(&state, &user);
         let mut st = match crate::store::Store::unlock(&path, &password) {
             Ok(s) => s,
             Err(e) if e.contains("newer") => return Err(e),
             Err(_) => {
-                record(&state, false);
+                record(&state, &user, false);
                 return Err(wrong());
             }
         };
-        record(&state, true);
+        record(&state, &user, true);
         let bits = vault_bits(&path, Some(&st));
         if bits.0.as_ref().is_some_and(|c| norm(&c.user) != norm(&user)) {
             return Err(wrong());
@@ -903,9 +957,9 @@ pub fn account_open_vault(app: AppHandle, state: State<AccountState>, vault: Sta
     } else {
         let bits = vault_bits(&path, None);
         if let Some(c) = &bits.0 {
-            throttle(&state);
+            throttle(&state, &user);
             let ok = norm(&c.user) == norm(&user) && sane(&c.hash) && PasswordHash::new(&c.hash).map(|h| Argon2::default().verify_password(password.as_bytes(), &h).is_ok()).unwrap_or(false);
-            record(&state, ok);
+            record(&state, &user, ok);
             if !ok {
                 return Err(wrong());
             }
@@ -977,5 +1031,23 @@ mod tests {
         assert!(validate("neo", "short").is_err());
         assert!(validate("  ", "long enough pass").is_err());
         assert!(validate("neo", "long enough pass").is_ok());
+    }
+
+    #[test]
+    fn waits_are_kept_by_account_and_unknown_names_share_one() {
+        let st = AccountState::default();
+        *st.known.lock().unwrap() = ["test2".to_string()].into_iter().collect();
+        assert_eq!(delay_key(&st, " Test2 "), "test2");
+        // a name that isn't an account is never written down: all of them share ""
+        assert_eq!(delay_key(&st, "nobody"), "");
+        assert_eq!(delay_key(&st, "nobody2"), "");
+        // and "" can't be an account's name
+        assert!(validate("", "long enough pass").is_err());
+        record(&st, "nobody", false);
+        record(&st, "nobody2", false);
+        let d = st.delays.lock().unwrap();
+        // the two guesses counted once, together: 2 failures → 0.5 s
+        assert!(d.remaining("", crate::delay::now_ms()) > 250);
+        assert_eq!(d.remaining("nobody", crate::delay::now_ms()), 0);
     }
 }

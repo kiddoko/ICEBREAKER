@@ -92,9 +92,10 @@ export class RecoveryDialog implements Overlay {
     let y = inner.y;
     ui.text(inner.x + 1, y, t("Write these 24 words down, in order. Shown only now."), { fg: c.fg, attrs: BOLD }, inner.w - 2);
     y += 1;
-    ui.text(inner.x + 1, y, t("They open your vault if you forget your password. ICEBREAKER keeps no copy."), { fg: c.muted }, inner.w - 2);
+    // each line short enough for the window's 74 columns (the long one was cut: Windows bench 24/11)
+    ui.text(inner.x + 1, y, t("They open your vault if you forget your account's password."), { fg: c.muted }, inner.w - 2);
     y += 1;
-    ui.text(inner.x + 1, y, t("whoever has them can open your vault: keep them safe"), { fg: c.subtle }, inner.w - 2);
+    ui.text(inner.x + 1, y, t("ICEBREAKER keeps no copy. Whoever has them opens your vault."), { fg: c.subtle }, inner.w - 2);
     y += 2;
     // 4 columns of 6, numbered top to bottom
     const colW = Math.floor((inner.w - 2) / 4);

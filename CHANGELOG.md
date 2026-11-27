@@ -18,6 +18,30 @@
   theme; the parts that carry a state (a tick, a handle, arrows, a focused frame) at 3:1 at least;
   every click area unchanged; the 11 built-in themes draw exactly what they drew.
 
+**The vault and the accounts: the Windows bench's second Fable pass on 0.8.0** (docs/SECURITY_AUDIT.md 89–95)
+- **`vault recovery` no longer freezes the deck** when you press esc at « type word N » (the
+  question looped for ever). Esc or ctrl+C stops — and nothing is written: a new recovery key is
+  kept aside and **written only once you type one of its words back**. Until then your old one
+  still opens the vault (0.8.0 wrote it first: killing the app at the word left only the new,
+  never-confirmed words). Stopped at the word, `vault encrypt` and `vault rekey` say that the vault
+  has no recovery key yet: `vault recovery` makes one. (The shell says it even though esc stops the command.)
+- **`vault export` leaves your account out**: no `account.json` (your password's hash), settings,
+  secrets or shell history in a plain copy. Notes, themes, templates, plugins, scripts and sounds go;
+  it names what it left out.
+- **The wait after wrong passwords is per account**: one account's typos no longer slow the others.
+  The login page says « wait N s »; typing time counts (a right password after 8 failures no longer
+  waits 9.5 s); a login with the recovery key resets it; `vault decrypt` and `vault unlock` with a
+  wrong password wait too, and the shell says so. `login-delay` keeps only the accounts' names (the
+  names someone tried aren't written down).
+- **Forgot password**: a wrong word no longer erases the 24 words and both passwords — the word is
+  marked, and all 24 show, numbered, as you type. The links under the card don't jump any more.
+- `vault mount C:\Users\…` works (ibsh ate the backslashes: « C:U »).
+- Old update installers are removed from the temp folder at start (`ICEBREAKER-*-updater-*`, 7 MB each).
+- The recovery window's second line isn't cut any more; the plain-backup warning names this
+  computer's tools (File History, Recycle Bin, BitLocker on Windows); « your account's password »
+  everywhere; a file the vault found and put back in `.trash/recovered-…/` is said once;
+  `.gitattributes` keeps the test snapshots LF on Windows.
+
 ## 0.8.0 — 2026-11-24
 
 The new top of the window, keys and the pad, the tab bar, themes v2 (steps 1–2), what modules

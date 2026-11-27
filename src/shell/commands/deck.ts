@@ -570,43 +570,103 @@ function sizeText(bytes: number): string {
 
 /**
  * The recovery key, shown once: 24 numbered words to write on paper. One of them
- * is asked back — you can't go on without it (esc shows the words again): that's
- * the proof they're written down somewhere. Then the screen is cleared: the words
- * stay nowhere, not even in the scrollback.
+ * is asked back (a wrong or empty answer shows the words again): that's the proof
+ * they're written down somewhere. Then the screen is cleared: the words stay
+ * nowhere, not even in the scrollback. Esc or ctrl+C stops (false): the key is then
+ * never written (vault.rs keeps it aside until `confirmRecovery`).
  */
-async function showRecovery(ctx: ShellContext, words: string): Promise<void> {
+export async function showRecovery(ctx: ShellContext, words: string, stopped = recoveryNotKept(true)): Promise<boolean> {
   const list = words.trim().split(/\s+/);
   const show = () => {
     // compact (5 lines), so it fits a small shell panel: 3 rows of 8, read left to right
     ctx.out(`${fmt.bold(fmt.yellow("RECOVERY KEY"))} · write these 24 words on paper, in order · ${fmt.bold("shown only now")}\n`);
     for (let r = 0; r < 3; r++) ctx.out(` ${list.slice(r * 8, r * 8 + 8).map((w, i) => `${fmt.dim(String(r * 8 + i + 1).padStart(2))} ${padEnd(w, 10)}`).join("")}\n`);
-    ctx.out(fmt.dim("they open your vault if you forget your password (login page: forgot password?) · ICEBREAKER keeps no copy · whoever has them can open it\n"));
+    ctx.out(fmt.dim("they open your vault if you forget your account's password (login page: forgot password?) · ICEBREAKER keeps no copy · whoever has them can open it\n"));
   };
   show();
+  // esc / ctrl+C ends the command at once, and a stopped command prints nothing more: what
+  // must still be said (nothing was written) is handed to the shell first, the words cleared
+  ctx.onStop?.(stopped, { clear: true });
   const i = Math.floor(Math.random() * 24);
   for (;;) {
     const typed = await ctx.read(`written down? type word ${i + 1}`, { placeholder: "from your paper" });
-    const w = (typed ?? "").trim().toLowerCase();
+    // esc / ctrl+C: stopped. (Asking again would get null again at once, for ever: the
+    // command is interrupted — that loop froze the deck, Windows bench 24/11.)
+    if (typed === null) {
+      // (the shell already cleared the screen and said `stopped`; without one, it's said here)
+      if (!ctx.onStop) {
+        ctx.shell.clear();
+        ctx.err(`${stopped}\n`);
+      }
+      return false;
+    }
+    const w = typed.trim().toLowerCase();
     if (w && (w.length >= 4 ? list[i].startsWith(w) : w === list[i])) break;
     ctx.shell.clear();
-    ctx.err(typed === null || !w ? "write the words down first — they're the only way back if you forget your password\n" : `that's not word ${i + 1} — look at your paper again\n`);
+    ctx.err(!w ? "write the words down first — they're the only way back if you forget your account's password\n" : `that's not word ${i + 1} — look at your paper again\n`);
     show();
   }
+  ctx.onStop?.(null);
   ctx.shell.clear();
   ctx.out(`${fmt.green("✓")} recovery key written down · the screen is cleared, the words are nowhere else\n`);
+  return true;
+}
+
+/**
+ * What the shell says when the words weren't typed back: nothing was written. `had`:
+ * the vault had a recovery key before (vault recovery: still that one).
+ */
+export function recoveryNotKept(had: boolean): string {
+  return had
+    ? "stopped · no new recovery key: your old one still works (vault recovery to try again)"
+    : "stopped · this vault has no recovery key yet: if you forget your account's password, it's lost — vault recovery makes one";
 }
 
 /**
  * What `vault encrypt` says at the end about the plain backup it made first: it's still on
  * the disk, and copies of it may be elsewhere (docs/ENCRYPTION.md, "The plain backup").
  */
-export function plainBackupWarning(path: string, tr: (s: string, v?: Record<string, string>) => string = (x, v) => x.replace("{p}", v?.p ?? "")): string[] {
-  return [
-    tr("⚠ the plain backup is still on the disk: {p}", { p: path }),
-    tr("it's your notes unencrypted: anyone who gets this file reads them"),
-    tr("copies may also be in Time Machine, iCloud Drive / Dropbox / OneDrive (if that folder syncs) and the Trash: delete them there too"),
-    tr("deleting it here overwrites it, then removes it; an SSD can keep old bytes: the disk's own encryption (FileVault, BitLocker) covers that"),
-  ];
+export function plainBackupWarning(
+  path: string,
+  tr: (s: string, v?: Record<string, string>) => string = (x, v) => x.replace("{p}", v?.p ?? ""),
+  os: "mac" | "windows" | "linux" = hostOs(),
+): string[] {
+  const copies = {
+    mac: "copies may also be in Time Machine, iCloud Drive / Dropbox (if that folder syncs) and the Trash: delete them there too",
+    windows: "copies may also be in File History, OneDrive / Dropbox (if that folder syncs) and the Recycle Bin: delete them there too",
+    linux: "copies may also be in your backups (Déjà Dup, Timeshift…), a synced folder and the Trash: delete them there too",
+  }[os];
+  const disk = {
+    mac: "deleting it here overwrites it, then removes it; an SSD can keep old bytes: the disk's own encryption (FileVault) covers that",
+    windows: "deleting it here overwrites it, then removes it; an SSD can keep old bytes: the disk's own encryption (BitLocker, device encryption) covers that",
+    linux: "deleting it here overwrites it, then removes it; an SSD can keep old bytes: the disk's own encryption (LUKS) covers that",
+  }[os];
+  return [tr("⚠ the plain backup is still on the disk: {p}", { p: path }), tr("it's your notes unencrypted: anyone who gets this file reads them"), tr(copies), tr(disk)];
+}
+
+/** What this computer runs (the names of its backup and disk-encryption tools). */
+function hostOs(): "mac" | "windows" | "linux" {
+  const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
+  return /Windows/i.test(ua) ? "windows" : /Mac/i.test(ua) ? "mac" : "linux";
+}
+
+/** The copies `vault wipe-backup` can't reach, named for this computer. */
+export function backupCopiesNote(os: "mac" | "windows" | "linux" = hostOs()): string {
+  return {
+    mac: "copies in Time Machine, a synced folder or the Trash aren't touched: delete them there",
+    windows: "copies in File History, a synced folder or the Recycle Bin aren't touched: delete them there",
+    linux: "copies in your backups, a synced folder or the Trash aren't touched: delete them there",
+  }[os];
+}
+
+/** "wait 4 s… (wrong passwords before)": the account's wait, rounded up. */
+export function waitNote(ms: number): string {
+  return `wait ${Math.ceil(ms / 1000)} s… (wrong passwords before)`;
+}
+
+/** What `vault export` left out of the plain copy, by name (what really was, not a fixed list). */
+export function keptOutNote(names: string[]): string {
+  return `left out of the copy, private to the deck: ${names.map((n) => `.icebreaker/${n}`).join(", ")}`;
 }
 
 /** `vault wipe-backup`: each path asked, then overwritten and removed (vault.rs vault_wipe_backup). */
@@ -624,7 +684,7 @@ async function wipeBackups(ctx: ShellContext, paths: string[], ask: (title: stri
       ctx.err(`vault wipe-backup: ${e instanceof Error ? e.message : String(e)}\n`);
     }
   }
-  if (paths.length) ctx.out(fmt.dim(`${t("copies in Time Machine, a synced folder or the Trash aren't touched: delete them there")}\n`));
+  if (paths.length) ctx.out(fmt.dim(`${t(backupCopiesNote())}\n`));
   return failed ? 1 : 0;
 }
 
@@ -633,10 +693,19 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
   const { deck } = ctx;
   const crypt = deck.platform.vault.crypt;
   // --window (Settings, the setup): the password in a dialog, the recovery key in its window (copy all)
-  const words = async (w: string): Promise<void> => {
-    if (!window) return showRecovery(ctx, w);
-    await deck.workspace.recoveryWords(w);
-    ctx.out(`${fmt.green("✓")} recovery key kept · the words are nowhere else\n`);
+  // the words typed back → the key is written (vault.rs: kept aside until then); stopped →
+  // forgotten, the vault's recovery key is what it was. Returns: kept.
+  // `stopped`: what the shell says if esc / ctrl+C stops it at the word (the command's own
+  // lines after that never show: it's said with them)
+  const words = async (w: string, stopped: string): Promise<boolean> => {
+    const kept = window ? (await deck.workspace.recoveryWords(w), true) : await showRecovery(ctx, w, stopped);
+    if (!kept) {
+      await crypt?.dropRecovery?.().catch(() => {});
+      return false;
+    }
+    await crypt!.confirmRecovery!();
+    if (window) ctx.out(`${fmt.green("✓")} recovery key kept · the words are nowhere else\n`);
+    return true;
   };
   if (!crypt) return ctx.err("vault: encryption needs the desktop app\n"), 1;
   const st = await crypt.status();
@@ -668,15 +737,21 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
     return 0;
   }
   if (!ctx.isTTY) return ctx.err(`vault ${sub}: needs the terminal\n`), 1;
-  const password = async (label = "your password"): Promise<string | null> => (window ? deck.prompt(label, { mask: true }) : ctx.read(label, { mask: true }));
+  const password = async (label = "your account's password"): Promise<string | null> => (window ? deck.prompt(label, { mask: true }) : ctx.read(label, { mask: true }));
   // the account's password, asked again while it's wrong (a typo gave up on the whole encryption:
   // the setup moved on to the tour with the vault still plain) — checked only, nothing unlocked
+  // after wrong passwords the native side makes this account wait (delay.rs): said, not silent
+  const sayWait = async (): Promise<void> => {
+    const ms = (await deck.platform.account.wait?.(deck.account ?? "").catch(() => 0)) ?? 0;
+    if (ms > 0) ctx.out(fmt.dim(`${waitNote(ms)}\n`));
+  };
   const accountPassword = async (): Promise<string | null> => {
     // the next question says what went wrong (a toast behind the dialog went unseen)
     let label = "your account's password";
     for (;;) {
       const pw = await password(label);
       if (pw === null || !deck.account) return pw;
+      await sayWait();
       if (await deck.platform.account.check(deck.account, pw).catch(() => true)) return pw;
       deck.sound.play("error");
       if (window) label = t("wrong password — try again (esc: cancel)");
@@ -698,7 +773,7 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
     if (sub === "unlock") {
       if (!st.encrypted) return ctx.out("this vault isn't encrypted\n"), 0;
       if (st.unlocked) return ctx.out("already unlocked\n"), 0;
-      const pw = await password("your password (or the 24 words of the recovery key)");
+      const pw = await password("your account's password (or the 24 words of the recovery key)");
       if (pw === null) return 130;
       if (pw.trim().split(/\s+/).length >= 20) {
         // the recovery key: it opens the vault, then your account's password opens it from now on
@@ -719,7 +794,7 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
           "  1. a plain backup zip next to the vault (at the end: delete it, it's your notes in plain)",
           "  2. every file encrypted — notes, names, folders — and checked before its plain copy is removed",
           "  3. ICEBREAKER and ibsh work as always; your real terminal, Obsidian and git only see noise",
-          "  4. a recovery key — 24 words to write on paper — opens it if you forget your password",
+          "  4. a recovery key — 24 words to write on paper — opens it if you forget your account's password",
           "",
         ].join("\n"),
       );
@@ -732,8 +807,12 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
       const r = await crypt.encrypt(pw, localStamp());
       pw = null;
       await deck.vault.rescan();
-      if (r.recovery) await words(r.recovery);
-      ctx.out(`${fmt.green("✓")} encrypted: ${r.files} files, ${r.folders} folders, ${sizeText(r.bytes)} · each one checked\n`);
+      const done = `${fmt.green("✓")} encrypted: ${r.files} files, ${r.folders} folders, ${sizeText(r.bytes)} · each one checked`;
+      if (r.recovery) {
+        const warn = r.backup ? plainBackupWarning(r.backup) : [];
+        await words(r.recovery, [done, recoveryNotKept(false), ...warn, ...(r.backup ? [t("kept: delete it later with vault wipe-backup")] : [])].join("\n"));
+      }
+      ctx.out(`${done}\n`);
       if (r.left.length) ctx.err(`  couldn't remove ${r.left.length} plain file(s), remove them yourself:\n${r.left.map((l) => `    ${l}\n`).join("")}`);
       await tell(
         "The vault is encrypted",
@@ -760,8 +839,10 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
       ctx.out(fmt.dim("checking the password, then encrypting everything again and checking every file… (don't quit)\n"));
       const r = await crypt.rekey(pw);
       pw = null;
-      if (r.recovery) await words(r.recovery);
-      ctx.out(`${fmt.green("✓")} a new vault key: ${r.files} files encrypted again, each checked · the old recovery key is gone\n`);
+      // the old recovery key went with the old vault key: until the new words are typed back, there's none
+      const done = `${fmt.green("✓")} a new vault key: ${r.files} files encrypted again, each checked · the old recovery key is gone`;
+      const kept = r.recovery ? await words(r.recovery, `${done} · no new one yet (vault recovery)\n${recoveryNotKept(false)}`) : false;
+      ctx.out(`${done}${kept ? "" : " · no new one yet (vault recovery)"}\n`);
       await tell("The vault has a new key", `${r.files} files encrypted again, each checked.\nThe old key, the old recovery words and copies made before open nothing new.`);
       return 0;
     }
@@ -773,8 +854,7 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
       if (pw === null) return 130;
       const w = await crypt.newRecovery(pw);
       pw = null;
-      await words(w);
-      return 0;
+      return (await words(w, recoveryNotKept(st.recovery))) ? 0 : 130;
     }
     if (sub === "decrypt") {
       if (!st.encrypted) return ctx.out("this vault isn't encrypted\n"), 0;
@@ -783,6 +863,7 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
       if (!ok) return 1;
       const pw = await password();
       if (pw === null) return 130;
+      await sayWait();
       const r = await crypt.decrypt(pw);
       await deck.vault.rescan();
       ctx.out(`${fmt.green("✓")} plain again: ${r.files} files, ${r.folders} folders, ${sizeText(r.bytes)} · each one checked\n`);
@@ -799,6 +880,8 @@ async function vaultCrypt(ctx: ShellContext, sub: string, rest: string[], window
       // the native side checks it before it writes anything
       const r = await crypt.export(dest, pw);
       ctx.out(`${fmt.green("✓")} plain copy: ${r.files} files, ${r.folders} folders, ${sizeText(r.bytes)} in ${dest} ${fmt.dim("· delete it when you're done")}\n`);
+      // the account (its password's hash), settings, secrets and shell history never go in a plain copy
+      if (r.kept_out?.length) ctx.out(fmt.dim(`${keptOutNote(r.kept_out)}\n`));
       await tell("A plain copy is ready", `${r.files} files, ${r.folders} folders, ${sizeText(r.bytes)} in\n${dest}\nDelete it when you're done: it's your notes in plain.`);
       return 0;
     }
@@ -853,7 +936,7 @@ const vaultCmd: Command = {
   interactive: true,
   summary: "show or switch the vault folder · encrypt it",
   usage:
-    "vault                 show path and stats\nvault mount <abs path>  use another folder (e.g. your Obsidian vault)\nvault move [folder]   move the whole vault there (copied, checked, then used; no folder: choose one)\nvault rescan\nvault status          encrypted or plain, recovery key or not\nvault encrypt         encrypt it (a plain backup zip first, a recovery key at the end)\nvault decrypt         back to plain files\nvault export <folder> a plain copy, the vault stays encrypted\nvault recovery        a new recovery key (24 words; the old one stops working)\nvault rekey           a new vault key: everything encrypted again, a new recovery key\nvault unlock          open it with your password or the recovery key (the login does it)\nvault adopt           plain files written next to the encrypted vault go inside it\nvault backups         the plain backup zips vault encrypt left next to the vault\nvault wipe-backup [zip] delete them (overwritten first; copies in Time Machine, iCloud or the Trash stay)\n  --window            (encrypt, decrypt, recovery, rekey, unlock, export, move) dialogs and windows instead of the shell: the password, the recovery key (copy all), the result",
+    "vault                 show path and stats\nvault mount <abs path>  use another folder (e.g. your Obsidian vault; C:\\Users\\… as typed, quote a path with spaces)\nvault move [folder]   move the whole vault there (copied, checked, then used; no folder: choose one)\nvault rescan\nvault status          encrypted or plain, recovery key or not\nvault encrypt         encrypt it (a plain backup zip first, a recovery key at the end)\nvault decrypt         back to plain files\nvault export <folder> a plain copy, the vault stays encrypted (your notes and themes; never the account, settings, secrets or shell history)\nvault recovery        a new recovery key (24 words; the old one stops working once you type one back — esc keeps the old)\nvault rekey           a new vault key: everything encrypted again, a new recovery key\nvault unlock          open it with your account's password or the recovery key (the login does it)\nvault adopt           plain files written next to the encrypted vault go inside it\nvault backups         the plain backup zips vault encrypt left next to the vault\nvault wipe-backup [zip] delete them (overwritten first; copies in backups, synced folders or the trash stay)\n  --window            (encrypt, decrypt, recovery, rekey, unlock, export, move) dialogs and windows instead of the shell: the password, the recovery key (copy all), the result",
   man: "An encrypted vault is one folder of encrypted files (.icebreaker-vault): names, folders and notes. Your account's password opens it at login; lock wipes its key from memory.\nThe recovery key (24 words, shown once at vault encrypt or vault recovery) opens it if you forget the password: login page → forgot password?.\nICEBREAKER and ibsh read it as always; your real terminal, Obsidian and git only see noise. vault export makes a plain copy.\nSee docs/ENCRYPTION.md.",
   complete: () => ["mount", "move", "rescan", "status", "encrypt", "decrypt", "export", "recovery", "rekey", "unlock", "adopt", "backups", "wipe-backup"],
   async run(ctx) {

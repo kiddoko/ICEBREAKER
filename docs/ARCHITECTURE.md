@@ -367,6 +367,7 @@ modules in `tests/sandbox/` replay the attacks in the app ([SECURITY_AUDIT.md](S
 | `config.rs` | settings and secrets files |
 | `crypto.rs` | vault encryption: vault key, Argon2id-wrapped `vault.key`, the `IBX1` file format (XChaCha20-Poly1305), atomic writes — see `docs/ENCRYPTION.md` |
 | `recovery.rs` | the recovery key: 24 words (BIP39 list) ↔ 256 bits, forgiving to type back |
+| `delay.rs` | the wait after wrong passwords, per account (0.25 s … 8 s, reset by any right one; `login-delay`) |
 | `account.rs` | the accounts: Argon2id hashes, the unlocked one (session), each one's folder of settings; portable vaults (the vault's account card and settings copy, *open a vault*, recovery from another computer) |
 | `voice.rs` | text to speech (sherpa-onnx / piper, system voices) |
 | `appupdate.rs` | ICEBREAKER updating itself (tauri-plugin-updater): check, download, install — signed updates only (docs/UPDATES.md) |

@@ -32,6 +32,46 @@ import { t } from "../core/i18n";
  * Passwords live in memory only for the time of the check, and are wiped right after.
  */
 type Mode = "login" | "approve" | "new" | "recover" | "open";
+/** the rows kept under the card for an error (the links under it never move) */
+const ERROR_ROWS = 2;
+/** forgot password: the rows showing the 24 words typed */
+const WORD_ROWS = 4;
+
+/** The waits the login page knows, by name folded the way the native side folds it. */
+export function waitKey(user: string): string {
+  return user.trim().toLowerCase();
+}
+export function setWait(waits: Map<string, number>, user: string, ms: number, now: number): void {
+  if (ms > 0) waits.set(waitKey(user), now + ms);
+  else waits.delete(waitKey(user));
+}
+/** Whole seconds left for `user` (0: none). */
+export function waitLeft(waits: Map<string, number>, user: string, now: number): number {
+  return Math.max(0, Math.ceil(((waits.get(waitKey(user)) ?? 0) - now) / 1000));
+}
+
+/** "word 7 (\"abndon\") isn't in the list" → 7 (the native side's message, recovery.rs); 0: not known */
+export function recoveryWordAt(error: string): number {
+  const m = error.match(/\bword (\d+)\b/);
+  return m ? Number(m[1]) : 0;
+}
+
+/** The words typed, numbered, cut in lines of `width` columns; `bad` (1-based) is marked. */
+export function wordLines(typed: string, width: number, bad = 0): { text: string; num?: boolean; bad?: boolean }[][] {
+  const words = typed.toLowerCase().split(/[^a-z]+/).filter(Boolean);
+  const lines: { text: string; num?: boolean; bad?: boolean }[][] = [];
+  let line: { text: string; num?: boolean; bad?: boolean }[] = [];
+  let used = 0;
+  words.forEach((w, i) => {
+    const num = `${i + 1}·`;
+    const len = num.length + w.length + 1;
+    if (used && used + len > width) lines.push(line), (line = []), (used = 0);
+    line.push({ text: num, num: true }, { text: `${w} `, bad: bad === i + 1 });
+    used += len;
+  });
+  if (line.length) lines.push(line);
+  return lines;
+}
 type FieldName = "path" | "user" | "words" | "pass" | "pass2" | "remember";
 type TextField = Exclude<FieldName, "remember">;
 /** a way in or back, under the card (they are in the tab order too: keyboard only works) */
@@ -69,6 +109,8 @@ export class LockScreen {
   private firstEmpty(skip: Field[] = []): TextField | undefined {
     return this.order.find((f) => f !== "remember" && !this.val(f as TextField) && !skip.includes(this.fields[f as TextField])) as TextField | undefined;
   }
+  /** forgot password: the recovery key's word the native side said is wrong (1-based; 0: none known) */
+  private badWord = 0;
   /** forgot password for a vault from elsewhere (open a vault → forgot password?): its folder is asked too */
   private withPath = false;
   /** the file browser choosing the vault's folder (drawn on top of the login page) */
@@ -82,6 +124,9 @@ export class LockScreen {
   /** who approves the new account (kept until it's made, then wiped) */
   private approver = { user: "", pass: "" };
   private busy = false;
+  /** the native side makes each account wait after its wrong passwords (delay.rs): until when, by name
+   *  typed (a try on another name kept test2's countdown away, though its wait went on: bench 24/11) */
+  private readonly waits = new Map<string, number>();
   private fails = 0;
   private error = "";
   private shownAt = 0;
@@ -164,6 +209,7 @@ export class LockScreen {
     // typing again clears the last error — real typing only (a stray line break, an empty text
     // event right after the answer wiped "wrong name or password" before it was seen)
     if (t.replace(/[\r\n]/g, "")) this.error = "";
+    if (this.field === "words") this.badWord = 0;
   }
 
   onKey(k: KeyInput): void {
@@ -231,6 +277,19 @@ export class LockScreen {
     this.put("words", "");
   }
 
+  /** How long `user`'s next try waits (the native side counts per account): shown as "wait N s". */
+  private async learnWait(user: string): Promise<void> {
+    const ms = (await this.deck.platform.account.wait?.(user).catch(() => 0)) ?? 0;
+    setWait(this.waits, user, ms, performance.now());
+    this.deck.requestFrame();
+  }
+
+  /** "wait 3 s" while the wait of the name in the field runs, else "" */
+  private waitText(): string {
+    const left = waitLeft(this.waits, this.val("user"), performance.now());
+    return left > 0 ? t("wait {n} s", { n: left }) : "";
+  }
+
   /** "open a vault" is there only where the native side can read one */
   private get canOpen(): boolean {
     return !!this.deck.platform.account.openVault;
@@ -251,10 +310,11 @@ export class LockScreen {
       // who approves it is checked now, not once everything else is typed — checked only:
       // nothing is unlocked
       this.busy = true;
-      this.deck.requestFrame();
+      await this.learnWait(user);
       const right = await this.deck.platform.account.check(user, pass).catch(() => false);
       this.busy = false;
       if (!right) {
+        void this.learnWait(user);
         this.put("pass", "");
         this.field = "pass";
         this.error = "wrong name or password — an account of this deck must approve";
@@ -291,7 +351,7 @@ export class LockScreen {
       return;
     }
     this.busy = true;
-    this.deck.requestFrame();
+    await this.learnWait(user);
     let ok = false;
     try {
       if (this.mode === "new") {
@@ -327,9 +387,17 @@ export class LockScreen {
         this.error = msg;
       }
     }
-    this.wipe();
+    // forgot password: a word wrong — what was typed stays (24 words and both passwords were
+    // erased by one typo: Windows bench 24/11), and the field points at the word
+    const wordsWrong = this.mode === "recover" && /word|recovery key/i.test(this.error);
+    if (wordsWrong) {
+      this.field = "words";
+      this.badWord = recoveryWordAt(this.error);
+    } else this.wipe();
     this.approver.pass = "";
     this.busy = false;
+    if (!ok) void this.learnWait(user);
+    else this.waits.delete(waitKey(user));
     if (ok) {
       await writeDevice(this.deck.platform, (d) => {
         d.remember = this.remember;
@@ -359,7 +427,9 @@ export class LockScreen {
     ui.fill({ x: 0, y: 0, w: W, h: H }, { bg: c.bg });
     ui.hit({ x: 0, y: 0, w: W, h: H }, { onClick: () => {}, onWheel: () => {}, block: true });
 
-    const w = Math.min(46, W - 4);
+    // forgot password: wider, so the 24 words show (4 lines under their field)
+    const w = Math.min(this.mode === "recover" ? 66 : 46, W - 4);
+    const wordRows = this.mode === "recover" ? WORD_ROWS : 0;
     const shake = performance.now() - this.shakeAt < 300 ? Math.round(Math.sin((performance.now() - this.shakeAt) / 25) * 2) : 0;
     if (shake) ui.animate(16);
     // room for an icon is always kept (the card doesn't jump); it shows only once
@@ -378,7 +448,7 @@ export class LockScreen {
             ? "an account of this deck approves the new one"
             : "the new account: its own settings and vault";
     const whyLines = why ? wrapWords(t(why), w - 4) : [];
-    const cardH = 5 + fields.length * 3 + (this.mode === "login" ? 2 : 1) + (iconRoom ? 4 : 0) + (whyLines.length ? whyLines.length + 1 : 0);
+    const cardH = 5 + fields.length * 3 + wordRows + (this.mode === "login" ? 2 : 1) + (iconRoom ? 4 : 0) + (whyLines.length ? whyLines.length + 1 : 0);
     const x = Math.floor((W - w) / 2) + shake;
     let y = Math.max(1, Math.floor((H - cardH - 6) / 2));
     const p = Math.min(1, (ui.now - this.shownAt) / 600);
@@ -433,6 +503,18 @@ export class LockScreen {
       this.input(ui, { x: ix, y: cy, w: browse ? iw - 10 : iw, h: 2 }, t(labels[f]), this.fields[f as TextField], this.field === f && this.linkAt < 0, () => ((this.field = f), (this.linkAt = -1)));
       if (browse) ui.button(ix + iw - 9, cy + 1, t("browse"), () => this.browse(), { tip: t("choose the folder · ctrl+O") });
       cy += 3;
+      // the recovery key: every word typed, numbered, in sight (the field shows only its end)
+      if (f === "words") {
+        const lines = wordLines(this.val("words"), iw, this.badWord);
+        lines.slice(-WORD_ROWS).forEach((line, i) => {
+          let lx = ix;
+          for (const piece of line) {
+            ui.text(lx, cy - 1 + i, piece.text, { fg: piece.bad ? c.error : piece.num ? c.faint : c.muted, bg: c.panel, attrs: piece.bad ? BOLD : 0 }, ix + iw - lx);
+            lx += strWidth(piece.text);
+          }
+        });
+        cy += WORD_ROWS;
+      }
     }
     if (this.mode === "login") {
       const on = this.field === "remember" && this.linkAt < 0;
@@ -441,20 +523,32 @@ export class LockScreen {
       cy += 2;
     }
     if (this.granted) ui.textCenter(card, cy, t("access granted · welcome, {user}", { user: this.granted.user }), { fg: c.success, bg: c.panel, attrs: BOLD });
-    else if (this.busy) ui.textCenter(card, cy, `${ui.spinner()} ${t(this.mode === "new" ? "making the account…" : this.mode === "recover" ? "opening the vault…" : "verifying…")}`, { fg: c.accent, bg: c.panel });
+    else if (this.busy) {
+      // this account's wait after wrong passwords: said, counted down (it was silent, up to 9.5 s)
+      const wait = this.waitText();
+      if (wait) ui.animate(250);
+      ui.textCenter(card, cy, `${ui.spinner()} ${wait ? `${wait}…` : t(this.mode === "new" ? "making the account…" : this.mode === "recover" ? "opening the vault…" : "verifying…")}`, { fg: c.accent, bg: c.panel });
+    }
     else {
       const label = t(this.mode === "login" || this.mode === "open" ? "jack in" : this.mode === "approve" ? "continue" : this.mode === "recover" ? "new password" : "create") + " ⏎";
       ui.button(card.x + Math.floor((card.w - strWidth(label) - 2) / 2), cy, label, () => void this.submit());
     }
     // under the card: an error first (in sight even in a small window), then the other ways in / go back
     const links = this.links();
-    let ly = card.y + card.h + 1;
+    // the error has its 2 rows kept, shown or not: the links never jump under the mouse
+    const top = card.y + card.h + 1;
+    let ly = top;
+    const wait = this.busy ? "" : this.waitText();
+    if (wait) ui.animate(250);
+    // the name typed still has a wait running, without an error on screen: say it all the same
+    if (!this.error && wait) ui.textCenter({ x: 0, y: ly, w: W, h: 1 }, ly++, `⏳ ${wait}`, { fg: c.warning });
     if (this.error) {
-      const err = this.error === "access denied" && this.fails > 1 ? `${t("access denied")} ×${this.fails}` : t(this.error);
-      for (const line of wrapWords(`⚠ ${err}`, W - 4).slice(0, 2)) ui.textCenter({ x: 0, y: ly, w: W, h: 1 }, ly++, line, { fg: c.error, attrs: BOLD });
-      if (this.fails >= 5 && this.mode === "login") ui.textCenter({ x: 0, y: ly, w: W, h: 1 }, ly++, t("forgot it? “forgot password?” below uses your recovery key"), { fg: c.subtle });
+      const base = this.error === "access denied" && this.fails > 1 ? `${t("access denied")} ×${this.fails}` : t(this.error);
+      const err = wait ? `${base} · ${wait}` : base;
+      for (const line of wrapWords(`⚠ ${err}`, W - 4).slice(0, ERROR_ROWS)) ui.textCenter({ x: 0, y: ly, w: W, h: 1 }, ly++, line, { fg: c.error, attrs: BOLD });
+      if (this.fails >= 5 && this.mode === "login" && ly < top + ERROR_ROWS) ui.textCenter({ x: 0, y: ly, w: W, h: 1 }, ly++, t("forgot it? “forgot password?” below uses your recovery key"), { fg: c.subtle });
     }
-    ly++;
+    ly = top + ERROR_ROWS + 1;
     links.forEach((l, i) => {
       const focus = this.linkAt === i;
       // the link with the keyboard's focus: lit, between › ‹ (enter follows it)

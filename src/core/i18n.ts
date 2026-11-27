@@ -59,9 +59,15 @@ export function dateLocale(): string {
  */
 const KEEP_CAPS = new Set(["ICEBREAKER", "AI", "API", "CPU", "GPU", "RAM", "JSON", "NAS", "OK", "URL", "USB", "MM", "YYYY", "DD", "HH", "RGB", "CRT", "PDF", "HTTP", "HTTPS", "ID", "UI", "CLI", "GUI", "BPM", "MIDI", "OS", "UTC", "GMT", "AM", "PM", "IP", "LAN", "VPN", "SSH", "MCP", "LLM", "MED", "TTS", "STT", "WAV", "MP", "OGG", "FLAC", "SVG", "PNG", "CSV", "PIN", "QR", "IA", "ZIP", "UK", "US", "ISO", "ICS"]);
 const PROPER = new Set(["Ableton", "Claude", "Code", "Google", "Calendar", "Markdown", "Meteo", "Obsidian", "Anthropic", "Ollama", "Finder", "Explorer", "Windows", "Linux", "Mac", "Spotify", "Apple", "Music", "GitHub", "Tauri", "Chrome", "Safari", "Firefox", "Opus", "Sonnet", "Haiku", "Fable", "Paris", "Unicode", "Gemini", "English", "Français"]);
+/** proper names of more than one word, or that look like plain words: kept as they are */
+const PROPER_PHRASES = ["File History", "Recycle Bin", "Time Machine", "iCloud Drive", "Déjà Dup", "Historique des fichiers", "Dropbox", "OneDrive", "Timeshift", "Icebreaker"];
 const lowered: Record<Lang, Map<string, string>> = { en: new Map(), fr: new Map() };
 export function uiCase(s: string): string {
+  // where a proper name sits (its words keep their capitals)
+  const kept: [number, number][] = [];
+  for (const p of PROPER_PHRASES) for (let i = s.indexOf(p); i >= 0; i = s.indexOf(p, i + p.length)) kept.push([i, i + p.length]);
   return s.replace(/[A-Za-zÀ-ÖØ-öø-ÿŒœ][A-Za-zÀ-ÖØ-öø-ÿŒœ'’]*/g, (w, at: number) => {
+    if (kept.some(([a, b]) => at >= a && at < b)) return w;
     // inside a {var} or right after a digit / key glyph (F1, ⌘K): not a word to lower
     if (s[at - 1] === "{" || /[0-9⌘⌥⇧⌃]/.test(s[at - 1] ?? "")) return w;
     // a word in capitals — with its apostrophe too ("D'ENSEMBLE" stayed capital)

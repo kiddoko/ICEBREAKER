@@ -11,6 +11,7 @@ mod audio;
 mod claude_code;
 mod config;
 mod crypto;
+mod delay;
 mod encoders;
 mod files;
 mod dev; // developer tools: refuse unless built with --features dev-tools
@@ -84,6 +85,7 @@ pub fn run() {
         .setup(|app| {
             term::start_bridge(app.handle());
             account::init(app.handle());
+            appupdate::clean_leftovers(app.handle());
             // a login's password waiting for its vault is wiped after 2 minutes even if no
             // vault command comes to look at it (vault.rs prune_pending)
             let h = app.handle().clone();
@@ -125,6 +127,9 @@ pub fn run() {
             account::vault_export,
             account::vault_encrypt,
             account::vault_recovery_new,
+            vault::vault_recovery_confirm,
+            vault::vault_recovery_drop,
+            account::account_wait,
             account::vault_rekey,
             appupdate::app_update_check,
             appupdate::app_update_download,
