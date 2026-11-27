@@ -7,6 +7,36 @@
 ╚═╝ ╚═════╝╚══════╝╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝
 ```
 
+
+**A cyberdeck from a cyberpunk movie, for your notes, your journal and your music.**
+A free, open-source desktop app (Windows · macOS · Linux), drawn entirely in characters — glow,
+scanlines, a boot sequence — that you drive with the keyboard, the mouse or a gamepad.
+
+![HOME: widgets, the vault tree, the shell and its log](docs/media/home.png)
+
+<table><tr>
+<td><img src="docs/media/breakermed.png" alt="BreakerMED, a music tracker module, playing its demo song"></td>
+<td><img src="docs/media/nexus.png" alt="NEXUS, the vault as a place, in the neon-district theme"></td>
+<td><img src="docs/media/eink.png" alt="A note in the e-ink theme"></td>
+</tr><tr>
+<td align="center"><sub>BreakerMED: an Amiga-style music tracker, as a module</sub></td>
+<td align="center"><sub>NEXUS, in the neon-district theme</sub></td>
+<td align="center"><sub>a note, in the e-ink theme</sub></td>
+</tr></table>
+
+### Why it exists
+
+I'm not a developer. I'm making ICEBREAKER because I think this kind of software is fun and I
+wanted one for myself; an AI (Claude) writes most of the code, I decide what it should be and test
+it a lot. Maybe it'll interest a few other people — and **everyone can join in**: try it, break it,
+suggest things, make a module or a theme. Bugs and ideas in English or French
+([Issues](https://github.com/kiddoko/ICEBREAKER/issues),
+[Discussions](https://github.com/kiddoko/ICEBREAKER/discussions), [CONTRIBUTING.md](CONTRIBUTING.md)).
+
+A good example of what a module can be: **BreakerMED**, a music tracker in the spirit of the old
+Amiga trackers (OctaMED), with an 8-bit "vintage" mode — completely useless for taking notes, and
+that's the point. Install it from the STORE (`store install breakermed`, then `med demo`).
+
 > [!CAUTION]
 > ## ⚠ Test software — read this before you use it
 >
@@ -31,10 +61,7 @@
 > prêt pour un usage intensif, sécurisé ou professionnel. N'y mets rien de sensible, sauvegarde
 > ton vault souvent, et dis-nous ce qui casse — [DISCLAIMER.md](DISCLAIMER.md).*
 
-**An open-source cyberdeck for your notes, your journal and your AI.**
-A standalone desktop app (Windows · macOS · Linux) that looks and feels like a
-terminal from the future — pure character-cell UI, ASCII art, glow and
-scanlines — and works with the keyboard, the mouse or a gamepad.
+## What's inside
 
 ### Your notes
 - **Plain Markdown**, an Obsidian-compatible vault (`[[wikilinks]]`, `#tags`, frontmatter) — or point it at the vault you already have.
@@ -64,6 +91,7 @@ scanlines — and works with the keyboard, the mouse or a gamepad.
 ### Modules
 - **Everything is a module**, apart from the frame (HOME, notes, the tree, the command engine, settings): TODO, CALENDAR (local + Google), HABITS, REMINDERS, STATS, MUSIC, WEATHER, CLOCKS, FOCUS, NEWS, NEXUS, UPLINK, the TERMINAL itself… — every one listed in the STORE, so a removed one comes back from there. Modules can need other modules (installed and switched on with them), and **ICEBREAKER and its modules update themselves** (Settings → UPDATES: every day, download by itself, install by itself or ask first — signed updates, nothing in stealth mode). Switch them off, remove them, reinstall them from the **STORE** (modules and themes from the [community index](https://github.com/kiddoko/icebreaker-modules) or your own server).
 - **MODULES** shows them on a turning ring, each one a cyberdeck shard in its colour.
+- **From the STORE**: **BreakerMED**, a 4–8 track music tracker (samples, synths, an Amiga / Akai vintage mode, `.mod` / `.med` import, WAV export) — and yours next ([docs/PLUGINS.md](docs/PLUGINS.md)).
 - Modules have a documented API and declared permissions; the built-in ones use the very same API ([docs/PLUGINS.md](docs/PLUGINS.md)). Everything is callable: `ib.use("tree").reveal("notes/a.md")`.
 - **Modules from the STORE run in a sandbox** (a Worker: no page, no native side, no network of their own — only what their permissions allow; [docs/SANDBOX.md](docs/SANDBOX.md)).
 - **Permissions in plain words**: what a module, the AI or a program in your terminal may reach has a name, a level and a switch — the riskiest asked again when first used, every one shown with its last use and taken away in one click (Settings → PERMISSIONS, [docs/PERMISSIONS.md](docs/PERMISSIONS.md)).
@@ -78,7 +106,7 @@ scanlines — and works with the keyboard, the mouse or a gamepad.
 - **THE MENU** (`⌘K` or shift twice) searches everything; every shortcut is listed (`⌘/`) and can be changed; right-click works everywhere.
 - **English or French**, chosen at setup. A **guided tour** after the setup (`tour` plays it again).
 - **Docs in your vault**: START HERE/ (the tour, modules, interface, shell, keys, the AI, privacy), in English or French — the deck's language — written into every vault and kept up to date; `starthere dev` adds FOR DEVELOPERS/ (themes, the module API).
-- **Frames you arrange**: the tree, the page, the side panel and the shell, each with its tabs on its border — drag a tab onto any frame, group tabs, resize or fold a frame, presets (`layout preset`, in ibsh), ⌘Z / Ctrl+Z. The top bar is one row: **◆ ICEBREAKER ▾**, the deck's menu (MODULES, STORE, NEXUS, settings, log out), UPLINK ■ and the clock. **HOME** is pinned, always the first tab.
+- **Frames you arrange**: the tree, the page, the side panel and the shell, each with its tabs on its border — drag a tab onto any frame, group tabs, resize or fold a frame, presets (`layout preset`, in ibsh), ⌘Z / Ctrl+Z. The top row holds the tabs, with **◆ icebreaker ▾** (the deck's menu: MODULES, STORE, NEXUS, settings, help, log out — **◆ ▾** in a narrow window) in its left corner and UPLINK ■ and the clock in its right one. **HOME** is pinned, always the first tab.
 - **Wake-up alarms** (`clock alarm 7:30 --days mon-fri`): a full screen rings, with the sound and a notification, while ICEBREAKER runs. **MOON** has its own page (the moon drawn, the month in moons), **NEWS** too (each widget shows one thing: your area, your country, categories or your own words), **SYSMON** shows the busiest programs, the disks and the network.
 - **Picks up where you left**: tabs (in their frames), open folders and the page you were on come back at the next start. Mouse back / forward and a two-finger swipe switch tabs; pinch zooms.
 
@@ -115,9 +143,8 @@ latest successful **Actions → build** run): `.zip` for macOS, `.exe` installer
 for Windows, `.AppImage` / `.deb` for Linux. Builds run for release tags and on
 demand (`gh workflow run build.yml`), not on every push.
 
-- **Tested on macOS so far.** The Windows and Linux builds run the same code but the vault
-  encryption, the module sandbox and the latest security fixes haven't been tried there yet:
-  tell us how it goes.
+- **Tested on macOS and Windows** (a Windows PC tests every change: install, updates, encryption,
+  the sandbox). **Linux** runs the same code but is tested less: tell us how it goes.
 - **macOS**: the app isn't notarized yet. The first time, right-click it → *Open*
   (or run `xattr -dr com.apple.quarantine ICEBREAKER.app`).
 - **Windows**: SmartScreen may warn about an unknown publisher → *More info* → *Run anyway*.
@@ -155,7 +182,7 @@ To talk to Claude: get an API key at [console.anthropic.com](https://console.ant
 | today's journal / new note | `Ctrl+J` / `Ctrl+N` | — |
 | UPLINK, the AI | `Ctrl+Shift+U` · `Ctrl+Space` | — |
 | tree · side panel · shell | `Ctrl+Shift+T` / `Ctrl+B` · `Ctrl+Shift+P` · ``Ctrl+` `` / `Ctrl+Shift+S` | — |
-| the deck's menu (MODULES, STORE, NEXUS, settings, log out) | a click on **◆ ICEBREAKER ▾**, top left | — |
+| the deck's menu (MODULES, STORE, NEXUS, settings, log out) | `F10` or a click on **◆ ▾**, top left | — |
 | a tab into another frame · a group | drag it onto the frame · onto another tab (or right-click → *Move to*) | — |
 | HOME · MODULES · NEXUS | `Ctrl+Shift+H` · `Ctrl+Shift+M` · `Ctrl+Shift+E` | Start (HOME) |
 | macros · effects | `Ctrl+Shift+K` · `Ctrl+Shift+F` | — |
@@ -208,28 +235,20 @@ themes/          built-in themes (nightshade.toml is the annotated reference)
 
 ## Roadmap
 
-Done in 0.5.0: vault encryption with a recovery key, portable vaults, modules from the STORE
-in a sandbox, signed in-app updates, module dependencies. Done in 0.6.0, the first half of the
-UI overhaul: frames you arrange (move, resize, fold the tree, the panel, the shell), tabs on
-every frame and in any frame, tab groups, the deck menu, and WEATHER, CLOCKS, STATS, NEWS,
-MOON and SYSMON redrawn ([docs/FRAMES.md](docs/FRAMES.md)). Done in 0.7.0, the UX pass:
-crisp hover tips, a menu bar and an arrangeable status bar, proportions that hold whatever the
-theme, a calendar and clock wherever a day or a time is chosen, a clearer setup, CSV / .ics import,
-the graphics card in SYSMON, French everywhere and readable hints in every theme. Done in 0.7.1,
-first steps and one name per thing: the pages of the ◆ menu are tabs, every command answers in
-French and the manual too, a note emptied by mistake is never lost, `exit` hides the shell, the
-login page in your language and reachable by keyboard, the status bar in groups. Next, in this order:
+Done so far: notes, journal and modules (0.1–0.5); encryption, portable vaults and the module
+sandbox (0.5); frames you arrange and the UI overhaul (0.6–0.7); in **0.8.0**, one top row with
+real keys drawn for every shortcut (a gamepad turns them into its buttons), tabs for pages and
+documents, modules that open their own files, themes v2 (steps 1–2) and the fixes of two
+security passes on the Windows test PC. Next, roughly in this order:
 
-1. **UI overhaul, the rest** — each tab's history, an Ableton-style info panel instead of
-   hover tips, perfect scaling on every resolution and screen ratio, the other modules
-   redrawn — and moved into the Worker sandbox on the way, then the native bridge locked
-   ([docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md) O2–O4).
-2. **STORE and files** — filters and categories, install a module / theme / sound pack from a file, a fuller theme studio.
-3. **Voice and AI** — one voice path for everything, several AIs at once, tool use for local models (Ollama), an evening JOURNAL.
-4. **Automations** — an ALERTS module (your own rules → notifications), a more useful NEXUS.
-5. **Notes and editor** — file types, the code editor as a module, linked notes, backlinks and a braille graph, Vim keys.
-6. **Finishing touches** — shell output in French, palette commands that show their output without the TERMINAL.
-7. **Platforms** — notarized macOS, signed Windows installer, encryption tested on Windows and Linux, native gamepad on Linux, syncing one encrypted vault from two computers.
+1. **Themes v2** — a theme can restyle every part (done: frames, tabs, buttons, checkboxes,
+   sliders, lists, the tree, the caret, tips), protected screens no theme can disguise, a theme
+   studio generated from it, then theme packages in the STORE ([docs/THEMES_V2_PLAN.md](docs/THEMES_V2_PLAN.md)).
+2. **First contact** — a shorter setup, the deck's words explained once, help easy to find.
+3. **STORE and modules** — filters, pages per module, ratings; modules redrawn (music, weather, news…).
+4. **Voice and AI** — one voice path, several AIs, tools for local models, an evening journal.
+5. **Notes and editors** — backlinks and a graph, tables, a code editor as a module.
+6. **Platforms** — notarized macOS, signed Windows installer, more Linux testing.
 
 ## License
 
