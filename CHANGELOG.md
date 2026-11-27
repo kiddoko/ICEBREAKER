@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.8.1 — not released yet
+## 0.8.1 — 2026-11-27
 
 **Themes v2, step 3: components** (docs/THEMES_V2_PLAN.md — the built-in themes look the same)
 - A theme can now restyle the **frames, the tabs, the buttons, the checkboxes, the choices, the

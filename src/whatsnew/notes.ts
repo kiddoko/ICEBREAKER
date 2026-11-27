@@ -32,6 +32,38 @@ export interface VersionNotes {
 
 export const NOTES: VersionNotes[] = [
   {
+    version: "0.8.1",
+    date: "2026-11-27",
+    en: {
+      added: [
+        "A new French account is French from the start: notes, journal, help",
+        "Themes can restyle frames, tabs, checkboxes, sliders, the tree, the caret",
+        "starthere dev writes FOR DEVELOPERS/ when you want it",
+      ],
+      fixed: [
+        "vault recovery no longer freezes; a new key counts once confirmed",
+        "vault export leaves your account and history out of the copy",
+        "Wrong passwords: a wait per account, and it says how long",
+        "A typo in the 24 words keeps them all and marks the wrong one",
+        "Windows paths with \\ work; old update files are cleaned up",
+      ],
+    },
+    fr: {
+      added: [
+        "Un nouveau compte en français l'est dès le début : notes, journal, aide",
+        "Les thèmes restylent cadres, onglets, cases, curseurs, l'arbre, le caret",
+        "starthere dev écrit FOR DEVELOPERS/ quand tu le veux",
+      ],
+      fixed: [
+        "vault recovery ne se fige plus ; une nouvelle clé compte une fois confirmée",
+        "vault export laisse ton compte et ton historique hors de la copie",
+        "Mauvais mots de passe : une attente par compte, qui dit combien",
+        "Une faute dans les 24 mots les garde tous et marque le mauvais",
+        "Les chemins Windows avec \\ marchent ; les vieilles mises à jour sont effacées",
+      ],
+    },
+  },
+  {
     version: "0.8.0",
     date: "2026-11-24",
     en: {
