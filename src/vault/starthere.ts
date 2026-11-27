@@ -1,11 +1,16 @@
 /**
  * START HERE — the documentation, as notes in your vault: written into every
- * new vault, and (again) by `starthere` in the shell. Plain Markdown with a
- * bit of ASCII, readable in ICEBREAKER, Obsidian or any editor.
+ * new vault in the deck's language (English here, French in starthere-fr.ts),
+ * and (again) by `starthere` in the shell. Plain Markdown with a bit of ASCII,
+ * readable in ICEBREAKER, Obsidian or any editor. FOR DEVELOPERS/ is written
+ * only by `starthere dev`.
  */
 import type { Command } from "../shell/types";
 import type { Vault } from "./vault";
 import { IS_MAC } from "../core/input";
+import { lang, t } from "../core/i18n";
+import { WELCOME_NOTE, WELCOME_NOTE_FR } from "../platform/demo-vault";
+import { startHereFr } from "./starthere-fr";
 
 const DIR = "START HERE";
 
@@ -46,16 +51,18 @@ the keyboard, the mouse or a gamepad.
 ## The 30-second tour
 
 \`\`\`
-┌ ◆ icebreaker ▾  vault   ⌂ home  ✎ ideas  ♪ music ×  + ── uplink ■ │ time ┐
+┌ ◆ ▾  vault   ⌂ home  ✎ ideas  ♪ music ×  + ───────────── uplink ■ │ time ┐
 │ ┌────────┐ ┌───────────────────────────────────────────────────────────┐ │
 │ │ ★ pins │ │  widgets: clock · weather · todo · habits · stats · chat… │ │
-│ │ tree   │ │  e = edit the layout · a = add a widget · enter = open it  │ │
+│ │ tree   │ │  e = edit the layout · a = add a widget · enter = open it │ │
 │ └────────┘ └───────────────────────────────────────────────────────────┘ │
-│ ┌ shell: zsh · ibsh · log ────────────────────────────────── ≡ ─ □ ───┐ │
-│ │ ◆ ~/notes ❯ _                                                         │ │
-│ └───────────────────────────────────────────────────────────────────────┘ │
-└ status bar: what keys do here · ◧ ▾ ◨ ▣ · ✦ fx · ⌘K menu · F1 help ────┘
+│ ┌ shell: zsh · ibsh · log ────────────────────────────────── ≡ ─ □ ────┐ │
+│ │ ◆ ~/notes ❯ _                                                        │ │
+│ └──────────────────────────────────────────────────────────────────────┘ │
+└ status bar: what keys do here · ◧ ▾ ◨ ▣ · ✦ fx · ⌘K menu · F1 help ──────┘
 \`\`\`
+
+Top left, **◆ ▾** is the deck's menu (**◆ icebreaker ▾** in a wide window).
 
 | You want to… | Do this |
 |---|---|
@@ -63,7 +70,7 @@ the keyboard, the mouse or a gamepad.
 | see every shortcut | **⌘/ / Ctrl+/** |
 | write a note | **⌘N / Ctrl+N**, or *+ note* in the tree |
 | the journal (today) | **⌘J / Ctrl+J**, or \`journal\` · \`journal "a line"\` adds a line without opening it |
-| change the look | settings (◆ icebreaker ▾ top left, or **⌘, / Ctrl+,**) → APPEARANCE, or \`theme\` |
+| change the look | settings (**◆ icebreaker ▾** top left — **◆ ▾** on a narrow window — or **⌘, / Ctrl+,**) → APPEARANCE, or \`theme\` |
 | switch a feature off | **MODULES** (⌘⇧M) → space |
 | learn the shell | click anything: the command it runs shows in the shell's **log** (on its right) |
 | know what something does | rest the pointer on it: a tip says what it does and the command it runs |
@@ -78,10 +85,12 @@ the keyboard, the mouse or a gamepad.
 - [[keys]] — the keyboard, the mouse, the gamepad
 - [[privacy]] — what stays here, what goes out, stealth, modules you install
 - [[ai]] — the AI as a work assistant: write, sort, plan (optional, can be local)
-- \`for developers/\` — themes, modules, sound packs, tweaking the deck
+- \`starthere dev\` writes **FOR DEVELOPERS/** — themes, modules, sound packs, tweaking the deck
 
 > Everything here is a normal note: change it, move it, delete it.
-> \`starthere\` in the shell writes a fresh copy.
+> These notes are in the deck's language: switch it (Settings → YOU) and the ones you
+> haven't changed follow; the ones you changed stay yours. \`starthere\` brings back
+> the missing ones, \`starthere --force\` rewrites them all.
 `,
 
   "modules.md": `# Modules
@@ -310,7 +319,7 @@ the tree and the shell shown or hidden, the shell's tab, the page you were on, t
   one, nothing else); **a** on the CLOCKS page. A full
   screen rings (s snooze 5 min, enter stop; the gamepad's B / A), with the sound and a
   notification — while ICEBREAKER is running. \`clock alarm test\` tries it.
-- **◆ icebreaker ▾** (the top row's left corner, the tinted button, F10): the deck's menu —
+- **◆ icebreaker ▾** (the top row's left corner, the tinted button, F10; **◆ ▾** on a narrow window): the deck's menu —
   modules, store, nexus, settings, help first (each opens as a tab), then what's new,
   updates, and **⏻ log out** (back to the login page, ⌘⇧L / Ctrl+Shift+L). There is no menu
   bar: the top row is the frames' tabs, with uplink and the clock in its right corner.
@@ -426,7 +435,7 @@ the tree and the shell shown or hidden, the shell's tab, the page you were on, t
   the right (← → step, the wheel too, double-click the number to type it).
 - Sound packs: Settings → SOUND → sound pack — each theme keeps its own. Packs made
   of audio files go in \`.icebreaker/sounds/packs/<name>/\` (how to make one:
-  \`FOR DEVELOPERS/sound-packs\`).
+  \`starthere dev\`, then FOR DEVELOPERS/sound-packs).
 - **Scrolling**: lists and pages glide a little after the wheel and stop at the
   top and the bottom.
 - **Smoothness** (Settings → APPEARANCE): vertical sync (follows your screen,
@@ -700,7 +709,11 @@ todo add "pack the books" --every sat --cycles 3
   may do is always typed in ibsh.
 `,
 
-  "../FOR DEVELOPERS/README.md": `# For developers
+};
+
+/** FOR DEVELOPERS/: not in a new vault — `starthere dev` writes it (then it's kept up to date like START HERE). English only. */
+export const FOR_DEVELOPERS: Record<string, string> = {
+  "README.md": `# For developers
 
 ICEBREAKER is open source (MIT). The interface is TypeScript drawn on a
 character grid (no web framework: every frame, things draw themselves with
@@ -729,7 +742,7 @@ module can reach), \`docs/SECURITY_AUDIT.md\` (what was found, fixed, still open
 review the deck itself). ICEBREAKER is test software: bug reports, ideas, modules and themes
 are what it needs most — github.com/kiddoko/ICEBREAKER (Issues and Discussions).
 `,
-  "../FOR DEVELOPERS/architecture.md": `# How the deck is built
+  "architecture.md": `# How the deck is built
 
 The full map is \`docs/ARCHITECTURE.md\` in the repository. In short:
 
@@ -769,7 +782,7 @@ spacing (a position plus a number of cells): use \`INSET\`, \`GAP\`, \`Row\`, \`
 \`debug pad\` shows the gamepad's buttons for each kind of pad.
 `,
 
-  "../FOR DEVELOPERS/themes.md": `# Themes
+  "themes.md": `# Themes
 
 A theme is one TOML file in \`.icebreaker/themes/\`. \`theme new mytheme\` copies
 the current one for you; THEME STUDIO edits it live.
@@ -817,7 +830,7 @@ never their size: everything stays where you click.
 Full reference: \`docs/THEMES.md\` in the repository.
 `,
 
-  "../FOR DEVELOPERS/modules-api.md": `# Writing a module
+  "modules-api.md": `# Writing a module
 
 A module is a folder in \`.icebreaker/plugins/<id>/\` with \`plugin.json\` and
 \`main.js\`. \`plugin new <id>\` writes a ready-to-edit one.
@@ -882,7 +895,7 @@ everything and the report stays clean (\`plugin audit <id>\`). Share it through
 the STORE (a GitHub repo).
 `,
 
-  "../FOR DEVELOPERS/guidelines.md": `# The house rules
+  "guidelines.md": `# The house rules
 
 The full version is \`docs/GUIDELINES.md\` in the repository. In short — a module
 (or a theme) the ICEBREAKER way:
@@ -905,7 +918,7 @@ A theme: readable first (a whole evening of reading), one accent, good without
 its effects, tested on HOME, a note, the settings, the shell and a dialog.
 `,
 
-  "../FOR DEVELOPERS/sound-packs.md": `# Sound packs
+  "sound-packs.md": `# Sound packs
 
 The full charter is \`docs/SOUND_PACKS.md\` in the repository. In short:
 
@@ -929,7 +942,7 @@ Missing sounds are played by the deck's synthesizer: start with \`move\`, \`open
 Only share sounds you made or may share, and say the licence in \`pack.toml\`.
 `,
 
-  "../FOR DEVELOPERS/tweaking.md": `# Tweaking the deck
+  "tweaking.md": `# Tweaking the deck
 
 - **Every setting** has a command: \`config list\`, \`config set fx.bloom true\`;
   effects take one number: \`fx glow 60\`, \`fx chroma 120\` (0 = off, up to 200;
@@ -950,26 +963,70 @@ Only share sounds you made or may share, and say the licence in \`pack.toml\`.
 `,
 };
 
+/** the system the notes are written for: its keys, its shell */
+export type DeckOS = "mac" | "windows" | "linux";
+export function thisOS(): DeckOS {
+  if (IS_MAC) return "mac";
+  const ua = typeof navigator !== "undefined" ? `${navigator.platform} ${navigator.userAgent}` : "";
+  return /Win/i.test(ua) ? "windows" : "linux";
+}
+
+/** the real shell the deck opens on each system (shell.md's table, README's diagram) */
+const SHELL: Record<DeckOS, { name: string; others: string }> = {
+  mac: { name: "zsh", others: "bash, fish, powershell…" },
+  windows: { name: "powershell", others: "cmd, wsl, bash…" },
+  linux: { name: "bash", others: "zsh, fish, powershell…" },
+};
+
+const GLYPH: Record<string, string> = { "⌘": "Ctrl", "⌃": "Ctrl", "⌥": "Alt", "⇧": "Shift" };
+
 /**
- * The notes are written with Mac keys (⌘ ⇧ ⌥). On Windows and Linux they're
- * rewritten the way that keyboard says it: Ctrl+, Shift+, Alt+.
+ * The notes are written with Mac keys (⌘ ⇧ ⌥) and the Mac's shell (zsh). On Windows and
+ * Linux they're rewritten the way that keyboard says it — Ctrl+, Shift+, Alt+ — with the
+ * shell that system opens. A key about the Mac on purpose ("**⌘X** on a Mac") stays, and a
+ * hint that gave both forms ("⌘N / Ctrl+N") is said once ("Ctrl+N", not "Ctrl+N / Ctrl+N").
  */
-export function forThisOS(text: string): string {
-  if (IS_MAC) return text;
-  return text
+export function forThisOS(text: string, os: DeckOS = thisOS()): string {
+  const sh = SHELL[os];
+  // the diagram's shell tab, its dashes shortened so the box keeps its width
+  let s = text.replace(/shell: zsh( · ibsh · log )(─+)/g, (_m, mid: string, dashes: string) => `shell: ${sh.name}${mid}${dashes.slice(Math.min(dashes.length - 1, sh.name.length - 3))}`);
+  s = s.replace("| **zsh** (bash, fish, powershell…) |", `| **${sh.name}** (${sh.others}) |`);
+  if (os === "mac") return keepBoxWidths(text, s);
+  s = s
     .replace(/On a Mac, ⌘ plays the role of Ctrl\.?/g, "On a Mac these are ⌘ shortcuts; here, Ctrl.")
-    .replace(/⌘⇧⌥/g, "Ctrl+Shift+Alt+")
-    .replace(/⌘⇧/g, "Ctrl+Shift+")
-    .replace(/⌘⌥/g, "Ctrl+Alt+")
-    .replace(/⌘/g, "Ctrl+")
-    .replace(/⇧/g, "Shift+")
-    .replace(/⌥/g, "Alt+")
+    .replace(/Sur un Mac, ⌘ joue le rôle de Ctrl\.?/g, "Sur un Mac ce sont des raccourcis ⌘ ; ici, Ctrl.");
+  s = s.replace(/[⌘⌃⌥⇧]+/g, (m: string, at: number) => {
+    // the part of the line it sits in: about the Mac on purpose → as it is
+    const from = Math.max(s.lastIndexOf("\n", at), s.lastIndexOf("|", at), s.lastIndexOf("·", at));
+    const ends = ["\n", "|", "·"].map((c) => s.indexOf(c, at)).filter((x) => x >= 0);
+    const part = s.slice(from + 1, ends.length ? Math.min(...ends) : s.length);
+    if (/\b(on a Mac|sur (un )?Mac|macOS)\b/i.test(part)) return m;
+    return [...new Set([...m].map((g) => GLYPH[g]))].map((k) => `${k}+`).join("");
+  });
+  s = s
     .replace(/Ctrl\+ /g, "Ctrl ")
-    .replace(/(Ctrl|Shift|Alt)\+\+/g, "$1+");
+    .replace(/(Ctrl|Shift|Alt)\+\+/g, "$1+")
+    .replace(/(?<![\w+])((?:Ctrl|Alt|Shift)\+\S+?) \/ \1(?![\w+])/gi, "$1")
+    .replace(/(?<![\w+])((?:Ctrl|Alt|Shift)\+[^\s()]+) \(\1\)/gi, "$1");
+  return keepBoxWidths(text, s);
+}
+
+/** a diagram's line that grew or shrank ("⌘K" → "Ctrl+K"): its last run of ─ takes the difference */
+function keepBoxWidths(before: string, after: string): string {
+  const was = before.split("\n");
+  return after
+    .split("\n")
+    .map((l, i) => {
+      const d = (was[i]?.length ?? l.length) - l.length;
+      if (!d || !/─{2,}[┐┘]( │)?$/.test(l)) return l;
+      return l.replace(/(─{2,})([┐┘](?: │)?)$/, (_m, run: string, end: string) => "─".repeat(Math.max(1, run.length + d)) + end);
+    })
+    .join("\n");
 }
 
 /** where the deck remembers what it wrote (to tell your edits from its own) */
 const STAMP = ".icebreaker/starthere.json";
+const DEV_DIR = "FOR DEVELOPERS";
 
 /** a short fingerprint of a text (not for security: "is it still what we wrote?") */
 function fingerprint(text: string): string {
@@ -978,20 +1035,41 @@ function fingerprint(text: string): string {
   return (h >>> 0).toString(36);
 }
 
+/** START HERE's notes in a language (the same names in both, so links and stamps hold) */
+let fr: Record<string, string> | undefined;
+export function startHereNotes(language: string = lang()): Record<string, string> {
+  return language === "fr" ? (fr ??= startHereFr(LOGO)) : START_HERE;
+}
+
+export interface SyncOptions {
+  /** rewrite the notes you changed too */
+  force?: boolean;
+  /** the deck's language (default: the one it speaks now) */
+  language?: string;
+  /** write FOR DEVELOPERS/ even if this vault never had it (`starthere dev`) */
+  dev?: boolean;
+  os?: DeckOS;
+}
+
 /**
  * Write START HERE into the vault, and keep it up to date: a missing note is
  * written; a note still exactly as the deck wrote it is replaced by the new
- * version; a note you changed is left alone (`force` rewrites it anyway).
- * Runs at every start, so every vault gets the docs of the deck it runs on.
+ * version — or by the other language's, when the deck's language changed; a note
+ * you changed is left alone (`force` rewrites it anyway); one you deleted stays
+ * deleted. FOR DEVELOPERS/ is kept up to date the same way, but only in a vault that
+ * has it (`starthere dev` writes it once). Runs at every start and when the
+ * language changes, so every vault gets the docs of the deck it runs on.
  * Returns how many notes were written, and which ones were kept because you edited them.
  */
-export async function writeStartHere(vault: Vault, force = false): Promise<number> {
-  const r = await syncStartHere(vault, force);
+export async function writeStartHere(vault: Vault, opts: SyncOptions = {}): Promise<number> {
+  const r = await syncStartHere(vault, opts);
   vault.docsYours = r.yours;
   return r.written;
 }
 
-export async function syncStartHere(vault: Vault, force = false): Promise<{ written: number; yours: string[] }> {
+export async function syncStartHere(vault: Vault, opts: SyncOptions = {}): Promise<{ written: number; yours: string[] }> {
+  const { force = false, os = thisOS() } = opts;
+  const language = opts.language ?? lang();
   let written = 0;
   const yours: string[] = [];
   let stamps: Record<string, string> = {};
@@ -1000,14 +1078,17 @@ export async function syncStartHere(vault: Vault, force = false): Promise<{ writ
   } catch {
     stamps = {};
   }
-  await vault.mkdir(`${DIR}`).catch(() => {});
-  await vault.mkdir("FOR DEVELOPERS").catch(() => {});
-  for (const [name, body] of Object.entries(START_HERE)) {
-    const path = name.startsWith("../") ? name.slice(3) : `${DIR}/${name}`;
-    const text = forThisOS(body);
+  const notes: [string, string][] = Object.entries(startHereNotes(language)).map(([n, b]) => [`${DIR}/${n}`, b]);
+  // the developers' notes: only where you asked for them once (their stamps say so)
+  const dev = opts.dev || Object.keys(stamps).some((k) => k.startsWith(`${DEV_DIR}/`));
+  if (dev) notes.push(...Object.entries(FOR_DEVELOPERS).map(([n, b]): [string, string] => [`${DEV_DIR}/${n}`, b]));
+  await vault.mkdir(DIR).catch(() => {});
+  if (dev) await vault.mkdir(DEV_DIR).catch(() => {});
+  for (const [path, body] of notes) {
+    const text = forThisOS(body, os);
     const there = await vault.exists(path);
-    // a note the deck wrote and you deleted stays deleted
-    if (!force && !there && stamps[path]) continue;
+    // a note the deck wrote and you deleted stays deleted (`starthere dev` brings its own back)
+    if (!force && !there && stamps[path] && !(opts.dev && path.startsWith(`${DEV_DIR}/`))) continue;
     if (!force && there) {
       const now = await vault.read(path).catch(() => "");
       if (now === text) {
@@ -1024,20 +1105,74 @@ export async function syncStartHere(vault: Vault, force = false): Promise<{ writ
     stamps[path] = fingerprint(text);
     written++;
   }
+  written += await syncWelcome(vault, stamps, language, os);
   await vault.write(STAMP, JSON.stringify(stamps, null, 2)).catch(() => {});
   return { written, yours };
+}
+
+/** the Welcome note of each language: its name, its text */
+const WELCOME: Record<"en" | "fr", [string, string]> = { en: ["Welcome.md", WELCOME_NOTE], fr: ["Bienvenue.md", WELCOME_NOTE_FR] };
+
+/**
+ * The Welcome note follows the language like START HERE: in a brand-new vault it's
+ * written (`fresh`); later, the other language's one — only if it's still exactly as the
+ * deck wrote it — becomes this language's (renamed, rewritten). Yours, it stays.
+ */
+async function syncWelcome(vault: Vault, stamps: Record<string, string>, language: string, os: DeckOS, fresh = false): Promise<number> {
+  const [name, body] = WELCOME[language === "fr" ? "fr" : "en"];
+  const [other] = WELCOME[language === "fr" ? "en" : "fr"];
+  const text = forThisOS(body, os);
+  if (fresh) {
+    await vault.write(name, text);
+    stamps[name] = fingerprint(text);
+    return 1;
+  }
+  if (!stamps[other] || (await vault.exists(name)) || !(await vault.exists(other))) return 0;
+  if (fingerprint(await vault.read(other).catch(() => "")) !== stamps[other]) return 0;
+  // the deck's own swap, not something to ⌘Z
+  const history = vault.history;
+  vault.history = undefined;
+  try {
+    await vault.rename(other, name);
+  } finally {
+    vault.history = history;
+  }
+  await vault.write(name, text);
+  delete stamps[other];
+  stamps[name] = fingerprint(text);
+  return 1;
+}
+
+/** A brand-new vault: its Welcome note, in the deck's language (stamped, so it can follow a language switch). */
+export async function writeWelcome(vault: Vault, language: string = lang()): Promise<void> {
+  let stamps: Record<string, string> = {};
+  try {
+    if (await vault.exists(STAMP)) stamps = JSON.parse(await vault.read(STAMP)) as Record<string, string>;
+  } catch {
+    stamps = {};
+  }
+  await syncWelcome(vault, stamps, language, thisOS(), true);
+  await vault.write(STAMP, JSON.stringify(stamps, null, 2)).catch(() => {});
 }
 
 export const startHereCommand: Command = {
   name: "starthere",
   aliases: ["docs"],
   summary: "write the START HERE notes (the docs) into your vault",
-  usage: "starthere          bring the docs up to date (notes you changed stay as they are)\nstarthere --force  rewrite them all (your changes to them go)",
+  usage: "starthere          bring the docs up to date, in the deck's language (notes you changed stay as they are)\nstarthere --force  rewrite them all (your changes to them go)\nstarthere dev      also write FOR DEVELOPERS/ (themes, modules, sound packs: English)",
+  examples: [
+    ["starthere", "the missing notes back, the untouched ones up to date"],
+    ["starthere dev", "the developers' notes, then kept up to date too"],
+  ],
   async run(ctx) {
-    const n = await writeStartHere(ctx.deck.vault, ctx.args.includes("--force"));
+    const dev = ctx.args.includes("dev");
+    const n = await writeStartHere(ctx.deck.vault, { force: ctx.args.includes("--force"), dev });
     await ctx.deck.vault.rescan();
-    ctx.out(n ? `START HERE: ${n} notes written — open START HERE/README\n` : "START HERE is already there (starthere --force rewrites it)\n");
-    if (n) void ctx.deck.openFile(`${DIR}/README.md`);
+    const open = dev ? `${DEV_DIR}/README.md` : `${DIR}/README.md`;
+    // the folder's name and the command keep their case (t() lowers the rest: the UI is lowercase)
+    const folder = dev ? DEV_DIR : DIR;
+    ctx.out(n ? `${t("{folder}: {n} notes written — open {note}", { folder, n, note: open.replace(/\.md$/, "") })}\n` : `${t("{folder} is already there ({cmd} rewrites it)", { folder, cmd: dev ? "starthere dev --force" : "starthere --force" })}\n`);
+    if (n) void ctx.deck.openFile(open);
     return 0;
   },
 };

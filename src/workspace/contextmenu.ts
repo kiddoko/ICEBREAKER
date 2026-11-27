@@ -1,6 +1,6 @@
 import { BOLD, type Rect } from "../core/grid";
 import type { Action, KeyInput } from "../core/input";
-import { uiCase } from "../core/i18n";
+import { keyName, uiCase } from "../core/i18n";
 import { osKeys } from "../core/keyhints";
 import { strWidth } from "../core/unicode";
 import type { MenuEntry, MenuItem, UI } from "../ui/ui";
@@ -194,7 +194,7 @@ export class ContextMenu implements Overlay {
         // so every label starts at the same place (the ◆ menu: pages ticked, the rest not)
         else if (marks) tx += 2;
         ui.text(tx, ry, e.label, { fg, bg, attrs: sel ? BOLD : 0, raw: true }, inner.w - (tx - inner.x) - (hintW ? hintW + 2 : 1)); // a name, never keys
-        const right = e.sub ? "▸" : osKeys(e.hint ?? "");
+        const right = e.sub ? "▸" : osKeys(keyName(e.hint ?? "")); // « espace », « entrée » on a French deck
         // a shortcut is a key; "shift+click", "ls -la" and the like stay words
         const isKey = !e.sub && !!e.hint && !/\s/.test(e.hint.trim()) && !/click/.test(e.hint);
         if (right) ui.textRight(inner.x + inner.w - 1, ry, right, { fg: sel ? c.panel : c.subtle, bg, key: isKey });

@@ -40,8 +40,9 @@ the deck at an existing Obsidian vault with `vault mount /path` or in Settings.
 - **The top row** is the frames' tabs (no menu bar), with **◆ icebreaker ▾** in its left
   corner (`F10`) — the deck's menu: modules, store, nexus, settings, help (each opens as a
   tab), what's new, updates, the setup again, the guided tour, log out, quit — and **uplink ■**
-  and the date in its right corner (a click: a **mini calendar**). A narrow window or a narrow
-  frame under a corner shortens it: **◆ ▾**, **■ 12:04**.
+  and the date in its right corner (a click: a **mini calendar**). A narrow window (under
+  about 1360 pixels — the 1280 one the app first opens too) or a narrow frame under a corner
+  shortens it: **◆ ▾**, **■ 12:04**.
 - **The trash** is the tree's last line; **◧ ▾ ◨ ▣** in the status bar show and hide the
   tree, the shell, the panel — **▣** leaves the page alone. Drag the status bar's items,
   right-click to group them.

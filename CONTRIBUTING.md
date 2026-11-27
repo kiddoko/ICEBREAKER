@@ -105,7 +105,7 @@ setting / shortcut / translation, and the traps. House rules for modules and the
 
 - `npm run check` and `cargo test` pass; the app builds and you tried the change in it.
 - The docs follow the behaviour: README, `docs/`, the `man` text of commands, the F1 manual
-  (`src/apps/help.ts`) **and the notes every vault gets** (`src/vault/starthere.ts`).
+  (`src/apps/help.ts`) **and the notes every vault gets** (`src/vault/starthere.ts`, and its French in `src/vault/starthere-fr.ts`).
 - A line in the CHANGELOG (the next version's section, *not released yet*), in plain words.
 
 ## Releases

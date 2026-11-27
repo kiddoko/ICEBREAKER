@@ -381,7 +381,7 @@ export class ChooseDialog implements Overlay {
     backdrop(ui, screen, () => this.finish(null));
     const w = Math.max(48, strWidth(this.title) + 8, ...this.options.map((o) => strWidth(o.label) + strWidth(o.hint ?? "") + 10));
     const box = centered(screen, Math.min(80, w), Math.min(this.options.length, 14) + 5);
-    const inner = ui.box(box, { title: "CHOOSE", focused: true, bg: c.panelAlt, info: `${this.list.items.length}` });
+    const inner = ui.box(box, { title: t("CHOOSE"), focused: true, bg: c.panelAlt, info: `${this.list.items.length}` });
     ui.text(inner.x + 1, inner.y, this.title, { fg: c.fg, attrs: BOLD }, inner.w - 2);
     this.input.render(ui, { x: inner.x, y: inner.y + 1, w: inner.w, h: 1 }, { focused: true, placeholder: t("type to filter") });
     const listRect = { x: inner.x, y: inner.y + 2, w: inner.w, h: inner.h - 2 };

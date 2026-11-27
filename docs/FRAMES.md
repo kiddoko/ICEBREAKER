@@ -43,7 +43,7 @@ stacked, moved, split, folded. This page is how it works and where it stands.
   `tab groupname <n> <name>`). A group of one dissolves; closed tabs leave their groups;
   groups are saved with the session (checked when read back).
 - **Step 3b, first part (done): tabs on every frame's border.** The top bar is one row:
-  **◆ ICEBREAKER ▾** (the deck's menu: MODULES, STORE, NEXUS, settings, the manual, what's
+  **◆ icebreaker ▾** (the deck's menu: MODULES, STORE, NEXUS, settings, the manual, what's
   new, updates, log out — `workspace/menus.ts` deckMenu; their keys and commands are
   unchanged), UPLINK ■ and the clock. Each frame's top is two rows: its tabs' names, then
   its line, where each tab's half-block bar sits (`tabbedBox`, `soloTab`, `chipStyle`,

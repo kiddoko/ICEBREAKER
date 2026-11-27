@@ -4,10 +4,19 @@
  * the catalog lists them all (kind "action").
  */
 import type { Deck } from "./deck";
+import { t } from "./core/i18n";
 import { applyFxPreset, FX_PRESET_NAMES, FX_PRESETS } from "./workspace/fxpanel";
 import { scriptsMenu } from "./shell/commands/scripts";
 import { pickFolder } from "./workspace/filebrowser";
 import { q } from "./ui/ui";
+
+/**
+ * THE MENU's effects presets, their titles in the deck's language (written once: a language
+ * switch registers them again — deck.followLanguage — or ⌘K kept the old language until a restart).
+ */
+export function registerFxActions(deck: Deck): void {
+  for (const p of FX_PRESET_NAMES) deck.actions.register({ id: `fx.${p}`, title: `${t("Effects")}: ${p} — ${t(FX_PRESETS[p].hint)}`, run: () => applyFxPreset(deck, p), group: "fx" });
+}
 
 export function registerCoreActions(deck: Deck): void {
   const act = (id: string, title: string, run: () => void, hint?: string, group = "deck") => deck.actions.register({ id, title, run, hint, group });
@@ -46,7 +55,7 @@ export function registerCoreActions(deck: Deck): void {
   act("view.zoomout", "Zoom out", () => deck.zoom(-1), "ctrl+-", "view");
   act("view.osk", "On-screen keyboard", () => deck.workspace.toggleOsk(), "pad X", "view");
   act("fx.panel", "Visual effects… (bloom, scanlines, vignette)", () => deck.workspace.fxPanel(), "✦ fx", "fx");
-  for (const p of FX_PRESET_NAMES) act(`fx.${p}`, `Effects: ${p} — ${FX_PRESETS[p].hint}`, () => applyFxPreset(deck, p), undefined, "fx");
+  registerFxActions(deck);
   act("fx.rain", "Screensaver", () => deck.screensaver(), undefined, "fx");
   act("deck.reboot", "Reboot (replay boot sequence)", () => deck.reboot(), undefined, "deck");
   act("deck.quit", "Quit ICEBREAKER", () => void deck.quit(), undefined, "deck");
